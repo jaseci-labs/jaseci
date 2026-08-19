@@ -112,9 +112,206 @@ enum CodeContext {
     }
 }
 
-enum EdgeDir { IN = 1, OUT = 2, ANY = 3 }
+enum EdgeDir: int { IN = 1, OUT = 2, ANY = 3 }
 
-enum OwnershipKind { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, VAL = 4 }
+enum ParamKind: int { POSONLY = 0, NORMAL = 1, VARARG = 2, KWONLY = 3, KWARG = 4 }
+
+enum ExprCtx { LOAD = 'load', STORE = 'store', DEL = 'del' }
+
+enum OwnershipKind: int { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     ),
+     NATIVE_ERASED_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"}),
+     NATIVE_ERASED_ANNOTATIONS: frozenset = frozenset({"ClassVar"});
+
+glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
+         {
+             "window",
+             "document",
+             "navigator",
+             "localStorage",
+             "sessionStorage",
+             "requestAnimationFrame",
+             "cancelAnimationFrame",
+             "requestIdleCallback",
+             "setTimeout",
+             "setInterval",
+             "clearTimeout",
+             "clearInterval",
+             "Promise",
+             "Date",
+             "fetch",
+             "performance",
+             "IntersectionObserver",
+             "ResizeObserver",
+             "MutationObserver",
+             "AbortController",
+             "URLSearchParams",
+             "FormData",
+             "Blob",
+             "FileReader",
+             "WebSocket",
+             "CustomEvent",
+             "structuredClone",
+             "atob",
+             "btoa"
+         }
+     ),
+     BUILTIN_CALLABLE_NAMES: frozenset[str] = frozenset(
+         {
+             "ArithmeticError",
+             "AssertionError",
+             "AttributeError",
+             "BaseException",
+             "BaseExceptionGroup",
+             "BlockingIOError",
+             "BrokenPipeError",
+             "BufferError",
+             "BytesWarning",
+             "ChildProcessError",
+             "ConnectionAbortedError",
+             "ConnectionError",
+             "ConnectionRefusedError",
+             "ConnectionResetError",
+             "DeprecationWarning",
+             "EOFError",
+             "EncodingWarning",
+             "EnvironmentError",
+             "Exception",
+             "ExceptionGroup",
+             "FileExistsError",
+             "FileNotFoundError",
+             "FloatingPointError",
+             "FutureWarning",
+             "GeneratorExit",
+             "IOError",
+             "ImportError",
+             "ImportWarning",
+             "IndentationError",
+             "IndexError",
+             "InterruptedError",
+             "IsADirectoryError",
+             "KeyError",
+             "KeyboardInterrupt",
+             "LookupError",
+             "MemoryError",
+             "ModuleNotFoundError",
+             "NameError",
+             "NotADirectoryError",
+             "NotImplementedError",
+             "OSError",
+             "OverflowError",
+             "PendingDeprecationWarning",
+             "PermissionError",
+             "ProcessLookupError",
+             "PythonFinalizationError",
+             "RecursionError",
+             "ReferenceError",
+             "ResourceWarning",
+             "RuntimeError",
+             "RuntimeWarning",
+             "StopAsyncIteration",
+             "StopIteration",
+             "SyntaxError",
+             "SyntaxWarning",
+             "SystemError",
+             "SystemExit",
+             "TabError",
+             "TimeoutError",
+             "TypeError",
+             "UnboundLocalError",
+             "UnicodeDecodeError",
+             "UnicodeEncodeError",
+             "UnicodeError",
+             "UnicodeTranslateError",
+             "UnicodeWarning",
+             "UserWarning",
+             "ValueError",
+             "Warning",
+             "ZeroDivisionError",
+             "_IncompleteInputError",
+             "__build_class__",
+             "__import__",
+             "__loader__",
+             "abs",
+             "aiter",
+             "all",
+             "anext",
+             "any",
+             "ascii",
+             "bin",
+             "bool",
+             "breakpoint",
+             "bytearray",
+             "bytes",
+             "callable",
+             "chr",
+             "classmethod",
+             "compile",
+             "complex",
+             "copyright",
+             "credits",
+             "delattr",
+             "dict",
+             "dir",
+             "divmod",
+             "enumerate",
+             "eval",
+             "exec",
+             "exit",
+             "filter",
+             "float",
+             "format",
+             "frozenset",
+             "getattr",
+             "globals",
+             "hasattr",
+             "hash",
+             "help",
+             "hex",
+             "id",
+             "input",
+             "int",
+             "isinstance",
+             "issubclass",
+             "iter",
+             "len",
+             "license",
+             "list",
+             "locals",
+             "map",
+             "max",
+             "memoryview",
+             "min",
+             "next",
+             "object",
+             "oct",
+             "open",
+             "ord",
+             "pow",
+             "print",
+             "property",
+             "quit",
+             "range",
+             "repr",
+             "reversed",
+             "round",
+             "set",
+             "setattr",
+             "slice",
+             "sorted",
+             "staticmethod",
+             "str",
+             "sum",
+             "super",
+             "tuple",
+             "type",
+             "vars",
+             "zip"
+         }
+     );
 
 
 enum ImmutabilityKind { NONE = 0, FINAL = 1, READONLY = 2 }
@@ -237,7 +434,6 @@ class Tokens(StrEnum) {
         KW_ELIF = 'KW_ELIF';
         KW_ELSE = 'KW_ELSE';
         KW_FOR = 'KW_FOR';
-        KW_TO = 'KW_TO';
         KW_BY = 'KW_BY';
         KW_WHILE = 'KW_WHILE';
         KW_FOREVER = 'KW_FOREVER';
@@ -281,9 +477,6 @@ class Tokens(StrEnum) {
         KW_SWITCH = 'KW_SWITCH';
         KW_CASE = 'KW_CASE';
         KW_DEFAULT = 'KW_DEFAULT';
-        KW_CLIENT = 'KW_CLIENT';
-        KW_SERVER = 'KW_SERVER';
-        KW_NATIVE = 'KW_NATIVE';
         PLUS = 'PLUS';
         MINUS = 'MINUS';
         STAR_MUL = 'STAR_MUL';
@@ -315,8 +508,6 @@ class Tokens(StrEnum) {
         CARROW_L_P2 = 'CARROW_L_P2';
         CARROW_R_P1 = 'CARROW_R_P1';
         CARROW_R_P2 = 'CARROW_R_P2';
-        GLOBAL_OP = 'GLOBAL_OP';
-        NONLOCAL_OP = 'NONLOCAL_OP';
         KW_HERE = 'KW_HERE';
         KW_VISITOR = 'KW_VISITOR';
         KW_SELF = 'KW_SELF';
@@ -421,7 +612,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'F_TEXT_TSQ': '',
          'F_TSQ_END': "'''",
          'F_TSQ_START': "f'''",
-         'GLOBAL_OP': 'global',
          'GT': '>',
          'GTE': '>=',
          'HEX': '0x',
@@ -435,7 +625,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'JSX_TAG_END': '>',
          'JSX_TEXT': '',
          'KWESC_NAME': '`',
-         'KW_ABSTRACT': 'abs',
+         'KW_ABSTRACT': 'abst',
          'KW_AND': 'and',
          'KW_AS': 'as',
          'KW_ASSERT': 'assert',
@@ -446,7 +636,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_CAN': 'can',
          'KW_CASE': 'case',
          'KW_CLASS': 'class',
-         'KW_CLIENT': 'cl',
          'KW_CONTINUE': 'continue',
          'KW_DEF': 'def',
          'KW_DEFAULT': 'default',
@@ -477,7 +666,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_ISN': 'is not',
          'KW_LAMBDA': 'lambda',
          'KW_MATCH': 'match',
-         'KW_NATIVE': 'na',
          'KW_NIN': 'not in',
          'KW_NODE': 'node',
          'KW_OBJECT': 'obj',
@@ -495,14 +683,12 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_ROOT': 'root',
          'KW_SELF': 'self',
          'KW_SEM': 'sem',
-         'KW_SERVER': 'sv',
          'KW_SKIP': 'skip',
          'KW_SPAWN': 'spawn',
          'KW_STATIC': 'static',
          'KW_SUPER': 'super',
          'KW_SWITCH': 'switch',
          'KW_TEST': 'test',
-         'KW_TO': 'to',
          'KW_TRY': 'try',
          'KW_VISIT': 'visit',
          'KW_VISITOR': 'visitor',
@@ -525,7 +711,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'MUL_EQ': '*=',
          'NAME': '',
          'NE': '!=',
-         'NONLOCAL_OP': 'nonlocal',
          'NOT': 'not',
          'NULL': 'None',
          'NULL_OK': '?',
@@ -574,7 +759,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'WALRUS_EQ': ':=',
          'WS': ' '
      },
-     DELIM_MAP = {
+     DELIM_MAP: dict[Tokens, str] = {
          Tokens.COMMA: ',',
          Tokens.EQ: '=',
          Tokens.DECOR_OP: '@',
@@ -617,3 +802,11 @@ glob TOKEN_MAP: dict[str, str] = {
          '#F8F8FF',
          '#F0FFFF'
      ];
+
+glob NON_ESCAPED_KEYWORDS: set = {'float', 'int', 'str', 'bool', 'self'};
+
+glob RESERVED_IDENT_NAMES: set = {
+         v
+         for v in TOKEN_MAP.values()
+         if v not in NON_ESCAPED_KEYWORDS
+     };

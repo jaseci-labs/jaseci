@@ -111,8 +111,8 @@ impl UnparsePass.exit_sub_tag(nd: uni.SubTag) -> None {
         prefix = "&mut ";
     } elif nd.ownership == OwnershipKind.BORROW {
         prefix = "&";
-    } elif nd.ownership == OwnershipKind.VAL {
-        prefix = "val ";
+    } elif nd.ownership == OwnershipKind.IMM {
+        prefix = "imm ";
     }
     nd.gen.jac = ": " + prefix + nd.tag.gen.jac;
 }
@@ -142,7 +142,7 @@ impl UnparsePass.exit_type_alias(nd: uni.TypeAlias) -> None {
         tp_str = ", ".join([tp.gen.jac for tp in nd.type_params]);
         parts.append("[" + tp_str + "]");
     }
-    parts.append("=");
+    parts.append(":=" if nd.is_distinct else "=");
     parts.append(nd.value.gen.jac);
     nd.gen.jac = " ".join(parts);
 }
@@ -152,7 +152,7 @@ impl UnparsePass.exit_global_vars(nd: uni.GlobalVars) -> None {
     if nd.doc {
         parts.append(nd.doc.gen.jac);
     }
-    parts.append("global");
+    parts.append("glob");
     if nd.access {
         parts.append(nd.access.gen.jac);
     }
@@ -189,21 +189,6 @@ impl UnparsePass.exit_module_code(nd: uni.ModuleCode) -> None {
     body = " ".join([s.gen.jac for s in nd.body]);
     parts.append("{ " + body + " }");
     nd.gen.jac = " ".join(parts);
-}
-
-impl UnparsePass.exit_client_block(nd: uni.ClientBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "client { " + body + " }";
-}
-
-impl UnparsePass.exit_server_block(nd: uni.ServerBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "server { " + body + " }";
-}
-
-impl UnparsePass.exit_native_block(nd: uni.NativeBlock) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "native { " + body + " }";
 }
 
 impl UnparsePass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
@@ -276,8 +261,10 @@ impl UnparsePass.exit_archetype(nd: uni.Archetype) -> None {
         tp_str = ", ".join([tp.gen.jac for tp in nd.type_params]);
         parts.append("[" + tp_str + "]");
     }
-    if nd.base_classes {
-        parts.append("(" + self._comma_sep(nd.base_classes) + ")");
+    if nd.base_classes or nd.keywords {
+        inherit = [b.gen.jac for b in nd.base_classes]
+            + [k.gen.jac for k in nd.keywords];
+        parts.append("(" + ", ".join(inherit) + ")");
     }
     if nd.src_endpoint and nd.tgt_endpoint {
         parts.append(
@@ -510,9 +497,9 @@ impl UnparsePass.exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
     nd.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_region_stmt(nd: uni.RegionStmt) -> None {
+impl UnparsePass.exit_open_stmt(nd: uni.OpenStmt) -> None {
     body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "region { " + body + " }";
+    nd.gen.jac = "in " + nd.target.gen.jac + " { " + body + " }";
 }
 
 impl UnparsePass.exit_if_stmt(nd: uni.IfStmt) -> None {
@@ -581,15 +568,14 @@ impl UnparsePass.exit_finally_stmt(nd: uni.FinallyStmt) -> None {
 }
 
 impl UnparsePass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
-    parts: list = ["for"];
-    if nd.is_async {
-        parts.append("async");
-    }
+    parts: list = ["async for" if nd.is_async else "for"];
     parts.append(nd.iter.gen.jac);
     if nd.condition {
+        parts.append("while");
         parts.append(nd.condition.gen.jac);
     }
     if nd.count_by {
+        parts.append("with");
         parts.append(nd.count_by.gen.jac);
     }
     body = " ".join([s.gen.jac for s in nd.body]);
@@ -685,6 +671,10 @@ impl UnparsePass.exit_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl UnparsePass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
+    if nd.is_implicit and nd.expr {
+        nd.gen.jac = nd.expr.gen.jac;
+        return;
+    }
     parts: list = ["return"];
     if nd.expr {
         parts.append(nd.expr.gen.jac);
@@ -719,14 +709,6 @@ impl UnparsePass.exit_cast_expr(nd: uni.CastExpr) -> None {
     nd.gen.jac = nd.value.gen.jac + " as " + nd.cast_type.gen.jac;
 }
 
-impl UnparsePass.exit_global_stmt(nd: uni.GlobalStmt) -> None {
-    nd.gen.jac = "global " + self._comma_sep(nd.target) + ";";
-}
-
-impl UnparsePass.exit_non_local_stmt(nd: uni.NonLocalStmt) -> None {
-    nd.gen.jac = "nonlocal " + self._comma_sep(nd.target) + ";";
-}
-
 impl UnparsePass.exit_assignment(nd: uni.Assignment) -> None {
     parts: list = [];
     targets = " = ".join([t.gen.jac for t in nd.target]);
@@ -746,10 +728,10 @@ impl UnparsePass.exit_assignment(nd: uni.Assignment) -> None {
     result = " ".join(parts);
 
     if not nd.is_enum_stmt
-    and not (
-        isinstance(nd.parent, uni.IterForStmt)
-        and (nd == nd.parent.iter or nd == nd.parent.count_by)
-    ) {
+        and not (
+            isinstance(nd.parent, uni.IterForStmt)
+            and (nd == nd.parent.iter or nd == nd.parent.count_by)
+        ) {
         result = result + ";";
     }
     nd.gen.jac = result;
@@ -808,7 +790,11 @@ impl UnparsePass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
 }
 
 impl UnparsePass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
-    nd.gen.jac = nd.value.gen.jac + " if " + nd.condition.gen.jac + " else " + nd.else_value.gen.jac;
+    nd.gen.jac = nd.value.gen.jac
+        + " if "
+        + nd.condition.gen.jac
+        + " else "
+        + nd.else_value.gen.jac;
 }
 
 impl UnparsePass.exit_multi_string(nd: uni.MultiString) -> None {

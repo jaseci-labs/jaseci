@@ -8,7 +8,6 @@ glob _forgot_password_limiter: InProcessRateLimiter | None = None,
      _send_verification_limiter: InProcessRateLimiter | None = None;
 
 def _get_identity_limiters -> tuple[InProcessRateLimiter, InProcessRateLimiter] {
-    global _forgot_password_limiter,_send_verification_limiter;
     if _forgot_password_limiter is None or _send_verification_limiter is None {
         auth_cfg = get_scale_config().get_auth_config();
         fp_rate_per_hour = float(auth_cfg.get('forgot_password_rate_per_hour', 3));
@@ -27,7 +26,7 @@ def _get_identity_limiters -> tuple[InProcessRateLimiter, InProcessRateLimiter] 
     return (_forgot_password_limiter, _send_verification_limiter);
 }
 
-def _normalize_identity(identity_input: Any) -> tuple[str, str, str] {
+def _normalize_identity(identity_input: any) -> tuple[str, str, str] {
     identity = identity_input.model_dump(mode='json');
     id_type = identity.get('type', '');
     raw_value = identity.get('value', '') or '';
@@ -61,9 +60,9 @@ def _issue_link_token(
 }
 
 def _fail(
-    code: str, message: str, status: int, extra: dict[str, Any] | None = None
+    code: str, message: str, status: int, extra: dict[str, any] | None = None
 ) -> TransportResponse {
-    meta_extra: dict[str, Any] = {'http_status': status};
+    meta_extra: dict[str, any] = {'http_status': status};
     if extra {
         meta_extra.update(extra);
     }
@@ -73,9 +72,9 @@ def _fail(
 }
 
 def _ok(
-    data: dict[str, Any], status: int = 200, extra: dict[str, Any] | None = None
+    data: dict[str, any], status: int = 200, extra: dict[str, any] | None = None
 ) -> TransportResponse {
-    meta_extra: dict[str, Any] = {'http_status': status};
+    meta_extra: dict[str, any] = {'http_status': status};
     if extra {
         meta_extra.update(extra);
     }
@@ -158,7 +157,7 @@ impl JacAPIServerAuth.register_send_verification_endpoint -> None {
             return _fail('NOT_FOUND', 'User not found', 404);
         }
 
-        target: dict[str, Any] | None = None;
+        target: dict[str, any] | None = None;
         for ident in user.get('identities', []) {
             if ident.get('type') != 'email' {
                 continue;
@@ -266,7 +265,7 @@ impl JacAPIServerAuth.register_verify_identity_endpoint -> None {
             if user is not None {
                 for ident in user.get('identities', []) {
                     if (ident.get('value_normalized') or '') == identity_value
-                    and ident.get('verified') {
+                        and ident.get('verified') {
                         _audit_emit(
                             'identity_verification.already_verified',
                             user_id=user_id,

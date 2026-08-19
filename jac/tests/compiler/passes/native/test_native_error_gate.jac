@@ -1,6 +1,6 @@
 """Tests for the native error gate (issue #7239).
 
-A native module that accumulates codegen-time errors (E5090 and
+A native module that accumulates codegen-time errors (E5092 and
 friends) must not publish any artifact: no llvm ir, no jit engine, no
 python bytecode, and no .jir cache entry. Importing such a module must
 fail loudly with the real diagnostics, and the check path must surface
@@ -11,6 +11,7 @@ the poisoned artifact anyway, so every later run executed silently with
 holes in the code (exit 0, zero diagnostics).
 """
 
+import from tests.support { native_force_opts }
 import os;
 import tempfile;
 import from jaclang.jac0core.program { JacProgram }
@@ -19,7 +20,7 @@ import from jaclang.jac0core.runtime { JacRuntime }
 
 # `eval` of a runtime string can never be lowered on the na pathway: it
 # would need an embedded interpreter inside the AOT-compiled binary. The
-# E5090 fires deep inside NaIRGenPass codegen and, crucially, is NOT caught
+# E5092 fires deep inside NaIRGenPass codegen and, crucially, is NOT caught
 # by the up-front capability blacklist -- that makes it the exact "drift"
 # class of error the gate exists for. (An earlier version leaned on
 # for-loop tuple destructuring, but #7238 later lowered that construct
@@ -70,11 +71,11 @@ def fmt_errors(prog: JacProgram) -> str {
 }
 
 test "na codegen errors withhold the native artifact" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     prog = JacProgram();
-    mod = prog.compile(file_path=src);
-    assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 from native codegen, got: {fmt_errors(prog)}"
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert has_error_code(prog, "E5092") , (
+        f"Expected E5092 from native codegen, got: {fmt_errors(prog)}"
     );
     assert mod.gen.llvm_ir is None , (
         "a module with native codegen errors must not publish llvm ir"
@@ -84,42 +85,45 @@ test "na codegen errors withhold the native artifact" {
     );
 }
 
-test "na codegen errors produce no bytecode and no jir cache" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
-    cache_path = get_module_cache_path(src);
+test "inferred module that cannot lower natively demotes to working bytecode" {
+    # With the .na.jac marker retired, an importable module has no way to
+    # *mandate* native: preference-driven inference demotes on lowering
+    # failure and the server bytecode must be complete, never a poisoned
+    # half-native artifact. (The loud error gate lives on the forced path --
+    # see "na codegen errors withhold the native artifact".)
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     bc = JacProgram().get_bytecode(src);
-    assert bc is None , (
-        "get_bytecode must refuse to return runnable bytecode for a native "
-        "module whose codegen errored"
-    );
-    assert not os.path.exists(cache_path) , (
-        f"a poisoned jir must never be written to the cache: {cache_path}"
-    );
-    bc2 = JacProgram().get_bytecode(src);
-    assert bc2 is None , (
-        "second lookup must re-diagnose, not silently succeed off a "
-        "poisoned cache entry"
+    assert bc is not None , (
+        "an inferred module whose native codegen errors must demote to a "
+        "complete server bytecode, not fail"
     );
 }
 
-test "import of an erroring na module raises with the diagnostics" {
-    src = write_module("gate_bad_import.na.jac", BAD_NA_SOURCE);
-    caught = "";
-    try {
-        JacRuntime.jac_import(target="gate_bad_import", base_path=os.path.dirname(src));
-    } except ImportError as e {
-        caught = str(e);
-    }
-    assert "E5090" in caught , (
-        f"import must fail loudly with the native diagnostics, got: {caught!r}"
+test "import of a natively-unlowerable module demotes and succeeds" {
+    # Marker-era pin was "import fails loudly": with placement inferred, the
+    # import instead lands on the server fallback and must succeed.
+    src = write_module("gate_bad_import.jac", BAD_NA_SOURCE);
+    (mod, _) = (None, None);
+    mod = JacRuntime.jac_import(
+        target="gate_bad_import", base_path=os.path.dirname(src)
     );
+    assert mod is not None , "demoted module must import cleanly";
 }
 
 test "check-path compile surfaces native codegen errors (check/run parity)" {
-    src = write_module("gate_bad_check.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad_check.jac", BAD_NA_SOURCE);
     prog = JacProgram();
-    prog.compile(file_path=src, type_check=True, no_cgen=True);
-    assert has_error_code(prog, "E5090") , (
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog.compile(
+        file_path=src,
+        options=CompileOptions(
+            type_check=True,
+            no_cgen=True,
+            force_codespace="native",
+            force_target_program=True
+        )
+    );
+    assert has_error_code(prog, "E5092") , (
         f"`jac check` path must report the same native errors `jac run` "
         f"does, got: {fmt_errors(prog)}"
     );
@@ -137,9 +141,9 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
 }
 
 test "clean na module still publishes artifacts and caches" {
-    src = write_module("gate_good.na.jac", GOOD_NA_SOURCE);
+    src = write_module("gate_good.jac", GOOD_NA_SOURCE);
     prog = JacProgram();
-    mod = prog.compile(file_path=src);
+    mod = prog.compile(file_path=src, options=native_force_opts());
     assert not prog.errors_had , f"unexpected errors: {fmt_errors(prog)}";
     assert mod.gen.llvm_ir is not None , ("clean na module must still publish llvm ir");
     bc = JacProgram().get_bytecode(src);

@@ -1,22 +1,16 @@
-"""WebSocket connection management for Jac Scale.
-
-Tracks live connections per target and per user, enforces connection caps and
-per-send timeouts, and fans broadcasts out through a pluggable backplane so
-they reach every worker.
-"""
 import asyncio;
 import logging;
 import time;
 import uuid;
 import from asyncio { Lock }
-import from fastapi { WebSocket, WebSocketDisconnect }
+import from jaclang.runtimelib.serving.ws { WebSocket }
+import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
 import from inspect { isgenerator }
 import from jaclang.scale.websocket.backplane { BaseBackplane, MemoryBackplane }
 
 glob logger = logging.getLogger(__name__),
      _WS_STREAM_STOP: any = object();
 
-"""Per-connection state: identity, auth expiry, rate-limit bucket, heartbeat."""
 obj ConnectionContext {
     has websocket: WebSocket,
         target_kind: str,
@@ -30,7 +24,6 @@ obj ConnectionContext {
         closed: bool = False;
 }
 
-"""Connection manager: tracks active WS contexts per (kind:name) and per user."""
 obj WebSocketConnectionManager {
     has _by_target: dict[str, dict[str, ConnectionContext]] = {},
         _by_user: dict[str, int] = {},

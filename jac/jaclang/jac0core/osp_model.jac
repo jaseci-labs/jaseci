@@ -82,6 +82,23 @@ obj OspModel {
 }
 
 
+def get_osp_model(
+    module: uni.Module,
+    archetypes: (list[uni.Archetype] | None) = None,
+    context: (CodeContext | None) = None
+) -> OspModel {
+    existing = module.gen.osp_model;
+    if existing is not None {
+        return existing;
+    }
+    archs = archetypes
+        if archetypes is not None
+        else module.get_all_sub_nodes(uni.Archetype);
+    model = OspAnalysis.compute(module, archs, context);
+    module.gen.osp_model = model;
+    return model;
+}
+
 obj OspAnalysis {
     static def head_name(nd: (uni.UniNode | None)) -> (str | None) {
         cur = nd;
@@ -142,7 +159,7 @@ obj OspAnalysis {
         }
         for stmt in arch.body {
             if (not isinstance(stmt, uni.Ability))
-            or (not isinstance(stmt.signature, uni.EventSignature)) {
+                or (not isinstance(stmt.signature, uni.EventSignature)) {
                 continue;
             }
             _ability = stmt.name_ref.sym_name if stmt.name_ref else None;
@@ -235,8 +252,8 @@ obj OspAnalysis {
                     return True;
                 }
                 if isinstance(nd, uni.BinaryExpr)
-                and isinstance(nd.op, uni.Token)
-                and (nd.op.name == Tok.KW_SPAWN) {
+                    and isinstance(nd.op, uni.Token)
+                    and (nd.op.name == Tok.KW_SPAWN) {
                     return True;
                 }
                 for k in nd.kid {

@@ -2,6 +2,19 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.parser.tokens { TokenKind }
 
+def is_nil_expr(nd: object) -> bool {
+    if isinstance(nd, uni.CfgExpr) {
+        return is_nil_expr(nd.expr);
+    }
+    if isinstance(nd, uni.Null) {
+        return True;
+    }
+    if isinstance(nd, uni.Name) {
+        return nd.value == "NIL";
+    }
+    return False;
+}
+
 obj GExpr {
     def __eq__(other: object) -> bool;
     def __repr__ -> str;
@@ -43,7 +56,8 @@ obj GPlus(GExpr) {
 }
 
 obj GTok(GExpr) {
-    has name: str;
+    has name: str,
+        from_guard: bool = False;
 
     def __eq__(other: object) -> bool;
     def __repr__ -> str;
@@ -73,18 +87,23 @@ obj MethodSemantics {
 
 glob METHOD_TABLE: dict[str, MethodSemantics] = {
          "expect": MethodSemantics(kind="consume", token_args=True),
+         "expect_any": MethodSemantics(kind="consume", token_args=True),
          "consume_uni": MethodSemantics(kind="consume", token_args=True),
          "match_tok": MethodSemantics(kind="consume_opt", token_args=True),
+         "match_any": MethodSemantics(kind="consume_opt", token_args=True),
          "expect_name": MethodSemantics(kind="consume_name", token_args=False),
          "advance": MethodSemantics(kind="consume_raw", token_args=False),
          "check": MethodSemantics(kind="lookahead", token_args=True),
          "check_any": MethodSemantics(kind="lookahead_any", token_args=True),
-         "check_peek": MethodSemantics(kind="lookahead", token_args=True),
-         "check_peek_any": MethodSemantics(kind="lookahead_any", token_args=True),
+         "check_peek": MethodSemantics(kind="lookahead_peek", token_args=True),
+         "check_peek_any": MethodSemantics(kind="lookahead_peek_any", token_args=True),
          "check_name": MethodSemantics(kind="lookahead", token_args=False),
          "is_keyword_token": MethodSemantics(kind="lookahead", token_args=False),
+         "is_builtin_type_token": MethodSemantics(kind="lookahead", token_args=False),
          "at_end": MethodSemantics(kind="lookahead", token_args=False),
          "error": MethodSemantics(kind="ignore", token_args=False),
+         "emit_diag": MethodSemantics(kind="ignore", token_args=False),
+         "emit_warn": MethodSemantics(kind="ignore", token_args=False),
          "make_uni_token": MethodSemantics(kind="ignore", token_args=False),
          "make_name": MethodSemantics(kind="ignore", token_args=False),
          "make_special_name": MethodSemantics(kind="ignore", token_args=False),
@@ -106,7 +125,30 @@ glob METHOD_TABLE: dict[str, MethodSemantics] = {
      },
      SPECIAL_LOOKAHEAD_TOKENS: dict[str, list] = {
          "check_name": ["NAME", "KWESC_NAME"],
-         "is_keyword_token": ["NAME"]
+         "is_keyword_token": ["NAME"],
+         "is_builtin_type_token": [
+             "TYP_STRING",
+             "TYP_INT",
+             "TYP_FLOAT",
+             "TYP_LIST",
+             "TYP_TUPLE",
+             "TYP_SET",
+             "TYP_DICT",
+             "TYP_BOOL",
+             "TYP_BYTES",
+             "TYP_ANY",
+             "TYP_TYPE",
+             "TYP_I8",
+             "TYP_U8",
+             "TYP_I16",
+             "TYP_U16",
+             "TYP_I32",
+             "TYP_U32",
+             "TYP_I64",
+             "TYP_U64",
+             "TYP_F32",
+             "TYP_F64"
+         ]
      };
 
 obj ConditionResult {
@@ -117,11 +159,28 @@ obj ConditionResult {
 
 obj GrammarExtractPass(UniPass) {
     has rules: list = [],
-        target_class: str = "Parser";
+        target_class: str = "Parser",
+        diagnostics: list = [],
+        _parse_impls: list = [],
+        _rule_firsts: dict = {},
+        _current_rule: str = "",
+        _none_returning: dict = {},
+        _helper_bodies: dict = {};
 
     def before_pass -> None;
     def enter_impl_def(nd: uni.ImplDef) -> None;
     def after_pass -> None;
+    def _interpret_all -> list;
+    def _compute_rule_firsts(rules: list) -> dict;
+    def _compute_rule_firsts_deep(rules: list) -> dict;
+    def _returns_none(nd: uni.ImplDef) -> bool;
+    def _has_diag_call(stmts: list) -> bool;
+    def _always_returns(stmts: list) -> bool;
+    def _chain_is_exhaustive(stmt: uni.IfStmt) -> bool;
+    def _tok_set_expr(tokens: list) -> GExpr | None;
+    def _collect_strict_diags(rule_name: str, stmts: list) -> None;
+    def _walk_strict(rule_name: str, nd: uni.UniNode) -> None;
+    def emit_diagnostics -> str;
     def format_ebnf(expr: GExpr) -> str;
     def simplify_expr(expr: GExpr) -> GExpr;
     def interpret_stmts(stmts: list) -> GExpr | None;
@@ -147,6 +206,13 @@ obj GrammarExtractPass(UniPass) {
     def _stage_simplify(rules: list) -> list;
     def _stage_unwrap_top_opt(rules: list) -> list;
     def _stage_dedup_tokens(rules: list) -> list;
+    def _stage_elide_covered_guards(rules: list) -> list;
+    def _elide_guards_in_expr(expr: GExpr) -> GExpr;
+    def _guard_tok_set(expr: GExpr) -> set | None;
+    def _stage_inline_aliases(rules: list) -> list;
+    def _replace_refs(expr: GExpr, mapping: dict) -> GExpr;
+    def _stage_fold_token_sets(rules: list) -> list;
+    def _fold_tokens_in_expr(expr: GExpr, candidates: list, current: str) -> GExpr;
     def _stage_remove_errors(rules: list) -> list;
     def _is_redundant_slot_wrap_recovery(expr: GExpr) -> bool;
     def _strip_lambda_body_recovery(body: GExpr) -> GExpr;

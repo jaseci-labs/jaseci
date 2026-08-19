@@ -5,7 +5,7 @@ import jaclang.jac0core.unitree as uni;
 import type from jaclang.jac0core.unitree { UniNode, UniScopeNode }
 
 glob id_bag: dict = {},
-     id_used: int = 0,
+     id_state: dict = {"used": 0},
      CLASS_COLOR_MAP: dict[(str, str)] = {
          'Expr': '#fbeb93',
          'AtomExpr': '#fbeb93',
@@ -65,8 +65,6 @@ glob id_bag: dict = {},
          'DisengageStmt': '#d8f3dc',
          'AwaitExpr': '#fbeb93',
          'CastExpr': '#fbeb93',
-         'GlobalStmt': '#ffc596',
-         'NonLocalStmt': '#ffc596',
          'Assignment': '#ffc596',
          'BinaryExpr': '#fbeb93',
          'CompareExpr': '#fbeb93',
@@ -127,6 +125,26 @@ glob id_bag: dict = {},
          'Semi': '#f1cfc4'
      };
 
+def node_to_dict(nd: UniNode) -> dict[(str, str)] {
+    ret = {
+        'node': str(`type(nd).__name__),
+        'kid': str(
+            [
+                node_to_dict(x)
+                for x in nd.kid
+                if x
+            ]
+        ),
+        'line': str(nd.loc.first_line),
+        'col': str(nd.loc.col_start)
+    };
+    if isinstance(nd, uni.Token) {
+        ret['name'] = nd.name;
+        ret['value'] = nd.value;
+    }
+    return ret;
+}
+
 def printgraph_ast_tree(
     root_node: UniNode, dot_lines: (list[str] | None) = None
 ) -> str {
@@ -137,10 +155,9 @@ def printgraph_ast_tree(
     }
     """Generate number for each nodes.""";
     def gen_node_id(nd: uni.UniNode) -> int {
-        global id_used;
         if (id(nd) not in id_bag) {
-            id_bag[id(nd)] = id_used;
-            id_used += 1;
+            id_bag[id(nd)] = id_state["used"];
+            id_state["used"] += 1;
         }
         return id_bag[id(nd)];
     }
@@ -434,7 +451,8 @@ def get_symtab_tree_str(
                 ('|' + (' ' * (len(marker) - 1))) if draw else (' ' * len(marker))
                 for draw in level_markers[:-1]
             ]
-        ) + marker
+        )
+            + marker
             if level_markers
             else ''
     );
@@ -445,7 +463,8 @@ def get_symtab_tree_str(
         }
     }
     return (
-        line + ''.join(
+        line
+        + ''.join(
             get_symtab_tree_str(
                 child,
                 marker,
@@ -460,12 +479,11 @@ def get_symtab_tree_str(
 def printgraph_symtab_tree(nd: UniScopeNode) -> str {
     dot_lines = [];
     id_map = {};
-    last_id_used = 0;
+    last_id_state = {"used": 0};
     def gen_node_id(nd: SymbolTree) -> int {
-        nonlocal last_id_used;
         if (id(nd) not in id_map) {
-            id_map[id(nd)] = last_id_used;
-            last_id_used += 1;
+            id_map[id(nd)] = last_id_state["used"];
+            last_id_state["used"] += 1;
         }
         return id_map[id(nd)];
     }

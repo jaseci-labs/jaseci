@@ -1,3 +1,6 @@
+# Auto-generated visitor accept overrides (#6942 A.1).
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.
+
 impl Ability.accept_enter(v: UniPass) -> None {
     v.enter_ability(self);
 }
@@ -56,10 +59,6 @@ impl CastExpr.accept_enter(v: UniPass) -> None {
 
 impl CfgExpr.accept_enter(v: UniPass) -> None {
     v.enter_cfg_expr(self);
-}
-
-impl ClientBlock.accept_enter(v: UniPass) -> None {
-    v.enter_client_block(self);
 }
 
 impl CompareExpr.accept_enter(v: UniPass) -> None {
@@ -146,6 +145,10 @@ impl FinallyStmt.accept_enter(v: UniPass) -> None {
     v.enter_finally_stmt(self);
 }
 
+impl ForeverStmt.accept_enter(v: UniPass) -> None {
+    v.enter_forever_stmt(self);
+}
+
 impl FormattedValue.accept_enter(v: UniPass) -> None {
     v.enter_formatted_value(self);
 }
@@ -160,10 +163,6 @@ impl FuncSignature.accept_enter(v: UniPass) -> None {
 
 impl GenCompr.accept_enter(v: UniPass) -> None {
     v.enter_gen_compr(self);
-}
-
-impl GlobalStmt.accept_enter(v: UniPass) -> None {
-    v.enter_global_stmt(self);
 }
 
 impl GlobalVars.accept_enter(v: UniPass) -> None {
@@ -338,12 +337,8 @@ impl Name.accept_enter(v: UniPass) -> None {
     v.enter_name(self);
 }
 
-impl NativeBlock.accept_enter(v: UniPass) -> None {
-    v.enter_native_block(self);
-}
-
-impl NonLocalStmt.accept_enter(v: UniPass) -> None {
-    v.enter_non_local_stmt(self);
+impl OpenStmt.accept_enter(v: UniPass) -> None {
+    v.enter_open_stmt(self);
 }
 
 impl ParamVar.accept_enter(v: UniPass) -> None {
@@ -358,10 +353,6 @@ impl RaiseStmt.accept_enter(v: UniPass) -> None {
     v.enter_raise_stmt(self);
 }
 
-impl RegionStmt.accept_enter(v: UniPass) -> None {
-    v.enter_region_stmt(self);
-}
-
 impl ReportStmt.accept_enter(v: UniPass) -> None {
     v.enter_report_stmt(self);
 }
@@ -372,10 +363,6 @@ impl ReturnStmt.accept_enter(v: UniPass) -> None {
 
 impl SemDef.accept_enter(v: UniPass) -> None {
     v.enter_sem_def(self);
-}
-
-impl ServerBlock.accept_enter(v: UniPass) -> None {
-    v.enter_server_block(self);
 }
 
 impl SetCompr.accept_enter(v: UniPass) -> None {
@@ -450,10 +437,6 @@ impl WhileStmt.accept_enter(v: UniPass) -> None {
     v.enter_while_stmt(self);
 }
 
-impl ForeverStmt.accept_enter(v: UniPass) -> None {
-    v.enter_forever_stmt(self);
-}
-
 impl WithStmt.accept_enter(v: UniPass) -> None {
     v.enter_with_stmt(self);
 }
@@ -524,10 +507,6 @@ impl CastExpr.accept_exit(v: UniPass) -> None {
 
 impl CfgExpr.accept_exit(v: UniPass) -> None {
     v.exit_cfg_expr(self);
-}
-
-impl ClientBlock.accept_exit(v: UniPass) -> None {
-    v.exit_client_block(self);
 }
 
 impl CommentToken.accept_exit(v: UniPass) -> None {
@@ -626,6 +605,10 @@ impl Float.accept_exit(v: UniPass) -> None {
     v.exit_float(self);
 }
 
+impl ForeverStmt.accept_exit(v: UniPass) -> None {
+    v.exit_forever_stmt(self);
+}
+
 impl FormattedValue.accept_exit(v: UniPass) -> None {
     v.exit_formatted_value(self);
 }
@@ -640,10 +623,6 @@ impl FuncSignature.accept_exit(v: UniPass) -> None {
 
 impl GenCompr.accept_exit(v: UniPass) -> None {
     v.exit_gen_compr(self);
-}
-
-impl GlobalStmt.accept_exit(v: UniPass) -> None {
-    v.exit_global_stmt(self);
 }
 
 impl GlobalVars.accept_exit(v: UniPass) -> None {
@@ -822,16 +801,12 @@ impl Name.accept_exit(v: UniPass) -> None {
     v.exit_name(self);
 }
 
-impl NativeBlock.accept_exit(v: UniPass) -> None {
-    v.exit_native_block(self);
-}
-
-impl NonLocalStmt.accept_exit(v: UniPass) -> None {
-    v.exit_non_local_stmt(self);
-}
-
 impl Null.accept_exit(v: UniPass) -> None {
     v.exit_null(self);
+}
+
+impl OpenStmt.accept_exit(v: UniPass) -> None {
+    v.exit_open_stmt(self);
 }
 
 impl ParamVar.accept_exit(v: UniPass) -> None {
@@ -844,10 +819,6 @@ impl PyInlineCode.accept_exit(v: UniPass) -> None {
 
 impl RaiseStmt.accept_exit(v: UniPass) -> None {
     v.exit_raise_stmt(self);
-}
-
-impl RegionStmt.accept_exit(v: UniPass) -> None {
-    v.exit_region_stmt(self);
 }
 
 impl ReportStmt.accept_exit(v: UniPass) -> None {
@@ -864,10 +835,6 @@ impl SemDef.accept_exit(v: UniPass) -> None {
 
 impl Semi.accept_exit(v: UniPass) -> None {
     v.exit_semi(self);
-}
-
-impl ServerBlock.accept_exit(v: UniPass) -> None {
-    v.exit_server_block(self);
 }
 
 impl SetCompr.accept_exit(v: UniPass) -> None {
@@ -940,10 +907,6 @@ impl VisitStmt.accept_exit(v: UniPass) -> None {
 
 impl WhileStmt.accept_exit(v: UniPass) -> None {
     v.exit_while_stmt(self);
-}
-
-impl ForeverStmt.accept_exit(v: UniPass) -> None {
-    v.exit_forever_stmt(self);
 }
 
 impl WithStmt.accept_exit(v: UniPass) -> None {

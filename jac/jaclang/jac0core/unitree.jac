@@ -1,19 +1,15 @@
-import ast as ast3;
-import builtins;
 import os;
-import from collections.abc { Callable, Sequence }
-import from copy { copy }
+import type from collections.abc { Sequence }
 import from enum { IntEnum }
-import from hashlib { md5 }
-import from types { EllipsisType }
-import from typing { Any, cast }
-import from jaclang.jac0core.bccache { discover_base_file }
 import type from jaclang.jac0core.passes.uni_pass { UniPass }
-import from jaclang.jac0core.codeinfo { CodeGenTarget, CodeLocInfo }
+import type from jaclang.jac0core.codeinfo { CodeGenTarget }
+import from jaclang.jac0core.srcloc { CodeLocInfo }
 import from jaclang.jac0core.constant {
+    BUILTIN_CALLABLE_NAMES,
     DELIM_MAP,
     CodeContext,
     EdgeDir,
+    ExprCtx,
     ImmutabilityKind,
     OwnershipKind,
     SymbolAccess,
@@ -24,23 +20,17 @@ import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { JacSemTokenModifier as SemTokMod }
 import from jaclang.jac0core.constant { JacSemTokenType as SemTokType }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.modresolver { resolve_relative_path }
+import from jaclang.jac0core.constant { ParamKind }
 import type from jaclang.compiler.type_system.types { TypeBase }
 
-import from jaclang.jac0core.treeprinter {
-    print_ast_tree,
-    print_symtab_tree,
-    printgraph_ast_tree,
-    printgraph_symtab_tree
-}
 
 obj UniNode {
     has kid: Sequence[UniNode] = [],
-        parent: (UniNode | None) by postinit,
-        __sub_node_tab: (dict[(type, list[UniNode])] | None) by postinit,
-        _in_mod_nodes: list[UniNode] by postinit,
-        _gen: (CodeGenTarget | None) by postinit,
-        loc: CodeLocInfo by postinit;
+        parent: (UniNode | None) postinit,
+        __sub_node_tab: (dict[(type, list[UniNode])] | None) postinit,
+        _in_mod_nodes: list[UniNode] postinit,
+        _gen: (CodeGenTarget | None) postinit,
+        loc: CodeLocInfo postinit;
 
     def postinit -> None;
     def accept_enter(v: UniPass) -> None;
@@ -70,27 +60,56 @@ obj UniNode {
     def set_parent(parent: UniNode) -> UniNode;
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
-    def get_all_sub_nodes[T](typ: type[T]) -> list[T];
-    def find_parent_of_type[T](typ: type[T]) -> (T | None);
-    def parent_of_type[T](typ: type[T]) -> T;
+    def get_all_sub_nodes[T](typ: type[T]) -> list[T] {
+        result: list[T] = [];
+        if typ in self._sub_node_tab {
+            for i in self._sub_node_tab[typ] {
+                if isinstance(i, typ) {
+                    result.append(i);
+                }
+            }
+        }
+        return result;
+    }
+
+    def find_parent_of_type[T](typ: type[T]) -> (T | None) {
+        nd: (UniNode | None) = self.parent;
+        while nd is not None {
+            if isinstance(nd, typ) {
+                return nd;
+            }
+            nd = nd.parent;
+        }
+        return None;
+    }
+
+    def parent_of_type[T](typ: type[T]) -> T {
+        ret = self.find_parent_of_type(typ);
+        if isinstance(ret, typ) {
+            return ret;
+        }
+        raise ValueError(f"Parent of type {typ} not found from{type(self)}.");
+    }
+
+    def codespace -> CodeContext;
     def in_client_context -> bool;
     def in_native_context -> bool;
-    def to_dict -> dict[(str, str)];
-    def pp(depth: (int | None) = None) -> str;
-    def printgraph -> str;
     def flatten -> list[UniNode];
-    def unparse -> str;
 }
 
 obj Symbol {
-    has defn: list[NameAtom] by postinit,
-        uses: list[NameAtom] by postinit,
-        access: SymbolAccess by postinit,
-        parent_tab: (UniScopeNode | None) by postinit,
-        imported: bool by postinit,
-        semstr: str by postinit,
+    has defn: list[NameAtom] postinit,
+        uses: list[NameAtom] postinit,
+        access: SymbolAccess postinit,
+        parent_tab: (UniScopeNode | None) postinit,
+        imported: bool postinit,
+        semstr: str postinit,
         immutability: ImmutabilityKind = ImmutabilityKind.NONE,
-        ownership: OwnershipKind = OwnershipKind.NONE;
+        ownership: OwnershipKind = OwnershipKind.NONE,
+        param_rebound: bool = False,
+        na_escapes: bool = False,
+        na_region_handle: bool = False,
+        na_stack_ok: bool = False;
 
     def init(
         defn: NameAtom,
@@ -118,15 +137,18 @@ obj InheritedSymbolTable {
 }
 
 obj UniScopeNode(UniNode) {
-    has scope_name: str by postinit,
-        parent_scope: (UniScopeNode | None) by postinit,
-        kid_scope: list[UniScopeNode] by postinit,
-        names_in_scope: dict[(str, Symbol)] by postinit,
-        names_in_scope_overload: dict[(str, list[Symbol])] by postinit;
+    has scope_name: str postinit,
+        parent_scope: (UniScopeNode | None) postinit,
+        kid_scope: list[UniScopeNode] postinit,
+        names_in_scope: dict[(str, Symbol)] postinit,
+        names_in_scope_overload: dict[(str, list[Symbol])] postinit,
+        implicit_rebinds: dict[(str, Symbol)] postinit;
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
-    static def get_python_scoping_nodes -> tuple[(type[UniScopeNode], ...)] {
-        return (Module, Enum, Archetype, Ability, ImplDef, Test);
+    static def is_python_scoping(nd: (UniNode | None)) -> bool {
+        return isinstance(
+            nd, (Module, Enum, Archetype, Ability, ImplDef, Test, LambdaExpr)
+        );
     }
 
     def lookup(
@@ -159,15 +181,14 @@ obj UniScopeNode(UniNode) {
     ) -> (Symbol | None);
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
-    def update_py_ctx_for_def(nd: AstSymbolNode) -> None;
-    def sym_pp(depth: (int | None) = None) -> str;
-    def sym_printgraph -> str;
+    def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
+    def _fix_store_ctx(item: UniNode) -> None;
     def __repr__ -> str;
 }
 
 obj AstSymbolNode(UniNode) {
-    has name_spec: NameAtom by postinit,
-        semstr: str by postinit;
+    has name_spec: NameAtom postinit,
+        semstr: str postinit;
 
     def _init_symbol(
         sym_name: str, name_spec: NameAtom, sym_category: SymbolType
@@ -176,7 +197,7 @@ obj AstSymbolNode(UniNode) {
     has sym: (Symbol | None) { getter; }
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
-    has py_ctx_func: type[ast3.AST] { getter; }
+    has expr_ctx: ExprCtx { getter; }
     has type_sym_tab: (UniScopeNode | None) { getter; }
 }
 
@@ -191,14 +212,16 @@ obj AstAccessNode(UniNode) {
 }
 
 obj ContextAwareNode(UniNode) {
-    has code_context: CodeContext by postinit;
+    has code_context: CodeContext postinit,
+        codespace_dual: bool = False;
 
     def postinit -> None;
-    def _source_context_token -> (Token | None);
 }
 
 obj AstDocNode(UniNode) {
     has doc: (String | None) = None;
+
+    def set_doc(elem_doc: (String | None)) -> None;
 }
 
 obj AstAsyncNode(UniNode) {
@@ -210,19 +233,20 @@ obj AstElseBodyNode(UniNode) {
 }
 
 obj AstTypedVarNode(UniNode) {
-    has type_tag: (SubTag[Expr] | None) = None;
+    has type_tag: (SubTag[Expr] | None) = None,
+        type: (TypeBase | None) = None;
 }
 
 obj WalkerStmtOnlyNode(UniNode) {
-    has from_walker: bool by postinit;
+    has from_walker: bool postinit;
 
     def postinit -> None;
 }
 
 obj UniCFGNode(UniNode) {
-    has bb_in: list[UniCFGNode] by postinit,
-        bb_out: list[UniCFGNode] by postinit,
-        affected_symbols: set[str] by postinit;
+    has bb_in: list[UniCFGNode] postinit,
+        bb_out: list[UniCFGNode] postinit,
+        affected_symbols: set[str] postinit;
 
     def postinit -> None;
     def get_head -> UniCFGNode;
@@ -237,9 +261,10 @@ obj ConditionalNode(UniCFGNode) {
 }
 
 obj Expr(UniNode) {
-    has _type_sym_tab: (UniScopeNode | None) by postinit,
-        type: (TypeBase | None) by postinit,
-        attached_tokens: (list[Token] | None) by postinit;
+    has _type_sym_tab: (UniScopeNode | None) postinit,
+        type: (TypeBase | None) postinit,
+        narrowed_type: (TypeBase | None) postinit,
+        attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
 
@@ -272,17 +297,17 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
 obj NameAtom(AtomExpr, EnumBlockStmt) {
-    has name_of: AstSymbolNode by postinit,
-        _sym: (Symbol | None) by postinit,
-        _sym_name: str by postinit,
-        _sym_category: SymbolType by postinit,
-        _py_ctx_func: type[ast3.expr_context] by postinit,
+    has name_of: AstSymbolNode postinit,
+        _sym: (Symbol | None) postinit,
+        _sym_name: str postinit,
+        _sym_category: SymbolType postinit,
+        _expr_ctx: ExprCtx postinit,
         is_getattr_resolved: bool = False;
 
     def postinit -> None;
@@ -291,6 +316,10 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
 
+    def bind_sym(
+        name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
+    ) -> None;
+
     def create_symbol(
         access: SymbolAccess,
         parent_tab: (UniScopeNode | None) = None,
@@ -298,11 +327,7 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     ) -> Symbol;
 
     has clean_type: str { getter; }
-    has py_ctx_func: type[ast3.expr_context] {
-        getter;
-        setter(py_ctx_func: type[ast3.expr_context]);
-    }
-
+    has expr_ctx: ExprCtx { getter; setter(expr_ctx: ExprCtx); }
     has sem_token: (tuple[(SemTokType, SemTokMod)] | None) { getter; }
 }
 
@@ -334,14 +359,26 @@ obj Module(AstDocNode, UniScopeNode) {
         terminals: list[Token],
         stub_only: bool = False,
         src_terminals: list[Token] = [],
-        is_raised_from_py: bool = False;
+        is_raised_from_py: bool = False,
+        decided_codespace: str = "",
+        parse_failed: bool = False,
+        mobui_enforced_root: (str | None) = None,
+        jac_project_root: (str | None) = None,
+        access_enforced: bool = False,
+        native_viols_reported: bool = False,
+        client_viols_reported: bool = False,
+        rc_last_use: dict[int, list[str]] postinit,
+        rc_move_in: set[int] postinit,
+        anon_region_open: dict[int, int] postinit,
+        anon_region_close: dict[int, int] postinit,
+        anon_region_locals: dict[int, list[str]] postinit,
+        annex_mods: list[Module] postinit;
 
     def postinit -> None;
 
     has annexable_by: (str | None) { getter; }
 
-    def format -> str;
-    def unparse(requires_format: bool = True) -> str;
+    def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
     ) -> Module {
@@ -359,8 +396,8 @@ obj Module(AstDocNode, UniScopeNode) {
 
 obj ProgramModule(UniNode) {
     has main_mod: (Module | None) = None,
-        main: Module by postinit,
-        hub: dict[(str, Module)] by postinit;
+        main: Module postinit,
+        hub: dict[(str, Module)] postinit;
 
     def postinit -> None;
 }
@@ -376,18 +413,19 @@ obj TypeParam(AstSymbolNode, UniNode) {
     def postinit -> None;
 }
 
-obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode) {
+obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has name: Name,
         type_params: (Sequence[TypeParam] | None),
-        value: Expr;
+        value: Expr,
+        is_distinct: bool = False;
 
     def postinit -> None;
 }
 
-obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode) {
+obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -401,11 +439,7 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    with entry {
-        TEST_COUNT = 0;
-    }
-
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
@@ -413,39 +447,12 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def postinit -> None;
 }
 
-obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt) {
+obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has name: (Name | None),
         body: Sequence[CodeBlockStmt];
-
-    def postinit -> None;
-}
-
-obj ClientBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
-
-    def postinit -> None;
-}
-
-obj ServerBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
-
-    def postinit -> None;
-}
-
-obj NativeBlock(ElementStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[ElementStmt];
 
     def postinit -> None;
 }
@@ -459,21 +466,42 @@ obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
+obj ImportBoundaryFacts {
+    has native_from_path: (str | None) = None,
+        from_loc_resolved: (str | None) = None,
+        is_service: bool = False,
+        pinned_server: bool = False,
+        client_native_edge: bool = False,
+        sv_source_mod: (Module | None) = None,
+        native_absorb_path: (str | None) = None,
+        native_item_paths: dict[(str, str)] = {},
+        bridged_decls: dict[(str, Ability)] = {};
+}
+
 obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
     has from_loc: (ModulePath | None),
-        items: (Sequence[ModuleItem] | Sequence[ModulePath]),
+        items: Sequence[(ModuleItem | ModulePath)],
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
-        hint: (SubTag[Token] | None) by postinit;
+        hint: (SubTag[Token] | None) postinit,
+        absorbed_mod: (Module | None) postinit,
+        jac_detected: (bool | None) postinit,
+        boundary_facts: (ImportBoundaryFacts | None) postinit,
+        native_only_drop: bool postinit;
 
     def postinit -> None;
 
     has is_jac: bool { getter; }
     has __jac_detected: bool { getter; }
+    has has_string_path: bool { getter; }
+    has has_clib_decls: bool { getter; }
+    has is_service_import: bool { getter; }
+    has is_virtual_jac: bool { getter; }
+    has ecosystem: str { getter; }
 }
 
 obj ModulePath(UniNode) {
@@ -483,13 +511,14 @@ obj ModulePath(UniNode) {
     has path: (Sequence[(Name | String)] | None),
         level: int,
         alias: (Name | None),
-        abs_path: (str | None) by postinit;
+        abs_path: (str | None) postinit;
 
     def postinit -> None;
 
     has is_import_from: bool { getter; }
     has dot_path_str: str { getter; }
     has base_module_name: str { getter; }
+    has string_path_value: (str | None) { getter; }
 
     def resolve_relative_path(target_item: (str | None) = None) -> str;
     def resolve_relative_path_list -> list[str];
@@ -502,12 +531,13 @@ obj ModuleItem(UniNode) {
 
     has name: (Name | Token),
         alias: (Name | None),
-        abs_path: (str | None) by postinit;
+        abs_path: (str | None) postinit;
 
     def postinit -> None;
 
     has from_parent: Import { getter; }
     has from_mod_path: ModulePath { getter; }
+    has binding_name: (Name | None) { getter; }
 
     def resolve_relative_path -> str;
 }
@@ -519,12 +549,13 @@ obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplN
     has name: Name,
         arch_type: Token,
         base_classes: (Sequence[Expr] | None),
+        keywords: (Sequence[KWPair] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         src_endpoint: (Expr | None) = None,
         tgt_endpoint: (Expr | None) = None;
 
     def postinit -> None;
-    def _get_impl_resolved_body -> list;
+    def _get_impl_resolved_body -> list[UniNode];
 
     has is_abstract: bool { getter; }
     has arch_kind: (str | None) { getter; }
@@ -547,7 +578,7 @@ obj ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymb
     def create_impl_name_node -> Name;
 }
 
-obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode) {
+obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -624,16 +655,6 @@ obj EventSignature(WalkerStmtOnlyNode) {
     def postinit -> None;
 }
 
-class ParamKind(IntEnum) {
-    with entry {
-        POSONLY = 0;
-        NORMAL = 1;
-        VARARG = 2;
-        KWONLY = 3;
-        KWARG = 4;
-    }
-}
-
 obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
@@ -641,7 +662,7 @@ obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     has name: Name,
         unpack: (Token | None),
         value: (Expr | None),
-        param_kind: ParamKind by postinit;
+        param_kind: ParamKind postinit;
 
     def postinit -> None;
 
@@ -682,11 +703,12 @@ obj TypedCtxBlock(CodeBlockStmt, WalkerStmtOnlyNode, UniScopeNode) {
     def postinit -> None;
 }
 
-obj RegionStmt(CodeBlockStmt, UniScopeNode) {
+obj OpenStmt(CodeBlockStmt, UniScopeNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has body: Sequence[CodeBlockStmt];
+    has target: Expr,
+        body: Sequence[CodeBlockStmt];
 
     def postinit -> None;
 }
@@ -720,7 +742,8 @@ obj ExprStmt(CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has expr: Expr,
-        in_fstring: bool;
+        in_fstring: bool,
+        has_semi: bool = True;
 
     def postinit -> None;
 }
@@ -864,8 +887,6 @@ obj DeleteStmt(CodeBlockStmt) {
     has target: Expr;
 
     def postinit -> None;
-
-    has py_ast_targets: list[ast3.AST] { getter; }
 }
 
 obj ReportStmt(CodeBlockStmt) {
@@ -881,7 +902,8 @@ obj ReturnStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has expr: (Expr | None);
+    has expr: (Expr | None),
+        is_implicit: bool = False;
 
     def postinit -> None;
 }
@@ -921,20 +943,6 @@ obj CastExpr(Expr) {
     def postinit -> None;
 }
 
-obj GlobalStmt(CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has target: Sequence[NameAtom];
-
-    def postinit -> None;
-}
-
-obj NonLocalStmt(GlobalStmt) {
-    def accept_enter(v: UniPass) -> None;
-    def accept_exit(v: UniPass) -> None;
-}
-
 obj Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
@@ -943,7 +951,9 @@ obj Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
         value: Expr | YieldExpr | None,
         mutable: bool = True,
         aug_op: (Token | None) = None,
-        na_move_lowerable: bool = False;
+        na_move_lowerable: bool = False,
+        na_overwrite_consumed: bool = False,
+        na_flow_reduce: str = "";
 
     def postinit -> None;
 }
@@ -1197,7 +1207,8 @@ obj FuncCall(Expr) {
         params: (Sequence[(Expr | KWPair)] | None),
         genai_call: (Expr | None),
         call_kind: (str | None) = None,
-        callee_decl: (Ability | None) by postinit;
+        chunks_recv_type: (str | None) = None,
+        callee_decl: (Ability | None) postinit;
 
     def postinit -> None;
 }
@@ -1269,7 +1280,7 @@ obj FilterCompr(AtomExpr) {
     def accept_enter(v: UniPass) -> None;
 
     has f_type: (Expr | None),
-        compares: Sequence[CompareExpr];
+        compares: Sequence[Expr];
 
     def postinit -> None;
 }
@@ -1513,13 +1524,15 @@ obj Token(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has orig_src: Source by postinit,
-        line_no: int by postinit,
-        end_line: int by postinit,
-        c_start: int by postinit,
-        c_end: int by postinit,
-        pos_start: int by postinit,
-        pos_end: int by postinit,
+    has orig_src: Source postinit,
+        name: str postinit,
+        value: str postinit,
+        line_no: int postinit,
+        end_line: int postinit,
+        c_start: int postinit,
+        c_end: int postinit,
+        pos_start: int postinit,
+        pos_end: int postinit,
         _is_synthetic: bool = False;
 
     def init(
@@ -1535,12 +1548,15 @@ obj Token(UniNode) {
     ) -> None;
 
     def __repr__ -> str;
-    def unparse -> str;
 }
 
 obj Name(Token, NameAtom) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
+
+    has is_kwesc: bool postinit,
+        is_enum_stmt: bool postinit;
+
     def init(
         orig_src: Source,
         name: str,
@@ -1579,7 +1595,7 @@ obj SpecialVarRef(Name) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has orig: Name by postinit;
+    has orig: Name postinit;
 
     def init(var: Name, is_enum_stmt: bool = False) -> None;
     def py_resolve_name -> str;
@@ -1614,10 +1630,7 @@ obj Literal(Token, AtomExpr) {
         pos_end: int
     ) -> None;
 
-    has lit_value:
-        int | str | bytes | float | bool | None | Callable[([], Any)] | EllipsisType {
-        getter;
-    }
+    has lit_value: int | str | bytes | float | bool | None | type | object { getter; }
 }
 
 obj BuiltinType(Name, Literal) {
@@ -1628,7 +1641,7 @@ obj BuiltinType(Name, Literal) {
         SYMBOL_TYPE = SymbolType.VAR;
     }
 
-    has lit_value: Callable[([], Any)] { getter; }
+    has lit_value: type { getter; }
 }
 
 obj Float(Literal) {
@@ -1689,7 +1702,7 @@ obj Ellipsis(Literal) {
         SYMBOL_TYPE = SymbolType.NULL;
     }
 
-    has lit_value: EllipsisType { getter; }
+    has lit_value: object { getter; }
 }
 
 obj EmptyToken(Token) {
@@ -1723,24 +1736,249 @@ obj CommentToken(Token) {
         col_end: int,
         pos_start: int,
         pos_end: int,
-        kid: Sequence[UniNode],
-        is_inline: bool = False
+        kid: Sequence[UniNode]
     ) -> None;
 }
 
 obj Source(EmptyToken) {
-    has comments: list[CommentToken] by postinit,
-        inline_suppressions: dict[int, set[str]] by postinit,
-        file_path: str by postinit;
+    has comments: list[CommentToken] postinit,
+        inline_suppressions: dict[int, set[str]] postinit,
+        file_path: str postinit,
+        _hash: str postinit;
 
     def init(source: str, mod_path: str) -> None;
 
     has code: str { getter; }
+    has hash: str { getter; }
 }
 
 obj PythonModuleAst(EmptyToken) {
-    has orig_src: Source by postinit,
-        file_path: str by postinit;
+    has ast: object postinit,
+        orig_src: Source postinit,
+        file_path: str postinit;
 
-    def init(ast: ast3.Module, orig_src: Source) -> None;
+    def init(ast: object, orig_src: Source) -> None;
 }
+
+glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
+     _OCT_DIGITS: str = '01234567',
+     _LIT_PREFIX_CHARS: str = 'bBrR',
+     _MAX_CODE_POINT: int = 1114111,
+     _SIMPLE_ESCAPES: dict[str, str] = {
+         '\\': '\\',
+         "'": "'",
+         '"': '"',
+         'a': '\x07',
+         'b': '\x08',
+         'f': '\x0c',
+         'n': '\n',
+         'r': '\r',
+         't': '\t',
+         'v': '\x0b'
+     };
+
+def _lit_prefix_len(text: str) -> int {
+    n = len(text);
+    i = 0;
+    while (i < n and i < 2) {
+        ch = text[i];
+        if (ch == '"' or ch == "'") {
+            return i;
+        }
+        if (ch not in _LIT_PREFIX_CHARS) {
+            return -1;
+        }
+        i += 1;
+    }
+    if (i < n and (text[i] == '"' or text[i] == "'")) {
+        return i;
+    }
+    return -1;
+}
+
+def _lit_quote_len(text: str, start: int) -> int {
+    if ((len(text) - start) >= 6) {
+        opener = text[start:start + 3];
+        if (opener == '"""' or opener == "'''") {
+            return 3;
+        }
+    }
+    return 1;
+}
+
+def _hex_escape_value(text: str, at: int, width: int, kind: str) -> int {
+    digits = text[at + 2:at + 2 + width];
+    bad = len(digits) != width;
+    if not bad {
+        for c in digits {
+            if (c not in _HEX_DIGITS) {
+                bad = True;
+                break;
+            }
+        }
+    }
+    if bad {
+        raise ValueError(
+            f"truncated \\{kind} escape: expected {width} hex digits, got '{digits}'"
+        );
+    }
+    code = int(digits, 16);
+    if (code > _MAX_CODE_POINT) {
+        raise ValueError(f"illegal Unicode character in \\{kind}{digits} escape");
+    }
+    return code;
+}
+
+def _decode_str_escapes(text: str) -> str {
+    if ('\\' not in text) {
+        return text;
+    }
+    out: list[str] = [];
+    i = 0;
+    n = len(text);
+    while (i < n) {
+        ch = text[i];
+        if (ch != '\\' or (i + 1) >= n) {
+            out.append(ch);
+            i += 1;
+            continue;
+        }
+        nxt = text[i + 1];
+        if (nxt in _SIMPLE_ESCAPES) {
+            out.append(_SIMPLE_ESCAPES[nxt]);
+            i += 2;
+            continue;
+        }
+        if (nxt == '\n') {
+            i += 2;
+            continue;
+        }
+        if (nxt == '\r') {
+            i += 3 if ((i + 2) < n and text[i + 2] == '\n') else 2;
+            continue;
+        }
+        if (nxt in _OCT_DIGITS) {
+            j = i + 1;
+            end = min(n, i + 4);
+            while (j < end and text[j] in _OCT_DIGITS) {
+                j += 1;
+            }
+            out.append(chr(int(text[i + 1:j], 8)));
+            i = j;
+            continue;
+        }
+        if (nxt == 'x' or nxt == 'u' or nxt == 'U') {
+            width = 2 if (nxt == 'x') else (4 if (nxt == 'u') else 8);
+            out.append(chr(_hex_escape_value(text, i, width, nxt)));
+            i += 2 + width;
+            continue;
+        }
+        if (nxt == 'N') {
+            raise ValueError(
+                "the \\N{name} escape is not supported: the Unicode name "
+                "database is not available to the compiler, so write the "
+                "code point as \\uXXXX or \\UXXXXXXXX instead"
+            );
+        }
+        out.append('\\');
+        out.append(nxt);
+        i += 2;
+    }
+    return ''.join(out);
+}
+
+def _decode_bytes_escapes(text: str, is_raw: bool) -> bytes {
+    out: list[int] = [];
+    i = 0;
+    n = len(text);
+    while (i < n) {
+        ch = text[i];
+        code = ord(ch);
+        if (code > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        if (is_raw or ch != '\\' or (i + 1) >= n) {
+            out.append(code);
+            i += 1;
+            continue;
+        }
+        nxt = text[i + 1];
+        if (nxt in _SIMPLE_ESCAPES) {
+            out.append(ord(_SIMPLE_ESCAPES[nxt]));
+            i += 2;
+            continue;
+        }
+        if (nxt == '\n') {
+            i += 2;
+            continue;
+        }
+        if (nxt == '\r') {
+            i += 3 if ((i + 2) < n and text[i + 2] == '\n') else 2;
+            continue;
+        }
+        if (nxt in _OCT_DIGITS) {
+            j = i + 1;
+            end = min(n, i + 4);
+            while (j < end and text[j] in _OCT_DIGITS) {
+                j += 1;
+            }
+            out.append(int(text[i + 1:j], 8) % 256);
+            i = j;
+            continue;
+        }
+        if (nxt == 'x') {
+            out.append(_hex_escape_value(text, i, 2, 'x'));
+            i += 4;
+            continue;
+        }
+        if (ord(nxt) > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        out.append(92);
+        out.append(ord(nxt));
+        i += 2;
+    }
+    return bytes(out);
+}
+
+def decode_string_literal(text: str) -> str | bytes {
+    start = _lit_prefix_len(text);
+    if (start < 0) {
+        return text;
+    }
+    prefix = text[:start].lower();
+    quote_len = _lit_quote_len(text, start);
+    body = text[start + quote_len:len(text) - quote_len];
+    is_raw = 'r' in prefix;
+    if ('b' in prefix) {
+        return _decode_bytes_escapes(body, is_raw);
+    }
+    if is_raw {
+        return body;
+    }
+    return _decode_str_escapes(body);
+}
+
+def is_identifier_slot(nd: UniNode) -> bool;
+
+def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
+
+def find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode;
+
+def def_insert_unpacking(
+    nd: Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
+) -> None;
+
+def bind_assignment_targets(nd: Assignment) -> None;
+
+def lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | None);
+
+def rebind_or_def_insert(
+    target: AstSymbolNode, py_scope: UniScopeNode, single_decl: str
+) -> None;
+
+def record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -> None;
+
+def _ability_of_defn(defn_node: UniNode) -> (Ability | None);
+
+def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);

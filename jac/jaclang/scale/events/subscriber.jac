@@ -1,27 +1,20 @@
-"""@subscribe decorator and global handler registry.
-Decorator records entries at import time; _setup_events wires each into the broker at server startup.
-"""
-import from typing { Callable }
-import from jaclang.scale.events.broker { Event, RetryPolicy }
+import from jaclang.scale.events.broker { Event, RetryPolicy, StreamPosition }
 
 obj _SubscriptionEntry {
     has topic: str,
         handler: Callable[[Event], any],
         group: str | None = None,
         retry: RetryPolicy | None = None,
-        start_from: str = "latest";
+        start_from: str = StreamPosition.LATEST.value;
 }
 
 glob _registry: list[_SubscriptionEntry] = [];
 
-"""Register a handler for a topic.
-`group` shares load; `retry` overrides defaults; `start_from` ('latest' | 'earliest' | broker-specific position token) is a one-shot bookmark applied only when the consumer group is first created.
-"""
 def subscribe(
     topic: str,
     group: str | None = None,
     retry: RetryPolicy | None = None,
-    start_from: str = "latest"
+    start_from: str = StreamPosition.LATEST.value
 ) -> Callable[..., any] {
     def _decorator(handler: Callable[[Event], any]) -> Callable[..., any] {
         _registry.append(
@@ -38,7 +31,6 @@ def subscribe(
     return _decorator;
 }
 
-"""Return all registered subscriptions. Called by _setup_events at startup."""
 def get_subscriptions -> list[_SubscriptionEntry] {
     return _registry;
 }

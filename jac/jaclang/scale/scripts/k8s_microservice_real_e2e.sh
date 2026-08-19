@@ -79,113 +79,13 @@ cleanup() {
 }
 trap 'cleanup "$?"' EXIT
 
-provision_kind_rwx_storage() {
-    # kind's local-path StorageClass is RWO-only; on single-node kind a static hostPath PV satisfies the RWX bundle PVC. Recreate it each run so a Released PV can't block binding.
-    echo "=== provisioning RWX hostPath storage for kind (class=${BUNDLE_STORAGE_CLASS}) ==="
-    kubectl delete pv -l managed=jac-scale-e2e --ignore-not-found >/dev/null 2>&1 || true
-    kubectl apply -f - <<YAML
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: ${BUNDLE_STORAGE_CLASS}
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: Immediate
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: jac-rwx-bundle-pv
-  labels:
-    managed: jac-scale-e2e
-spec:
-  capacity:
-    storage: 20Gi
-  accessModes: ["ReadWriteMany"]
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ${BUNDLE_STORAGE_CLASS}
-  hostPath:
-    path: /var/jac-rwx-bundle
-    type: DirectoryOrCreate
-YAML
-    # kubelet makes the hostPath dir root:0755 but the pods run non-root; a one-shot root pod opens it up (0777 is fine on this ephemeral single-node test cluster).
-    kubectl -n "${NAMESPACE}" delete pod jac-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-    kubectl -n "${NAMESPACE}" apply -f - <<YAML
-apiVersion: v1
-kind: Pod
-metadata:
-  name: jac-rwx-perms
-  labels:
-    managed: jac-scale
-spec:
-  restartPolicy: Never
-  securityContext:
-    runAsUser: 0
-  containers:
-    - name: fix
-      image: busybox:1.36
-      command: ["sh", "-c", "chmod 0777 /host && echo perms-fixed"]
-      volumeMounts:
-        - { name: host, mountPath: /host }
-  volumes:
-    - name: host
-      hostPath:
-        path: /var/jac-rwx-bundle
-        type: DirectoryOrCreate
-YAML
-    if ! kubectl -n "${NAMESPACE}" wait --for=jsonpath='{.status.phase}'=Succeeded \
-            pod/jac-rwx-perms --timeout=90s; then
-        echo "FAIL: could not open up the RWX hostPath dir for non-root pods"
-        kubectl -n "${NAMESPACE}" logs jac-rwx-perms || true
-        kubectl -n "${NAMESPACE}" describe pod jac-rwx-perms || true
-        exit 1
-    fi
-    kubectl -n "${NAMESPACE}" delete pod jac-rwx-perms --ignore-not-found >/dev/null 2>&1 || true
-}
-
-_T0=$(date +%s)
-_LAST_T=0
-# label|step_seconds|cumulative_seconds per phase, for the report at the end.
-_PHASE_ROWS=""
-_t() {
-    now=$(( $(date +%s) - _T0 ))
-    step=$(( now - _LAST_T ))
-    echo "[TIMING +${now}s] $1 (+${step}s)"
-    _PHASE_ROWS="${_PHASE_ROWS}${1}|${step}|${now}"$'\n'
-    _LAST_T=${now}
-}
-
-print_timing_report() {
-    echo ""
-    echo "======================= E2E PHASE TIMING REPORT ======================="
-    printf "%-38s %10s %12s\n" "PHASE" "STEP (s)" "CUMUL (s)"
-    printf "%-38s %10s %12s\n" "--------------------------------------" "--------" "----------"
-    printf '%s' "${_PHASE_ROWS}" | while IFS='|' read -r label step cumul; do
-        [ -z "${label}" ] && continue
-        printf "%-38s %10s %12s\n" "${label}" "${step}" "${cumul}"
-    done
-    printf "%-38s %10s %12s\n" "--------------------------------------" "--------" "----------"
-    printf "%-38s %10s %12s\n" "TOTAL" "" "${_LAST_T}"
-    echo "======================================================================="
-    echo "# CLUSTER_TYPE=${CLUSTER_TYPE}  services=$(printf '%s' "${ROUTES:-}" | grep -c . || echo 0)"
-    # Also surface the report on the GitHub Actions job-summary page.
-    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-        {
-            echo "## E2E phase timing (${CLUSTER_TYPE})"
-            echo ""
-            echo "| Phase | Step (s) | Cumulative (s) |"
-            echo "|---|---:|---:|"
-            printf '%s' "${_PHASE_ROWS}" | while IFS='|' read -r label step cumul; do
-                [ -z "${label}" ] && continue
-                echo "| ${label} | ${step} | ${cumul} |"
-            done
-            echo "| **TOTAL** | | **${_LAST_T}** |"
-        } >> "${GITHUB_STEP_SUMMARY}"
-    fi
-}
+# shellcheck source=e2e_lib.sh
+source "$(dirname "$0")/e2e_lib.sh"
+e2e_timing_init
 
 echo "# phase timings printed as [TIMING +Ns] markers; full report at the end"
 _t "deploy start"
-echo "=== deploy via KubernetesMicroserviceTarget (no-Docker: host-built binary + source over PVC) ==="
+echo "=== deploy via KubernetesTarget (no-Docker: host-built binary + source over PVC) ==="
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 # node-exporter + Alloy mount /proc, /sys, and /var/log/pods, which PodSecurity
 # `baseline` rejects - label the namespace privileged before any manifest lands.
@@ -194,13 +94,18 @@ kubectl label namespace "${NAMESPACE}" \
     --overwrite
 
 if [ "${CLUSTER_TYPE}" = "kind" ]; then
-    provision_kind_rwx_storage
+    provision_kind_rwx_storage "${NAMESPACE}" "${BUNDLE_STORAGE_CLASS}" \
+        jac-rwx-bundle-pv /var/jac-rwx-bundle jac-rwx-perms
 fi
 
 cd "${PROJECT_DIR}"
+# The fixture ships jac.preview.toml with a deployment_overlay marker;
+# selecting it here makes the deploy exercise profile resolution AND
+# build-time overlays, asserted after the HPA phase below.
+export JAC_PROFILE=preview
 jac - <<PYEOF
 import logging, os, sys, jaclang  # noqa: F401
-from jaclang.scale.deploy.target.kubernetes.microservice.target import KubernetesMicroserviceTarget
+from jaclang.scale.deploy.target.kubernetes.target import KubernetesTarget
 from jaclang.scale.deploy.target.kubernetes.kubernetes_config import KubernetesConfig
 from jaclang.scale.config.app_config import AppConfig
 from jaclang.scale.config.dev_config import BINARY_PATH_ENV
@@ -231,13 +136,16 @@ class StderrLogger:
     def debug(self, msg, *args, **kwargs):
         pass
 
-# No python_image override: the default base (python:3.12-slim) is a plain
-target = KubernetesMicroserviceTarget(
+# Empty python_image = the plain default base; the official-image e2e leg
+# sets E2E_POD_BASE_IMAGE to an image built from this PR's binary so the
+# baked-cache path (container-local runtime site) is exercised too.
+target = KubernetesTarget(
     config=KubernetesConfig(
         app_name="jac-e2e",
         namespace="${NAMESPACE}",
         container_port=8000,
         bundle_storage_class="${BUNDLE_STORAGE_CLASS}",
+        python_image="${E2E_POD_BASE_IMAGE:-}",
     ),
     logger=StderrLogger(),
 )
@@ -283,6 +191,25 @@ done
 
 _t "pods Ready"
 
+echo "=== gateway npm closure skipped when the dist shipped ==="
+GW_POD=$(kubectl get pods -n "${NAMESPACE}" -l app=gateway -o name | head -1)
+if kubectl exec -n "${NAMESPACE}" "${GW_POD#pod/}" -c gateway -- \
+        test -f /app/.jac/client/dist/index.html 2>/dev/null; then
+    # the "Installing npm dependencies" banner prints even under --no-npm;
+    # a "bun install" invocation only appears when the closure really installs
+    if kubectl logs -n "${NAMESPACE}" "${GW_POD}" -c jac-bootstrap 2>/dev/null \
+            | grep -q "bun install v"; then
+        echo "FAIL: bundle shipped a prebuilt dist but the gateway still installed the npm closure"
+        echo "--- debug: dist dir + bootstrap branch marker ---"
+        kubectl exec -n "${NAMESPACE}" "${GW_POD#pod/}" -c gateway -- ls -la /app/.jac/client/dist/ 2>&1 | head -6
+        kubectl logs -n "${NAMESPACE}" "${GW_POD}" -c jac-bootstrap 2>/dev/null | grep -E "jac-scale|bun install" | head -4
+        exit 1
+    fi
+    echo "  dist shipped and npm skipped OK"
+else
+    echo "  (no prebuilt dist in this run; the npm fallback path is in effect)"
+fi
+
 echo "=== first-boot compile stats (per pod) ==="
 for pod in $(kubectl get pods -n "${NAMESPACE}" -l managed=jac-scale -o name 2>/dev/null); do
     # `|| true` throughout: pods without a jac-bootstrap container (mongo,
@@ -303,17 +230,29 @@ if ! curl -fsS "http://localhost:${GATEWAY_LOCAL_PORT}/health" >/dev/null; then
 fi
 echo "  /health OK"
 
+echo "=== client bundle served at / ==="
+# A fleet that silently skips the client build still passes every pod and
+# health check while / serves a JSON 404 - assert the gateway serves HTML.
+ROOT_BODY=$(curl -fsS --max-time 10 "http://localhost:${GATEWAY_LOCAL_PORT}/" || true)
+if ! echo "${ROOT_BODY}" | grep -qi "<script"; then
+    echo "FAIL: / did not serve the client bundle (headless fleet). Body head:" >&2
+    echo "${ROOT_BODY}" | head -c 300 >&2
+    exit 1
+fi
+echo "  / serves the client"
+
 _t "health OK"
 echo "=== verify per-service routing ==="
 # 503 from the gateway means upstream service unreachable; 404/405 means
 # we reached a healthy service that just doesn't have that walker.
 ROUTES=$(jac -c "
 import tomllib
-from jaclang.scale.runtime.discovery.discovery import resolve_routes
+from jaclang.scale.runtime.routing import resolve_routes
 with open('${PROJECT_DIR}/jac.toml', 'rb') as f:
     cfg = tomllib.load(f)
-explicit = cfg.get('plugins', {}).get('scale', {}).get('microservices', {}).get('routes', {})
-for prefix in resolve_routes('${PROJECT_DIR}', dict(explicit)).values():
+ms = cfg.get('scale', {}).get('microservices', {}) \
+    or cfg.get('plugins', {}).get('scale', {}).get('microservices', {})
+for prefix in resolve_routes(dict(ms)).values():
     print(prefix)
 ")
 for prefix in ${ROUTES}; do
@@ -327,6 +266,165 @@ for prefix in ${ROUTES}; do
 done
 
 _t "routing OK"
+echo "=== journey: gateway identity + an order that survives an orders-app pod restart ==="
+GW_URL="http://localhost:${GATEWAY_LOCAL_PORT}"
+E2E_EMAIL="persist-e2e@example.com"
+REG_BODY="{\"identities\":[{\"type\":\"email\",\"value\":\"${E2E_EMAIL}\"}],\"credential\":{\"type\":\"password\",\"password\":\"pw12345678\"}}"
+LOGIN_BODY="{\"identity\":{\"type\":\"email\",\"value\":\"${E2E_EMAIL}\"},\"credential\":{\"type\":\"password\",\"password\":\"pw12345678\"}}"
+REG_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${GW_URL}/user/register" \
+    -H 'content-type: application/json' -d "${REG_BODY}")
+case "${REG_CODE}" in
+    200 | 201 | 409) : ;;
+    *) echo "FAIL: /user/register returned ${REG_CODE}" >&2; exit 1 ;;
+esac
+TOKEN=$(curl -fsS -X POST "${GW_URL}/user/login" -H 'content-type: application/json' \
+    -d "${LOGIN_BODY}" \
+    | jac -c "import json, sys; print((json.load(sys.stdin).get('data') or {}).get('token', ''))")
+if [ -z "${TOKEN}" ]; then echo "FAIL: /user/login returned no token" >&2; exit 1; fi
+AUTH="Authorization: Bearer ${TOKEN}"
+curl -fsS -X POST "${GW_URL}/cart/function/add_to_cart" -H "${AUTH}" \
+    -H 'content-type: application/json' \
+    -d '{"product_id": "p-e2e", "product_name": "E2E Widget", "price": 4.5, "qty": 2}' \
+    >/dev/null || { echo "FAIL: add_to_cart (gateway token not accepted by cart?)" >&2; exit 1; }
+ORDER_ID=$(curl -fsS -X POST "${GW_URL}/orders/function/create_order" -H "${AUTH}" \
+    -H 'content-type: application/json' -d '{}' \
+    | jac -c "import json, sys; d = json.load(sys.stdin); print(((d.get('data') or {}).get('result') or {}).get('id', ''))")
+if [ -z "${ORDER_ID}" ]; then echo "FAIL: create_order returned no id" >&2; exit 1; fi
+OLD_POD=$(kubectl get pod -n "${NAMESPACE}" -l app=orders-app \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [ -z "${OLD_POD}" ]; then
+    echo "FAIL: no pod matched app=orders-app, so nothing was restarted (label drift?)" >&2
+    exit 1
+fi
+echo "  created ${ORDER_ID}; deleting pod ${OLD_POD}..."
+kubectl delete pod -n "${NAMESPACE}" "${OLD_POD}" --wait=true
+if ! kubectl rollout status -n "${NAMESPACE}" deploy/orders-app-deployment --timeout=300s >/dev/null 2>&1; then
+    echo "FAIL: orders-app did not roll back out after restart" >&2
+    exit 1
+fi
+if kubectl get pod -n "${NAMESPACE}" "${OLD_POD}" >/dev/null 2>&1; then
+    echo "FAIL: pod ${OLD_POD} still exists; it was not actually replaced" >&2
+    exit 1
+fi
+AFTER=$(curl -fsS --max-time 20 --retry 6 --retry-delay 3 --retry-all-errors -X POST \
+    "${GW_URL}/orders/function/list_orders" -H "${AUTH}" \
+    -H 'content-type: application/json' -d '{}' || true)
+if ! printf '%s' "${AFTER}" | grep -q "${ORDER_ID}"; then
+    echo "FAIL: order ${ORDER_ID} did not survive the orders-app pod restart" >&2
+    printf '%s' "${AFTER}" | head -c 300 >&2
+    exit 1
+fi
+echo "  order ${ORDER_ID} survived the restart (served from Mongo by a fresh pod)"
+
+_t "identity + pod-restart persistence OK"
+echo "=== verify the circuit breaker sheds load when a downstream service is gone ==="
+# orders_app reaches cart_app through `sv import`, so create_order is a real
+# sv-to-sv call and the only breaker-protected hop in this fixture.
+kubectl scale -n "${NAMESPACE}" deploy/cart-app-deployment --replicas=0 >/dev/null
+kubectl wait --for=delete pod -n "${NAMESPACE}" -l app=cart-app --timeout=120s \
+    >/dev/null 2>&1 || true
+
+BREAKER_BODY=""
+BREAKER_SECS=0
+BREAKER_CALLS=0
+# Breaker state lives in the calling pod, so drive calls until one trips rather
+# than assuming a fixed count that a second orders-app replica would break.
+while [ "${BREAKER_CALLS}" -lt 10 ]; do
+    BREAKER_CALLS=$((BREAKER_CALLS + 1))
+    CALL_START=$(date +%s)
+    CALL_BODY=$(curl -sS --max-time 60 -X POST "${GW_URL}/orders/function/create_order" \
+        -H "${AUTH}" -H 'content-type: application/json' -d '{}' 2>/dev/null || true)
+    BREAKER_SECS=$(( $(date +%s) - CALL_START ))
+    if printf '%s' "${CALL_BODY}" | grep -q "open circuit breaker"; then
+        BREAKER_BODY="${CALL_BODY}"
+        break
+    fi
+done
+
+# Restore before asserting so a failure here cannot leave cart_app scaled to 0.
+kubectl scale -n "${NAMESPACE}" deploy/cart-app-deployment --replicas=1 >/dev/null
+if ! kubectl rollout status -n "${NAMESPACE}" deploy/cart-app-deployment \
+    --timeout=300s >/dev/null 2>&1; then
+    echo "FAIL: cart-app did not come back after the breaker check" >&2
+    exit 1
+fi
+
+if [ -z "${BREAKER_BODY}" ]; then
+    echo "FAIL: breaker never opened after ${BREAKER_CALLS} create_order calls to a downed cart_app" >&2
+    exit 1
+fi
+if [ "${BREAKER_SECS}" -ge 5 ]; then
+    echo "FAIL: breaker was open but the call still took ${BREAKER_SECS}s, so it is not shedding load" >&2
+    exit 1
+fi
+echo "  breaker opened after ${BREAKER_CALLS} call(s) and shed load in ${BREAKER_SECS}s"
+
+_t "circuit breaker load shedding OK"
+echo "=== verify HPA OOM guardrails (cpu+memory metrics, behavior rate limits) ==="
+# The heredoc feeds python's stdin, so the HPA JSON must travel via a file.
+HPA_JSON="$(mktemp)"
+kubectl get hpa -n "${NAMESPACE}" -l managed=jac-scale -o json > "${HPA_JSON}"
+python3 - "${HPA_JSON}" <<'PYEOF'
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    items = json.load(f).get("items", [])
+if not items:
+    sys.exit("FAIL: no managed HPAs found in namespace")
+for hpa in items:
+    name = hpa["metadata"]["name"]
+    spec = hpa["spec"]
+    metric_names = sorted(
+        m["resource"]["name"]
+        for m in spec.get("metrics", [])
+        if m.get("type") == "Resource"
+    )
+    if metric_names != ["cpu", "memory"]:
+        sys.exit(f"FAIL: {name} metrics={metric_names}, expected cpu+memory")
+    behavior = spec.get("behavior") or {}
+    up = behavior.get("scaleUp") or {}
+    down = behavior.get("scaleDown") or {}
+    if not up.get("policies") or up.get("stabilizationWindowSeconds") is None:
+        sys.exit(f"FAIL: {name} missing scaleUp guardrails: {behavior}")
+    if not down.get("policies") or not down.get("stabilizationWindowSeconds"):
+        sys.exit(f"FAIL: {name} missing scaleDown guardrails: {behavior}")
+    print(
+        f"  {name}: metrics={metric_names}, "
+        f"scaleUp<={up['policies'][0]['value']} pods/{up['policies'][0]['periodSeconds']}s "
+        f"(stab {up['stabilizationWindowSeconds']}s), "
+        f"scaleDown stab {down['stabilizationWindowSeconds']}s"
+    )
+print(f"  {len(items)} HPA(s) verified")
+PYEOF
+rm -f "${HPA_JSON}"
+
+_t "HPA guardrails OK"
+echo "=== verify profile + deployment_overlay landed on the first rollout ==="
+OVL_JSON="$(mktemp)"
+kubectl get deployment products-app-deployment -n "${NAMESPACE}" -o json > "${OVL_JSON}"
+RS_COUNT=$(kubectl get rs -n "${NAMESPACE}" -o json | python3 -c "import json,sys; print(sum(1 for r in json.load(sys.stdin)['items'] if r['metadata']['ownerReferences'][0]['name']=='products-app-deployment'))")
+python3 - "${OVL_JSON}" "${RS_COUNT}" <<'PYEOF'
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    dep = json.load(f)
+spec = dep["spec"]
+if spec.get("progressDeadlineSeconds") != 900:
+    sys.exit(f"FAIL: overlay progressDeadlineSeconds missing (got {spec.get('progressDeadlineSeconds')})")
+env = spec["template"]["spec"]["containers"][0].get("env", [])
+if not any(e.get("name") == "E2E_OVERLAY_MARKER" for e in env):
+    sys.exit("FAIL: overlay env marker missing; jac.preview.toml did not reach the manifest")
+if dep["metadata"]["labels"].get("managed") != "jac-scale":
+    sys.exit("FAIL: managed label lost after overlay merge")
+if int(sys.argv[2]) != 1:
+    sys.exit(f"FAIL: expected a single ReplicaSet (one rollout), found {sys.argv[2]}")
+print(f"  overlay OK: progressDeadline=900, marker env present, labels intact, ReplicaSets=1")
+PYEOF
+rm -f "${OVL_JSON}"
+
+_t "profile+overlay OK"
 echo "=== M-14.a: verify observability stack (logs.enabled) ==="
 # When [scale.microservices.logs].enabled = true (the fixture
 # default) the microservice target also calls MonitoringDeployer, which
@@ -568,11 +666,12 @@ run_availability_assertion "gateway" \
 FIRST_PREFIX=$(echo "${ROUTES}" | head -n1)
 FIRST_SVC=$(jac -c "
 import tomllib
-from jaclang.scale.runtime.discovery.discovery import resolve_routes
+from jaclang.scale.runtime.routing import resolve_routes
 with open('${PROJECT_DIR}/jac.toml', 'rb') as f:
     cfg = tomllib.load(f)
-explicit = cfg.get('plugins', {}).get('scale', {}).get('microservices', {}).get('routes', {})
-for name, prefix in resolve_routes('${PROJECT_DIR}', dict(explicit)).items():
+ms = cfg.get('scale', {}).get('microservices', {}) \
+    or cfg.get('plugins', {}).get('scale', {}).get('microservices', {})
+for name, prefix in resolve_routes(dict(ms)).items():
     if prefix == '${FIRST_PREFIX}':
         print(name.replace('_', '-'))
         break

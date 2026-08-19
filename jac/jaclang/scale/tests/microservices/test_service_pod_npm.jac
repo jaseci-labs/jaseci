@@ -6,19 +6,14 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 
 
-test "service-pod bootstrap strips npm deps; the gateway keeps them" {
-    svc = str(
-        build_bootstrap_init_container(
-            KubernetesConfig(), "python:3.12-slim", is_gateway=False
-        )["args"][0]
+test "pod bootstrap always skips the npm closure" {
+    # Pods never build the client: the deploy ships the bundle built on the
+    # host or fails fast, so no pod - gateway included - needs npm deps.
+    script = str(
+        build_bootstrap_init_container(KubernetesConfig(), "python:3.12-slim")["args"][
+            0
+        ]
     );
-    gw = str(
-        build_bootstrap_init_container(
-            KubernetesConfig(), "python:3.12-slim", is_gateway=True
-        )["args"][0]
-    );
-    assert "dependencies\\.npm" in svc;
-    assert "dependencies\\.npm" not in gw;
-    # The strip must land before the install that would fetch the packages.
-    assert svc.index("npm") < svc.index("jac install");
+    assert "export JAC_CLIENT_SKIP_NPM_INSTALL=1" in script;
+    assert script.index("JAC_CLIENT_SKIP_NPM_INSTALL") < script.index("jac install");
 }

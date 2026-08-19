@@ -1,9 +1,14 @@
-"""Event-streaming broker abstraction. Defines EventStreamBroker, Event, RetryPolicy, HealthStatus; concrete impls live in events/streams."""
-import from typing { Callable }
+import from typing { cast }
 import from datetime { datetime, UTC }
 import uuid;
 
-"""CloudEvents-style envelope used for every publish/consume. `event_type` defaults to empty and is auto-filled from the topic by the publish() facade."""
+enum StreamPosition { EARLIEST = 'earliest', LATEST = 'latest', }
+
+def starts_at_earliest(start_from: any) -> bool {
+    token = start_from.value if isinstance(start_from, StreamPosition) else start_from;
+    return token == StreamPosition.EARLIEST.value;
+}
+
 obj Event {
     has event_type: str = "",
         data: dict[str, any] = {},
@@ -17,56 +22,151 @@ obj Event {
         delivery_group: str | None = None;
 }
 
-"""Retry policy applied to a subscription. After max_attempts the message goes to '<topic><dead_letter_suffix>'."""
 obj RetryPolicy {
     has max_attempts: int = 3,
         backoff_seconds: list[float] = [1.0, 5.0, 30.0],
         dead_letter_suffix: str = ".dlq";
 }
 
-"""Result of a health probe."""
 obj HealthStatus {
     has healthy: bool,
         broker: str,
         details: dict[str, any] = {};
 }
 
-"""Abstract base for an event-streaming broker.
-Implementations guarantee at-least-once delivery, replayable offsets via start_from, ordered per-group consumption, and DLQ on retry exhaustion.
-"""
+glob _POSITIONAL_KINDS = {'POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD'},
+     _VARIADIC_KINDS = {'VAR_POSITIONAL', 'VAR_KEYWORD'};
+
+obj MethodParam {
+    has name: str,
+        kind: str,
+        has_default: bool,
+        default: any = None;
+}
+
+def _method_params(fn: any) -> list[MethodParam] {
+    import inspect;
+    params: list[MethodParam] = [];
+    for p in inspect.signature(fn).parameters.values() {
+        if p.name == 'self' {
+            continue;
+        }
+        params.append(
+            MethodParam(
+                name=p.name,
+                kind=p.kind.name,
+                has_default=(p.default is not inspect.Parameter.empty),
+                default=(None if p.default is inspect.Parameter.empty else p.default)
+            )
+        );
+    }
+    return params;
+}
+
+def _signature_faults(
+    method: str, want: list[MethodParam], got: list[MethodParam]
+) -> list[str] {
+    faults: list[str] = [];
+    provided: dict[str, MethodParam] = {p.name: p for p in got};
+    absorbs = any(p.kind in _VARIADIC_KINDS for p in got);
+    declared = [p.name for p in want];
+    for w in want {
+        have = provided.get(w.name);
+        if have is None {
+            if not absorbs {
+                faults.append(f"{method} drops parameter '{w.name}'");
+            }
+            continue;
+        }
+        if have.kind == 'POSITIONAL_ONLY' and w.kind != 'POSITIONAL_ONLY' {
+            faults.append(f"{method} makes '{w.name}' positional-only");
+        }
+        if w.has_default and not have.has_default {
+            faults.append(f"{method} drops the default {w.default} for '{w.name}'");
+        } elif w.has_default and have.default != w.default {
+            faults.append(
+                f"{method} defaults '{w.name}' to {have.default}, "
+                f"interface declares {w.default}"
+            );
+        }
+    }
+    ordered = [
+        p.name
+        for p in got
+        if p.kind in _POSITIONAL_KINDS and p.name in declared
+    ];
+    expected = [
+        name
+        for name in declared
+        if name in ordered
+    ];
+    if ordered != expected {
+        faults.append(f"{method} orders parameters {ordered}, expected {expected}");
+    }
+    for p in got {
+        if (
+            (p.kind not in _VARIADIC_KINDS)
+            and (p.name not in declared)
+            and not p.has_default
+        ) {
+            faults.append(f"{method} adds required parameter '{p.name}'");
+        }
+    }
+    return faults;
+}
+
+def _assert_signature_parity(broker_cls: type) {
+    faults: list[str] = [];
+    for (name, declared) in vars(EventStreamBroker).items() {
+        if name.startswith('_') or not callable(declared) {
+            continue;
+        }
+        supplied = getattr(broker_cls, name, None);
+        if supplied is declared {
+            continue;
+        }
+        if not callable(supplied) {
+            faults.append(f"{name} is not a method");
+            continue;
+        }
+        faults.extend(
+            _signature_faults(name, _method_params(declared), _method_params(supplied))
+        );
+    }
+    if faults {
+        detail = '; '.join(faults);
+        raise TypeError(
+            f"{broker_cls.__module__}.{broker_cls.__name__} diverges from the "
+            f"EventStreamBroker interface: {detail}"
+        );
+    }
+}
+
 obj EventStreamBroker {
-    """Start background consumer threads / connections. Idempotent."""
+    class def __init_subclass__(**kwargs: object) {
+        super.__init_subclass__(**kwargs);
+        _assert_signature_parity(cast(type, cls));
+    }
+
     def start -> None;
-
-    """Stop the broker. With drain=True, wait for in-flight handlers to finish."""
     def stop(drain: bool = True) -> None;
-
-    """Publish an event. `key` partitions on Kafka; ignored on simple brokers."""
     def publish(topic: str, event: Event, key: str | None = None) -> None;
-
-    """Register a handler for a topic (push delivery). Internal API; user code should use the @subscribe decorator instead.
-    `group` shares load; handler completion acks; raise triggers retry. `start_from` ('latest' | 'earliest' | broker-specific position token) is a one-shot bookmark applied only when the consumer group is first created.
-    """
     def register_handler(
         topic: str,
         handler: Callable[[Event], any],
         group: str | None = None,
         retry: RetryPolicy | None = None,
-        start_from: str = "latest"
+        start_from: str = StreamPosition.LATEST.value
     ) -> None;
 
-    """Pull up to `max_messages` events, blocking up to `timeout_seconds`. Caller MUST ack(event). See subscribe() for `start_from` semantics."""
     def consume(
         topic: str,
         group: str | None = None,
         max_messages: int = 1,
         timeout_seconds: float = 5.0,
-        start_from: str = "latest"
+        start_from: str = StreamPosition.LATEST.value
     ) -> list[Event];
 
-    """Ack a consume()d event. No-op for subscribe()-delivered events (auto-acked)."""
     def ack(event: Event) -> None;
-
-    """Probe broker health (connection state, consumer lag, etc.)."""
     def health -> HealthStatus;
 }

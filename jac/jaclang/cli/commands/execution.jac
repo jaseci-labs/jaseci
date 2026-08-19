@@ -23,17 +23,20 @@ glob registry = get_registry();
             short="s"
         ),
         Arg.create(
-            "main", typ=bool, default=True, help="Treat module as __main__", short="m"
-        ),
-        Arg.create(
-            "cache", typ=bool, default=True, help="Enable compilation cache", short="c"
-        ),
-        Arg.create(
-            "autonative",
+            "main",
             typ=bool,
-            default=False,
-            help="Auto-promote compatible modules to native execution (experimental)",
-            short="N"
+            default=True,
+            help="Treat module as __main__",
+            short="m",
+            config_key="run.main"
+        ),
+        Arg.create(
+            "cache",
+            typ=bool,
+            default=True,
+            help="Enable compilation cache",
+            short="c",
+            config_key="run.cache"
         ),
         Arg.create(
             "profile",
@@ -92,7 +95,6 @@ glob registry = get_registry();
         ("jac run --debug app.jac", "Run under the Python debugger"),
         ("jac run --show", "Print what the project would run/build, without doing it"),
         ("jac run --no-cache app.jac", "Run without caching"),
-        ("jac run --autonative app.jac", "Run with native auto-promotion"),
         ("jac run --profile prod app.jac", "Run with production profile"),
         ("jac run -e all app.jac", "Run and show all diagnostics (errors+warnings)"),
         ("jac run -e none app.jac", "Run silently, suppress all diagnostics"),
@@ -106,7 +108,6 @@ def run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    autonative: bool = False,
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
@@ -126,7 +127,14 @@ def run(
             default="",
             help="Entry .jac file (default: [project] entry-point from jac.toml)"
         ),
-        Arg.create("port", typ=int, default=8000, help="Port to serve on", short="p"),
+        Arg.create(
+            "port",
+            typ=int,
+            default=8000,
+            help="Port to serve on",
+            short="p",
+            config_key="serve.port"
+        ),
         Arg.create(
             "api_port",
             typ=int,
@@ -165,8 +173,22 @@ def enter(
             default="main.jac",
             help="Path to .jac file (default: main.jac)"
         ),
-        Arg.create("port", typ=int, default=8000, help="Server port", short="p"),
-        Arg.create("main", typ=bool, default=True, help="Treat as __main__", short="m"),
+        Arg.create(
+            "port",
+            typ=int,
+            default=8000,
+            help="Server port",
+            short="p",
+            config_key="serve.port"
+        ),
+        Arg.create(
+            "main",
+            typ=bool,
+            default=True,
+            help="Treat as __main__",
+            short="m",
+            config_key="run.main"
+        ),
         Arg.create(
             "faux",
             typ=bool,
@@ -188,7 +210,7 @@ def enter(
             help="Separate API port for HMR mode (0=same as port)"
         ),
         Arg.create(
-            "no_client",
+            "no-client",
             typ=bool,
             default=False,
             help="Skip client bundling/serving (API only)"
@@ -207,7 +229,7 @@ def enter(
                 "Client build target for dev server (web, pwa, mobile, desktop). "
                 "Choices reflect installed targets (desktop builds a native webview app)."
             ),
-            choices=["web", "pwa", "mobile"],
+            choices=["web", "pwa", "mobile", "desktop"],
             short=""
         ),
         Arg.create(
@@ -255,7 +277,7 @@ def enter(
             "dry-run",
             typ=bool,
             default=False,
-            help="Print manifests + image plan that would be applied; touch nothing (no cluster contact, no build, no DB provisioning)",
+            help="Print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)",
             short=""
         ),
         Arg.create(
@@ -263,6 +285,16 @@ def enter(
             typ=bool,
             default=False,
             help="With --dry-run: dump the raw YAML stream",
+            short=""
+        ),
+        Arg.create(
+            "takeover",
+            typ=bool,
+            default=False,
+            help=(
+                "Evict any other session holding this project's database "
+                "before starting (use when a previous jac process is stuck)"
+            ),
             short=""
         ),
 
@@ -277,6 +309,10 @@ def enter(
         ("jac start --profile prod", "Start with production profile"),
         ("jac start --client mobile", "Run the mobile client dev server"),
         ("jac start --scale", "Deploy to a platform target instead of serving locally"),
+        (
+            "jac start --takeover",
+            "Evict a stuck session holding this project's database"
+        ),
 
     ],
     group="execution"
@@ -296,7 +332,8 @@ def start(
     target: str = "kubernetes",
     enable_tls: bool = False,
     dry_run: bool = False,
-    show_yaml: bool = False
+    show_yaml: bool = False,
+    takeover: bool = False
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;
@@ -319,7 +356,7 @@ def run_jab_image(
             "global",
             typ=bool,
             default=False,
-            help="Resolve from the jac-owned global site only, ignoring the project venv",
+            help="Resolve from jac-owned global tools only (global python site + global npm), ignoring the project",
             short="g",
             dest="use_global"
         ),
@@ -349,6 +386,10 @@ def run_jab_image(
         ("jac x black .", "Run an installed formatter on the current directory"),
         ("jac x eslint .", "Run a project npm tool (node_modules/.bin) via bun"),
         ("jac x --global hf whoami", "Force the global-site copy of a tool"),
+        (
+            "jac x --global eslint .",
+            "Run a globally-installed npm tool (jac install --npm --global eslint)"
+        ),
         ("jac x --node vite build", "Force the project's npm tool"),
         ("jac x --list", "List the CLI tools available here"),
 

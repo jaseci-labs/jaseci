@@ -12,6 +12,7 @@ import from jaclang.jac0core.sealed {
     register_image,
     image_for_bundle_dir
 }
+import from jaclang.runtimelib.jab_vendor { activate_vendored }
 
 glob JAB_SUFFIX: str = ".jab";
 
@@ -50,9 +51,11 @@ def _materialize_jab_data(data: bytes, label: str) -> Path {
     }
     bundle_dir = str(dest / "_precompiled");
     if image_for_bundle_dir(bundle_dir) is None
-    and register_image(bundle_dir) is None {
+        and register_image(bundle_dir) is None {
         raise RuntimeError(f"{label}: sealed manifest failed to load");
     }
+
+    activate_vendored(dest);
     return dest;
 }
 

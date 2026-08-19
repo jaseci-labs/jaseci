@@ -1,13 +1,11 @@
-"""In-memory implementation of EventStreamBroker.
-Single-process, no persistence. Per-topic append-only lists + per-group integer offsets mimic Redis Streams semantics. Right for dev, tests, single-pod deployments without Redis.
-"""
-import from typing { Callable }
 import from threading { Thread, Event as _ThreadStop, Lock }
 import from jaclang.scale.events.broker {
     EventStreamBroker,
     Event,
     RetryPolicy,
-    HealthStatus
+    HealthStatus,
+    StreamPosition,
+    starts_at_earliest
 }
 import from jaclang.scale.events.streams._stream_common { consumer_loop, wait_or_stop }
 import logging;
@@ -15,7 +13,6 @@ import time;
 
 glob _logger = logging.getLogger(__name__);
 
-"""LocalEventStream. In-process append-only event log keyed by topic, with per-group offsets and competing-consumer fan-in within a group."""
 obj LocalEventStream(EventStreamBroker) {
     has config: dict[str, any] = {},
         _default_group: str = "jac-scale",
@@ -46,7 +43,7 @@ obj LocalEventStream(EventStreamBroker) {
 
     def stop(drain: bool = True) {
         self._stop_event.set();
-        # Wake every signal so blocked consumers exit promptly.
+
         with self._lock {
             for sig in self._condition_events.values() {
                 sig.set();
@@ -74,7 +71,6 @@ obj LocalEventStream(EventStreamBroker) {
     }
 
     def _ensure_offset(topic: str, group: str, start_from: str) -> None {
-        # Per-group cursor; created once on first sight.
         key = f"{topic}::{group}";
         if key in self._offsets {
             return;
@@ -84,17 +80,15 @@ obj LocalEventStream(EventStreamBroker) {
                 return;
             }
             log = self._topics.get(topic, []);
-            if start_from == "earliest" {
+            if starts_at_earliest(start_from) {
                 self._offsets[key] = 0;
             } else {
-                # 'latest' or any unrecognized value falls through to latest.
                 self._offsets[key] = len(log);
             }
         }
     }
 
     def publish(topic: str, event: Event, key: str | None = None) {
-        # `key` is accepted for API parity; in-memory broker does no partitioning.
         with self._lock {
             log = self._topics.setdefault(topic, []);
             log.append(event);
@@ -108,7 +102,7 @@ obj LocalEventStream(EventStreamBroker) {
         group: str | None = None,
         max_messages: int = 1,
         timeout_seconds: float = 5.0,
-        start_from: str = "latest"
+        start_from: str = StreamPosition.LATEST.value
     ) -> list[Event] {
         grp = group or self._default_group;
         self._ensure_offset(topic, grp, start_from);
@@ -143,12 +137,10 @@ obj LocalEventStream(EventStreamBroker) {
     }
 
     def ack(event: Event) -> None {
-        # No-op; offsets advance on consume() in the in-memory broker.
         return;
     }
 
     def _send_to_dlq(topic: str, event: Event, retry: RetryPolicy) {
-        # In-memory publish is effectively infallible; just log and move on.
         try {
             self.publish(topic + retry.dead_letter_suffix, event);
         } except Exception as e {
@@ -168,8 +160,7 @@ obj LocalEventStream(EventStreamBroker) {
         for attempt in range(retry.max_attempts) {
             try {
                 result = handler(event);
-                # Async handlers would silently no-op (coroutine never awaited),
-                # so reject them loudly. Subscribers must be sync today.
+
                 if inspect.iscoroutine(result) {
                     result.close();
                     raise TypeError(
@@ -200,7 +191,7 @@ obj LocalEventStream(EventStreamBroker) {
         handler: Callable[[Event], any],
         group: str | None = None,
         retry: RetryPolicy | None = None,
-        start_from: str = "latest"
+        start_from: str = StreamPosition.LATEST.value
     ) {
         grp = group or self._default_group;
         retry_policy = retry or self._default_retry;
@@ -208,7 +199,7 @@ obj LocalEventStream(EventStreamBroker) {
 
         broker = self;
         def _loop {
-            consumer_loop(broker, topic, grp, handler, retry_policy);
+            consumer_loop(broker, topic, grp, handler, retry_policy, start_from);
         }
 
         thread = Thread(

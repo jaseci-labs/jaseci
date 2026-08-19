@@ -174,6 +174,14 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
         {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
     );
     if not response.ok {
+        if response.status == 401 {
+            globalThis.__jacRemoveLocalStorage__("jac_token");
+            handler = globalThis.__jacHandleWalkerUnauthorized__;
+            if handler {
+                handler();
+            }
+            return {};
+        }
         error_text = await response.text();
         raise Exception(f"Function {function_name} failed: {error_text}");
     }
@@ -222,7 +230,7 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
             reader_info = effects[endpoint_name];
             if reader_info and not reader_info["is_writer"] {
                 if writer_touches.includes("*")
-                or __overlaps(reader_info["touches"], writer_touches) {
+                    or __overlaps(reader_info["touches"], writer_touches) {
                     __invalidateEndpoint(endpoint_name);
                 }
             }
@@ -234,9 +242,9 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
 
 impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
     if left == "login"
-    or left == "signup"
-    or left == "logout"
-    or left == "refresh_token" {
+        or left == "signup"
+        or left == "logout"
+        or left == "refresh_token" {
         return await __doWalkerFetch(left, right, fields);
     }
     endpoint_key = f"walker:{left}";
@@ -321,12 +329,13 @@ impl jacSignup(
             error_data = JSON.parse(error_text);
             return {
                 "success": False,
+                "status": response.status,
                 "error": error_data["error"]
                     if error_data["error"] != None
                     else "Signup failed"
             };
         } except Exception {
-            return {"success": False, "error": error_text};
+            return {"success": False, "status": response.status, "error": error_text};
         }
     }
 }

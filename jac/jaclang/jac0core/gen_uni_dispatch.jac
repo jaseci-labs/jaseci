@@ -3,10 +3,9 @@ glob DISPATCH_PASSES: list = [
          ("jaclang.jac0core.passes.boundary_analysis_pass", "BoundaryAnalysisPass"),
          ("jaclang.jac0core.passes.semantic_analysis_pass", "SemanticAnalysisPass"),
          ("jaclang.jac0core.passes.sym_tab_build_pass", "SymTabBuildPass"),
-         ("jaclang.jac0core.passes.pyast_gen_pass", "PyastGenPass"),
+         ("jaclang.jac0core.passes.jcir_gen_pass", "JcirGenPass"),
          ("jaclang.compiler.passes.main.cfg_build_pass", "CFGBuildPass"),
          ("jaclang.compiler.passes.main.type_checker_pass", "TypeCheckPass"),
-         ("jaclang.compiler.passes.main.pyjac_ast_link_pass", "PyJacAstLinkPass"),
          ("jaclang.compiler.passes.ecmascript.esast_gen_pass", "EsastGenPass"),
          ("jaclang.compiler.passes.tool.doc_ir_gen_pass", "DocIRGenPass"),
          ("jaclang.compiler.passes.tool.jac_auto_lint_pass", "JacAutoLintPass"),
@@ -30,8 +29,8 @@ def node_snake_map -> dict[str, str] {
     for name in dir(ut_mod) {
         attr = getattr(ut_mod, name);
         if isinstance(attr, type)
-        and issubclass(attr, UniNode)
-        and attr is not UniNode {
+            and issubclass(attr, UniNode)
+            and attr is not UniNode {
             out[pascal_to_snake(name)] = name;
         }
     }
@@ -63,42 +62,42 @@ def accept_annex_src(
     enter: list[str], exits: list[str], snake_map: dict[str, str]
 ) -> str {
     n2s = {v: k for (k, v) in snake_map.items()};
-    lines: list = [];
-    lines.append('"""Auto-generated visitor accept overrides (#6942 A.1).');
-    lines.append('');
-    lines.append('DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.');
-    lines.append('"""');
-    lines.append('');
+    blocks: list[str] = [
+        '# Auto-generated visitor accept overrides (#6942 A.1).\n'
+            + '# DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.'
+    ];
     for entry in [("enter", enter), ("exit", exits)] {
         (verb, kinds) = entry;
         for node in kinds {
-            lines.append(f'impl {node}.accept_{verb}(v: UniPass) -> None {{');
-            lines.append(f'    v.{verb}_{n2s[node]}(self);');
-            lines.append('}');
+            blocks.append(
+                f'impl {node}.accept_{verb}(v: UniPass) -> None {{\n'
+                    + f'    v.{verb}_{n2s[node]}(self);\n'
+                    + '}'
+            );
         }
     }
-    return "\n".join(lines) + "\n";
+    return "\n\n".join(blocks) + "\n";
 }
 
 def surface_annex_src(
     enter: list[str], exits: list[str], snake_map: dict[str, str]
 ) -> str {
     n2s = {v: k for (k, v) in snake_map.items()};
-    lines: list = [];
-    lines.append('"""Auto-generated UniPass visitor base surface (#6942 A.1).');
-    lines.append('');
-    lines.append('DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.');
-    lines.append('"""');
-    lines.append('');
+    blocks: list[str] = [
+        '# Auto-generated UniPass visitor base surface (#6942 A.1).\n'
+            + '# DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.'
+    ];
     for entry in [("enter", enter), ("exit", exits)] {
         (verb, kinds) = entry;
         for node in kinds {
-            lines.append(f'impl UniPass.{verb}_{n2s[node]}(nd: uni.{node}) -> None {{');
-            lines.append(f'    self.default_{verb}(nd);');
-            lines.append('}');
+            blocks.append(
+                f'impl UniPass.{verb}_{n2s[node]}(nd: {node}) -> None {{\n'
+                    + f'    self.default_{verb}(nd);\n'
+                    + '}'
+            );
         }
     }
-    return "\n".join(lines) + "\n";
+    return "\n\n".join(blocks) + "\n";
 }
 
 def surface_decls_block(
@@ -109,7 +108,7 @@ def surface_decls_block(
     for entry in [("enter", enter), ("exit", exits)] {
         (verb, kinds) = entry;
         for node in kinds {
-            lines.append(f'    def {verb}_{n2s[node]}(nd: uni.{node}) -> None;');
+            lines.append(f'    def {verb}_{n2s[node]}(nd: {node}) -> None;');
         }
     }
     lines.append(SURFACE_END);
@@ -212,9 +211,8 @@ def verify_all -> list {
         }
     }
     up_src = open(abs_path(UNI_PASS_SRC), encoding="utf-8").read();
-    if apply_surface_block(
-        up_src, surface_decls_block(enter, exits, snake_map)
-    ) != up_src {
+    if apply_surface_block(up_src, surface_decls_block(enter, exits, snake_map))
+        != up_src {
         stale.append(UNI_PASS_SRC + " (surface decls)");
     }
     for d in missing_accept_decls(enter, exits) {

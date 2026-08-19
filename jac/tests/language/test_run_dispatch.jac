@@ -19,6 +19,10 @@ import from jaclang.project.kinds {
     resolve_project_kind,
     resolve_entry,
     is_valid_kind,
+    kind_entry,
+    kind_spec,
+    RunPlan,
+    KIND_SPECS,
     VALID_KINDS
 }
 
@@ -48,10 +52,13 @@ def _plan(
     toml_extra: str,
     entry_name: str = "",
     entry_body: str = "with entry { print(\"ok\"); }"
-) -> object {
+) -> RunPlan {
     d = _mk_project(toml_extra, entry_name, entry_body);
     cfg = JacConfig.discover(start_path=Path(d));
-    return plan_project_run(cfg, d);
+    assert cfg is not None , "expected a discovered config";
+    plan = plan_project_run(cfg, d);
+    assert plan is not None , "expected a run plan";
+    return plan;
 }
 
 def _cleanup {
@@ -72,16 +79,14 @@ test "kind cli -> execute via run" {
 }
 
 test "kind cli-native -> execute via run" {
-    p = _plan("kind = \"cli-native\"\nentry-point = \"main.na.jac\"\n", "main.na.jac");
+    p = _plan("kind = \"cli-native\"\nentry-point = \"main.jac\"\n", "main.jac");
     assert p.kind == "cli-native";
     assert p.action == "execute";
     assert p.verb == "run";
 }
 
 test "kind native-binary -> build via nacompile" {
-    p = _plan(
-        "kind = \"native-binary\"\nentry-point = \"main.na.jac\"\n", "main.na.jac"
-    );
+    p = _plan("kind = \"native-binary\"\nentry-point = \"main.jac\"\n", "main.jac");
     assert p.action == "build";
     assert p.verb == "nacompile";
     assert "output" in p.flags;
@@ -89,7 +94,7 @@ test "kind native-binary -> build via nacompile" {
 }
 
 test "kind native-lib -> build shared via nacompile" {
-    p = _plan("kind = \"native-lib\"\nentry-point = \"lib.na.jac\"\n", "lib.na.jac");
+    p = _plan("kind = \"native-lib\"\nentry-point = \"lib.jac\"\n", "lib.jac");
     assert p.action == "build";
     assert p.verb == "nacompile";
     assert p.flags.get("shared") == True;
@@ -141,49 +146,57 @@ test "kind js-package -> build npm via build --as" {
 }
 
 test "kind web-app -> serve dev (client framework is core)" {
-    p = _plan("kind = \"web-app\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+    p = _plan("kind = \"web-app\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
     assert p.verb == "start";
     assert p.flags.get("dev") == True;
-    assert p.requires_plugin == "";
+    # A web-app serves the default web client, so it carries no --client flag.
+    assert "client" not in p.flags;
 }
 
 test "kind web-static -> serve (client framework is core)" {
-    p = _plan("kind = \"web-static\"\nentry-point = \"page.cl.jac\"\n", "page.cl.jac");
+    p = _plan("kind = \"web-static\"\nentry-point = \"page.jac\"\n", "page.jac");
     assert p.action == "serve";
     assert p.verb == "start";
-    assert p.requires_plugin == "";
+    assert "client" not in p.flags;
 }
 
-test "kind desktop -> serve (desktop target is core)" {
-    p = _plan("kind = \"desktop\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+test "kind desktop -> serve the desktop client target (core)" {
+    p = _plan("kind = \"desktop\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "serve";
+    assert p.verb == "start";
+    # The desktop target is a core client target -- it must reach `start`,
+    # not be turned away as a missing plugin.
     assert p.flags.get("client") == "desktop";
-    assert p.requires_plugin == "";
+    assert "--client desktop" in p.command_line();
 }
 
-test "kind mobile -> build (client framework is core)" {
-    p = _plan("kind = \"mobile\"\nentry-point = \"app.cl.jac\"\n", "app.cl.jac");
+test "kind mobile -> build the mobile client shell (core)" {
+    p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "build";
     assert p.verb == "build";
-    assert p.requires_plugin == "";
+    # Must build the mobile shell, not fall through to a default .jab build.
+    assert p.flags.get("client") == "mobile";
+    assert "as" not in p.flags;
+    assert "--client mobile" in p.command_line();
 }
 
 # ---------------------------------------------------------------------------
 # Kind inference (no explicit [project] kind)
 # ---------------------------------------------------------------------------
-test "infer cli-native from .na.jac entry" {
-    p = _plan("entry-point = \"main.na.jac\"\n", "main.na.jac");
-    assert p.kind == "cli-native";
+test "plain .jac entry no longer infers cli-native (marker retired)" {
+    # Pre-0.35 a main.na.jac entry inferred cli-native from the filename.
+    # With the marker retired, native is a placement decision, not a kind
+    # signal: plain .jac infers "cli" and cli-native must be explicit.
+    p = _plan("entry-point = \"main.jac\"\n", "main.jac");
+    assert p.kind == "cli";
 }
 
-test "infer service from .sv.jac entry" {
-    p = _plan("entry-point = \"main.sv.jac\"\n", "main.sv.jac");
-    assert p.kind == "service";
-}
-
-test "infer web-app from .cl.jac entry" {
-    p = _plan("entry-point = \"main.cl.jac\"\n", "main.cl.jac");
+test "infer web-app from a client-pinned entry" {
+    p = _plan(
+        "entry-point = \"main.jac\"\n\n[placement.pins]\nmain = \"client\"\n",
+        "main.jac"
+    );
     assert p.kind == "web-app";
 }
 
@@ -207,11 +220,10 @@ test "infer web-app from plain .jac when [client] is configured" {
 # ---------------------------------------------------------------------------
 # Entry-point resolution
 # ---------------------------------------------------------------------------
-test "stale entry-point resolves by stem to the real codespace file" {
-    # entry-point says main.jac but only main.na.jac exists on disk.
-    p = _plan("entry-point = \"main.jac\"\n", "main.na.jac");
-    assert p.entry_path.endswith("main.na.jac");
-    assert p.kind == "cli-native";
+test "stale entry-point resolves by stem to the real language file" {
+    # entry-point says main.jac but only main.py exists on disk.
+    p = _plan("entry-point = \"main.jac\"\n", "main.py", entry_body="print('ok')");
+    assert p.entry_path.endswith("main.py");
 }
 
 test "missing entry yields no plan for runnable kinds" {
@@ -228,6 +240,39 @@ test "is_valid_kind accepts known and rejects unknown kinds" {
     assert is_valid_kind("service");
     assert not is_valid_kind("banana");
     assert len(VALID_KINDS) == 12;
+}
+
+test "KIND_SPECS is the single source of truth for every kind" {
+    assert kind_spec("banana") is None;
+    for kname in VALID_KINDS {
+        spec = kind_spec(kname);
+        assert spec is not None , f"no spec for {kname}";
+        # The table key and the spec's own name can never drift apart.
+        assert spec.name == kname;
+        assert spec.action in ["execute", "build", "serve"];
+        assert spec.verb in ["run", "start", "nacompile", "build"];
+        assert spec.description;
+        assert spec.entry;
+        # kind_entry() reads the table rather than a second hardcoded list.
+        assert kind_entry(kname) == spec.entry;
+    }
+}
+
+test "a plan carries the spec it was planned from" {
+    p = _plan("kind = \"cli\"\n", "main.jac");
+    assert p.spec is KIND_SPECS["cli"];
+    assert p.kind == "cli" and p.kind == p.spec.name;
+    assert p.action == p.spec.action and p.verb == p.spec.verb;
+}
+
+test "planning never mutates the shared spec's flags" {
+    p = _plan(
+        "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n[serve]\nport = 3000\n",
+        "api.sv.jac"
+    );
+    assert p.flags.get("port") == 3000;
+    # The port landed on the plan, not on the table entry every project shares.
+    assert "port" not in KIND_SPECS["service"].flags;
 }
 
 # ---------------------------------------------------------------------------
@@ -277,8 +322,8 @@ test "jac run with no file executes a cli-native project from cwd" {
     # cli-native prints via the JIT'd binary, which writes to fd 1 directly
     # (C printf) -- so we capture at the file-descriptor level, not sys.stdout.
     d = _mk_project(
-        "kind = \"cli-native\"\nentry-point = \"main.na.jac\"\n",
-        "main.na.jac",
+        "kind = \"cli-native\"\nentry-point = \"main.jac\"\n",
+        "main.jac",
         "with entry { print(\"RAN_NA_OK\"); }"
     );
     old = os.getcwd();
@@ -304,8 +349,8 @@ test "jac run with no file executes a cli-native project from cwd" {
 
 test "jac run builds a native-binary project into dist/" {
     d = _mk_project(
-        "kind = \"native-binary\"\nentry-point = \"app.na.jac\"\n",
-        "app.na.jac",
+        "kind = \"native-binary\"\nentry-point = \"app.jac\"\n",
+        "app.jac",
         "with entry { print(\"x\"); }"
     );
     old = os.getcwd();

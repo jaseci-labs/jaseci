@@ -1,35 +1,21 @@
-glob _BUILTIN_EXACT: set[str] = {
-         "/healthz/live",
-         "/healthz/ready",
-         "/health",
-         "/healthz",
-         "/metrics",
-         "/openapi.json",
-         "/docs"
-     };
+import from jaclang.scale.runtime.routing {
+    GATEWAY_API_SEGMENTS,
+    GATEWAY_WELLKNOWN_SEGMENTS
+}
 
-glob _PASSTHROUGH_SEGMENTS: set[str] = {
-         "walker",
-         "function",
-         "user",
-         "sso",
-         "api-key",
-         "webhook",
-         "ws",
-         "jobs",
-         "graph"
-     };
+glob _BUILTIN_EXACT: set[str] = (
+         {"/healthz/live", "/healthz/ready"}
+         | {f"/{seg}" for seg in GATEWAY_WELLKNOWN_SEGMENTS}
+     );
 
-glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS | {
-         "healthz",
-         "health",
-         "metrics",
-         "openapi.json",
-         "docs"
-     };
+glob _PASSTHROUGH_SEGMENTS: set[str] = set(GATEWAY_API_SEGMENTS);
+
+glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS
+         | set(GATEWAY_WELLKNOWN_SEGMENTS);
 
 glob ROUTE_BUILTIN: str = "builtin",
      ROUTE_ADMIN: str = "admin",
+     ROUTE_IDENTITY: str = "identity",
      ROUTE_PROXY: str = "proxy",
      ROUTE_PASSTHROUGH: str = "passthrough",
      ROUTE_STATIC: str = "static";
@@ -74,6 +60,18 @@ def _longest_prefix_match(norm_path: str, service_prefixes: list[str]) -> str {
 }
 
 
+def is_gateway_owned(path: str) -> bool {
+    norm = _normalize(path);
+    if norm in _BUILTIN_EXACT {
+        return True;
+    }
+    if norm == "/admin" or norm.startswith("/admin/") {
+        return True;
+    }
+    return _first_segment(norm) == "user";
+}
+
+
 def classify_route(path: str, service_prefixes: list[str]) -> RouteDecision {
     norm = _normalize(path);
     if norm in _BUILTIN_EXACT {
@@ -85,6 +83,9 @@ def classify_route(path: str, service_prefixes: list[str]) -> RouteDecision {
     matched = _longest_prefix_match(norm, service_prefixes);
     if matched != "" {
         return RouteDecision(kind=ROUTE_PROXY, service=matched);
+    }
+    if _first_segment(norm) == "user" {
+        return RouteDecision(kind=ROUTE_IDENTITY);
     }
     if _first_segment(norm) in _PASSTHROUGH_SEGMENTS {
         return RouteDecision(kind=ROUTE_PASSTHROUGH);

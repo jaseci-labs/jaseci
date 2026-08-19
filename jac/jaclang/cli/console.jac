@@ -23,7 +23,7 @@ obj _Spinner {
         style_prefix: str,
         reset: str,
         interval: float = 0.08,
-        _stop: any by postinit,
+        _stop: any postinit,
         _thread: any = None;
 
     def postinit {
@@ -112,7 +112,7 @@ obj ConsoleRenderer {
 obj JacConsole {
     has use_emoji: bool = True,
         use_color: bool = True,
-        _renderer: ConsoleRenderer by postinit;
+        _renderer: ConsoleRenderer postinit;
 
     def postinit -> None;
     def _make_renderer -> ConsoleRenderer;
@@ -144,6 +144,7 @@ obj JacConsole {
 glob _console_instance: JacConsole | None = None;
 
 def _get_console -> JacConsole;
+def use_line_buffered_output(streams: (list[any] | None) = None) -> int;
 
 class _ConsoleProxy {
     def __getattr__(self: _ConsoleProxy, name: str) -> any {

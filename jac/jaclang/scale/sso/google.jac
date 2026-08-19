@@ -1,20 +1,45 @@
-"""Google SSO Provider implementation for jac-scale.
+import from jaclang.runtimelib.serving.client { arequest }
+import from jaclang.scale.sso.provider { OAuth2CodeProvider, SSOUserInfo }
 
-This module implements the SSOProvider interface for Google OAuth authentication.
-"""
+obj GoogleSSOProvider(OAuth2CodeProvider) {
+    def authorize_url -> str {
+        return 'https://accounts.google.com/o/oauth2/v2/auth';
+    }
 
-import from fastapi_sso.sso.google { GoogleSSO }
-import from fastapi_sso.sso.base { SSOBase }
-import from jaclang.scale.sso.provider { FastAPISSOBase }
+    def token_url -> str {
+        return 'https://oauth2.googleapis.com/token';
+    }
 
-"""Google OAuth SSO Provider (fastapi_sso GoogleSSO behind FastAPISSOBase)."""
-obj GoogleSSOProvider(FastAPISSOBase) {
-    def _make_sso -> SSOBase {
-        return GoogleSSO(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            redirect_uri=self.redirect_uri,
-            allow_insecure_http=self.allow_insecure_http
+    def scope -> str {
+        return 'openid email profile';
+    }
+
+    async def fetch_user(
+        access_token: str, token_payload: dict[str, any]
+    ) -> SSOUserInfo {
+        resp = await arequest(
+            'GET',
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            headers={'Authorization': f"Bearer {access_token}"}
+        );
+        if not resp.ok() {
+            raise RuntimeError(
+                f"Google userinfo request failed: HTTP {resp.status_code}"
+            );
+        }
+        info = resp.json();
+        email = info.get('email');
+        external_id = info.get('sub');
+        if not email or not external_id {
+            raise RuntimeError('Google user info is missing email or id');
+        }
+        return SSOUserInfo(
+            email=str(email),
+            external_id=str(external_id),
+            display_name=info.get('name'),
+            first_name=info.get('given_name'),
+            last_name=info.get('family_name'),
+            picture=info.get('picture')
         );
     }
 }

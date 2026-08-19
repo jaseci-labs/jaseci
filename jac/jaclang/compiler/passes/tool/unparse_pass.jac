@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { OwnershipKind, is_mut_kind }
@@ -25,9 +24,6 @@ obj UnparsePass(UniPass) {
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
-    def exit_client_block(nd: uni.ClientBlock) -> None;
-    def exit_server_block(nd: uni.ServerBlock) -> None;
-    def exit_native_block(nd: uni.NativeBlock) -> None;
     def exit_py_inline_code(nd: uni.PyInlineCode) -> None;
     def exit_import(nd: uni.Import) -> None;
     def exit_module_path(nd: uni.ModulePath) -> None;
@@ -43,7 +39,7 @@ obj UnparsePass(UniPass) {
     def exit_arch_has(nd: uni.ArchHas) -> None;
     def exit_has_var(nd: uni.HasVar) -> None;
     def exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
-    def exit_region_stmt(nd: uni.RegionStmt) -> None;
+    def exit_open_stmt(nd: uni.OpenStmt) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def exit_else_if(nd: uni.ElseIf) -> None;
     def exit_else_stmt(nd: uni.ElseStmt) -> None;
@@ -67,8 +63,6 @@ obj UnparsePass(UniPass) {
     def exit_disengage_stmt(nd: uni.DisengageStmt) -> None;
     def exit_await_expr(nd: uni.AwaitExpr) -> None;
     def exit_cast_expr(nd: uni.CastExpr) -> None;
-    def exit_global_stmt(nd: uni.GlobalStmt) -> None;
-    def exit_non_local_stmt(nd: uni.NonLocalStmt) -> None;
     def exit_assignment(nd: uni.Assignment) -> None;
     def exit_concurrent_expr(nd: uni.ConcurrentExpr) -> None;
     def exit_binary_expr(nd: uni.BinaryExpr) -> None;
@@ -125,4 +119,59 @@ obj UnparsePass(UniPass) {
     def exit_match_k_v_pair(nd: uni.MatchKVPair) -> None;
     def exit_match_star(nd: uni.MatchStar) -> None;
     def exit_match_arch(nd: uni.MatchArch) -> None;
+}
+
+def unparse_node(nd: uni.UniNode) -> str {
+    if nd.gen.jac {
+        return nd.gen.jac;
+    }
+    if isinstance(nd, uni.Token) {
+        return nd.value;
+    }
+    _kids = list(nd.kid);
+    if not _kids {
+        _v = nd?.value;
+        if isinstance(_v, str) {
+            return _v;
+        }
+    }
+    return ' '.join([unparse_node(i) for i in _kids]);
+}
+
+def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
+    import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
+    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
+    import from jaclang.jac0core.program { JacProgram }
+
+    own_path = mod.loc.mod_path;
+    saved_body = mod.body;
+    saved_kid = mod.kid;
+    head_kid = [
+        k
+        for k in saved_kid
+        if (not k.loc.mod_path) or (k.loc.mod_path == own_path)
+    ];
+    filtered = len(head_kid) != len(saved_kid);
+    if filtered {
+        mod.body = [
+            st
+            for st in saved_body
+            if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
+        ];
+        mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
+    }
+    try {
+        import from jaclang.jac0core.compiler { run_pass }
+        run_pass(NormalizePass, mod, JacProgram());
+        if requires_format {
+            return format_module(mod);
+        }
+        run_pass(UnparsePass, mod, JacProgram());
+        return mod.gen.jac;
+    } finally {
+        if filtered {
+            mod.body = saved_body;
+            mod.set_kids(nodes=saved_kid);
+        }
+    }
 }

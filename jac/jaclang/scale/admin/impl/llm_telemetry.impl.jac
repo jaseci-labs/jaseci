@@ -3,10 +3,10 @@ import threading;
 import time;
 import uuid;
 import from collections { OrderedDict }
-import from fastapi { Request }
-import from fastapi.responses { JSONResponse }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes { JSONResponse }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -186,7 +186,7 @@ obj TelemetryStore {
             if inv_id and inv_id in self._traces {
                 trace = self._traces[inv_id];
                 trace.parent_invocation_id = record.get("parent_invocation_id")
-                or trace.parent_invocation_id;
+                    or trace.parent_invocation_id;
                 trace.caller_name = record.get("caller_name") or trace.caller_name;
                 trace.caller_args = record.get("caller_args") or trace.caller_args;
                 trace.user_prompt = record.get("user_prompt") or "";
@@ -194,7 +194,7 @@ obj TelemetryStore {
                 trace.conversation_history = record.get("conversation_history") or [];
 
                 if isinstance(trace.conversation_history, list)
-                and len(trace.conversation_history) > 40 {
+                    and len(trace.conversation_history) > 40 {
                     trace.conversation_history = trace.conversation_history[-40:];
                 }
                 trace.total_latency_ms = record.get("latency_ms") or 0;
@@ -243,8 +243,9 @@ obj TelemetryStore {
                     } elif _msg.get("tool_calls") {
                         for _tc in _msg.get("tool_calls", []) {
                             if _tc?.get
-                            and hasattr(_tc.get("function", {}), "get")
-                            and _tc.get("function", {}).get("name") == "finish_tool" {
+                                and hasattr(_tc.get("function", {}), "get")
+                                and _tc.get("function", {}).get("name")
+                                    == "finish_tool" {
                                 _args = _tc.get("function", {}).get("arguments", "");
                                 if hasattr(_args, "strip") {
                                     try {
@@ -399,24 +400,21 @@ obj TelemetryStore {
                     cd["aggregated_total_cost"] = round(
                         ct.total_cost + _ct_agg["cost"], 6
                     );
-                    cd["aggregated_llm_call_count"] = ct.llm_call_count + _ct_agg[
-                        "calls"
-                    ];
+                    cd["aggregated_llm_call_count"] = ct.llm_call_count
+                        + _ct_agg["calls"];
                     enriched_children.append(cd);
                 }
                 result["child_traces"] = enriched_children;
                 result["child_count"] = len(child_traces);
 
                 _top_agg = self._aggregate_descendants(invocation_id, children_lookup);
-                result["aggregated_total_tokens"] = result["total_tokens"] + _top_agg[
-                    "tokens"
-                ];
+                result["aggregated_total_tokens"] = result["total_tokens"]
+                    + _top_agg["tokens"];
                 result["aggregated_total_cost"] = round(
                     result["total_cost"] + _top_agg["cost"], 6
                 );
-                result["aggregated_llm_call_count"] = result["llm_call_count"] + _top_agg[
-                    "calls"
-                ];
+                result["aggregated_llm_call_count"] = result["llm_call_count"]
+                    + _top_agg["calls"];
                 return result;
             }
             return None;
@@ -542,8 +540,6 @@ glob _telemetry_store: TelemetryStore | None = None;
 
 
 impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
-    global _telemetry_store;
-
     import from jaclang.scale.config.config_loader { get_scale_config }
     telemetry_cfg = get_scale_config().get_telemetry_config();
     _telemetry_store = TelemetryStore(max_traces=telemetry_cfg.get('max_traces', 1000));
@@ -569,7 +565,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
                 try {
                     slp = kwargs.get("standard_logging_object", {}) or {};
                     metadata = kwargs.get("litellm_params", {}).get("metadata", {})
-                    or {};
+                        or {};
                     self.store.record_llm_event(
                         {
                             "id": slp.get("id"),
@@ -604,7 +600,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
                 try {
                     slp = kwargs.get("standard_logging_object", {}) or {};
                     metadata = kwargs.get("litellm_params", {}).get("metadata", {})
-                    or {};
+                        or {};
                     self.store.record_llm_event(
                         {
                             "id": slp.get("id"),
@@ -742,9 +738,9 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
                     name="invocation_id",
                     data_type="string",
                     required=True,
-                    default=None,
+                    default_value=None,
                     description="The invocation ID of the trace",
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,

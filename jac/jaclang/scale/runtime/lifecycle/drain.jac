@@ -19,8 +19,8 @@ obj DrainCoordinator {
         _drain_started_ts: float | None = None,
         _drain_timeout_s: float = 10.0,
         _inflight: int = 0,
-        _lock: any by postinit,
-        _zero_event: any by postinit;
+        _lock: any postinit,
+        _zero_event: any postinit;
 
     def postinit {
         self._lock = _DrainLock();
@@ -175,13 +175,17 @@ def build_drain_middleware(service_label: str = "service") -> any {
 
 
 def install_signal_drain(server: any, timeout_s: float = 10.0) {
+    import signal;
     _default_coordinator.set_timeout(timeout_s);
-    orig_handle_exit = server.handle_exit;
 
-    def wrapped_handle_exit(sig: any, frame: any) {
+    def _drain_and_stop(sig: any, frame: any) {
         _default_coordinator.start_drain(timeout_s);
-        orig_handle_exit(sig, frame);
+        server.request_stop();
     }
-
-    server.handle_exit = wrapped_handle_exit;
+    try {
+        signal.signal(int(signal.SIGTERM), _drain_and_stop);
+        signal.signal(int(signal.SIGINT), _drain_and_stop);
+    } except ValueError {
+        ;
+    }
 }

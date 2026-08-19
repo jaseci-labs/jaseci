@@ -2,39 +2,61 @@ import logging;
 import from jaclang.scale.injector.pvc_injector { PvcInjector, bundle_pvc_path }
 import from jaclang.scale.injector.binary {
     download_release_binary,
+    host_seal_platform,
     node_arch,
     pack_binary_bytes,
+    resolve_console_version,
+    resolve_deploy_version,
     stage_admin_dist,
     toolchain_object_key
 }
-import from jaclang.scale.injector.bundle { content_address }
+import from jaclang.runtimelib.utils { host_arch }
+import from jaclang.scale.injector.bundle { bundle_object_key, content_address }
 import from jaclang.scale.config.dev_config { Channel }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     DRY_RUN_DIGEST: str = "sha256-computed-at-deploy";
 
 
 obj BinaryInjector(PvcInjector) {
     has channel: Channel = Channel.STABLE,
         _toolchain_object_key: str = "",
         _toolchain_bytes: bytes = b"",
-        _pod_binary_bytes: bytes = b"";
+        _pod_binary_bytes: bytes = b"",
+        _seal_binary_bytes: bytes = b"",
+        _pod_arch: str = "";
 
     def prepare(app_name: str, namespace: str, project_dir: str) {
-        # Stage the console into the bundle first; it is independent of the
-        # binary and best-effort (a failure just falls back to the gateway's
-        # on-boot build), so it must not gate the download below.
-        stage_admin_dist(project_dir, self.channel.value);
-        # Download the pod binary before pack_source runs so it can precompile
-        # the app's modules with it: .jir is version-locked to the compiling
-        # binary, so the driver's own jac cannot produce pod-valid seeds.
-        payload = download_release_binary(self.channel.value, node_arch());
+        version = resolve_deploy_version(project_dir, self.channel.value);
+        stage_admin_dist(
+            project_dir,
+            self.channel.value,
+            resolve_console_version(project_dir, self.channel.value, version)
+        );
+
+        pod_arch = node_arch();
+        payload = download_release_binary(self.channel.value, pod_arch, version);
         self._pod_binary_bytes = payload;
+        self._pod_arch = pod_arch;
+        self._seal_binary_bytes = self._resolve_seal_binary(payload, pod_arch, version);
         super.prepare(app_name, namespace, project_dir);
         raw = pack_binary_bytes(payload);
         self._toolchain_object_key = toolchain_object_key(
             app_name, content_address(raw)
         );
         self._toolchain_bytes = raw;
+    }
+
+    def _resolve_seal_binary(pod_payload: bytes, pod_arch: str, version: str) -> bytes {
+        if self.channel == Channel.LOCAL {
+            return pod_payload;
+        }
+        plat = host_seal_platform();
+        arch = host_arch();
+        if plat == "linux" and arch == pod_arch {
+            return pod_payload;
+        }
+        return download_release_binary(self.channel.value, arch, version, plat);
     }
 
     def _seed_artifacts -> list[tuple[str, bytes]] {
@@ -56,23 +78,35 @@ def select_injector(
     app_name: str,
     namespace: str,
     project_dir: str,
-    provisioned_database: str = ""
+    dry_run: bool = False,
+    access_mode: str = "ReadWriteMany"
 ) -> tuple[PvcInjector, str] {
     import from jaclang.cli.console { console }
     import from jaclang.scale.config.dev_config { resolve_dev_channel }
-    # The one place the pod binary channel is decided (local > dev > stable).
+
     channel = resolve_dev_channel(project_dir);
     blurbs = {
         Channel.LOCAL: "shipping the local jac binary",
         Channel.DEV: "downloading the rolling `dev` (main HEAD) jac binary",
-        Channel.STABLE: "downloading the latest published (stable) jac release"
+        Channel.STABLE: "downloading the latest published (stable) jac release",
+        Channel.EXPERIMENTAL: "downloading the `dev` jac binary to seal .jir (pods run the PR's experimental image)"
     };
+    if dry_run {
+        injector = BinaryInjector(
+            channel=channel, storage_class=storage_class, access_mode=access_mode
+        );
+        injector._object_key = bundle_object_key(app_name, DRY_RUN_DIGEST);
+        injector._toolchain_object_key = toolchain_object_key(app_name, DRY_RUN_DIGEST);
+        console.print(
+            f"dry-run: skipped preparing the '{channel.value}' jac runtime "
+            f"({blurbs[channel]}); a real deploy computes the content digests."
+        );
+        return (injector, injector._toolchain_object_key);
+    }
     try {
         console.print(f"Preparing the '{channel.value}' jac runtime for pods.");
         injector = BinaryInjector(
-            channel=channel,
-            storage_class=storage_class,
-            provisioned_database=provisioned_database
+            channel=channel, storage_class=storage_class, access_mode=access_mode
         );
         injector.prepare(app_name, namespace, project_dir);
         console.print(f"Ready: {blurbs[channel]}.");
@@ -81,7 +115,7 @@ def select_injector(
         logger.warning(f"[{channel.value}] binary prep failed: {exc}");
         raise RuntimeError(
             f"Could not prepare the '{channel.value}' jac runtime: {exc}. Check "
-            "network access to github.com/jaseci-labs/jaseci releases (and "
+            "network access to github.com/jaseci-labs/jac releases (and "
             "JAC_NODE_ARCH for cross-arch nodes)."
         );
     }

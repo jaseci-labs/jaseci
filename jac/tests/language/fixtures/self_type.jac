@@ -7,7 +7,6 @@ Self (capital S) refers to the current enclosing type. It is:
 - Valid in obj, node, edge, walker, enum, and generic contexts
 """
 
-import from typing { TypeVar, Callable }
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 1: class def — classmethod basics
@@ -388,7 +387,7 @@ with entry:__main__ {
 
 """Self as return type in abstract method declarations."""
 obj Cloneable {
-    def clone() -> Self abs;
+    def clone() -> Self abst;
 }
 
 obj Point(Cloneable) {

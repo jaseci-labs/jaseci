@@ -81,13 +81,16 @@ jaclang/runtimelib/client/_bun/
 # Vendored typeshed stdlib stubs are fetched at the pinned commit by the
 # fetch-typeshed step of launcher/payload.zig, not committed -- only the PIN /
 # TARBALL_SHA256 / LICENSE / PROVENANCE.md beside the stubs are tracked.
-jaclang/vendor/typeshed/stdlib/
+jaclang/vendor/typeshed/stdlib
 .llvm-build/
 # CI staging dir for a cache-restored prebuilt shim (setup-jac -Dshim-bin).
 .shim-build/
 # Persistent JIR precompile cache: mkpayload seeds site/_precompiled from it
 # and writes the refreshed tree back (see build.zig --precompiled-cache).
 .precompiled-build/
+# Persistent deps-layer frame cache: mkpayload reuses the payload's compressed
+# dependency layer across builds (see build.zig --layer-cache).
+.payload-layers/
 # Zig-built LLVMPY_* shim, placed in-tree per host platform (see build.zig).
 libjacllvm.so
 libjacllvm.dylib

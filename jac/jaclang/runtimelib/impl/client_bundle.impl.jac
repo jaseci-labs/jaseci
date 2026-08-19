@@ -13,14 +13,50 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
 
 impl _ensure_js_generated(mod: Module, program: any) -> None {
     if mod and not mod.gen.js {
+        if id(mod) not in program._inferred_mods {
+            import from jaclang.jac0core.compiler { get_inference_sched }
+            _sched = get_inference_sched();
+            if _sched {
+                program.run_schedule(mod, _sched);
+                program._inferred_mods.add(id(mod));
+            }
+        }
         import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
-        EsastGenPass(ir_in=mod, prog=program);
+        import from jaclang.jac0core.compiler { run_pass }
+        _err_mark = len(program.errors_had);
+        _warn_mark = len(program.warnings_had);
+        run_pass(EsastGenPass, mod, program);
+        if len(program.errors_had) > _err_mark {
+            try {
+                import sys;
+                import from jaclang.cli.console { console as _demote_console }
+                for _e in program.errors_had[_err_mark:] {
+                    _first = _e.pretty_print().split('\n')[0];
+                    _demote_console.print(
+                        f"note: client pull of {os.path.basename(
+                            mod.loc.mod_path or ''
+                        )} "
+                        f"demoted after ES lowering error ({_first})",
+                        style="dim",
+                        file=sys.stderr
+                    );
+                }
+            } except Exception {
+                ;
+            }
+            import from jaclang.jac0core.placement_solver {
+                demote_client_pulled_elements
+            }
+            if demote_client_pulled_elements(mod, program, _err_mark, _warn_mark) {
+                run_pass(EsastGenPass, mod, program);
+            }
+        }
     }
 }
 
 impl ClientBundleBuilder.postinit -> None {
     if not self.runtime_path {
-        self.runtime_path = Path(__file__).with_name('client_runtime.cl.jac');
+        self.runtime_path = Path(__file__).with_name('client_runtime.jac');
     }
 }
 
@@ -78,6 +114,10 @@ impl ClientBundleBuilder.build(
         }
     }
     signature = self._signature(bundle_paths);
+    emitted = self._emitted_digest();
+    if emitted {
+        signature = f"{signature}:{emitted}";
+    }
     cached = self._cache.get(module.__name__);
     if (not force and cached and (cached.signature == signature)) {
         return cached.bundle;
@@ -96,7 +136,7 @@ impl ClientBundleBuilder._extract_client_exports(
 impl ClientBundleBuilder._extract_client_globals(
     manifest: (ClientManifest | None), module: ModuleType
 ) -> dict[str, any] {
-    client_globals_map: dict[(str, Any)] = {};
+    client_globals_map: dict[(str, any)] = {};
     if manifest {
         for name in manifest.globals {
             if (name in manifest.globals_values) {
@@ -117,7 +157,7 @@ impl ClientBundleBuilder._compile_bundle(
     raise ClientBundleError(
         "Client bundling requires the built-in client framework (Vite/Bun pipeline), "
         "which ships with jaclang core; the base builder cannot bundle client "
-        "(.cl.jac) code on its own."
+        "code on its own."
     );
 }
 
@@ -140,6 +180,35 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
 
     _ensure_js_generated(mod, program);
     return ((mod.gen.js or ''), mod) if mod else ('', mod);
+}
+
+impl ClientBundleBuilder._emitted_digest -> str {
+    return '';
+}
+
+impl emitted_tree_digest(tree_root: Path) -> str {
+    if not tree_root.is_dir() {
+        return '';
+    }
+    hasher = hashlib.sha256();
+    found = False;
+    files = sorted(tree_root.rglob('*'));
+    for p in files {
+        if not p.is_file() or p.suffix not in ('.js', '.css') {
+            continue;
+        }
+        found = True;
+        hasher.update(str(p.relative_to(tree_root)).encode('utf-8'));
+        try {
+            hasher.update(p.read_bytes());
+        } except OSError {
+            hasher.update('?'.encode('utf-8'));
+        }
+    }
+    if not found {
+        return '';
+    }
+    return hasher.hexdigest();
 }
 
 impl ClientBundleBuilder._signature(paths: Iterable[Path]) -> str {

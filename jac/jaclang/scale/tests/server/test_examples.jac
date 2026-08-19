@@ -19,9 +19,9 @@ obj JacScaleTestRunner {
     has example_file: Path,
         session_name: str = "test",
         setup_npm: bool = True,
-        port: int by postinit,
-        base_url: str by postinit,
-        session_file: Path by postinit,
+        port: int postinit,
+        base_url: str postinit,
+        session_file: Path postinit,
         server_process: subprocess.Popen | None = None,
         token: str | None = None,
         root_id: str | None = None;
@@ -29,7 +29,8 @@ obj JacScaleTestRunner {
     def postinit {
         self.port = get_free_port();
         self.base_url = f"http://localhost:{self.port}";
-        self.session_file = self.example_file.parent / f"{self.session_name}_{self.port}.session";
+        self.session_file = self.example_file.parent
+            / f"{self.session_name}_{self.port}.session";
     }
 
     """Start the jac-scale server."""

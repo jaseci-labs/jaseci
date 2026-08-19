@@ -16,9 +16,18 @@ impl CommandExecutor.execute(
         error = e;
         return_code = 1;
 
-        console.error(f"Error executing '{spec.name}': {e}");
-        if sys?.exc_info {
-            traceback.print_exc();
+        import from jaclang.cli.errmap { humanize_error, show_tracebacks }
+        mapped = humanize_error(e);
+        if mapped is not None {
+            console.error(mapped[0], hint=mapped[1]);
+            if show_tracebacks() and sys?.exc_info {
+                traceback.print_exc();
+            }
+        } else {
+            console.error(f"Error executing '{spec.name}': {e}");
+            if sys?.exc_info {
+                traceback.print_exc();
+            }
         }
     }
 
@@ -61,7 +70,6 @@ impl CommandExecutor.run_handler(spec: CommandSpec, args: dict[str, any]) -> int
 
 impl get_executor -> CommandExecutor {
     import from jaclang.cli.executor { CommandExecutor }
-    global _executor;
     if _executor is None {
         _executor = CommandExecutor();
     }

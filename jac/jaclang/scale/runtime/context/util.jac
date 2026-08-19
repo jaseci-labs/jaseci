@@ -21,13 +21,12 @@ def pick_free_port(name: str, base: int = 18000, retries: int = 100) -> int {
 }
 
 def jac_executable -> str {
-    # Re-invoking jac must not depend on `jac` being on PATH: the single-binary
-    # launcher pins its real path in JAC_EXECUTABLE. Fall back to PATH, then a
-    # bare name for dev / link-source runs.
     return os.environ.get("JAC_EXECUTABLE", "") or shutil.which("jac") or "jac";
 }
 
-glob _DEFAULT_HTTP_FORWARD_TIMEOUT: float = 30.0;
+glob _DEFAULT_HTTP_FORWARD_TIMEOUT: float = 30.0,
+     _DEFAULT_ROUTE_REFRESH_SECONDS: float = 30.0,
+     _DEFAULT_BOOT_HEALTH_TIMEOUT: float = 60.0;
 
 glob DEFAULT_GATEWAY_PORT: int = 8000,
      DEFAULT_GATEWAY_HOST: str = "0.0.0.0",
@@ -77,12 +76,45 @@ def http_forward_timeout(service_name: str | None = None) -> float {
 }
 
 
+def route_refresh_seconds -> float {
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        ms_cfg = get_scale_config().get_microservices_config();
+        if "route_refresh_seconds" in ms_cfg {
+            return float(ms_cfg["route_refresh_seconds"]);
+        }
+    } except Exception {
+        ;
+    }
+    return _DEFAULT_ROUTE_REFRESH_SECONDS;
+}
+
+
+def boot_health_timeout -> float {
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        ms_cfg = get_scale_config().get_microservices_config();
+        if "boot_health_timeout" in ms_cfg {
+            return float(ms_cfg["boot_health_timeout"]);
+        }
+    } except Exception {
+        ;
+    }
+    return _DEFAULT_BOOT_HEALTH_TIMEOUT;
+}
+
+
 def wait_for_health(
-    base_url: str, proc_alive: any, timeout: float = 15.0, poll_interval: float = 0.1
+    base_url: str,
+    proc_alive: any,
+    timeout: float = 15.0,
+    poll_interval: float = 0.1,
+    progress: any = None
 ) -> bool {
     import time;
     import urllib.request;
 
+    last_marker: any = progress() if progress is not None else None;
     deadline: float = time.time() + timeout;
     while time.time() < deadline {
         if not proc_alive() {
@@ -96,6 +128,13 @@ def wait_for_health(
             }
         } except Exception {
             time.sleep(poll_interval);
+        }
+        if progress is not None {
+            marker = progress();
+            if marker != last_marker {
+                last_marker = marker;
+                deadline = time.time() + timeout;
+            }
         }
     }
     return False;

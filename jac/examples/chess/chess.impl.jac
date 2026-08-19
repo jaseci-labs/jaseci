@@ -33,12 +33,10 @@ impl create_piece(kind: PieceKind, color: Color, row: int, col: int) -> Piece {
 }
 
 impl seed_random(seed: int) -> None {
-    global _rand_state;
     _rand_state = seed;
 }
 
 impl random_int(max_val: int) -> int {
-    global _rand_state;
     _rand_state = (_rand_state * 1103515245 + 12345) % 2147483648;
     if max_val <= 0 {
         return 0;
@@ -548,8 +546,8 @@ impl Game.legal_moves(color: Color) -> list[Move] {
         if (self.board.castling_rights & ks) != 0 {
             rook: Piece | None = self.board.at(back, 7);
             if rook is not None
-            and rook.kind == PieceKind.ROOK
-            and not rook.has_moved {
+                and rook.kind == PieceKind.ROOK
+                and not rook.has_moved {
                 if self.board.at(back, 5) is None and self.board.at(back, 6) is None {
                     if (
                         not self.in_check(color)
@@ -575,8 +573,8 @@ impl Game.legal_moves(color: Color) -> list[Move] {
         if (self.board.castling_rights & qs) != 0 {
             rook: Piece | None = self.board.at(back, 0);
             if rook is not None
-            and rook.kind == PieceKind.ROOK
-            and not rook.has_moved {
+                and rook.kind == PieceKind.ROOK
+                and not rook.has_moved {
                 if (
                     self.board.at(back, 1) is None
                     and self.board.at(back, 2) is None

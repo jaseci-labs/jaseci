@@ -7,7 +7,7 @@ Production serving is the built-in `scale` subsystem's job. Scale ships inside `
 
 ## jac start
 
-`jac start [app.jac]` (default entry `main.jac`; needs a `jac.toml` in the cwd). Flags use **underscores**: `--no_client` (API only, skip client bundling), `--port/-p` (auto-falls back if taken), `--faux` (print the generated API surface without starting - cheap endpoint preview), `--profile prod` (config profile), `--dev` (HMR). `jac start` exits when stdin closes - any backgrounded/daemonized server must be launched with `< /dev/null` (systemd/containers do this for you; shell scripts and CI must do it explicitly). For prod, kill Swagger:
+`jac start [app.jac]` (default entry `main.jac`; needs a `jac.toml` in the cwd). Boolean flags are **hyphenated**: `--no-client` (API only, skip client bundling), `--port/-p` (auto-falls back if taken), `--faux` (print the generated API surface without starting - cheap endpoint preview), `--profile prod` (config profile), `--dev` (HMR). `jac start` exits when stdin closes - any backgrounded/daemonized server must be launched with `< /dev/null` (systemd/containers do this for you; shell scripts and CI must do it explicitly). For prod, kill Swagger:
 
 ```toml
 [scale.server]
@@ -15,7 +15,7 @@ docs_enabled = false          # disables /docs, /redoc, /openapi.json
 suppress_health_check_logs = true
 ```
 
-**Backends:** SQLite at `.jac/data/` by default (graph + users; zero setup). Set `MONGODB_URI` (or `[scale.database] mongodb_uri`) for MongoDB and `REDIS_URL` for the Redis cache tier - required for multi-replica deployments. Config precedence everywhere: **env var > jac.toml > default**.
+**Backend:** Postgres, always. An embedded per-project server provisions automatically (zero setup); set `JAC_DB_URL` (or `[scale.database] url`) to use an external server - k8s deploys provision a Postgres StatefulSet and inject `JAC_DB_URL` into every pod. Config precedence everywhere: **env var > jac.toml > default**.
 
 **Secrets** ship to pods via `[scale.secrets]` with `${ENV_VAR}` interpolation, resolved from your local env at deploy time and injected as a k8s Secret:
 
@@ -29,8 +29,7 @@ JWT_SECRET = "${JWT_SECRET}"        # see jac-sv-auth: the default JWT secret MU
 
 ```bash
 jac start app.jac --scale --dry-run   # lint config + print the plan; nothing applied. Use before every deploy.
-jac start app.jac --scale             # dev deploy (no image build)
-jac start app.jac --scale --build     # build+push Docker image (DOCKER_USERNAME/PASSWORD in .env), then deploy
+jac start app.jac --scale             # deploy (no image build: source ships into the cluster on a PVC)
 jac scale status app.jac              # component health table (app, Mongo, Redis, Grafana)
 jac scale destroy app.jac             # DELETES THE NAMESPACE INCLUDING PERSISTENT VOLUMES - all data is lost
 ```
@@ -92,6 +91,6 @@ bucket = "my-app-uploads"      # region, prefix, endpoint_url (non-AWS), public_
 - **`jac scale destroy` deletes data.** PVCs included. There is a y/N prompt; there is no undo.
 - `--dry-run` catches config errors (HPA min>max, bad resource units like `500MB` vs `500Mi`) in ~1s vs finding out after a 5-10 minute build-push-deploy.
 - HPA does nothing without `cpu_request` - Kubernetes can't compute a utilization %.
-- Multi-replica + SQLite = corruption/confusion. Going past one replica requires `MONGODB_URI` (+ Redis for cache/locks).
+- Multi-replica pods must share one database: the k8s deploy injects `JAC_DB_URL` for you; for other topologies point every replica at the same Postgres URL.
 - Schema edits in prod: never `rm -rf .jac/data/` - use the alias/quarantine machinery (`jac db ...`) in `jac-sv-persistence`.
 - Webhook walkers don't answer on `/walker/<name>`, and regular walkers don't answer on `/webhook/<name>` - a 404 there is routing, not registration.

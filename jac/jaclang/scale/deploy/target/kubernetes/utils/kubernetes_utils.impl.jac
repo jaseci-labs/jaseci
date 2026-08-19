@@ -156,17 +156,15 @@ impl wait_for_pod_phase(
         }
         if (phase == 'Failed') {
             raise RuntimeError(
-                f"Sync pod '{pod_name}' entered Failed state." + describe_pod_status(
-                    core_v1, namespace, pod_name, pod
-                )
+                f"Sync pod '{pod_name}' entered Failed state."
+                    + describe_pod_status(core_v1, namespace, pod_name, pod)
             );
         }
         time.sleep(2);
     }
     raise TimeoutError(
-        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}." + describe_pod_status(
-            core_v1, namespace, pod_name, last_pod
-        )
+        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}."
+            + describe_pod_status(core_v1, namespace, pod_name, last_pod)
     );
 }
 
@@ -184,19 +182,18 @@ impl describe_pod_status(
             if (cond.status or '') != 'True' and cond.reason {
                 lines.append(
                     f"condition {cond.type}={cond.status} ({cond.reason}: {cond.message
-                    or ''})"
+                        or ''})"
                 );
             }
         }
-        container_states = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        container_states = (pod.status.init_container_statuses or [])
+            + (pod.status.container_statuses or []);
         for cs in container_states {
             waiting = cs.state.waiting if cs.state else None;
             if waiting and waiting.reason {
                 lines.append(
                     f"container '{cs.name}' waiting: {waiting.reason} ({waiting.message
-                    or ''})"
+                        or ''})"
                 );
             }
         }
@@ -215,7 +212,7 @@ impl describe_pod_status(
                 lines.append(
                     f"pvc '{claim_name}' phase={(pvc.status.phase or '?')} "
                     f"accessModes=[{modes}] storageClass={pvc.spec.storage_class_name
-                    or '(default)'}"
+                        or '(default)'}"
                 );
             } except Exception as exc {
                 lines.append(f"(could not read pvc '{claim_name}': {exc})");
@@ -342,8 +339,7 @@ impl ensure_pvc_exists(
             raise;
         }
     }
-    import from typing { Any }
-    pvc_body: dict[(str, Any)] = {
+    pvc_body: dict[(str, any)] = {
         'apiVersion': 'v1',
         'kind': 'PersistentVolumeClaim',
         'metadata': {'name': pvc_name, 'labels': {'managed': 'jac-scale'}},
@@ -486,9 +482,8 @@ impl check_pods_restarted(
                 continue;
             }
         }
-        statuses = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        statuses = (pod.status.init_container_statuses or [])
+            + (pod.status.container_statuses or []);
         if not statuses {
             continue;
         }
@@ -601,15 +596,14 @@ impl check_deployment_status(
             f"[warn] RS hash lookup failed, falling back to broad pod scan: {exc}"
         );
     }
-    # rs_hashes is resolved once up front so we don't hit AppsV1 on every retry.
-    # If it was captured before the new RS's revision annotation was stamped,
-    # the old RS would win the highest-revision comparison and this hoisted
-    # read would stay wrong for the whole loop. To avoid that sticking, a
-    # detected crash is re-verified against a freshly resolved hash set
-    # before the deploy is actually failed (see _refresh_rs_hashes below).
+
     for attempt in range(1, (max_retries + 1)) {
         try {
-            response = requests.get(url, timeout=10);
+            try {
+                response = requests.get(url, timeout=10);
+            } except SSLError {
+                response = requests.get(url, timeout=10, verify=False);
+            }
             if (response.status_code == 200) {
                 return (True, "Successful");
             }
@@ -646,9 +640,8 @@ impl check_deployment_status(
         );
         for p in diag_pods.items {
             console.print(
-                f"timeout diagnostics: pod {p.metadata.name}" + describe_pod_status(
-                    diag_v1, namespace, p.metadata.name, p
-                )
+                f"timeout diagnostics: pod {p.metadata.name}"
+                    + describe_pod_status(diag_v1, namespace, p.metadata.name, p)
             );
         }
     } except Exception as diag_err {
@@ -679,27 +672,45 @@ impl delete_namespace(namespace: str) -> None {
     }
 }
 
+impl default_pss_labels -> dict[str, str] {
+    return {
+        PSS_ENFORCE_LABEL: "baseline",
+        PSS_WARN_LABEL: "restricted",
+        PSS_SOURCE_LABEL: "baseline"
+    };
+}
+
+
+impl privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None {
+    current = existing.get(PSS_ENFORCE_LABEL, "");
+    if current == "privileged" {
+        return {};
+    }
+    if current and current != existing.get(PSS_SOURCE_LABEL, "") {
+        return None;
+    }
+    return {PSS_ENFORCE_LABEL: "privileged", PSS_SOURCE_LABEL: "privileged"};
+}
+
+
 impl ensure_namespace_exists(namespace: str) -> None {
     if (namespace == 'default') {
         return;
     }
     try {
-        try {
-            config.load_kube_config();
-        } except ConfigException {
-            config.load_incluster_config();
-        }
         core_v1 = client.CoreV1Api();
         existing_ns = core_v1.read_namespace(name=namespace);
         console.print(f"Namespace '{namespace}' already exists.");
 
         existing_labels: dict = dict(getattr(existing_ns.metadata, "labels", {}) or {});
         patch_labels: dict = {};
-        if not existing_labels.get("pod-security.kubernetes.io/enforce") {
-            patch_labels["pod-security.kubernetes.io/enforce"] = "baseline";
+        for (label, value) in default_pss_labels().items() {
+            if not existing_labels.get(label) {
+                patch_labels[label] = value;
+            }
         }
-        if not existing_labels.get("pod-security.kubernetes.io/warn") {
-            patch_labels["pod-security.kubernetes.io/warn"] = "restricted";
+        if patch_labels and not existing_labels.get(PSS_ENFORCE_LABEL) {
+            patch_labels[PSS_SOURCE_LABEL] = "baseline";
         }
         if patch_labels {
             try {
@@ -719,13 +730,7 @@ impl ensure_namespace_exists(namespace: str) -> None {
                 body={
                     'apiVersion': 'v1',
                     'kind': 'Namespace',
-                    'metadata': {
-                        'name': namespace,
-                        'labels': {
-                            'pod-security.kubernetes.io/enforce': 'baseline',
-                            'pod-security.kubernetes.io/warn': 'restricted'
-                        }
-                    }
+                    'metadata': {'name': namespace, 'labels': default_pss_labels()}
                 }
             );
             console.print(f"Namespace '{namespace}' created successfully.");
@@ -770,15 +775,10 @@ impl check_K8s_status -> None {
 }
 
 impl load_env_variables(code_folder: str) -> list {
-    env_file = os.path.join(code_folder, '.env');
-    env_vars = dotenv_values(env_file);
-    env_list = [];
-    if os.path.exists(env_file) {
-        for (key, value) in env_vars.items() {
-            env_list.append({'name': key, 'value': value});
-        }
-    }
-    return env_list;
+    return [
+        {'name': key, 'value': value}
+        for (key, value) in read_project_env(code_folder).items()
+    ];
 }
 
 impl create_k8s_secret(
@@ -786,9 +786,9 @@ impl create_k8s_secret(
     namespace: str,
     secret_name: str,
     secret_data: dict[str, str]
-) -> bool {
+) -> str {
     if not secret_data {
-        return False;
+        return "";
     }
     secret_body = {
         'apiVersion': 'v1',
@@ -801,18 +801,21 @@ impl create_k8s_secret(
         'type': 'Opaque',
         'stringData': secret_data
     };
+    applied: any = None;
     try {
-        core_v1.create_namespaced_secret(namespace=namespace, body=secret_body);
+        applied = core_v1.create_namespaced_secret(
+            namespace=namespace, body=secret_body
+        );
     } except ApiException as e {
         if e.status == 409 {
-            core_v1.replace_namespaced_secret(
+            applied = core_v1.replace_namespaced_secret(
                 name=secret_name, namespace=namespace, body=secret_body
             );
         } else {
             raise;
         }
     }
-    return True;
+    return str(applied.metadata.resource_version or "") if applied else "";
 }
 
 impl delete_k8s_secret(

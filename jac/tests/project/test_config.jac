@@ -457,10 +457,39 @@ test "dev section parsing" {
     assert cfg.dev.jaclang_source == "jac";
     assert cfg.dev.test_jobs == "4";
 
-    # A bare integer test_jobs is coerced to str so it flows into pytest's `-n`.
+    # A bare integer test_jobs is coerced to str so it flows into the runner's
+    # worker count.
     config_mod._config = None;
     as_int = JacConfig.from_toml_str("\n[dev]\ntest_jobs = 0\n");
     assert as_int.dev.test_jobs == "0";
+}
+
+test "parse build native_closure_cap" {
+    config_mod._config = None;
+    cfg = JacConfig.from_toml_str("\n[build]\nnative_closure_cap = 8\n");
+    assert cfg.build.native_closure_cap == 8;
+
+    config_mod._config = None;
+    base = JacConfig.from_toml_str("\n[build]\ntypecheck = true\n");
+    assert base.build.native_closure_cap == 256;
+
+    config_mod._config = None;
+    bad = JacConfig.from_toml_str("\n[build]\nnative_closure_cap = 0\n");
+    assert bad.build.native_closure_cap == 256 , "invalid cap falls back to default";
+}
+
+test "closure cap override resolves through effective_native_closure_cap" {
+    import from jaclang.jac0core.codeinfo {
+        set_native_closure_cap,
+        effective_native_closure_cap
+    }
+    set_native_closure_cap(3);
+    try {
+        assert effective_native_closure_cap() == 3;
+    } finally {
+        set_native_closure_cap(0);
+    }
+    assert effective_native_closure_cap() == 256;
 }
 
 test "parse full config" {
@@ -568,7 +597,8 @@ test "add git dependency" {
         "my-plugin", "https://github.com/user/plugin.git", dep_type="git"
     );
     assert "my-plugin" in cfg.git_dependencies;
-    assert cfg.git_dependencies["my-plugin"]["git"] == "https://github.com/user/plugin.git";
+    assert cfg.git_dependencies["my-plugin"]["git"]
+        == "https://github.com/user/plugin.git";
 }
 
 test "add npm dependency" {
@@ -1754,16 +1784,86 @@ jaclang = ">=0.15.2"
         saved = toml_path.read_text();
         # Must remain a parseable array of inline tables, not a repr string.
         parsed = tomllib.loads(saved);
-        assert parsed["project"]["authors"] == [
-            {"name": "Jason Mars", "email": "jason@mars.ninja"}
-        ] , "authors must survive save() as inline tables";
-        assert parsed["project"]["maintainers"] == [
-            {"name": "A", "email": "a@b.c"},
-            {"name": "D", "email": "d@e.f"}
-        ] , "maintainers must survive save() as inline tables";
+        assert parsed["project"]["authors"]
+            == [{"name": "Jason Mars", "email": "jason@mars.ninja"}] , "authors must survive save() as inline tables";
+        assert parsed["project"]["maintainers"]
+            == [{"name": "A", "email": "a@b.c"}, {"name": "D", "email": "d@e.f"}] , "maintainers must survive save() as inline tables";
         # save() must not leave behind a stray empty [plugins] table.
         assert "plugins" not in parsed , "empty [plugins] table must not be emitted";
         assert parsed["dependencies"]["rich"] == ">=13.0.0";
+    }
+}
+
+test "save preserves comments when adding a dependency" {
+    # save() must perform a surgical edit of jac.toml: adding one dependency
+    # may not delete user comments, reorder keys, or touch unrelated lines.
+    config_mod._config = None;
+    commented_toml = """# Top-level note about this project.
+[project]
+name = "repro"
+version = "0.1.0"  # keep in sync with git tags
+
+[dependencies]
+# Pinned <5.0.0 deliberately: bcrypt 5.x breaks our password hashes.
+# DO NOT BUMP without migrating the hash format first.
+bcrypt = ">=4.0.0,<5.0.0"
+""";
+    with TemporaryDirectory() as tmpdir {
+        toml_path = Path(tmpdir) / "jac.toml";
+        toml_path.write_text(commented_toml);
+        cfg = JacConfig.load(toml_path);
+        cfg.add_dependency("httpx", "~=0.28");
+        cfg.save();
+        saved = toml_path.read_text();
+        assert "# Top-level note about this project." in saved , (
+            "full-line comments must survive save()"
+        );
+        assert "# keep in sync with git tags" in saved , (
+            "inline trailing comments must survive save()"
+        );
+        assert "# DO NOT BUMP without migrating the hash format first." in saved , (
+            "comments inside [dependencies] must survive save()"
+        );
+        assert 'bcrypt = ">=4.0.0,<5.0.0"' in saved , (
+            "untouched dependency lines must be preserved verbatim"
+        );
+        parsed = tomllib.loads(saved);
+        assert parsed["dependencies"]["httpx"] == "~=0.28";
+        assert parsed["dependencies"]["bcrypt"] == ">=4.0.0,<5.0.0";
+    }
+}
+
+test "save preserves comments when removing a dependency" {
+    # Removing one dependency must delete only that key's line; every comment
+    # and unrelated line stays byte-for-byte intact.
+    config_mod._config = None;
+    commented_toml = """[project]
+name = "repro"
+version = "0.1.0"
+
+[dependencies]
+# httpx stays on 0.28 until the retry middleware is ported.
+httpx = "~=0.28"
+# bcrypt 5.x breaks our password hashes.
+bcrypt = ">=4.0.0,<5.0.0"
+
+[dev-dependencies]
+# pytest 9 drops the plugin API we rely on.
+pytest = ">=8.0.0,<9.0.0"
+""";
+    with TemporaryDirectory() as tmpdir {
+        toml_path = Path(tmpdir) / "jac.toml";
+        toml_path.write_text(commented_toml);
+        cfg = JacConfig.load(toml_path);
+        assert cfg.remove_dependency("httpx");
+        cfg.save();
+        saved = toml_path.read_text();
+        assert "# bcrypt 5.x breaks our password hashes." in saved;
+        assert "# pytest 9 drops the plugin API we rely on." in saved;
+        assert 'bcrypt = ">=4.0.0,<5.0.0"' in saved;
+        assert 'pytest = ">=8.0.0,<9.0.0"' in saved;
+        parsed = tomllib.loads(saved);
+        assert "httpx" not in parsed["dependencies"];
     }
 }
 
@@ -1805,5 +1905,45 @@ test "discover flags configs found in an ancestor directory" {
         assert cfg_nested.discovered_from_ancestor , (
             "config discovered by climbing out of cwd must be flagged"
         );
+    }
+}
+
+# ===========================================================================
+# TestLegacyPluginsTable
+# ===========================================================================
+test "legacy plugins table warns on load" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        (temp_project / "jac.toml").write_text(
+            "[project]\nname = \"demo\"\n\n"
+            "[plugins.scale.websocket]\nmax_message_bytes = 1\n"
+        );
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            cfg = JacConfig.load(temp_project / "jac.toml");
+        }
+        err = buf.getvalue();
+        assert "[plugins]" in err , f"expected legacy-plugins warning, got: {err!r}";
+        assert "scale" in err , err;
+        assert cfg.get_plugin_config("scale") == {} , (
+            "legacy [plugins.scale] must not be treated as [scale]"
+        );
+    }
+}
+
+test "no legacy warning without a plugins table" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            JacConfig.load(temp_project / "jac.toml");
+        }
+        assert "[plugins]" not in buf.getvalue() , buf.getvalue();
     }
 }

@@ -138,6 +138,22 @@ def manifest_plugin_deps(
     return (deps, dev_deps);
 }
 
+def manifest_plugin_subdeps(
+    config: JacConfig, key: str, section: str
+) -> dict[str, str] {
+    raw = config.plugin_dependencies.get(key, {});
+    sub = raw.get(section, {});
+    out: dict[str, str] = {};
+    if isinstance(sub, dict) {
+        for (k, v) in sub.items() {
+            if isinstance(k, str) and isinstance(v, str) {
+                out[k] = v;
+            }
+        }
+    }
+    return out;
+}
+
 obj PythonProvider(EcosystemProvider) {
     has name: str = "python",
         manifest_key: str = "",
@@ -266,7 +282,7 @@ obj PythonProvider(EcosystemProvider) {
         return run_pip(self._project_venv(config), args, verbose);
     }
 
-    def _snapshot_installed(config: JacConfig) -> tuple[bool, set[tuple]] {
+    def _snapshot_installed(config: JacConfig) -> tuple[bool, set[tuple[str, str]]] {
         import json;
         try {
             (rc, out, _) = self._run_project_pip(config, ["list", "--format=json"]);
@@ -306,7 +322,7 @@ obj PythonProvider(EcosystemProvider) {
                 }
                 return True;
             }
-            newly_installed: list[tuple] = [];
+            newly_installed: list[tuple[str, str]] = [];
             (after_ok, after_set) = self._snapshot_installed(config);
             if after_ok and before_snapshot_ok {
                 newly_installed = sorted(after_set - before_set);
@@ -343,7 +359,9 @@ obj PythonProvider(EcosystemProvider) {
     def _install_global(specs: list[str], ctx: InstallContext) -> bool {
         import subprocess;
         import sys;
-        cmd: list[str] = [sys.executable, "-m", "pip", "install", "--upgrade"] + ctx.install_flags + specs;
+        cmd: list[str] = [sys.executable, "-m", "pip", "install", "--upgrade"]
+            + ctx.install_flags
+            + specs;
         if ctx.verbose {
             console.print(f"  Running: {' '.join(cmd)}", style="muted");
         }
@@ -351,8 +369,8 @@ obj PythonProvider(EcosystemProvider) {
         if result.returncode != 0 {
             console.error(
                 f"Install failed:\n{result.stderr
-                or result.stdout
-                or '(see output above)'}"
+                    or result.stdout
+                    or '(see output above)'}"
             );
             return False;
         }
@@ -378,15 +396,33 @@ obj PythonProvider(EcosystemProvider) {
     override def add_packages(
         config: JacConfig, specs: list[tuple[str, str]], dev: bool, ctx: InstallContext
     ) -> list[str] | None {
+        plan: list[tuple[str, str]] = [];
+        for (name, version) in specs {
+            declared = _declared_constraint(config, name, dev);
+            keep_typed_name = declared is None or "[" in name;
+            record_name = name if keep_typed_name else declared[0];
+            if version {
+                if declared and declared[1] != version {
+                    console.warning(
+                        f"{declared[0]}: replacing declared constraint "
+                        f"'{declared[1]}' with '{version}' in jac.toml"
+                    );
+                }
+                plan.append((record_name, version));
+            } elif declared {
+                plan.append((record_name, declared[1]));
+            } else {
+                plan.append((name, ""));
+            }
+        }
         install_targets: list[str] = [
-            make_pip_spec(name, version) if version else name
-            for (name, version) in specs
+            make_pip_spec(name, version) for (name, version) in plan
         ];
         if not self.install_specs(config, install_targets, ctx) {
             return None;
         }
         recorded: list[str] = [];
-        for (name, version) in specs {
+        for (name, version) in plan {
             version_str = version;
             if not version_str {
                 installed_version = self.get_installed_version(config, name);
@@ -420,8 +456,8 @@ obj PythonProvider(EcosystemProvider) {
         if name in config.git_dependencies {
             dep_type = "git";
         } elif not dev
-        and name not in config.dependencies
-        and name in config.dev_dependencies {
+            and name not in config.dependencies
+            and name in config.dev_dependencies {
             is_dev = True;
         }
         if not config.remove_dependency(name, dev=is_dev, dep_type=dep_type) {
@@ -576,10 +612,10 @@ obj ProviderRegistry {
 glob _registry: ProviderRegistry | None = None;
 
 def get_provider_registry -> ProviderRegistry {
-    global _registry;
     if _registry is None {
         _registry = ProviderRegistry();
         _registry.register(PythonProvider());
+        initialize_provider_registry();
     }
     return _registry;
 }
@@ -593,7 +629,6 @@ def get_python_provider -> PythonProvider {
 }
 
 def reset_provider_registry {
-    global _registry;
     _registry = None;
 }
 
@@ -684,6 +719,27 @@ def _normalized_name(name: str) -> str {
         base = base[:base.index("[")];
     }
     return base.strip().lower().replace("_", "-");
+}
+
+def _declared_constraint(
+    config: JacConfig, name: str, dev: bool
+) -> tuple[str, str] | None {
+    sections = (
+        [config.dev_dependencies, config.dependencies]
+            if dev
+            else [config.dependencies, config.dev_dependencies]
+    );
+    wanted = _normalized_name(name);
+    for section in sections {
+        for (declared, spec) in section.items() {
+            if _normalized_name(declared) == wanted
+                and isinstance(spec, str)
+                and spec.strip() {
+                return (declared, spec.strip());
+            }
+        }
+    }
+    return None;
 }
 
 def resolve_plan(

@@ -66,7 +66,7 @@ def bootstrap_frontend(token: str) {
         if st.session_state.loading and not st.session_state.memory_results {
             with st.spinner("🧠 AI is analyzing your image...") {
                 try {
-                    response = requests.post(
+                    response: requests.Response = requests.post(
                         "http://localhost:8000/walker/update_session",
                         json={"image_url": st.session_state.image_url, "utterance": ""},
                         headers={"Authorization": f"Bearer {token}"}
@@ -152,7 +152,7 @@ def bootstrap_frontend(token: str) {
             }
             # Check if conversation is complete
             if results.get("show_summary", False)
-            and results.get("terminate_conversation", False) {
+                and results.get("terminate_conversation", False) {
                 st.success("🎉 Memory capture complete!");
                 if st.button("🔄 Start New Memory Session") {
                     st.session_state.conversation_active = False;
@@ -188,7 +188,8 @@ def bootstrap_frontend(token: str) {
                                     "reports", [{}]
                                 )[0];
                                 # Add assistant response to history
-                                if "follow_up_questions" in st.session_state.memory_results {
+                                if "follow_up_questions"
+                                    in st.session_state.memory_results {
                                     st.session_state.conversation_history.append(
                                         {
                                             "role": "assistant",

@@ -42,6 +42,7 @@ impl PluginConfigBase.load -> dict[str, any] {
     plugin_config = jac_config.get_plugin_config(plugin_name);
 
     if plugin_config is not None {
+        self._validate_declared_keys(plugin_config);
         self._config = deep_merge(default_config, plugin_config);
     } else {
         self._config = default_config;
@@ -49,10 +50,48 @@ impl PluginConfigBase.load -> dict[str, any] {
     return self._config;
 }
 
+impl PluginConfigBase.get_config_schema -> dict[str, any] {
+    return {};
+}
+
+impl PluginConfigBase.get_config_strict_env -> str {
+    return "";
+}
+
+impl PluginConfigBase._validate_declared_keys(raw: dict[str, any]) -> None {
+    import from jaclang.project.config_schema {
+        report_schema_findings,
+        validate_against_schema
+    }
+    schema = self.get_config_schema();
+    if not isinstance(schema, dict) or not schema {
+        return;
+    }
+    options = schema.get("options");
+    if not isinstance(options, dict) or not options {
+        return;
+    }
+    section = str(schema.get("section") or self.get_plugin_name());
+    report_schema_findings(
+        validate_against_schema(raw, options, section),
+        section,
+        self.get_config_strict_env()
+    );
+}
+
 impl PluginConfigBase.get_jac_config -> JacConfig {
     if self._jac_config is None {
         if self.config_file.exists() {
-            self._jac_config = JacConfig.load(self.config_file);
+            config = JacConfig.load(self.config_file);
+
+            import os;
+            profile: str = (
+                os.environ.get("JAC_PROFILE", "").strip()
+                or os.environ.get("JAC_ENV", "").strip()
+                or config.environment.default_profile
+            );
+            config.apply_profile_overlay(profile or None);
+            self._jac_config = config;
         } else {
             self._jac_config = JacConfig();
             self._jac_config.toml_path = self.config_file;

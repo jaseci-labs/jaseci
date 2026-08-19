@@ -12,6 +12,7 @@ impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
         restspec = walker_cls.restspec if walker_cls?.restspec else None;
         spec_method = restspec.method if restspec?.method else HTTPMethod.POST;
         spec_path = restspec.path if restspec?.path else f"/walker/{walker_name}";
+        walker_auth = self.introspector.is_auth_required_for_walker(walker_name);
 
         self.server.add_endpoint(
             JEndPoint(
@@ -25,6 +26,7 @@ impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
                 tags=['Walkers'],
                 summary='API Entry',
                 description='API Entry',
+                requires_auth=walker_auth,
                 forward_undeclared_query_params=False
             )
         );
@@ -40,6 +42,7 @@ impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
                 tags=['Walkers'],
                 summary='API Root',
                 description='API Root',
+                requires_auth=walker_auth,
                 forward_undeclared_query_params=False
             )
         );
@@ -92,9 +95,9 @@ impl JacAPIServerEndpoints.create_walker_parameters(
                 data_type=field_type,
                 type_obj=type_obj,
                 required=walker_fields[field_name]['required'],
-                default=walker_fields[field_name]['default'],
+                default_value=walker_fields[field_name]['default'],
                 description=f"Field {field_name} for walker {walker_name}",
-                type=param_type
+                kind=param_type
             )
         );
     }
@@ -105,7 +108,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
     walker_name: str, has_node_param: bool = False
 ) -> Callable[..., (TransportResponse | StreamingResponse)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from fastapi { Request }
+    import from jaclang.runtimelib.serving.datatypes { Request }
     requires_auth = self.introspector.is_auth_required_for_walker(walker_name);
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
@@ -125,7 +128,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
             self.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
         );
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
+            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',
@@ -137,6 +140,13 @@ impl JacAPIServerEndpoints.create_walker_callback(
             );
         }
         if 'error' in result {
+            if result.get('error') == 'User not found' {
+                return TransportResponse.fail(
+                    code='UNAUTHORIZED',
+                    message='Unauthorized: unknown user',
+                    meta=Meta(extra={'http_status': 401})
+                );
+            }
             return TransportResponse.fail(
                 code='EXECUTION_ERROR',
                 message=result.get('error', 'Walker execution failed'),
@@ -162,10 +172,12 @@ impl JacAPIServerEndpoints.register_functions_endpoints -> None {
             continue;
         }
         restspec = func_obj.restspec if func_obj?.restspec else None;
-        spec_method = restspec.method if restspec else HTTPMethod.POST;
+        spec_method = restspec.method if restspec?.method else HTTPMethod.POST;
         spec_path = restspec.path if restspec else None;
 
         final_path = spec_path or f"/function/{func_name}";
+        raw_body = restspec is not None and not restspec.envelope;
+        raw_media = (restspec.produces or 'text/plain') if raw_body else None;
 
         self.server.add_endpoint(
             JEndPoint(
@@ -176,9 +188,13 @@ impl JacAPIServerEndpoints.register_functions_endpoints -> None {
                     func_name, method=spec_method
                 ),
                 response_model=None,
+                media_type=raw_media,
                 tags=['Functions'],
                 summary='This is a summary',
                 description='This is a description',
+                requires_auth=self.introspector.is_auth_required_for_function(
+                    func_name
+                ),
                 forward_undeclared_query_params=False
             )
         );
@@ -224,9 +240,9 @@ impl JacAPIServerEndpoints.create_function_parameters(
                 data_type=field_type,
                 type_obj=type_obj,
                 required=func_fields[field_name]['required'],
-                default=func_fields[field_name]['default'],
+                default_value=func_fields[field_name]['default'],
                 description=f"Field {field_name} for function {func_name}",
-                type=param_type
+                kind=param_type
             )
         );
     }
@@ -235,13 +251,22 @@ impl JacAPIServerEndpoints.create_function_parameters(
 
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
-    import from fastapi { Request }
+    import from jaclang.runtimelib.serving.datatypes { Request }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
+
+    func_spec = self.get_functions()[func_name].restspec
+        if self.get_functions()[func_name]?.restspec
+        else None;
+    raw_body = func_spec is not None and not func_spec.envelope;
+    raw_media_type = (func_spec.produces or 'text/plain')
+        if func_spec
+        else 'text/plain';
+
     async def callback(
         request: Request, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
+    ) -> (TransportResponse | StreamingResponse | Response) {
         username: (str | None) = request.state?.username if request?.state else None;
         if requires_auth and not username {
             return TransportResponse.fail(
@@ -256,7 +281,7 @@ impl JacAPIServerEndpoints.create_function_callback(
         );
 
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
-            import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
+            import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(
                 sse_frame_stream(result),
                 media_type='text/event-stream',
@@ -268,12 +293,32 @@ impl JacAPIServerEndpoints.create_function_callback(
             );
         }
         if 'error' in result {
+            if result.get('error') == 'User not found' {
+                return TransportResponse.fail(
+                    code='UNAUTHORIZED',
+                    message='Unauthorized: unknown user',
+                    meta=Meta(extra={'http_status': 401})
+                );
+            }
             return TransportResponse.fail(
                 code='EXECUTION_ERROR',
                 message=result.get('error', 'Function execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
                 meta=Meta(extra={'http_status': 500})
             );
+        }
+        if raw_body {
+            payload = result.get('result') if isinstance(result, dict) else result;
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
+            return Response(content=body, media_type=raw_media_type);
         }
         return TransportResponse.success(
             data=result, meta=Meta(extra={'http_status': 200})
@@ -295,7 +340,6 @@ impl JacAPIServerEndpoints.get_walker_protocol(walker_name: str) -> str {
     return APIProtocol.HTTP;
 }
 
-"""Get the API protocol for a function by checking its restspec."""
 impl JacAPIServerEndpoints.get_function_protocol(func_name: str) -> str {
     functions = self.get_functions();
     if func_name not in functions {
@@ -357,7 +401,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
         }
 
         if not self.get_api_key_manager().check_rate_limit(
-            key_doc.get('_id', ''), rate_limit
+            key_doc.get('api_key_id', ''), rate_limit
         ) {
             return TransportResponse.fail(
                 code='RATE_LIMITED',
@@ -382,7 +426,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
             } except Exception { }
         }
 
-        raw_body = await request.body();
+        raw_body = request.body;
         if len(raw_body) > max_body_bytes {
             return _too_large();
         }
@@ -482,7 +526,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
         );
     }
     async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
-        client_ip = request.client.host if request?.client else '-';
+        client_ip = request.client_host or '-';
         resp = await _process(request, **kwargs);
         status = resp.meta.extra.get('http_status') if resp?.meta else None;
         outcome = 'ok' if resp.ok else (resp.error.code if resp?.error else 'error');
@@ -509,9 +553,9 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
             name='x_api_key',
             data_type='string',
             required=True,
-            default=None,
+            default_value=None,
             description='API key for webhook authentication (X-API-Key header)',
-            type=ParameterType.HEADER
+            kind=ParameterType.HEADER
         )
     );
 
@@ -520,9 +564,9 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
             name='x_webhook_signature',
             data_type='string',
             required=False,
-            default=None,
+            default_value=None,
             description='HMAC-SHA256 signature of "<timestamp>." + body, signed with the signing_secret (X-Webhook-Signature header)',
-            type=ParameterType.HEADER
+            kind=ParameterType.HEADER
         )
     );
 
@@ -531,9 +575,9 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
             name='x_webhook_timestamp',
             data_type='string',
             required=False,
-            default=None,
+            default_value=None,
             description='Unix timestamp (seconds) of the request, bound into the signature (X-Webhook-Timestamp header)',
-            type=ParameterType.HEADER
+            kind=ParameterType.HEADER
         )
     );
 
@@ -550,9 +594,9 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
                 name=field_name,
                 data_type=field_type,
                 required=walker_fields[field_name]['required'],
-                default=walker_fields[field_name]['default'],
+                default_value=walker_fields[field_name]['default'],
                 description=f"Field {field_name} for webhook walker {walker_name}",
-                type=ParameterType.BODY
+                kind=ParameterType.BODY
             )
         );
     }
@@ -560,10 +604,12 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
 }
 
 impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
+    has_webhook_walkers = False;
     for walker_name in self.get_walkers() {
         protocol = self.get_walker_protocol(walker_name);
 
         if protocol == APIProtocol.WEBHOOK {
+            has_webhook_walkers = True;
             self.server.add_endpoint(
                 JEndPoint(
                     method=HTTPMethod.POST,
@@ -577,6 +623,9 @@ impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
                 )
             );
         }
+    }
+    if has_webhook_walkers {
+        self.get_api_key_manager();
     }
 }
 
@@ -596,22 +645,11 @@ impl JacAPIServerEndpoints.get_ws_manager -> WebSocketConnectionManager {
         async def _shutdown_ws_manager {
             await manager.shutdown();
         }
-        self.server.app.router.on_shutdown.append(_shutdown_ws_manager);
+        self.server.app.add_shutdown_hook(_shutdown_ws_manager);
     }
     return self._ws_manager;
 }
 
-"""Drive one hardened WebSocket connection lifecycle.
-
-Handles the auth handshake (pre-accept query token with a first-frame fallback,
-tagged reject reasons and token refresh), connection-cap registration, the
-heartbeat/idle-close loop, per-message size and rate limits, target execution
-under a timeout, and streamed or single-result delivery. `make_awaitable(data,
-user)` returns the coroutine that runs the target for one request.
-
-A stray `token` key is dropped from every dispatched frame. The connection is
-authenticated once at the handshake, but clients written against the older
-per-message auth would otherwise pass their token through as a target field."""
 async def _ws_serve_connection(
     websocket: WebSocket,
     ws_manager: WebSocketConnectionManager,
@@ -749,11 +787,6 @@ async def _ws_serve_connection(
     }
 }
 
-"""Shared factory for the walker and function WebSocket handlers.
-
-`target_kind` is 'walker' or 'function'; `execute` is the async runner
-(spawn_walker / execute_function) invoked as execute(target, data, username).
-"""
 impl JacAPIServerEndpoints._create_websocket_target_handler(
     target_kind: str,
     target_name: str,
@@ -798,7 +831,6 @@ impl JacAPIServerEndpoints.create_websocket_handler(walker_name: str) -> Callabl
     );
 }
 
-"""Create a WebSocket handler for a specific def/function."""
 impl JacAPIServerEndpoints.create_websocket_function_handler(
     func_name: str
 ) -> Callable {
@@ -816,8 +848,8 @@ impl JacAPIServerEndpoints.register_websocket_endpoints -> None {
         protocol = self.get_walker_protocol(walker_name);
         if protocol == APIProtocol.WEBSOCKET {
             handler = self.create_websocket_handler(walker_name);
-            self.server.app.websocket(f"/ws/walker/{walker_name}")(handler);
-            self.server.app.websocket(f"/ws/{walker_name}")(handler);
+            self.server.add_ws_endpoint(f"/ws/walker/{walker_name}", handler);
+            self.server.add_ws_endpoint(f"/ws/{walker_name}", handler);
             logger.info(
                 f"Registered WebSocket walker endpoint: /ws/walker/{walker_name} "
                 f"(+ legacy /ws/{walker_name})"
@@ -828,7 +860,7 @@ impl JacAPIServerEndpoints.register_websocket_endpoints -> None {
         protocol = self.get_function_protocol(func_name);
         if protocol == APIProtocol.WEBSOCKET {
             handler = self.create_websocket_function_handler(func_name);
-            self.server.app.websocket(f"/ws/function/{func_name}")(handler);
+            self.server.add_ws_endpoint(f"/ws/function/{func_name}", handler);
             logger.info(
                 f"Registered WebSocket function endpoint: /ws/function/{func_name}"
             );
