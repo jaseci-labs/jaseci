@@ -47,6 +47,7 @@ import from opcode_meta {
     CO_NESTED,
     CO_GENERATOR,
     CO_COROUTINE,
+    CO_ASYNC_GENERATOR,
     CO_VARARGS,
     CO_VARKEYWORDS,
     OP_UNARY_NEGATIVE,
@@ -1884,6 +1885,11 @@ def visit_expr(
         } else {
             none_idx = g.u.add_const(py_none());
             g.emit_op(OP_LOAD_CONST, none_idx, yloc);
+        }
+        # In an async generator, each yielded value is wrapped by
+        # INTRINSIC_ASYNC_GEN_WRAP (4) before YIELD_VALUE.
+        if (g.u.flags & CO_ASYNC_GENERATOR) != 0 {
+            g.emit_op(OP_CALL_INTRINSIC_1, 4, yloc);
         }
         g.emit_op(OP_YIELD_VALUE, 0, yloc);
         g.emit_op(OP_RESUME, 5, yloc);
@@ -6370,10 +6376,11 @@ def compile_fn_cfg(
     u.kwonlyargcount = kwonly;
     is_suspendable = sym_fn.generator or sym_fn.coroutine;
     u.flags = function_code_flags(args);
-    if sym_fn.generator {
+    if sym_fn.generator and sym_fn.coroutine {
+        u.flags = u.flags | CO_ASYNC_GENERATOR;
+    } elif sym_fn.generator {
         u.flags = u.flags | CO_GENERATOR;
-    }
-    if sym_fn.coroutine {
+    } elif sym_fn.coroutine {
         u.flags = u.flags | CO_COROUTINE;
     }
     u.varnames = fast_varnames_from_sym(sym_fn);

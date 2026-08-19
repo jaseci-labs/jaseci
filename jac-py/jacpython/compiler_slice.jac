@@ -1904,6 +1904,50 @@ test "compiler_slice: band7 async with parsed executes in ceval" {
     assert expect_int(finished.value as PyObj) == 42;
 }
 
+# ---------------- Band 7 slice 7: async generator ----------------
+
+test "compiler_slice: band7 async generator minimal parsed matches oracle nested co_code" {
+    src = "async def ag():\n    yield 1\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<ag>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    ag_fn = nested_code_by_name(actual, "ag");
+    exp_ag = nested_code_by_name(exp, "ag");
+    # CO_ASYNC_GENERATOR (0x0200) set; CO_GENERATOR (0x20) / CO_COROUTINE (0x80) clear.
+    assert (exp_ag.flags & 512) != 0;
+    assert (exp_ag.flags & 32) == 0;
+    assert (exp_ag.flags & 128) == 0;
+    assert ag_fn.co_code == exp_ag.co_code;
+    assert ag_fn.exceptiontable == exp_ag.exceptiontable;
+    assert ag_fn.stacksize == exp_ag.stacksize;
+    assert ag_fn.flags == exp_ag.flags;
+}
+
+test "compiler_slice: band7 async generator parsed matches oracle nested co_code" {
+    src = (
+        "async def something():\n"
+            + "    return 7\n"
+            + "async def ag():\n"
+            + "    yield 1\n"
+            + "    x = await something()\n"
+            + "    yield x\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<ag>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    ag_fn = nested_code_by_name(actual, "ag");
+    exp_ag = nested_code_by_name(exp, "ag");
+    assert (exp_ag.flags & 512) != 0;
+    assert (exp_ag.flags & 32) == 0;
+    assert (exp_ag.flags & 128) == 0;
+    assert ag_fn.co_code == exp_ag.co_code;
+    assert ag_fn.exceptiontable == exp_ag.exceptiontable;
+    assert ag_fn.stacksize == exp_ag.stacksize;
+    assert ag_fn.flags == exp_ag.flags;
+}
+
 # ---------------- Band 8 slice 1: match literal int ----------------
 
 test "compiler_slice: band8 match literal int parsed matches oracle nested f co_code" {
