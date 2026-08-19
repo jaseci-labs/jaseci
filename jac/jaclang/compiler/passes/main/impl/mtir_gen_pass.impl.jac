@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from pathlib { Path }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
@@ -199,9 +198,6 @@ impl MTIRGenPass._extract_enum_info(symbol: Symbol) -> EnumInfo {
 }
 
 impl MTIRGenPass._extract_class_info(symbol: Symbol) -> ClassInfo | None {
-    if not self?._class_info_cache {
-        self._class_info_cache = {};
-    }
     cache_key = id(symbol);
     if cache_key in self._class_info_cache {
         return self._class_info_cache[cache_key];

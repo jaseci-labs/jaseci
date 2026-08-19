@@ -108,6 +108,7 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
     for (aname, arch) in archetypes.items() {
         if arch.base_classes {
             parents: list[str] = [];
+            parent_mods: list[str] = [];
             for base_expr in arch.base_classes {
                 pname: (str | None) = None;
                 if isinstance(base_expr, Name) {
@@ -115,13 +116,15 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
                 } elif isinstance(base_expr, AstSymbolNode) {
                     pname = base_expr.sym_name;
                 }
-                if pname is None or is_comptime_base_name(pname, archetypes) {
+                if pname is None or is_erased_base_name(pname, archetypes) {
                     continue;
                 }
                 parents.append(pname);
+                parent_mods.append(declaring_module_path(base_expr));
             }
             if parents {
                 reg.class_parents[aname] = parents;
+                reg.parent_mods[aname] = parent_mods;
             }
         }
     }
@@ -234,6 +237,22 @@ impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
 }
 
 impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
+    """Assign an archetype's header and field slots.
+
+    `needs_vtable` folds two different questions together. `parents_set` and
+    `isinstance_targets` ask "is anything dispatched through me", which is a
+    real requirement. `bool(parents)` asks "do I have a base", which is a
+    property of the declaration and says nothing about dispatch -- and this
+    pass is per-module, so a base whose only subclass lives elsewhere is
+    nobody's parent here and comes out flat while its child, merely for
+    having a base, claims a vtable slot the base lacks. Their headers then
+    disagree and `adopt_imported_bases` declines the pair.
+
+    The build-time answer is left exactly as it was, so no existing layout
+    moves. `vtable_by_dispatch` records which of the two questions answered,
+    which is what lets adoption -- where both layouts are finally in hand --
+    tell a header the class needs from one it merely inherited the habit of.
+    """;
     reg = self.registry;
     aname = arch.name.value if arch.name else "unknown";
     mro = reg.mro_order.get(aname, [aname]);
@@ -248,9 +267,11 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
             parents_set.add(p);
         }
     }
-    needs_vtable = (
-        bool(parents) or aname in parents_set or aname in self.isinstance_targets
+
+    vtable_by_dispatch = (
+        is_osp or aname in parents_set or aname in self.isinstance_targets
     );
+    needs_vtable = bool(parents) or vtable_by_dispatch;
 
     fields: list[FieldInfo] = [];
     field_index: dict[str, int] = {};
@@ -341,14 +362,20 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         current_idx += 1;
     }
 
+    import os as _lay_os;
+    _decl_mod = arch.find_parent_of_type(Module);
+    _decl_path = _decl_mod.loc.mod_path if _decl_mod?.loc else None;
     return ArchetypeLayout(
         name=aname,
         arch_type=arch_type_str,
+        decl_mod=(_lay_os.path.realpath(_decl_path) if _decl_path else ""),
+        parent_mods=list(reg.parent_mods.get(aname, [])),
         parents=parents,
         mro=mro,
         fields=fields,
         field_index=field_index,
         has_vtable=needs_vtable,
+        vtable_by_dispatch=vtable_by_dispatch,
         parent_field_start=parent_field_start,
         is_osp=is_osp,
         vtable_ptr_slot=vtable_ptr_slot,
@@ -363,7 +390,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
         if ename is None or ename in self.registry.enums or nd.body is None {
             continue;
         }
-        raw_members: list = [];
+        raw_members: list[tuple[(str, (UniNode | None))]] = [];
         for stmt in nd.body {
             if isinstance(stmt, Assignment) {
                 targets = stmt.target
@@ -377,9 +404,9 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
 
-        member_values: list = [
-            enum_member_literal(vnode) for (_, vnode) in raw_members
-        ];
+        member_values: list[(str | int | None)] = resolve_enum_member_values(
+            raw_members
+        );
         is_string_enum = False;
         for mval in member_values {
             if isinstance(mval, str) {
@@ -388,7 +415,8 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
         members: list[EnumMemberLayout] = [];
-        for (ordinal, (mname, vnode)) in enumerate(raw_members) {
+        for (ordinal, member) in enumerate(raw_members) {
+            mname: str = member[0];
             str_value: (str | None) = None;
             int_value = 0;
             mval = member_values[ordinal];
@@ -419,17 +447,13 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             continue;
         }
         _scalar = class_form_enum_scalar(nd.name.type);
+        _cf_raw = class_form_enum_members(nd);
+        _cf_values = resolve_enum_member_values(_cf_raw);
         _cf_members: list[EnumMemberLayout] = [];
-        _cf_declared = 0;
+        _cf_declared = len(_cf_raw);
         _cf_typed = True;
-        for mname in nd.names_in_scope {
-            _msym = nd.names_in_scope.get(mname);
-            _mdecl = _msym.decl if _msym is not None else None;
-            _masn = _mdecl.parent if _mdecl is not None else None;
-            if isinstance(_masn, Assignment) and _masn.value is not None {
-                _cf_declared += 1;
-            }
-            _lit = class_form_enum_literal(nd.name.type, mname);
+        for (_cf_idx, _cf_member) in enumerate(_cf_raw) {
+            _lit = _cf_values[_cf_idx];
             if _lit is None {
                 continue;
             }
@@ -438,7 +462,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
             _cf_members.append(
                 EnumMemberLayout(
-                    name=mname,
+                    name=_cf_member[0],
                     ordinal=len(_cf_members),
                     int_value=(_lit if isinstance(_lit, int) else 0),
                     str_value=(_lit if isinstance(_lit, str) else None)
@@ -553,9 +577,12 @@ impl LayoutPass._compute_acyclicity -> None {
 }
 
 impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
-    cur = state.get(name);
-    if cur is not None {
-        return 2 if cur == 0 else cur;
+    if name in state {
+        cur = state[name];
+        if cur == 0 {
+            return 2;
+        }
+        return cur;
     }
     lay = self.registry.layouts.get(name);
     if lay is None or lay.has_vtable or lay.is_osp {
@@ -566,7 +593,7 @@ impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
     result = 1;
     for finfo in lay.fields {
         var = finfo.decl_node;
-        tb = var?.type if var is not None else None;
+        tb = var.type if isinstance(var, HasVar) else None;
         if tb is None {
             result = 2;
             break;
@@ -807,9 +834,10 @@ impl LayoutPass._is_layout_compatible_type(
             return True;
         }
         if target_name in {"list", "dict", "set", "frozenset", "tuple"} {
-            if type_node?.right and type_node.right?.slices {
-                for sl in type_node.right.slices {
-                    elem = sl.start if sl?.start else sl;
+            index = type_node.right;
+            if isinstance(index, IndexSlice) {
+                for sl in index.slices {
+                    elem: UniNode = sl.start if sl.start is not None else sl;
                     if isinstance(elem, TupleVal) and elem.values {
                         for tv in elem.values {
                             if not self._is_layout_compatible_type(tv, arch_map) {
@@ -827,7 +855,7 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
 
-    if type_node?.value and isinstance(type_node?.value, str) {
+    if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;

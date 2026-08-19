@@ -1,8 +1,7 @@
 import contextlib;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import from types { ModuleType }
-import from typing { TYPE_CHECKING, Any }
+import from typing { TYPE_CHECKING }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from jaclang.runtimelib.client.asset_processor { AssetProcessor }
 import from jaclang.runtimelib.client.import_processor { ImportProcessor }
@@ -44,7 +43,7 @@ class JacClientCompiler {
         runtime_path: (Path | None),
         compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
         extract_exports_func: Callable[([any], list[str])],
-        extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])],
+        extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])],
         compiled_dir: (Path | None) = None
     );
 
@@ -63,7 +62,7 @@ class JacClientCompiler {
         module_path: Path,
         visited: (set[Path] | None) = None,
         collected_exports: (set[str] | None) = None,
-        collected_globals: (dict[(str, Any)] | None) = None,
+        collected_globals: (dict[(str, any)] | None) = None,
         source_root: (Path | None) = None,
         target_name: str = "web",
         skip_existing: bool = False
@@ -90,7 +89,7 @@ class JacClientCompiler {
         self: JacClientCompiler,
         visited: (set[Path] | None) = None,
         collected_exports: (set[str] | None) = None,
-        collected_globals: (dict[(str, Any)] | None) = None,
+        collected_globals: (dict[(str, any)] | None) = None,
         target_name: str = "web"
     ) -> bool;
 
@@ -102,7 +101,7 @@ class JacClientCompiler {
     def _generate_routes_manifest(self: JacClientCompiler) -> None;
     def _write_source_map(
         self: JacClientCompiler,
-        mod: Any,
+        mod: any,
         source_file: str,
         output_path: Path,
         full_output: str

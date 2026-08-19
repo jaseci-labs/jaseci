@@ -3,7 +3,7 @@ import from jaclang.project.config { get_config }
 impl JacClient.render_page(
     introspector: ModuleIntrospector,
     function_name: str,
-    args: dict[(str, Any)],
+    args: dict[(str, any)],
     username: str
 ) -> dict[str, any] {
     introspector.load();

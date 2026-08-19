@@ -1,6 +1,5 @@
 import time;
-import from abc { ABC }
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
+import from jaclang.jac0core.srcloc { CodeLocInfo }
 import from jaclang.jac0core.diagnostics {
     DiagnosticInfo,
     E9001,
@@ -8,13 +7,8 @@ import from jaclang.jac0core.diagnostics {
     Severity
 }
 import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+import from jaclang.jac0core.passes.pass_rim { PassRim }
 import from jaclang.jac0core.unitree { UniNode }
-import type from jaclang.jac0core.program { JacProgram }
-
-glob _NATIVE_PASS_TIER_MEMO: dict[type, str] = {},
-     _NATIVE_SERVED_PASSES: set[str] = set();
-
-def _require_native_pass_tier(pass_type: type) -> None;
 
 obj Alert {
     has msg: str,
@@ -43,9 +37,8 @@ obj DiagnosticPolicy {
     def _inline_suppressed(diag: DiagnosticInfo, loc: CodeLocInfo) -> bool;
 }
 
-obj BaseTransform(ABC) {
+obj BaseTransform(PassRim) {
     has ir_in: UniNode,
-        prog: JacProgram,
         cancel_token: any = None,
         errors_had: list[Alert] = [],
         warnings_had: list[Alert] = [],

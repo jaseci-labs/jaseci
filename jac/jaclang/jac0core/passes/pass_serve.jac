@@ -1,4 +1,4 @@
-import from jaclang.jac0core.passes.transform { _NATIVE_SERVED_PASSES }
+import from jaclang.jac0core.passes.pass_rim { _NATIVE_SERVED_PASSES }
 
 glob _PASS_ARTIFACT_PREFIXES: tuple = (
          "jaclang.jac0core.passes.",
@@ -87,8 +87,8 @@ def _bind_one(fullname: str) {
 }
 
 def _native_merge_canary {
-    import from jaclang.jac0core.parser.frontend { _native_parse }
-    np = _native_parse();
+    import from jaclang.jac0core.native_brands { native_parser }
+    np = native_parser("pass_serve:merge_canary");
     if np is None {
         raise _serve_error(
             _ANNEX_MODULE,

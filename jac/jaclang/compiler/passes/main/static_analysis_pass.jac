@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
@@ -48,7 +47,6 @@ import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.constant { ExprCtx, SymbolType }
 import from jaclang.jac0core.diagnostics {
     W1103,
-    W1104,
     W2001,
     W2002,
     W2003,
@@ -57,6 +55,9 @@ import from jaclang.jac0core.diagnostics {
     W2070,
     W2074,
     W2075,
+    E1122,
+    E1123,
+    E1125,
     E2018,
     E2027,
     E2055,
@@ -223,12 +224,29 @@ glob BUILTIN_NAMES: set[str] = {
          'type',
          'vars',
          'zip'
+     },
+     DEPRECATED_TYPING_ALIASES: dict[str, str] = {
+         'Dict': 'dict',
+         'FrozenSet': 'frozenset',
+         'List': 'list',
+         'Set': 'set',
+         'Tuple': 'tuple',
+         'Type': 'type'
      };
+
+def is_bootstrap_compiled_module(mod_path: str) -> bool {
+    return "/jaclang/jac0core/" in mod_path.replace("\\", "/");
+}
+
+def is_ambient_provider_module(mod_path: str) -> bool {
+    return (mod_path.endswith("builtin.jac") or mod_path.endswith("builtin.py"))
+        and "runtimelib" in mod_path;
+}
 
 obj StaticAnalysisPass(Transform) {
     has ir_in: Module,
-        prog: any,
-        cancel_token: any = None;
+        cancel_token: any = None,
+        _checked_scopes: set[int] = set();
 
     static has PROVIDES: tuple = ('static-checks', );
 
@@ -241,6 +259,7 @@ obj StaticAnalysisPass(Transform) {
     def _native_type_position(name_nd: Name) -> (str | None);
     def _check_unreachable_code(mod: Module) -> None;
     def _check_semantic_patterns(mod: Module) -> None;
+    def _check_typing_import_refusals(mod: Module) -> None;
     def _check_redundant_imports(mod: Module) -> None;
     def _check_client_imports(mod: Module) -> None;
     def _check_placement_warnings(mod: Module) -> None;

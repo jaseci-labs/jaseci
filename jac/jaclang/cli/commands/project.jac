@@ -199,8 +199,8 @@ def create(
         Arg.create(
             "npm",
             typ=bool,
-            default=False,
-            help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'"
+            default=None,
+            help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'. As --no-npm, skip npm dependencies during a full install"
         ),
         Arg.create(
             "shadcn",
@@ -338,7 +338,7 @@ def install(
     extras: list = [],
     no_save: bool = False,
     git: str = "",
-    npm: bool = False,
+    npm: bool | None = None,
     shadcn: bool = False,
     verbose: bool = False,
     force_reinstall: bool = False,

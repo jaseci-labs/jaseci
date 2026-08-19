@@ -3,7 +3,6 @@ import hashlib;
 import json;
 import logging;
 import secrets;
-import from typing { Any }
 import from jaclang.runtimelib.serving.authcrypt {
     JWTError,
     JWTExpiredError,
@@ -29,7 +28,7 @@ obj WebhookUtils {
     static def extract_signature(header_value: str) -> str;
 }
 
-def _create_api_key_db -> Any | None {
+def _create_api_key_db -> any | None {
     try {
         return open_docs_store();
     } except Exception as e {
@@ -39,7 +38,7 @@ def _create_api_key_db -> Any | None {
 }
 
 obj ApiKeyManager {
-    has _db: Any | None = _create_api_key_db(),
+    has _db: any | None = _create_api_key_db(),
         _inmemory_store: dict = {},
         _collection: str = 'webhook_api_keys',
         _rate_window: dict = {};
