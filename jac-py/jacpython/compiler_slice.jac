@@ -627,6 +627,35 @@ test "compiler_slice: loop-else that terminates drops unreachable trailing code"
     }
 }
 
+# Non-constant slices: CPython 3.14 uses BINARY_SLICE (2-elt load) / STORE_SLICE
+# (2-elt store), and BUILD_SLICE (2 or 3) for 3-elt and all deletes. Missing
+# bounds fill with LOAD_CONST None. Constant slices stay folded (LOAD_CONST slice).
+test "compiler_slice: non-constant slice subscript matches oracle PyCode" {
+    for src in [
+        "r = x[a:b]\n",
+        "r = x[a:b:c]\n",
+        "r = x[a:]\n",
+        "r = x[:b]\n",
+        "r = x[:]\n",
+        "x[a:b] = v\n",
+        "x[a:b:c] = v\n",
+        "x[a:] = v\n",
+        "del x[a:b]\n",
+        "del x[a:b:c]\n",
+        "r = x[1:2]\n",
+        "x[1:2] = v\n",
+        "del x[1:2]\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+    }
+}
+
 # global / nonlocal are scope declarations (no bytecode of their own); they
 # retarget stores/deletes to STORE_GLOBAL / DELETE_GLOBAL / STORE_DEREF. Checked
 # via nested function co_code (module co_code is blind to the bodies).

@@ -67,6 +67,9 @@ import from opcode_meta {
     OP_STORE_GLOBAL,
     OP_STORE_ATTR,
     OP_STORE_SUBSCR,
+    OP_STORE_SLICE,
+    OP_BINARY_SLICE,
+    OP_BUILD_SLICE,
     OP_LOAD_ATTR,
     OP_DELETE_NAME,
     OP_DELETE_GLOBAL,
@@ -1055,6 +1058,65 @@ def name_load_opcode(g: cfg_builder, name: str) -> int {
 # Emit the subscript key (index or constant slice) onto the stack.
 # register_small_int: CPython keeps small-index literals in co_consts for
 # BINARY_OP[] loads but not for STORE_SUBSCR stores (byte-exact parity).
+# Emit one slice bound: the expression, or LOAD_CONST None when the bound is
+# omitted (CPython fills missing lower/upper/step with None).
+def emit_slice_bound(g: cfg_builder, e: expr | None, lc: cloc) {
+    if e is None {
+        idx = g.u.add_const(py_none());
+        g.emit_op(OP_LOAD_CONST, idx, lc);
+        return;
+    }
+    visit_expr(g, e);
+}
+
+# Push a non-constant slice's operands and the fused/build opcode for a LOAD.
+# CPython 3.14: a 2-element slice (no step) uses BINARY_SLICE (lower, upper on
+# stack, receiver below); a 3-element slice uses BUILD_SLICE 3 + BINARY_OP []].
+# Constant slices are folded by the caller (fold_slice_const) and never reach here.
+def emit_slice_load(g: cfg_builder, sl: Slice, lc: cloc) {
+    if sl.step is not None {
+        emit_slice_bound(g, sl.lower, lc);
+        emit_slice_bound(g, sl.upper, lc);
+        visit_expr(g, sl.step);
+        g.emit_op(OP_BUILD_SLICE, 3, lc);
+        g.emit_op(OP_BINARY_OP, NB_SUBSCR, lc);
+        return;
+    }
+    emit_slice_bound(g, sl.lower, lc);
+    emit_slice_bound(g, sl.upper, lc);
+    g.emit_op(OP_BINARY_SLICE, 0, lc);
+}
+
+# Non-constant slice STORE (value already on the stack, container just pushed).
+# 2-element: STORE_SLICE (fused). 3-element: BUILD_SLICE 3 + STORE_SUBSCR.
+def emit_slice_store(g: cfg_builder, sl: Slice, lc: cloc) {
+    if sl.step is not None {
+        emit_slice_bound(g, sl.lower, lc);
+        emit_slice_bound(g, sl.upper, lc);
+        visit_expr(g, sl.step);
+        g.emit_op(OP_BUILD_SLICE, 3, lc);
+        g.emit_op(OP_STORE_SUBSCR, 0, lc);
+        return;
+    }
+    emit_slice_bound(g, sl.lower, lc);
+    emit_slice_bound(g, sl.upper, lc);
+    g.emit_op(OP_STORE_SLICE, 0, lc);
+}
+
+# Non-constant slice DELETE (container just pushed). CPython has no fused
+# delete-slice: both 2- and 3-element forms use BUILD_SLICE (2 or 3) + DELETE_SUBSCR.
+def emit_slice_delete(g: cfg_builder, sl: Slice, lc: cloc) {
+    emit_slice_bound(g, sl.lower, lc);
+    emit_slice_bound(g, sl.upper, lc);
+    n = 2;
+    if sl.step is not None {
+        visit_expr(g, sl.step);
+        n = 3;
+    }
+    g.emit_op(OP_BUILD_SLICE, n, lc);
+    g.emit_op(OP_DELETE_SUBSCR, 0, lc);
+}
+
 def visit_subscript_index(
     g: cfg_builder, key: expr, lc: cloc, register_small_int: bool = False
 ) {
@@ -1437,6 +1499,18 @@ def visit_expr(
         s = e as Subscript;
         sloc = expr_loc(s);
         visit_expr(g, s.value);
+        if isinstance(s.slice, Slice) {
+            sl = s.slice as Slice;
+            folded = fold_slice_const(sl);
+            if folded is not None {
+                idx = g.u.add_const(folded);
+                g.emit_op(OP_LOAD_CONST, idx, sloc);
+                g.emit_op(OP_BINARY_OP, NB_SUBSCR, sloc);
+                return None;
+            }
+            emit_slice_load(g, sl, sloc);
+            return None;
+        }
         visit_subscript_index(g, s.slice, sloc, True);
         g.emit_op(OP_BINARY_OP, NB_SUBSCR, sloc);
         return None;
@@ -1805,6 +1879,18 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
         s = t as Subscript;
         sloc = expr_loc(s);
         visit_expr(g, s.value);
+        if isinstance(s.slice, Slice) {
+            sl = s.slice as Slice;
+            folded = fold_slice_const(sl);
+            if folded is not None {
+                idx = g.u.add_const(folded);
+                g.emit_op(OP_LOAD_CONST, idx, sloc);
+                g.emit_op(OP_STORE_SUBSCR, 0, sloc);
+                return stmt_cont(loc=sloc);
+            }
+            emit_slice_store(g, sl, sloc);
+            return stmt_cont(loc=sloc);
+        }
         visit_subscript_index(g, s.slice, sloc);
         g.emit_op(OP_STORE_SUBSCR, 0, sloc);
         return stmt_cont(loc=sloc);
@@ -1954,9 +2040,21 @@ def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
     }
     if isinstance(t, Subscript) {
         s = t as Subscript;
-        visit_expr(g, s.value);
-        visit_subscript_index(g, s.slice, expr_loc(s));
         tloc = expr_loc(s);
+        visit_expr(g, s.value);
+        if isinstance(s.slice, Slice) {
+            sl = s.slice as Slice;
+            folded = fold_slice_const(sl);
+            if folded is not None {
+                idx = g.u.add_const(folded);
+                g.emit_op(OP_LOAD_CONST, idx, tloc);
+                g.emit_op(OP_DELETE_SUBSCR, 0, tloc);
+                return stmt_cont(loc=tloc);
+            }
+            emit_slice_delete(g, sl, tloc);
+            return stmt_cont(loc=tloc);
+        }
+        visit_subscript_index(g, s.slice, tloc);
         g.emit_op(OP_DELETE_SUBSCR, 0, tloc);
         return stmt_cont(loc=tloc);
     }
