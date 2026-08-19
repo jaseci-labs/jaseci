@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from pathlib { Path }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }

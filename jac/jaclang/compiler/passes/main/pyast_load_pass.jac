@@ -1,9 +1,8 @@
 import ast as py_ast;
 import os;
 import re;
-import from collections.abc { Sequence }
 import from threading { Event }
-import from typing { TypeAlias, TypeVar, cast }
+import from typing { TypeAlias, cast }
 import from jaclang.jac0core.unitree {
     Ability,
     ArchBlockStmt,
