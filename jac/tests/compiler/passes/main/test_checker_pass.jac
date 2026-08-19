@@ -2398,7 +2398,7 @@ test "enum_metaclass_attr_type_checking" {
         os.path.join(CHECKER_FIXTURES, "checker_enum_metaclass_attrs.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     expected_errors = ["bad: int = Tokens.__members__"];
 
