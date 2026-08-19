@@ -627,6 +627,28 @@ test "compiler_slice: loop-else that terminates drops unreachable trailing code"
     }
 }
 
+# Conditional expression (ternary) in embedded position -- value consumed by a
+# surrounding operation -- uses CPython's branch+join shape and is byte-exact.
+# (A statement-tail `x = a if c else b` is duplicated by CPython and is a separate
+# slice; here every ifexp is embedded so the branch+join form matches.)
+test "compiler_slice: embedded conditional expression matches oracle PyCode" {
+    for src in [
+        "r = (a if c else b) + 1\nz = 0\n",
+        "r = f(a if c else b)\nz = 0\n",
+        "r = [a if c else b]\nz = 0\n",
+        "r = (a if c else b) * (d if e else g)\nz = 0\n",
+        "r = -(a if c else b)\nz = 0\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+    }
+}
+
 # Non-constant slices: CPython 3.14 uses BINARY_SLICE (2-elt load) / STORE_SLICE
 # (2-elt store), and BUILD_SLICE (2 or 3) for 3-elt and all deletes. Missing
 # bounds fill with LOAD_CONST None. Constant slices stay folded (LOAD_CONST slice).

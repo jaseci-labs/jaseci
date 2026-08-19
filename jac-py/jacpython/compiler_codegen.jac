@@ -1440,6 +1440,37 @@ def visit_expr(
     if isinstance(e, BoolOp) {
         return visit_boolop(g, e as BoolOp, false_shortcircuit_returns);
     }
+    if isinstance(e, IfExp) {
+        # Conditional expression `body if test else orelse`. Branch+join form,
+        # leaving the selected value on the stack (CPython's embedded shape):
+        #   <test>; POP_JUMP_IF_FALSE else; <body>; JUMP_FORWARD join;
+        #   else: <orelse>; join:
+        # At a statement tail CPython instead duplicates the suffix into both
+        # arms (no join); that tail-duplication is a separate slice, so a
+        # top-level `x = a if c else b` compiles correctly but is not byte-exact.
+        ie = e as IfExp;
+        ieloc = nloc(ie.lineno, ie.end_lineno, ie.col_offset, ie.end_col_offset);
+        test_loc = expr_loc(ie.test);
+        else_blk = g.new_block();
+        join_blk = g.new_block();
+        kind = visit_test_expr(g, ie.test, test_loc, True);
+        if codegen_busy(g) {
+            return None;
+        }
+        emit_branch_if_test_false(g, kind, else_blk.id, test_loc);
+        visit_expr(g, ie.body);
+        if codegen_busy(g) {
+            return None;
+        }
+        g.emit_jump(OP_JUMP_FORWARD, join_blk.id, ieloc);
+        g.use(else_blk);
+        visit_expr(g, ie.orelse);
+        if codegen_busy(g) {
+            return None;
+        }
+        g.use(join_blk);
+        return None;
+    }
     if isinstance(e, Call) {
         ca = e as Call;
         floc = call_func_loc(ca.func);
