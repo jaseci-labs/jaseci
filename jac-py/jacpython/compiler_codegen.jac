@@ -4008,6 +4008,265 @@ def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int) {
     }
 }
 
+# Emit the inline (normal-path) copy of a finally body followed by the module
+# return / tail continuation. `with_nop` matches CPython's leading NOP that
+# appears when the finally block is laid out after the handlers (terminated
+# body path).
+def emit_finally_inline_block(
+    g: cfg_builder,
+    finalbody: list[stmt],
+    blk: basicblock,
+    with_nop: bool,
+    more_code_follows: bool,
+    tail: list[stmt] | None,
+    tail_idx: int,
+    tloc: cloc
+) {
+    g.use(blk);
+    if with_nop {
+        g.emit_op(OP_NOP, 0, tloc);
+    }
+    fc = visit_stmts(g, finalbody);
+    if codegen_busy(g) {
+        return;
+    }
+    fin_follows = more_code_follows;
+    if not fin_follows and tail is not None and tail_idx < len(tail) {
+        fin_follows = True;
+    }
+    if fin_follows {
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        tc = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        if codegen_busy(g) {
+            return;
+        }
+        if not tc.terminated {
+            emit_module_return(g, tc.loc);
+        }
+    } else {
+        emit_module_return(g, fc.loc);
+    }
+}
+
+# Lower flat try/except[/else]/finally by forward-nesting the finally around the
+# try/except (CPython compiles them identically). Single handler, no as-binding.
+def visit_try_except_finally(
+    g: cfg_builder,
+    t: Try,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    tloc = stmt_loc(t);
+    if len(t.handlers) != 1 {
+        codegen_fail(
+            g, "NotImplementedError",
+            "try/except/finally: only a single handler is supported"
+        );
+        return stmt_cont(loc=tloc);
+    }
+    h0 = t.handlers[0];
+    if h0.name is not None {
+        codegen_fail(
+            g, "NotImplementedError",
+            "try/except/finally: except-as binding not supported"
+        );
+        return stmt_cont(loc=tloc);
+    }
+    noloc = no_loc();
+    is_bare = h0.type is None;
+    hloc = try_handler_span(h0);
+
+    nop_blk = g.new_block();
+    try_body = g.new_block();
+    g.use(nop_blk);
+    g.emit_op(OP_NOP, 0, tloc);
+    g.use(try_body);
+    protect_start = g.cur.id;
+    body_cont = visit_stmts(g, t.body, 0, True);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+
+    protect_end = g.new_block();
+    g.use(protect_end);
+    normal_reaches_fin = not body_cont.terminated;
+    if t.orelse is not None and len(t.orelse) > 0 and not body_cont.terminated {
+        else_cont = visit_stmts(g, t.orelse, 0, True);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        if else_cont.terminated {
+            normal_reaches_fin = False;
+        }
+    }
+
+    has_else = t.orelse is not None and len(t.orelse) > 0;
+
+    fin_inline = g.new_deferred_block();
+    handler_entry = g.new_deferred_block();
+    handler_success = g.new_deferred_block();
+    reraise_blk = g.new_deferred_block();
+    inner_unwind = g.new_deferred_block();
+    fin_except = g.new_deferred_block();
+    outer_unwind = g.new_deferred_block();
+
+    # try body -> inner except handler
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=handler_entry.id,
+            stack_depth=1
+        )
+    );
+
+    # Lay the inline finally on the normal fall-through path (right after the
+    # body/else) but leave it empty for now: its ops — and therefore its interned
+    # names — are emitted after the handler so co_names order matches CPython.
+    if normal_reaches_fin {
+        g.use(fin_inline);
+    }
+
+    # Inner except handler.
+    g.use(handler_entry);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    if not is_bare {
+        visit_expr(g, h0.type);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        g.emit_op(OP_CHECK_EXC_MATCH, 0, hloc);
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, reraise_blk.id, hloc);
+    }
+    g.emit_op(OP_POP_TOP, 0, hloc);
+    hbody = visit_stmts(g, h0.body);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    handler_reaches_fin = not hbody.terminated;
+    if handler_reaches_fin {
+        g.use(handler_success);
+        g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+        if normal_reaches_fin {
+            g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, fin_inline.id, hbody.loc);
+        } else {
+            g.emit_jump(OP_JUMP_FORWARD, fin_inline.id, hbody.loc);
+        }
+    }
+    if not is_bare {
+        g.use(reraise_blk);
+        g.emit_op(OP_RERAISE, 0, hloc);
+    }
+    g.use(inner_unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+
+    # Fill the inline finally copy. When the normal path is live the block was
+    # already placed above; otherwise it is laid out here (after the handlers)
+    # with the leading NOP CPython emits on that path.
+    emit_finally_inline_block(
+        g, t.finalbody, fin_inline, not normal_reaches_fin,
+        more_code_follows, tail, tail_idx, tloc
+    );
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+
+    # Exceptional (finally) handler: run finally, then re-raise.
+    g.use(fin_except);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    fe_cont = visit_stmts(g, t.finalbody);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    g.emit_op(OP_RERAISE, 0, fe_cont.loc);
+    g.use(outer_unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+
+    # Inner except handler code -> inner unwind.
+    g.u.except_regions.append(
+        except_region(
+            start_block=handler_entry.id,
+            end_block=handler_success.id,
+            handler_block=inner_unwind.id,
+            stack_depth=3,
+            preserve_lasti=True
+        )
+    );
+    if not is_bare {
+        g.u.except_regions.append(
+            except_region(
+                start_block=reraise_blk.id,
+                end_block=inner_unwind.id,
+                handler_block=inner_unwind.id,
+                stack_depth=3,
+                preserve_lasti=True
+            )
+        );
+    }
+    inner_unwind_region_end = fin_except.id;
+    if not normal_reaches_fin {
+        inner_unwind_region_end = fin_inline.id;
+    }
+    # Inner handler epilogue -> finally handler. With a typed handler the epilogue
+    # ends at the no-match RERAISE block; a bare handler has no such block, so the
+    # epilogue and the inner unwind form one contiguous finally-protected range.
+    unwind_region_start = inner_unwind.id;
+    if not is_bare {
+        if handler_reaches_fin {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=handler_success.id,
+                    end_block=reraise_blk.id,
+                    handler_block=fin_except.id,
+                    stack_depth=1
+                )
+            );
+        }
+    } elif handler_reaches_fin {
+        unwind_region_start = handler_success.id;
+    }
+    g.u.except_regions.append(
+        except_region(
+            start_block=unwind_region_start,
+            end_block=inner_unwind_region_end,
+            handler_block=fin_except.id,
+            stack_depth=1
+        )
+    );
+    # Finally handler -> outer unwind.
+    g.u.except_regions.append(
+        except_region(
+            start_block=fin_except.id,
+            end_block=outer_unwind.id,
+            handler_block=outer_unwind.id,
+            stack_depth=3,
+            preserve_lasti=True
+        )
+    );
+    # else body (normal-path, laid out before the inline finally) -> finally
+    # handler, so an exception raised in the else clause still runs finally.
+    if has_else and normal_reaches_fin {
+        g.u.except_regions.append(
+            except_region(
+                start_block=protect_end.id,
+                end_block=fin_inline.id,
+                handler_block=fin_except.id,
+                stack_depth=1
+            )
+        );
+    }
+    return stmt_cont(loc=tloc, terminated=True);
+}
+
 # Lower try/except (typed handlers; optional finally deferred).
 def visit_try(
     g: cfg_builder,
@@ -4020,10 +4279,9 @@ def visit_try(
     tloc = stmt_loc(t);
     if t.finalbody is not None and len(t.finalbody) > 0 {
         if t.handlers is not None and len(t.handlers) > 0 {
-            codegen_fail(
-                g, "NotImplementedError", "try/except/finally not supported"
+            return visit_try_except_finally(
+                g, t, more_code_follows, tail, tail_idx, tail_join
             );
-            return stmt_cont(loc=tloc);
         }
         return visit_try_finally(
             g, t, more_code_follows, tail, tail_idx, tail_join

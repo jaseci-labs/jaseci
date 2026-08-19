@@ -1741,6 +1741,148 @@ test "compiler_slice: band6 try finally runs on exception path in ceval" {
     assert expect_int(ns["result"]) == 10;
 }
 
+# -------- Band 6 slice 6: try/except[/else]/finally (flat) --------
+
+test "compiler_slice: band6 try except finally normal parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    result = 1\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except finally normal executes in ceval" {
+    src = (
+        "try:\n"
+            + "    result = 1\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band6 try except finally caught parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except finally caught executes in ceval" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band6 try except finally uncaught parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    raise KeyError('k')\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    marker = 9\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except finally uncaught propagates but runs finally in ceval" {
+    src = (
+        "try:\n"
+            + "    raise KeyError('k')\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "finally:\n"
+            + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 try except else finally parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    result = 1\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "else:\n"
+            + "    result = 5\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except else finally executes in ceval" {
+    src = (
+        "try:\n"
+            + "    result = 1\n"
+            + "except ValueError:\n"
+            + "    result = 2\n"
+            + "else:\n"
+            + "    result = 5\n"
+            + "finally:\n"
+            + "    result = 3\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
 # ---------------- Band 6 slice 5: with ----------------
 
 test "compiler_slice: band6 with parsed matches oracle co_code" {
