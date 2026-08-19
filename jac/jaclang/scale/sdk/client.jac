@@ -127,6 +127,14 @@ obj ScaleClient {
         );
     }
 
+    def bundle_keys(
+        app_name: str, namespace: str, target: str = 'auto'
+    ) -> set[str] {
+        return self._lifecycle_target(
+            app_name, namespace, target
+        ).referenced_bundle_keys(app_name);
+    }
+
     def scale(app_name: str, namespace: str, replicas: int, target: str = 'auto') {
         self._lifecycle_target(app_name, namespace, target).scale(app_name, replicas);
     }

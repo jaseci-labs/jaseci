@@ -195,16 +195,6 @@ class JacScalePluginConfig {
                             "default": 3,
                             "description": "Maximum pod replicas for the autoscaler."
                         },
-                        "monitoring_enabled": {
-                            "type": "bool",
-                            "default": False,
-                            "description": "Deploy the observability stack (Prometheus/Grafana/Loki) alongside the app."
-                        },
-                        "service_dependencies": {
-                            "type": "list",
-                            "default": [],
-                            "description": "Names of other jac-scale services this app waits for before its own containers start."
-                        },
                         "revision_history_limit": {
                             "type": "int",
                             "default": 10,

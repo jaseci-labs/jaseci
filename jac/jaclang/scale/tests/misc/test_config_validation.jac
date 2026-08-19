@@ -371,7 +371,13 @@ test "every [scale.kubernetes] key from_config reads is declared in the schema" 
         JacScalePluginConfig.get_config_schema().get("options", {}), declared
     );
 
-    missing = sorted(consumed - declared);
+    # Keys get_kubernetes_config assigns unconditionally after loading, from
+    # [scale.monitoring] and from the system plugin deps. Declaring them under
+    # [scale.kubernetes] would validate a value that is then thrown away, which
+    # is the same lie this test exists to catch, pointing the other way.
+    derived: set = {"monitoring_enabled", "service_dependencies"};
+
+    missing = sorted(consumed - declared - derived);
     assert missing == [] , (
         f"from_config reads {missing} but [scale.kubernetes] does not declare "
         "them, so a user setting one gets an 'unknown key' warning and the "

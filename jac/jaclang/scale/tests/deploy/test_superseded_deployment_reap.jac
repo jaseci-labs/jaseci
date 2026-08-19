@@ -6,12 +6,11 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.deploy.target.kubernetes.target {
     KubernetesTarget,
-    replica_sets_at_revision,
     restorable_pod_template,
-    app_deployment_names,
     app_bundle_digest,
     releases_from_revisions,
     fleet_targets_for_release,
+    fleet_revert_order,
     deployment_rollout_complete
 }
 
@@ -206,36 +205,6 @@ def _replica_set(deployment: str, revision: str, owned: bool = True) -> any {
 }
 
 
-test "only the ReplicaSets at the requested revision are selected" {
-    # Newest last on purpose: both ReplicaSets key off the same Deployment, so a
-    # selector that ignored the revision would leave revision 3 as the winner.
-    sets = [
-        _replica_set("orders-deployment", "2"),
-        _replica_set("orders-deployment", "3"),
-        _replica_set("gateway-deployment", "2")
-    ];
-
-    picked = replica_sets_at_revision(sets, 2);
-
-    assert sorted(picked.keys()) == ["gateway-deployment", "orders-deployment"];
-    assert picked["orders-deployment"].metadata.name == "orders-deployment-2";
-}
-
-
-test "an ownerless ReplicaSet is never a revert target" {
-    picked = replica_sets_at_revision(
-        [_replica_set("orders-deployment", "2", owned=False)], 2
-    );
-
-    assert picked == {};
-}
-
-
-test "a revision with no retained ReplicaSet selects nothing" {
-    assert replica_sets_at_revision([_replica_set("orders-deployment", "3")], 1) == {};
-}
-
-
 # pod-template-hash is stamped by the ReplicaSet controller. Reverting a
 # template that still carries it pins the new ReplicaSet to the old hash, so
 # the controller cannot own the pods it creates.
@@ -263,19 +232,74 @@ test "reverting a template drops pod-template-hash and keeps the rest" {
 # App scoping. `managed=jac-scale` marks the product, not the app, and two apps
 # can share a namespace. Kubernetes revision numbers are per Deployment and
 # overlap freely, so an unscoped revert would patch a neighbour's fleet.
-test "the app's deployment set is derived from its own routes" {
-    names = app_deployment_names(
-        {"orders_app": "/orders", "cart_app": "/cart"}, "shop"
-    );
+obj _FleetApps {
+    has names: list,
+        selector: str = "";
 
-    assert names
-        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , f"the gateway rolls back last, so it is listed last: {names}";
+    def list_namespaced_deployment(namespace: str, **kwargs: any) -> any {
+        self.selector = str(kwargs.get("label_selector", ""));
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(metadata=SimpleNamespace(name=n))
+                for n in self.names
+            ]
+        );
+    }
 }
 
 
-test "a monolith with no routes still resolves its own deployment" {
-    assert app_deployment_names({}, "littlex")
-        == ["littlex-deployment", "gateway-deployment"];
+# ScaleClient hands every lifecycle call a bare DeploySpec, and
+# to_microservices_config() always returns a dict carrying a `routes` key, so
+# _ms_cfg short-circuits on it and never falls back to jac.toml. Deriving the
+# fleet from those empty routes resolved `{app}-deployment` plus the gateway --
+# a Deployment that does not exist for a microservice app, and one that is a
+# fraction of the set. rollback() refused every time and revisions() reported
+# the gateway alone.
+test "the fleet is read from the cluster, not from a route table" {
+    target = KubernetesTarget(
+        config=KubernetesConfig(app_name="shop", namespace="shop"),
+        microservices_config={"routes": {}}
+    );
+    api = _FleetApps(
+        names=["orders-app-deployment", "gateway-deployment", "cart-app-deployment"]
+    );
+
+    names = target._fleet_deployment_names(api, "shop");
+
+    assert names
+        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , (
+        f"the real fleet, gateway last: {names}"
+    );
+    assert api.selector == "managed=jac-scale,jac-scale.role in (microservice,gateway)" , (
+        "the fleet must be scoped exactly as destroy scopes it, or a rollback "
+        "reaches objects the app does not own"
+    );
+}
+
+
+# The gateway fronts the fleet, so restoring it before the services it routes to
+# serves the restored frontend against services still on the release being left.
+# rollback_to patches in this order, so the order is the guarantee.
+test "the revert order puts the gateway last whatever the cluster returns" {
+    assert fleet_revert_order(
+        ["gateway-deployment", "orders-app-deployment", "cart-app-deployment"]
+    ) == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"];
+}
+
+
+test "a fleet with no gateway is still ordered and complete" {
+    assert fleet_revert_order(["b-deployment", "a-deployment"])
+        == ["a-deployment", "b-deployment"];
+}
+
+
+test "an unreadable cluster resolves no fleet rather than a wrong one" {
+    obj_target = KubernetesTarget(
+        config=KubernetesConfig(app_name="shop", namespace="shop"),
+        microservices_config={"routes": {}}
+    );
+
+    assert obj_target._fleet_deployment_names(_BrokenFleetApps(), "shop") == [];
 }
 
 
@@ -629,4 +653,217 @@ test "the revision API accepts its own app and an unnamed caller" {
 
     target._assert_own_app("orders");
     target._assert_own_app("");
+}
+
+
+obj _BrokenFleetApps {
+    def list_namespaced_deployment(namespace: str, **kwargs: any) -> any {
+        raise RuntimeError("apiserver unavailable");
+    }
+}
+
+
+# --- rollback_to, end to end ------------------------------------------------
+# Findings 1 and 4 both lived inside this function and neither was reachable
+# from a test: the fleet it reverts came from a route table ScaleClient never
+# fills, and the undo capture it took to compensate a half-applied revert was
+# stripped of the marker that makes putting it back a no-op.
+
+obj _RollbackApps {
+    has revisions: dict,
+        fail_on: str = "",
+        patched: list = [],
+        bodies: list = [],
+        reads: list = [];
+
+    def list_namespaced_deployment(namespace: str, **kwargs: any) -> any {
+        return SimpleNamespace(
+            items=[
+                SimpleNamespace(metadata=SimpleNamespace(name=n))
+                for n in self.revisions.keys()
+            ]
+        );
+    }
+
+    def list_namespaced_replica_set(namespace: str, **kwargs: any) -> any {
+        items: list = [];
+        for (dep, revs) in self.revisions.items() {
+            for rev in revs {
+                items.append(_rs_for(dep, rev));
+            }
+        }
+        return SimpleNamespace(items=items);
+    }
+
+    def read_namespaced_deployment(name: str, namespace: str) -> any {
+        self.reads.append(name);
+        return SimpleNamespace(
+            spec=SimpleNamespace(
+                template={
+                    "metadata": {
+                        "labels": {"app": name, "pod-template-hash": "live"},
+                        "annotations": {"jac-scale.config-revision": "cfg-live"}
+                    },
+                    "spec": {"live": name}
+                },
+                selector={"matchLabels": {"app": name}}
+            )
+        );
+    }
+
+    def patch_namespaced_deployment(name: str, namespace: str, body: any) -> any {
+        value = body[0]["value"];
+        # The revert patch carries the OLD ReplicaSet's template; the
+        # compensating one carries the live template this fake hands back, which
+        # is how a restore is told apart from a revert here.
+        is_restore = dict(dict(value).get("spec") or {}).get("live") == name;
+        if name == self.fail_on and not is_restore {
+            raise RuntimeError("apiserver rejected the patch");
+        }
+        self.patched.append(name);
+        self.bodies.append((name, dict(value)));
+        return None;
+    }
+}
+
+
+def _rs_for(deployment: str, revision: int) -> any {
+    digest = "old" if revision == 1 else "new";
+    return SimpleNamespace(
+        metadata=SimpleNamespace(
+            name=f"{deployment}-{revision}",
+            annotations={"deployment.kubernetes.io/revision": str(revision)},
+            owner_references=[SimpleNamespace(name=deployment)],
+            creation_timestamp=None
+        ),
+        spec=SimpleNamespace(
+            replicas=1,
+            template=SimpleNamespace(
+                spec={
+                    "initContainers": [
+                        {
+                            "name": "jac-pvc-bootstrap",
+                            "args": [f"/jac-bundles/bundles/app/{digest}.jab"]
+                        }
+                    ]
+                }
+            )
+        )
+    );
+}
+
+
+import unittest.mock;
+import jaclang.scale.deploy.target.kubernetes.target as target_mod;
+
+
+# Stands in for ApiClient.sanitize_for_serialization, which turns a kubernetes
+# model into plain dicts. The fixtures are SimpleNamespaces for the same reason
+# the rest of this file uses them, so the stand-in has to do the same flattening
+# or rollback_to reads a namespace where the real one reads a dict.
+obj _Serializer {
+    def sanitize_for_serialization(value: any) -> any {
+        if isinstance(value, SimpleNamespace) {
+            out: dict = {};
+            for (key, item) in vars(value).items() {
+                out[key] = self.sanitize_for_serialization(item);
+            }
+            return out;
+        }
+        return value;
+    }
+}
+
+
+obj _FakeClient {
+    has apps: any;
+
+    def AppsV1Api -> any {
+        return self.apps;
+    }
+
+    def ApiClient -> any {
+        return _Serializer();
+    }
+}
+
+
+"""Drive rollback_to against a fake cluster.
+
+Three stand-ins: the kubernetes client the function builds, the kubeconfig load,
+and the post-revert rollout wait. The wait polls a live cluster on a sleep loop
+and has its own tests (deployment_rollout_complete above); what these exercise is
+which Deployments a revert touches and in what order."""
+def _rollback_with(api: any) -> any {
+    with unittest.mock.patch.object(target_mod, "client", _FakeClient(apps=api)) {
+        with unittest.mock.patch.object(
+            target_mod.KubernetesTarget, "_wait_for_fleet_rollout", return_value=None
+        ) {
+        with unittest.mock.patch.object(
+            target_mod.KubernetesTarget, "_load_cluster_config", return_value=None
+        ) {
+            t = target_mod.KubernetesTarget(
+                config=KubernetesConfig(app_name="shop", namespace="shop"),
+                microservices_config={"routes": {}}
+            );
+            return t.rollback_to("shop", 1);
+        }
+        }
+    }
+}
+
+
+# The whole point of the feature, and until now unreachable from a test: a
+# microservice app rolls its ENTIRE fleet back, in an order that never fronts
+# restored services with a stale gateway.
+test "a rollback reverts the whole microservice fleet, gateway last" {
+    api = _RollbackApps(revisions={
+        "orders-app-deployment": [1, 2],
+        "cart-app-deployment": [1, 2],
+        "gateway-deployment": [1, 2]
+    });
+
+    res = _rollback_with(api);
+
+    assert res.success , res.message;
+    assert api.patched == [
+        "cart-app-deployment", "orders-app-deployment", "gateway-deployment"
+    ] , f"the fleet reverts services first and the gateway last: {api.patched}";
+}
+
+
+"""Drive a rollback whose patch fails on `fail_on`, so the compensating restore
+runs and its captured template can be inspected."""
+def _rollback_failing_on(name: str) -> any {
+    api = _RollbackApps(
+        revisions={
+            "cart-app-deployment": [1, 2],
+            "orders-app-deployment": [1, 2],
+            "gateway-deployment": [1, 2]
+        },
+        fail_on=name
+    );
+    return (_rollback_with(api), api);
+}
+
+
+# The undo capture is the template that is ALREADY live, so putting it back has
+# to be a no-op. Running it through restorable_pod_template stripped the current
+# jac-scale.config-revision, which turned the compensation into a real template
+# change: a failed rollback rolled the restored services once for nothing, and
+# the next deploy rolled them again to restamp the marker.
+test "a compensating restore puts back the marker the live template carried" {
+    (res, api) = _rollback_failing_on("orders-app-deployment");
+
+    assert not res.success , "the patch was rejected, so the rollback failed";
+    restores = [b for b in api.bodies if dict(b[1].get("spec") or {}).get("live")];
+    assert restores , "the reverted service must be put back";
+    (name, body) = restores[0];
+    marker = dict(
+        dict(body.get("metadata") or {}).get("annotations") or {}
+    ).get("jac-scale.config-revision");
+    assert marker == "cfg-live" , (
+        f"the restore dropped the live config marker ({marker}), so putting the "
+        "template back is a template CHANGE and rolls the service for nothing"
+    );
 }

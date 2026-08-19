@@ -40,7 +40,8 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
 
 glob logger = logging.getLogger(__name__),
-     REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision";
+     REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision",
+     FLEET_SELECTOR: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
 
 
 def _revision_sort_key(item: dict[str, any]) -> int {
@@ -48,22 +49,24 @@ def _revision_sort_key(item: dict[str, any]) -> int {
 }
 
 
-def app_deployment_names(routes: dict[str, str], app_name: str) -> list[str] {
-    names: list[str] = [];
-    for svc in sorted(dict(routes or {}).keys()) {
-        name = f"{k8s_safe_name(svc)}-deployment";
-        if name not in names {
-            names.append(name);
+"""Fleet Deployment names in the order a revert must walk them: services first,
+the gateway last.
+
+The gateway fronts the fleet, so putting it back before the services it routes to
+would serve the restored frontend against services still on the release being
+left. rollback_to patches in exactly this order."""
+def fleet_revert_order(names: list[str]) -> list[str] {
+    gateway = f"{k8s_safe_name(GATEWAY_NAME)}-deployment";
+    services: list[str] = [];
+    has_gateway = False;
+    for name in sorted(set(names)) {
+        if str(name) == gateway {
+            has_gateway = True;
+        } else {
+            services.append(str(name));
         }
     }
-    if not names {
-        names.append(f"{k8s_safe_name(app_name)}-deployment");
-    }
-    gateway = f"{k8s_safe_name(GATEWAY_NAME)}-deployment";
-    if gateway not in names {
-        names.append(gateway);
-    }
-    return names;
+    return services + ([gateway] if has_gateway else []);
 }
 
 
@@ -127,27 +130,6 @@ def fleet_targets_for_release(
         return {"ok": True, "missing": [], "targets": held};
     }
     return {"ok": False, "missing": list(expected), "targets": {}};
-}
-
-
-def replica_sets_at_revision(sets: list[any], revision: int) -> dict[str, any] {
-    owned: dict[str, any] = {};
-    for rs in sets {
-        try {
-            annotations = dict(rs.metadata.annotations or {});
-            if annotations.get(REVISION_ANNOTATION) != str(revision) {
-                continue;
-            }
-            owners = list(rs.metadata.owner_references or []);
-            if not owners {
-                continue;
-            }
-            owned[str(owners[0].name)] = rs;
-        } except Exception {
-            continue;
-        }
-    }
-    return owned;
 }
 
 
@@ -1328,18 +1310,38 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _app_deployment_names -> list[str] {
-        routes: dict[str, str] = {};
+    """The Deployments that make up this app, read from the cluster.
+
+    Never from the route table. ScaleClient builds a bare DeploySpec for every
+    lifecycle call, and to_microservices_config() always returns a dict carrying
+    a `routes` key, so _ms_cfg short-circuits on it and never falls back to
+    jac.toml. Deriving names from those empty routes produced
+    `{app}-deployment` plus the gateway: for a microservice app that is one
+    Deployment that does not exist and one that is a fraction of the set, so
+    rollback_to refused every time and list_revisions saw the gateway alone.
+
+    The same selector destroy uses, so "what this app owns" has one definition."""
+    def _fleet_deployment_names(apps_v1: any, namespace: str) -> list[str] {
+        names: list[str] = [];
         try {
-            routes = dict(self._ms_cfg().get("routes", {}) or {});
+            listed = apps_v1.list_namespaced_deployment(
+                namespace=namespace, label_selector=FLEET_SELECTOR
+            );
+            for dep in list(getattr(listed, "items", None) or []) {
+                try {
+                    names.append(str(dep.metadata.name));
+                } except Exception {
+                    continue;
+                }
+            }
         } except Exception {
-            routes = {};
+            return [];
         }
-        return app_deployment_names(routes, self.k8s_config.app_name);
+        return fleet_revert_order(names);
     }
 
     def _owned_replica_sets(apps_v1: any, namespace: str) -> list[any] {
-        owned: list[str] = self._app_deployment_names();
+        owned: list[str] = self._fleet_deployment_names(apps_v1, namespace);
         try {
             listed = list(
                 apps_v1.list_namespaced_replica_set(
@@ -1465,7 +1467,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         namespace: str = self.k8s_config.namespace;
         serializer = client.ApiClient();
 
-        expected: list[str] = self._app_deployment_names();
+        expected: list[str] = self._fleet_deployment_names(apps_v1, namespace);
         resolved = fleet_targets_for_release(
             self.list_revisions(app_name), revision, expected
         );
@@ -1530,8 +1532,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 live = apps_v1.read_namespaced_deployment(
                     name=name, namespace=namespace
                 );
-                undo[name] = restorable_pod_template(
-                    dict(serializer.sanitize_for_serialization(live.spec.template))
+                undo[name] = dict(
+                    serializer.sanitize_for_serialization(live.spec.template)
                 );
                 selectors[name] = dict(
                     serializer.sanitize_for_serialization(live.spec.selector)
@@ -1651,7 +1653,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         networking_v1 = client.NetworkingV1Api();
         namespace: str = self.k8s_config.namespace;
 
-        selector: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
+        selector: str = FLEET_SELECTOR;
         ms_selector: str = "managed=jac-scale";
 
         try {
