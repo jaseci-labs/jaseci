@@ -278,10 +278,31 @@ impl NaIRGenPass._struct_name_for_key(tk: (str | None)) -> (str | None) {
     if tk in self.struct_types {
         return tk;
     }
-    for part in self._split_union_key(tk) {
-        if part in self.struct_types {
-            return part;
+    _arch_parts = [
+        part
+        for part in self._split_union_key(tk)
+        if part in self.struct_types
+    ];
+    if len(_arch_parts) == 1 {
+        return _arch_parts[0];
+    }
+    if _arch_parts {
+        for _anc in self._mro_of(_arch_parts[0]) {
+            if _anc not in self.struct_types {
+                continue;
+            }
+            _in_all = True;
+            for _other in _arch_parts[1:] {
+                if _anc not in self._mro_of(_other) {
+                    _in_all = False;
+                    break;
+                }
+            }
+            if _in_all {
+                return _anc;
+            }
         }
+        return None;
     }
     for part in self._split_union_key(tk) {
         _base = self._erased_arch_base(part);

@@ -3269,6 +3269,13 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
             _uniform = False;
         }
     }
+    if field_name == "affected_symbols" and self._na_debug_on() {
+        import sys as _df_sys;
+        _df_sys.stderr.write(
+            f"DFDIAG {type_name}.{field_name}: base_idx={_base_idx} "
+            f"variants={len(_variants)} uniform={_uniform}\n"
+        );
+    }
     if _uniform or not _variants {
         return None;
     }
