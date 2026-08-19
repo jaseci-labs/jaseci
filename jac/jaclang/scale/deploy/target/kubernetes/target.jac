@@ -451,7 +451,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
         if not names {
-            self._load_kube_config();
+            self._load_cluster_config();
             core_v1 = client.CoreV1Api();
             ns = self.k8s_config.namespace;
             crash = self._scan_for_crash_loop(core_v1, ns, set(), set(app_labels))[
@@ -935,11 +935,18 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _autoscaler_spec(
-        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+        svc_name: str, plan: dict[str, any], autoscaler: any, namespace: str
     ) -> AutoscalerSpec {
+        """Build the AutoscalerSpec for a METRIC-mode service from its already-
+        resolved scaling plan, so the scale target here is the same Deployment
+        name apply_manifests actually applied -- never re-derived from svc_name,
+        which is exactly the drift that caused apply_http_activation to 404 on
+        a real cluster before _resolve_scaling existed.
+        """;
         k8s_name = k8s_safe_name(svc_name);
+        cfg: dict[str, any] = dict(plan.get("autoscaler", {}));
         return AutoscalerSpec(
-            scale_target_name=f"{k8s_name}-deployment",
+            scale_target_name=str(plan.get("scale_target_name", "")),
             autoscaler_name=autoscaler.resource_name_for(k8s_name),
             app_name=k8s_name,
             namespace=namespace,
@@ -964,13 +971,12 @@ obj KubernetesTarget(KubernetesTargetBase) {
             if plan.get("mode") != ScalingMode.METRIC {
                 continue;
             }
-            cfg = dict(plan.get("autoscaler", {}));
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
             );
             built = autoscaler._build_manifests(
                 self._autoscaler_spec(
-                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+                    svc_name, plan, autoscaler, self.k8s_config.namespace
                 )
             );
 
@@ -1073,15 +1079,28 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        scaling: dict[str, any] = bundle.get("scaling", {});
+
         for (svc_name, raw_manifest) in bundle["deployments"].items() {
             dep_manifest = with_config_revision(raw_manifest, config_revision);
+            patch_body = None;
+            if dict(scaling.get(svc_name, {})).get("mode")
+                == ScalingMode.HTTP_ACTIVATION {
+                patch_body = dict(dep_manifest);
+                patch_body["spec"] = {
+                    k: v
+                    for (k, v) in dep_manifest["spec"].items()
+                    if k != "replicas"
+                };
+            }
             self._apply_or_replace(
                 apps_v1,
                 "read_namespaced_deployment",
                 "patch_namespaced_deployment",
                 "create_namespaced_deployment",
                 namespace,
-                dep_manifest
+                dep_manifest,
+                patch_body
             );
             if self.logger {
                 self.logger.info(
@@ -1093,51 +1112,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
-        scaling: dict[str, any] = bundle.get("scaling", {});
-        for svc_name in scaling.keys() {
-            plan: dict[str, any] = dict(scaling.get(svc_name, {}));
-            if plan.get("mode") != ScalingMode.METRIC {
-                continue;
-            }
-            k8s_name = k8s_safe_name(svc_name);
-            cfg = dict(plan.get("autoscaler", {}));
-            autoscaler = AutoscalerFactory.create(
-                self.k8s_config.autoscaler_engine,
-                self.k8s_config.to_dict(),
-                self.logger
-            );
-            triggers = self._resolve_service_triggers(svc_name, cfg);
-            autoscaler_name = autoscaler.resource_name_for(k8s_name);
-            autoscaler_applied = autoscaler.apply(
-                AutoscalerSpec(
-                    scale_target_name=str(plan.get("scale_target_name", "")),
-                    autoscaler_name=autoscaler_name,
-                    app_name=k8s_name,
-                    namespace=namespace,
-                    min_replicas=int(cfg.get("min", 1)),
-                    max_replicas=int(cfg.get("max", 3)),
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers,
-                    behavior_overlay=cfg.get("behavior", {})
-                )
-            );
-
-            if self.logger and autoscaler_applied {
-                self.logger.info(
-                    f"Applied autoscaler for '{svc_name}'", {"name": autoscaler_name}
-                );
-            }
-        }
-
-        apply_http_activations_for_bundle(
-            bundle, namespace, KEDAAutoscaler(logger=self.logger)
-        );
-
         reap_stale_scaling_resources_for_bundle(
             bundle,
             namespace,
@@ -1147,6 +1121,31 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 self.logger
             ),
             KEDAAutoscaler(logger=self.logger)
+        );
+
+        for svc_name in scaling.keys() {
+            plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+            if plan.get("mode") != ScalingMode.METRIC {
+                continue;
+            }
+            autoscaler = AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine,
+                self.k8s_config.to_dict(),
+                self.logger
+            );
+            spec = self._autoscaler_spec(svc_name, plan, autoscaler, namespace);
+            autoscaler_applied = autoscaler.apply(spec);
+
+            if self.logger and autoscaler_applied {
+                self.logger.info(
+                    f"Applied autoscaler for '{svc_name}'",
+                    {"name": spec.autoscaler_name}
+                );
+            }
+        }
+
+        apply_http_activations_for_bundle(
+            bundle, namespace, KEDAAutoscaler(logger=self.logger)
         );
 
         for (svc_name, pdb_manifest) in bundle.get("pdbs", {}).items() {
@@ -1309,12 +1308,20 @@ obj KubernetesTarget(KubernetesTargetBase) {
         update: str,
         create: str,
         namespace: str,
-        manifest: dict[str, any]
+        manifest: dict[str, any],
+        patch_body: (dict[str, any] | None) = None
     ) {
+        """patch_body, when given, is sent to `update` instead of `manifest` --
+        e.g. a copy with `spec.replicas` stripped so a strategic-merge PATCH
+        leaves an externally-scaled field (KEDA's ScaledObject) alone, while a
+        fresh `create` still gets the full manifest including that field.
+        """;
         name: str = manifest["metadata"]["name"];
         try {
             getattr(api, read)(name=name, namespace=namespace);
-            getattr(api, update)(name=name, namespace=namespace, body=manifest);
+            getattr(api, update)(
+                name=name, namespace=namespace, body=patch_body or manifest
+            );
         } except ApiException as e {
             if e.status == 404 {
                 getattr(api, create)(namespace=namespace, body=manifest);

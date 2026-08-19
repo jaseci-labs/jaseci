@@ -1022,12 +1022,38 @@ obj ManifestBuilder {
         };
     }
 
+    def _canonical_rules_fingerprint(rules: list[dict[str, any]]) -> str {
+        """A rules fingerprint that ignores list ordering, so two services
+        with the same match criteria collide in _validate_http_activation_rules
+        even when `hosts`/`paths`/`headers`, or the rules themselves, are
+        written in a different order -- fields within a rule are AND'd and
+        separate rules are OR'd, so reordering never changes what a rule set
+        actually matches.
+        """;
+        import json;
+        canonical_rules = [];
+        for rule in rules {
+            headers = [
+                (str(h.get("name", "")), str(h.get("value", "")))
+                for h in rule.get("headers", [])
+            ];
+            canonical_rules.append(
+                {
+                    "hosts": sorted(str(h) for h in rule.get("hosts", [])),
+                    "paths": sorted(str(p) for p in rule.get("paths", [])),
+                    "headers": sorted(headers)
+                }
+            );
+        }
+        canonical_rules.sort(key=lambda (r) { json.dumps(r, sort_keys=True); });
+        return json.dumps(canonical_rules, sort_keys=True);
+    }
+
     def _validate_http_activation_rules(scaling: dict[str, dict[str, any]]) {
         """Two services sharing the top-level http_activation default with no
         per-service override resolve to identical routing rules; the interceptor
         then has no way to tell which target a matching request belongs to.
         """;
-        import json;
         by_rules: dict[str, list[str]] = {};
         for (svc_name, plan) in scaling.items() {
             if plan.get("mode") != ScalingMode.HTTP_ACTIVATION {
@@ -1037,7 +1063,7 @@ obj ManifestBuilder {
             if not rules {
                 continue;
             }
-            fingerprint = json.dumps(rules, sort_keys=True);
+            fingerprint = self._canonical_rules_fingerprint(rules);
             by_rules.setdefault(fingerprint, []).append(svc_name);
         }
         for svc_names in by_rules.values() {

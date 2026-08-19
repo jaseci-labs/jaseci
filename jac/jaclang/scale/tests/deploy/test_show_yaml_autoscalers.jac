@@ -15,6 +15,7 @@ test "hpa engine renders the HPA manifest the apply path would build" {
         "scaling": {
             "api": {
                 "mode": ScalingMode.METRIC,
+                "scale_target_name": "api-deployment",
                 "autoscaler": {"min": 2, "max": 7, "cpu_target": 60}
             }
         }
@@ -38,7 +39,11 @@ test "keda engine renders the ScaledObject body, not the name/body wrapper" {
     );
     bundle = {
         "scaling": {
-            "api": {"mode": ScalingMode.METRIC, "autoscaler": {"min": 1, "max": 4}}
+            "api": {
+                "mode": ScalingMode.METRIC,
+                "scale_target_name": "api-deployment",
+                "autoscaler": {"min": 1, "max": 4}
+            }
         }
     };
     manifests = target.render_autoscaler_manifests(bundle);
@@ -51,12 +56,27 @@ test "keda engine renders the ScaledObject body, not the name/body wrapper" {
 }
 
 
-test "a service scaled by http_activation renders no autoscaler manifest" {
+test "the scale target comes from the resolved plan, not re-derived from the service name" {
     target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
     bundle = {
         "scaling": {
-            "api": {"mode": ScalingMode.HTTP_ACTIVATION, "autoscaler": {}}
+            "api": {
+                "mode": ScalingMode.METRIC,
+                "scale_target_name": "not-the-k8s-safe-name-deployment",
+                "autoscaler": {"min": 1, "max": 3}
+            }
         }
+    };
+    manifests = target.render_autoscaler_manifests(bundle);
+    assert manifests[0]["spec"]["scaleTargetRef"]["name"]
+        == "not-the-k8s-safe-name-deployment";
+}
+
+
+test "a service scaled by http_activation renders no autoscaler manifest" {
+    target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
+    bundle = {
+        "scaling": {"api": {"mode": ScalingMode.HTTP_ACTIVATION, "autoscaler": {}}}
     };
     assert target.render_autoscaler_manifests(bundle) == [];
 }
