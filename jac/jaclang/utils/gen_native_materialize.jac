@@ -360,11 +360,19 @@ obj _MatGen {
         } elif vb == "list" {
             self.emit_list(f"vh_{u}", f"dv_{u}", _inner(vt), out, ind + "    ", u);
         } elif vb == "set" {
-            out.append(ind + f"    vh_{u} = PySet_New(0);");
-            out.append(ind + f"    if len(dv_{u}) != 0 {{");
-            out.append(ind + f"        Py_DecRef(vh_{u});");
-            out.append(ind + "        return 0;");
-            out.append(ind + "    }");
+            _sv = _norm(_inner(vt));
+            if _sv in _SCALARS {
+                out.append(ind + f"    vh_{u} = PySet_New(0);");
+                out.append(ind + f"    for sv_{u} in dv_{u} {{");
+                out.append(
+                    ind + f"        se_{u} = " + self.scalar_expr(f"sv_{u}", _sv) + ";"
+                );
+                out.append(ind + f"        PySet_Add(vh_{u}, se_{u});");
+                out.append(ind + f"        Py_DecRef(se_{u});");
+                out.append(ind + "    }");
+            } else {
+                out.append(ind + f"    vh_{u} = _py_none();");
+            }
         } elif vb in self.ns and not self.is_chain(vb) {
             out.append(ind + f"    vh_{u} = _emit_{vb}(dv_{u});");
         } else {
@@ -413,11 +421,23 @@ obj _MatGen {
             } elif ab == "dict" {
                 emitted = self.emit_dict(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "set" {
-                buf.append(pre + f"{v} = PySet_New(0);");
-                buf.append(pre + f"if len({expr}) != 0 {{");
-                buf.append(pre + f"    Py_DecRef({v});");
-                buf.append(pre + "    return 0;");
-                buf.append(pre + "}");
+                _se = _norm(_inner(a));
+                if _se in _SCALARS {
+                    buf.append(pre + f"{v} = PySet_New(0);");
+                    buf.append(pre + f"for it_{uid}s in {expr} {{");
+                    buf.append(
+                        pre
+                            + f"    e_{uid}s = "
+                            + self.scalar_expr(f"it_{uid}s", _se)
+                            + ";"
+                    );
+                    buf.append(pre + f"    PySet_Add({v}, e_{uid}s);");
+                    buf.append(pre + f"    Py_DecRef(e_{uid}s);");
+                    buf.append(pre + "}");
+                } else {
+                    self.warn(f"unhandled set element {repr(ann)} -> None");
+                    emitted = False;
+                }
             } elif ab in self.enum_ns {
                 self.register_enum(ab);
                 buf.append(pre + f"{v} = _enum_{ab}({expr});");
