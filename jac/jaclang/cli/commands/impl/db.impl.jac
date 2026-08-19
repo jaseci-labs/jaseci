@@ -16,7 +16,8 @@ enum DbAction(StrEnum) {
     LIST = 'list',
     DROP = 'drop',
     PRUNE = 'prune',
-    SCHEMA = 'schema'
+    SCHEMA = 'schema',
+    PARITY = 'parity'
 }
 
 
@@ -176,6 +177,32 @@ def _db_sql(data_dir: str, query: str) -> int {
         store.close();
     }
     return 0;
+}
+
+
+def _db_parity(data_dir: str) -> int {
+    rt = _runtime_for(data_dir);
+    store = _open_store(rt);
+    try {
+        import from jaclang.runtimelib.relational { relational_parity }
+        store.begin(TxnIsolation.READ_COMMITTED);
+        probs = relational_parity(store, limit=100000);
+        store.commit();
+        if not probs {
+            console.success('relational parity clean');
+            return 0;
+        }
+        for p in probs[:50] {
+            console.error(p);
+        }
+        if len(probs) > 50 {
+            console.error(f"... and {len(probs) - 50} more");
+        }
+        console.error(f"{len(probs)} parity problem(s)");
+        return 1;
+    } finally {
+        store.close();
+    }
 }
 
 
@@ -545,6 +572,9 @@ impl db(
     }
     if verb == DbAction.SQL {
         return _db_sql(dd, query);
+    }
+    if verb == DbAction.PARITY {
+        return _db_parity(dd);
     }
     if verb == DbAction.LIST {
         return _db_list(dd);
