@@ -384,14 +384,24 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 
 | `jac.toml` key (`[scale.database]`) | Default | Description |
 |----------|---------|-------------|
-| `url` | `null` | Postgres connection URL (`postgresql://user:pass@host:port/db`). Also honored via `JAC_DB_URL`. When set, in-cluster provisioning is skipped (external mode). |
-| `deploy_mode` | `"image"` | How the k8s target runs Postgres: `"image"` (official postgres image), `"embedded"` (the app's jac image running `jac db serve`), or implicit external when `url` is set. |
+| `url` | `null` | Postgres connection URL (`postgresql://user:pass@host:port/db`) for this process. `JAC_DB_URL` overrides it at runtime. Set here (not via the env var), it also makes a deploy of this app point at that database instead of provisioning one. |
+| `deploy_mode` | `"image"` | How a provisioned Postgres runs: `"image"` (official postgres image) or `"embedded"` (the app's jac image running `jac db serve`). |
 | `postgres_image` | `"postgres:18"` | Image used in `deploy_mode = "image"`. |
 | `postgres_storage` | `"2Gi"` | PVC size for the provisioned StatefulSet. |
 
+Deployment intent is a separate decision from runtime identity, and lives under `[scale.kubernetes]`:
+
 | `jac.toml` key (`[scale.kubernetes]`) | Default | Description |
 |----------|---------|-------------|
-| `postgres_enabled` | `true` | Provision Postgres in Kubernetes. Disable when using an external database URL. |
+| `database_mode` | `"auto"` | What database the *deployed* app gets: `"provision"` (a per-app Postgres owned by jac), `"external"` (point it at `database_url` / `[scale.database]` `url`), `"none"` (wire no database), or `"auto"` (external when a url is configured, otherwise provision). |
+| `database_url` | `""` | Connection URL handed to the deployed app in external mode. Highest precedence, above `[scale.database]` `url`. |
+| `database_namespace` | `""` | Namespace that runs the external database service, used to qualify a bare service name when the app deploys into a different namespace. |
+
+The precedence for a deploy is `[scale.kubernetes]` `database_mode` / `database_url`, then `[scale.database]` `url`, then provision a per-app Postgres. The **deploying process's own `JAC_DB_URL` is never consulted**: it means "the database this process connects to", which is a different fact from "the database the deployed app should connect to". A platform service that deploys tenant apps therefore keeps its own database and still gets one provisioned per app.
+
+A bare Kubernetes service name in an external URL only resolves inside the namespace that owns it. When the deploy targets a different namespace, jac qualifies the host to `<service>.<namespace>.svc.cluster.local` using `database_namespace` (or the deploying pod's own namespace, read from `POD_NAMESPACE` or the ServiceAccount namespace file). When neither is available the deploy fails rather than emitting a manifest whose database host cannot resolve.
+
+`postgres_enabled` is deprecated: `false` maps to `database_mode = "none"`, and `true` is ignored because a boolean cannot distinguish provisioning from pointing at an external database.
 
 Credentials are never hardcoded in pod specs: the provisioned password lives in a Kubernetes `Secret` (`{app}-postgres-secret`) and pods receive `JAC_DB_URL` via `valueFrom.secretKeyRef`.
 

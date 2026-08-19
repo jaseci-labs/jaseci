@@ -122,9 +122,8 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 2. `EsastGenPass` -- Generate JavaScript AST (for JS target)
 3. `NaIRGenPass` -- Generate LLVM IR (for native target)
 4. `NativeCompilePass` -- JIT-compile LLVM IR to machine code
-5. `PyastGenPass` -- Convert the unitree to a Python AST
-6. `PyJacAstLinkPass` -- Link the generated Python AST back to Jac source nodes
-7. `PyBytecodeGenPass` -- Compile the Python AST to bytecode
+5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container
+6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to bytecode
 
 See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
@@ -206,15 +205,18 @@ tests/
 **Running tests:**
 
 ```bash
-# All tests (parallel)
-pytest jac -n auto
+# All tests (parallel; worker count is sized from available memory)
+jac test jac/tests
 
 # Specific area
-pytest jac/tests/compiler -n auto
-pytest jac/tests/language -n auto
+jac test jac/tests/compiler
+jac test jac/tests/language
 
 # Single test file
-pytest jac/tests/compiler/passes/test_type_checker.py -v
+jac test jac/tests/compiler/test_compilation.jac -v
+
+# Pin the worker count (0 or 1 runs everything in one process)
+JAC_TEST_JOBS=8 jac test jac/tests
 ```
 
 Many language tests use **fixture files** -- small `.jac` programs in `fixtures/` directories that exercise specific features. The `fixtures_list.jac` file registers them. When you add a new language feature or fix a bug, adding a fixture test is usually the right move.
@@ -266,7 +268,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `ci.yml` | All PR/push checks: builds the `jac` binary once, then fans out the full test suite, client/scale jobs, lint + format enforcement, docs validation, contribution checks, and the installer/k8s e2e jobs (path-gated) |
 | `release.yml` | The release lifecycle: version-bump PRs, and on merge the tag + GitHub Release + binary publish (human-approved) |
 | `build-binaries.yml` | Builds the per-platform native `jac` binaries and attaches them to a release |
-| `release-dev.yml` | Rolling `dev` prerelease binaries on every push to main |
+| `release-dev.yml` | Rolling `dev` prerelease binaries, rebuilt nightly from main |
 | `nightly.yml` | Cron canaries: notes-app CEF smoke and the live-release installer check |
 
 Local git hooks come from `jac precommit --install`: a pre-commit hook that formats and lints staged `.jac` files, and a commit-msg hook that blocks AI co-author attribution. Markdown lint and the em-dash ban run on every PR via pre-commit.ci (`.pre-commit-config.yaml`).

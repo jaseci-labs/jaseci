@@ -2,9 +2,10 @@ import re;
 import sys;
 
 import from dataclasses { fields as dc_fields }
+import from enum { EnumMeta }
 import from pathlib { Path }
 
-glob _MASK_MEMO: dict = {};
+glob _MASK_MEMO: dict[str, tuple[dict[str, set[str]], dict[str, str]]] = {};
 
 obj MaterializeProfile {
     has class_modules: list[str],
@@ -20,7 +21,7 @@ obj MaterializeProfile {
         comment_class: str;
 }
 
-glob _UNITREE_MASK_CORPUS_LINES: tuple = (
+glob _UNITREE_MASK_CORPUS_LINES: tuple[str, ...] = (
          "import os;",
          "glob G: int = 42, H: (str | None) = None;",
          "enum Hue { RED = 1, GREEN = 2 }",
@@ -51,11 +52,9 @@ glob _UNITREE_MASK_CORPUS_LINES: tuple = (
          "    return <div id='a'>{t}</div>;",
          "}",
          "async def later -> None {}",
-         "comptime if 1 > 0 { glob CT_ON: int = 1; }",
          "enum Tone: int {",
-         "    comptime for N in ('LOW', 'HIGH') {",
-         "        ${ct.name(N)} = ${len(N)},",
-         "    }",
+         "    LOW = 3,",
+         "    HIGH = 4,",
          "}",
          "test box_holds { assert Box(x=1).m() >= -1; }",
          "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
@@ -85,7 +84,7 @@ def unitree_profile -> MaterializeProfile {
 
 def _materialize_mask(
     pkg_path: Path, profile: MaterializeProfile
-) -> tuple[dict, dict] {
+) -> tuple[dict[str, set[str]], dict[str, str]] {
     memo_key = str(pkg_path);
     cached = _MASK_MEMO.get(memo_key);
     if cached is not None {
@@ -100,14 +99,14 @@ def _materialize_mask(
             sources.append((src_file.read_text(encoding="utf-8"), rel, ));
         }
     }
-    observed: dict[str, set] = {};
+    observed: dict[str, set[str]] = {};
     mangle: dict[str, str] = {};
     for (src, path) in sources {
         (tokens, _c, _ld, _le) = tokenize_full(src, path);
         parser = Parser(tokens=tokens, file_path=path, source_code=src);
         mod = parser.parse();
         stack = [mod];
-        seen: set = set();
+        seen: set[int] = set();
         while stack {
             objn = stack.pop();
             if id(objn) in seen {
@@ -151,9 +150,9 @@ def _materialize_mask(
     return result;
 }
 
-glob _SCALARS: tuple = ("int", "bool", "float", "str");
+glob _SCALARS: tuple[str, ...] = ("int", "bool", "float", "str");
 
-def _import_block(mod_name: str, by_module: dict) -> str {
+def _import_block(mod_name: str, by_module: dict[str, list[str]]) -> str {
     nl = chr(10);
     names = sorted(set(by_module.get(mod_name, [])));
     if not names {
@@ -227,17 +226,17 @@ def _split_kv(kv: str) -> tuple[str, str] {
 }
 
 obj _MatGen {
-    has ns: dict = {},
-        enum_ns: dict = {},
+    has ns: dict[str, type] = {},
+        enum_ns: dict[str, EnumMeta] = {},
         chain_base: any = None,
-        envelope: set = set(),
-        observed: dict = {},
-        mangle: dict = {},
-        foreign: dict = {},
-        layout_fields: dict = {},
-        struct_names: set = set(),
+        envelope: set[str] = set(),
+        observed: dict[str, set[str]] = {},
+        mangle: dict[str, str] = {},
+        foreign: dict[tuple[str, str], bool] = {},
+        layout_fields: dict[str, list[str]] = {},
+        struct_names: set[str] = set(),
         keys: list[str] = [],
-        key_idx: dict = {},
+        key_idx: dict[str, int] = {},
         enum_sites: list[str] = [],
         warnings: list[str] = [];
 
@@ -287,10 +286,23 @@ obj _MatGen {
         return "_py_none()";
     }
 
-    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) {
+    def elem_materializable(elem: str) -> bool {
+        elem = _norm(elem);
+        eb = _base_of(elem);
+        return elem in _SCALARS or eb in self.ns or eb == "SubTag";
+    }
+
+    def emit_list(
+        v: str, expr: str, elem: str, out: list[str], ind: str, uid: str
+    ) -> bool {
         elem = _norm(elem);
         eb = _base_of(elem);
         u = uid + "l";
+        if not self.elem_materializable(elem) {
+            self.warn(f"unhandled list element {repr(elem)} -> field erased to None");
+            out.append(ind + f"{v} = _py_none();");
+            return False;
+        }
         out.append(ind + f"{v} = PyList_New(len({expr}));");
         out.append(ind + f"li_{u} = 0;");
         out.append(ind + f"for it_{u} in {expr} {{");
@@ -304,6 +316,7 @@ obj _MatGen {
         out.append(ind + f"    PyList_SetItem({v}, li_{u}, e_{u});");
         out.append(ind + f"    li_{u} += 1;");
         out.append(ind + "}");
+        return True;
     }
 
     def key_expr(expr: str, kt: str) -> (str | None) {
@@ -325,7 +338,9 @@ obj _MatGen {
         return None;
     }
 
-    def emit_dict(v: str, expr: str, kv: str, out: list, ind: str, uid: str) -> bool {
+    def emit_dict(
+        v: str, expr: str, kv: str, out: list[str], ind: str, uid: str
+    ) -> bool {
         (kt, vt) = _split_kv(kv);
         u = uid + "d";
         kexpr = self.key_expr(f"dk_{u}", kt);
@@ -362,7 +377,7 @@ obj _MatGen {
         return True;
     }
 
-    def emit_value(expr: str, ann: str, out: list, ind: str, uid: str) -> str {
+    def emit_value(expr: str, ann: str, out: list[str], ind: str, uid: str) -> str {
         v = f"v_{uid}";
         ann = _norm(ann);
         arms = _split_union(ann);
@@ -394,7 +409,7 @@ obj _MatGen {
             if a in _SCALARS {
                 buf.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
             } elif ab == "list" {
-                self.emit_list(v, expr, _inner(a), buf, pre, uid);
+                emitted = self.emit_list(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "dict" {
                 emitted = self.emit_dict(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "set" {
@@ -419,6 +434,7 @@ obj _MatGen {
                 a
                 for a in arms
                 if _norm(a).startswith("list[")
+                    and self.elem_materializable(_inner(_norm(a)))
             ];
             cls_arms: list[str] = [];
             for a in arms {
@@ -460,10 +476,10 @@ obj _MatGen {
         return v;
     }
 
-    def class_fields(sn: str) -> list[tuple] {
+    def class_fields(sn: str) -> list[tuple[str, str, str | None]] {
         cls = self.ns[sn];
         inv_mangle = {v: k for (k, v) in self.mangle.items()};
-        ann_by_name: dict = {};
+        ann_by_name: dict[str, str] = {};
         for f in dc_fields(cls) {
             base = inv_mangle.get(f.name, f.name);
             ann_by_name[base] = str(f.type);
@@ -472,7 +488,7 @@ obj _MatGen {
             return [(f.name, f.name, str(f.type), ) for f in dc_fields(cls)];
         }
         keep = self.observed.get(sn);
-        out: list[tuple] = [];
+        out: list[tuple[str, str, str | None]] = [];
         for lf in self.layout_fields.get(sn, []) {
             dict_key = self.mangle.get(lf, lf);
             if keep is not None and dict_key not in keep {
@@ -484,7 +500,7 @@ obj _MatGen {
     }
 }
 
-glob _HEADER_LINES: tuple = (
+glob _HEADER_LINES: tuple[str, ...] = (
          '\'\'\'GENERATED at seal time by jaclang/utils/gen_native_materialize.jac.',
          '',
          'The seal root for the native parser artifact: importing the parser pulls',
@@ -493,9 +509,14 @@ glob _HEADER_LINES: tuple = (
          'CPython objects through libpython externs resolved from the host process',
          '(ELF lazy PLT / Mach-O flat lookup). Bound with the GIL HELD (PYFUNCTYPE);',
          'see jac0core/parser/materialize.jac. Erased native slots stay None here',
-         'and are reconstructed by materialize_fixups.',
+         'and are reconstructed by materialize_fixups. mat_merge_probe runs the',
+         'sealed annex merge (annex_weave.merge_annex_into, the implementation',
+         'JacAnnexPass._merge_annex wraps) natively over two native parses and',
+         'materializes the woven module: the native-execution canary the',
+         'pass-serving binder verifies at bind time.',
          '\'\'\'',
          '@ENTRY_IMPORT@',
+         'import from jaclang.jac0core.passes.annex_weave { merge_annex_into }',
          '@UNI_IMPORT@',
          '@CONST_IMPORT@',
          '@SRC_IMPORT@',
@@ -582,7 +603,7 @@ glob _HEADER_LINES: tuple = (
          '}',
 
      ),
-     _CROSSING_LINES: tuple = (
+     _CROSSING_LINES: tuple[str, ...] = (
          'def _emit_diag_list(items: list[@DIAG@]) -> int {',
          '@DIAG_LIST_BODY@',
          '    return v_dl;',
@@ -620,15 +641,31 @@ glob _HEADER_LINES: tuple = (
          '    _mat_flush();',
          '    return out;',
          '}',
+         '',
+         'def mat_merge_probe(',
+         '    src: str, path: str, annex_src: str, annex_path: str',
+         ') -> int {',
+         '    (mod, p_errs, _pd, _cm, _ld, lex_errs) = @ENTRY@(src, path);',
+         '    (amod, a_errs, _apd, _acm, _ald, a_lex_errs) = @ENTRY@(',
+         '        annex_src, annex_path',
+         '    );',
+         '    merge_annex_into(mod, amod);',
+         '    out = PyList_New(3);',
+         '    PyList_SetItem(out, 0, mat_materialize(mod));',
+         '    PyList_SetItem(out, 1, PyLong_FromLongLong(p_errs + lex_errs));',
+         '    PyList_SetItem(out, 2, PyLong_FromLongLong(a_errs + a_lex_errs));',
+         '    _mat_flush();',
+         '    return out;',
+         '}',
 
      );
 
 def generate(
-    layout: dict,
+    layout: dict[str, any],
     out_jac: Path,
-    waivers: tuple,
+    waivers: tuple[str, ...],
     profile: (MaterializeProfile | None) = None
-) -> dict {
+) -> dict[str, list[str] | list[tuple[str, list[str]]]] {
     import importlib;
     import jaclang;
 
@@ -667,7 +704,7 @@ def generate(
     }
     for mod in enum_mods {
         for (k, v) in vars(mod).items() {
-            if isinstance(v, type) and hasattr(v, "__members__") {
+            if isinstance(v, EnumMeta) {
                 g.enum_ns.setdefault(k, v);
             }
         }
@@ -677,7 +714,7 @@ def generate(
 
     structs = layout["structs"];
     for (sn, sd) in structs.items() {
-        flds: list[dict] = list(sd["fields"]);
+        flds: list[dict[str, any]] = list(sd["fields"]);
         for f in flds {
             g.foreign[(sn, f["name"], )] = bool(f.get("foreign"));
         }
@@ -768,7 +805,7 @@ def generate(
     chain.append("}");
 
     enum_fns: list[str] = [];
-    enum_members_manifest: list[tuple] = [];
+    enum_members_manifest: list[tuple[str, list[str]]] = [];
     base = 0;
     for en in g.enum_sites {
         ecls = g.enum_ns[en];

@@ -1,8 +1,9 @@
 impl UnionType.postinit -> None {
+    member_types: list[TypeBase] = self.types or [];
     flattened_types: list[TypeBase] = [];
-    for ty in self.types {
+    for ty in member_types {
         if isinstance(ty, UnionType) {
-            flattened_types.extend(ty.types);
+            flattened_types.extend(ty.types or []);
         } else {
             flattened_types.append(ty);
         }
@@ -77,6 +78,8 @@ impl FunctionType.specialize(class_type: ClassType) -> FunctionType {
         parameters=[param.clone() for param in self.parameters],
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {
@@ -108,6 +111,8 @@ impl FunctionType.specialize_func_type_vars(
         function_flags=self.function_flags,
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {
@@ -237,7 +242,8 @@ impl ClassType.lookup_member_symbol(
         Archetype,
         Assignment,
         AtomTrailer,
-        FuncSignature
+        FuncSignature,
+        ParamVar
     }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     for cls in self.shared.mro {
@@ -269,6 +275,9 @@ impl ClassType.lookup_member_symbol(
                 and method_ability.signature.params
             ) {
                 for param in method_ability.signature.params {
+                    if not isinstance(param, ParamVar) {
+                        continue;
+                    }
                     if param.name.value == member and param.name.value != 'self' {
                         arch.def_insert(param.name, access_spec=arch);
                         return arch.lookup(member, deep=False);
@@ -302,12 +311,17 @@ impl ClassType.lookup_member_symbol(
     return None;
 }
 
-impl ClassType.get_class_symbol -> Symbol {
-    return self.shared.symbol_table.name.sym;
+impl ClassType.get_class_symbol -> (Symbol | None) {
+    import from jaclang.jac0core.unitree { Archetype }
+    symbol_table = self.shared.symbol_table;
+    if not isinstance(symbol_table, Archetype) {
+        return None;
+    }
+    return symbol_table.name.sym;
 }
 
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
-    new_private = ClassType.ClassDetailsPrivate(
+    new_private = ClassDetailsPrivate(
         type_args=type_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -320,7 +334,7 @@ impl ClassType.clone_as_class -> ClassType {
     if not self.is_instance() {
         return self;
     }
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -337,7 +351,7 @@ impl ClassType.clone_as_instance -> ClassType {
     if self.is_instance() {
         return self;
     }
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -362,7 +376,7 @@ impl ClassType.is_special_form(name: str | None = None) -> bool {
 }
 
 impl ClassType.clone_with_literal(value: (str | int | bool | None)) -> ClassType {
-    new_private = ClassType.ClassDetailsPrivate(
+    new_private = ClassDetailsPrivate(
         type_args=self.private.type_args[:], alias_name=None, literal_value=value
     );
     return ClassType(_shared=self.shared, private=new_private, flags=self.flags);
@@ -397,22 +411,22 @@ impl ClassType.__str__ -> str {
     return f"{class_name}";
 }
 
-impl ClassType.shared.getter -> ClassType.ClassDetailsShared {
+impl ClassType.shared.getter -> ClassDetailsShared {
     assert self._shared is not None , "ClassType.shared accessed before construction (detached property ClassType?)";
     return self._shared;
 }
 
-impl ClassType.ClassDetailsPrivate.postinit -> None {
+impl ClassDetailsPrivate.postinit -> None {
     self.type_args = self.type_args or [];
 }
 
-impl ClassType.ClassDetailsShared.postinit -> None {
+impl ClassDetailsShared.postinit -> None {
     self.type_params = self.type_params or [];
     self.base_classes = self.base_classes or [];
     self.mro = [];
 }
 
-impl ClassType.ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | None) {
+impl ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | None) {
     if self._identity_key is not None {
         return self._identity_key;
     }
@@ -432,9 +446,7 @@ impl ClassType.ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | 
     return self._identity_key;
 }
 
-impl ClassType.ClassDetailsShared.same_class(
-    other: ClassType.ClassDetailsShared
-) -> bool {
+impl ClassDetailsShared.same_class(other: ClassDetailsShared) -> bool {
     if self is other {
         return True;
     }
@@ -541,12 +553,18 @@ impl TypeBase.is_any_type -> bool {
 }
 
 impl EnumMemberType.__str__ -> str {
-    return f"<{self.enum_class.shared.class_name}.{self.member_info.member_name}>";
+    enum_class = self.enum_class;
+    member_info = self.member_info;
+    class_name = enum_class.shared.class_name if enum_class is not None else "Unknown";
+    member_name = member_info.member_name if member_info is not None else "Unknown";
+    return f"<{class_name}.{member_name}>";
 }
 
 impl EnumMemberType.get_value_type -> TypeBase {
-    return self.member_info.value_type
-        or self.enum_class.shared.enum_value_type
+    enum_class = self.enum_class;
+    member_info = self.member_info;
+    return (member_info.value_type if member_info is not None else None)
+        or (enum_class.shared.enum_value_type if enum_class is not None else None)
         or UnknownType();
 }
 

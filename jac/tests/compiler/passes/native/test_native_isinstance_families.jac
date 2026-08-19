@@ -113,7 +113,6 @@ test "untagged arm: bytes answers by its own runtime struct" {
 
 
 test "abc arm: Sequence reduces to the native shapes that inhabit it" {
-    import from collections.abc { Sequence }
     f = native_fn("chk_sequence");
     operands: list = [[1, 2], 5, "ab", {1: 2}, PyFoo()];
     for k in range(len(operands)) {
@@ -125,7 +124,6 @@ test "abc arm: Sequence reduces to the native shapes that inhabit it" {
 
 
 test "abc arm: Sequence holds for operands whose type is already known" {
-    import from collections.abc { Sequence }
     f = native_fn("chk_sequence_typed");
     operands: list = ["ab", [1, 2], (1, 2, )];
     for k in range(len(operands)) {
@@ -137,7 +135,6 @@ test "abc arm: Sequence holds for operands whose type is already known" {
 
 
 test "abc arm: Mapping separates dicts from sequences" {
-    import from collections.abc { Mapping }
     f = native_fn("chk_mapping");
     assert f(0) == py_verdict({1: 2}, Mapping);
     assert f(1) == py_verdict([1, 2], Mapping);

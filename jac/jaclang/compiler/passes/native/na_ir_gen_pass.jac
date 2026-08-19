@@ -6,6 +6,8 @@ import from jaclang.jac0core.diagnostics {
     E2018,
     E5026,
     E5060,
+    E5088,
+    E5089,
     E5090,
     E5091,
     E5092,
@@ -72,6 +74,8 @@ glob NATIVE_OSPATH_FUNCS: set[str] = {
          "isfile",
          "isdir",
          "getsize",
+         "getmtime",
+         "normcase",
 
      };
 
@@ -152,6 +156,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_foreign: dict[str, set] = {},
+        struct_field_opaque: dict[str, dict] = {},
+        struct_field_erased_tv: dict[str, dict] = {},
+        arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
@@ -174,10 +181,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
+        _sig_decl_kind: (str | None) = None,
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
         _isa_seq_fn: (ir.Function | None) = None,
         _runtime_class_name_fn: (ir.Function | None) = None,
+        _vtable_less_reach: (set[str] | None) = None,
+        _short_mro_reach: (dict[str, list[str]] | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
@@ -398,6 +408,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _container_type_args(t: any) -> list;
     def _unwrap_cfg_expr(e: any) -> any;
     def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
+    def _call_args_lowered(
+        nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+    ) -> bool;
+
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -545,6 +559,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type;
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
+    def _typevar_optional_field(tb: any) -> bool;
+    def _erased_typevar_names(tb: any) -> list[str];
+    def _erased_seq_type(tb: any) -> (ir.Type | None);
+    def _erased_sig_typevars(nd: uni.Archetype) -> dict;
+    def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
+    def _emit_scalar_type_arg_refusal(
+        nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
+    ) -> bool;
+
     def _type_base_is_unknown(tb: any) -> bool;
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
@@ -559,6 +582,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _peer_dict_key -> (str | None);
     def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _spec_of(
         expr: (uni.UniNode | None), names: tuple, registry: dict
@@ -592,6 +616,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
+    def _emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None;
     def _codegen_varargs_list(
         nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
     ) -> (ir.Value | None);
@@ -623,6 +648,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
+    def _empty_container_for_field(
+        ftype: (ir.Type | None), label: str
+    ) -> (ir.Value | None);
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
@@ -671,6 +700,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
+    def _opt_unwrap_guarded(
+        val: (ir.Value | None), what: str, msg: str
+    ) -> (ir.Value | None);
+
+    def _opt_unwrap_iterable(coll_val: (ir.Value | None)) -> (ir.Value | None);
+    def _opt_unwrap_subscript(val: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_int_floor_divmod(
         left: ir.Value, right: ir.Value
@@ -690,6 +725,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
+    def _enum_ctor_layout(enum_name: str) -> (any | None);
+    def _enum_ctor_target(nd: uni.FuncCall) -> (str | None);
+    def _emit_enum_ctor_refusal(nd: uni.FuncCall, enum_name: str, why: str) -> None;
+    def _codegen_enum_ctor(nd: uni.FuncCall, enum_name: str) -> (ir.Value | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
@@ -801,12 +840,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;
     def _walk_imported_module_type_names(imported_mod: uni.Module) -> None;
-    def _walk_imported_module_abilities(imported_mod: uni.Module) -> None;
+    def _walk_imported_module_abilities(
+        imported_mod: uni.Module, with_fn_verdicts: bool = True
+    ) -> None;
+
     def _register_imported_hierarchy(imported_mod: uni.Module) -> None;
     def _register_imported_archetype(arch: uni.Archetype) -> None;
     def _forward_declare_archetype_methods(arch: uni.Archetype) -> None;
     def _register_imported_globals(nd: uni.GlobalVars, source_path: str = "") -> None;
-    def _forward_declare_imported_ability(nd: uni.Ability) -> None;
+    def _forward_declare_imported_ability(
+        nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
+    ) -> None;
+
+    def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _register_archetypes(module: uni.Module) -> None;
     def _compute_osp_model(archetypes: list[uni.Archetype]) -> None;
     def _osp_active -> bool;
@@ -832,12 +878,31 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _osp_isa_bases(arch_name: str) -> list[int];
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
+    def _register_class_consts(
+        nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
+    ) -> None;
+
+    def _register_one_class_const(
+        arch_name: str,
+        fname: str,
+        target: uni.UniNode,
+        assign: uni.Assignment,
+        owns: bool
+    ) -> None;
+
+    def _class_const_enum_init(
+        value: uni.UniNode, ftype: ir.Type
+    ) -> (ir.Constant | None);
+
     def _forward_declare_method(
         arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
+    def _pyb_native_override_owner(arch_name: str, meth: str) -> (str | None);
+    def _pyb_shadowed_dispatch(arch_name: str, method_name: str) -> (tuple | None);
     def _pyb_helper(name: str) -> ir.Function;
     def _pyb_emit_conv1(
         name: str,
@@ -897,6 +962,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
     ) -> (ir.Value | None);
 
+    def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
+    def _class_const_global(
+        arch_name: str, field_name: str
+    ) -> (ir.GlobalVariable | None);
+
+    def _class_const_variants(arch_name: str, field_name: str) -> tuple;
+    def _codegen_class_const_read(
+        obj_val: ir.Value, type_name: str, field_name: str
+    ) -> (ir.Value | None);
+
+    def _class_const_declarer(arch_name: str, field_name: str) -> (str | None);
     def _emit_class_routed_call(
         nd: uni.FuncCall,
         _sfull: str,
@@ -913,10 +989,24 @@ obj NaIRGenPass(ModuleCodegenPass) {
         full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
     ) -> bool;
 
+    def _seam_warnings_on -> bool;
+    def _opaque_field_if_unlowerable(
+        arch_name: str, fname: str, local_mark: int
+    ) -> (ir.Type | None);
+
+    def _refuse_opaque_field(
+        nd: (uni.UniNode | None), type_name: (str | None), fname: str
+    ) -> bool;
+
     def _predemote_capability_unit(
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False
     ) -> bool;
 
+    def _constructor_slots -> tuple;
+    def _constructor_ability_for(cls: str, slot: str) -> (uni.Ability | None);
+    def _predemote_capability_constructors -> None;
+    def _codegen_constructors_first(archetypes: list) -> None;
+    def _demoted_init_of(type_name: str) -> (str | None);
     def _rename_demoted_symbol(name: str, func: ir.Function) -> None;
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
@@ -961,6 +1051,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _unregistered_class_target(target: uni.UniNode) -> (str | None);
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
     def _emit_optional_str(
         val: ir.Value, part: (uni.UniNode | None)
@@ -1002,7 +1093,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value;
     def _codegen_field_access(
-        obj_val: ir.Value, field_name: str, type_name: str
+        obj_val: ir.Value,
+        field_name: str,
+        type_name: str,
+        nd: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(
@@ -1148,6 +1242,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_vtable_global(arch_name: str) -> None;
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
+    def _isinstance_needs_class_name(names: list[str]) -> bool;
+    def _isinstance_unprovable_class(
+        names: list[str], operand_arch: (str | None)
+    ) -> (str | None);
+
+    def _isinstance_class_name_hit(
+        obj_ptr: ir.Value, names: list[str]
+    ) -> (ir.Value | None);
+
     def _emit_class_name_const(arch_name: str) -> ir.Value;
     def _emit_runtime_class_name_fn -> (ir.Function | None);
     def _codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None);
@@ -1165,6 +1268,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
+
+    def _read_field_or_refuse(
+        nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
+    ) -> (ir.Value | None);
+
+    def _unadopted_field_owner(arch_name: str, field_name: str) -> (str | None);
+    def _emit_field_access_refusal(
+        nd: uni.UniNode, arch_name: str, field_name: str
+    ) -> None;
 
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
@@ -1209,6 +1321,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_time_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_clock_gettime(clock_id: int) -> tuple;
     def _emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_os_const(name: str) -> (ir.Value | None);
     def _emit_os_environ_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _mt_ensure -> None;

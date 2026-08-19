@@ -56,8 +56,8 @@ pub fn build(b: *std.Build) void {
     // built once then run on other runners via the setup-jac output cache. A
     // native-CPU build emits instructions (e.g. AVX-512) a different CPU may not
     // have, crashing the launcher with SIGILL ("Illegal instruction at address
-    // ..."); that in turn hangs `jac test`, whose xdist workers re-exec this
-    // binary and die mid-run. The launcher is a thin shim, so baseline costs
+    // ..."); that in turn takes down `jac test`, whose worker processes are
+    // forked from this binary. The launcher is a thin shim, so baseline costs
     // nothing. If an explicit `-Dtarget=` is passed we honor it as-is; otherwise
     // we pin the host arch/os to a baseline CPU.
     const target = if (b.user_input_options.contains("target"))
@@ -524,7 +524,9 @@ pub fn build(b: *std.Build) void {
         }
         mk.addFileInput(b.path("_jac_finder.py"));
         mk.addFileInput(b.path("sitecustomize.py"));
-        mk.addFileInput(b.path("jac.toml"));
+        // The project manifest (version stamped into dist-info) lives at the
+        // repo root, one level above this build root.
+        mk.addFileInput(.{ .cwd_relative = b.pathFromRoot("../jac.toml") });
         mk.addFileInput(b.path("launcher/payload.zig"));
         // The slice pins (dirname/hash/size) moved here; a bump must repack.
         mk.addFileInput(b.path("launcher/llvm_release.zig"));

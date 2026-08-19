@@ -48,7 +48,7 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
     for rel in [
         "jac0.py",
         "jac0core/jir.jac",
-        "jac0core/passes/pyast_gen_pass.jac",
+        "jac0core/passes/jcir_gen_pass.jac",
         "compiler/native_materialize.jac",
         "compiler/passes/native/llvm/libjacllvm.so",
         "utils/precompile_bytecode.jac",
@@ -57,13 +57,13 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "compiler/.jac/cache/hidden.jac",
         "compiler/tests/test_lowering.jac",
         "compiler/tests/fixtures/corpus.jac",
-        "jac0core/passes/pyast_gen_pass.test.jac"
+        "jac0core/passes/jcir_gen_pass.test.jac"
     ] {
         f = pkg / rel;
         f.parent.mkdir(parents=True, exist_ok=True);
         f.write_text(f"stub for {rel}\n");
     }
-    (pkg / "jac0core/passes/pyast_gen_pass.jac").write_text(codegen_body);
+    (pkg / "jac0core/passes/jcir_gen_pass.jac").write_text(codegen_body);
     return str(pkg);
 }
 
@@ -104,7 +104,7 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
             ("compiler/.jac/cache/hidden.jac", "cache droppings\n"),
             ("compiler/tests/test_lowering.jac", "new compiler test\n"),
             ("compiler/tests/fixtures/corpus.jac", "new fixture\n"),
-            ("jac0core/passes/pyast_gen_pass.test.jac", "new annex test\n")
+            ("jac0core/passes/jcir_gen_pass.test.jac", "new annex test\n")
         ] {
             Path(a, rel).write_text(text);
             assert compiler_source_digest(a) == base , f"{rel} must not participate in the compiler digest";
@@ -160,8 +160,8 @@ test "the running compiler digest covers the real compiler tree" {
         "jac0.py",
         "jac0core/jir.jac",
         "jac0core/unitree.jac",
-        "jac0core/passes/pyast_gen_pass.jac",
-        "jac0core/passes/impl/pyast_gen_pass.impl.jac",
+        "jac0core/passes/jcir_gen_pass.jac",
+        "jac0core/passes/impl/jcir_gen_pass.impl.jac",
         "compiler/passes/main/type_checker_pass.jac",
         "utils/precompile_bytecode.jac"
     ] {

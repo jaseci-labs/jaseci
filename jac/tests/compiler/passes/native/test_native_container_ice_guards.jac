@@ -1,4 +1,4 @@
-"""Two emitter crashes in container lowering: one fixed, one turned into a seam.
+"""Two emitter crashes in container lowering, both now fixed.
 
 An ICE is a bug even where the construct is unsupported. The contract is a
 clean diagnostic or a seam, never a `TypeError` out of the IR builder. Both
@@ -13,28 +13,24 @@ incompatible layout under the same name, which is the worse of the two
 outcomes because it does not raise. `rc_facts_pass._stamp_move_in` reaches this
 through `list(_use_map.values())` over a `dict[int, uni.NameAtom]`.
 
-The second is a refusal, not a fix, and the distinction is deliberate.
-`[p for p in (items or [])]` -- `ownership_check_pass._partition_sugar_reason`
-and three of its neighbours -- puts an empty list literal on the right of `or`
-with no destination to take an element flavor from. It picks one, differs from
-the operand on its left, and the two unify at an erased `i8*`; the
-comprehension then cannot tell which list layout to read it as, and raised.
+The second was a refusal and is now a fix, in two halves that had to land
+together. `[p for p in (items or [])]` -- `ownership_check_pass`'s
+`_partition_sugar_reason` and three of its neighbours -- puts an empty list
+literal on the right of `or` with no destination to take an element flavor
+from. It picked one, differed from the operand on its left, and the two
+unified at an erased `i8*`; the comprehension then could not tell which list
+layout to read it as, and raised.
 
-Supplying the flavor from the left operand was tried and rejected. It makes
-this shape compile, but a sibling shape (an optional list produced by a
-ternary and held in a local) then lowers to code that faults at run time
-rather than refusing -- trading a loud compile-time crash for a silent
-miscompile, which is strictly worse. The representation of an optional list
-across a branch is the real defect there, and it is not this change's to fix,
-so the comprehension refuses when the collection is element-erased and says
-why.
-
-Since #8206 that refusal is granular: the diagnostic is owned by the callable
-holding the comprehension, so it demotes `compr_over_or` alone to a seam and
-the rest of the module still lowers. `compr over or is a clean seam` pins
-exactly that -- one seam, named for its owner, naming what could not be
-recovered, and no module-level failure. When the representation is fixed, that
-test is the one to flip.
+Supplying the flavor from the left operand was tried once and rejected,
+because a sibling shape -- an optional list produced by a ternary and held in
+a local -- then lowered to code that faulted at run time rather than refusing,
+trading a loud compile-time crash for a silent miscompile. That fault has a
+cause of its own: `_to_bool` read the length field off a container pointer
+without checking it for null, so `x or []` over an absent list dereferenced
+address zero. A null container is falsy now, which is what `None` is in
+CPython, and both shapes answer correctly on both arms. The two tests below
+pin the layout and the run-time answers together, so neither half can be
+reverted alone.
 """
 
 import ctypes;
@@ -109,11 +105,11 @@ test "a tuple-keyed set dedups by value" {
 }
 
 
-test "compr over or is a clean seam" {
+test "compr over or lowers, and its absent arm is falsy rather than a fault" {
     prog = JacProgram();
     na_census_begin();
     try {
-        prog.compile(
+        ir = prog.compile(
             file_path=os.path.join(FIXTURES, "compr_or_erased.jac"),
             options=CompileOptions(
                 type_check=False,
@@ -127,19 +123,49 @@ test "compr over or is a clean seam" {
     }
     rec = census.get(os.path.realpath(os.path.join(FIXTURES, "compr_or_erased.jac")));
     seams = [str(s) for s in ((rec.get("seams") or []) if rec is not None else [])];
-    owned = [
-        s
-        for s in seams
-        if s.startswith("compr_over_or: ")
-    ];
-    assert len(owned) == 1 , (
-        f"expected exactly one seam for compr_over_or, got: {seams}"
+    assert not seams , (
+        f"the `or`-defaulted comprehension shapes all lower now, got: {seams}"
     );
-    assert "element-erased" in owned[0] , (
-        f"the seam must name what could not be recovered: {owned[0]}"
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    for fn in [
+        "compr_over_or",
+        "tern_local_or",
+        "tern_local_compr",
+        "tern_inline_or"
+    ] {
+        assert fn in ir.gen.native_layout.functions , f"{fn} demoted";
+    }
+}
+
+
+test "an optional list held across a branch answers rather than dereferencing null" {
+    # The shape that made the first attempt at this unsound: a ternary puts
+    # `None` in a local whose lowered type is a bare container pointer, and
+    # `x or []` then asked whether it was truthy. Reading the length field off
+    # a null container faulted at run time -- a silent miscompile in place of
+    # the old loud refusal. A null container is falsy now, so the `or` takes
+    # its right arm and the answers match CPython on both arms.
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "compr_or_erased.jac"),
+        options=native_force_opts()
     );
-    assert not prog.errors_had , (
-        "an un-lowerable comprehension is one callable's seam, not a module "
-        f"failure: {[str(e) for e in prog.errors_had]}"
-    );
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    eng = ir.gen.native_engine;
+    assert eng is not None , "no native engine for the or-defaulted fixture";
+    for (fn, present, absent) in [
+        ("tern_local_or", 7, 0),
+        ("tern_local_compr", 2, 0),
+        ("tern_inline_or", 7, 0)
+    ] {
+        addr = eng.get_function_address(fn);
+        assert addr != 0 , f"'{fn}' is absent from the JIT engine";
+        _f = ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
+        assert _f(1) == present , f"{fn}(True) must be {present}";
+        assert _f(0) == absent , (
+            f"{fn}(False) must be {absent}: the absent list is falsy, not a "
+            "null dereference"
+        );
+    }
 }

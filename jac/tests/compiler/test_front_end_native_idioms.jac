@@ -75,8 +75,8 @@ test "pascal_to_snake converts the shapes the compiler actually feeds it" {
 # dispatch (`getattr(self, f"enter_{pascal_to_snake(type(nd).__name__)}")`).
 # `gen_uni_dispatch` (#6942 A.1) replaced that with static accept_enter /
 # accept_exit, so the hot loop the cache existed for is gone: what remains
-# are comptime (`ct.snake`), the generators, and the `jac tool` surface, all
-# of which call it a bounded number of times. The cache was dropped rather
+# are the generators and the `jac tool` surface, both of which call it a
+# bounded number of times. The cache was dropped rather
 # than re-spelled -- a dict memo is three lines if measurement ever asks.
 test "pascal_to_snake is deterministic across repeat calls without a cache" {
     probe = "AVeryDistinctArchetypeName";
@@ -162,6 +162,56 @@ test "helpers module scope binds os and nothing else" {
         ]
     );
     assert bound == ["os"] , f"helpers.jac module scope grew imports: {bound}";
+}
+
+# Sitting under most of the front end only pays if the module can be linked.
+# It could not: `format_related_spans` took its location as `object`, the
+# underline narrowed to `LiteralString`, `path_matches_exclude` took a bare
+# `list`, and `read_file_with_encoding` asked `open` for an `encoding`. Those
+# are type errors, and a type error in a native module refuses the module --
+# there is no callable to demote a signature to. Every one of them is fixed
+# or demotable now, so the module reaches the backend and the constructs that
+# genuinely cannot lower become seams instead of a whole-module refusal.
+test "helpers.jac lowers when a native unit reaches it" {
+    import jaclang;
+    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    helpers_path = os.path.join(
+        os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
+    );
+    prog = JacProgram();
+    opts = CompileOptions(
+        aot_mode=True,
+        type_check=False,
+        force_codespace='native',
+        force_target_program=True,
+        no_ir_cache=True
+    ).clone_for_native_import();
+    na_census_begin();
+    try {
+        ir = prog.compile(file_path=helpers_path, options=opts);
+    } finally {
+        census = na_census_end();
+    }
+    assert not prog.errors_had , (
+        f"helpers.jac must reach the backend, not refuse on a signature no "
+        f"callable owns: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir is not None and ir.gen.llvm_ir is not None , (
+        "no LLVM IR for helpers.jac, so every consumer that links it inherits "
+        "a module-level refusal"
+    );
+    rec = census.get(os.path.realpath(helpers_path));
+    assert rec is not None , "the census recorded nothing for helpers.jac";
+    seams = [str(s) for s in (rec["seams"] or [])];
+    reader = [
+        s
+        for s in seams
+        if s.startswith("read_file_with_encoding: ")
+    ];
+    assert len(reader) == 1 and "open" in reader[0] , (
+        f"`open(path, encoding=...)` has to demote its own function and name "
+        f"the construct it refused, got: {seams}"
+    );
 }
 
 test "helpers no longer exports the moved symbols" {
@@ -418,7 +468,7 @@ test "scan_native_blockers names the offending node from the table" {
     assert reason == "contains JsxElement" , f"got reason {reason!r}";
 }
 
-test "guardrail: @lru_cache demotes where a dict cache does not" {
+test "guardrail: @lru_cache refuses where a dict cache does not" {
     import from tests.support { native_force_opts }
     dec = JacProgram();
     dec_ir = dec.compile(
@@ -428,16 +478,18 @@ test "guardrail: @lru_cache demotes where a dict cache does not" {
         "def twice(n: int) -> int { return n * 2; }\n",
         options=native_force_opts()
     );
-    assert not has_error_code(dec, "E5090") , (
-        f"a dynamically-decorated function must demote to its Python "
-        f"implementation (which applies @lru_cache), got {fmt_errors(dec)}"
+    errs = fmt_errors(dec);
+    assert "decorator 'on twice'" in errs , (
+        f"the capability gate must still name the dynamic decorator: {errs}"
     );
-    assert dec_ir.gen.native_layout is not None , (
-        "whole-module native compile aborted"
+    assert "Python module import 'functools'" in errs , (
+        "the decorator cannot be written without importing it, and a "
+        "module-scope Python import has no owning callable to absorb it as "
+        "a seam, so it refuses the module exactly as a bare "
+        f"`import functools;` does: {errs}"
     );
-    assert "twice" not in dec_ir.gen.native_layout.functions , (
-        "the @lru_cache function must be demoted out of the native layout, "
-        "never run undecorated"
+    assert dec_ir.gen.llvm_ir is None , (
+        "a module-fatal violation must withhold the LLVM IR"
     );
     memo = check_na_inline(
         "dict_memo",

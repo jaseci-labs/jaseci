@@ -132,7 +132,7 @@ glob:pub useState = reactUseState,
      JacSchema = __createJacSchema(z);
 
 def:pub useRouter -> dict;
-def:pub AuthGuard(redirect: str = "/login") -> JsxElement;
+def:pub AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement;
 
 def:pub JacAwaiting(props: dict) -> JsxElement;
 def:pub useJacForm(
