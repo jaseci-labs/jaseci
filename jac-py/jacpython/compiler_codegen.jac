@@ -64,10 +64,12 @@ import from opcode_meta {
     OP_IMPORT_NAME,
     OP_IMPORT_FROM,
     OP_STORE_NAME,
+    OP_STORE_GLOBAL,
     OP_STORE_ATTR,
     OP_STORE_SUBSCR,
     OP_LOAD_ATTR,
     OP_DELETE_NAME,
+    OP_DELETE_GLOBAL,
     OP_DELETE_ATTR,
     OP_DELETE_SUBSCR,
     OP_POP_JUMP_IF_FALSE,
@@ -972,6 +974,11 @@ def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
             g.emit_op(OP_STORE_DEREF, idx, tloc);
             return;
         }
+        if scope == SCOPE_GLOBAL_EXPLICIT or scope == SCOPE_GLOBAL_IMPLICIT {
+            idx = g.u.add_name(name);
+            g.emit_op(OP_STORE_GLOBAL, idx, tloc);
+            return;
+        }
     }
     idx = g.u.add_name(name);
     g.emit_op(OP_STORE_NAME, idx, tloc);
@@ -991,6 +998,11 @@ def emit_name_delete(g: cfg_builder, name: str, tloc: cloc) {
             codegen_fail(
                 g, "NotImplementedError", "delete of cell/free var not supported"
             );
+            return;
+        }
+        if scope == SCOPE_GLOBAL_EXPLICIT or scope == SCOPE_GLOBAL_IMPLICIT {
+            idx = g.u.add_name(name);
+            g.emit_op(OP_DELETE_GLOBAL, idx, tloc);
             return;
         }
     }
@@ -1918,9 +1930,10 @@ def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
     }
     if isinstance(t, Name) {
         n = t as Name;
-        idx = g.u.add_name(codegen_mangle(g, n.id));
         tloc = expr_loc(n);
-        g.emit_op(OP_DELETE_NAME, idx, tloc);
+        # emit_name_delete picks DELETE_FAST / DELETE_GLOBAL / DELETE_NAME from
+        # the symtable scope (and rejects cell/free deletion).
+        emit_name_delete(g, n.id, tloc);
         return stmt_cont(loc=tloc);
     }
     if isinstance(t, Attribute) {
@@ -6218,6 +6231,12 @@ def visit_stmt(
             g.emit_op(OP_NOP, 0, ploc);
         }
         return stmt_cont(loc=ploc);
+    }
+    if isinstance(s, Global) or isinstance(s, Nonlocal) {
+        # global / nonlocal are scope declarations resolved entirely in the
+        # symtable (they retarget name loads/stores to STORE_GLOBAL / STORE_DEREF).
+        # They emit no bytecode of their own.
+        return stmt_cont(loc=stmt_loc(s));
     }
     if isinstance(s, If) {
         t = tail;

@@ -564,6 +564,59 @@ test "compiler_slice: membership filter comprehension matches oracle PyCode" {
     assert actual.stacksize == exp.stacksize;
 }
 
+# global / nonlocal are scope declarations (no bytecode of their own); they
+# retarget stores/deletes to STORE_GLOBAL / DELETE_GLOBAL / STORE_DEREF. Checked
+# via nested function co_code (module co_code is blind to the bodies).
+test "compiler_slice: global store / delete match oracle nested co_code" {
+    src = (
+        "def f():\n"
+            + "    global x\n"
+            + "    x = 1\n"
+            + "    del x\n"
+            + "    return x\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    af = nested_code_by_name(actual, "f");
+    ef = nested_code_by_name(expected as PyCode, "f");
+    assert af.co_code == ef.co_code;
+    assert af.exceptiontable == ef.exceptiontable;
+    assert af.stacksize == ef.stacksize;
+}
+
+test "compiler_slice: nonlocal store matches oracle nested co_code" {
+    src = (
+        "def o():\n"
+            + "    y = 1\n"
+            + "    def i():\n"
+            + "        nonlocal y\n"
+            + "        y = 2\n"
+            + "        return y\n"
+            + "    return i\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    ao = nested_code_by_name(actual, "o");
+    eo = nested_code_by_name(expected as PyCode, "o");
+    af = nested_code_by_name(ao, "i");
+    ef = nested_code_by_name(eo, "i");
+    assert af.co_code == ef.co_code;
+    assert af.stacksize == ef.stacksize;
+}
+
+# Deleting a plain function local retargets to DELETE_FAST (was DELETE_NAME).
+test "compiler_slice: delete local matches oracle nested co_code" {
+    src = "def f():\n    x = 1\n    del x\n    return 0\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    af = nested_code_by_name(actual, "f");
+    ef = nested_code_by_name(expected as PyCode, "f");
+    assert af.co_code == ef.co_code;
+}
+
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
 }
