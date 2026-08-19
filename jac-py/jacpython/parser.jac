@@ -49,6 +49,7 @@ import from ast_nodes {
     Assign, AnnAssign, AugAssign, Expr, Return, Pass, Break, Continue, Delete, Raise,
     Import, ImportFrom, Global, Nonlocal, Assert, If, For, AsyncFor, While, With, AsyncWith,
     FunctionDef, AsyncFunctionDef, ClassDef, Try, TryStar, ExceptHandler, Match, TypeAlias,
+    TypeVar, TypeVarTuple, ParamSpec,
     Attribute, Subscript, Slice, Tuple, List, Dict, Set, Starred, NamedExpr, Lambda,
     BinOp, UnaryOp, BoolOp, Compare, Call, IfExp, Await, Yield, YieldFrom,
     ListComp, SetComp, DictComp, GeneratorExp, Constant, JoinedStr, TemplateStr,
