@@ -143,36 +143,7 @@ impl DiagnosticPolicy._inline_suppressed(
     return diag.code in self._inline_cache[cache_key];
 }
 
-impl _require_native_pass_tier(pass_type: type) -> None {
-    if pass_type not in _NATIVE_PASS_TIER_MEMO {
-        fullname = getattr(pass_type, "__module__", "") or "";
-        fresh = "";
-        if fullname.startswith("jaclang.") {
-            import from jaclang.jac0core.sealed { native_artifact_for }
-            if native_artifact_for(fullname) is not None {
-                fresh = fullname;
-            }
-        }
-        _NATIVE_PASS_TIER_MEMO[pass_type] = fresh;
-    }
-    verdict = _NATIVE_PASS_TIER_MEMO[pass_type];
-    if verdict and verdict not in _NATIVE_SERVED_PASSES {
-        import from jaclang.jac0core.passes.pass_serve { bind_sealed_pass_artifacts }
-        bind_sealed_pass_artifacts();
-    }
-    if verdict and verdict not in _NATIVE_SERVED_PASSES {
-        raise RuntimeError(
-            f"{pass_type.__name__}: this sealed image carries a native "
-            f"artifact for {verdict}, but the pass's bytecode body was "
-            "reached instead of the artifact serving it. The install is "
-            "broken or the pass-serving layer is missing; reinstall or "
-            "rebuild the payload."
-        );
-    }
-}
-
 impl BaseTransform.postinit -> None {
-    _require_native_pass_tier(type(self));
     self.pre_transform();
     self.ir_out = self.timed_transform(ir_in=self.ir_in);
     self.post_transform();
@@ -192,7 +163,7 @@ impl BaseTransform.log_info(msg: str) -> None {
 }
 
 impl BaseTransform.is_canceled -> bool {
-    return ((self.cancel_token is not None) and self.cancel_token.is_set());
+    return self.cancel_requested;
 }
 
 impl Transform.postinit -> None {
@@ -247,9 +218,7 @@ impl Transform._is_suppressed(
     return self.policy is not None and self.policy.is_suppressed(diag, loc);
 }
 
-impl Transform.ice(msg: str = 'Something went horribly wrong!') -> RuntimeError {
+impl Transform.ice(msg: str = 'Something went horribly wrong!') -> str {
     self.emit(E9001, pass_name=self.__class__.__name__, details=msg);
-    return RuntimeError(
-        f"Internal Compiler Error: Pass {self.__class__.__name__} - {msg}"
-    );
+    return f"Internal Compiler Error: Pass {self.__class__.__name__} - {msg}";
 }

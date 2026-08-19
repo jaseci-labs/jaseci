@@ -1,4 +1,3 @@
-import from typing { TypeVar }
 import from jaclang.jac0core.unitree {
     Ability,
     ArchHas,
@@ -20,12 +19,6 @@ import from jaclang.jac0core.unitree {
     CompareExpr,
     ConcurrentExpr,
     ConnectOp,
-    CtBlock,
-    CtElse,
-    CtFor,
-    CtIf,
-    CtName,
-    CtSplice,
     CtrlStmt,
     DeleteStmt,
     DictCompr,
@@ -128,8 +121,6 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 
-glob T = TypeVar('T', bound=UniNode);
-
 obj UniPass(ModuleCodegenPass) {
     has term_signal: bool = False,
         prune_signal: bool = False;
@@ -142,17 +133,6 @@ obj UniPass(ModuleCodegenPass) {
     def default_enter(nd: UniNode) -> None;
     def default_exit(nd: UniNode) -> None;
     def prune -> None;
-    static def get_all_sub_nodes(nd: UniNode, typ: type[T]) -> list[T] {
-        if not nd {
-            return [];
-        }
-        return nd.get_all_sub_nodes(typ);
-    }
-
-    static def find_parent_of_type(nd: UniNode, typ: type[T]) -> (T | None) {
-        return nd.find_parent_of_type(typ);
-    }
-
     def recalculate_parents(nd: UniNode) -> None;
     def transform(ir_in: Module) -> Module;
     def traverse(nd: UniNode) -> UniNode;
@@ -175,12 +155,6 @@ obj UniPass(ModuleCodegenPass) {
     def enter_compare_expr(nd: CompareExpr) -> None;
     def enter_concurrent_expr(nd: ConcurrentExpr) -> None;
     def enter_connect_op(nd: ConnectOp) -> None;
-    def enter_ct_block(nd: CtBlock) -> None;
-    def enter_ct_else(nd: CtElse) -> None;
-    def enter_ct_for(nd: CtFor) -> None;
-    def enter_ct_if(nd: CtIf) -> None;
-    def enter_ct_name(nd: CtName) -> None;
-    def enter_ct_splice(nd: CtSplice) -> None;
     def enter_ctrl_stmt(nd: CtrlStmt) -> None;
     def enter_delete_stmt(nd: DeleteStmt) -> None;
     def enter_dict_compr(nd: DictCompr) -> None;
@@ -294,12 +268,6 @@ obj UniPass(ModuleCodegenPass) {
     def exit_compare_expr(nd: CompareExpr) -> None;
     def exit_concurrent_expr(nd: ConcurrentExpr) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;
-    def exit_ct_block(nd: CtBlock) -> None;
-    def exit_ct_else(nd: CtElse) -> None;
-    def exit_ct_for(nd: CtFor) -> None;
-    def exit_ct_if(nd: CtIf) -> None;
-    def exit_ct_name(nd: CtName) -> None;
-    def exit_ct_splice(nd: CtSplice) -> None;
     def exit_ctrl_stmt(nd: CtrlStmt) -> None;
     def exit_delete_stmt(nd: DeleteStmt) -> None;
     def exit_dict_compr(nd: DictCompr) -> None;

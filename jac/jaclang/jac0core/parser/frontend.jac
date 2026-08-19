@@ -11,6 +11,11 @@ import from jaclang.jac0core.unitree { CommentToken, Module, Source, Token as Un
 glob _NATIVE_PARSE_MEMO: list = [];
 
 def _native_parse -> any {
+    import from jaclang.jac0core.native_brands { ensure_native_brands_bound }
+    return ensure_native_brands_bound("frontend:_native_parse");
+}
+
+def _bind_native_parser_once -> any {
     if _NATIVE_PARSE_MEMO {
         return _NATIVE_PARSE_MEMO[0];
     }
@@ -21,7 +26,8 @@ def _native_parse -> any {
         return None;
     }
     import from jaclang.jac0core.parser.materialize { bind_native_parser }
-    (lib_path, layout_dict) = found;
+    lib_path: str = found[0];
+    layout_dict: dict[str, any] = found[1];
     np = bind_native_parser(lib_path, layout_dict);
     _NATIVE_PARSE_MEMO.append(np);
     return np;
@@ -87,10 +93,7 @@ def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, l
 
 
 def parse(
-    source: str,
-    file_path: str = "<input>",
-    prog: (JacProgram | None) = None,
-    expand: bool = True
+    source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
     _np = _native_parse();
     if _np is not None {
@@ -108,14 +111,6 @@ def parse(
         p_diags = parser.diags;
     }
 
-    ct_errs: list = [];
-    if expand and p_errs == 0 and lex_errs == 0 {
-        import from jaclang.jac0core.ct_expand { expand_module, module_has_ct }
-        if module_has_ct(module) {
-            ct_errs = expand_module(module, file_path);
-        }
-    }
-
     diag_src: Source | None = None;
     if prog is not None and lex_diags {
         diag_src = module.source;
@@ -127,31 +122,6 @@ def parse(
         }
         _replay_diags(p_diags, Parser, prog, diag_src);
     }
-    if ct_errs {
-        if diag_src is None {
-            diag_src = module.source;
-        }
-        for d in ct_errs {
-            dtok = UniToken(
-                orig_src=diag_src,
-                name="ERROR",
-                value="",
-                line=d[0],
-                end_line=max(d[1], d[0]),
-                col_start=d[2],
-                col_end=max(d[3], d[2]),
-                pos_start=0,
-                pos_end=0
-            );
-            alrt = Alert(
-                d[4], CodeLocInfo(dtok, dtok), Parser, code=DIAGNOSTICS.get("E0109")
-            );
-            if prog is not None {
-                prog.errors_had.append(alrt);
-            }
-        }
-    }
-
     if module.source and comments {
         for cdata in comments {
             ct = CommentToken(
@@ -186,6 +156,6 @@ def parse(
             }
         }
     }
-    had_error = p_errs > 0 or lex_errs > 0 or len(ct_errs) > 0;
+    had_error = p_errs > 0 or lex_errs > 0;
     return (module, had_error);
 }

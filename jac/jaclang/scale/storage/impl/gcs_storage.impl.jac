@@ -108,7 +108,7 @@ impl GcsStorage.list_files(
     }
 }
 
-impl GcsStorage.get_metadata(self: GcsStorage, path: str) -> dict[str, Any] {
+impl GcsStorage.get_metadata(self: GcsStorage, path: str) -> dict[str, any] {
     key = self._resolve_key(path);
     blob = self._bucket.blob(key);
 

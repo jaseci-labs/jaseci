@@ -2,7 +2,6 @@ import io;
 import unittest.mock as mock;
 import from contextlib { redirect_stdout }
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.scale.runtime.cli.plan { print_plan }
 import from jaclang.scale.runtime.cli.diagnostics {
     Diagnostic,
@@ -12,7 +11,6 @@ import from jaclang.scale.runtime.cli.diagnostics {
     _mem_to_bytes
 }
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
-import jaclang.scale.runtime.cli.plan as plan_mod;
 
 
 def _validate(bundle: dict, ms_cfg: dict, svc_configs: dict) -> list {
@@ -26,20 +24,20 @@ obj _StubConfig {
 
 
 obj _StubTarget {
-    has _bundle: dict[str, Any] = {},
+    has _bundle: dict[str, any] = {},
         k8s_config: _StubConfig postinit;
 
     def postinit {
         self.k8s_config = _StubConfig();
     }
 
-    def generate_manifests(app_config: Any) -> dict[str, Any] {
+    def generate_manifests(app_config: any) -> dict[str, any] {
         return self._bundle;
     }
 }
 
 
-def _make_app_config -> Any {
+def _make_app_config -> any {
     import types;
     return types.SimpleNamespace(code_folder=".", file_name="main.jac");
 }
@@ -89,7 +87,7 @@ def _teardown_ms_config(project_dir: str) {
 
 
 def _run_plan(
-    bundle: dict[str, Any], show_yaml: bool = False, ms_toml: str = ""
+    bundle: dict[str, any], show_yaml: bool = False, ms_toml: str = ""
 ) -> tuple {
     target = _StubTarget(_bundle=bundle);
     buf = io.StringIO();
@@ -149,7 +147,7 @@ test "dry-run contract: print_plan must NOT call deploy / apply_manifests" {
 
 
 test "--show-yaml gate: YAML hidden by default, dumped on opt-in" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {
             "a": {
                 "apiVersion": "apps/v1",
@@ -169,7 +167,7 @@ test "--show-yaml gate: YAML hidden by default, dumped on opt-in" {
 
 
 test "--show-yaml dumps rendered autoscaler manifests alongside the rest" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {"api": _dep()},
         "autoscaler_manifests": [
             {
@@ -190,7 +188,7 @@ test "every manifest-bearing bundle key reaches --show-yaml" {
     # The summary counts these resources; the reviewed YAML must carry them
     # all. Excluded by design: pod_specs and injector (not manifests) and
     # autoscalers (configs, rendered into autoscaler_manifests).
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "user_secret": {"metadata": {"name": "sentinel-user-secret"}},
         "pvcs": {"a": {"metadata": {"name": "sentinel-pvc"}}},
         "deployments": {"a": {"metadata": {"name": "sentinel-deployment"}}},
@@ -215,7 +213,7 @@ test "every manifest-bearing bundle key reaches --show-yaml" {
 
 
 test "render smoke: realistic bundle prints every section" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {
             "api": _dep(
                 image="api:v1", requests={"cpu": "100m"}, limits={"cpu": "500m"}
@@ -244,19 +242,52 @@ test "render smoke: realistic bundle prints every section" {
     assert "Cluster-wide" in out;
     assert "app-secrets" in out and "2 keys" in out;
     assert "Totals" in out;
+}
 
-    # Rate-limit line is produced by the real _render_cluster_wide renderer.
-    # Exercise it directly rather than through _load_ms_cfg: the config loader
-    # normalizes rate_limit to `per_ip_rpm`, a key the renderer does not read,
-    # so a loader-sourced rate_limit never reaches this branch.
-    rl_buf = io.StringIO();
-    with redirect_stdout(rl_buf) {
-        plan_mod._render_cluster_wide(
-            {}, {"rate_limit": {"enabled": True, "requests_per_minute": 120}}
-        );
-    }
-    rl_out = rl_buf.getvalue();
-    assert "Cluster-wide" in rl_out and "120/min" in rl_out;
+
+def _rate_limit_toml(enabled: str, extra: str = "") -> str {
+    return (
+        "[scale.microservices.routes]\napi = \"/api\"\n"
+        "\n[scale.microservices.rate_limit]\n"
+        + f"enabled = {enabled}\nper_ip_rpm = 120\nper_user_rpm = 30\n"
+        + extra
+    );
+}
+
+
+test "an enabled rate limit reaches the plan from jac.toml, both tiers" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=_rate_limit_toml("true", extra="burst_multiplier = 3.0\n")
+    );
+    assert "Cluster-wide" in out , f"no cluster-wide block in plan:\n{out}";
+    assert "120/min per IP" in out , f"per-IP limit missing from plan:\n{out}";
+    assert "30/min per user" in out , f"per-user limit missing from plan:\n{out}";
+    assert "burst x3" in out;
+}
+
+
+test "a rate limit with both tiers at 0 renders as configured-but-inert" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=(
+            "[scale.microservices.routes]\napi = \"/api\"\n"
+            "\n[scale.microservices.rate_limit]\n"
+            "enabled = true\nper_ip_rpm = 0\nper_user_rpm = 0\n"
+        )
+    );
+    assert "rate_limit:" in out , f"an inert limit rendered nothing:\n{out}";
+    assert "no limit" in out;
+}
+
+
+test "a disabled rate limit renders no rate-limit line" {
+    (out, _) = _run_plan(
+        {"deployments": {"api": _dep()}, "services": {"api": {}}},
+        ms_toml=_rate_limit_toml("false")
+    );
+    assert "rate_limit:" not in out , f"disabled limit rendered a line:\n{out}";
+    assert "120/min" not in out;
 }
 
 

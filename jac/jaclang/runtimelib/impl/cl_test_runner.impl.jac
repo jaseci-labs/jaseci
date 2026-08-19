@@ -9,7 +9,6 @@ import tempfile;
 import time;
 import from contextlib { suppress }
 import from pathlib { Path }
-import from collections.abc { Callable }
 import from jaclang.cli.console { console }
 
 impl compile_cl_module(filepath: str) -> tuple[str, list, dict, list] {

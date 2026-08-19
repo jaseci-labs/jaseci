@@ -7,7 +7,6 @@ to -- is the very object these endpoints read. `ui_configure()` runs once at
 boot to point the agent at the user's project (passed via env by the launcher).
 """
 
-import from typing { Iterator }
 import from jaclang.cli.ai_agent {
     ui_configure,
     ui_send,

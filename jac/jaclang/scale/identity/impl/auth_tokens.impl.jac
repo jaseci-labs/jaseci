@@ -53,7 +53,7 @@ impl AuthTokenStore.create_token(
     return raw;
 }
 
-impl AuthTokenStore.peek_token(token: str, purpose: str) -> (dict[str, Any] | None) {
+impl AuthTokenStore.peek_token(token: str, purpose: str) -> (dict[str, any] | None) {
     record = self._find(AuthTokenStore.hash_token(token), purpose);
     if record is None {
         return None;
@@ -65,7 +65,7 @@ impl AuthTokenStore.peek_token(token: str, purpose: str) -> (dict[str, Any] | No
     return record;
 }
 
-impl AuthTokenStore.consume_token(token: str, purpose: str) -> (dict[str, Any] | None) {
+impl AuthTokenStore.consume_token(token: str, purpose: str) -> (dict[str, any] | None) {
     record = self.peek_token(token, purpose);
     if record is None {
         return None;
@@ -81,7 +81,7 @@ impl AuthTokenStore.revoke_user_tokens(user_id: str, purpose: str) -> int {
     return self._delete_user(user_id, purpose);
 }
 
-impl AuthTokenStore._persist(record: dict[str, Any]) -> None {
+impl AuthTokenStore._persist(record: dict[str, any]) -> None {
     if self._db is not None {
         try {
             import json;
@@ -110,7 +110,7 @@ impl AuthTokenStore._persist(record: dict[str, Any]) -> None {
     self._in_memory[record['token_hash']] = dict(record);
 }
 
-impl AuthTokenStore._find(token_hash: str, purpose: str) -> (dict[str, Any] | None) {
+impl AuthTokenStore._find(token_hash: str, purpose: str) -> (dict[str, any] | None) {
     if self._db is not None {
         try {
             import json;
@@ -181,7 +181,7 @@ impl AuthTokenStore._delete_user(user_id: str, purpose: str) -> int {
     return len(to_delete);
 }
 
-def _is_expired(record: dict[str, Any]) -> bool {
+def _is_expired(record: dict[str, any]) -> bool {
     expires_at = record.get('expires_at');
     if expires_at is None {
         return False;

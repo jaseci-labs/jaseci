@@ -7,6 +7,7 @@ import from jaclang.jac0core.diagnostics {
     E5026,
     E5060,
     E5088,
+    E5089,
     E5090,
     E5091,
     E5092,
@@ -155,6 +156,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_foreign: dict[str, set] = {},
+        struct_field_opaque: dict[str, dict] = {},
         struct_field_erased_tv: dict[str, dict] = {},
         arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
@@ -899,6 +901,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _pyb_base_of(arch_name: str) -> (tuple | None);
     def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
+    def _pyb_native_override_owner(arch_name: str, meth: str) -> (str | None);
+    def _pyb_shadowed_dispatch(arch_name: str, method_name: str) -> (tuple | None);
     def _pyb_helper(name: str) -> ir.Function;
     def _pyb_emit_conv1(
         name: str,
@@ -983,6 +987,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _demote_method_if_unlowerable(
         full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
+    ) -> bool;
+
+    def _seam_warnings_on -> bool;
+    def _opaque_field_if_unlowerable(
+        arch_name: str, fname: str, local_mark: int
+    ) -> (ir.Type | None);
+
+    def _refuse_opaque_field(
+        nd: (uni.UniNode | None), type_name: (str | None), fname: str
     ) -> bool;
 
     def _predemote_capability_unit(
@@ -1080,7 +1093,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value;
     def _codegen_field_access(
-        obj_val: ir.Value, field_name: str, type_name: str
+        obj_val: ir.Value,
+        field_name: str,
+        type_name: str,
+        nd: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(

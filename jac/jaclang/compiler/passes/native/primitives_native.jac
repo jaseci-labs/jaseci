@@ -1515,6 +1515,9 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         p = ctx.pass_ref;
         b = get_builder(p);
         i64 = ir.IntType(64);
+        if p._opt_ptr_payload_of(arg_val.type) is not None {
+            arg_val = b.extract_value(arg_val, 1, name="id.opt");
+        }
         if isinstance(arg_val.type, ir.PointerType) {
             return b.ptrtoint(arg_val, i64, name="id.ptr");
         }

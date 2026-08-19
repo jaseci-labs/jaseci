@@ -137,6 +137,7 @@ def run_pass(
             ir_in=ir_in,
             prog=prog,
             cancel_token=cancel_token,
+            cancel_requested=bool(cancel_token is not None and cancel_token.is_set()),
             policy=pol,
             errors_had=errors,
             warnings_had=warnings,
@@ -1225,6 +1226,14 @@ obj JacCompiler {
 
     has internal_program: JacProgram { getter; }
 
+    def postinit {
+        import from jaclang.jac0core.native_brands {
+            DRIVER_ORIGIN,
+            ensure_native_brands_bound
+        }
+        ensure_native_brands_bound(DRIVER_ORIGIN);
+    }
+
     def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
@@ -1273,7 +1282,8 @@ obj JacCompiler {
         source_str: str,
         file_path: str,
         target_program: JacProgram,
-        cancel_token: (Event | None) = None
+        cancel_token: (Event | None) = None,
+        prefix_kind: str = ''
     ) -> uni.Module;
 
     def load_annex_modules(
@@ -1331,7 +1341,7 @@ obj JacCompiler {
     ) -> None;
 
     static def _prepare_tool_program(
-        source_str: str, file_path: str, expand: bool = False
+        source_str: str, file_path: str
     ) -> tuple[JacProgram, (uni.Module | None)];
 
     static def jac_file_formatter(
