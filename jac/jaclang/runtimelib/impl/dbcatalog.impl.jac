@@ -2,7 +2,7 @@ import os;
 import platform;
 import from threading { Event, Lock, Thread }
 
-glob _heartbeats: dict[str, Any] = {},
+glob _heartbeats: dict[str, any] = {},
      _heartbeat_lock = Lock(),
      _HEARTBEAT_WARN_AFTER_SECONDS = 300;
 
@@ -70,7 +70,7 @@ impl holds_no_data(info: ConnInfo, database: str) -> bool {
     import from jaclang.jac0core.constant { Constants as Con }
     import from jaclang.vendor.pgload { connect }
     try {
-        conn: Any = connect(
+        conn: any = connect(
             info.user,
             host=info.host,
             port=info.port,
@@ -134,7 +134,7 @@ impl admin_conninfo(info: ConnInfo) -> ConnInfo {
 }
 
 
-impl connect_admin(info: ConnInfo) -> Any {
+impl connect_admin(info: ConnInfo) -> any {
     import from jaclang.vendor.pgload { connect }
     admin = admin_conninfo(info);
     return connect(
@@ -148,7 +148,7 @@ impl connect_admin(info: ConnInfo) -> Any {
 }
 
 
-impl ensure_registry(conn: Any) -> bool {
+impl ensure_registry(conn: any) -> bool {
     try {
         conn.run(_registry_ddl());
         for stmt in _heartbeat_column_ddl() {
@@ -162,7 +162,7 @@ impl ensure_registry(conn: Any) -> bool {
 }
 
 
-impl record_database(conn: Any, database: str, kind: DbKind, owner_path: str) -> None {
+impl record_database(conn: any, database: str, kind: DbKind, owner_path: str) -> None {
     if not is_jac_database(database) {
         return;
     }
@@ -206,7 +206,7 @@ impl record_database(conn: Any, database: str, kind: DbKind, owner_path: str) ->
 }
 
 
-impl forget_database(conn: Any, database: str) -> None {
+impl forget_database(conn: any, database: str) -> None {
     try {
         conn.run(f"DELETE FROM {REGISTRY_TABLE} WHERE database = :db", db=database);
     } except Exception as e {
@@ -239,12 +239,12 @@ def _records_sql(predicate: str) -> str {
 }
 
 
-def _age_of(raw: Any) -> int {
+def _age_of(raw: any) -> int {
     return int(raw) if raw is not None else -1;
 }
 
 
-def _record_of(row: Any) -> DbRecord {
+def _record_of(row: any) -> DbRecord {
     return DbRecord(
         database=str(row[0]),
         size_bytes=int(row[1] or 0),
@@ -262,7 +262,7 @@ def _record_of(row: Any) -> DbRecord {
 }
 
 
-impl list_databases(conn: Any) -> list[DbRecord] {
+impl list_databases(conn: any) -> list[DbRecord] {
     ensure_registry(conn);
     rows = conn.run(
         _records_sql('d.datname LIKE :pattern'),
@@ -273,7 +273,7 @@ impl list_databases(conn: Any) -> list[DbRecord] {
 }
 
 
-impl load_record(conn: Any, database: str) -> (DbRecord | None) {
+impl load_record(conn: any, database: str) -> (DbRecord | None) {
     try {
         rows = conn.run(_records_sql('d.datname = :db'), db=database) or [];
     } except Exception as e {
@@ -284,7 +284,7 @@ impl load_record(conn: Any, database: str) -> (DbRecord | None) {
 }
 
 
-impl drop_database(conn: Any, database: str, force: bool = False) -> bool {
+impl drop_database(conn: any, database: str, force: bool = False) -> bool {
     assert is_jac_database(database) , (
         f"refusing to drop {database!r}: only jac-owned databases "
         f"(named {DB_PREFIX}*) can be dropped"
@@ -330,7 +330,7 @@ impl dead_scratch_databases(records: list[DbRecord]) -> list[str] {
 }
 
 
-impl touch_heartbeat(conn: Any, database: str) -> bool {
+impl touch_heartbeat(conn: any, database: str) -> bool {
     try {
         conn.run(
             f"UPDATE {REGISTRY_TABLE} "
@@ -346,7 +346,7 @@ impl touch_heartbeat(conn: Any, database: str) -> bool {
 }
 
 
-impl condemn_stale_scratch(conn: Any, records: list[DbRecord]) -> list[str] {
+impl condemn_stale_scratch(conn: any, records: list[DbRecord]) -> list[str] {
     marked: list[str] = [];
     for rec in records {
         if not rec.looks_abandoned() or rec.condemned_age_seconds >= 0 {
@@ -367,7 +367,7 @@ impl condemn_stale_scratch(conn: Any, records: list[DbRecord]) -> list[str] {
 }
 
 
-impl drop_if_still_dead(conn: Any, database: str) -> bool {
+impl drop_if_still_dead(conn: any, database: str) -> bool {
     fresh = load_record(conn, database);
     if fresh is None {
         return False;
@@ -383,7 +383,7 @@ impl drop_if_still_dead(conn: Any, database: str) -> bool {
 
 
 def _heartbeat_once(info: ConnInfo, database: str) -> bool {
-    conn: (Any | None) = None;
+    conn: (any | None) = None;
     try {
         conn = connect_admin(info);
         return touch_heartbeat(conn, database);
@@ -400,7 +400,7 @@ def _heartbeat_once(info: ConnInfo, database: str) -> bool {
 }
 
 
-def _heartbeat_loop(info: ConnInfo, database: str, stop: Any) {
+def _heartbeat_loop(info: ConnInfo, database: str, stop: any) {
     failures = 0;
     warnings = 0;
     while not stop.wait(SCRATCH_HEARTBEAT_SECONDS) {
@@ -467,7 +467,7 @@ impl stop_heartbeat(database: str) -> None {
 }
 
 
-impl expired_databases(conn: Any, days: int, keep: str) -> list[str] {
+impl expired_databases(conn: any, days: int, keep: str) -> list[str] {
     if days <= 0 {
         return [];
     }

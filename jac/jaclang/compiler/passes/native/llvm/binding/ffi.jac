@@ -54,7 +54,7 @@ class _LazyLib {
         self._handle = None;
     }
 
-    def __getattr__(self: _LazyLib, name: str) -> Any {
+    def __getattr__(self: _LazyLib, name: str) -> any {
         if self._handle is None {
             self._handle = ctypes.CDLL(_find_shim());
         }
@@ -66,7 +66,7 @@ class _LazyLib {
 glob lib = _LazyLib();
 
 
-def _opaque(name: str) -> Any {
+def _opaque(name: str) -> any {
     return ctypes.POINTER(`type(name, (ctypes.Structure, ), {}));
 }
 
@@ -109,11 +109,11 @@ class _DeadPointer {}
 
 class OutputString {
     @classmethod
-    def from_return(cls: Any, ptr: Any) -> Any {
+    def from_return(cls: any, ptr: any) -> any {
         return cls(initval=ctypes.cast(ptr, ctypes.c_char_p));
     }
 
-    def init(self: OutputString, owned: bool = True, initval: Any = None) {
+    def init(self: OutputString, owned: bool = True, initval: any = None) {
         self._ptr = initval if initval is not None else ctypes.c_char_p(None);
         self._as_parameter_ = ctypes.byref(self._ptr);
         self._owned = owned;
@@ -129,11 +129,11 @@ class OutputString {
         }
     }
 
-    def __enter__(self: OutputString) -> Any {
+    def __enter__(self: OutputString) -> any {
         return self;
     }
 
-    def __exit__(self: OutputString, exc_type: Any, exc_val: Any, exc_tb: Any) {
+    def __exit__(self: OutputString, exc_type: any, exc_val: any, exc_tb: any) {
         self.close();
     }
 
@@ -160,7 +160,7 @@ class OutputString {
         return bool(self._ptr);
     }
 
-    has bytes: Any {
+    has bytes: any {
         getter {
             return self._ptr.value;
         }
@@ -168,7 +168,7 @@ class OutputString {
 }
 
 
-def ret_string(ptr: Any) -> Any {
+def ret_string(ptr: any) -> any {
     if ptr is not None {
         return str(OutputString.from_return(ptr));
     }
@@ -176,7 +176,7 @@ def ret_string(ptr: Any) -> Any {
 }
 
 
-def ret_bytes(ptr: Any) -> Any {
+def ret_bytes(ptr: any) -> any {
     if ptr is not None {
         return OutputString.from_return(ptr).bytes;
     }
@@ -185,7 +185,7 @@ def ret_bytes(ptr: Any) -> Any {
 
 
 class ObjectRef {
-    def init(self: ObjectRef, ptr: Any) {
+    def init(self: ObjectRef, ptr: any) {
         if ptr is None {
             raise ValueError("NULL pointer");
         }
@@ -224,14 +224,14 @@ class ObjectRef {
         }
     }
 
-    def __enter__(self: ObjectRef) -> Any {
+    def __enter__(self: ObjectRef) -> any {
         if self._closed {
             raise RuntimeError(f"{self.__class__} instance already closed");
         }
         return self;
     }
 
-    def __exit__(self: ObjectRef, exc_type: Any, exc_val: Any, exc_tb: Any) {
+    def __exit__(self: ObjectRef, exc_type: any, exc_val: any, exc_tb: any) {
         self.close();
     }
 
@@ -249,7 +249,7 @@ class ObjectRef {
         return bool(self._ptr);
     }
 
-    def __eq__(self: ObjectRef, other: Any) -> bool {
+    def __eq__(self: ObjectRef, other: any) -> bool {
         if not hasattr(other, "_ptr") {
             return False;
         }

@@ -1,6 +1,5 @@
 import json;
-import from collections.abc { Callable, Sequence }
-import from typing { Any, TypeVar, cast }
+import from typing { cast }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
@@ -357,6 +356,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _inject_runtime_import(name: str, nd: uni.UniNode) -> None;
     def _ref_head_name(expr: (uni.UniNode | None)) -> (str | None);
     def _ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None);
+    def _register_jac_virtual_import(module_id: str) -> None;
     def _register_jac_runtime_import -> None;
     def _ensure_backend -> None;
     def _transform_to_useeffect(nd: uni.Ability) -> None;
@@ -511,7 +511,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _wrap_to_wire_if_boundary(
         expr: es.Expression,
         type_name: str,
-        boundary_types: dict[(str, Any)],
+        boundary_types: dict[(str, any)],
         jac_node: uni.UniNode
     ) -> es.Expression;
 
@@ -522,7 +522,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _wrap_return_with_boundary(
         call_expr: es.Expression,
         ret_type: str,
-        boundary_types: dict[(str, Any)],
+        boundary_types: dict[(str, any)],
         jac_node: uni.UniNode,
         pre_awaited: bool
     ) -> es.Expression;

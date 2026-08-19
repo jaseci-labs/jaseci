@@ -1844,7 +1844,7 @@ impl NaIRGenPass._nogc_elem_prep(
             return val;
         }
         if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
-            _mi = self.ir_in.gen?.rc_move_in or set();
+            _mi = self.ir_in.rc_move_in;
             if id(expr) in _mi {
                 _slot = self.local_vars[expr.sym_name];
                 self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
@@ -1876,7 +1876,7 @@ impl NaIRGenPass._nogc_elem_prep(
             and isinstance(expr, uni.Name)
             and expr.sym_name in self.local_vars
             and expr.sym_name not in self.param_vars {
-            _epm = self.ir_in.gen?.rc_move_in or set();
+            _epm = self.ir_in.rc_move_in;
             if id(expr) in _epm {
                 _ep_slot = self.local_vars[expr.sym_name];
                 if isinstance(_ep_slot.type, ir.PointerType)
@@ -1906,7 +1906,7 @@ impl NaIRGenPass._nogc_elem_prep(
         }
     }
     if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
-        _mi = self.ir_in.gen?.rc_move_in or set();
+        _mi = self.ir_in.rc_move_in;
         if id(expr) in _mi {
             _slot = self.local_vars[expr.sym_name];
             self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);

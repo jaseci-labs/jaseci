@@ -93,3 +93,41 @@ def id_float_stable -> int {
 def id_float_differs -> int {
     return 1 if id(1.5) == id(2.5) else 0;
 }
+
+
+obj Link {
+    has to: (Node | None) = None;
+}
+
+
+def id_optional_attr -> int {
+    l = Link(to=Node(n=3));
+    m = Link(to=l.to);
+    return 1 if id(l.to) == id(m.to) else 0;
+}
+
+
+def id_optional_attr_distinct -> int {
+    l = Link(to=Node(n=3));
+    m = Link(to=Node(n=3));
+    return 1 if id(l.to) == id(m.to) else 0;
+}
+
+
+def id_optional_none_is_zero -> int {
+    l = Link();
+    return id(l.to);
+}
+
+
+def id_optional_loop_carried -> int {
+    chain = [Link(to=Node(n=1)), Link(to=Node(n=2))];
+    seen: set[int] = set();
+    for outer in chain {
+        for _ in range(2) {
+            cur = outer.to;
+            seen.add(id(cur));
+        }
+    }
+    return len(seen);
+}

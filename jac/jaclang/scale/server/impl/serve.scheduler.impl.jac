@@ -19,13 +19,13 @@ def _err_response(e: Exception) -> TransportResponse {
 }
 
 def _require_auth(
-    request: Any, user_manager: Any
+    request: any, user_manager: any
 ) -> tuple[str | None, TransportResponse | None] {
     return authenticate_or_fail(request.headers.get('Authorization'), user_manager);
 }
 
 def _ensure_authorized(
-    job: dict | None, user_id: str, user_manager: Any
+    job: dict | None, user_id: str, user_manager: any
 ) -> TransportResponse | None {
     not_found = TransportResponse.fail(
         code='NOT_FOUND', message='Job not found', meta=Meta(extra={'http_status': 404})

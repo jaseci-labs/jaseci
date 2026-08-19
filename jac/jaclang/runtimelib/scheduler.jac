@@ -3,7 +3,6 @@ import time;
 import heapq;
 import datetime;
 import logging;
-import from collections.abc { Callable }
 import from jaclang.runtimelib.builtin { ScheduleTrigger }
 
 glob _scheduler_instance: (Scheduler | None) = None,
