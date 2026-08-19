@@ -5449,16 +5449,41 @@ def visit_match(
 
 # Lower an if/while test (CPython bool context): single Compare uses COMPARE_OP
 # with bool oparg; other expressions use TO_BOOL after visit_expr.
-def visit_test_expr(g: cfg_builder, e: expr, test_loc: cloc) {
+# visit_test_expr return kinds. NORMAL leaves a bool on the stack, consumed by a
+# POP_JUMP_IF_FALSE. IS_NONE / IS_NOT_NONE leave the bare operand on the stack;
+# the caller must consume it with POP_JUMP_IF_NOT_NONE / POP_JUMP_IF_NONE (the
+# CPython `x is None` jump peephole), via emit_branch_if_test_false.
+glob TEST_NORMAL: int = 0;
+glob TEST_IS_NONE: int = 1;
+glob TEST_IS_NOT_NONE: int = 2;
+
+def visit_test_expr(
+    g: cfg_builder, e: expr, test_loc: cloc, allow_none_peephole: bool = False
+) -> int {
     if isinstance(e, Compare) {
         c = e as Compare;
         if len(c.ops) == 1 {
             cloc_cmp = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
             if is_none_identity_test(c.ops[0], c.comparators[0]) {
+                if allow_none_peephole {
+                    # Emit only the left operand; the branch site folds the
+                    # identity + jump into POP_JUMP_IF_NONE / _NOT_NONE.
+                    visit_expr(g, c.left);
+                    # CPython compiles the None comparand's LOAD_CONST (adding
+                    # None to co_consts) before the peephole removes the load, so
+                    # None still occupies its const-pool slot. Register it here to
+                    # match co_consts ordering (and suppress a spurious dead
+                    # small-int slot at index 0).
+                    g.u.add_const(py_none());
+                    if isinstance(c.ops[0], Is) {
+                        return TEST_IS_NONE;
+                    }
+                    return TEST_IS_NOT_NONE;
+                }
                 codegen_fail(
                     g, "NotImplementedError", "is-None jump peephole not supported"
                 );
-                return;
+                return TEST_NORMAL;
             }
             visit_expr(g, c.left);
             visit_expr(g, c.comparators[0]);
@@ -5466,13 +5491,32 @@ def visit_test_expr(g: cfg_builder, e: expr, test_loc: cloc) {
                 codegen_fail(
                     g, "NotImplementedError", "unsupported comparison operator"
                 );
-                return;
+                return TEST_NORMAL;
             }
-            return;
+            return TEST_NORMAL;
         }
     }
     visit_expr(g, e);
     g.emit_op(OP_TO_BOOL, 0, test_loc);
+    return TEST_NORMAL;
+}
+
+# Emit the conditional branch taken when a visit_test_expr result is FALSE. For
+# the None-identity kinds this is the CPython jump peephole:
+#   `x is None`     -> POP_JUMP_IF_NOT_NONE  (branch away when x is NOT None)
+#   `x is not None` -> POP_JUMP_IF_NONE      (branch away when x IS None)
+def emit_branch_if_test_false(
+    g: cfg_builder, kind: int, target_id: int, loc: cloc
+) {
+    if kind == TEST_IS_NONE {
+        g.emit_jump(OP_POP_JUMP_IF_NOT_NONE, target_id, loc);
+        return;
+    }
+    if kind == TEST_IS_NOT_NONE {
+        g.emit_jump(OP_POP_JUMP_IF_NONE, target_id, loc);
+        return;
+    }
+    g.emit_jump(OP_POP_JUMP_IF_FALSE, target_id, loc);
 }
 
 def visit_if(
@@ -5485,7 +5529,7 @@ def visit_if(
 ) -> stmt_cont {
     iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
     test_loc = expr_loc(i.test);
-    visit_test_expr(g, i.test, test_loc);
+    kind = visit_test_expr(g, i.test, test_loc, True);
     if codegen_busy(g) {
         return stmt_cont(loc=iloc);
     }
@@ -5496,7 +5540,7 @@ def visit_if(
         if has_else {
             if tail_more {
                 join = g.new_block();
-                g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+                emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
                 body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
                 if codegen_busy(g) {
                     return stmt_cont(loc=body_cont.loc);
@@ -5530,7 +5574,7 @@ def visit_if(
             # resetting the caller's index -> infinite loop on
             # `if c: return; if d: ... else: ...; <more>`.
             join = g.new_block();
-            g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+            emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
             body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
@@ -5552,7 +5596,7 @@ def visit_if(
             join = g.new_block();
             owns_tail = True;
         }
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, join.id, test_loc);
+        emit_branch_if_test_false(g, kind, join.id, test_loc);
         body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, join);
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
@@ -5576,7 +5620,7 @@ def visit_if(
         }
         return stmt_cont(loc=body_cont.loc);
     }
-    g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+    emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
     body_cont = visit_stmts(g, i.body);
     if codegen_busy(g) {
         return stmt_cont(loc=body_cont.loc);
@@ -5602,14 +5646,14 @@ def visit_while(
     test_loc = expr_loc(w.test);
     head = g.new_block();
     g.use(head);
-    visit_test_expr(g, w.test, test_loc);
+    kind = visit_test_expr(g, w.test, test_loc, True);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
     has_break = loop_body_has_break(w.body);
     if more_code_follows {
         exit_blk = g.new_block();
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, exit_blk.id, test_loc);
+        emit_branch_if_test_false(g, kind, exit_blk.id, test_loc);
         break_blk = g.new_block();
         g.push_loop(head, break_blk, has_break);
         body_cont = visit_stmts(g, w.body);
@@ -5649,7 +5693,7 @@ def visit_while(
     }
     if len(g.loop_stack) > 0 {
         after_body = g.new_block();
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, after_body.id, test_loc);
+        emit_branch_if_test_false(g, kind, after_body.id, test_loc);
         if has_break {
             break_blk = g.new_block();
             g.push_loop(head, break_blk, True);
@@ -5672,7 +5716,7 @@ def visit_while(
         g.use(after_body);
         return stmt_cont(loc=wloc, terminated=False);
     }
-    g.emit_jump(OP_POP_JUMP_IF_FALSE, 0, test_loc);
+    emit_branch_if_test_false(g, kind, 0, test_loc);
     pop_false_ins = g.cur.instrs[len(g.cur.instrs) - 1];
     g.push_loop(head, head, False);
     body_cont = visit_stmts(g, w.body);

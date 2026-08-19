@@ -617,6 +617,29 @@ test "compiler_slice: delete local matches oracle nested co_code" {
     assert af.co_code == ef.co_code;
 }
 
+# `x is None` / `x is not None` in if / while test context fold into the CPython
+# jump peephole POP_JUMP_IF_NOT_NONE / POP_JUMP_IF_NONE (the LOAD_CONST None +
+# IS_OP are dropped, but None keeps its co_consts slot).
+test "compiler_slice: is-None jump peephole matches oracle PyCode" {
+    for src in [
+        "if a is None:\n    r = 1\n",
+        "if a is not None:\n    r = 1\n",
+        "if a is None:\n    r = 1\nelse:\n    r = 2\n",
+        "while a is None:\n    a = f()\n",
+        "while a is not None:\n    a = f()\n",
+        "x = 1\nif a is None:\n    r = 2\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+        assert len(actual.consts) == len(exp.consts);
+    }
+}
+
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
 }
