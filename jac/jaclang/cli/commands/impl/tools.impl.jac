@@ -168,7 +168,7 @@ impl completions(shell: str = "bash", install: bool = False) -> int {
 }
 
 def _extract_commands(registry: any) -> list {
-    import from jaclang.cli.command { ArgKind }
+    import from jaclang.cli.command { ArgKind, negation_meaningful }
     commands = [];
     for (name, spec) in sorted(registry.commands.items()) {
         flags = [];
@@ -178,7 +178,9 @@ def _extract_commands(registry: any) -> list {
             short = f"-{arg.short}" if arg.short else None;
             if arg.kind == ArgKind.FLAG or arg.typ == bool {
                 flags.append((f"--{arg.name}", short, arg.help or ""));
-                flags.append((f"--no-{arg.name}", None, f"Disable {arg.name}"));
+                if negation_meaningful(arg.default) {
+                    flags.append((f"--no-{arg.name}", None, f"Disable {arg.name}"));
+                }
             } elif arg.kind == ArgKind.OPTION {
                 if arg.choices {
                     value_opts.append(

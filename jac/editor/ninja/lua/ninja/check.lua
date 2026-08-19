@@ -183,7 +183,7 @@ function M.check(paths, opts)
     vim.notify("jac check: checking " .. #paths .. " file(s)…", vim.log.levels.INFO)
   end
 
-  local cmd = vim.list_extend({ jac_bin(), "check", "--no-nowarn" }, paths)
+  local cmd = vim.list_extend({ jac_bin(), "check" }, paths)
   local output_lines = {}
 
   local function on_done()

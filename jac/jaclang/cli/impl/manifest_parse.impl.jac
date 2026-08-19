@@ -1,5 +1,10 @@
 import argparse;
-import from jaclang.cli.command { ArgKind, arg_consumes_value, resolve_arg_typ }
+import from jaclang.cli.command {
+    ArgKind,
+    arg_consumes_value,
+    negation_meaningful,
+    resolve_arg_typ
+}
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
@@ -52,21 +57,17 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
         kwargs["nargs"] = argparse.REMAINDER;
         parser.add_argument(arg.name, **kwargs);
     } elif not arg_consumes_value(kind, arg.typ) {
-        kwargs["action"] = "store_true";
-        kwargs["default"] = arg.default if arg.default is not None else False;
-        shared_dest: str = kwargs.get("dest") or arg.name.replace("-", "_");
-        kwargs["dest"] = shared_dest;
+        kwargs["action"] = (
+            argparse.BooleanOptionalAction
+                if negation_meaningful(arg.default)
+                else "store_true"
+        );
+        kwargs["default"] = arg.default is True;
         if arg.short {
             parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
         } else {
             parser.add_argument(f"--{arg.name}", **kwargs);
         }
-        no_kwargs = {
-            "action": "store_false",
-            "dest": shared_dest,
-            "help": f"Disable {arg.name}"
-        };
-        parser.add_argument(f"--no-{arg.name}", **no_kwargs);
     } else {
         kwargs["type"] = typ;
         kwargs["default"] = arg.default;

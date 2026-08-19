@@ -187,7 +187,7 @@ The first four need a real `.jac` file in focus; from the start screen or the ex
 - the **quickfix list** is populated with one entry per diagnostic, so `]` `q` and `[` `q` walk you from error to error, jumping the cursor to the exact line and column;
 - a **summary** is flashed as a notification: `jac check: 2 error(s), 1 warning(s)`.
 
-Open the quickfix list as a navigable window with `:copen` (and `:cclose` to dismiss it). Toggle the raw output panel with `<Space>` `j` `o` at any time. Warnings are always included -- the editor runs `jac check --no-nowarn` so nothing is hidden from you.
+Open the quickfix list as a navigable window with `:copen` (and `:cclose` to dismiss it). Toggle the raw output panel with `<Space>` `j` `o` at any time. Warnings are always included -- the editor runs plain `jac check`, which reports them by default, so nothing is hidden from you.
 
 ---
 

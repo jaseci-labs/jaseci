@@ -42,6 +42,11 @@ def arg_consumes_value(kind: ArgKind, typ_name: str) -> bool {
     return kind != ArgKind.FLAG and typ_name != "bool";
 }
 
+def negation_meaningful(declared_default: any) -> bool {
+    # For a default-off flag, --no-X parses identically to silence.
+    return declared_default is True;
+}
+
 obj Arg {
     has name: str,
         kind: ArgKind = ArgKind.OPTION,
