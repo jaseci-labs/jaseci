@@ -2,7 +2,6 @@ import base64;
 import os;
 import tarfile;
 import time;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import requests;
 import urllib3;
