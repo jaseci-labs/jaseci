@@ -959,7 +959,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _emit_dispatched_field_ptr(
-        obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+        obj_val: ir.Value,
+        type_name: str,
+        field_name: str,
+        ftype: (ir.Type | None)
     ) -> (ir.Value | None);
 
     def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);

@@ -3232,7 +3232,7 @@ impl NaIRGenPass._codegen_accessor_call(
 }
 
 impl NaIRGenPass._emit_dispatched_field_ptr(
-    obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+    obj_val: ir.Value, type_name: str, field_name: str, ftype: (ir.Type | None)
 ) -> (ir.Value | None) {
     import from jaclang.compiler.passes.main.layout_pass {
         get_layout_registry as _df_glr
@@ -3243,7 +3243,7 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
         return None;
     }
     _base_idx = _base_lay.field_index.get(field_name);
-    if _base_idx is None {
+    if _base_idx is None and ftype is not None {
         return None;
     }
     _variants: list[tuple] = [];
@@ -3264,10 +3264,31 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
         if _vt is None {
             continue;
         }
-        _variants.append((_cls, _vt, _ci));
-        if _ci != _base_idx {
+        _cls_elems = self.struct_types[_cls].elements;
+        if _ci >= len(_cls_elems) {
+            continue;
+        }
+        if ftype is None {
+            if field_name in self.struct_field_inline.get(_cls, set()) {
+                return None;
+            }
+            _vf = _cls_elems[_ci];
+            if _variants and _vf != _variants[0][3] {
+                return None;
+            }
+            _variants.append((_cls, _vt, _ci, _vf));
+        } else {
+            _variants.append((_cls, _vt, _ci, ftype));
+        }
+        if _base_idx is None or _ci != _base_idx {
             _uniform = False;
         }
+    }
+    if ftype is None {
+        if not _variants {
+            return None;
+        }
+        ftype = _variants[0][3];
     }
     if field_name == "affected_symbols" and self._na_debug_on() {
         import sys as _df_sys;
@@ -3289,7 +3310,7 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
     _df_fnc = b.block.function;
     _df_done = _df_fnc.append_basic_block(name=f"df.{field_name}.done");
     _df_incoming: list[tuple] = [];
-    for (_vc, _vt, _ci) in _variants {
+    for (_vc, _vt, _ci, _vft) in _variants {
         _df_hit = _df_fnc.append_basic_block(name=f"df.{field_name}.{_vc}");
         _df_nxt = _df_fnc.append_basic_block(name=f"df.{field_name}.n.{_vc}");
         _df_eq = b.icmp_unsigned(
@@ -3312,17 +3333,28 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
         b.position_at_end(_df_nxt);
     }
 
-    _df_fb_recv = obj_val;
-    if type_name in self.struct_types {
-        _df_fb_recv = b.bitcast(
-            obj_val, self.struct_types[type_name].as_pointer(), name="df.self.fb"
+    if _base_idx is not None {
+        _df_fb_recv = obj_val;
+        if type_name in self.struct_types {
+            _df_fb_recv = b.bitcast(
+                obj_val, self.struct_types[type_name].as_pointer(), name="df.self.fb"
+            );
+        }
+        _df_fb = b.gep(
+            _df_fb_recv,
+            [ir.Constant(i32, 0), ir.Constant(i32, _base_idx)],
+            name="df.p.fb"
         );
+        _df_fbc = b.bitcast(_df_fb, _fp_t, name="df.pc.fb");
+        _df_incoming.append((_df_fbc, b.block));
+    } else {
+        self._emit_runtime_raise(
+            ir.Constant(ir.IntType(1), 1),
+            "AttributeError",
+            f"object has no attribute '{field_name}'"
+        );
+        _df_incoming.append((ir.Constant(_fp_t, None), b.block));
     }
-    _df_fb = b.gep(
-        _df_fb_recv, [ir.Constant(i32, 0), ir.Constant(i32, _base_idx)], name="df.p.fb"
-    );
-    _df_fbc = b.bitcast(_df_fb, _fp_t, name="df.pc.fb");
-    _df_incoming.append((_df_fbc, b.block));
     b.branch(_df_done);
     b.position_at_end(_df_done);
     _df_phi = b.phi(_fp_t, name=f"df.{field_name}.ptr");
@@ -3485,6 +3517,15 @@ impl NaIRGenPass._codegen_field_access(
     field_indices = self.struct_field_indices.get(type_name);
     _getter = self._accessor_slot_of(type_name, field_name, "property");
     if _getter is None and (field_indices is None or field_name not in field_indices) {
+        _uf_recv = self._narrow_receiver_ptr(obj_val, type_name);
+        if _uf_recv is not None {
+            _uf_ptr = self._emit_dispatched_field_ptr(
+                _uf_recv, type_name, field_name, None
+            );
+            if _uf_ptr is not None {
+                return self.builder.load(_uf_ptr, name=f"field.{field_name}");
+            }
+        }
         return None;
     }
     if _getter is None and self._refuse_opaque_field(nd, type_name, field_name) {
