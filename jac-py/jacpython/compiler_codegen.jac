@@ -4547,36 +4547,45 @@ def visit_with(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     wloc = stmt_loc(w);
-    if len(w.items) != 1 {
-        codegen_fail(g, "NotImplementedError", "multiple with items not supported");
+    if len(w.items) < 1 {
+        codegen_fail(g, "SyntaxError", "with requires at least one item");
         return stmt_cont(loc=wloc);
     }
-    item = w.items[0];
-    cloc = expr_loc(item.context_expr);
-    visit_expr(g, item.context_expr);
-    if codegen_busy(g) {
-        return stmt_cont(loc=wloc);
-    }
-    g.emit_op(OP_COPY, 1, cloc);
-    g.emit_op(OP_LOAD_SPECIAL, 1, cloc);
-    g.emit_op(OP_SWAP, 2, cloc);
-    g.emit_op(OP_SWAP, 3, cloc);
-    g.emit_op(OP_LOAD_SPECIAL, 0, cloc);
-    g.emit_op(OP_CALL, 0, cloc);
-    if codegen_busy(g) {
-        return stmt_cont(loc=wloc);
-    }
-    bind_blk = g.new_block();
-    g.use(bind_blk);
-    if item.optional_vars is None {
-        g.emit_op(OP_POP_TOP, 0, cloc);
-    } else {
-        visit_store_target_tos(g, item.optional_vars);
+    noloc = no_loc();
+    n = len(w.items);
+    # --- enters: for each item, emit context-manager setup + bind target ---
+    store_ids: list[int] = [];
+    ei = 0;
+    while ei < n {
+        it = w.items[ei];
+        cl = expr_loc(it.context_expr);
+        visit_expr(g, it.context_expr);
         if codegen_busy(g) {
             return stmt_cont(loc=wloc);
         }
+        g.emit_op(OP_COPY, 1, cl);
+        g.emit_op(OP_LOAD_SPECIAL, 1, cl);
+        g.emit_op(OP_SWAP, 2, cl);
+        g.emit_op(OP_SWAP, 3, cl);
+        g.emit_op(OP_LOAD_SPECIAL, 0, cl);
+        g.emit_op(OP_CALL, 0, cl);
+        if codegen_busy(g) {
+            return stmt_cont(loc=wloc);
+        }
+        bind_blk = g.new_block();
+        g.use(bind_blk);
+        if it.optional_vars is None {
+            g.emit_op(OP_POP_TOP, 0, cl);
+        } else {
+            visit_store_target_tos(g, it.optional_vars);
+            if codegen_busy(g) {
+                return stmt_cont(loc=wloc);
+            }
+        }
+        store_ids.append(g.cur.id);
+        ei = ei + 1;
     }
-    protect_start = g.cur.id;
+    # --- body ---
     with_body = g.new_block();
     g.use(with_body);
     with_follows = more_code_follows;
@@ -4587,14 +4596,22 @@ def visit_with(
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
-    protect_end = g.new_block();
-    g.use(protect_end);
+    # --- inline __exit__ calls, innermost first (xs[k] is frame n-1-k) ---
     none_idx = g.u.add_const(py_none());
-    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
-    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
-    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
-    g.emit_op(OP_CALL, 3, wloc);
-    g.emit_op(OP_POP_TOP, 0, wloc);
+    xs: list[basicblock] = [];
+    k = 0;
+    while k < n {
+        xblk = g.new_block();
+        g.use(xblk);
+        g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+        g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+        g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+        g.emit_op(OP_CALL, 3, wloc);
+        g.emit_op(OP_POP_TOP, 0, wloc);
+        xs.append(xblk);
+        k = k + 1;
+    }
+    # normal-path continuation (after outermost inline exit)
     if with_follows {
         tail_more = False;
         if tail is not None and tail_idx + 1 < len(tail) {
@@ -4610,47 +4627,111 @@ def visit_with(
     } else {
         emit_module_return(g, body_cont.loc);
     }
-    with_except = g.new_block();
-    noloc = no_loc();
-    g.use(with_except);
-    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
-    g.emit_op(OP_WITH_EXCEPT_START, 0, noloc);
-    g.emit_op(OP_TO_BOOL, 0, noloc);
-    suppressed = g.new_block();
-    g.emit_jump(OP_POP_JUMP_IF_TRUE, suppressed.id, noloc);
-    g.emit_op(OP_RERAISE, 2, noloc);
-    g.use(suppressed);
-    g.emit_op(OP_POP_TOP, 0, noloc);
-    cleanup_end = g.new_block();
-    g.use(cleanup_end);
-    g.emit_op(OP_POP_EXCEPT, 0, noloc);
-    g.emit_op(OP_POP_TOP, 0, noloc);
-    g.emit_op(OP_POP_TOP, 0, noloc);
-    g.emit_op(OP_POP_TOP, 0, noloc);
-    emit_module_return(g, wloc);
-    unwind = g.new_block();
-    g.u.except_regions.append(
-        except_region(
-            start_block=protect_start,
-            end_block=protect_end.id,
-            handler_block=with_except.id,
-            stack_depth=4,
-            preserve_lasti=True
-        )
-    );
-    g.u.except_regions.append(
-        except_region(
-            start_block=with_except.id,
-            end_block=cleanup_end.id,
-            handler_block=unwind.id,
-            stack_depth=6,
-            preserve_lasti=True
-        )
-    );
-    g.use(unwind);
-    g.emit_op(OP_COPY, 3, noloc);
-    g.emit_op(OP_POP_EXCEPT, 0, noloc);
-    g.emit_op(OP_RERAISE, 1, noloc);
+    # --- cleanup handlers, innermost first (ws/ends/uns[k] is frame n-1-k) ---
+    ws: list[basicblock] = [];
+    ends: list[basicblock] = [];
+    uns: list[basicblock] = [];
+    k = 0;
+    while k < n {
+        i_frame = n - 1 - k;
+        with_except = g.new_block();
+        g.use(with_except);
+        g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+        g.emit_op(OP_WITH_EXCEPT_START, 0, noloc);
+        g.emit_op(OP_TO_BOOL, 0, noloc);
+        suppressed = g.new_block();
+        g.emit_jump(OP_POP_JUMP_IF_TRUE, suppressed.id, noloc);
+        g.emit_op(OP_RERAISE, 2, noloc);
+        g.use(suppressed);
+        g.emit_op(OP_POP_TOP, 0, noloc);
+        cleanup_end = g.new_block();
+        g.use(cleanup_end);
+        g.emit_op(OP_POP_EXCEPT, 0, noloc);
+        g.emit_op(OP_POP_TOP, 0, noloc);
+        g.emit_op(OP_POP_TOP, 0, noloc);
+        g.emit_op(OP_POP_TOP, 0, noloc);
+        if i_frame > 0 {
+            # fall back to the enclosing frame's inline __exit__ (xs[k+1] = X_{i-1})
+            g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, xs[k + 1].id, wloc);
+        } else {
+            emit_module_return(g, wloc);
+        }
+        unwind = g.new_block();
+        g.use(unwind);
+        g.emit_op(OP_COPY, 3, noloc);
+        g.emit_op(OP_POP_EXCEPT, 0, noloc);
+        g.emit_op(OP_RERAISE, 1, noloc);
+        ws.append(with_except);
+        ends.append(cleanup_end);
+        uns.append(unwind);
+        k = k + 1;
+    }
+    # --- exception regions (carved so the assembler emits them verbatim) ---
+    i = 0;
+    while i < n {
+        s_i = store_ids[i];
+        x_i = xs[n - 1 - i];
+        w_i = ws[n - 1 - i];
+        e_i = ends[n - 1 - i];
+        u_i = uns[n - 1 - i];
+        if i == n - 1 {
+            # innermost: protected body
+            g.u.except_regions.append(
+                except_region(
+                    start_block=s_i,
+                    end_block=x_i.id,
+                    handler_block=w_i.id,
+                    stack_depth=4 + 2 * i,
+                    preserve_lasti=True
+                )
+            );
+        } else {
+            s_next = store_ids[i + 1];
+            x_next = xs[n - 2 - i];
+            e_next = ends[n - 2 - i];
+            # enter of the next-inner item
+            g.u.except_regions.append(
+                except_region(
+                    start_block=s_i,
+                    end_block=s_next,
+                    handler_block=w_i.id,
+                    stack_depth=4 + 2 * i,
+                    preserve_lasti=True
+                )
+            );
+            # inline __exit__ of the next-inner frame
+            g.u.except_regions.append(
+                except_region(
+                    start_block=x_next.id,
+                    end_block=x_i.id,
+                    handler_block=w_i.id,
+                    stack_depth=4 + 2 * i,
+                    preserve_lasti=True
+                )
+            );
+            # cleanup tail + unwind of the next-inner frame
+            g.u.except_regions.append(
+                except_region(
+                    start_block=e_next.id,
+                    end_block=w_i.id,
+                    handler_block=w_i.id,
+                    stack_depth=4 + 2 * i,
+                    preserve_lasti=True
+                )
+            );
+        }
+        # this frame's own cleanup handler
+        g.u.except_regions.append(
+            except_region(
+                start_block=w_i.id,
+                end_block=e_i.id,
+                handler_block=u_i.id,
+                stack_depth=6 + 2 * i,
+                preserve_lasti=True
+            )
+        );
+        i = i + 1;
+    }
     return stmt_cont(loc=wloc, terminated=True);
 }
 

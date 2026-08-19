@@ -1959,6 +1959,86 @@ test "compiler_slice: band6 with no-as parsed executes in ceval" {
     assert expect_int(ns["result"]) == 99;
 }
 
+test "compiler_slice: band6 with two items parsed matches oracle co_code" {
+    src = (
+        "class CM:\n"
+            + "    def __init__(self, v):\n"
+            + "        self.v = v\n"
+            + "    def __enter__(self):\n"
+            + "        return self.v\n"
+            + "    def __exit__(self, *a):\n"
+            + "        return False\n"
+            + "with CM(1) as x, CM(2) as y:\n"
+            + "    result = x + y\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 with two items parsed executes in ceval" {
+    src = (
+        "class CM:\n"
+            + "    def __init__(self, v):\n"
+            + "        self.v = v\n"
+            + "    def __enter__(self):\n"
+            + "        return self.v\n"
+            + "    def __exit__(self, *a):\n"
+            + "        return False\n"
+            + "with CM(1) as x, CM(2) as y:\n"
+            + "    result = x + y\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band6 with mixed no-as parsed matches oracle co_code" {
+    src = (
+        "class CM:\n"
+            + "    def __init__(self, v):\n"
+            + "        self.v = v\n"
+            + "    def __enter__(self):\n"
+            + "        return self.v\n"
+            + "    def __exit__(self, *a):\n"
+            + "        return False\n"
+            + "with CM(1), CM(2) as y:\n"
+            + "    result = y\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 with mixed no-as parsed executes in ceval" {
+    src = (
+        "class CM:\n"
+            + "    def __init__(self, v):\n"
+            + "        self.v = v\n"
+            + "    def __enter__(self):\n"
+            + "        return self.v\n"
+            + "    def __exit__(self, *a):\n"
+            + "        return False\n"
+            + "with CM(1), CM(2) as y:\n"
+            + "    result = y\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 2;
+}
+
 # ---------------- Band 6 slice 6: assert ----------------
 
 test "compiler_slice: band6 assert parsed matches oracle co_code" {
