@@ -307,3 +307,106 @@ test "reap_stale_scaling_resources_for_bundle is a no-op on an empty bundle" {
     autoscaler.destroy.assert_not_called();
     custom_api.delete_namespaced_custom_object.assert_not_called();
 }
+
+
+# --- Section E: _validate_http_activation_rules (interceptor routing collisions)
+# Two services that both inherit the shared [scale.kubernetes.http_activation]
+# default unchanged resolve to identical InterceptorRoute match rules; the
+# interceptor then has no way to tell which target a matching request wakes.
+test "two services sharing identical non-empty rules raise ValueError" {
+    b = _builder({});
+    scaling = {
+        "billing_ops": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": [{"hosts": ["*"]}]}
+        },
+        "worker": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": [{"hosts": ["*"]}]}
+        },
+        "gateway_ok": {"mode": ScalingMode.METRIC, "http_activation": {}}
+    };
+    raised = False;
+    try {
+        b._validate_http_activation_rules(scaling);
+    } except ValueError as e {
+        raised = True;
+        assert "billing_ops" in str(e);
+        assert "worker" in str(e);
+    }
+    assert raised;
+}
+
+test "services with distinct per-service rules do not collide" {
+    b = _builder({});
+    scaling = {
+        "billing_ops": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": [{"hosts": ["billing.example.com"]}]}
+        },
+        "worker": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": [{"hosts": ["worker.example.com"]}]}
+        }
+    };
+    b._validate_http_activation_rules(scaling);
+}
+
+test "services left at the default empty rules do not collide (already dead, not ambiguous)" {
+    b = _builder({});
+    scaling = {
+        "billing_ops": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": []}
+        },
+        "worker": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": []}
+        }
+    };
+    b._validate_http_activation_rules(scaling);
+}
+
+test "a single service with shared rules and no HTTP_ACTIVATION peer does not collide" {
+    b = _builder({});
+    scaling = {
+        "billing_ops": {
+            "mode": ScalingMode.HTTP_ACTIVATION,
+            "http_activation": {"rules": [{"hosts": ["*"]}]}
+        },
+        "worker": {"mode": ScalingMode.METRIC, "http_activation": {}}
+    };
+    b._validate_http_activation_rules(scaling);
+}
+
+test "generate_manifests raises when two services inherit the shared catch-all rule unchanged" {
+    import from jaclang.scale.config.app_config { AppConfig }
+    services = {"billing_ops": {"http_activation": {"enabled": True}}, "worker": {}};
+    b = ManifestBuilder(
+        k8s_config=KubernetesConfig(
+            app_name="t",
+            namespace="t-ns",
+            bundle_storage_class="standard",
+            http_activation={
+                "enabled": True,
+                "target_port": 8080,
+                "concurrency_target": 10,
+                "rules": [{"hosts": ["*"]}]
+            }
+        ),
+        microservices_config={
+            "routes": {name: f"/{name}" for name in services},
+            "services": services
+        },
+        dry_run=True
+    );
+    raised = False;
+    try {
+        b.generate_manifests(AppConfig(code_folder=".", app_name="t"), "");
+    } except ValueError as e {
+        raised = True;
+        assert "billing_ops" in str(e);
+        assert "worker" in str(e);
+    }
+    assert raised;
+}

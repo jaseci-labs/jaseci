@@ -371,11 +371,12 @@ obj ManifestBuilder {
             scaling[svc_name] = self._resolve_scaling(
                 svc_name, deployments[svc_name], services[svc_name]
             );
-            pdb = self._build_pdb_manifest(svc_name);
+            pdb = self._build_pdb_manifest(svc_name, scaling[svc_name].get("mode"));
             if pdb is not None {
                 pdbs[svc_name] = pdb;
             }
         }
+        self._validate_http_activation_rules(scaling);
 
         bundle: dict[str, any] = {
             "deployments": deployments,
@@ -1021,6 +1022,41 @@ obj ManifestBuilder {
         };
     }
 
+    def _validate_http_activation_rules(scaling: dict[str, dict[str, any]]) {
+        """Two services sharing the top-level http_activation default with no
+        per-service override resolve to identical routing rules; the interceptor
+        then has no way to tell which target a matching request belongs to.
+        """;
+        import json;
+        by_rules: dict[str, list[str]] = {};
+        for (svc_name, plan) in scaling.items() {
+            if plan.get("mode") != ScalingMode.HTTP_ACTIVATION {
+                continue;
+            }
+            rules = plan.get("http_activation", {}).get("rules", []);
+            if not rules {
+                continue;
+            }
+            fingerprint = json.dumps(rules, sort_keys=True);
+            by_rules.setdefault(fingerprint, []).append(svc_name);
+        }
+        for svc_names in by_rules.values() {
+            if len(svc_names) > 1 {
+                names = ", ".join(sorted(svc_names));
+                raise ValueError(
+                    f"[http_activation] {names} resolve to identical routing "
+                    f"rules, most likely all inheriting "
+                    f"[scale.kubernetes.http_activation]'s rules unchanged. The "
+                    f"KEDA HTTP Add-on interceptor can't tell which target a "
+                    f"matching request belongs to when two InterceptorRoutes "
+                    f"share the same match criteria. Set a distinct "
+                    f"[services.NAME.http_activation.rules] for at least all "
+                    f"but one of these services."
+                );
+            }
+        }
+    }
+
     def _get_autoscaler_config(svc_name: str) -> dict[str, any] | None {
         svc: dict[str, any] = self._service_config(svc_name);
 
@@ -1159,9 +1195,23 @@ obj ManifestBuilder {
         return int(svc_cfg.get("replicas", 1));
     }
 
-    def _build_pdb_manifest(svc_name: str) -> dict[str, any] | None {
+    def _build_pdb_manifest(
+        svc_name: str, mode: (ScalingMode | None) = None
+    ) -> dict[str, any] | None {
         cfg: dict[str, any] = self._service_config(svc_name).get("pdb", {});
         if not cfg.get("enabled", True) {
+            return None;
+        }
+        if mode == ScalingMode.HTTP_ACTIVATION {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': it is "
+                    f"HTTP-activated and legitimately scales to zero replicas, "
+                    f"so a floor-based budget (pdb.max_unavailable / "
+                    f"min_available) doesn't apply. Disable it explicitly with "
+                    f"pdb.enabled = false to silence this warning."
+                );
+            }
             return None;
         }
         floor = self._replica_floor(svc_name);
