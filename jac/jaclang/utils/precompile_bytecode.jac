@@ -1315,12 +1315,23 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
                 else ln
         ) for ln in _PARITY_CANARY_LINES
     ];
-    corpora = [
-        (nl.join(_pfx_harness_lines), "__seal_prefix_harness__.jac", ),
-        (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_prefix_corpus__.jac", ),
+    _pfx_alerting_lines = [
+        "def m(p: int) -> int {",
+        "    break;",
+        "    return p;",
+        "}",
 
     ];
-    for (canary_src, canary_path) in corpora {
+    corpora = [
+        (nl.join(_pfx_harness_lines), "__seal_prefix_harness__.jac", 0, ),
+        (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_prefix_corpus__.jac", 0, ),
+        (nl.join(_pfx_alerting_lines), "__seal_prefix_alerting__.jac", 1, ),
+
+    ];
+    import from jaclang.jac0core.passes.prefix_drive {
+        PREFIX_NATIVE_FRONTIER as _pfx_frontier
+    }
+    for (canary_src, canary_path, min_rows) in corpora {
         try {
             r = np.parse_and_run_prefix(canary_src, canary_path, 6, "", 0, 0);
         } except Exception as run_exc {
@@ -1359,10 +1370,16 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
                 f"({n_errs}/{n_lex}): {'; '.join(_pd_head)}"
             );
         }
-        if executed != 6 or clause {
+        if executed != _pfx_frontier {
             return (
-                f"{canary_path}: the crossing executed {executed}/6 "
-                f"({clause or 'no clause'}: {detail})"
+                f"{canary_path}: the crossing executed {executed}, but the "
+                f"native frontier claims {_pfx_frontier} ({clause}: {detail})"
+            );
+        }
+        if len(rows) < min_rows {
+            return (
+                f"{canary_path}: the alerting corpus produced {len(rows)} "
+                f"row(s); a canary that cannot see an alert is decoration"
             );
         }
         (tokens, _c, _lx, lex_errs) = tokenize_full(canary_src, canary_path);
@@ -1373,18 +1390,17 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         }
         prog = JacProgram();
         staged_rows: list[tuple] = [];
-        for (pass_ord, cls) in enumerate(
-            (
-                ASTValidationPass,
-                SymTabBuildPass,
-                DeclImplMatchPass,
-                SemanticAnalysisPass,
-                SemDefMatchPass,
-                CFGBuildPass,
+        _pfx_all_passes = (
+            ASTValidationPass,
+            SymTabBuildPass,
+            DeclImplMatchPass,
+            SemanticAnalysisPass,
+            SemDefMatchPass,
+            CFGBuildPass,
 
-            )
-        ) {
-            inst = cls(ir_in=py_mod, prog=prog);
+        );
+        for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
+            inst: any = cls(ir_in=py_mod, prog=prog);
             for e in inst.errors_had {
                 staged_rows.append(
                     (

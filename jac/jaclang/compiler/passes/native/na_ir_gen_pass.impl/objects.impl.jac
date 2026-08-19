@@ -137,41 +137,62 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
         }
     }
 
+    import from jaclang.compiler.passes.main.layout_pass {
+        get_layout_registry as _no_glr
+    }
+    _no_reg = _no_glr(self.ir_in, self.prog);
     for (base_name, layout) in self.vtable_layouts.items() {
         non_overridden: set[str] = set();
+        _no_base_lay = _no_reg.get_layout(base_name);
         for method_name in layout {
             defining_class = self._resolve_method_owner(base_name, method_name);
             if defining_class is None {
                 continue;
             }
+            _no_base_owner = defining_class;
+            if _no_base_lay is not None {
+                _no_bmi = _no_base_lay.method_index.get(method_name);
+                if _no_bmi is not None and _no_bmi < len(_no_base_lay.methods) {
+                    _no_base_owner = _no_base_lay.methods[_no_bmi].owner
+                        or defining_class;
+                }
+            }
 
             overridden = False;
-            for child_name in self.arch_ast_map {
-                child_mro = self._mro_of(child_name);
-                if base_name not in child_mro {
+            for child_name in _no_reg.mro_order {
+                if child_name == base_name
+                    or base_name not in _no_reg.get_mro(child_name) {
                     continue;
                 }
-
-                child_full = f"{child_name}.{method_name}";
-                if child_full in self.method_funcs {
-                    child_arch = self.arch_ast_map.get(child_name);
-                    if child_arch is not None and child_arch.body is not None {
-                        for stmt in child_arch.body {
-                            if isinstance(stmt, uni.Ability) {
-                                mn = stmt.name_ref.sym_name if stmt.name_ref else None;
-                                if mn == method_name {
-                                    overridden = True;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if not overridden and child_arch is not None {
-                        for (_slot, _accvar, _acc) in archetype_accessors(child_arch) {
-                            if _slot == method_name {
+                _no_cl = _no_reg.get_layout(child_name);
+                if _no_cl is None {
+                    continue;
+                }
+                _no_cmi = _no_cl.method_index.get(method_name);
+                if _no_cmi is None or _no_cmi >= len(_no_cl.methods) {
+                    continue;
+                }
+                if _no_cl.methods[_no_cmi].owner != _no_base_owner {
+                    overridden = True;
+                    break;
+                }
+                child_arch = self.arch_ast_map.get(child_name);
+                if child_arch is not None and child_arch.body is not None {
+                    for stmt in child_arch.body {
+                        if isinstance(stmt, uni.Ability) {
+                            mn = stmt.name_ref.sym_name if stmt.name_ref else None;
+                            if mn == method_name {
                                 overridden = True;
                                 break;
                             }
+                        }
+                    }
+                }
+                if not overridden and child_arch is not None {
+                    for (_slot, _accvar, _acc) in archetype_accessors(child_arch) {
+                        if _slot == method_name {
+                            overridden = True;
+                            break;
                         }
                     }
                 }
