@@ -145,3 +145,64 @@ test "the betrayed caller re-emits and cascades honestly" {
         "a demoted function demotes, and the census says so"
     );
 }
+
+
+test "an oversized composition trips the blast-radius guard fast and loud" {
+    import from jaclang.compiler.passes.native.na_compile_pass {
+        NATIVE_LINK_COMPILE_BOUND,
+        NATIVE_VERDICT_MISS_BOUND,
+        NATIVE_VERDICT_TAINT_BOUND,
+        native_verdict_blast_guard
+    }
+
+    prog = JacProgram();
+    assert native_verdict_blast_guard(prog, 0) == "" , (
+        "a fresh program tripped the guard; the bounds are below healthy "
+        "baseline and every build would refuse"
+    );
+
+    fabricated: dict = {};
+    per_mod = 64;
+    mods = (NATIVE_VERDICT_TAINT_BOUND // per_mod) + 2;
+    for i in range(mods) {
+        fabricated[f"/fab/mod_{i}.jac"] = {
+            "/fab/callee.jac": {f"name_{i}_{j}" for j in range(per_mod)}
+        };
+    }
+    prog._na_unverified_live = fabricated;
+    msg = native_verdict_blast_guard(prog, 0);
+    assert msg != "" , (
+        "a fabricated unverified-live set larger than the taint bound did "
+        "not trip the guard; the avalanche class can present as a silent "
+        "hour again"
+    );
+    assert str(mods * per_mod) in msg and str(mods) in msg , (
+        f"the refusal must carry the numbers that tripped it, got: {msg}"
+    );
+
+    prog2 = JacProgram();
+    msg2 = native_verdict_blast_guard(prog2, NATIVE_LINK_COMPILE_BOUND + 1);
+    assert msg2 != "" and str(NATIVE_LINK_COMPILE_BOUND + 1) in msg2 , (
+        "an oversized link-time composition did not trip the guard or the "
+        f"refusal hid the count: {msg2}"
+    );
+
+    prog3 = JacProgram();
+    prog3._na_verdict_misses = NATIVE_VERDICT_MISS_BOUND + 7;
+    msg3 = native_verdict_blast_guard(prog3, 0);
+    assert msg3 != "" and str(NATIVE_VERDICT_MISS_BOUND + 7) in msg3 , (
+        "systematic fail-closed verdict misses did not trip the guard or "
+        f"the refusal hid the count: {msg3}"
+    );
+
+    assert native_verdict_blast_guard(prog, 0, aot_lane=True) == "" , (
+        "the aot lane's taint is pending convergence work, not pathology; "
+        "bounding it below a healthy seal baseline refuses every large "
+        "sealed unit (the unitree root alone carries thousands of "
+        "provisional names mid-walk)"
+    );
+    assert native_verdict_blast_guard(prog3, 0, aot_lane=True) != "" , (
+        "fail-closed misses must trip the guard in every lane; aot "
+        "tolerance is for the taint lever only"
+    );
+}

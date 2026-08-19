@@ -11,7 +11,8 @@ import from jaclang.jac0core.diagnostics {
     E5025,
     E5026,
     E5027,
-    E5028
+    E5028,
+    E5029
 }
 
 obj DepClibMeta {
@@ -37,6 +38,14 @@ def native_unit_demotions(prog: any, real_path: str, options: any) -> set[str];
 def native_live_call_conflicts(
     prog: any, pending: dict, options: any
 ) -> dict[str, set[str]];
+
+glob NATIVE_VERDICT_TAINT_BOUND: int = 2048,
+     NATIVE_LINK_COMPILE_BOUND: int = 384,
+     NATIVE_VERDICT_MISS_BOUND: int = 512;
+
+def native_verdict_blast_guard(
+    prog: any, composed: int, aot_lane: bool = False
+) -> str;
 
 
 obj NativeCompilePass(Transform) {

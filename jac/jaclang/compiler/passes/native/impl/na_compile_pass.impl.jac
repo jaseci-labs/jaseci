@@ -67,6 +67,35 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
     );
 }
 
+impl native_verdict_blast_guard(
+    prog: any, composed: int, aot_lane: bool = False
+) -> str {
+    _bg_taint = 0;
+    _bg_mods = 0;
+    for _bg_rec in (prog._na_unverified_live or {}).values() {
+        _bg_mods += 1;
+        for _bg_names in _bg_rec.values() {
+            _bg_taint += len(_bg_names);
+        }
+    }
+    _bg_misses = int(prog._na_verdict_misses or 0);
+    _bg_taint_ok = aot_lane or _bg_taint <= NATIVE_VERDICT_TAINT_BOUND;
+    if (
+        _bg_taint_ok
+        and composed <= NATIVE_LINK_COMPILE_BOUND
+        and _bg_misses <= NATIVE_VERDICT_MISS_BOUND
+    ) {
+        return "";
+    }
+    return (
+        f"{_bg_taint} tainted name(s) across {_bg_mods} module(s), "
+        f"{composed} link-time module compile(s), {_bg_misses} fail-closed "
+        f"verdict miss(es); bounds "
+        f"{NATIVE_VERDICT_TAINT_BOUND}/{NATIVE_LINK_COMPILE_BOUND}/"
+        f"{NATIVE_VERDICT_MISS_BOUND}"
+    );
+}
+
 impl native_unit_demotions(prog: any, real_path: str, options: any) -> set[str] {
     import os as _ud_os;
     entry: any = prog._na_dep_units.get(real_path);
@@ -90,6 +119,7 @@ impl native_unit_demotions(prog: any, real_path: str, options: any) -> set[str] 
         prog._na_dep_units[real_path] = entry;
     }
     if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+        prog._na_verdict_misses += 1;
         _ud_all: set = set();
         _ud_tree = entry
             if (entry is not None and not isinstance(entry, str))
@@ -495,12 +525,21 @@ impl NativeCompilePass._compile_and_link_native_imports(
     import from jaclang.jac0core.codeinfo { native_stdlib_root }
     _bundled_stdlib_root = native_stdlib_root();
     queue_idx = 0;
+    _lk_composed = 0;
     while queue_idx < len(work_queue) {
         (binding, cur_base_dir) = work_queue[queue_idx];
         queue_idx += 1;
         source_mod_path = binding.source_module;
         if source_mod_path is None {
             continue;
+        }
+        _bg_aot = bool(
+            self.prog._compile_options and self.prog._compile_options.aot_mode
+        );
+        _bg_msg = native_verdict_blast_guard(self.prog, _lk_composed, _bg_aot);
+        if _bg_msg {
+            self.emit(E5029, path=str(source_mod_path), detail=_bg_msg);
+            break;
         }
 
         if source_mod_path.endswith(".jac") {
@@ -608,6 +647,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 imported_ir = _memo_entry;
             } else {
                 try {
+                    _lk_composed += 1;
                     imported_ir = self.prog.compile(
                         file_path=full_path, options=import_options
                     );
@@ -648,6 +688,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     self.prog.invalidate_module(real_path);
                 } except Exception { }
                 try {
+                    _lk_composed += 1;
                     imported_ir = self.prog.compile(
                         file_path=full_path, options=import_options
                     );
