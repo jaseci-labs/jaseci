@@ -962,9 +962,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value,
         type_name: str,
         field_name: str,
-        ftype: (ir.Type | None)
+        ftype: (ir.Type | None),
+        parts: (list[str] | None) = None
     ) -> (ir.Value | None);
 
+    def _receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] | None);
     def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
     def _class_const_global(
         arch_name: str, field_name: str
@@ -1133,6 +1135,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _unwrap_opt_container(val: ir.Value) -> ir.Value;
     def _spec_name_match(tk: str, names: tuple) -> bool;
     def _opt_sole_member(t: any) -> (any | None);
+    def _spec_union_agreement(t: any, names: tuple) -> (any | None);
     def _elem_kind(elem_type: ir.Type) -> str;
     def _elem_storage_llvm(t: any) -> (ir.Type | None);
     def _emit_jacval_retain_fn -> ir.Function;

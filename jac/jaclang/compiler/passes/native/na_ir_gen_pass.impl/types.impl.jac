@@ -183,6 +183,14 @@ impl NaIRGenPass._spec_of(
         }
     }
     if not matched {
+        _agreed = self._spec_union_agreement(_t, names);
+        if _agreed is not None {
+            _t = _agreed;
+            tk = self._mangled_of(_t);
+            matched = True;
+        }
+    }
+    if not matched {
         if self._na_debug_on() and ("Sequence" in tk or "UniNode" in tk) {
             import sys as _so_sys;
             _so_sys.stderr.write(f"SPECMISS {tk}\n");
@@ -237,6 +245,52 @@ impl NaIRGenPass._opt_sole_member(t: any) -> (any | None) {
     ];
     if len(_members) != 1 or len(_members) == len(_all) {
         return None;
+    }
+    return _members[0];
+}
+
+"""A union of container types iterates when its members agree: every non-None
+member must match the spec-name family and lower to one pointer type, in
+which case any member speaks for the union (Sequence[Expr] | list[Expr] is
+one list at runtime). Disagreeing members keep the refusal."""
+impl NaIRGenPass._spec_union_agreement(t: any, names: tuple) -> (any | None) {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _SuClassType,
+            UnionType as _SuUnionType
+        }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(t, _SuUnionType) {
+        return None;
+    }
+    _members = [
+        m
+        for m in (t.types or [])
+        if not (
+            isinstance(m, _SuClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_members) < 2 {
+        return None;
+    }
+    _low: any = None;
+    for m in _members {
+        if not self._spec_name_match(self._mangled_of(m), names) {
+            return None;
+        }
+        _ml = self._lower_type(m);
+        if _ml is None {
+            return None;
+        }
+        if _low is None {
+            _low = _ml;
+        } elif _ml != _low {
+            return None;
+        }
     }
     return _members[0];
 }

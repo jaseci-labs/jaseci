@@ -3231,8 +3231,28 @@ impl NaIRGenPass._codegen_accessor_call(
     return self.builder.call(func, coerced, name=f"acc.{slot}");
 }
 
+impl NaIRGenPass._receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] | None) {
+    if not isinstance(nd, uni.AtomTrailer) or not isinstance(nd.target, uni.Expr) {
+        return None;
+    }
+    _rk = self._mangled_of(self._flow_narrowed_type_of(nd.target));
+    if _rk is None or "|" not in _rk {
+        return None;
+    }
+    _rp = [
+        p
+        for p in self._split_union_key(_rk)
+        if p in self.struct_types
+    ];
+    return _rp if len(_rp) >= 2 else None;
+}
+
 impl NaIRGenPass._emit_dispatched_field_ptr(
-    obj_val: ir.Value, type_name: str, field_name: str, ftype: (ir.Type | None)
+    obj_val: ir.Value,
+    type_name: str,
+    field_name: str,
+    ftype: (ir.Type | None),
+    parts: (list[str] | None) = None
 ) -> (ir.Value | None) {
     import from jaclang.compiler.passes.main.layout_pass {
         get_layout_registry as _df_glr
@@ -3249,7 +3269,19 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
     _variants: list[tuple] = [];
     _uniform = True;
     for _cls in reg.mro_order {
-        if type_name not in self._mro_of(_cls) {
+        _cls_mro = self._mro_of(_cls);
+        if parts {
+            _dom_ok = False;
+            for _pp in parts {
+                if _pp in _cls_mro {
+                    _dom_ok = True;
+                    break;
+                }
+            }
+            if not _dom_ok {
+                continue;
+            }
+        } elif type_name not in _cls_mro {
             continue;
         }
         _lay = reg.get_layout(_cls);
@@ -3520,7 +3552,11 @@ impl NaIRGenPass._codegen_field_access(
         _uf_recv = self._narrow_receiver_ptr(obj_val, type_name);
         if _uf_recv is not None {
             _uf_ptr = self._emit_dispatched_field_ptr(
-                _uf_recv, type_name, field_name, None
+                _uf_recv,
+                type_name,
+                field_name,
+                None,
+                parts=self._receiver_union_parts(nd)
             );
             if _uf_ptr is not None {
                 return self.builder.load(_uf_ptr, name=f"field.{field_name}");
