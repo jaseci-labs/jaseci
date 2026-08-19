@@ -1416,6 +1416,100 @@ test "compiler_slice: band6 try except typed parsed executes in ceval" {
     assert expect_int(ns["result"]) == 99;
 }
 
+test "compiler_slice: band6 bare except parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except:\n"
+            + "    result = 7\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 bare except parsed executes in ceval" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except:\n"
+            + "    result = 7\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+}
+
+test "compiler_slice: band6 typed-then-bare except parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    raise KeyError('k')\n"
+            + "except ValueError:\n"
+            + "    result = 1\n"
+            + "except:\n"
+            + "    result = 2\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 typed-then-bare except parsed executes in ceval" {
+    src = (
+        "try:\n"
+            + "    raise KeyError('k')\n"
+            + "except ValueError:\n"
+            + "    result = 1\n"
+            + "except:\n"
+            + "    result = 2\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 2;
+}
+
+test "compiler_slice: band6 bare except no-exception parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    result = 5\n"
+            + "except:\n"
+            + "    result = 9\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 bare except no-exception executes in ceval" {
+    src = (
+        "try:\n"
+            + "    result = 5\n"
+            + "except:\n"
+            + "    result = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 5;
+}
+
 # ---------------- Band 6 slice 2: raise ----------------
 
 test "compiler_slice: band6 raise parsed matches oracle co_code" {

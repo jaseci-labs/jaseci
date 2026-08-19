@@ -4037,15 +4037,6 @@ def visit_try(
         codegen_fail(g, "NotImplementedError", "try without except");
         return stmt_cont(loc=tloc);
     }
-    hi = 0;
-    while hi < len(t.handlers) {
-        h = t.handlers[hi];
-        if h.type is None {
-            codegen_fail(g, "NotImplementedError", "bare except not supported");
-            return stmt_cont(loc=tloc);
-        }
-        hi = hi + 1;
-    }
     nop_blk = g.new_block();
     try_body = g.new_block();
     g.use(nop_blk);
@@ -4145,15 +4136,19 @@ def visit_try(
             handler_region_start = g.cur.id;
         }
         hloc = try_handler_span(h);
-        visit_expr(g, h.type);
-        if codegen_busy(g) {
-            return stmt_cont(loc=tloc);
-        }
-        g.emit_op(OP_CHECK_EXC_MATCH, 0, hloc);
-        if hi < len(t.handlers) - 1 {
-            g.emit_jump(OP_POP_JUMP_IF_FALSE, next_handlers[hi].id, hloc);
+        if h.type is None {
+            # bare except: always matches, no CHECK_EXC_MATCH / POP_JUMP.
         } else {
-            g.emit_jump(OP_POP_JUMP_IF_FALSE, reraise_blk.id, hloc);
+            visit_expr(g, h.type);
+            if codegen_busy(g) {
+                return stmt_cont(loc=tloc);
+            }
+            g.emit_op(OP_CHECK_EXC_MATCH, 0, hloc);
+            if hi < len(t.handlers) - 1 {
+                g.emit_jump(OP_POP_JUMP_IF_FALSE, next_handlers[hi].id, hloc);
+            } else {
+                g.emit_jump(OP_POP_JUMP_IF_FALSE, reraise_blk.id, hloc);
+            }
         }
         bind_name = h.name;
         if bind_name is not None {
@@ -4225,8 +4220,11 @@ def visit_try(
         }
         hi = hi + 1;
     }
-    g.use(reraise_blk);
-    g.emit_op(OP_RERAISE, 0, hloc);
+    last_is_bare = t.handlers[len(t.handlers) - 1].type is None;
+    if not last_is_bare {
+        g.use(reraise_blk);
+        g.emit_op(OP_RERAISE, 0, hloc);
+    }
     reraise_end = g.new_block();
     unwind_blk = g.new_block();
     if need_reraise_except_region {
@@ -4241,7 +4239,7 @@ def visit_try(
                     preserve_lasti=True
                 )
             );
-        } else {
+        } elif not last_is_bare {
             append_try_unwind_region(
                 g,
                 except_region(
