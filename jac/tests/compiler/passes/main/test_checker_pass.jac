@@ -4879,6 +4879,54 @@ test "jsx_children_must_be_declared_by_the_component" {
     ].pretty_print()}";
 }
 
+test "jsx_props_are_checked_at_call_sites_passing_no_attribute" {
+    # Prop validation used to return early on a call site with no attributes,
+    # so a missing required prop went unreported exactly when the call site
+    # passed nothing at all.
+    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_required_props.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    run_pass(TypeCheckPass, mod, program);
+
+    e1102 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1102"
+    ];
+    msgs = sorted(e.msg for e in e1102);
+    # `<Plain/>` and `<Card>body</Card>` are missing `title`; `<Card title/>`
+    # is missing `children`. The three call sites that satisfy their signature
+    # -- including `<AllOptional/>`, which also passes nothing -- stay clean.
+    assert len(e1102) == 3 , f"Expected exactly 3 E1102, got {len(e1102)}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1102);
+    assert len(
+        [
+            m
+            for m in msgs
+            if "Component 'Plain'" in m
+        ]
+    )
+        == 1 , f"Expected 1 E1102 on 'Plain':\n" + "\n".join(msgs);
+    for name in ["title", "children"] {
+        assert any(f"prop '{name}'" in m for m in msgs) , f"Expected an E1102 naming '{name}':\n"
+            + "\n".join(msgs);
+    }
+    assert not any("Component 'AllOptional'" in m for m in msgs) , f"A fully optional signature must not be flagged:\n"
+        + "\n".join(msgs);
+
+    # Nested children count as the `children` prop, so a `children` parameter
+    # with no default is satisfied by the content it exists to receive.
+    assert len(
+        [
+            m
+            for m in msgs
+            if "prop 'children'" in m
+        ]
+    )
+        == 1 , f"Expected `<Card title=\"ok\">body</Card>` to satisfy 'children':\n"
+        + "\n".join(msgs);
+}
+
 test "jsx_props_bundle_must_be_the_only_parameter" {
     # A `props` bundle beside another parameter emits either invalid JavaScript
     # (`const {props, tone} = props`) or a positional signature React never
