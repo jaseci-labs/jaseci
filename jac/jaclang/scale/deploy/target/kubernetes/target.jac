@@ -49,12 +49,6 @@ def _revision_sort_key(item: dict[str, any]) -> int {
 }
 
 
-"""Fleet Deployment names in the order a revert must walk them: services first,
-the gateway last.
-
-The gateway fronts the fleet, so putting it back before the services it routes to
-would serve the restored frontend against services still on the release being
-left. rollback_to patches in exactly this order."""
 def fleet_revert_order(names: list[str]) -> list[str] {
     gateway = f"{k8s_safe_name(GATEWAY_NAME)}-deployment";
     services: list[str] = [];
@@ -1310,24 +1304,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    """The Deployments that make up this app, read from the cluster.
-
-    Never from the route table. ScaleClient builds a bare DeploySpec for every
-    lifecycle call, and to_microservices_config() always returns a dict carrying
-    a `routes` key, so _ms_cfg short-circuits on it and never falls back to
-    jac.toml. Deriving names from those empty routes produced
-    `{app}-deployment` plus the gateway: for a microservice app that is one
-    Deployment that does not exist and one that is a fraction of the set, so
-    rollback_to refused every time and list_revisions saw the gateway alone.
-
-    The same selector destroy uses, so "what this app owns" has one definition."""
     def _fleet_deployment_names(apps_v1: any, namespace: str) -> list[str] {
         names: list[str] = [];
         try {
             listed = apps_v1.list_namespaced_deployment(
                 namespace=namespace, label_selector=FLEET_SELECTOR
             );
-            for dep in list(getattr(listed, "items", None) or []) {
+            for dep in list(listed?.items or []) {
                 try {
                     names.append(str(dep.metadata.name));
                 } except Exception {

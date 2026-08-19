@@ -240,8 +240,7 @@ obj _FleetApps {
         self.selector = str(kwargs.get("label_selector", ""));
         return SimpleNamespace(
             items=[
-                SimpleNamespace(metadata=SimpleNamespace(name=n))
-                for n in self.names
+                SimpleNamespace(metadata=SimpleNamespace(name=n)) for n in self.names
             ]
         );
     }
@@ -270,7 +269,8 @@ test "the fleet is read from the cluster, not from a route table" {
         == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , (
         f"the real fleet, gateway last: {names}"
     );
-    assert api.selector == "managed=jac-scale,jac-scale.role in (microservice,gateway)" , (
+    assert api.selector
+        == "managed=jac-scale,jac-scale.role in (microservice,gateway)" , (
         "the fleet must be scoped exactly as destroy scopes it, or a rollback "
         "reaches objects the app does not own"
     );
@@ -283,7 +283,8 @@ test "the fleet is read from the cluster, not from a route table" {
 test "the revert order puts the gateway last whatever the cluster returns" {
     assert fleet_revert_order(
         ["gateway-deployment", "orders-app-deployment", "cart-app-deployment"]
-    ) == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"];
+    )
+        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"];
 }
 
 
@@ -799,15 +800,15 @@ def _rollback_with(api: any) -> any {
         with unittest.mock.patch.object(
             target_mod.KubernetesTarget, "_wait_for_fleet_rollout", return_value=None
         ) {
-        with unittest.mock.patch.object(
-            target_mod.KubernetesTarget, "_load_cluster_config", return_value=None
-        ) {
-            t = target_mod.KubernetesTarget(
-                config=KubernetesConfig(app_name="shop", namespace="shop"),
-                microservices_config={"routes": {}}
-            );
-            return t.rollback_to("shop", 1);
-        }
+            with unittest.mock.patch.object(
+                target_mod.KubernetesTarget, "_load_cluster_config", return_value=None
+            ) {
+                t = target_mod.KubernetesTarget(
+                    config=KubernetesConfig(app_name="shop", namespace="shop"),
+                    microservices_config={"routes": {}}
+                );
+                return t.rollback_to("shop", 1);
+            }
         }
     }
 }
@@ -817,18 +818,19 @@ def _rollback_with(api: any) -> any {
 # microservice app rolls its ENTIRE fleet back, in an order that never fronts
 # restored services with a stale gateway.
 test "a rollback reverts the whole microservice fleet, gateway last" {
-    api = _RollbackApps(revisions={
-        "orders-app-deployment": [1, 2],
-        "cart-app-deployment": [1, 2],
-        "gateway-deployment": [1, 2]
-    });
+    api = _RollbackApps(
+        revisions={
+            "orders-app-deployment": [1, 2],
+            "cart-app-deployment": [1, 2],
+            "gateway-deployment": [1, 2]
+        }
+    );
 
     res = _rollback_with(api);
 
     assert res.success , res.message;
-    assert api.patched == [
-        "cart-app-deployment", "orders-app-deployment", "gateway-deployment"
-    ] , f"the fleet reverts services first and the gateway last: {api.patched}";
+    assert api.patched
+        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , f"the fleet reverts services first and the gateway last: {api.patched}";
 }
 
 
@@ -856,12 +858,16 @@ test "a compensating restore puts back the marker the live template carried" {
     (res, api) = _rollback_failing_on("orders-app-deployment");
 
     assert not res.success , "the patch was rejected, so the rollback failed";
-    restores = [b for b in api.bodies if dict(b[1].get("spec") or {}).get("live")];
+    restores = [
+        b
+        for b in api.bodies
+        if dict(b[1].get("spec") or {}).get("live")
+    ];
     assert restores , "the reverted service must be put back";
     (name, body) = restores[0];
-    marker = dict(
-        dict(body.get("metadata") or {}).get("annotations") or {}
-    ).get("jac-scale.config-revision");
+    marker = dict(dict(body.get("metadata") or {}).get("annotations") or {}).get(
+        "jac-scale.config-revision"
+    );
     assert marker == "cfg-live" , (
         f"the restore dropped the live config marker ({marker}), so putting the "
         "template back is a template CHANGE and rolls the service for nothing"
