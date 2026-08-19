@@ -397,13 +397,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      ),
      _TRANSFORM_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/transform.jac::Alert.pretty_print",
-         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
-         "jac0core/passes/transform.jac::Transform.ice",
-
-     ),
-     _UNI_PASS_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
 
      ),
      _MODULE_CODEGEN_SEAM_WAIVERS: tuple[str, ...] = (
@@ -440,11 +433,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
      ),
-     _BASE_CHAIN_SEAM_WAIVERS: tuple[str, ...] = (
-         _TRANSFORM_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
-     ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
-         _LEAF_SEAM_WAIVERS + _BASE_CHAIN_SEAM_WAIVERS
+         _LEAF_SEAM_WAIVERS + _TRANSFORM_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
@@ -587,17 +577,16 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
          (
              "pass base chain rim surface",
              _TRANSFORM_SEAM_WAIVERS,
-             "The base chain joined every pass root's closure when "
-             "`transform.jac` stopped reaching `codeinfo.jac` for a symbol "
-             "`srcloc.jac` declares, so these three are waived here for the "
-             "first time rather than newly demoted. All three are rim work "
-             "by design: `Alert.pretty_print` renders source spans through "
-             "`helpers.pretty_print_source_location`, already waived above; "
-             "`BaseTransform.is_canceled` reads a `threading.Event` the "
-             "driver owns; `Transform.ice` raises E9001 through Python "
-             "diagnostics machinery. They clear as diagnostics cross as "
-             "data and cancellation crosses as a scalar the crossing reads, "
-             "which is the same mechanism the emit-as-data path names."
+             "One left of the three the base chain's arrival brought in. "
+             "`Alert.pretty_print` renders source spans through "
+             "`helpers.pretty_print_source_location`, already waived above, "
+             "and clears with it. `BaseTransform.is_canceled` cleared when "
+             "cancellation started crossing as a scalar the pass reads "
+             "(`cancel_requested`; the event poll lives on the driver and "
+             "the Python loader now), and `Transform.ice` cleared when it "
+             "became the message-builder half of the internal-error guard "
+             "-- callers raise `RuntimeError(self.ice(...))`, a statement "
+             "the native raise path lowers."
          ),
          (
              "module_codegen isinstance against an unreachable layout",
@@ -618,20 +607,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "the verdict started binding. They clear together the day a "
              "call against an unreachable layout lowers -- one mechanism, "
              "seven waivers, and no separate work of their own."
-         ),
-         (
-             "uni_pass generic statics",
-             _UNI_PASS_SEAM_WAIVERS,
-             "`get_all_sub_nodes` and `find_parent_of_type` are "
-             "`type[T]`-generic statics that only forward to the same-named "
-             "`UniNode` methods, and the backend cannot lower a TypeVar-bound "
-             "signature. They clear when generic statics lower, or when the "
-             "forwarding shims are retired for the `UniNode` methods they "
-             "wrap. This entry used to carry three more -- `transform`, "
-             "`traverse` and `__post_init__` -- which refused on access to "
-             "slots inherited from `BaseTransform`; the linearization repair "
-             "in #8320 cleared all three, and with them the reason a pass "
-             "could be constructed inside a native root but not run."
          ),
          (
              "endpoint effects written as codegen state",
