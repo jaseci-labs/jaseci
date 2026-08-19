@@ -1008,142 +1008,191 @@ def _adjacency_map(store: object, node_ids: list[str]) -> dict {
 }
 
 
-impl relational_load_full(store: object, ids: list[UUID]) -> tuple {
-    """Returns (rows: dict[UUID, AnchorRow-args-dict], missing: list[UUID]).
+glob _catalog_cache: dict[str, list] = {};
 
-    rows values are dicts consumable as AnchorRow fields by the store; ids
-    that cannot be fully reconstructed relationally (walkers, unplanned
-    types, pre-shadow rows) land in missing for the anchors fallback.
+
+def _catalog(store: object, refresh: bool = False) -> list {
+    key = _db_key(store, '__catalog__');
+    with _lock {
+        if not refresh and key in _catalog_cache {
+            return _catalog_cache[key];
+        }
+    }
+    rows = store._run(
+        "SELECT table_name, arch_type, arch_module FROM graph_tables "
+        "WHERE kind = 'node'",
+        {}
+    );
+    cat = [(str(r[0]), str(r[1]), str(r[2])) for r in rows];
+    with _lock {
+        _catalog_cache[key] = cat;
+    }
+    return cat;
+}
+
+
+glob _META_SQL: str = (
+         """
+    WITH want(id) AS (SELECT unnest(CAST(:ids AS uuid[]))),
+    live(id) AS (SELECT w.id FROM want w JOIN anchors a ON a.id = w.id)
+    SELECT 'e' AS k, e.id, e.edge_type AS at, e.arch_module AS am,
+           e.root_id, e.src, e.dst, e.undirected, e.props, e.access,
+           e.xmin::text AS ver, CAST(NULL AS text) AS adj
+    FROM edges e JOIN live l ON l.id = e.id
+    UNION ALL
+    SELECT 'n', n.id, n.arch_type, n.arch_module, n.root_id,
+           CAST(NULL AS uuid), CAST(NULL AS uuid), CAST(NULL AS boolean),
+           CAST(NULL AS jsonb), CAST(NULL AS jsonb), CAST(NULL AS text),
+           (SELECT string_agg(e2.id::text, ',' ORDER BY e2.seq, e2.id)
+              FROM edges e2 WHERE e2.src = n.id OR e2.dst = n.id)
+    FROM nodes n JOIN live l ON l.id = n.id
+    """
+     );
+
+
+def _node_from_row(r: list, cols: dict, resolved: set) -> (dict | None) {
+    (at, am) = (str(r[2]), str(r[3]));
+    plan = plan_for(at, am);
+    if plan is None {
+        return None;
+    }
+    rid = _norm_uuid(r[1]);
+    access = _norm_json(cols.get('access'));
+    extra = _norm_json(cols.get('extra')) or {};
+    arch: dict = {'__type__': at, '__module__': am};
+    for c in plan.columns {
+        arch[c.name] = _reconstruct_value(c, cols.get(c.col));
+    }
+    if isinstance(extra, dict) {
+        arch.update(extra);
+    }
+    edge_list = [
+        t
+        for t in str(r[11] or '').split(',')
+        if t
+    ];
+    version = int(str(cols.get('xmin', 0) or 0));
+    props = {
+        '__type__': 'NodeAnchor',
+        '__module__': 'jaclang.jac0core.archetype',
+        'id': rid,
+        'root': _norm_uuid(r[4]),
+        'persistent': True,
+        'access': access if isinstance(access, dict) else {},
+        'archetype': arch,
+        'edges': edge_list,
+        'version': version
+    };
+    resolved.add(rid);
+    return {
+        'kind': 'NodeAnchor',
+        'arch_type': at,
+        'arch_module': am,
+        'root_id': _norm_uuid(r[4]),
+        'props': props,
+        'version': version,
+        'adjacency': edge_list
+    };
+}
+
+
+def _edge_from_row(r: list, resolved: set) -> dict {
+    rid = _norm_uuid(r[1]);
+    fieldsd = _norm_json(r[8]) or {};
+    arch = {'__type__': str(r[2]), '__module__': str(r[3])};
+    if isinstance(fieldsd, dict) {
+        arch.update(fieldsd);
+    }
+    (src, dst) = (_norm_uuid(r[5]), _norm_uuid(r[6]));
+    eaccess = _norm_json(r[9]);
+    props = {
+        '__type__': 'EdgeAnchor',
+        '__module__': 'jaclang.jac0core.archetype',
+        'id': rid,
+        'root': _norm_uuid(r[4]),
+        'persistent': True,
+        'access': eaccess if isinstance(eaccess, dict) else {},
+        'archetype': arch,
+        'source': src,
+        'target': dst,
+        'is_undirected': bool(r[7])
+    };
+    resolved.add(rid);
+    return {
+        'kind': 'EdgeAnchor',
+        'arch_type': str(r[2]),
+        'arch_module': str(r[3]),
+        'root_id': _norm_uuid(r[4]),
+        'props': props,
+        'src': src,
+        'dst': dst,
+        'undirected': bool(r[7]),
+        'version': int(str(r[10]))
+    };
+}
+
+
+impl relational_load_full(store: object, ids: list[UUID]) -> tuple {
+    """Returns (rows: dict[id-str, AnchorRow-args-dict], missing: list[UUID]).
+
+    Two small statements: one fixed-shape query resolves liveness against
+    anchors (truth pre-cutover), edges, directory meta, and adjacency; a
+    second fetches typed columns only for the archetype tables actually
+    present among the ids (usually one). Unresolved ids (walkers,
+    unplanned types, pre-shadow rows) land in missing for the anchors
+    fallback.
     """;
     sids = [str(i) for i in ids];
     found: dict = {};
     resolved: set[str] = set();
-
-    # anchors stays the source of truth pre-cutover: ids missing there must
-    # not resurrect from a stale mirror row (index-only pkey probe)
-    live = {
-        _norm_uuid(r[0])
-        for r in store._run(
-            'SELECT id FROM anchors WHERE id = ANY(CAST(:ids AS uuid[]))', {'ids': sids}
-        )
-    };
-    sids = [
-        x
-        for x in sids
-        if x in live
-    ];
-    if not sids {
-        return ({}, list(ids));
+    node_meta: dict[str, list] = {};
+    groups: dict[tuple, list] = {};
+    for r in store._run(_META_SQL, {'ids': sids}) {
+        if str(r[0]) == 'e' {
+            found[_norm_uuid(r[1])] = _edge_from_row(r, resolved);
+        } else {
+            rid = _norm_uuid(r[1]);
+            node_meta[rid] = r;
+            groups.setdefault((str(r[2]), str(r[3])), []).append(rid);
+        }
     }
-
-    dir_rows = store._run(
-        'SELECT id, arch_type, arch_module, root_id FROM nodes '
-        'WHERE id = ANY(CAST(:ids AS uuid[]))',
-        {'ids': sids}
-    );
-    node_groups: dict[tuple, list] = {};
-    node_meta: dict[str, tuple] = {};
-    for r in dir_rows {
-        rid = _norm_uuid(r[0]);
-        node_meta[rid] = (str(r[1]), str(r[2]), _norm_uuid(r[3]));
-        node_groups.setdefault((str(r[1]), str(r[2])), []).append(rid);
-    }
-
-    adj = _adjacency_map(store, list(node_meta.keys())) if node_meta else {};
-
-    for ((at, am), gids) in node_groups.items() {
+    typed_cols: dict[str, dict] = {};
+    parts: list[str] = [];
+    params: dict = {};
+    gi = 0;
+    for ((at, am), gids) in groups.items() {
         plan = plan_for(at, am);
         if plan is None {
             continue;
         }
         _ensure_table(store, plan);
-        sel = ['id', 'root_id', 'access', 'extra', 'xmin::text']
-            + [c.col for c in plan.columns];
-        for tr in store._run(
-            f"SELECT {', '.join(sel)} FROM {plan.table} "
-            'WHERE id = ANY(CAST(:ids AS uuid[]))',
-            {'ids': gids}
-        ) {
-            rid = _norm_uuid(tr[0]);
-            root_id = _norm_uuid(tr[1]);
-            access = _norm_json(tr[2]);
-            extra = _norm_json(tr[3]) or {};
-            arch: dict = {'__type__': at, '__module__': am};
-            for (j, c) in enumerate(plan.columns) {
-                arch[c.name] = _reconstruct_value(c, tr[5 + j]);
+        key = f"g{gi}";
+        gi += 1;
+        params[key] = gids;
+        parts.append(
+            f"SELECT t.id, t.xmin::text, to_jsonb(t.*) FROM {plan.table} t "
+            f"WHERE t.id = ANY(CAST(:{key} AS uuid[]))"
+        );
+    }
+    if parts {
+        for tr in store._run(' UNION ALL '.join(parts), params) {
+            cols = _norm_json(tr[2]) or {};
+            if isinstance(cols, dict) {
+                cols['xmin'] = str(tr[1]);
+                typed_cols[_norm_uuid(tr[0])] = cols;
             }
-            if isinstance(extra, dict) {
-                arch.update(extra);
-            }
-            edge_list = adj.get(rid, []);
-            props = {
-                '__type__': 'NodeAnchor',
-                '__module__': 'jaclang.jac0core.archetype',
-                'id': rid,
-                'root': root_id,
-                'persistent': True,
-                'access': access if isinstance(access, dict) else {},
-                'archetype': arch,
-                'edges': edge_list,
-                'version': int(str(tr[4]))
-            };
-            found[rid] = {
-                'kind': 'NodeAnchor',
-                'arch_type': at,
-                'arch_module': am,
-                'root_id': root_id,
-                'props': props,
-                'version': int(str(tr[4])),
-                'adjacency': edge_list
-            };
-            resolved.add(rid);
         }
     }
-
-    edge_rows = store._run(
-        """
-        SELECT id, edge_type, arch_module, src, dst, root_id, undirected,
-               props, xmin::text, access
-        FROM edges WHERE id = ANY(CAST(:ids AS uuid[]))
-        """,
-        {'ids': sids}
-    );
-    for r in edge_rows {
-        rid = _norm_uuid(r[0]);
-        fieldsd = _norm_json(r[7]) or {};
-        arch = {'__type__': str(r[1]), '__module__': str(r[2])};
-        if isinstance(fieldsd, dict) {
-            arch.update(fieldsd);
+    for (rid, r) in node_meta.items() {
+        cols = typed_cols.get(rid);
+        if cols is None {
+            continue;
         }
-        src = _norm_uuid(r[3]);
-        dst = _norm_uuid(r[4]);
-        eaccess = _norm_json(r[9]);
-        props = {
-            '__type__': 'EdgeAnchor',
-            '__module__': 'jaclang.jac0core.archetype',
-            'id': rid,
-            'root': _norm_uuid(r[5]),
-            'persistent': True,
-            'access': eaccess if isinstance(eaccess, dict) else {},
-            'archetype': arch,
-            'source': src,
-            'target': dst,
-            'is_undirected': bool(r[6])
-        };
-        found[rid] = {
-            'kind': 'EdgeAnchor',
-            'arch_type': str(r[1]),
-            'arch_module': str(r[2]),
-            'root_id': _norm_uuid(r[5]),
-            'props': props,
-            'src': src,
-            'dst': dst,
-            'undirected': bool(r[6]),
-            'version': int(str(r[8]))
-        };
-        resolved.add(rid);
+        nrow = _node_from_row(r, cols, resolved);
+        if nrow is not None {
+            found[rid] = nrow;
+        }
     }
-
     missing = [
         i
         for i in ids
