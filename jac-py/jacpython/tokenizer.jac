@@ -526,13 +526,14 @@ def _read_string(st: tok_state) -> tok_token | tok_diag {
     }
     qlen = 1;
     _advance(st);
-    if _peek(st) == quote {
+    # Triple-quote only when the NEXT TWO chars are both the quote. For `''`/`""`
+    # the second quote is the CLOSING quote of an empty single-quoted string, not
+    # part of a 2-char opener (Python has no 2-quote delimiter).
+    if _peek(st) == quote
+        and st.pos + 1 < len(st.source) and st.source[st.pos + 1] == quote {
         _advance(st);
-        qlen = 2;
-        if _peek(st) == quote {
-            _advance(st);
-            qlen = 3;
-        }
+        _advance(st);
+        qlen = 3;
     }
     while st.pos < len(st.source) {
         ch = _peek(st);

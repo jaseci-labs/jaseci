@@ -270,12 +270,12 @@ def pa_decode_string_literal_spelling(spelling: str) -> str | None {
     if quote != "'" and quote != "\"" {
         return None;
     }
+    # Delimiter is 1 or 3 quotes (Python has no 2-quote delimiter). `''`/`""`
+    # is an EMPTY single-quoted string, not a 2-char opener.
     qlen = 1;
-    if i + qlen < len(spelling) and spelling[i + qlen] == quote {
-        qlen = 2;
-        if i + qlen < len(spelling) and spelling[i + qlen] == quote {
-            qlen = 3;
-        }
+    if i + 2 < len(spelling)
+        and spelling[i + 1] == quote and spelling[i + 2] == quote {
+        qlen = 3;
     }
     start = i + qlen;
     end = len(spelling) - qlen;
