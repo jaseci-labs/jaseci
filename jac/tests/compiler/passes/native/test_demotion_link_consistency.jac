@@ -266,3 +266,32 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
     );
     prog._na_dep_inflight.discard(helpers_path);
 }
+
+
+test "the wheel-shaped lane stays quiet on the live closure" {
+    import from jaclang.compiler.passes.native.na_compile_pass {
+        native_verdict_blast_guard
+    }
+
+    pkg = os.path.dirname(os.path.abspath(jaclang.__file__));
+    target = os.path.join(pkg, "runtimelib", "sealed_serve.jac");
+    if not os.path.isfile(target) {
+        testskip("sealed_serve.jac is absent from this payload");
+    }
+    prog = JacProgram();
+    mod = prog.compile(file_path=target);
+    assert mod is not None;
+    assert len(prog._na_unverified_live) == 0 , (
+        "a plain (non-aot) compile of the pack-smoke closure recorded "
+        f"{len(prog._na_unverified_live)} tainted module(s); the emission "
+        "recorder is out of its lane and the #8360 avalanche class is back"
+    );
+    assert prog._na_verdict_misses == 0 , (
+        f"{prog._na_verdict_misses} verdict lookup(s) failed closed during "
+        "a lane that must never consult the resolver at link time"
+    );
+    assert native_verdict_blast_guard(prog, 0) == "" , (
+        "the blast-radius guard tripped on the live closure; either the "
+        "lane regressed or the bounds dipped below healthy baseline"
+    );
+}
