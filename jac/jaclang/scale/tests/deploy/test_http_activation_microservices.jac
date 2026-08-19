@@ -131,7 +131,15 @@ test "a service can explicitly opt out with enabled=false even when the top-leve
 # --- Section B: _resolve_scaling (the single scaling decision) --------------
 test "_resolve_scaling: an http_activation service is HTTP_ACTIVATION, carries the {name}-deployment target, and emits no metric autoscaler" {
     b = _builder(
-        {"billing_ops": {"http_activation": {"enabled": True, "target_port": 8080}}}
+        {
+            "billing_ops": {
+                "http_activation": {
+                    "enabled": True,
+                    "target_port": 8080,
+                    "concurrency_target": 10
+                }
+            }
+        }
     );
     plan = b._resolve_scaling(
         "billing_ops", _dep("billing-ops-deployment"), _svc("billing-ops-service")

@@ -12,6 +12,9 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
     DEFAULT_CPU_UTILIZATION_TARGET,
     DEFAULT_MEMORY_UTILIZATION_TARGET
 }
+import from jaclang.scale.deploy.autoscale.http_activation_config {
+    build_http_activation_spec
+}
 import from enum { StrEnum }
 
 
@@ -984,6 +987,13 @@ obj ManifestBuilder {
             http = None;
         }
         if http is not None {
+            try {
+                build_http_activation_spec(
+                    http, scale_target, self.k8s_config.namespace, service_name
+                );
+            } except ValueError as e {
+                raise ValueError(f"[service '{svc_name}'] {e}") from e;
+            }
             return {
                 "mode": ScalingMode.HTTP_ACTIVATION,
                 "scale_target_name": scale_target,
