@@ -39,7 +39,8 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 }
 import from jaclang.scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
 import from jaclang.scale.deploy.autoscale.http_activation_config {
-    apply_http_activation_for_target
+    apply_http_activation_for_target,
+    destroy_http_activation_for_target
 }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
@@ -62,6 +63,26 @@ def apply_http_activations_for_bundle(
             str(plan.get("service_name", "")),
             keda
         );
+    }
+}
+
+
+def reap_stale_scaling_resources_for_bundle(
+    bundle: dict[str, any], namespace: str, autoscaler: any, keda: KEDAAutoscaler
+) {
+    scaling: dict[str, any] = bundle.get("scaling", {});
+    for svc_name in scaling.keys() {
+        plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+        mode = plan.get("mode");
+        scale_target_name = str(plan.get("scale_target_name", ""));
+        if mode != ScalingMode.METRIC {
+            autoscaler.destroy(
+                autoscaler.resource_name_for(k8s_safe_name(svc_name)), namespace
+            );
+        }
+        if mode != ScalingMode.HTTP_ACTIVATION {
+            destroy_http_activation_for_target(scale_target_name, namespace, keda);
+        }
     }
 }
 
@@ -1115,6 +1136,17 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         apply_http_activations_for_bundle(
             bundle, namespace, KEDAAutoscaler(logger=self.logger)
+        );
+
+        reap_stale_scaling_resources_for_bundle(
+            bundle,
+            namespace,
+            AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine,
+                self.k8s_config.to_dict(),
+                self.logger
+            ),
+            KEDAAutoscaler(logger=self.logger)
         );
 
         for (svc_name, pdb_manifest) in bundle.get("pdbs", {}).items() {

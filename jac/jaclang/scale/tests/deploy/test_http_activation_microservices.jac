@@ -5,8 +5,10 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ScalingMode
 }
 import from jaclang.scale.deploy.target.kubernetes.target {
-    apply_http_activations_for_bundle
+    apply_http_activations_for_bundle,
+    reap_stale_scaling_resources_for_bundle
 }
+import unittest.mock;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -218,4 +220,82 @@ test "apply_http_activations_for_bundle is a no-op when no service is in HTTP_AC
     (keda, custom_api, _, _) = _mocked_keda();
     apply_http_activations_for_bundle({}, "t-ns", keda);
     custom_api.create_namespaced_custom_object.assert_not_called();
+}
+
+
+# --- Section D: reap_stale_scaling_resources_for_bundle (mode-switch cleanup)
+# A service can switch scaling mode between deploys. Applying the new mode's
+# resource never removes the old one on its own, so these prove the reap step
+# deletes whichever mode a service is NOT in, for every mode transition -
+# exactly what a fresh-deploy-only e2e cannot exercise.
+test "a METRIC service has its stale HTTP activation resources reaped, autoscaler left alone" {
+    (keda, custom_api, _, _) = _mocked_keda();
+    autoscaler = unittest.mock.MagicMock();
+    bundle = {
+        "scaling": {
+            "worker": {
+                "mode": ScalingMode.METRIC,
+                "scale_target_name": "worker-deployment",
+                "service_name": "worker-service",
+                "autoscaler": {"min": 1, "max": 3},
+                "http_activation": {}
+            }
+        }
+    };
+    reap_stale_scaling_resources_for_bundle(bundle, "t-ns", autoscaler, keda);
+    autoscaler.destroy.assert_not_called();
+    delete_calls = custom_api.delete_namespaced_custom_object.call_args_list;
+    assert len(delete_calls) == 2;
+    deleted_names = {c[1]["name"] for c in delete_calls};
+    assert deleted_names
+        == {"worker-deployment-http-route", "worker-deployment-http-scaledobject"};
+}
+
+test "an HTTP_ACTIVATION service has its stale metric autoscaler destroyed, activation left alone" {
+    (keda, custom_api, _, _) = _mocked_keda();
+    autoscaler = unittest.mock.MagicMock();
+    autoscaler.resource_name_for.return_value = "billing-ops-deployment-scaledobject";
+    bundle = {
+        "scaling": {
+            "billing_ops": {
+                "mode": ScalingMode.HTTP_ACTIVATION,
+                "scale_target_name": "billing-ops-deployment",
+                "service_name": "billing-ops-service",
+                "autoscaler": {},
+                "http_activation": _cfg()
+            }
+        }
+    };
+    reap_stale_scaling_resources_for_bundle(bundle, "t-ns", autoscaler, keda);
+    autoscaler.destroy.assert_called_once_with(
+        "billing-ops-deployment-scaledobject", "t-ns"
+    );
+    custom_api.delete_namespaced_custom_object.assert_not_called();
+}
+
+test "a NONE service has both its stale autoscaler and HTTP activation resources reaped" {
+    (keda, custom_api, _, _) = _mocked_keda();
+    autoscaler = unittest.mock.MagicMock();
+    bundle = {
+        "scaling": {
+            "idle_svc": {
+                "mode": ScalingMode.NONE,
+                "scale_target_name": "idle-svc-deployment",
+                "service_name": "idle-svc-service",
+                "autoscaler": {},
+                "http_activation": {}
+            }
+        }
+    };
+    reap_stale_scaling_resources_for_bundle(bundle, "t-ns", autoscaler, keda);
+    autoscaler.destroy.assert_called_once();
+    assert len(custom_api.delete_namespaced_custom_object.call_args_list) == 2;
+}
+
+test "reap_stale_scaling_resources_for_bundle is a no-op on an empty bundle" {
+    (keda, custom_api, _, _) = _mocked_keda();
+    autoscaler = unittest.mock.MagicMock();
+    reap_stale_scaling_resources_for_bundle({}, "t-ns", autoscaler, keda);
+    autoscaler.destroy.assert_not_called();
+    custom_api.delete_namespaced_custom_object.assert_not_called();
 }
