@@ -27,6 +27,8 @@ import from ast_nodes {
     AugAssign,
     AnnAssign,
     Delete,
+    Raise,
+    Assert,
     Global,
     Nonlocal,
     For,
@@ -963,6 +965,32 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
                 return False;
             }
             ti = ti + 1;
+        }
+        return True;
+    }
+    if isinstance(s, Raise) {
+        r = s as Raise;
+        if r.exc is not None {
+            if not sym_visit_load_expr(b, r.exc) {
+                return False;
+            }
+        }
+        if r.cause is not None {
+            if not sym_visit_load_expr(b, r.cause) {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(s, Assert) {
+        a = s as Assert;
+        if not sym_visit_load_expr(b, a.test) {
+            return False;
+        }
+        if a.msg is not None {
+            if not sym_visit_load_expr(b, a.msg) {
+                return False;
+            }
         }
         return True;
     }

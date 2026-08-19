@@ -951,9 +951,17 @@ def emit_name_load(
     }
     opc = name_load_opcode(g, name);
     idx = g.u.add_name(name);
-    if for_call and opc == OP_LOAD_GLOBAL {
-        g.emit_op(opc, (idx << 1) | 1, tloc);
-        return False;
+    if opc == OP_LOAD_GLOBAL {
+        # CPython encodes LOAD_GLOBAL's oparg as (name_index << 1) | push_null,
+        # where the low bit requests the extra NULL for a following CALL. The VM
+        # decodes name_index = arg >> 1, so the shift is required for every
+        # LOAD_GLOBAL, not just the call form (idx==0 masked this before).
+        if for_call {
+            g.emit_op(opc, (idx << 1) | 1, tloc);
+            return False;
+        }
+        g.emit_op(opc, idx << 1, tloc);
+        return True;
     }
     g.emit_op(opc, idx, tloc);
     return True;

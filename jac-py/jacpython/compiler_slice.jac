@@ -573,7 +573,29 @@ test "compiler_slice: membership filter comprehension matches oracle PyCode" {
 test "compiler_slice: if-at-tail with terminating branches matches oracle nested co_code" {
     for src in [
         "def f(x):\n    if x:\n        return 1\n",
-        "def f(x):\n    if x:\n        return 1\n    else:\n        return 2\n"
+        "def f(x):\n    if x:\n        return 1\n    else:\n        return 2\n",
+        "def f(x):\n    if x:\n        raise ValueError\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert af.co_code == ef.co_code;
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}
+
+# The symtable USE pass must visit expressions inside `raise` and `assert`, or
+# their names never get scope-classified: a function-scope builtin/global (e.g.
+# ValueError) mis-emits LOAD_NAME instead of LOAD_GLOBAL (and a closure var would
+# miscompile). Verified via nested co_code.
+test "compiler_slice: raise / assert register name USE for LOAD_GLOBAL" {
+    for src in [
+        "def f(x):\n    raise ValueError\n",
+        "def f(e):\n    raise ValueError from e\n",
+        "def f(x):\n    assert x, RuntimeError\n"
     ] {
         actual = compile_parsed_exec(src);
         expected = oracle_exec(src, "<f>");
