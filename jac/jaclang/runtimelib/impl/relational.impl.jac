@@ -83,6 +83,9 @@ glob _BASE_SQL: list[str] = [
         ON edges (dst, edge_type) INCLUDE (src, seq) WHERE dst IS NOT NULL
     """,
          """
+    ALTER TABLE edges ADD COLUMN IF NOT EXISTS access jsonb
+    """,
+         """
     CREATE TABLE IF NOT EXISTS graph_tables (
         table_name  text PRIMARY KEY,
         kind        text NOT NULL,
@@ -498,10 +501,12 @@ def _fields_dict(props: dict) -> dict {
     if not isinstance(arch, dict) {
         return {};
     }
+    # __type__/__module__ are derivable from arch_type/arch_module; every
+    # other key (including __jac_attic__) must survive the round-trip
     return {
         k: v
         for (k, v) in arch.items()
-        if not k.startswith('__')
+        if k not in ['__type__', '__module__']
     };
 }
 
@@ -616,7 +621,7 @@ def _upsert_edges(store: object, rows: list) -> None {
         values.append(
             f"(CAST(:id{i} AS uuid), :et{i}, :am{i}, CAST(:src{i} AS uuid), "
             f"CAST(:dst{i} AS uuid), CAST(:root{i} AS uuid), :und{i}, "
-            f"CAST(:props{i} AS jsonb))"
+            f"CAST(:props{i} AS jsonb), CAST(:acc{i} AS jsonb))"
         );
         params[f"id{i}"] = str(row.id);
         params[f"et{i}"] = row.arch_type or 'GenericEdge';
@@ -626,11 +631,13 @@ def _upsert_edges(store: object, rows: list) -> None {
         params[f"root{i}"] = str(row.root_id) if row.root_id else None;
         params[f"und{i}"] = row.undirected;
         params[f"props{i}"] = json.dumps(_fields_dict(row.props), default=str);
+        a = row.props.get('access');
+        params[f"acc{i}"] = json.dumps(a, default=str) if isinstance(a, dict) else None;
     }
     store._run(
         'INSERT INTO edges '
-        '(id, edge_type, arch_module, src, dst, root_id, undirected, props) '
-        'VALUES '
+        '(id, edge_type, arch_module, src, dst, root_id, undirected, '
+        'props, access) VALUES '
             + ', '.join(values)
             + """
         ON CONFLICT (id) DO UPDATE SET
@@ -640,7 +647,8 @@ def _upsert_edges(store: object, rows: list) -> None {
             dst = EXCLUDED.dst,
             root_id = EXCLUDED.root_id,
             undirected = EXCLUDED.undirected,
-            props = EXCLUDED.props
+            props = EXCLUDED.props,
+            access = EXCLUDED.access
         """,
         params
     );
@@ -916,4 +924,318 @@ impl relational_parity(store: object, limit: int = 1000) -> list[str] {
         }
     }
     return problems;
+}
+
+
+# ---------------------------------------------------------------------------
+# read path (A3): materialize anchors from the relational layout
+
+impl relational_read_enabled -> bool {
+    return os.environ.get('JAC_RELATIONAL', '').strip().lower() == 'on';
+}
+
+
+def _reconstruct_value(c: ColumnSpec, v: object) -> object {
+    if v is None {
+        return None;
+    }
+    if c.tier in ['node_ref', 'edge_ref'] {
+        kind = 'node' if c.tier == 'node_ref' else 'edge';
+        try {
+            return {'$ref': UUID(str(v)).hex, '$type': kind};
+        } except ValueError {
+            return str(v);
+        }
+    }
+    if c.tier == 'node_ref_list' {
+        items: list = [];
+        raw = v;
+        if isinstance(raw, str) {
+            raw = [
+                x
+                for x in raw.strip('{}').split(',')
+                if x
+            ];
+        }
+        for item in (raw if isinstance(raw, list) else []) {
+            try {
+                items.append({'$ref': UUID(str(item)).hex, '$type': 'node'});
+            } except ValueError {
+                items.append(str(item));
+            }
+        }
+        return items;
+    }
+    if c.tier == 'enum' {
+        s = str(v);
+        if s.lstrip('-').isdigit() {
+            return int(s);
+        }
+        return s;
+    }
+    if c.sql_type == 'jsonb' {
+        return _norm_json(v);
+    }
+    return v;
+}
+
+
+def _adjacency_map(store: object, node_ids: list[str]) -> dict {
+    adj: dict[str, list] = {i: [] for i in node_ids};
+    seen: dict[str, set] = {i: set() for i in node_ids};
+    rows = store._run(
+        """
+        SELECT src, dst, id FROM edges
+        WHERE src = ANY(CAST(:ids AS uuid[])) OR dst = ANY(CAST(:ids AS uuid[]))
+        ORDER BY seq, id
+        """,
+        {'ids': node_ids}
+    );
+    for r in rows {
+        eid = str(r[2]);
+        for endpoint in [r[0], r[1]] {
+            if endpoint is None {
+                continue;
+            }
+            key = _norm_uuid(endpoint);
+            if key in adj and eid not in seen[key] {
+                seen[key].add(eid);
+                adj[key].append(eid);
+            }
+        }
+    }
+    return adj;
+}
+
+
+impl relational_load_full(store: object, ids: list[UUID]) -> tuple {
+    """Returns (rows: dict[UUID, AnchorRow-args-dict], missing: list[UUID]).
+
+    rows values are dicts consumable as AnchorRow fields by the store; ids
+    that cannot be fully reconstructed relationally (walkers, unplanned
+    types, pre-shadow rows) land in missing for the anchors fallback.
+    """;
+    sids = [str(i) for i in ids];
+    found: dict = {};
+    resolved: set[str] = set();
+
+    # anchors stays the source of truth pre-cutover: ids missing there must
+    # not resurrect from a stale mirror row (index-only pkey probe)
+    live = {
+        _norm_uuid(r[0])
+        for r in store._run(
+            'SELECT id FROM anchors WHERE id = ANY(CAST(:ids AS uuid[]))', {'ids': sids}
+        )
+    };
+    sids = [
+        x
+        for x in sids
+        if x in live
+    ];
+    if not sids {
+        return ({}, list(ids));
+    }
+
+    dir_rows = store._run(
+        'SELECT id, arch_type, arch_module, root_id FROM nodes '
+        'WHERE id = ANY(CAST(:ids AS uuid[]))',
+        {'ids': sids}
+    );
+    node_groups: dict[tuple, list] = {};
+    node_meta: dict[str, tuple] = {};
+    for r in dir_rows {
+        rid = _norm_uuid(r[0]);
+        node_meta[rid] = (str(r[1]), str(r[2]), _norm_uuid(r[3]));
+        node_groups.setdefault((str(r[1]), str(r[2])), []).append(rid);
+    }
+
+    adj = _adjacency_map(store, list(node_meta.keys())) if node_meta else {};
+
+    for ((at, am), gids) in node_groups.items() {
+        plan = plan_for(at, am);
+        if plan is None {
+            continue;
+        }
+        _ensure_table(store, plan);
+        sel = ['id', 'root_id', 'access', 'extra', 'xmin::text']
+            + [c.col for c in plan.columns];
+        for tr in store._run(
+            f"SELECT {', '.join(sel)} FROM {plan.table} "
+            'WHERE id = ANY(CAST(:ids AS uuid[]))',
+            {'ids': gids}
+        ) {
+            rid = _norm_uuid(tr[0]);
+            root_id = _norm_uuid(tr[1]);
+            access = _norm_json(tr[2]);
+            extra = _norm_json(tr[3]) or {};
+            arch: dict = {'__type__': at, '__module__': am};
+            for (j, c) in enumerate(plan.columns) {
+                arch[c.name] = _reconstruct_value(c, tr[5 + j]);
+            }
+            if isinstance(extra, dict) {
+                arch.update(extra);
+            }
+            edge_list = adj.get(rid, []);
+            props = {
+                '__type__': 'NodeAnchor',
+                '__module__': 'jaclang.jac0core.archetype',
+                'id': rid,
+                'root': root_id,
+                'persistent': True,
+                'access': access if isinstance(access, dict) else {},
+                'archetype': arch,
+                'edges': edge_list,
+                'version': int(str(tr[4]))
+            };
+            found[rid] = {
+                'kind': 'NodeAnchor',
+                'arch_type': at,
+                'arch_module': am,
+                'root_id': root_id,
+                'props': props,
+                'version': int(str(tr[4])),
+                'adjacency': edge_list
+            };
+            resolved.add(rid);
+        }
+    }
+
+    edge_rows = store._run(
+        """
+        SELECT id, edge_type, arch_module, src, dst, root_id, undirected,
+               props, xmin::text, access
+        FROM edges WHERE id = ANY(CAST(:ids AS uuid[]))
+        """,
+        {'ids': sids}
+    );
+    for r in edge_rows {
+        rid = _norm_uuid(r[0]);
+        fieldsd = _norm_json(r[7]) or {};
+        arch = {'__type__': str(r[1]), '__module__': str(r[2])};
+        if isinstance(fieldsd, dict) {
+            arch.update(fieldsd);
+        }
+        src = _norm_uuid(r[3]);
+        dst = _norm_uuid(r[4]);
+        eaccess = _norm_json(r[9]);
+        props = {
+            '__type__': 'EdgeAnchor',
+            '__module__': 'jaclang.jac0core.archetype',
+            'id': rid,
+            'root': _norm_uuid(r[5]),
+            'persistent': True,
+            'access': eaccess if isinstance(eaccess, dict) else {},
+            'archetype': arch,
+            'source': src,
+            'target': dst,
+            'is_undirected': bool(r[6])
+        };
+        found[rid] = {
+            'kind': 'EdgeAnchor',
+            'arch_type': str(r[1]),
+            'arch_module': str(r[2]),
+            'root_id': _norm_uuid(r[5]),
+            'props': props,
+            'src': src,
+            'dst': dst,
+            'undirected': bool(r[6]),
+            'version': int(str(r[8]))
+        };
+        resolved.add(rid);
+    }
+
+    missing = [
+        i
+        for i in ids
+        if str(i) not in resolved
+    ];
+    return (found, missing);
+}
+
+
+glob _backfilled: set[str] = set();
+
+
+impl relational_backfill(store: object, batch: int = 2000) -> dict {
+    _ensure_base(store);
+    counts = {'nodes': 0, 'edges': 0};
+    offset = 0;
+    while True {
+        rows = store._run(
+            """
+            SELECT id, kind, arch_type, arch_module, fingerprint, root_id,
+                   src, dst, undirected, props
+            FROM anchors WHERE kind IN ('NodeAnchor', 'EdgeAnchor')
+            ORDER BY seq LIMIT :lim OFFSET :off
+            """,
+            {'lim': batch, 'off': offset}
+        );
+        if not rows {
+            break;
+        }
+        offset += len(rows);
+        shim_nodes: list = [];
+        shim_edges: list = [];
+        import from jaclang.runtimelib.store { AnchorRow }
+        for r in rows {
+            raw_props = r[9];
+            props = (
+                raw_props if isinstance(raw_props, dict) else json.loads(str(raw_props))
+            );
+            row = AnchorRow(
+                id=UUID(str(r[0])),
+                kind=str(r[1]),
+                arch_type=str(r[2]),
+                arch_module=str(r[3]),
+                fingerprint=str(r[4]),
+                root_id=UUID(str(r[5])) if r[5] else None,
+                props=props,
+                src=UUID(str(r[6])) if r[6] else None,
+                dst=UUID(str(r[7])) if r[7] else None,
+                undirected=bool(r[8])
+            );
+            if row.kind == 'NodeAnchor' {
+                shim_nodes.append(row);
+            } else {
+                shim_edges.append(row);
+            }
+        }
+        _upsert_directory(store, shim_nodes);
+        groups: dict[tuple, list] = {};
+        for row in shim_nodes {
+            groups.setdefault((row.arch_type, row.arch_module), []).append(row);
+        }
+        for ((at, am), grp) in groups.items() {
+            plan = plan_for(at, am);
+            if plan is None {
+                continue;
+            }
+            _ensure_table(store, plan);
+            _upsert_typed(store, plan, grp);
+        }
+        _upsert_edges(store, shim_edges);
+        counts['nodes'] += len(shim_nodes);
+        counts['edges'] += len(shim_edges);
+    }
+    return counts;
+}
+
+
+def relational_backfill_once(store: object) -> None {
+    key = _db_key(store, '__backfill__');
+    with _lock {
+        if key in _backfilled {
+            return;
+        }
+        _backfilled.add(key);
+    }
+    try {
+        counts = relational_backfill(store);
+        logger.info(
+            f"relational backfill: {counts['nodes']} nodes, "
+            f"{counts['edges']} edges mirrored from anchors"
+        );
+    } except Exception as e {
+        logger.error(f"relational backfill failed: {e}");
+    }
 }

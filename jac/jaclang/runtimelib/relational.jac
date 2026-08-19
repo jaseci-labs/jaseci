@@ -45,6 +45,8 @@ obj TablePlan {
 
 def relational_enabled -> bool;
 
+def relational_read_enabled -> bool;
+
 def plan_for(arch_type: str, arch_module: str) -> (TablePlan | None);
 
 def relational_after_upsert(store: object, rows: list) -> None;
@@ -52,5 +54,9 @@ def relational_after_upsert(store: object, rows: list) -> None;
 def relational_after_delete(store: object, ids: list[UUID]) -> None;
 
 def relational_parity(store: object, limit: int = 1000) -> list[str];
+
+def relational_load_full(store: object, ids: list[UUID]) -> tuple;
+
+def relational_backfill(store: object, batch: int = 2000) -> dict;
 
 def relational_reset_cache -> None;

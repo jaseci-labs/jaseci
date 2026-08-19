@@ -214,3 +214,110 @@ test "disabled flag writes nothing relational" {
         }
     }
 }
+
+
+def _out_items(ctx: ExecutionContext, ranch: NodeAnchor) -> list {
+    import from jaclang.jac0core.graph_query { GraphQuery, QHop }
+    import from jaclang.runtimelib.query_planner { resolve_query }
+    q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=RItem)]);
+    return resolve_query(ctx.mem, q);
+}
+
+
+test "relational read path returns the same graph as anchors" {
+    os.environ['JAC_RELATIONAL'] = 'shadow';
+    try {
+        with TemporaryDirectory() as td {
+            old = JacRuntime.exec_ctx;
+            ctx = _make_ctx(td);
+            JacRuntime.exec_ctx = ctx;
+            root_id = None;
+            item_id = None;
+            try {
+                ranch = _root(ctx);
+                it = _attach(ctx, ranch, "roundtrip", 11);
+                ctx.mem.commit();
+                root_id = ranch.id;
+                item_id = it.id;
+            } finally {
+                JacRuntime.exec_ctx = old;
+                ctx.close();
+            }
+            # read the same db through the relational path
+            os.environ['JAC_RELATIONAL'] = 'on';
+            ctx2 = _make_ctx(td);
+            JacRuntime.exec_ctx = ctx2;
+            try {
+                ranch2 = ctx2.mem.get(root_id);
+                assert ranch2 is not None and ranch2.is_populated();
+                items = _out_items(ctx2, ranch2);
+                assert len(items) == 1 , f"expected 1 item, got {len(items)}";
+                a = items[0].archetype;
+                assert a.tag == 'roundtrip' and a.num == 11;
+                assert abs(a.score - 1.5) < 1e-9 and a.flag;
+                assert a.blob == {'k': 1} , f"blob mismatch: {a.blob}";
+                # edge materializes with endpoints intact
+                got = ctx2.mem.batch_get([items[0].id]);
+                assert got[items[0].id].id == item_id;
+            } finally {
+                JacRuntime.exec_ctx = old;
+                ctx2.close();
+            }
+            # legacy read of the same db agrees
+            os.environ.pop('JAC_RELATIONAL', None);
+            ctx3 = _make_ctx(td);
+            JacRuntime.exec_ctx = ctx3;
+            try {
+                ranch3 = ctx3.mem.get(root_id);
+                items3 = _out_items(ctx3, ranch3);
+                assert len(items3) == 1;
+                assert items3[0].archetype.tag == 'roundtrip';
+            } finally {
+                JacRuntime.exec_ctx = old;
+                ctx3.close();
+            }
+        }
+    } finally {
+        os.environ.pop('JAC_RELATIONAL', None);
+    }
+}
+
+
+test "backfill mirrors pre-shadow anchors so relational reads see them" {
+    import from jaclang.runtimelib.relational { relational_backfill }
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        os.environ.pop('JAC_RELATIONAL', None);
+        ctx = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        root_id = None;
+        try {
+            ranch = _root(ctx);
+            _attach(ctx, ranch, "preshadow", 5);
+            ctx.mem.commit();
+            root_id = ranch.id;
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+        os.environ['JAC_RELATIONAL'] = 'on';
+        try {
+            ctx2 = _make_ctx(td);
+            JacRuntime.exec_ctx = ctx2;
+            try {
+                counts = relational_backfill(ctx2.mem.store);
+                assert counts['nodes'] >= 2 and counts['edges'] >= 1 , str(counts);
+                ranch2 = ctx2.mem.get(root_id);
+                items = _out_items(ctx2, ranch2);
+                assert len(items) == 1;
+                assert items[0].archetype.tag == 'preshadow';
+                assert items[0].archetype.num == 5;
+            } finally {
+                JacRuntime.exec_ctx = old;
+                ctx2.close();
+            }
+        } finally {
+            os.environ.pop('JAC_RELATIONAL', None);
+        }
+    }
+}
