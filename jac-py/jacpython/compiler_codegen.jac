@@ -6237,12 +6237,20 @@ def visit_if(
         }
         if owns_tail {
             g.use(join);
-            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
-            return stmt_cont(
-                loc=tail_cont.loc,
-                next_si=len(tail),
-                terminated=tail_cont.terminated
-            );
+            if tail_more {
+                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+                return stmt_cont(
+                    loc=tail_cont.loc,
+                    next_si=len(tail),
+                    terminated=tail_cont.terminated
+                );
+            }
+            # No code in `tail` to duplicate: the real continuation lives in the
+            # caller's own statement list (e.g. visit_stmts over a loop body).
+            # Fall through at `join` and let the caller emit its following
+            # statements. Returning next_si=len(tail)=0 here would reset the
+            # caller's index to 0 -> infinite loop (hangs `while: if c: break; more`).
+            return stmt_cont(loc=body_cont.loc);
         }
         return stmt_cont(loc=body_cont.loc);
     }
