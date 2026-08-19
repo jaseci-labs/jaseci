@@ -668,12 +668,26 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             _advance(st);
             continue;
         }
+        if ch == "#" {
+            # Comment: consume to end of line (not the newline itself, which the
+            # newline branch handles). Matches CPython's comment-then-NEWLINE.
+            while st.pos < len(st.source)
+                and _peek(st) != "\n" and _peek(st) != "\r" {
+                _advance(st);
+            }
+            continue;
+        }
         if ch == "\n" {
             start_col = st.col_offset;
             _advance(st);
             st.line_start = st.pos;
             st.lineno = st.lineno + 1;
             st.col_offset = 0;
+            if st.paren_level > 0 {
+                # Implicit line join inside (), [], {}: newline is non-significant
+                # (NL), no NEWLINE token and no indentation processing.
+                continue;
+            }
             st.at_bol = True;
             return tok_token(
                 tok_type=NEWLINE,
@@ -693,6 +707,9 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             st.line_start = st.pos;
             st.lineno = st.lineno + 1;
             st.col_offset = 0;
+            if st.paren_level > 0 {
+                continue;
+            }
             st.at_bol = True;
             return tok_token(
                 tok_type=NEWLINE,

@@ -1322,8 +1322,20 @@ def pa_join_names_with_dot(a: expr, b: expr) -> expr {
 def pa_join_sequences(a: list[object], b: list[object]) -> list[object] {
     return a;
 }
-def pa_alias_for_star(`node: object) -> alias | None {
-    return None;
+def pa_alias_for_star(
+    lineno: int,
+    col_offset: int,
+    end_lineno: int | None,
+    end_col_offset: int | None
+) -> alias | None {
+    return alias(
+        name="*",
+        asname=None,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
 }
 def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg {
     return arg;

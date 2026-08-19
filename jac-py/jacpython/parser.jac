@@ -55,7 +55,7 @@ import from ast_nodes {
     FormattedValue, Interpolation, MatchAs, MatchOr, MatchSequence, MatchMapping, MatchClass,
     MatchStar, MatchSingleton, MatchValue,
     Add, Sub, Mult, Div, FloorDiv, Mod, MatMult, Pow, LShift, RShift, BitOr, BitXor, BitAnd,
-    USub, UAdd, Not, Invert, Or, And, Lt, LtE, Gt, GtE, Eq, NotEq, In, IsNot, Is,
+    USub, UAdd, Not, Invert, Or, And, Lt, LtE, Gt, GtE, Eq, NotEq, In, NotIn, IsNot, Is,
 }
 
 glob RULE__gather_100: int = NT_OFFSET + 0,
@@ -13166,6 +13166,13 @@ def _build_keyword_lists() -> list[list[peg_keyword_entry]] {
     return lists;
 }
 glob SOFT_KEYWORDS: list[str] = ["_", "case", "match", "type"];
+
+# Invalid-target kind tags (CPython TARGETS_TYPE). pa_raise_invalid_target ignores
+# the value; these exist only so the invalid_* error-recovery rules can reference
+# them without a NameError.
+glob STAR_TARGETS: int = 0;
+glob DEL_TARGETS: int = 1;
+glob FOR_TARGETS: int = 2;
 
 def parse_eval_module(p: peg_parser) -> mod | None {
     res = rule_eval(p);
