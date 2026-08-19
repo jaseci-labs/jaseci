@@ -249,10 +249,6 @@ impl NaIRGenPass._opt_sole_member(t: any) -> (any | None) {
     return _members[0];
 }
 
-"""A union of container types iterates when its members agree: every non-None
-member must match the spec-name family and lower to one pointer type, in
-which case any member speaks for the union (Sequence[Expr] | list[Expr] is
-one list at runtime). Disagreeing members keep the refusal."""
 impl NaIRGenPass._spec_union_agreement(t: any, names: tuple) -> (any | None) {
     try {
         import from jaclang.compiler.type_system.types {

@@ -40,17 +40,6 @@ obj DiagnosticInfo {
     }
 }
 
-"""Fill a diagnostic template by placeholder substitution.
-
-Diagnostic templates use only bare `{name}` placeholders and `{{`/`}}`
-brace escapes -- never format specs -- so substitution IS the format
-semantics here, and it holds on both tiers: `str.format(**kwargs)` has
-no native lowering, and a sealed pass that falls back to the raw
-template ships `'{keyword}' is only valid...` to the user, which is how
-the prefix parity canary caught this. Returns None when a placeholder
-in the template has no argument, so the callers can keep their
-missing-key behavior.
-"""
 def _fill_template(template: str, kwargs: dict[str, object]) -> (str | None) {
     esc_open = chr(1);
     esc_close = chr(2);

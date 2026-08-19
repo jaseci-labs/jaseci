@@ -895,12 +895,6 @@ impl NaIRGenPass._repr_jacval_fn -> (ir.Function | None) {
     return fn;
 }
 
-"""`str()` over a boxed any: the same tag switch as the repr renderer, str
-semantics on the leaves. A str payload comes back as itself (retained),
-not quoted -- `str(v)` inside a sealed diagnostic fill must produce the
-text the staged tier produces, and the repr arm's quoting (or the old
-fallback, which snprintf'd the raw box and printed the TAG) breaks that
-parity. Containers keep the repr renderer's placeholder text."""
 impl NaIRGenPass._str_jacval_fn -> (ir.Function | None) {
     if not self?.jacval_type {
         return None;
