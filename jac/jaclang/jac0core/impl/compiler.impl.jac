@@ -968,6 +968,20 @@ impl JacCompiler.stamp_boundary_facts(
         }
     }
 
+    def source_mod_for(resolved_path: (str | None)) -> (uni.Module | None) {
+        if resolved_path is None {
+            return None;
+        }
+        found: (uni.Module | None) = None;
+        if (target_program.mod and target_program.mod.hub) {
+            found = target_program.mod.hub.get(resolved_path);
+        }
+        if (found is None and os.path.isfile(resolved_path)) {
+            found = parse_only_module(resolved_path);
+        }
+        return found;
+    }
+
     for nd in mod.get_all_sub_nodes(uni.Import) {
         facts = uni.ImportBoundaryFacts();
         nd.boundary_facts = facts;
@@ -1010,17 +1024,10 @@ impl JacCompiler.stamp_boundary_facts(
                     (facts.is_service and not facts.native_from_path)
                     or (nd.items and not facts.is_service and facts.pinned_server)
                 ) {
-                    source_mod: (uni.Module | None) = None;
-                    resolved_path = facts.from_loc_resolved;
-                    if resolved_path is not None {
-                        if (target_program.mod and target_program.mod.hub) {
-                            source_mod = target_program.mod.hub.get(resolved_path);
-                        }
-                        if (source_mod is None and os.path.isfile(resolved_path)) {
-                            source_mod = parse_only_module(resolved_path);
-                        }
-                    }
-                    facts.sv_source_mod = source_mod;
+                    facts.sv_source_mod = source_mod_for(facts.from_loc_resolved);
+                }
+                if (cl_na_edge and nd.items) {
+                    facts.na_source_mod = source_mod_for(facts.from_loc_resolved);
                 }
                 if (
                     nd.items
