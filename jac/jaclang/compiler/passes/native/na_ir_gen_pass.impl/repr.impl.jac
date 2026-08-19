@@ -969,7 +969,7 @@ impl NaIRGenPass._str_jacval_fn -> (ir.Function | None) {
                 )
             );
         } elif _label == "str" {
-            _sp = bh.inttoptr(payload, i8p, name="sj.sp");
+            _sp: any = bh.inttoptr(payload, i8p, name="sj.sp");
             _prev_b = self._builder;
             self._builder = bh;
             self._emit_rc_retain(_sp, op="str_jacval");
