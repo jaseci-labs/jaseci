@@ -6,13 +6,19 @@ and emitting empty function bodies.
 
 Each test below targets one feature that NaIRGenPass currently no-ops.
 When a feature gains real support, its test here should be deleted and
-a behavioral test added to test_native_gen_pass.jac.
+a behavioral test added to test_native_gen_pass.jac -- unless the
+guardrail property survives the promotion in a stronger form, in which
+case the test stays and pins the lowering instead. That is what the set
+iteration below does: a demotion only promised Python would answer, so
+pinning the two lanes to the same value is a strictly better statement
+of "never miscompiles" than the demotion assertion it replaced.
 
 A regression that re-introduces silent-failure mode shows up here as a
 test that fails: "expected E5090, got no errors" — which is exactly the
 class of bug this guardrail exists to prevent.
 """
 
+import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
@@ -82,6 +88,31 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         )
     );
     return prog;
+}
+
+"""Call a no-argument int-returning function out of a compiled module's JIT
+engine. A guardrail that has become a lowering pin needs the native lane's
+answer, not just its layout membership."""
+def native_answer(eng: object, name: str) -> int {
+    assert eng is not None , f"no native engine produced for {name}";
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"'{name}' not found in the JIT engine";
+    return ctypes.CFUNCTYPE(ctypes.c_int64)(addr)();
+}
+
+"""Run the same snippet through the server (Python) lane and call one of its
+functions. This is the other half of a two-lane pin: a lowering is only correct
+if it agrees with the lane it replaced."""
+def server_answer(label: str, code: str, name: str) -> int {
+    path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=path, use_str=code, options=CompileOptions(default_codespace='server')
+    );
+    assert not prog.errors_had , f"server-lane compilation errors: {fmt_errors(prog)}";
+    ns: dict = {};
+    exec(compile(ir.gen.py, path, "exec"), ns);
+    return ns[name]();
 }
 
 """Return True if the program emitted at least one alert with the given code."""
@@ -269,18 +300,63 @@ test "guardrail: call to an undefined function is rejected" {
     )}";
 }
 
-# Iterating a `set` in a `for` loop is not lowered natively (the element type
-# resolves to nothing), which used to drop the loop body silently. Granular
-# demotion turns the structured E5092 into a per-function seam: the function
-# leaves the native layout (Python implements it) instead of miscompiling.
-test "guardrail: for-loop over a set demotes the function, never miscompiles" {
+# Iterating a `set` in a `for` loop LOWERS. It used to drop the loop body
+# silently, then (with granular demotion) leave the function out of the native
+# layout entirely, because a set's element type resolved to nothing and the
+# native lane had no storage for an erased element. The rc-facts solver's
+# dataflow prerequisite fixed both halves: a set-typed lattice keeps its
+# element type, and `_codegen_for` grew a real set iteration to go with it.
+#
+# So this is no longer a guardrail against a silent drop -- it is the pin on
+# the lowering that replaced it, and it keeps the never-miscompile property in
+# the strongest available form. Demotion only ever promised that Python would
+# answer instead; agreement between the lanes promises the native answer is
+# right. A regression to a silent body-drop fails on the value, a regression to
+# demotion fails on layout membership, and either way this test names it.
+test "for-loop over a set lowers, and both lanes answer the same sum" {
+    src = "def run() -> int {\n"
+    "    s: set[int] = {1, 2, 3};\n"
+    "    total: int = 0;\n"
+    "    for v in s { total = total + v; }\n"
+    "    return total;\n"
+    "}\n";
+    (prog, ir, log) = compile_na_inline_demote("for_over_set", src);
+    assert not prog.errors_had , f"a lowered set loop must compile clean, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" in layout.functions , (
+        "iterating a set lowers now; run must stay in the native layout"
+    );
+    assert "NA_DEBUG demote run" not in log , (
+        f"run must not demote for iterating a set:\n{log}"
+    );
+    native = native_answer(ir.gen.native_engine, "run");
+    assert native == 6 , (
+        f"the native lane must sum every element of the set once, got {native}"
+    );
+    server = server_answer("for_over_set", src, "run");
+    assert native == server , (
+        f"the lanes disagree on the set sum: native {native}, server {server}"
+    );
+}
+
+# A container stored inside another container comes back as a bare pointer:
+# the outer dict keeps pointer-valued entries untyped, so the inner
+# `dict`/`list` arrives with no layout attached. Subscripting a bare pointer
+# used to fall straight through to the string-index emitter, which read the
+# inner container's header bytes as characters -- `b['items']` compiled to a
+# character load and raised IndexError at run time. Only an integer index can
+# mean "index this string", so a non-integer key is a seam, not a character.
+test "guardrail: subscripting an element-erased container is not a char read" {
     (prog, ir, log) = compile_na_inline_demote(
-        "for_over_set",
-        "def run() -> int {\n"
-        "    s: set[int] = {1, 2, 3};\n"
-        "    total: int = 0;\n"
-        "    for v in s { total = total + v; }\n"
-        "    return total;\n"
+        "erased_subscript",
+        "def run(t: dict[int, dict[str, list[str]]]) -> int {\n"
+        "    for b in t.values() {\n"
+        "        if len(b['items']) > 0 { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
         "}\n"
     );
     assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
@@ -289,14 +365,197 @@ test "guardrail: for-loop over a set demotes the function, never miscompiles" {
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
     assert "run" not in layout.functions , (
-        "the un-lowerable function must be demoted out of the native layout"
+        "an erased-container subscript must demote, not compile to a char read"
     );
-    assert "NA_DEBUG demote run" in log , f"no demotion recorded for run in:\n{log}";
+    assert "subscript of an element-erased collection" in log , (
+        f"the demotion must name the erased subscript, got:\n{log}"
+    );
 }
+
+
+# The same erasure reaching a membership test: every registered container
+# answers `in` from its own layout, and the one pointer shape left over is the
+# substring test. It used to accept any two pointers, so an object needle
+# handed `strstr` a `%Tag*` and raised a raw llvmlite TypeError -- an ICE-shaped
+# demotion with no diagnostic of its own.
+test "guardrail: membership with a non-string needle names its seam" {
+    (prog, ir, log) = compile_na_inline_demote(
+        "erased_membership",
+        "obj Tag { has n: int = 0; }\n"
+        "def run(t: dict[str, list[Tag]], x: Tag) -> int {\n"
+        "    for v in t.values() {\n"
+        "        if x in v { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" not in layout.functions , (
+        "an erased-container membership test must demote"
+    );
+    assert "membership over an element-erased collection" in log , (
+        f"the demotion must name the erased membership test, got:\n{log}"
+    );
+    assert "TypeError" not in log , (
+        f"the seam must be a diagnostic, not a raw emitter crash:\n{log}"
+    );
+}
+
+
+# A demotion is telemetry, not an answer: the author gets a silently-slower
+# function and no instruction. Where the operand genuinely has no static type,
+# the checker now refuses it at check time (#8323, decision 3) and says what to
+# write. The emitter guard above stays as defense in depth for whatever reaches
+# it by another route rather than as the only thing standing between an erased
+# container and `strstr`.
+#
+# The two erased shapes the checker can see, and both are annotation bugs the
+# author can act on: an operand typed `any`, and a builtin container spelled
+# without its element types.
+test "checker: membership over an operand with no static type is refused (E1124)" {
+    prog = check_na_inline(
+        "erased_membership_any",
+        "def run(t: any, x: int) -> int {\n"
+        "    if x in t { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert has_error_code(prog, "E1124") , (
+        f"an `any`-typed membership operand must be refused at check time, got: {fmt_errors(
+            prog
+        )}"
+    );
+    # The refusal must name the remedy the author can act on, not just the fact.
+    e1124 = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E1124"
+    ];
+    for e in e1124 {
+        assert "annotate" in (e.code.help_text or "") , (
+            f"E1124 must demand an annotation, got: {e}"
+        );
+    }
+}
+
+
+# A bare `list`/`dict`/`set` operand is erased too, but it is NOT this arm's
+# job. It HAS a static type -- the container is merely unparameterized -- and
+# the fix belongs at the annotation, where one refusal covers every use, rather
+# than at each membership test, where the author would collect N copies of the
+# same instruction. Decision 3's first half refuses the annotation itself; this
+# arm stays out of its way.
+#
+# The distinction was not free to learn. An earlier cut of this check also
+# refused unparameterized containers, and the seal caught it: NON_ESCAPED_KEYWORDS
+# in jac0core/constant.jac and _proto_checks_in_progress in
+# type_system/impl/type_utils.impl.jac are both bare `set`, so the compiler
+# refused to compile itself.
+test "checker: a bare container operand is left to the annotation refusal" {
+    prog = check_na_inline(
+        "erased_membership_bare",
+        "def lst(t: list, x: int) -> int { if x in t { return 1; } return 0; }\n"
+        "def dct(t: dict, x: str) -> int { if x not in t { return 1; } return 0; }\n"
+        "def st(t: set, x: int) -> int { if x in t { return 1; } return 0; }\n"
+    );
+    assert not has_error_code(prog, "E1124") , (
+        "an unparameterized container has a static type; refusing it here would "
+        f"duplicate the annotation refusal at every use site, got: {fmt_errors(prog)}"
+    );
+}
+
+
+# The residual this arm does NOT close, recorded rather than papered over.
+#
+# `v` here is `list[Tag]` by the checker's own reckoning -- fully typed, nothing
+# for the author to annotate -- yet the emitter still refuses it as
+# element-erased and demotes `run`. The erasure is introduced by the lowering of
+# `t.values()`, which does not carry the value type's layout through to the
+# comparison; it is not a missing annotation. Demanding one here would be the
+# checker telling the author to fix something already correct, so E1124
+# deliberately stays silent and the demotion above remains the honest answer
+# until the `dict.values()` lowering carries its element layout.
+test "checker: a correctly-typed operand the emitter still erases is not refused" {
+    prog = check_na_inline(
+        "erased_membership_emitter_side",
+        "obj Tag { has n: int = 0; }\n"
+        "def run(t: dict[str, list[Tag]], x: Tag) -> int {\n"
+        "    for v in t.values() {\n"
+        "        if x in v { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not has_error_code(prog, "E1124") , (
+        "`v` is list[Tag]: the erasure is the emitter's, and demanding an "
+        f"annotation for an annotated operand would be a false accusation, got: {fmt_errors(
+            prog
+        )}"
+    );
+}
+
+
+# The negative control for the checker arm: an operand that carries its element
+# type answers `in` from its own layout and must never be refused. This is the
+# shape rider 1 of #8323 makes the norm, so a false positive here would refuse
+# most correctly-typed native code.
+test "checker: typed containers and strings are never refused" {
+    prog = check_na_inline(
+        "membership_typed_ok",
+        "def sub(s: str, w: str) -> int { if w in s { return 1; } return 0; }\n"
+        "def lst(w: str, l: list[str]) -> int { if w in l { return 1; } return 0; }\n"
+        "def dct(k: str, d: dict[str, int]) -> int {\n"
+        "    if k in d { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+        "def st(w: str, s: set[str]) -> int { if w not in s { return 1; } return 0; }\n"
+        "def tup(w: str, t: tuple[str, str]) -> int {\n"
+        "    if w in t { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not has_error_code(prog, "E1124") , (
+        f"typed containers must answer membership without a refusal, got: {fmt_errors(
+            prog
+        )}"
+    );
+}
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Negative controls — supported features must NOT trigger E5090
 # ─────────────────────────────────────────────────────────────────────
+# The guards above must not cost the shapes that do lower: a substring test
+# over two plain strings, and a membership test over a directly-typed list.
+test "guardrail: string and typed-list membership still lower" {
+    (prog, ir, log) = compile_na_inline_demote(
+        "membership_ok",
+        "def sub(s: str, w: str) -> int { if w in s { return 1; } return 0; }\n"
+        "def nsub(s: str, w: str) -> int { if w not in s { return 1; } return 0; }\n"
+        "def lst(w: str) -> int {\n"
+        "    l: list[str] = [\"alpha\", \"beta\"];\n"
+        "    if w in l { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+        "def chr_at(s: str, i: int) -> str { return s[i]; }\n"
+    );
+    assert not prog.errors_had , f"Supported membership must not error, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    for name in ["sub", "nsub", "lst", "chr_at"] {
+        assert name in layout.functions , (
+            f"'{name}' must still lower natively; demotion log:\n{log}"
+        );
+    }
+}
+
+
 test "guardrail: supported features do not trigger E5090" {
     prog = compile_na_inline(
         "supported_ok",

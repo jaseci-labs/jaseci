@@ -62,7 +62,7 @@ impl EsastGenPass._literal_value(expr: (uni.UniNode | None)) -> (object | None) 
         }
     }
     if isinstance(expr, uni.DictVal) {
-        items: dict[(str, Any)] = {};
+        items: dict[(str, any)] = {};
         for pair in expr.kv_pairs {
             if (isinstance(pair, uni.KVPair) and pair.key) {
                 key_val = self._literal_value(pair.key);
@@ -1287,7 +1287,7 @@ impl EsastGenPass._extract_return_type(
 impl EsastGenPass._wrap_return_with_boundary(
     call_expr: es.Expression,
     ret_type: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode,
     pre_awaited: bool
 ) -> es.Expression {
@@ -1411,7 +1411,7 @@ impl EsastGenPass._wrap_return_with_boundary(
 impl EsastGenPass._wrap_to_wire_if_boundary(
     expr: es.Expression,
     type_name: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode
 ) -> es.Expression {
     if (type_name in boundary_types and boundary_types[type_name].kind != "enum") {
@@ -4579,16 +4579,20 @@ impl EsastGenPass._has_import(name: str) -> bool {
     return False;
 }
 
-impl EsastGenPass._register_jac_runtime_import -> None {
+impl EsastGenPass._register_jac_virtual_import(module_id: str) -> None {
     import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
-    self._ensure_backend();
-    module_id = self.backend.runtime_module();
-    if module_id not in self.client_manifest.imports {
-        runtime_path = resolve_jac_virtual_module_path(module_id);
-        if runtime_path {
-            self.client_manifest.imports[module_id] = runtime_path;
-        }
+    if not self.client_manifest or module_id in self.client_manifest.imports {
+        return;
     }
+    source_path = resolve_jac_virtual_module_path(module_id);
+    if source_path {
+        self.client_manifest.imports[module_id] = source_path;
+    }
+}
+
+impl EsastGenPass._register_jac_runtime_import -> None {
+    self._ensure_backend();
+    self._register_jac_virtual_import(self.backend.runtime_module());
 }
 
 impl EsastGenPass._inject_runtime_import(name: str, nd: uni.UniNode) -> None {
@@ -6466,6 +6470,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
 
     bind_local = '__jac_na_bind';
     if bind_local not in self.injected_imports {
+        host_module = '@jac/wasm_host';
         specifier = self.sync_loc(
             es.ImportSpecifier(
                 imported=es.Identifier(name='__na_bind'),
@@ -6474,7 +6479,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
             jac_node=nd
         );
         source = self.sync_loc(
-            es.Literal(value='@jac/wasm_host', raw='"@jac/wasm_host"'), jac_node=nd
+            es.Literal(value=host_module, raw=f'"{host_module}"'), jac_node=nd
         );
         self.imports.append(
             self.sync_loc(
@@ -6482,6 +6487,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
             )
         );
         self.injected_imports.add(bind_local);
+        self._register_jac_virtual_import(host_module);
     }
 
     props: list[(es.AssignmentProperty | es.RestElement)] = [];
@@ -7953,11 +7959,11 @@ impl EsastGenPass.before_pass -> None {
         client_capability_violations
     }
     import from jaclang.jac0core.diagnostics { E5096 }
-    if not self.ir_in.gen.client_viols_reported {
+    if not self.ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
-        self.ir_in.gen.client_viols_reported = True;
+        self.ir_in.client_viols_reported = True;
     }
     self.child_passes = self._init_child_passes(EsastGenPass);
     self.client_manifest = ClientManifest();

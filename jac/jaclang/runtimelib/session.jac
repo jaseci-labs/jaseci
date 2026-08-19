@@ -1,8 +1,7 @@
 import logging;
 import os;
 import threading;
-import from collections.abc { Callable, Generator, Iterable }
-import from typing { Any }
+import from collections.abc { Generator }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
@@ -84,7 +83,7 @@ obj Session {
         _flushed_hash: dict[UUID, int] postinit,
         _on_commit: list[Callable] postinit,
         _txn_changed: set[UUID] postinit,
-        _runtime: (Any | None) postinit,
+        _runtime: (any | None) postinit,
         _lock: threading.RLock postinit,
         _fetch_count: int postinit,
         _active_units: int postinit,
@@ -125,7 +124,7 @@ obj Session {
     async def adelete(id: UUID) -> None;
     async def ahas(id: UUID) -> bool;
     async def acommit(anchor: (Anchor | None) = None) -> None;
-    def run_request(body: Callable) -> Any;
+    def run_request(body: Callable) -> any;
     def reset_fetch_count -> None;
     def get_fetch_count -> int;
     def unit_enter -> None;

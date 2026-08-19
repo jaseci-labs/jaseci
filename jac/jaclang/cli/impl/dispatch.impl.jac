@@ -4,7 +4,7 @@ import from jaclang.cli.command { ArgKind, arg_consumes_value }
 import from jaclang.cli.manifest { ArgMeta, CommandMeta }
 
 def _discover_project_config {
-    import from jaclang.jac0core.helpers { MalformedJacTomlError }
+    import from jaclang.jac0core.tomlio { MalformedJacTomlError }
 
     try {
         import from jaclang.project.config { get_config }
@@ -163,11 +163,7 @@ def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
         if dict_key not in args_dict {
             continue;
         }
-        arg_default = arg.default;
-        if arg_default is None and (arg.kind == ArgKind.FLAG or arg.typ == "bool") {
-            arg_default = False;
-        }
-        if args_dict[dict_key] != arg_default {
+        if args_dict[dict_key] != arg.default {
             continue;
         }
         raw = config._raw_data.get(section, {});

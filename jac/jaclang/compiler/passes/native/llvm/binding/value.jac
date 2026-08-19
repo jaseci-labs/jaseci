@@ -90,7 +90,7 @@ class ValueKind(`enum.IntEnum) {
 """A weak reference to a LLVM value.
     """
 class ValueRef(ffi.ObjectRef) {
-    def init(self: ValueRef, ptr: Any, kind: Any, parents: Any) -> object {
+    def init(self: ValueRef, ptr: any, kind: any, parents: any) -> object {
         self._kind = kind;
         self._parents = parents;
         ffi.ObjectRef.init(self, ptr);
@@ -181,7 +181,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @name.setter
-    def name(self: ValueRef, val: Any) -> object {
+    def name(self: ValueRef, val: any) -> object {
         ffi.lib.LLVMPY_SetValueName(self, _encode_string(val));
     }
 
@@ -191,7 +191,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @linkage.setter
-    def linkage(self: ValueRef, value: Any) -> object {
+    def linkage(self: ValueRef, value: any) -> object {
         if not isinstance(value, Linkage) {
             value = Linkage[value];
         }
@@ -204,7 +204,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @visibility.setter
-    def visibility(self: ValueRef, value: Any) -> object {
+    def visibility(self: ValueRef, value: any) -> object {
         if not isinstance(value, Visibility) {
             value = Visibility[value];
         }
@@ -217,7 +217,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @storage_class.setter
-    def storage_class(self: ValueRef, value: Any) -> object {
+    def storage_class(self: ValueRef, value: any) -> object {
         if not isinstance(value, StorageClass) {
             value = StorageClass[value];
         }
@@ -231,7 +231,7 @@ class ValueRef(ffi.ObjectRef) {
         attr : str
             attribute name
         """
-    def add_function_attribute(self: ValueRef, attr: Any) -> object {
+    def add_function_attribute(self: ValueRef, attr: any) -> object {
         if not self.is_function {
             raise ValueError(('expected function value, got %s' % (self._kind, )));
         }
@@ -399,7 +399,7 @@ class ValueRef(ffi.ObjectRef) {
             By default, raises an exception on accuracy loss
         """
     def get_constant_value(
-        self: ValueRef, signed_int: Any = False, round_fp: Any = False
+        self: ValueRef, signed_int: any = False, round_fp: any = False
     ) -> object {
         if not self.is_constant {
             raise ValueError(('expected constant value, got %s' % (self._kind, )));
@@ -433,7 +433,7 @@ class _ValueIterator(ffi.ObjectRef) {
         kind = None;
     }
 
-    def init(self: _ValueIterator, ptr: Any, parents: Any) -> object {
+    def init(self: _ValueIterator, ptr: any, parents: any) -> object {
         ffi.ObjectRef.init(self, ptr);
         self._parents = parents;
         if (self.kind is None) {

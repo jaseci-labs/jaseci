@@ -10,7 +10,10 @@ glob PLACEMENT_SCHEMA: int = 1,
          ("PyInlineCode", uni.PyInlineCode),
          ("JsxElement", uni.JsxElement)
      ),
-     PLACEMENT_NATIVE_REJECT_NODES: tuple = ();
+     PLACEMENT_NATIVE_REJECT_NODES: tuple = (),
+     PLACEMENT_INFERENCE_HELD: dict[str, str] = {
+         "jac0core/codeinfo.jac": "13 own seams, and a closure that reaches uni_pass (#8201 wave work)"
+     };
 
 obj ElementSummary {
     has index: int = -1,
@@ -518,6 +521,21 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
+def _erased_only_import(imp: uni.Import) -> bool {
+    import from jaclang.jac0core.codeinfo { native_erased_import_names }
+    if imp.from_loc is None or imp.is_absorb {
+        return False;
+    }
+    names: list[str] = [];
+    for item in imp.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            return False;
+        }
+        names.append(item.name.value);
+    }
+    return native_erased_import_names(imp.from_loc.dot_path_str, names);
+}
+
 def scan_native_blockers(
     module: uni.Module, base_dir: str, allow_pub: bool = False
 ) -> tuple[str, list[str]] {
@@ -527,6 +545,12 @@ def scan_native_blockers(
         resolve_native_module
     }
     deps: list[str] = [];
+    _held_path = (module.loc.mod_path if module.loc is not None else '') or '';
+    for (_held_rel, _held_why) in PLACEMENT_INFERENCE_HELD.items() {
+        if _held_path.replace(os.sep, "/").endswith("/jaclang/" + _held_rel) {
+            return (f"inference held: {_held_why}", deps);
+        }
+    }
     for (nd_name, typ) in PLACEMENT_SV_SIGNAL_NODES {
         if module.get_all_sub_nodes(typ) {
             return (f"contains {nd_name}", deps);
@@ -589,6 +613,9 @@ def scan_native_blockers(
         }
         if imp.is_virtual_jac or imp.has_string_path {
             return ("virtual/string-path import", deps);
+        }
+        if _erased_only_import(imp) {
+            continue;
         }
         targets: list[tuple[str, (str | None), bool, bool]] = [];
         if imp.from_loc is not None {

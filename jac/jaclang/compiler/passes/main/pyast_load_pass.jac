@@ -1,9 +1,8 @@
 import ast as py_ast;
 import os;
 import re;
-import from collections.abc { Sequence }
 import from threading { Event }
-import from typing { TypeAlias, TypeVar, cast }
+import from typing { TypeAlias, cast }
 import from jaclang.jac0core.unitree {
     Ability,
     ArchBlockStmt,
@@ -100,14 +99,12 @@ import from jaclang.jac0core.unitree {
 import from jaclang.jac0core.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
 import from jaclang.jac0core.diagnostics { E5041, E5042 }
 import from jaclang.jac0core.passes.transform { Transform }
-import type from jaclang.jac0core.program { JacProgram }
 
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;
 
-obj PyastBuildPass(Transform[PythonModuleAst, Module]) {
+obj PyastBuildPass(Transform) {
     has ir_in: PythonModuleAst,
-        prog: JacProgram,
         cancel_token: Event | None = None,
         mod_path: str postinit,
         orig_src: str postinit,

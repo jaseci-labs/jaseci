@@ -14,6 +14,12 @@ sources used the decorator spellings in places (`passes/transform.jac`,
 `runtime.jac`, `compiler.jac`); this test pins both halves of the contract
 so that regression is visible.
 
+`@abstractmethod` is the one spelling that cannot be written without also
+importing it, and a module-scope Python import has no owning callable to
+absorb it, so that snippet refuses the whole module rather than seaming one
+method. `@classmethod` is a builtin and needs no import, which is where the
+granular half of the decorator contract is pinned.
+
 Tracks the front-end native idiom work in #8039.
 """
 
@@ -125,7 +131,7 @@ test "the keyword fixture compiles with no native diagnostics at all" {
 # The decorator spellings demote off native -- this is why the sources moved
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: @abstractmethod demotes where abst is accepted" {
+test "guardrail: @abstractmethod refuses where abst is accepted" {
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_mkind_abstractmethod.jac"),
@@ -140,13 +146,18 @@ test "guardrail: @abstractmethod demotes where abst is accepted" {
         "with entry { print(Impl().go(1)); }\n",
         options=native_force_opts()
     );
-    assert not has_error_code(prog, "E5090") , (
-        f"a decorated method must demote, not fail the module: {fmt_errors(prog)}"
+    errs = fmt_errors(prog);
+    assert "decorator 'on go'" in errs , (
+        f"the capability gate must still name the decorator spelling: {errs}"
     );
-    layout = ir.gen.native_layout;
-    assert layout is not None , "whole-module native compile aborted";
-    assert "Base.go" not in layout.methods , (
-        "the @abstractmethod method must be demoted out of the native layout"
+    assert "Python module import 'abc'" in errs , (
+        "the decorator cannot be written without importing it, and a "
+        "module-scope Python import has no owning callable to absorb it as "
+        "a seam. `import abc;` has always refused the whole module here; "
+        f"the `from` spelling is classified on the same terms: {errs}"
+    );
+    assert ir.gen.llvm_ir is None , (
+        "a module-fatal violation must withhold the LLVM IR"
     );
     kw = check_na_inline(
         "abst",

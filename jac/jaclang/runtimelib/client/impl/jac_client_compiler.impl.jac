@@ -12,7 +12,7 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-def _atomic_write_text(path: Any, text: str) {
+def _atomic_write_text(path: any, text: str) {
     import os;
     tmp = path.with_name(path.name + '.tmp');
     tmp.write_text(text, encoding='utf-8');
@@ -70,7 +70,7 @@ impl JacClientCompiler.compile(
         self.jac_compiler.extract_exports(module_manifest)
     );
     client_globals_map = self.jac_compiler.extract_globals(module_manifest, module);
-    collected_globals: dict[(str, Any)] = dict(client_globals_map);
+    collected_globals: dict[(str, any)] = dict(client_globals_map);
     visited: set[Path] = set();
     project_root = self.project_dir.resolve();
     entry_root = module_path.resolve().parent;
@@ -194,7 +194,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     module_path: Path,
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
-    collected_globals: (dict[(str, Any)] | None) = None,
+    collected_globals: (dict[(str, any)] | None) = None,
     source_root: (Path | None) = None,
     target_name: str = "web",
     skip_existing: bool = False
@@ -223,7 +223,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
-    non_root_globals: dict[(str, Any)] = {};
+    non_root_globals: dict[(str, any)] = {};
     if manifest {
         for name in manifest.globals {
             non_root_globals[name] = manifest.globals_values.get(name);
@@ -489,7 +489,7 @@ impl JacClientCompiler.compile_pwa_runtime(
 
 impl JacClientCompiler._write_source_map(
     self: JacClientCompiler,
-    mod: Any,
+    mod: any,
     source_file: str,
     output_path: Path,
     full_output: str
@@ -553,7 +553,7 @@ impl JacClientCompiler._scan_and_compile_pages(
     self: JacClientCompiler,
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
-    collected_globals: (dict[(str, Any)] | None) = None,
+    collected_globals: (dict[(str, any)] | None) = None,
     target_name: str = "web"
 ) -> bool {
     scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
@@ -703,7 +703,7 @@ impl JacClientCompiler.init(
     runtime_path: (Path | None),
     compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
     extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])],
+    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])],
     compiled_dir: (Path | None) = None
 ) {
     self.project_dir = project_dir;

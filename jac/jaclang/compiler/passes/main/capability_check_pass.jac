@@ -6,6 +6,8 @@ import from jaclang.jac0core.unitree {
     CtrlStmt,
     EdgeOpRef,
     EdgeRefTrailer,
+    ElementStmt,
+    Enum,
     EventSignature,
     Expr,
     FString,
@@ -18,6 +20,7 @@ import from jaclang.jac0core.unitree {
     KWPair,
     LambdaExpr,
     Module,
+    ModuleItem,
     ModulePath,
     MultiString,
     Name,
@@ -31,15 +34,25 @@ import from jaclang.jac0core.unitree {
     YieldExpr
 }
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.jac0core.passes.module_codegen_pass {
+    ModuleCodegenPass,
+    client_capability_violations
+}
 import from jaclang.jac0core.constant { SymbolType }
 import from jaclang.jac0core.diagnostics { E5090, E5096, W6001, W6002, W6003, W6004 }
 import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
 
-glob NATIVE_REJECT_NODES: tuple = (PyInlineCode, );
+glob NATIVE_REJECT_NODES: tuple[type[PyInlineCode]] = (PyInlineCode, );
 
-def classify_native_import(item: UniNode) -> tuple;
+def classify_native_import(item: UniNode) -> tuple[((str | None), bool)];
 
 def import_bound_name(item: UniNode) -> (str | None);
+
+def from_import_jac_source(imp: Import) -> (str | None);
+
+def node_within(name_nd: UniNode, top: (UniNode | None)) -> bool;
+
+def base_expr_is_erased(base: UniNode) -> bool;
 
 def name_in_type_position(name_nd: UniNode) -> bool;
 
@@ -47,15 +60,23 @@ def static_fstring_spec_text(spec: UniNode) -> (str | None);
 
 def call_has_kwargs_sink(call: FuncCall) -> bool;
 
-def native_capability_violations(mod: Module) -> list;
+def native_capability_violations(
+    mod: Module
+) -> list[tuple[(UniNode, str, str, (str | None))]];
 
 def native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None);
 
-def partition_native_capability_violations(viols: list) -> tuple;
+def partition_native_capability_violations(
+    viols: list[tuple[(UniNode, str, str, (str | None))]]
+) -> tuple[
+    (
+        list[tuple[(UniNode, str, str, (str | None))]],
+        dict[int, list[tuple[(UniNode, str, str, (str | None))]]]
+    )
+];
 
-obj PortabilityWarnPass(Transform[Module, Module]) {
+obj PortabilityWarnPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     static has PROVIDES: tuple = ('portability', );
@@ -69,20 +90,18 @@ obj PortabilityWarnPass(Transform[Module, Module]) {
     def _check_js_properties(mod: Module) -> None;
 }
 
-obj NativeCapabilityCheckPass(Transform[Module, Module]) {
+obj NativeCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('capability', );
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
 }
 
-obj ClientCapabilityCheckPass(Transform[Module, Module]) {
+obj ClientCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('client_capability', );
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     def postinit -> None;

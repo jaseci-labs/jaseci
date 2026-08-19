@@ -1,4 +1,4 @@
-"""The materializer generator must emit a dict key it can actually build.
+"""The materializer generator must emit only what it can actually build.
 
 `gen_native_materialize` turns the sealed unitree layout into the emitters that
 rebuild a native parse tree as CPython objects. A dict field crosses as a
@@ -9,6 +9,14 @@ like any other module, so a key converted with the wrong extern is a hard
 representation (#8161) and `UniNode.__sub_node_tab`, a `dict[type, ...]`, stopped
 being layout-erased. The generator had been coercing every non-scalar key type
 to `int`, which was invisible only while no such dict reached a layout.
+
+A list field has the same shape of failure and the same cause. Elements were
+emitted through `_emit_node` whenever the generator did not recognize their
+type, which types the call against `UniNode`; that was invisible while every
+list slot in a layout held nodes. `Ability.event_triggers` is
+`list[TypeBase]`, and it reached a layout the moment the type system joined
+the sealed closure -- E1053 on the generated source, with ten artifacts
+already emitted behind it.
 
 These tests drive `generate` directly with a synthetic layout, so they measure
 the emitter without a native compile or a seal. The last one is the general
@@ -168,6 +176,42 @@ test "the native slot of an erased field is never even read" {
         "an erased field must not load its native slot: the read is dead, and "
         "it drags a type the emitter already declined into the sealed unit:\n"
         + body
+    );
+}
+
+
+test "a list of non-node elements is erased, never emitted through the node chain" {
+    (txt, _m) = _gen({"Ability": ["event_triggers"]});
+    body = _emit_fn(txt, "Ability");
+    assert "_emit_node(" not in body , (
+        "Ability.event_triggers is list[TypeBase] | None, and TypeBase is not "
+        "on the node chain. Emitting its elements through `_emit_node` types "
+        "the call against UniNode and the generated root refuses to compile "
+        "(E1053), which is what the type system joining the sealed closure "
+        "made reachable:\n"
+        + body
+    );
+    assert "_py_none()" in body , (
+        "an element type with no emitter must erase the whole field to None:\n" + body
+    );
+    assert "PyList_New" not in body , (
+        "the field was still emitted as a list despite an element the "
+        "generator cannot build:\n"
+        + body
+    );
+}
+
+
+test "erasing a list element type is reported, not silent" {
+    (_txt, manifest) = _gen({"Ability": ["event_triggers"]});
+    warns = [
+        w
+        for w in manifest["warnings"]
+        if "element" in w
+    ];
+    assert warns , (
+        "the generator dropped a list field it could not materialize without "
+        f"saying so; warnings were {manifest['warnings']}"
     );
 }
 
