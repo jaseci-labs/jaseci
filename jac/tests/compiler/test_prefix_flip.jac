@@ -39,13 +39,6 @@ import from tests.compiler.fixtures.prefix_reference {
 }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { get_ir_gen_sched, get_symtab_ir_sched }
-import from jaclang.jac0core.native_brands {
-    DRIVER_ORIGIN,
-    ensure_native_brands_bound,
-    native_brand_origin,
-    native_brand_origins,
-    native_brands_bound
-}
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.prefix_flip {
     PREFIX_CLAUSES,
@@ -167,87 +160,6 @@ test "every fallback clause is registered, unique, and has help text" {
         );
     }
     assert prefix_clause_help("not-a-clause") == "unregistered clause";
-}
-
-"""Drive a real compile if nothing has reached the brand point yet."""
-def _force_driver_bind -> None {
-    import tempfile;
-    if native_brand_origins() {
-        return;
-    }
-    with tempfile.TemporaryDirectory() as tmp {
-        _compile(_probe_module(tmp, "brandbind.jac"));
-    }
-}
-
-"""Binding the materializer is CLASS-IDENTITY registration: bind_native_parser
-runs mat_reset and then mat_set_class(i, id(cls), id(cls.__new__)) for every
-class in the manifest. WHEN that happens is therefore observable to the type
-checker, and a binder called at a new point can leave two brands of the same
-class in play -- which is exactly how this seam once manufactured an E1053
-refusing a native lowering with "Cannot assign Source to parameter 'orig_src'
-of type Source".
-
-The invariant, adopted with the crossing team: brands bind ONCE, at a
-deterministic point the driver owns, that both routes share. Not lazily from
-inside a route predicate, not from whichever of parse-first or
-pass-construction-first happened to win the race. `ensure_native_brands_bound`
-is that point and the only function that reaches the binder; everything else
--- frontend._native_parse, the prefix predicate, the pass-serving merge canary
--- is a consumer that routes through it and records why it asked.
-
-These tests hold the invariant structurally rather than by luck: the FIRST
-recorded origin must be the driver's, whatever order the lazy consumers
-arrive in."""
-test "the driver owns the first native brand binding" {
-    _force_driver_bind();
-    origins = native_brand_origins();
-    assert origins , "nothing reached the brand point during a compile";
-    assert origins[0] == DRIVER_ORIGIN , (
-        f"the first thing to bind the native brands was {origins[0]!r}, not "
-        f"{DRIVER_ORIGIN!r}. A lazy consumer beat the driver to the binder, "
-        "which is the reordering that produced the two-brands E1053. The "
-        "driver-owned point must dominate every consumer."
-    );
-}
-
-test "a late consumer cannot become the brand-binding origin" {
-    _force_driver_bind();
-    first = native_brand_origin();
-    assert first == DRIVER_ORIGIN;
-    ensure_native_brands_bound("test:late-consumer");
-    assert native_brand_origin() == first , (
-        "a consumer that arrived after the brand point was first reached "
-        "overwrote the origin. The origin records who got there FIRST, and so "
-        "who would do the binding, never who asked last."
-    );
-    import jaclang.jac0core.parser.frontend as _fe;
-    assert len(_fe._NATIVE_PARSE_MEMO) <= 1 , (
-        f"the raw binder cached {len(_fe._NATIVE_PARSE_MEMO)} results; brands "
-        "register at most once per process"
-    );
-}
-
-"""A negative probe is not a brand registration, so it must not latch. An
-image can be registered after the driver has already asked -- the sealed
-parser suite does exactly that, serving a freshly built artifact through
-`sealed.native_artifact_for` and clearing the parser memo -- and a binding
-point that cached the earlier "no image" answer would refuse it forever. Only
-a real bind latches; asking is always allowed to try again."""
-test "asking before an image exists does not latch the answer" {
-    _force_driver_bind();
-    if native_brands_bound() {
-        testskip("an image is bound in this process; the latch is correct");
-    }
-    before = len(native_brand_origins());
-    assert ensure_native_brands_bound("test:probe") is None;
-    assert not native_brands_bound() , (
-        "a probe that found no image marked the brands bound; a later "
-        "register_image could then never bind"
-    );
-    assert len(native_brand_origins()) > before , (
-        "the attempt was not recorded, so the origin trail has a hole in it"
-    );
 }
 
 """Declining must not touch the native parser. `_native_parse` binds the

@@ -1556,6 +1556,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "demotion/emission order did not converge.",
          help="Within one native unit a caller's emitted IR must observe the callee module's final demotion verdicts (verdict-before-emission). A caller emitted under an import cycle is re-emitted once its callees' verdicts land; failing to converge means a verdict keeps flipping between emissions, which is a compiler defect worth reporting with JAC_NA_DEBUG=1 output."
      ),
+     E5029 = _err(
+         "E5029",
+         Category.CODEGEN,
+         "Native link of '{path}' tripped the verdict blast-radius guard: "
+         "{detail}. Refusing to compose further instead of grinding.",
+         help="A healthy native link keeps the unverified-live set near zero and compiles at most a handful of modules at link time. Numbers this size mean verdict resolution is missing systematically -- every miss fails closed into conflict-on-all and another full compile -- which presents as a silent multi-hour build. The counts in the message say which lever moved: taint means the emission lane is recording where it should not, link-time compiles mean dependency identity is splitting, and verdict misses mean the resolver cannot see modules that are already compiled. Report with JAC_NA_DEBUG=1 output."
+     ),
      E5030 = _err(
          "E5030",
          Category.CODEGEN,

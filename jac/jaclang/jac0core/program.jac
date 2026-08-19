@@ -29,6 +29,7 @@ class JacProgram {
         _na_dep_inflight: set,
         _na_verdict_resolving: set,
         _na_unverified_live: dict[(str, dict)],
+        _na_verdict_misses: int,
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,

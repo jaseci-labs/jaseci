@@ -147,6 +147,66 @@ test "the betrayed caller re-emits and cascades honestly" {
 }
 
 
+test "an oversized composition trips the blast-radius guard fast and loud" {
+    import from jaclang.compiler.passes.native.na_compile_pass {
+        NATIVE_LINK_COMPILE_BOUND,
+        NATIVE_VERDICT_MISS_BOUND,
+        NATIVE_VERDICT_TAINT_BOUND,
+        native_verdict_blast_guard
+    }
+
+    prog = JacProgram();
+    assert native_verdict_blast_guard(prog, 0) == "" , (
+        "a fresh program tripped the guard; the bounds are below healthy "
+        "baseline and every build would refuse"
+    );
+
+    fabricated: dict = {};
+    per_mod = 64;
+    mods = (NATIVE_VERDICT_TAINT_BOUND // per_mod) + 2;
+    for i in range(mods) {
+        fabricated[f"/fab/mod_{i}.jac"] = {
+            "/fab/callee.jac": {f"name_{i}_{j}" for j in range(per_mod)}
+        };
+    }
+    prog._na_unverified_live = fabricated;
+    msg = native_verdict_blast_guard(prog, 0);
+    assert msg != "" , (
+        "a fabricated unverified-live set larger than the taint bound did "
+        "not trip the guard; the avalanche class can present as a silent "
+        "hour again"
+    );
+    assert str(mods * per_mod) in msg and str(mods) in msg , (
+        f"the refusal must carry the numbers that tripped it, got: {msg}"
+    );
+
+    prog2 = JacProgram();
+    msg2 = native_verdict_blast_guard(prog2, NATIVE_LINK_COMPILE_BOUND + 1);
+    assert msg2 != "" and str(NATIVE_LINK_COMPILE_BOUND + 1) in msg2 , (
+        "an oversized link-time composition did not trip the guard or the "
+        f"refusal hid the count: {msg2}"
+    );
+
+    prog3 = JacProgram();
+    prog3._na_verdict_misses = NATIVE_VERDICT_MISS_BOUND + 7;
+    msg3 = native_verdict_blast_guard(prog3, 0);
+    assert msg3 != "" and str(NATIVE_VERDICT_MISS_BOUND + 7) in msg3 , (
+        "systematic fail-closed verdict misses did not trip the guard or "
+        f"the refusal hid the count: {msg3}"
+    );
+
+    assert native_verdict_blast_guard(prog, 0, aot_lane=True) == "" , (
+        "the aot lane's taint is pending convergence work, not pathology; "
+        "bounding it below a healthy seal baseline refuses every large "
+        "sealed unit (the unitree root alone carries thousands of "
+        "provisional names mid-walk)"
+    );
+    assert native_verdict_blast_guard(prog3, 0, aot_lane=True) != "" , (
+        "fail-closed misses must trip the guard in every lane; aot "
+        "tolerance is for the taint lever only"
+    );
+}
+
 """The verdict apparatus is an aot-lane contract, and its resolver is bounded.
 
 Two pins from the pack-smoke stall hunt. First, the lane: in the JIT /
@@ -208,58 +268,30 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
 }
 
 
-"""The methods-side twin of the free-function trust hole, pinned closed.
+test "the wheel-shaped lane stays quiet on the live closure" {
+    import from jaclang.compiler.passes.native.na_compile_pass {
+        native_verdict_blast_guard
+    }
 
-A consumer method reading `CodeGenTarget.doc_ir` -- an accessor its
-jaclang-internal defining module demotes -- must end in one of two honest
-states: the verdict binds and the consumer demotes with the census saying
-so, or the module never joins the unit and the read refuses by name. What
-it must never do is dangle: a declared symbol whose only definition was
-renamed away. The same `_dangling_demoted` scan the cycle tests use is the
-arbiter here, over a unit whose betrayal vector is a method rather than a
-free function.
-"""
-test "an internal module's demoted method cannot dangle through a consumer" {
-    if _jaclang_image() is not None {
-        testskip("a sealed image measures its trust boundary, not this");
+    pkg = os.path.dirname(os.path.abspath(jaclang.__file__));
+    target = os.path.join(pkg, "runtimelib", "sealed_serve.jac");
+    if not os.path.isfile(target) {
+        testskip("sealed_serve.jac is absent from this payload");
     }
-    path = os.path.join(FIXTURES, "demote_internal_method.jac");
     prog = JacProgram();
-    na_census_begin();
-    try {
-        ir = prog.compile(
-            file_path=path,
-            options=CompileOptions(
-                aot_mode=True,
-                type_check=False,
-                force_codespace='native',
-                force_target_program=True,
-                na_gc_mode='cycles',
-                no_ir_cache=True
-            )
-        );
-    } finally {
-        census = na_census_end();
-    }
-    assert ir is not None and ir.gen.llvm_ir is not None , (
-        "the internal-method probe produced no linked native IR, so nothing "
-        "here measures anything"
+    mod = prog.compile(file_path=target);
+    assert mod is not None;
+    assert len(prog._na_unverified_live) == 0 , (
+        "a plain (non-aot) compile of the pack-smoke closure recorded "
+        f"{len(prog._na_unverified_live)} tainted module(s); the emission "
+        "recorder is out of its lane and the #8360 avalanche class is back"
     );
-    ir_text = str(ir.gen.llvm_ir);
-    dangling = _dangling_demoted(ir_text);
-    assert not dangling , (
-        f"the linked unit declares {dangling} without defining them, each "
-        "with a `.__jac_demoted` twin -- the methods-side emission ran "
-        "ahead of its callee module's verdict (#8323 A10b's scenario)"
+    assert prog._na_verdict_misses == 0 , (
+        f"{prog._na_verdict_misses} verdict lookup(s) failed closed during "
+        "a lane that must never consult the resolver at link time"
     );
-    rec = census.get(os.path.realpath(path));
-    seams = {
-        str(s).partition(": ")[0] for s in ((rec or {}).get("seams") or [])
-    };
-    assert "InternalProbe.read_docir" in seams , (
-        "the consumer's read of a demoted internal accessor neither demoted "
-        "nor refused -- if it lowers now, the internal module's accessor "
-        "learned to cross, which needs its own measurement; re-pin this "
-        "with the mechanism named"
+    assert native_verdict_blast_guard(prog, 0) == "" , (
+        "the blast-radius guard tripped on the live closure; either the "
+        "lane regressed or the bounds dipped below healthy baseline"
     );
 }

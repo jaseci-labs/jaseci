@@ -67,6 +67,75 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
     );
 }
 
+impl native_verdict_blast_guard(
+    prog: any, composed: int, aot_lane: bool = False
+) -> str {
+    _bg_taint = 0;
+    _bg_mods = 0;
+    for _bg_rec in (prog._na_unverified_live or {}).values() {
+        _bg_mods += 1;
+        for _bg_names in _bg_rec.values() {
+            _bg_taint += len(_bg_names);
+        }
+    }
+    _bg_misses = int(prog._na_verdict_misses or 0);
+    _bg_taint_ok = aot_lane or _bg_taint <= NATIVE_VERDICT_TAINT_BOUND;
+    if (
+        _bg_taint_ok
+        and composed <= NATIVE_LINK_COMPILE_BOUND
+        and _bg_misses <= NATIVE_VERDICT_MISS_BOUND
+    ) {
+        return "";
+    }
+    return (
+        f"{_bg_taint} tainted name(s) across {_bg_mods} module(s), "
+        f"{composed} link-time module compile(s), {_bg_misses} fail-closed "
+        f"verdict miss(es); bounds "
+        f"{NATIVE_VERDICT_TAINT_BOUND}/{NATIVE_LINK_COMPILE_BOUND}/"
+        f"{NATIVE_VERDICT_MISS_BOUND}"
+    );
+}
+
+impl native_ir_live_externs(llvm_ir_text: str) -> set[str] {
+    import re as _dc_re;
+    _dc_decl = _dc_re.compile(
+        r'^declare\b[^@\n]*@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))\s*\(', _dc_re.MULTILINE
+    );
+    declared: set[str] = set();
+    for (_dc_q, _dc_bare) in _dc_decl.findall(llvm_ir_text) {
+        declared.add(_dc_q or _dc_bare);
+    }
+    if not declared {
+        return declared;
+    }
+    _dc_use = _dc_re.compile(r'@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))');
+    counts: dict[str, int] = {};
+    for (_dc_q, _dc_bare) in _dc_use.findall(llvm_ir_text) {
+        _dc_name = _dc_q or _dc_bare;
+        if _dc_name in declared {
+            counts[_dc_name] = counts.get(_dc_name, 0) + 1;
+        }
+    }
+    return {
+        _dc_name
+        for (_dc_name, _dc_n) in counts.items()
+        if _dc_n > 1
+    };
+}
+
+impl native_prune_live_record(
+    pending: dict, declared: set[str]
+) -> dict[str, set[str]] {
+    pruned: dict[str, set[str]] = {};
+    for (_pr_callee, _pr_names) in (pending or {}).items() {
+        _pr_hit = set(_pr_names) & declared;
+        if _pr_hit {
+            pruned[_pr_callee] = _pr_hit;
+        }
+    }
+    return pruned;
+}
+
 impl native_unit_demotions(
     prog: any, real_path: str, options: any
 ) -> (set[str] | None) {
@@ -94,6 +163,21 @@ impl native_unit_demotions(
         and real_path not in prog._na_verdict_resolving
         and _ud_os.path.isfile(real_path)
     ) {
+        if not getattr(options, "no_ir_cache", False) {
+            try {
+                import json as _ud_json;
+                (_, _ud_meta_path) = native_dep_cache_paths(real_path, options);
+                if _ud_os.path.exists(_ud_meta_path) {
+                    with open(_ud_meta_path, "r") as _ud_mf {
+                        _ud_meta = _ud_json.loads(_ud_mf.read());
+                    }
+                    _ud_cached = _ud_meta.get("demoted_symbols");
+                    if _ud_cached is not None {
+                        return set(_ud_cached);
+                    }
+                }
+            } except Exception { }
+        }
         prog._na_verdict_resolving.add(real_path);
         try {
             entry = prog.compile(
@@ -107,6 +191,7 @@ impl native_unit_demotions(
         prog._na_dep_units[real_path] = entry;
     }
     if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+        prog._na_verdict_misses += 1;
         _ud_tree = entry
             if (entry is not None and not isinstance(entry, str))
             else prog.mod.hub.get(real_path);
@@ -514,12 +599,21 @@ impl NativeCompilePass._compile_and_link_native_imports(
     import from jaclang.jac0core.codeinfo { native_stdlib_root }
     _bundled_stdlib_root = native_stdlib_root();
     queue_idx = 0;
+    _lk_composed = 0;
     while queue_idx < len(work_queue) {
         (binding, cur_base_dir) = work_queue[queue_idx];
         queue_idx += 1;
         source_mod_path = binding.source_module;
         if source_mod_path is None {
             continue;
+        }
+        _bg_aot = bool(
+            self.prog._compile_options and self.prog._compile_options.aot_mode
+        );
+        _bg_msg = native_verdict_blast_guard(self.prog, _lk_composed, _bg_aot);
+        if _bg_msg {
+            self.emit(E5029, path=str(source_mod_path), detail=_bg_msg);
+            break;
         }
 
         if source_mod_path.endswith(".jac") {
@@ -594,9 +688,15 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         if _cache_hit and meta.unverified_live_calls {
-            _uv_cached_conflicts = native_live_call_conflicts(
-                self.prog, meta.unverified_live_calls, _link_opts
+            _uv_cached_pending = native_prune_live_record(
+                meta.unverified_live_calls,
+                native_ir_live_externs(imported_llvm_str_raw)
             );
+            _uv_cached_conflicts = native_live_call_conflicts(
+                self.prog, _uv_cached_pending, _link_opts
+            )
+                if _uv_cached_pending
+                else {};
             if _uv_cached_conflicts {
                 _cache_hit = False;
                 imported_llvm_str_raw = "";
@@ -627,6 +727,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 imported_ir = _memo_entry;
             } else {
                 try {
+                    _lk_composed += 1;
                     imported_ir = self.prog.compile(
                         file_path=full_path, options=import_options
                     );
@@ -639,7 +740,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
             }
-            _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
+            _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+            _uv_pending = native_prune_live_record(
+                _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+            )
+                if _uv_record
+                else {};
             _uv_attempts = 0;
             _uv_failed = "";
             while _uv_pending and _uv_attempts < 3 {
@@ -667,6 +773,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     self.prog.invalidate_module(real_path);
                 } except Exception { }
                 try {
+                    _lk_composed += 1;
                     imported_ir = self.prog.compile(
                         file_path=full_path, options=import_options
                     );
@@ -678,7 +785,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     _uv_failed = "No LLVM IR generated on re-emission";
                     break;
                 }
-                _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
+                _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+                _uv_pending = native_prune_live_record(
+                    _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+                )
+                    if _uv_record
+                    else {};
             }
             if _uv_failed {
                 self.emit(E5024, path=full_path, error=_uv_failed);

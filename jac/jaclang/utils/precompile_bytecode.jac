@@ -3180,9 +3180,15 @@ def write_manifest(
     );
 }
 
+def precompile_exit(code: int) {
+    sys.stdout.flush();
+    sys.stderr.flush();
+    os._exit(code);
+}
+
 def main {
     if os.environ.get(NATIVE_SEAL_WORKER_ENV) {
-        sys.exit(seal_worker_main());
+        precompile_exit(seal_worker_main());
     }
     args = sys.argv[1:];
     seal = "--seal" in args;
@@ -3256,7 +3262,7 @@ def main {
 
     if finalize_only {
         console.print(f"Sealing {pkg_name} for {pyver} (finalize)...");
-        sys.exit(
+        precompile_exit(
             seal_finalize(
                 Path(package_dir),
                 precompiled_dir,
@@ -3367,12 +3373,13 @@ def main {
     );
 
     if seal {
-        sys.exit(
+        precompile_exit(
             seal_finalize(
                 pkg_path, precompiled_dir, pkg_name, pyver, embed_src, canary_reused
             )
         );
     }
+    precompile_exit(0);
 }
 
 with entry:__main__ {

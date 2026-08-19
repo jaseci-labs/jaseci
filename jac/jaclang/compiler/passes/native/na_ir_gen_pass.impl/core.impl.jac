@@ -1215,7 +1215,6 @@ impl NaIRGenPass._imported_function_demotions(
                         == _opts_src.codegen_fingerprint() {
                         return set(_fd_meta.get("demoted_symbols") or []);
                     }
-                    return None;
                 }
             } except Exception { }
         }
