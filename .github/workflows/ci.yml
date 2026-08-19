@@ -57,14 +57,15 @@ jobs:
             installer:
               - 'scripts/install.sh'
             # NARROWING filter (like `installer`, unlike `scale`/`byllm`, which
-            # only ever widen `core`). The macOS native lane costs a macOS
-            # runner, and `core: jac/**` fired it on every runtimelib/scale PR
-            # that could not possibly move Mach-O linking or the na->wasm floor.
+            # only ever widen `core`). The macOS and aarch64 native lanes cost a
+            # macOS runner and a qemu-user cross build, and `core: jac/**` fired
+            # them on every runtimelib/scale PR that could not possibly move
+            # Mach-O linking, the na->wasm floor, or MOVW_UABS relocations.
             # Deliberately excludes ci.yml (matching every other narrow filter
             # here) and jac0core/** -- payload-compiler regressions surface in
             # test-compiler/test-runtime, which are not path-filtered off. To
-            # exercise this lane on a PR that touches none of these paths, use
-            # workflow_dispatch; push-to-main always runs it.
+            # exercise these lanes on a PR that touches none of these paths, use
+            # workflow_dispatch; push-to-main always runs them.
             native:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
@@ -877,6 +878,51 @@ jobs:
           .jac-xdg/jac/jir
           jac/.jac/cache
         key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
+  # aarch64 cross lane (#7626 C1): cross-compile with the in-house ELF linker
+  # (MOVW_UABS relocation family) + arch-parameterized vendored musl, run the
+  # binaries under qemu-user. This was the native suite's last environmental
+  # skip: without qemu + cross libc the #6366 runtime tests never execute.
+  test-native-aarch64:
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
+    runs-on: ubuntu-latest
+    # Dev lane: run THIS checkout's compiler (see test-compiler).
+    env:
+      JAC_NO_DEV_SOURCE: ""
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install qemu-user and aarch64 cross libc
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends qemu-user-static libc6-arm64-cross
+
+    - name: Set up jac (dev lane)
+      uses: ./.github/actions/setup-jac-dev
+
+    - name: Set up Zig 0.16.0 (vendor cross musl)
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+        use-cache: false
+
+    - name: Vendor cross musl (aarch64)
+      working-directory: jac
+      run: zig build -Dno-ninja vendor-musl-linux-aarch64 --summary all
+
+    - name: Run aarch64 cross tests under qemu
+      env:
+        JAC_TEST_JOBS: "0"
+        # The sealed CI binary's pkg_root only bundles host-arch musl; point
+        # the static-link search at the repo-vendored cross runtime.
+        JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
+      run: >-
+        jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+        -f aarch64
 
   # Launcher unit tests: trailer codec + `.jab`-overlay round-trip
   # (append / detect / materialize-steps-over-overlay / graft). runtime.zig is
@@ -1734,6 +1780,7 @@ jobs:
       - test-client
       - test-packages-and-docs
       - test-native-macos
+      - test-native-aarch64
       - test-launcher
       - test-cef-build
       - test-scale
