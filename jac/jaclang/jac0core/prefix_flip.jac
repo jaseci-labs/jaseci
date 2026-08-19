@@ -189,8 +189,15 @@ def prefix_entry -> tuple[any] {
             );
         } else {
             import from jaclang.jac0core.native_brands { native_parser }
-            if native_parser("prefix_flip:predicate") is None {
+            np = native_parser("prefix_flip:predicate");
+            if np is None {
                 found = (None, "image-unsealed", "no native parser artifact bound");
+            } elif not np.serves_prefix() {
+                found = (
+                    None,
+                    "prefix-entry-absent",
+                    "the bound artifact exports no prefix crossing entry"
+                );
             } else {
                 found = (fn, "", "");
             }
