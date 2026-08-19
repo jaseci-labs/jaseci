@@ -1,4 +1,3 @@
-import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
@@ -53,7 +52,7 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
 
 impl LayoutPass._collect_archetypes(module: Module) -> dict[str, Archetype] {
     arch_map: dict[str, Archetype] = {};
-    for nd in UniPass.get_all_sub_nodes(module, Archetype) {
+    for nd in module.get_all_sub_nodes(Archetype) {
         aname = nd.name.value if nd.name else None;
         if aname is None {
             continue;
@@ -385,7 +384,7 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
 }
 
 impl LayoutPass._build_enum_layouts(module: Module) -> None {
-    for nd in UniPass.get_all_sub_nodes(module, Enum) {
+    for nd in module.get_all_sub_nodes(Enum) {
         ename = nd.name.value if nd.name else None;
         if ename is None or ename in self.registry.enums or nd.body is None {
             continue;

@@ -137,6 +137,7 @@ def run_pass(
             ir_in=ir_in,
             prog=prog,
             cancel_token=cancel_token,
+            cancel_requested=bool(cancel_token is not None and cancel_token.is_set()),
             policy=pol,
             errors_had=errors,
             warnings_had=warnings,
