@@ -493,6 +493,28 @@ impl _package_basedir(start_dir: str) -> str {
     }
 }
 
+impl _outermost_package_root(start_dir: str, ceiling: str) -> str {
+    current = os.path.realpath(start_dir);
+    stop = os.path.realpath(ceiling) if ceiling else "";
+    outermost = "";
+    while True {
+        for marker in ("__init__.py", "__init__.jac") {
+            if os.path.exists(os.path.join(current, marker)) {
+                outermost = current;
+            }
+        }
+        if stop and (current == stop) {
+            break;
+        }
+        parent = os.path.dirname(current);
+        if parent == current {
+            break;
+        }
+        current = parent;
+    }
+    return os.path.dirname(outermost) if outermost else "";
+}
+
 impl _ensure_test_package(base_dir: str) -> str {
     import sys;
     import types;
@@ -637,6 +659,10 @@ impl run_file(
     project_root = _project_root_for(real_dir);
     if project_root {
         roots.append(project_root);
+    }
+    package_root = _outermost_package_root(real_dir, project_root);
+    if package_root and (package_root not in roots) {
+        roots.append(package_root);
     }
     injected: list[str] = [];
     for entry in (roots + [basedir, real_dir]) {
