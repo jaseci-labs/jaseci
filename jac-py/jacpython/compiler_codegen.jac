@@ -6208,21 +6208,32 @@ def visit_if(
                     terminated=tail_cont.terminated
                 );
             }
+            # tail_more is False but more_code_follows is True: the real
+            # continuation is in the CALLER's own statement list, not in `tail`
+            # (which is empty/exhausted here). This branch is only reached from
+            # visit_stmts-style callers -- the compile_fn_cfg/module driver
+            # always has more_code_follows == tail_more, so it never lands here.
+            # Converge both branches at `join` and return next_si=-1 so the
+            # caller emits its following statements. Using emit_tail_and_finish
+            # here would append a module return AND return next_si=len(tail)=0,
+            # resetting the caller's index -> infinite loop on
+            # `if c: return; if d: ... else: ...; <more>`.
+            join = g.new_block();
             g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
             body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
             }
-            fin = emit_tail_and_finish(g, tail, tail_idx, iloc);
-            if codegen_busy(g) {
-                return fin;
+            if not body_cont.terminated {
+                g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
             }
             g.use(false_blk);
             else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
-            return emit_tail_and_finish(g, tail, tail_idx, iloc);
+            g.use(join);
+            return stmt_cont(loc=iloc);
         }
         join = tail_join;
         owns_tail = False;
