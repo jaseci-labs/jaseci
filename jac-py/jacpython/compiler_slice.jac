@@ -2242,3 +2242,155 @@ test "compiler_slice: band8 match sequence executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
 }
+
+# ---------------- Band 8 slice 3b: star sequence patterns ----------------
+
+def _star_assert_fn_matches(src: str) {
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.exceptiontable == exp_fn.exceptiontable;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.varnames == exp_fn.varnames;
+    assert fn.names == exp_fn.names;
+}
+
+test "compiler_slice: band8 star seq [a, *rest] matches oracle co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *rest]:\n"
+            + "            return a + rest\n"
+            + "        case _:\n"
+            + "            return 0\n"
+    );
+    _star_assert_fn_matches(src);
+}
+
+test "compiler_slice: band8 star seq [*rest] matches oracle co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [*rest]:\n"
+            + "            return rest + rest\n"
+            + "        case _:\n"
+            + "            return 0\n"
+    );
+    _star_assert_fn_matches(src);
+}
+
+test "compiler_slice: band8 star seq [a, *mid, b] matches oracle co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *mid, b]:\n"
+            + "            return a + b\n"
+            + "        case _:\n"
+            + "            return 0\n"
+    );
+    _star_assert_fn_matches(src);
+}
+
+test "compiler_slice: band8 star seq [a, *_] matches oracle co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *_]:\n"
+            + "            return a + a\n"
+            + "        case _:\n"
+            + "            return 0\n"
+    );
+    _star_assert_fn_matches(src);
+}
+
+test "compiler_slice: band8 star seq [a, *rest] executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *rest]:\n"
+            + "            return a * 100 + rest[0] * 10 + rest[1]\n"
+            + "        case _:\n"
+            + "            return -1\n"
+            + "\n"
+            + "result = f([1, 2, 3])\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 123;
+}
+
+test "compiler_slice: band8 star seq [*rest] executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [*rest]:\n"
+            + "            return rest[0] * 100 + rest[1] * 10 + rest[2]\n"
+            + "\n"
+            + "result = f([1, 2, 3])\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 123;
+}
+
+test "compiler_slice: band8 star seq [a, *mid, b] executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *mid, b]:\n"
+            + "            return a * 1000 + mid[0] * 100 + mid[1] * 10 + b\n"
+            + "        case _:\n"
+            + "            return -1\n"
+            + "\n"
+            + "result = f([1, 2, 3, 4])\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1234;
+}
+
+test "compiler_slice: band8 star seq [a, *_] executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *_]:\n"
+            + "            return a\n"
+            + "        case _:\n"
+            + "            return -1\n"
+            + "\n"
+            + "result = f([7, 2, 3])\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+}
+
+test "compiler_slice: band8 star seq no-match falls through to default" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, *rest]:\n"
+            + "            return a\n"
+            + "        case _:\n"
+            + "            return -1\n"
+            + "\n"
+            + "result = f([])\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == -1;
+}

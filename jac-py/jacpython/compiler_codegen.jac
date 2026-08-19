@@ -5136,12 +5136,125 @@ def match_emit_sequence_capture_stores(
     }
 }
 
+def match_star_capture_name(patterns: list[pattern], idx: int, star_idx: int) -> str | None {
+    if idx == star_idx {
+        return (patterns[idx] as MatchStar).name;
+    }
+    return (match_pattern_unwrap_or(patterns[idx]) as MatchAs).name;
+}
+
+def match_seq_star_all_captures(patterns: list[pattern], star_idx: int) -> bool {
+    if len(patterns) == 0 {
+        return False;
+    }
+    pi = 0;
+    while pi < len(patterns) {
+        if pi == star_idx {
+            mst = patterns[pi] as MatchStar;
+            if mst.name is None or mst.name == "_" {
+                return False;
+            }
+        } else {
+            p = match_pattern_unwrap_or(patterns[pi]);
+            if not isinstance(p, MatchAs) {
+                return False;
+            }
+            ma = p as MatchAs;
+            if ma.pattern is not None or ma.name is None or ma.name == "_" {
+                return False;
+            }
+        }
+        pi = pi + 1;
+    }
+    return True;
+}
+
+def match_emit_star_capture_stores(
+    g: cfg_builder, patterns: list[pattern], star_idx: int, ploc: cloc
+) {
+    n = len(patterns);
+    if n == 2 {
+        na = codegen_mangle(g, match_star_capture_name(patterns, 0, star_idx));
+        nb = codegen_mangle(g, match_star_capture_name(patterns, 1, star_idx));
+        fa = fast_local_index(g, na);
+        fb = fast_local_index(g, nb);
+        if fa >= 0 and fb >= 0 {
+            g.emit_op(OP_STORE_FAST_STORE_FAST, fa * 16 + fb, ploc);
+            return;
+        }
+    }
+    # UNPACK_EX leaves element[0] on top, so bind forward; opt_superinstructions
+    # fuses the first adjacent STORE_FAST pair (matching CPython's left-to-right
+    # STORE_FAST_STORE_FAST peephole, e.g. `[a,*mid,b]` -> (a,mid) + b).
+    pi = 0;
+    while pi < n {
+        emit_name_store(g, match_star_capture_name(patterns, pi, star_idx), ploc);
+        pi = pi + 1;
+    }
+}
+
+# CPython pattern_helper_sequence_subscr: used when the star element is a bare
+# wildcard (`*_`). The tail is dropped, so the fixed elements are read off the
+# subject by index (nonnegative before the star, len-relative after it) rather
+# than unpacked. The subject stays on the stack and is popped at the end.
+def emit_match_sequence_subscr(
+    g: cfg_builder,
+    patterns: list[pattern],
+    star_idx: int,
+    next_arm: basicblock,
+    ctx: match_pat_ctx,
+    ploc: cloc
+) -> bool {
+    size = len(patterns);
+    pi = 0;
+    while pi < size {
+        if pi == star_idx {
+            pi = pi + 1;
+            continue;
+        }
+        pat = patterns[pi];
+        if match_pattern_wildcard(pat) {
+            pi = pi + 1;
+            continue;
+        }
+        g.emit_op(OP_COPY, 1, ploc);
+        if pi < star_idx {
+            idx_const = g.u.add_const(PyInt(t="int", val=pi));
+            g.emit_op(OP_LOAD_CONST, idx_const, ploc);
+        } else {
+            g.emit_op(OP_GET_LEN, 0, ploc);
+            neg_const = g.u.add_const(PyInt(t="int", val=size - pi));
+            g.emit_op(OP_LOAD_CONST, neg_const, ploc);
+            g.emit_op(OP_BINARY_OP, NB_SUBTRACT, ploc);
+        }
+        g.emit_op(OP_BINARY_OP, NB_SUBSCR, ploc);
+        # The element value sits on top with the subject preserved below. A plain
+        # capture stores it immediately (CPython emits a bare STORE_FAST here, no
+        # rotate); nested sub-patterns fall back to the general on-stack path.
+        up = match_pattern_unwrap_or(pat);
+        if isinstance(up, MatchAs) and (up as MatchAs).pattern is None {
+            emit_name_store(g, (up as MatchAs).name, ploc);
+        } else {
+            ctx.on_top = ctx.on_top + 1;
+            if not emit_match_pattern_sub(g, pat, ctx, next_arm, ploc) {
+                return False;
+            }
+            ctx.on_top = ctx.on_top - 1;
+        }
+        pi = pi + 1;
+    }
+    ctx.on_top = ctx.on_top - 1;
+    g.emit_op(OP_POP_TOP, 0, ploc);
+    return True;
+}
+
 def emit_match_pattern_sequence(
     g: cfg_builder, ms: MatchSequence, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     patterns = ms.patterns;
     size = len(patterns);
     star = -1;
+    star_wild = 0;
     only_wildcard = 1;
     pi = 0;
     while pi < size {
@@ -5158,6 +5271,7 @@ def emit_match_pattern_sequence(
             star = pi;
             mst = pat as MatchStar;
             if mst.name is None {
+                star_wild = 1;
                 only_wildcard = only_wildcard and 1;
             } else {
                 only_wildcard = 0;
@@ -5173,8 +5287,55 @@ def emit_match_pattern_sequence(
         pi = pi + 1;
     }
     if star >= 0 {
-        codegen_fail(g, "NotImplementedError", "star sequence pattern not supported");
-        return False;
+        n_before = star;
+        n_after = size - star - 1;
+        n_fixed = n_before + n_after;
+        ctx.on_top = ctx.on_top + 1;
+        g.emit_op(OP_MATCH_SEQUENCE, 0, ploc);
+        match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+        # CPython only checks the length when there is at least one fixed
+        # element around the star; `[*rest]` skips the length guard entirely.
+        if n_fixed > 0 {
+            g.emit_op(OP_GET_LEN, 0, ploc);
+            nfx_idx = g.u.add_const(PyInt(t="int", val=n_fixed));
+            g.emit_op(OP_LOAD_CONST, nfx_idx, ploc);
+            g.emit_op(OP_COMPARE_OP, compare_oparg(CMP_GE), ploc);
+            match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+        }
+        if only_wildcard {
+            ctx.on_top = ctx.on_top - 1;
+            g.emit_op(OP_POP_TOP, 0, ploc);
+            return True;
+        }
+        if star_wild {
+            # `[a, *_]`: the star swallows the tail without binding, so CPython
+            # subscripts the fixed elements off the subject instead of unpacking.
+            return emit_match_sequence_subscr(g, patterns, star, next_arm, ctx, ploc);
+        }
+        # Capture star: split the subject with UNPACK_EX (n_before | n_after<<8).
+        ctx.on_top = ctx.on_top - 1;
+        g.emit_op(OP_UNPACK_EX, n_before + n_after * 256, ploc);
+        if match_seq_star_all_captures(patterns, star) {
+            match_emit_star_capture_stores(g, patterns, star, ploc);
+            return True;
+        }
+        ctx.on_top = ctx.on_top + size;
+        pi = 0;
+        while pi < size {
+            ctx.on_top = ctx.on_top - 1;
+            if pi == star {
+                mst2 = patterns[pi] as MatchStar;
+                if not match_pattern_helper_store_name(g, mst2.name, ctx, ploc) {
+                    return False;
+                }
+            } else {
+                if not emit_match_pattern_sub(g, patterns[pi], ctx, next_arm, ploc) {
+                    return False;
+                }
+            }
+            pi = pi + 1;
+        }
+        return True;
     }
     ctx.on_top = ctx.on_top + 1;
     g.emit_op(OP_MATCH_SEQUENCE, 0, ploc);
