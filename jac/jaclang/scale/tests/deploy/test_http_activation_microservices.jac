@@ -65,7 +65,7 @@ test "service with http_activation disabled or unset returns None" {
     assert b._get_http_activation_config("other_svc") is None;
 }
 
-test "per-service http_activation inherits unset keys from [scale.kubernetes.http_activation]" {
+test "per-service http_activation inherits unset keys from [scale.kubernetes.http_activation], down to no per-service block at all" {
     b = _builder(
         {"billing_ops": {"http_activation": {"enabled": True, "target_port": 8080}}},
         k8s_config=KubernetesConfig(
@@ -79,6 +79,25 @@ test "per-service http_activation inherits unset keys from [scale.kubernetes.htt
     assert cfg["target_port"] == 8080;
     assert cfg["concurrency_target"] == 10;
     assert cfg["polling_interval"] == 15;
+
+    # Same merge at its edge: no per-service key at all still inherits
+    # `enabled` too -- absent and {} are the same input to the merge.
+    b2 = _builder(
+        {"other_svc": {}},
+        k8s_config=KubernetesConfig(
+            app_name="t",
+            namespace="t-ns",
+            http_activation={
+                "enabled": True,
+                "target_port": 8080,
+                "concurrency_target": 10
+            }
+        )
+    );
+    cfg2 = b2._get_http_activation_config("other_svc");
+    assert cfg2 is not None;
+    assert cfg2["target_port"] == 8080;
+    assert cfg2["concurrency_target"] == 10;
 }
 
 test "per-service http_activation overrides [scale.kubernetes.http_activation] on shared keys" {
@@ -96,25 +115,6 @@ test "per-service http_activation overrides [scale.kubernetes.http_activation] o
     );
     cfg = b._get_http_activation_config("billing_ops");
     assert cfg["concurrency_target"] == 5;
-}
-
-test "a service with no http_activation block still inherits enabled from the top-level default" {
-    b = _builder(
-        {"other_svc": {}},
-        k8s_config=KubernetesConfig(
-            app_name="t",
-            namespace="t-ns",
-            http_activation={
-                "enabled": True,
-                "target_port": 8080,
-                "concurrency_target": 10
-            }
-        )
-    );
-    cfg = b._get_http_activation_config("other_svc");
-    assert cfg is not None;
-    assert cfg["target_port"] == 8080;
-    assert cfg["concurrency_target"] == 10;
 }
 
 test "a service can explicitly opt out with enabled=false even when the top-level default is enabled" {
@@ -136,7 +136,8 @@ test "_resolve_scaling: an http_activation service is HTTP_ACTIVATION, carries t
                 "http_activation": {
                     "enabled": True,
                     "target_port": 8080,
-                    "concurrency_target": 10
+                    "concurrency_target": 10,
+                    "rules": [{"hosts": ["*"]}]
                 }
             }
         }
@@ -337,46 +338,30 @@ test "two services sharing identical non-empty rules raise ValueError" {
     assert raised;
 }
 
-test "services with distinct per-service rules do not collide" {
-    b = _builder({});
-    scaling = {
-        "billing_ops": {
-            "mode": ScalingMode.HTTP_ACTIVATION,
-            "http_activation": {"rules": [{"hosts": ["billing.example.com"]}]}
-        },
-        "worker": {
-            "mode": ScalingMode.HTTP_ACTIVATION,
-            "http_activation": {"rules": [{"hosts": ["worker.example.com"]}]}
-        }
-    };
-    b._validate_http_activation_rules(scaling);
+def _activated(hosts: list[str] | None = None) -> dict[str, any] {
+    rules = [{"hosts": hosts}] if hosts else [];
+    return {"mode": ScalingMode.HTTP_ACTIVATION, "http_activation": {"rules": rules}};
 }
 
-test "services left at the default empty rules do not collide (already dead, not ambiguous)" {
+test "distinct rules, both-empty rules, and a lone HTTP_ACTIVATION peer never collide" {
     b = _builder({});
-    scaling = {
-        "billing_ops": {
-            "mode": ScalingMode.HTTP_ACTIVATION,
-            "http_activation": {"rules": []}
+    non_colliding_scalings = [
+        # distinct rules per service: no shared match criteria to collide on
+        {
+            "billing_ops": _activated(["billing.example.com"]),
+            "worker": _activated(["worker.example.com"])
         },
-        "worker": {
-            "mode": ScalingMode.HTTP_ACTIVATION,
-            "http_activation": {"rules": []}
+        # both empty: already individually dead, not ambiguous with each other
+        {"billing_ops": _activated(), "worker": _activated()},
+        # only one is HTTP_ACTIVATION; a METRIC peer's rules don't matter
+        {
+            "billing_ops": _activated(["*"]),
+            "worker": {"mode": ScalingMode.METRIC, "http_activation": {}}
         }
-    };
-    b._validate_http_activation_rules(scaling);
-}
-
-test "a single service with shared rules and no HTTP_ACTIVATION peer does not collide" {
-    b = _builder({});
-    scaling = {
-        "billing_ops": {
-            "mode": ScalingMode.HTTP_ACTIVATION,
-            "http_activation": {"rules": [{"hosts": ["*"]}]}
-        },
-        "worker": {"mode": ScalingMode.METRIC, "http_activation": {}}
-    };
-    b._validate_http_activation_rules(scaling);
+    ];
+    for scaling in non_colliding_scalings {
+        b._validate_http_activation_rules(scaling);
+    }
 }
 
 test "generate_manifests raises when two services inherit the shared catch-all rule unchanged" {

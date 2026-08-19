@@ -42,7 +42,8 @@ test "minimal config (enabled, target_port, concurrency_target) builds a spec wi
     assert spec.max_replicas == 1;
     assert spec.polling_interval == 30;
     assert spec.cooldown_period == 300;
-    assert spec.rules == [];
+    assert len(spec.rules) == 1;
+    assert spec.rules[0].hosts == ["*"];
     assert spec.cold_start is None;
     assert spec.timeouts is None;
     assert spec.scale_target_kind == "Deployment";
@@ -111,34 +112,42 @@ test "full config translates rules, cold_start, timeouts, request_rate, and cust
 
 
 # --- Section D: jac.toml-relative validation errors --------------------------
-test "config with both target_port and target_port_name raises a jac.toml-relative error" {
-    cfg = _cfg(target_port=8080, target_port_name="http");
-    raised = False;
-    error_msg = "";
+# One shape, four inputs: each bad cfg must raise ValueError (never a bare
+# KeyError or anything else -- left uncaught here, so it fails the test loudly
+# instead of silently) naming the jac.toml key(s) at fault.
+def _assert_config_error(cfg: dict[str, any], *substrings: str) -> None {
     try {
         build_http_activation_spec(cfg, "preview-deployment", "staging", "preview-svc");
     } except ValueError as e {
-        raised = True;
-        error_msg = str(e);
+        msg = str(e);
+        for s in substrings {
+            assert s in msg , f"expected '{s}' in error message: {msg}";
+        }
+        return;
     }
-    assert raised , "Expected ValueError when both target_port and target_port_name are set";
-    assert "target_port" in error_msg;
-    assert "http_activation" in error_msg;
+    assert False , "expected build_http_activation_spec to raise ValueError";
+}
+
+test "config with both target_port and target_port_name raises a jac.toml-relative error" {
+    _assert_config_error(
+        _cfg(target_port=8080, target_port_name="http"),
+        "target_port",
+        "http_activation"
+    );
 }
 
 test "config with neither concurrency_target nor request_rate_target raises a jac.toml-relative error" {
-    cfg = _cfg(concurrency_target=None);
-    raised = False;
-    error_msg = "";
-    try {
-        build_http_activation_spec(cfg, "preview-deployment", "staging", "preview-svc");
-    } except ValueError as e {
-        raised = True;
-        error_msg = str(e);
-    }
-    assert raised , "Expected ValueError when neither concurrency_target nor request_rate_target is set";
-    assert "concurrency_target" in error_msg;
-    assert "request_rate_target" in error_msg;
+    _assert_config_error(
+        _cfg(concurrency_target=None), "concurrency_target", "request_rate_target"
+    );
+}
+
+test "config with empty rules raises instead of silently deploying an unreachable target" {
+    _assert_config_error(_cfg(rules=[]), "rules");
+}
+
+test "a rule header missing its required 'name' key raises a jac.toml-relative error, not a bare KeyError" {
+    _assert_config_error(_cfg(rules=[{"headers": [{"value": "yes"}]}]), "name");
 }
 
 
