@@ -46,7 +46,7 @@ obj Task {
 }
 
 obj JacLangServer(JacProgram, LanguageServer) {
-    has sem_managers: dict = {},
+    has sem_managers: dict[str, SemTokManager] = {},
         module_manager: ModuleManager | None postinit,
         pipe: deque = deque(maxlen=1),
         dirty_files: dict[str, bool] = {},
