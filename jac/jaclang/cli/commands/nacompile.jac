@@ -23,6 +23,7 @@ glob registry = get_registry();
         Arg.create(
             "scrub",
             kind=ArgKind.FLAG,
+            default=False,
             help="Scrub build: wipe cached IR and recompile everything from scratch"
         ),
         Arg.create(
@@ -35,12 +36,14 @@ glob registry = get_registry();
         Arg.create(
             "shared",
             kind=ArgKind.FLAG,
+            default=False,
             short="",
             help="Build a C-ABI shared library (.so/.dylib/.dll) exporting `:pub` symbols instead of an executable"
         ),
         Arg.create(
             "debug",
             kind=ArgKind.FLAG,
+            default=False,
             short="g",
             help="Emit DWARF debug info + symbol table so the binary is debuggable with gdb/lldb"
         ),
@@ -54,12 +57,14 @@ glob registry = get_registry();
         Arg.create(
             "assert-no-rc",
             kind=ArgKind.FLAG,
+            default=False,
             short="",
             help="Fail the build if the emitted IR contains any RC/collector machinery: __rc_* helpers, trace functions, roots-buffer globals, or entry-point GC env probes"
         ),
         Arg.create(
             "enforce-nogc",
             kind=ArgKind.FLAG,
+            default=False,
             short="",
             help="Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns"
         ),

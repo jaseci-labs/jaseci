@@ -672,6 +672,27 @@ impl delete_namespace(namespace: str) -> None {
     }
 }
 
+impl default_pss_labels -> dict[str, str] {
+    return {
+        PSS_ENFORCE_LABEL: "baseline",
+        PSS_WARN_LABEL: "restricted",
+        PSS_SOURCE_LABEL: "baseline"
+    };
+}
+
+
+impl privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None {
+    current = existing.get(PSS_ENFORCE_LABEL, "");
+    if current == "privileged" {
+        return {};
+    }
+    if current and current != existing.get(PSS_SOURCE_LABEL, "") {
+        return None;
+    }
+    return {PSS_ENFORCE_LABEL: "privileged", PSS_SOURCE_LABEL: "privileged"};
+}
+
+
 impl ensure_namespace_exists(namespace: str) -> None {
     if (namespace == 'default') {
         return;
@@ -683,11 +704,13 @@ impl ensure_namespace_exists(namespace: str) -> None {
 
         existing_labels: dict = dict(getattr(existing_ns.metadata, "labels", {}) or {});
         patch_labels: dict = {};
-        if not existing_labels.get("pod-security.kubernetes.io/enforce") {
-            patch_labels["pod-security.kubernetes.io/enforce"] = "baseline";
+        for (label, value) in default_pss_labels().items() {
+            if not existing_labels.get(label) {
+                patch_labels[label] = value;
+            }
         }
-        if not existing_labels.get("pod-security.kubernetes.io/warn") {
-            patch_labels["pod-security.kubernetes.io/warn"] = "restricted";
+        if patch_labels and not existing_labels.get(PSS_ENFORCE_LABEL) {
+            patch_labels[PSS_SOURCE_LABEL] = "baseline";
         }
         if patch_labels {
             try {
@@ -707,13 +730,7 @@ impl ensure_namespace_exists(namespace: str) -> None {
                 body={
                     'apiVersion': 'v1',
                     'kind': 'Namespace',
-                    'metadata': {
-                        'name': namespace,
-                        'labels': {
-                            'pod-security.kubernetes.io/enforce': 'baseline',
-                            'pod-security.kubernetes.io/warn': 'restricted'
-                        }
-                    }
+                    'metadata': {'name': namespace, 'labels': default_pss_labels()}
                 }
             );
             console.print(f"Namespace '{namespace}' created successfully.");
