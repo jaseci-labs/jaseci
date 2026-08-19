@@ -39,6 +39,8 @@ import from ast_nodes {
     AsyncFunctionDef,
     AsyncFor,
     AsyncWith,
+    Set,
+    Dict,
     ListComp,
     SetComp,
     DictComp,
@@ -504,6 +506,34 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
     }
     if isinstance(e, Starred) {
         return sym_visit_load_expr(b, (e as Starred).value);
+    }
+    if isinstance(e, Set) {
+        selts = (e as Set).elts;
+        si = 0;
+        while si < len(selts) {
+            if not sym_visit_load_expr(b, selts[si]) {
+                return False;
+            }
+            si = si + 1;
+        }
+        return True;
+    }
+    if isinstance(e, Dict) {
+        d = e as Dict;
+        di = 0;
+        while di < len(d.keys) {
+            k = d.keys[di];
+            if k is not None {
+                if not sym_visit_load_expr(b, k) {
+                    return False;
+                }
+            }
+            if not sym_visit_load_expr(b, d.values[di]) {
+                return False;
+            }
+            di = di + 1;
+        }
+        return True;
     }
     if isinstance(e, ListComp) {
         lc = e as ListComp;

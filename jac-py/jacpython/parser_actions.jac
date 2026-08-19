@@ -985,11 +985,29 @@ def pa_seq_append_to_end(head: list[expr] | None, item: expr) -> list[expr] {
     return out;
 }
 
-def pa_get_keys(pairs: list[object]) -> list[expr] {
-    return [];
+def pa_get_keys(pairs: list[object] | None) -> list[expr] {
+    out: list[expr] = [];
+    if pairs is None {
+        return out;
+    }
+    i = 0;
+    while i < len(pairs) {
+        out.append((pairs[i] as kv_pair).key);
+        i = i + 1;
+    }
+    return out;
 }
-def pa_get_values(pairs: list[object]) -> list[expr] {
-    return [];
+def pa_get_values(pairs: list[object] | None) -> list[expr] {
+    out: list[expr] = [];
+    if pairs is None {
+        return out;
+    }
+    i = 0;
+    while i < len(pairs) {
+        out.append((pairs[i] as kv_pair).value);
+        i = i + 1;
+    }
+    return out;
 }
 def pa_get_patterns(pairs: list[object]) -> list[pattern] {
     out: list[pattern] = [];

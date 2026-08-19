@@ -119,3 +119,38 @@ test "exec: nested unpack" {
     ns = run_module("(a, (b, c)) = (1, (2, 3))\nr = a + b + c\n");
     assert expect_int(ns["r"]) == 6;
 }
+
+# ---------------- byte-exact: set/dict/starred displays ----------------
+
+test "display: set build" { assert_matches_oracle("x = {a, b, c}\n"); }
+test "display: dict build" { assert_matches_oracle("x = {a: b, c: d}\n"); }
+test "display: starred list" { assert_matches_oracle("x = [*a, b]\n"); }
+test "display: starred tuple" { assert_matches_oracle("x = (*a, b)\n"); }
+test "display: set update" { assert_matches_oracle("x = {*a, b}\n"); }
+
+# ---------------- execution: set/dict/starred displays ----------------
+
+test "exec: set build value" {
+    ns = run_module("a = 1\nb = 2\nc = 3\ns = {a, b, c}\nr = len(s)\n");
+    assert expect_int(ns["r"]) == 3;
+}
+
+test "exec: dict build value" {
+    ns = run_module("a = 1\nb = 2\nc = 3\nd = 4\nm = {a: b, c: d}\nr = m[a] + m[c]\n");
+    assert expect_int(ns["r"]) == 6;
+}
+
+test "exec: starred list value" {
+    ns = run_module("a = [1, 2]\nb = 3\nxs = [*a, b]\nr = xs[0] + xs[1] + xs[2]\n");
+    assert expect_int(ns["r"]) == 6;
+}
+
+test "exec: starred tuple value" {
+    ns = run_module("a = [1, 2]\nb = 3\nt = (*a, b)\nr = t[0] + t[2]\n");
+    assert expect_int(ns["r"]) == 4;
+}
+
+test "exec: starred set update value" {
+    ns = run_module("a = [1, 2]\nb = 3\ns = {*a, b}\nr = len(s)\n");
+    assert expect_int(ns["r"]) == 3;
+}

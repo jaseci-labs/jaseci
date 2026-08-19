@@ -95,6 +95,7 @@ import from opcode_meta {
     OP_LIST_EXTEND,
     OP_BUILD_SET,
     OP_SET_ADD,
+    OP_SET_UPDATE,
     OP_BUILD_MAP,
     OP_MAP_ADD,
     OP_LOAD_FAST,
@@ -1922,7 +1923,12 @@ def visit_expr(
         telts = tup.elts if tup.elts is not None else [];
         dloc = nloc(tup.lineno, tup.end_lineno, tup.col_offset, tup.end_col_offset);
         if display_has_starred(telts) {
-            codegen_fail(g, "NotImplementedError", "starred tuple display not supported");
+            emit_starred_list_build(g, telts, dloc);
+            if codegen_busy(g) {
+                return None;
+            }
+            # INTRINSIC_LIST_TO_TUPLE == 6
+            g.emit_op(OP_CALL_INTRINSIC_1, 6, dloc);
             return None;
         }
         if display_all_constant(telts) {
@@ -1946,7 +1952,7 @@ def visit_expr(
         lelts = lst.elts if lst.elts is not None else [];
         dloc = nloc(lst.lineno, lst.end_lineno, lst.col_offset, lst.end_col_offset);
         if display_has_starred(lelts) {
-            codegen_fail(g, "NotImplementedError", "starred list display not supported");
+            emit_starred_list_build(g, lelts, dloc);
             return None;
         }
         if len(lelts) > 0 and display_all_constant(lelts) {
@@ -1967,6 +1973,69 @@ def visit_expr(
             return None;
         }
         g.emit_op(OP_BUILD_LIST, len(lelts), dloc);
+        return None;
+    }
+    if isinstance(e, Set) {
+        st = e as Set;
+        selts = st.elts if st.elts is not None else [];
+        dloc = nloc(st.lineno, st.end_lineno, st.col_offset, st.end_col_offset);
+        if display_has_starred(selts) {
+            g.emit_op(OP_BUILD_SET, 0, dloc);
+            si = 0;
+            while si < len(selts) {
+                sel = selts[si];
+                if isinstance(sel, Starred) {
+                    visit_expr(g, (sel as Starred).value);
+                    if codegen_busy(g) {
+                        return None;
+                    }
+                    g.emit_op(OP_SET_UPDATE, 1, dloc);
+                } else {
+                    visit_expr(g, sel);
+                    if codegen_busy(g) {
+                        return None;
+                    }
+                    g.emit_op(OP_SET_ADD, 1, dloc);
+                }
+                si = si + 1;
+            }
+            return None;
+        }
+        si = 0;
+        while si < len(selts) {
+            visit_expr(g, selts[si]);
+            si = si + 1;
+        }
+        if codegen_busy(g) {
+            return None;
+        }
+        g.emit_op(OP_BUILD_SET, len(selts), dloc);
+        return None;
+    }
+    if isinstance(e, Dict) {
+        dd = e as Dict;
+        dkeys = dd.keys if dd.keys is not None else [];
+        dvals = dd.values if dd.values is not None else [];
+        dloc = nloc(dd.lineno, dd.end_lineno, dd.col_offset, dd.end_col_offset);
+        di = 0;
+        while di < len(dkeys) {
+            k = dkeys[di];
+            if k is None {
+                codegen_fail(
+                    g,
+                    "NotImplementedError",
+                    "dict-merge (**) display not supported"
+                );
+                return None;
+            }
+            visit_expr(g, k);
+            visit_expr(g, dvals[di]);
+            di = di + 1;
+        }
+        if codegen_busy(g) {
+            return None;
+        }
+        g.emit_op(OP_BUILD_MAP, len(dkeys), dloc);
         return None;
     }
     codegen_fail(
@@ -2259,6 +2328,32 @@ def display_const_items(elts: list[expr]) -> list[PyObj] {
         i = i + 1;
     }
     return items;
+}
+
+# Build a list on the stack from a display element list containing starred
+# entries: BUILD_LIST 0, then LIST_EXTEND for each *starred and LIST_APPEND for
+# each plain element. Shared by starred list and starred tuple displays.
+def emit_starred_list_build(g: cfg_builder, elts: list[expr], dloc: cloc) -> None {
+    g.emit_op(OP_BUILD_LIST, 0, dloc);
+    i = 0;
+    while i < len(elts) {
+        el = elts[i];
+        if isinstance(el, Starred) {
+            visit_expr(g, (el as Starred).value);
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_LIST_EXTEND, 1, dloc);
+        } else {
+            visit_expr(g, el);
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_LIST_APPEND, 1, dloc);
+        }
+        i = i + 1;
+    }
+    return None;
 }
 
 # Index of the first Starred element in a target list, or -1 if none.
