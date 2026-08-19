@@ -11,7 +11,7 @@ import from jaclang.scale.deploy.autoscale.http_activation {
     HTTPHeaderMatch
 }
 import from jaclang.scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
-import from kubernetes.client.exceptions { ApiException }
+import from jaclang.scale._optdeps.kubernetes { ApiException }
 
 def build_http_activation_spec(
     cfg: dict[str, any], scale_target_name: str, namespace: str, service_name: str
