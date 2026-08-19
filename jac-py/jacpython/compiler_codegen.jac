@@ -1655,7 +1655,10 @@ def register_int_literal_const(
         return;
     }
     if v >= 0 and v <= 255 {
-        if not g.u.dead_small_int_const {
+        # CPython keeps the dead small-int slot ONLY when it lands at const
+        # index 0 (pool empty). Once a code object / string / other const has
+        # been added, small ints are pure LOAD_SMALL_INT with no pool entry.
+        if len(g.u.consts) == 0 {
             g.u.add_const(c.value);
             g.u.dead_small_int_const = True;
         }
@@ -3841,8 +3844,20 @@ def try_handler_span(h: ExceptHandler) -> cloc {
 def visit_raise_stmt(g: cfg_builder, r: Raise) -> stmt_cont {
     rloc = nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
     if r.cause is not None {
-        codegen_fail(g, "NotImplementedError", "raise from cause not supported");
-        return stmt_cont(loc=rloc);
+        if r.exc is None {
+            codegen_fail(g, "SyntaxError", "raise from without exception");
+            return stmt_cont(loc=rloc);
+        }
+        visit_expr(g, r.exc);
+        if codegen_busy(g) {
+            return stmt_cont(loc=rloc);
+        }
+        visit_expr(g, r.cause);
+        if codegen_busy(g) {
+            return stmt_cont(loc=rloc);
+        }
+        g.emit_op(OP_RAISE_VARARGS, 2, rloc);
+        return stmt_cont(loc=rloc, terminated=True);
     }
     if r.exc is not None {
         visit_expr(g, r.exc);
@@ -4273,10 +4288,6 @@ def visit_with(
         return stmt_cont(loc=wloc);
     }
     item = w.items[0];
-    if item.optional_vars is None {
-        codegen_fail(g, "NotImplementedError", "with without as not supported");
-        return stmt_cont(loc=wloc);
-    }
     cloc = expr_loc(item.context_expr);
     visit_expr(g, item.context_expr);
     if codegen_busy(g) {
@@ -4293,9 +4304,13 @@ def visit_with(
     }
     bind_blk = g.new_block();
     g.use(bind_blk);
-    bind = visit_store_target_tos(g, item.optional_vars);
-    if codegen_busy(g) {
-        return stmt_cont(loc=wloc);
+    if item.optional_vars is None {
+        g.emit_op(OP_POP_TOP, 0, cloc);
+    } else {
+        visit_store_target_tos(g, item.optional_vars);
+        if codegen_busy(g) {
+            return stmt_cont(loc=wloc);
+        }
     }
     protect_start = g.cur.id;
     with_body = g.new_block();
@@ -4390,10 +4405,6 @@ def visit_async_with(
         return stmt_cont(loc=wloc);
     }
     item = w.items[0];
-    if item.optional_vars is None {
-        codegen_fail(g, "NotImplementedError", "with without as not supported");
-        return stmt_cont(loc=wloc);
-    }
     cloc = expr_loc(item.context_expr);
     visit_expr(g, item.context_expr);
     if codegen_busy(g) {
@@ -4413,9 +4424,13 @@ def visit_async_with(
     );
     bind_blk = g.new_block();
     g.use(bind_blk);
-    bind = visit_store_target_tos(g, item.optional_vars);
-    if codegen_busy(g) {
-        return stmt_cont(loc=wloc);
+    if item.optional_vars is None {
+        g.emit_op(OP_POP_TOP, 0, cloc);
+    } else {
+        visit_store_target_tos(g, item.optional_vars);
+        if codegen_busy(g) {
+            return stmt_cont(loc=wloc);
+        }
     }
     protect_start = bind_blk.id;
     with_body = g.new_block();
@@ -6308,7 +6323,8 @@ def import_bind_name(a: alias) -> str {
 # CPython's import prefix keeps int 0 in co_consts even though level uses
 # LOAD_SMALL_INT (same dead-small-int slot as literal folding).
 def ensure_import_prefix_consts(g: cfg_builder) {
-    if not g.u.dead_small_int_const {
+    # Same dead-small-int rule: 0 is kept only at const index 0 (pool empty).
+    if len(g.u.consts) == 0 {
         g.u.add_const(PyInt(t="int", val=0));
         g.u.dead_small_int_const = True;
     }

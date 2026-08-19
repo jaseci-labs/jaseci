@@ -1472,6 +1472,27 @@ test "compiler_slice: band6 try except re-raise parsed propagates in ceval" {
     assert err.exception.message == "x";
 }
 
+test "compiler_slice: band6 raise from parsed matches oracle co_code" {
+    src = "err = ValueError('cause')\nraise KeyError('k') from err\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 raise from parsed raises KeyError in ceval" {
+    src = "err = ValueError('cause')\nraise KeyError('k') from err\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "KeyError";
+}
+
 # ---------------- Band 6 slice 3: except as ----------------
 
 test "compiler_slice: band6 try except as parsed matches oracle co_code" {
@@ -1594,6 +1615,44 @@ test "compiler_slice: band6 with parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 42;
+}
+
+test "compiler_slice: band6 with no-as parsed matches oracle co_code" {
+    src = (
+        "class CM:\n"
+            + "    def __enter__(self):\n"
+            + "        return 42\n"
+            + "    def __exit__(self, *a):\n"
+            + "        pass\n"
+            + "result = 0\n"
+            + "with CM():\n"
+            + "    result = 99\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 with no-as parsed executes in ceval" {
+    src = (
+        "class CM:\n"
+            + "    def __enter__(self):\n"
+            + "        return 42\n"
+            + "    def __exit__(self, *a):\n"
+            + "        pass\n"
+            + "result = 0\n"
+            + "with CM():\n"
+            + "    result = 99\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 99;
 }
 
 # ---------------- Band 6 slice 6: assert ----------------
