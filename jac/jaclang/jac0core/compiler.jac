@@ -1225,6 +1225,14 @@ obj JacCompiler {
 
     has internal_program: JacProgram { getter; }
 
+    def postinit {
+        import from jaclang.jac0core.native_brands {
+            DRIVER_ORIGIN,
+            ensure_native_brands_bound
+        }
+        ensure_native_brands_bound(DRIVER_ORIGIN);
+    }
+
     def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
@@ -1273,7 +1281,8 @@ obj JacCompiler {
         source_str: str,
         file_path: str,
         target_program: JacProgram,
-        cancel_token: (Event | None) = None
+        cancel_token: (Event | None) = None,
+        prefix_kind: str = ''
     ) -> uni.Module;
 
     def load_annex_modules(

@@ -1,4 +1,3 @@
-import from typing { Callable }
 import from contextvars { ContextVar }
 import logging;
 
