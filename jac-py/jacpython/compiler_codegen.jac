@@ -5620,19 +5620,62 @@ def visit_if(
         }
         return stmt_cont(loc=body_cont.loc);
     }
+    # more_code_follows == False: nothing follows this if in the current
+    # statement list. Two sub-cases, distinguished by `tail`:
+    #
+    # (a) tail is None -- a loop body (or other back-edge context): the
+    #     continuation is the loop's JUMP_BACKWARD, not a return. Fall through and
+    #     let the enclosing loop emit the back-edge; never synthesize a return.
+    #
+    # (b) tail is not None -- the function/module/compound tail: CPython
+    #     DUPLICATES the implicit `return None` into each falling-through branch
+    #     (verified: `if a in xs: r=1` emits a return after the true body AND at
+    #     the false label). Preserve that duplication, but skip the return after a
+    #     branch that already terminates (return/raise/continue) -- emitting one
+    #     there is dead code after a terminator ("Invalid CFG").
+    if tail is None {
+        emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
+        body_cont = visit_stmts(g, i.body);
+        if codegen_busy(g) {
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if has_else {
+            join = None;
+            if not body_cont.terminated {
+                join = g.new_block();
+                g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
+            }
+            g.use(false_blk);
+            else_cont = visit_stmts(g, i.orelse);
+            if codegen_busy(g) {
+                return stmt_cont(loc=else_cont.loc);
+            }
+            if join is not None {
+                g.use(join);
+                return stmt_cont(loc=iloc, terminated=False);
+            }
+            return stmt_cont(loc=iloc, terminated=else_cont.terminated);
+        }
+        g.use(false_blk);
+        return stmt_cont(loc=iloc, terminated=False);
+    }
     emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
     body_cont = visit_stmts(g, i.body);
     if codegen_busy(g) {
         return stmt_cont(loc=body_cont.loc);
     }
-    emit_module_return(g, body_cont.loc);
+    if not body_cont.terminated {
+        emit_module_return(g, body_cont.loc);
+    }
     g.use(false_blk);
     if has_else {
         else_cont = visit_stmts(g, i.orelse);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
-        emit_module_return(g, else_cont.loc);
+        if not else_cont.terminated {
+            emit_module_return(g, else_cont.loc);
+        }
     } else {
         emit_module_return(g, test_loc);
     }

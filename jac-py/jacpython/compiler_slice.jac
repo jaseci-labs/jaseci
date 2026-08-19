@@ -564,6 +564,28 @@ test "compiler_slice: membership filter comprehension matches oracle PyCode" {
     assert actual.stacksize == exp.stacksize;
 }
 
+# An `if` at a function tail whose branch(es) terminate (return/raise) must not
+# synthesize dead code after the terminator. CPython duplicates the implicit
+# `return None` into a non-terminating branch and lets a terminating branch stand
+# alone. Checked via nested co_code (module co_code is blind to the bodies).
+# Operands are constants / bool tests only -- returning a local would hit the
+# separate LOAD_FAST_BORROW escape gap.
+test "compiler_slice: if-at-tail with terminating branches matches oracle nested co_code" {
+    for src in [
+        "def f(x):\n    if x:\n        return 1\n",
+        "def f(x):\n    if x:\n        return 1\n    else:\n        return 2\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert af.co_code == ef.co_code;
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}
+
 # global / nonlocal are scope declarations (no bytecode of their own); they
 # retarget stores/deletes to STORE_GLOBAL / DELETE_GLOBAL / STORE_DEREF. Checked
 # via nested function co_code (module co_code is blind to the bodies).
