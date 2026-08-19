@@ -1898,6 +1898,103 @@ test "compiler_slice: band7 async list comprehension parsed executes in ceval" {
     assert expect_int(items[0]) == 42;
 }
 
+test "compiler_slice: band7 async set comprehension parsed matches oracle nested co_code" {
+    src = "async def f(ait):\n    return {x async for x in ait}\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+}
+
+test "compiler_slice: band7 async set comprehension executes in ceval" {
+    src = (
+        "class AI:\n"
+            + "    def __aiter__(self):\n"
+            + "        return self\n"
+            + "    async def __anext__(self):\n"
+            + "        if getattr(self, 'done', False):\n"
+            + "            raise StopAsyncIteration\n"
+            + "        self.done = True\n"
+            + "        return 42\n"
+            + "\n"
+            + "async def f(ait):\n"
+            + "    return {x async for x in ait}\n"
+            + "c = f(AI())\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    result = finished.value as PyObj;
+    assert result.t == "set";
+    sitems = (result as PySet).items;
+    assert len(sitems) == 1;
+    for hk in sitems {
+        assert expect_int(sitems[hk]) == 42;
+    }
+}
+
+test "compiler_slice: band7 async dict comprehension parsed matches oracle nested co_code" {
+    src = "async def f(ait):\n    return {x: x async for x in ait}\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+}
+
+test "compiler_slice: band7 async dict comprehension executes in ceval" {
+    src = (
+        "class AI:\n"
+            + "    def __aiter__(self):\n"
+            + "        return self\n"
+            + "    async def __anext__(self):\n"
+            + "        if getattr(self, 'done', False):\n"
+            + "            raise StopAsyncIteration\n"
+            + "        self.done = True\n"
+            + "        return 42\n"
+            + "\n"
+            + "async def f(ait):\n"
+            + "    return {x: x async for x in ait}\n"
+            + "c = f(AI())\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    result = finished.value as PyObj;
+    assert result.t == "dict";
+    ditems = (result as PyDict).items;
+    assert len(ditems) == 1;
+    for hk in ditems {
+        assert expect_int(ditems[hk].key) == 42;
+        assert expect_int(ditems[hk].value) == 42;
+    }
+}
+
 # ---------------- Band 7 slice 6: async with ----------------
 
 test "compiler_slice: band7 async with parsed matches oracle nested co_code" {
