@@ -23,7 +23,6 @@ from types import ModuleType
 # Cache jac0 transpiler hash for bootstrap cache invalidation
 import jaclang.jac0 as _jac0_mod
 from jaclang.jac0 import compile_jac as _jac0_compile  # noqa: E402
-from jaclang.jac0 import ct_reflect_source_deps as _jac0_ct_deps  # noqa: E402
 from jaclang.jac0 import discover_impl_files as _jac0_discover_impls  # noqa: E402
 from jaclang.jac0core import ext_registry  # noqa: E402
 from jaclang.jac0core import sealed as _sealed  # noqa: E402
@@ -71,20 +70,6 @@ def _bootstrap_compile(
         for src, path in impl_sources:
             h.update(path.encode())
             h.update(src.encode())
-    # Comptime-expanding sources derive code from the modules they reflect
-    # over; the cached artifact must be keyed on those inputs too.
-    ct_sources = [jac_source] + [src for src, _ in (impl_sources or [])]
-    seen_deps: set[str] = set()
-    for src in ct_sources:
-        for dep in _jac0_ct_deps(src):
-            if dep in seen_deps:
-                continue
-            seen_deps.add(dep)
-            h.update(dep.encode())
-            try:
-                h.update(Path(dep).read_bytes())
-            except OSError:
-                h.update(b"<missing>")
     digest = h.hexdigest()[:16]
 
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -102,7 +87,7 @@ def _bootstrap_compile(
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         # Process-unique temp + atomic replace so concurrent bootstraps (e.g.
-        # parallel xdist workers) can't read a half-written cache file.
+        # parallel test workers) can't read a half-written cache file.
         tmp_file = cache_file.with_suffix(cache_file.suffix + f".{os.getpid()}.tmp")
         try:
             tmp_file.write_bytes(marshal.dumps(code))
@@ -113,6 +98,33 @@ def _bootstrap_compile(
         pass
 
     return code
+
+
+class JacSourceCompileError(ImportError):
+    """A .jac module was found on disk but its source failed to compile.
+
+    Distinct from a module that is simply absent (``ModuleNotFoundError``) or
+    only partially initialized mid-bootstrap (``cannot import name ...``): the
+    file resolved, so this is a defect in that file, never a condition to
+    degrade around silently. It subclasses ``ImportError`` so existing handlers
+    keep their behavior; callers that must not degrade -- the compiler's own
+    pass-schedule builders -- opt in by inspecting ``jac_source_path``.
+    """
+
+    def __init__(self, message: str, jac_source_path: str) -> None:
+        """Record the .jac file whose compile produced this failure."""
+        super().__init__(message)
+        self.jac_source_path = jac_source_path
+
+
+def _retained_failure_details(file_path: str) -> str:
+    """Recover diagnostics the internal compile closure already evicted."""
+    try:
+        from jaclang.jac0core.compiler import compiler_source_failure_details
+
+        return compiler_source_failure_details(file_path) or ""
+    except Exception:
+        return ""
 
 
 def _module_scoped_alerts(program: object, file_path: str) -> list:
@@ -355,10 +367,16 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 internal = getattr(compiler, "internal_program", None)
                 if internal is not None:
                     alerts = _module_scoped_alerts(internal, file_path)
-            if alerts:
-                details = "\n".join(a.pretty_print() for a in alerts)
-                raise ImportError(f"{file_path} failed to compile:\n{details}")
-            raise ImportError(f"No bytecode found for {file_path}")
+            details = "\n".join(a.pretty_print() for a in alerts)
+            if not details:
+                details = _retained_failure_details(file_path)
+            if details:
+                raise JacSourceCompileError(
+                    f"{file_path} failed to compile:\n{details}", file_path
+                )
+            raise JacSourceCompileError(
+                f"No bytecode found for {file_path}", file_path
+            )
 
         # MTIR is written keyed by file stem but byllm looks up by func.__module__;
         # re-key to the fullname so submodule imports resolve. __main__ is already

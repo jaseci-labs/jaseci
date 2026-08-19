@@ -109,10 +109,10 @@ import from jaclang.jac0core.constant {
     SymbolAccess,
     OwnershipKind,
 }
-import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.type_system.types {
     AnyType,
+    ClassDetailsPrivate,
+    ClassDetailsShared,
     ClassType,
     EnumMemberInfo,
     EnumMemberType,
@@ -133,6 +133,7 @@ import from jaclang.compiler.type_system.types {
     create_callable_type
 }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
+import from jaclang.jac0core.passes.transform { Transform }
 import type from jaclang.jac0core.program { JacProgram }
 
 import from jaclang.compiler.type_system.operations {
@@ -163,7 +164,6 @@ import from jaclang.compiler.type_system.properties {
     is_cached_property_decorator_type,
     is_property_decorator_type
 }
-import from jaclang.compiler.symbol_utils { int_subscript_suffix }
 import from jaclang.compiler.type_system.enum_utils {
     build_enum_members,
     get_special_enum_value_type_from_bases
@@ -291,7 +291,10 @@ obj NarrowingPredicate {
     has key: str,
         narrow_type: TypeBase,
         is_inverted: bool = False,
-        attr_name: str | None = None;
+        attr_name: str | None = None,
+        narrows_on_true: bool = True,
+        narrows_on_false: bool = True,
+        replaces_declared: bool = False;
 }
 
 enum NarrowingKind {
@@ -302,7 +305,9 @@ enum NarrowingKind {
     TRUTHINESS = "truthiness",
     LITERAL_EQ = "literal_eq",
     LITERAL_NE = "literal_ne",
-    HASATTR = "hasattr"
+    HASATTR = "hasattr",
+    TYPE_IS = "type_is",
+    TYPE_GUARD = "type_guard"
 }
 
 obj ConditionInfo {
@@ -315,7 +320,7 @@ obj ConditionInfo {
 glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
 obj TypeEvaluator {
-    has program: "JacProgram",
+    has program: JacProgram,
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -329,9 +334,10 @@ obj TypeEvaluator {
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
         prefetch: PrefetchedTypes postinit,
-        _pass: object | None = None,
+        _pass: Transform | None = None,
         builtins_module: Module | None = None,
-        _flow_node_type_cache: dict[tuple, TypeBase | None] = {},
+        _flow_node_type_cache: dict[tuple[int, int], TypeBase | None] = {},
+        _flow_key_type_cache: dict[tuple[int, str], TypeBase | None] = {},
         _flow_pending_symbols: set[int] postinit,
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, ModuleType] = {},
@@ -340,6 +346,7 @@ obj TypeEvaluator {
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
+        _type_guard_probes: set[int] = set(),
         _loop_written_keys_cache: dict[int, set[str]] = {},
         _ts_decl_cache: dict[str, (dict[str, TsDecl] | None)] = {},
         _ts_decl_path_cache: dict[str, (str | None)] = {},
@@ -354,6 +361,8 @@ obj TypeEvaluator {
         js_globals_module: Module postinit;
 
     def postinit -> None;
+    def _read_dunder_all(path: str) -> (set[str] | None);
+    def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;
@@ -660,7 +669,8 @@ obj TypeEvaluator {
     def validate_typevar_in_type_expr(expr: Expr) -> None;
     def validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> None;
     def validate_typevar_variance(func: Ability) -> None;
-    def _get_enclosing_class_type_params(node_: UniNode) -> list[TypeVarType];
+    def _type_var_bound_in_scope(node_: UniNode, name: str) -> bool;
+    def _get_signature_type_params(sig: FuncSignature) -> list[TypeVarType];
     def _get_function_type_params(func: Ability) -> list[TypeVarType];
     def _get_outer_scope_type_params(node_: UniNode) -> list[TypeVarType];
     def create_key_for_reference(expr: Expr) -> str | None;
@@ -685,6 +695,10 @@ obj TypeEvaluator {
         target: NarrowingTarget, condition: Expr
     ) -> NarrowingPredicate | None;
 
+    def _narrowing_equivalent(
+        left: NarrowingPredicate, right: NarrowingPredicate
+    ) -> bool;
+
     def _apply_narrowing(
         predicate: NarrowingPredicate,
         incoming: TypeBase | None,
@@ -692,10 +706,8 @@ obj TypeEvaluator {
         target: NarrowingTarget
     ) -> TypeBase | None;
 
-    def _filter_union_for_isinstance(
-        base_type: TypeBase, target_type: TypeBase
-    ) -> TypeBase | None;
-
+    def _narrow_type_to(base_type: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
+    def _narrow_member_to(member: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
     def _specialize_narrow_from_base(
         base_type: TypeBase, narrow_type: TypeBase
     ) -> TypeBase;
@@ -713,6 +725,11 @@ obj TypeEvaluator {
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;
+    def _isinstance_tuple_alternatives(arg_type: TypeBase) -> list[TypeBase] | None;
+    def _extract_type_guard_info(condition: Expr) -> tuple[str, TypeBase, bool] | None;
+    def _create_type_guard_type(name: str, guarded: TypeBase | None) -> TypeBase;
+    def _type_guard_form_of(ty: TypeBase) -> str | None;
+    def _unwrap_type_guard_return(ty: TypeBase) -> TypeBase;
     def _extract_callable_info(condition: Expr) -> str | None;
     def _extract_hasattr_info(condition: Expr) -> tuple[str, str] | None;
     def _type_has_attribute(t: TypeBase, attr_name: str) -> bool;
@@ -726,6 +743,7 @@ obj TypeEvaluator {
     def _is_type_alias_annotation(annotation_type: TypeBase, tag_expr: Expr) -> bool;
     def _resolve_type_alias_rhs(value: Expr) -> TypeBase;
     def _brand_distinct_alias(node_: TypeAlias, resolved: TypeBase) -> TypeBase;
+    def _distinct_brand_mismatch(src_type: TypeBase, dest_type: TypeBase) -> bool;
     def _resolve_string_type_expr(
         type_str: str, scope: UniScopeNode
     ) -> TypeBase | None;

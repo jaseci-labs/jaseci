@@ -71,11 +71,12 @@ class JacLexer(RegexLexer) {
 }
 
 with entry {
-    for tok in list(JacLexer().get_tokens("walker greeter")) {
-        print(tok);
-    }
+    lexer = JacLexer();
+    print(lexer.name, lexer.aliases);   # real class attributes, read by the metaclass
 }
 ```
+
+Pygments then drives `JacLexer` exactly as it would a Python subclass -- `lexer.get_tokens("walker greeter")` yields the token stream from the `tokens` table above.
 
 Default to `obj` for your own types; reach for `class` only when a Python base's metaclass (or class-attribute protocol) demands real class attributes.
 

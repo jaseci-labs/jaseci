@@ -286,6 +286,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         _own_spec = self._elem_spec_of(nd);
         _dest_spec = self._empty_list_dest_spec(nd);
+        if _dest_spec is None {
+            _dest_spec = self._spec_from_container_ptr(self._peer_container_ty);
+        }
         if (
             _dest_spec is not None
             and _dest_spec != "jacval"

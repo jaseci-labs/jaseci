@@ -1,6 +1,5 @@
 import re;
 import from contextlib { contextmanager }
-import from typing { Iterator }
 
 glob _COLOR_CACHE: dict[(str, bool)] = {};
 
@@ -74,7 +73,11 @@ def _compile_runtime_js -> str;
 
 def _compile_runtime_core_js -> str;
 
-def _stub_npm_imports(js_sources: list[str]) -> tuple[list, str, bool];
+def _point_at_staged_runtime(js: str) -> str;
+
+def _stub_npm_imports(
+    entry_js: str, staged: dict[str, str]
+) -> tuple[str, dict[str, str], str, bool];
 
 def _build_harness(
     module_js: str, tests: list, api_base_url: str = "", storage: (dict | None) = None

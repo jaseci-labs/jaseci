@@ -48,8 +48,13 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_RIM_BASES }
     param_map: dict[str, Parameter] = {};
+    _erase_rim = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
+        if _erase_rim and cls.shared.class_name in NATIVE_ERASED_RIM_BASES {
+            continue;
+        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 continue;
@@ -716,8 +721,10 @@ impl TypeEvaluator._get_declared_return_type(
         and isinstance(scope.signature, FuncSignature)
         and isinstance(scope.signature.return_type, Expr)
     ) {
-        return self._convert_to_instance(
-            self.get_type_of_expression(scope.signature.return_type)
+        return self._unwrap_type_guard_return(
+            self._convert_to_instance(
+                self.get_type_of_expression(scope.signature.return_type)
+            )
         );
     }
 
@@ -1425,7 +1432,7 @@ impl TypeEvaluator._create_special_builtin_type(
             return cached;
         }
     }
-    shared = ClassType.ClassDetailsShared(
+    shared = ClassDetailsShared(
         class_name=name,
         symbol_table=base_class.shared.symbol_table,
         base_classes=[base_class],
@@ -1442,32 +1449,8 @@ impl TypeEvaluator._create_special_builtin_type(
     return special_type;
 }
 
-impl TypeEvaluator._get_enclosing_class_type_params(
-    node_: UniNode
-) -> list[TypeVarType] {
+impl TypeEvaluator._get_signature_type_params(sig: FuncSignature) -> list[TypeVarType] {
     type_params: list[TypeVarType] = [];
-    current: UniNode | None = node_;
-
-    while current {
-        if isinstance(current, Archetype) {
-            class_type = self.get_type_of_class(current);
-            if class_type.shared.type_params {
-                for tp in class_type.shared.type_params {
-                    type_params.append(tp);
-                }
-            }
-            break;
-        }
-        current = current.parent;
-    }
-    return type_params;
-}
-
-impl TypeEvaluator._get_function_type_params(func: Ability) -> list[TypeVarType] {
-    type_params: list[TypeVarType] = [];
-    if not isinstance(func.signature, FuncSignature) {
-        return type_params;
-    }
 
     def collect_typevars(expr: Expr) {
         if isinstance(expr, Name) {
@@ -1483,6 +1466,8 @@ impl TypeEvaluator._get_function_type_params(func: Ability) -> list[TypeVarType]
                     }
                 }
             }
+        } elif isinstance(expr, AtomUnit) and isinstance(expr.value, Expr) {
+            collect_typevars(expr.value);
         } elif isinstance(expr, TupleVal) {
             for v in expr.values {
                 collect_typevars(v);
@@ -1493,14 +1478,28 @@ impl TypeEvaluator._get_function_type_params(func: Ability) -> list[TypeVarType]
         }
     }
 
-    for param in func.signature.get_parameters() {
-        if param.type_tag {
+    for param in sig.get_parameters() {
+        if isinstance(param, ParamVar) and param.type_tag {
             collect_typevars(param.type_tag.tag);
         }
     }
 
-    if func.signature.return_type {
-        collect_typevars(func.signature.return_type);
+    if sig.return_type {
+        collect_typevars(sig.return_type);
+    }
+
+    return type_params;
+}
+
+impl TypeEvaluator._get_function_type_params(func: Ability) -> list[TypeVarType] {
+    type_params: list[TypeVarType] = [];
+
+    for tp in func.type_params or [] {
+        type_params.append(TypeVarType(name=tp.sym_name));
+    }
+
+    if isinstance(func.signature, FuncSignature) {
+        type_params.extend(self._get_signature_type_params(func.signature));
     }
 
     return type_params;
@@ -1625,45 +1624,55 @@ impl TypeEvaluator.validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> 
         }
     }
 
-    enclosing_class: Archetype | None = None;
-    enclosing_func: Ability | None = None;
-    current: UniNode | None = expr.parent;
-
-    while current {
-        if isinstance(current, Archetype) and enclosing_class is None {
-            enclosing_class = current;
-        }
-        if isinstance(current, Ability) and enclosing_func is None {
-            enclosing_func = current;
-        }
-        current = current.parent;
-    }
-
-    if enclosing_func {
-        func_type_params = self._get_function_type_params(enclosing_func);
-        for tp in func_type_params {
-            if tp.name == type_var.name {
-                return;
-            }
-        }
-
-        self.emit_diag(E1065, expr, name=type_var.name);
-        return;
-    }
-
-    if enclosing_class {
-        class_type_params = self._get_enclosing_class_type_params(enclosing_class);
-        for tp in class_type_params {
-            if tp.name == type_var.name {
-                return;
-            }
-        }
-
-        self.emit_diag(E1065, expr, name=type_var.name);
+    if self._type_var_bound_in_scope(expr, type_var.name) {
         return;
     }
 
     self.emit_diag(E1065, expr, name=type_var.name);
+}
+
+impl TypeEvaluator._type_var_bound_in_scope(node_: UniNode, name: str) -> bool {
+    current: UniNode | None = node_.parent;
+    seen: set[int] = set();
+
+    while current {
+        if id(current) in seen {
+            return False;
+        }
+        seen.add(id(current));
+
+        if isinstance(current, Ability) {
+            for tp in self._get_function_type_params(current) {
+                if tp.name == name {
+                    return True;
+                }
+            }
+        } elif isinstance(current, Archetype) {
+            class_type = self.get_type_of_class(current);
+            for tp in class_type.shared.type_params or [] {
+                if tp.name == name {
+                    return True;
+                }
+            }
+            return False;
+        } elif isinstance(current, ImplDef) {
+            if isinstance(current.spec, FuncSignature) {
+                for tp in self._get_signature_type_params(current.spec) {
+                    if tp.name == name {
+                        return True;
+                    }
+                }
+            }
+            decl = current.decl_link;
+            if isinstance(decl, (Ability, Archetype)) {
+                current = decl;
+                continue;
+            }
+        }
+
+        current = current.parent;
+    }
+    return False;
 }
 
 impl TypeEvaluator._get_outer_scope_type_params(node_: UniNode) -> list[TypeVarType] {

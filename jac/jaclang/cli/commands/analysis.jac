@@ -74,6 +74,13 @@ glob registry = get_registry();
             short="",
             help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
         ),
+        Arg.create(
+            "compile-stats",
+            typ=bool,
+            default=False,
+            short="",
+            help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop"
+        ),
 
     ],
     examples=[
@@ -108,7 +115,8 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_census: bool = False,
-    placements: bool = False
+    placements: bool = False,
+    compile_stats: bool = False
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -248,7 +256,10 @@ def precommit(
             short="t"
         ),
         Arg.create(
-            "filter", default="", help="Filter test files (Unix patterns)", short="f"
+            "filter",
+            default="",
+            help="Select tests by name expression (and/or/not, parens)",
+            short="f"
         ),
         Arg.create(
             "xit", typ=bool, default=False, help="Stop on first failure", short="x"
@@ -265,11 +276,7 @@ def precommit(
             short="v",
             config_key="test.verbose"
         ),
-        Arg.create(
-            "ignore",
-            default="",
-            help="Path to skip during collection (pytest --ignore)"
-        ),
+        Arg.create("ignore", default="", help="Path to skip during collection"),
         Arg.create(
             "profile",
             default="",

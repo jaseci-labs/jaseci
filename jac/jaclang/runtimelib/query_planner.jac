@@ -1,5 +1,4 @@
 import logging;
-import from typing { Any }
 import from uuid { UUID }
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor }
 import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }

@@ -1,4 +1,3 @@
-import from collections.abc { Callable, Sequence }
 import from enum { Enum }
 import from typing { TypeAlias }
 import from jaclang.jac0core.unitree {
@@ -83,9 +82,8 @@ obj BorrowMeta {
         field: str = "";
 }
 
-obj OwnershipCheckPass(Transform[Module, Module]) {
+obj OwnershipCheckPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         owned_decl: dict[SymId, Name] = {},
         consumed_syms: set[SymId] = set(),

@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
@@ -23,14 +22,14 @@ import from jaclang.jac0core.constant { SymbolType, Tokens as Tok }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 class EndpointEffectPass(UniPass) {
-    has _is_writer: bool,
-        _touches: set[str],
-        _visited: set[int];
+    has _is_writer: bool = False,
+        _touches: set[str] = set(),
+        _visited: set[int] = set();
 
     def before_pass(self: EndpointEffectPass) {
         self._is_writer = False;
-        self._touches = set();
-        self._visited = set();
+        self._touches.clear();
+        self._visited.clear();
     }
 
     def enter_ability(self: EndpointEffectPass, nd: Ability) {
@@ -61,12 +60,12 @@ class EndpointEffectPass(UniPass) {
 
     def _classify(self: EndpointEffectPass, body_nodes: list) -> dict {
         self._is_writer = False;
-        self._touches = set();
-        self._visited = set();
+        self._touches.clear();
+        self._visited.clear();
         for nd in body_nodes {
             self._scan(nd);
         }
-        touches_list = sorted(self._touches) if self._touches else ["*"];
+        touches_list = sorted(list(self._touches)) if self._touches else ["*"];
         return {"is_writer": self._is_writer, "touches": touches_list};
     }
 
@@ -188,22 +187,22 @@ class EndpointEffectPass(UniPass) {
     }
 
     def _resolved_body(self: EndpointEffectPass, owner: UniNode) -> list {
-        resolver: any = owner?._get_impl_resolved_body;
-        if resolver is not None {
-            try {
-                resolved = resolver();
-                if isinstance(resolved, list) {
-                    return resolved;
-                }
-            } except Exception { }
+        if isinstance(owner, Archetype) {
+            return owner._get_impl_resolved_body();
         }
-        body = owner?.body;
+        if not isinstance(owner, Ability) {
+            return [];
+        }
+        body = owner.body;
         if isinstance(body, list) {
             return body;
         }
-        if isinstance(body, ImplDef) and isinstance(body.body, Sequence) {
-            return [stmt for stmt in body.body];
+        out: list[UniNode] = [];
+        if isinstance(body, ImplDef) and isinstance(body.body, list) {
+            for stmt in body.body {
+                out.append(stmt);
+            }
         }
-        return [];
+        return out;
     }
 }

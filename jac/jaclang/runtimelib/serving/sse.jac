@@ -1,6 +1,5 @@
 import inspect;
 import logging;
-import from collections.abc { AsyncIterator, Iterator }
 import from json { dumps, loads }
 
 

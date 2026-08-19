@@ -823,6 +823,17 @@ impl NaIRGenPass._codegen_compare_link(
         _in_key_nd = left_node.expr
             if isinstance(left_node, uni.CfgExpr)
             else left_node;
+        _in_hay_nd = right_node.expr
+            if isinstance(right_node, uni.CfgExpr)
+            else right_node;
+        _in_hay_tk = self._type_key_of(_in_hay_nd) or "";
+        _in_hay_cont = (
+            _in_hay_tk.startswith("list[")
+            or _in_hay_tk.startswith("dict[")
+            or _in_hay_tk.startswith("set[")
+            or _in_hay_tk.startswith("frozenset[")
+            or _in_hay_tk.startswith("tuple[")
+        );
 
         for (dict_key, helpers) in self.dict_helpers.items() {
             dict_type = self.dict_types.get(dict_key);
@@ -1119,20 +1130,40 @@ impl NaIRGenPass._codegen_compare_link(
             and isinstance(left.type, ir.PointerType) {
             i8p = ir.IntType(8).as_pointer();
             i64 = ir.IntType(64);
-            strstr_fn = self._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-            found = self.builder.call(strstr_fn, [right, left], name="str.in.ptr");
-            null_ptr = ir.Constant(i8p, None);
-            is_found = self.builder.icmp_unsigned(
-                "!=", found, null_ptr, name="str.in.found"
-            );
-            result = self.builder.zext(is_found, i64, name="str.in.i64");
-            if is_not_in {
-                result = self.builder.icmp_signed(
-                    "==", result, ir.Constant(i64, 0), name="not.in"
+            if right.type == i8p and left.type == i8p and not _in_hay_cont {
+                strstr_fn = self._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
+                found = self.builder.call(strstr_fn, [right, left], name="str.in.ptr");
+                null_ptr = ir.Constant(i8p, None);
+                is_found = self.builder.icmp_unsigned(
+                    "!=", found, null_ptr, name="str.in.found"
                 );
-                result = self.builder.zext(result, i64, name="notin.i64");
+                result = self.builder.zext(is_found, i64, name="str.in.i64");
+                if is_not_in {
+                    result = self.builder.icmp_signed(
+                        "==", result, ir.Constant(i64, 0), name="not.in"
+                    );
+                    result = self.builder.zext(result, i64, name="notin.i64");
+                }
+                return result;
             }
-            return result;
+            self.emit(
+                E5092,
+                node_override=_in_hay_nd,
+                kind="expression",
+                name="membership over an element-erased collection",
+                help_text="Every container the emitter registered answers "
+                "membership from its own layout; the one pointer shape left "
+                "is the substring test, and that needs a plain string on both "
+                "sides. Neither holds here. The right-hand side's declared "
+                f"type ({_in_hay_tk or 'unknown'}) either names a container "
+                "whose layout never reached this comparison -- usually one "
+                "read out of an enclosing container that stores its entries "
+                "untyped -- or the needle is not a string. Running the "
+                "substring test over them would answer from the header bytes "
+                "instead. Bind the container to a directly-typed local, or "
+                "annotate it, so its own layout reaches this comparison."
+            );
+            return None;
         }
         return None;
     }
@@ -1488,7 +1519,10 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
+        _bool_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
+        self._peer_container_ty = _bool_peer_saved;
         if rhs_val is None {
             return None;
         }
@@ -1774,6 +1808,17 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
 
             if (
+                target_name == "os"
+                and self?._native_stdlib_modules
+                and "os" in self._native_stdlib_modules
+            ) {
+                _oc = self._emit_os_const(right_name);
+                if _oc is not None {
+                    return _oc;
+                }
+            }
+
+            if (
                 self?._native_module_imports
                 and target_name in self._native_module_imports
                 and target_name not in self.local_vars
@@ -1861,7 +1906,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1874,7 +1921,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     type_name = self._infer_type_name(obj_val);
                 }
                 if type_name is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1907,7 +1956,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _slice_list_spec = self._list_spec_of(nd.target);
             if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
-                target_val = self._str_norm(target_val);
+                target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
                 if target_val is not None {
                     _shape = self._infer_list_elem_type(target_val);
                     elem_type_name = _shape if _shape is not None else _slice_list_spec;
@@ -1963,7 +2012,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             else None;
         if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 _shape = self._infer_list_elem_type(target_val);
                 elem_type_name = _shape if _shape is not None else _idx_list_spec;
@@ -2023,7 +2072,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     }
                 }
             }
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {
                     _any_slices = nd.right.slices or [];
@@ -2069,7 +2118,8 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             if idx_val is None and idx_node?.start {
                                 idx_val = self._codegen_expr(idx_node.start);
                             }
-                            if idx_val is not None {
+                            if idx_val is not None
+                                and isinstance(idx_val.type, ir.IntType) {
                                 return self._codegen_string_index(
                                     target_val,
                                     idx_val,
@@ -2077,6 +2127,28 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                                         self.builder, target_val, name="chr.len"
                                     )
                                 );
+                            }
+                            if idx_val is not None {
+                                _sub_tk = self._type_key_of(nd.target) or "unknown";
+                                self.emit(
+                                    E5092,
+                                    node_override=nd.target,
+                                    kind="expression",
+                                    name="subscript of an element-erased collection",
+                                    help_text="An untyped pointer is subscripted "
+                                    "with a non-integer key. The only layout the "
+                                    "emitter can read out of a bare pointer is a "
+                                    "string, and a string is indexed by integers, "
+                                    "so this target is a container whose declared "
+                                    f"type ({_sub_tk}) never reached its own "
+                                    "layout -- usually one read out of an "
+                                    "enclosing container that stores its entries "
+                                    "untyped. Indexing it as a string would read "
+                                    "the header bytes. Bind the container to a "
+                                    "directly-typed local, or annotate it, so its "
+                                    "own layout reaches this subscript."
+                                );
+                                return None;
                             }
                         }
                     }

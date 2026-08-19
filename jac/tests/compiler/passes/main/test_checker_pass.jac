@@ -8,6 +8,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -56,7 +57,7 @@ test "list_assignment_to_int" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_list_assignment.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -72,7 +73,7 @@ test "float_types" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_float.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -89,7 +90,7 @@ test "infer_type_of_assignment" {
     mod = program.compile(
         os.path.join(FIXTURES, "infer_type_assignment.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
 
     assert_error_pretty_found(
@@ -107,7 +108,7 @@ test "bug_in_walker_ability" {
         os.path.join(CHECKER_FIXTURES, "checker_bug_return_in_walker_ability.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -116,7 +117,7 @@ test "return_value_in_ability_warns" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_return_in_ability.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
     w2014_warnings = [
         w
@@ -133,7 +134,7 @@ test "explicit_self_in_archetype_errors" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_explicit_self.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e2015_errors = [
         e
         for e in program.errors_had
@@ -149,7 +150,7 @@ test "member_access_type_resolve" {
     mod = program.compile(
         os.path.join(FIXTURES, "member_access_type_resolve.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -165,7 +166,7 @@ test "imported_sym" {
     mod = program.compile(
         os.path.join(FIXTURES, "checker", "import_sym_test.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -182,7 +183,7 @@ test "member_access_type_infered" {
     mod = program.compile(
         os.path.join(FIXTURES, "member_access_type_inferred.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -198,7 +199,7 @@ test "inherited_symbol" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_sym_inherit.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -215,7 +216,7 @@ test "import_symbol_type_infer" {
     mod = program.compile(
         os.path.join(FIXTURES, "import_symbol_type_infer.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -231,7 +232,7 @@ test "from_import" {
 
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -259,7 +260,7 @@ test "call_expr" {
     path = os.path.join(CHECKER_FIXTURES, "checker_expr_call.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -274,7 +275,7 @@ test "call_expr_magic" {
     path = os.path.join(CHECKER_FIXTURES, "checker_magic_call.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -290,7 +291,7 @@ test "arity" {
     path = os.path.join(CHECKER_FIXTURES, "checker_arity.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
     assert_error_pretty_found(
         """
@@ -319,7 +320,7 @@ test "dunder_new_direct_call" {
     path = os.path.join(CHECKER_FIXTURES, "checker_dunder_new_direct.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # object.__new__(self.__class__) and object.__new__(cls) should NOT error.
     # Only the call with too many args should produce errors (one per extra arg).
     e1051_errors = [
@@ -343,7 +344,7 @@ test "param_types" {
     path = os.path.join(CHECKER_FIXTURES, "checker_param_types.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -359,7 +360,7 @@ test "param_arg_match" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_arg_param_match.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 13;
 
     expected_errors = [
@@ -459,7 +460,7 @@ test "class_construct" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_class_construct.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
 
     square_sym = mod.sym_tab.lookup("Square");
@@ -506,7 +507,7 @@ test "self_type_inference" {
     path = os.path.join(CHECKER_FIXTURES, "checker_self_type.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -522,7 +523,7 @@ test "binary_op" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_binary_op.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2;
     assert_error_pretty_found(
         """
@@ -544,7 +545,7 @@ test "checker_call_expr_class" {
     path = os.path.join(CHECKER_FIXTURES, "checker_call_expr_class.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -559,7 +560,7 @@ test "type_ref_resolution" {
     path = os.path.join(CHECKER_FIXTURES, "checker_type_ref.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -567,7 +568,7 @@ test "checker_mod_path" {
     path = os.path.join(CHECKER_FIXTURES, "checker_mod_path.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -582,7 +583,7 @@ test "checker_cat_is_animal" {
     path = os.path.join(CHECKER_FIXTURES, "checker_cat_is_animal.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -599,7 +600,7 @@ test "checker_member_access" {
     path = os.path.join(FIXTURES, "symtab_build.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(mod.sym_tab.names_in_scope.values()) == 2;
     mod_scope_symbols = ["Symbol(alice", "Symbol(Person"];
     for sym in mod_scope_symbols {
@@ -640,7 +641,7 @@ test "checker_import_missing_module" {
     path = os.path.join(CHECKER_FIXTURES, "checker_import_missing_module.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Each missing module is reported once (W1100). The Unknowns that flow
     # from an already-diagnosed import are poisoned and no longer cascade
     # into hard errors (E1032 attribute access, E1001/E1002 assignments) at
@@ -665,7 +666,7 @@ test "checker_jac_runtime_alias" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jac_runtime_alias.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"unexpected errors: {[
         e.pretty_print() for e in program.errors_had
     ]}";
@@ -683,7 +684,7 @@ test "checker_react_router_props" {
     path = os.path.join(CHECKER_FIXTURES, "checker_react_router_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"unexpected errors: {[
         e.pretty_print() for e in program.errors_had
     ]}";
@@ -693,7 +694,7 @@ test "cyclic_symbol" {
     path = os.path.join(CHECKER_FIXTURES, "checker_cyclic_symbol.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -701,7 +702,7 @@ test "get_type_of_iife_expression" {
     path = os.path.join(CHECKER_FIXTURES, "checker_iife_expression.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
 }
 
@@ -709,7 +710,7 @@ test "generics" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_generics.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 9;
 
     expected_errors = [
@@ -807,7 +808,7 @@ test "return_type" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_return_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 4;
 
     expected_errors = [
@@ -846,7 +847,7 @@ test "connect_typed" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_connect_typed.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
 }
 
@@ -854,7 +855,7 @@ test "connect_filter" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_connect_filter.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 7;
 
     expected_errors = [
@@ -918,7 +919,7 @@ test "filter_compr_compare_types" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_filter_compr_compare.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 4;
 
     expected_errors = [
@@ -959,7 +960,7 @@ test "connect_any_type" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_connect_any_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -967,7 +968,7 @@ test "connect_node_collection" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_connect_node_collection.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -980,7 +981,7 @@ test "visit_collection_element_type" {
     path = os.path.join(CHECKER_FIXTURES, "checker_visit_collection_element.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1094 = [
         e
         for e in program.errors_had
@@ -1008,7 +1009,7 @@ test "spawn_validation" {
     path = os.path.join(CHECKER_FIXTURES, "checker_spawn_validation.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1114 = [
         e
         for e in program.errors_had
@@ -1037,7 +1038,7 @@ test "disconnect_typed" {
     path = os.path.join(CHECKER_FIXTURES, "checker_disconnect_typed.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1098 = [
         e
         for e in program.errors_had
@@ -1058,7 +1059,7 @@ test "disconnect_op_no_w1051" {
     path = os.path.join(CHECKER_FIXTURES, "checker_disconnect_op_no_w1051.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     w1051 = [
         w
         for w in program.warnings_had
@@ -1082,7 +1083,7 @@ test "named_entry_no_w1051" {
     path = os.path.join(CHECKER_FIXTURES, "checker_named_entry_no_w1051.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     w1051 = [
         w
         for w in program.warnings_had
@@ -1177,7 +1178,7 @@ test "ability_trigger_archetype" {
     path = os.path.join(CHECKER_FIXTURES, "checker_ability_trigger_archetype.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1116 = [
         e
         for e in program.errors_had
@@ -1202,7 +1203,7 @@ test "root_keyword_as_walker_trigger" {
     path = os.path.join(CHECKER_FIXTURES, "checker_root_keyword_trigger.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1116 = [
         e
         for e in program.errors_had
@@ -1277,7 +1278,7 @@ test "connect_unparameterized_collection" {
     path = os.path.join(CHECKER_FIXTURES, "checker_connect_unparameterized.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1118 = [
         e
         for e in program.errors_had
@@ -1298,7 +1299,7 @@ test "edge_ref_typed_result" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_edge_ref_typed_result.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1001 = [
         e
         for e in program.errors_had
@@ -1321,7 +1322,7 @@ test "root_type" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_root_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     expected_error = """
             root ++> c;
@@ -1337,7 +1338,7 @@ test "inherit_method_lookup" {
         os.path.join(CHECKER_FIXTURES, "checker_inherit_method_lookup.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     user_errors = [
         e
         for e in program.errors_had
@@ -1353,7 +1354,7 @@ test "inherit_init_params" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_inherit_init_params.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2;
 
     expected_errors = [
@@ -1383,7 +1384,7 @@ test "agentvisitor_connect_no_errors" {
     program = JacProgram();
     path = os.path.join(FIXTURES, "connect_agentvisitor.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
     # TODO: W1051 (unresolved expression type) currently fires on the
     # `with AgentVisitor entry` event-type reference and on nodes reached
@@ -1402,7 +1403,7 @@ test "union_reassignment" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_union_reassignment.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
     assert_error_pretty_found(
         """
@@ -1436,7 +1437,7 @@ test "inferred_local_type_frozen" {
         os.path.join(CHECKER_FIXTURES, "checker_inferred_type_frozen.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1 , f"Expected 1 type error, but got {len(
         program.errors_had
     )}: "
@@ -1458,7 +1459,7 @@ test "inferred_local_type_widens_literals" {
         os.path.join(CHECKER_FIXTURES, "checker_literal_widening_reassignment.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1 , f"Expected 1 type error, but got {len(
         program.errors_had
     )}: "
@@ -1484,7 +1485,7 @@ test "unannotated_reassignment_frozen" {
         os.path.join(CHECKER_FIXTURES, "checker_none_sentinel_reassignment.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3 , f"Expected 3 type errors, but got {len(
         program.errors_had
     )}: "
@@ -1517,7 +1518,7 @@ test "protocol" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_protocol.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2;
     assert_error_pretty_found(
         """
@@ -1540,7 +1541,7 @@ test "classmethod" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_classmethod.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 }
 
 test "datetime_now" {
@@ -1548,7 +1549,7 @@ test "datetime_now" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_datetime_now.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -1557,7 +1558,7 @@ test "any_type_works_with_any_type" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_any_type_works.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -1567,7 +1568,7 @@ test "jac any keyword works as annotation" {
         os.path.join(CHECKER_FIXTURES, "checker_jac_any_keyword_annotation.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -1583,7 +1584,7 @@ test "dict_pop" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_dict_pop.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
     assert_error_pretty_found(
         """
@@ -1613,7 +1614,7 @@ test "final_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_final.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -1629,7 +1630,7 @@ test "list_iteration_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_list_iteration.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -1645,7 +1646,7 @@ test "overload_decorator" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_overload.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2;
 
     error_messages = [err.pretty_print() for err in program.errors_had];
@@ -1689,7 +1690,7 @@ test "function_overload_decorator" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_function_overload.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2;
 
     error_messages = [err.pretty_print() for err in program.errors_had];
@@ -1717,7 +1718,7 @@ test "object_type_assignment" {
     mod = program.compile(
         os.path.join(LANG_FIXTURES, "object_type_assignment.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -1726,7 +1727,7 @@ test "walrus_operator" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_walrus_operator.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 5;
 
     expected_errors = [
@@ -1765,7 +1766,7 @@ test "builtin_constructors" {
         os.path.join(CHECKER_FIXTURES, "checker_builtin_constructors.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -1775,7 +1776,7 @@ test "union_type_annotation" {
         os.path.join(CHECKER_FIXTURES, "checker_union_type_annotation.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -1793,7 +1794,7 @@ test "union_callable_member" {
         os.path.join(CHECKER_FIXTURES, "checker_union_callable_member.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 errors, got {len(
         program.errors_had
     )}: "
@@ -1806,7 +1807,7 @@ test "union_never_arm" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_union_never_arm.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 errors, got {len(
         program.errors_had
     )}: "
@@ -1819,7 +1820,7 @@ test "union_member_access" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_union_member_access.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # 1 error: E1099 for accessing .legs on Mammal | Bird (Bird lacks .legs).
     # Previously 2 errors because the E1099 returned Unknown, cascading to
     # E1002 "Cannot return Unknown". Now the partial union result is returned
@@ -1842,7 +1843,7 @@ test "list_indexing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_list_indexing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Bare list[Any] indexing yields Any, so len(some[0]) is valid.
     assert len(program.errors_had) == 0;
 }
@@ -1852,7 +1853,7 @@ test "range_function" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_range.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
 }
 
@@ -1861,7 +1862,7 @@ test "varargs_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_varargs_type.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 4;
 
     expected_errors = [
@@ -1895,7 +1896,7 @@ test "slice_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_slice.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
 
     assert_error_pretty_found(
@@ -1912,7 +1913,7 @@ test "numeric_type_promotion" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_numeric_promotion.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 3;
 
     assert_error_pretty_found(
@@ -1945,7 +1946,7 @@ test "property_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_property.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 6;
 
     # @property errors
@@ -2001,7 +2002,7 @@ test "property_assignment_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_property_assignment.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Expected errors (5 total):
     #   1. b.cached_val = 99            — int to str  (@cached_property wrong type)
     #   2. b.cached_num = "not_an_int"  — str to int  (@cached_property wrong type)
@@ -2068,7 +2069,7 @@ test "property_self_return_type_resolution" {
         os.path.join(CHECKER_FIXTURES, "checker_property_self_return.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Only 2 errors: assigning Path to int
     assert len(program.errors_had) == 2;
 
@@ -2092,7 +2093,7 @@ test "property_cfg_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_property_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Property access inside truthiness guards should narrow (e.g., int | None -> int)
     # No E1053 or E1002 errors — properties are narrowed like regular fields
     assert len(program.errors_had) == 0 , "Expected 0 errors, got "
@@ -2110,7 +2111,7 @@ test "native_property_setter_type_checking" {
         os.path.join(CHECKER_FIXTURES, "checker_property_native_setter.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2 , "Expected 2 errors, got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
@@ -2127,7 +2128,7 @@ test "type_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_type_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # 13 errors: partial union member access now returns resolved types
     # instead of Unknown, preventing one cascading E1002 error.
@@ -2205,7 +2206,7 @@ test "expr_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_expr_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
         program.errors_had
     )}: "
@@ -2217,7 +2218,7 @@ test "reassign_in_branch" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_reassign_in_branch.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
         program.errors_had
     )}: "
@@ -2228,7 +2229,7 @@ test "postinit_fields_not_required_in_constructor" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_postinit_fields.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type checking errors, but got {len(
         program.errors_had
     )}: "
@@ -2247,7 +2248,7 @@ test "impl_body_type_checking" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_impl_body.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 3 , f"Expected 3 type errors, but got {len(
         program.errors_had
@@ -2288,7 +2289,7 @@ test "impl_body_global_reassignment_keeps_declared_type" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_impl_global_reassign.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , (
         "Expected no type errors for an impl-body global reassignment, but got "
@@ -2302,7 +2303,7 @@ test "impl_self_member_assignment" {
     program = JacProgram();
     path = os.path.join(FIXTURES, "checker_impl", "checker_impl_self_member.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, but got {len(
         program.errors_had
@@ -2314,7 +2315,7 @@ test "super_init_with_has_vars" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_super_init_has_vars.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 3 , f"Expected 3 type errors, but got {len(
         program.errors_had
@@ -2347,7 +2348,7 @@ test "super_init_dataclass_no_w1051" {
     path = os.path.join(CHECKER_FIXTURES, "checker_super_init_dataclass_no_w1051.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     w1051 = [
         w
         for w in program.warnings_had
@@ -2366,7 +2367,7 @@ test "super_init_with_explicit_init" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_super_init_explicit.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 4 , f"Expected 4 type errors, but got {len(
         program.errors_had
@@ -2399,7 +2400,7 @@ test "enum_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_enum.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     expected_errors = [
         "B = \"jac\"",
@@ -2441,7 +2442,7 @@ test "enum_member_declaration_resolves_to_enum_member_type" {
         os.path.join(CHECKER_FIXTURES, "checker_enum_member_decl_type.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     category_sym = mod.sym_tab.lookup("Category");
     assert category_sym is not None , "Category enum not found in sym_tab";
@@ -2479,7 +2480,7 @@ test "enum_member_impl_declaration_resolves_to_enum_member_type" {
         os.path.join(CHECKER_FIXTURES, "checker_enum_member_impl_decl_type.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     color_sym = mod.sym_tab.lookup("Color");
     assert color_sym is not None , "Color enum not found in sym_tab";
@@ -2505,7 +2506,7 @@ test "class_based_enum_type_checking" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_class_enum.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     expected_errors = [
         "Cannot assign <Tokens.FLOAT> to int",
@@ -2534,7 +2535,7 @@ test "nested_functions_in_impl_blocks" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_nested_impldef.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"Expected no type checking errors, but got {len(
         program.errors_had
@@ -2546,7 +2547,7 @@ test "callable_type_annotation" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_callable.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 8 , f"Expected 8 type errors, but got {len(
         program.errors_had
@@ -2621,7 +2622,7 @@ test "callable_param_drop" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_callable_param_drop.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 1 , f"Expected 1 type error, but got {len(
         program.errors_had
@@ -2643,7 +2644,7 @@ test "unbound_method_call" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_unbound_method_call.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 2 , f"Expected 2 type errors, but got {len(
         program.errors_had
@@ -2666,7 +2667,7 @@ test "parameterless_init_with_args" {
     mod = program.compile(
         os.path.join(FIXTURES, "checker_parameterless_init.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # 3 errors: 'has no attribute nickname' (obj can't have undeclared self-attrs),
     # 'Named argument does not match', 'Too many positional arguments'
     assert len(program.errors_had) == 3;
@@ -2684,7 +2685,7 @@ test "type_param_assignment" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_type_param.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Should have 1 error for the instance case (e1)
     assert len(program.errors_had) == 1 , f"Expected 1 type error, but got {len(
@@ -2703,7 +2704,7 @@ test "bare_dot_relative_import" {
     path = os.path.join(CHECKER_FIXTURES, "checker_bare_dot_import.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1;
     assert_error_pretty_found(
         """
@@ -2719,7 +2720,7 @@ test "type_narrowing_none_assignment_errors" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_type_narrowing_none.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 2 , f"Expected 2 errors, got {len(
         program.errors_had
@@ -2747,7 +2748,7 @@ test "match_type_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_match_type_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Should have exactly 2 errors (E1 and E2 in the test file)
     assert len(program.errors_had) == 2 , "Expected exactly 2 type errors, but got "
@@ -2775,7 +2776,7 @@ test "union_subclass_to_base_assignment" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_match_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Should have exactly 1 error (E1 - wrong type inside match case)
     assert len(program.errors_had) == 1 , "Expected exactly 1 type error, but got "
@@ -2796,7 +2797,7 @@ test "compound_and_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_and_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # CFG correctly reports x.offspring error after early-exit if-body
     # (line 203: Animal has no offspring — only reachable on false branch).
@@ -2811,7 +2812,7 @@ test "assert_isinstance_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_assert_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Expect exactly 1 error: the failure case where truthy assert doesn't narrow union
     assert len(program.errors_had) == 1 , "Expected 1 type error (truthy assert failure case), but got "
@@ -2830,7 +2831,7 @@ test "assignment_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_assignment_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # All cases should pass - assignment narrows union types appropriately
     assert len(program.errors_had) == 0 , "Expected 0 type errors, but got "
@@ -2845,7 +2846,7 @@ test "parenthesized_bool_cond" {
         os.path.join(CHECKER_FIXTURES, "checker_parenthesized_bool_cond.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , "Expected 0 type errors, but got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
@@ -2857,7 +2858,7 @@ test "assignment_barrier" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_assignment_barrier.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # The widening reassignment in `widen_via_reassign` resets `x` to
     # `int | None`, so `return x` against the `int` return type is the
     # only expected error.
@@ -2874,7 +2875,7 @@ test "pre_expr_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_pre_expr_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # All three shapes (early-return guard, OR-inverse guard, if-wrap)
     # must carry the enclosing statement's narrowing into ternary
     # branches so member access on the narrowed type succeeds.
@@ -2890,7 +2891,7 @@ test "ternary_bool_cond_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_ternary_bool_cond_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # All four shapes must narrow cleanly: AND-in-true, OR-inverse-in-else
     # (bare and parenthesized), and the plain if/else control.
     assert len(program.errors_had) == 0 , "Expected 0 type errors, but got "
@@ -2905,7 +2906,7 @@ test "starred_unpack_barrier" {
         os.path.join(CHECKER_FIXTURES, "checker_starred_unpack_barrier.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # After `(head, *rest) = ...` inside `if rest is not None`, rest
     # must reset to list[int] | None. The typed-local assignment then
     # fails because list[int] | None is not assignable to list[int].
@@ -2923,7 +2924,7 @@ test "tuple_unpack_barrier" {
         os.path.join(CHECKER_FIXTURES, "checker_tuple_unpack_barrier.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # After `(x, _) = reset_pair()` inside `if x is not None`, x must
     # reset to int | None. `return x` then fails against int.
     assert len(program.errors_had) == 1 , "Expected 1 type error, but got "
@@ -2940,7 +2941,7 @@ test "destructure_element_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_destructure_element_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Four narrowing cases must succeed; only `no_narrow_non_strict`
     # should error because its RHS element type matches the declared
     # type and therefore fails the strict-narrowing check.
@@ -2957,7 +2958,7 @@ test "tuple_index_typing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_tuple_index_typing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Only `per_position_mismatch` errors: `t[1]` is bytes, assigned to str.
     assert len(program.errors_had) == 1 , "Expected 1 type error, but got "
         + f"{len(program.errors_had)}:\n"
@@ -2973,7 +2974,7 @@ test "match_case_reassign_reset" {
         os.path.join(CHECKER_FIXTURES, "checker_match_case_reassign_reset.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 4 , "Expected 4 type errors, but got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
@@ -2990,7 +2991,7 @@ test "guard_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_guard_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # All cases should pass - if guard narrows T|None to T
     assert len(program.errors_had) == 0 , "Expected 0 type errors, but got "
@@ -3004,7 +3005,7 @@ test "loop_exit_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_loop_exit_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # All cases should pass: post-loop guards narrow from the declared type
     # when the body writes the symbol, and narrowed state still carries
@@ -3019,7 +3020,7 @@ test "impl_imports_from_parent" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_impl_imports.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Should have 3 errors for type mismatches with jaclang types (not Python stdlib)
     assert len(program.errors_had) == 3 , f"Expected 3 type errors, but got {len(
@@ -3046,7 +3047,7 @@ test "union_and_optional_special_forms" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_union_special_form.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # 3 errors: Union[int,str]->int, pipe int|str->int, Optional[str]->int
     assert len(program.errors_had) == 3 , f"Expected 3 errors, got {len(
         program.errors_had
@@ -3085,7 +3086,7 @@ test "union_string_forward_refs" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_union_forward_ref.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , (
         "Expected 0 errors — Union[('Foo','Bar')], Union['Foo'], and Optional['Foo'] "
         "should resolve to real types, not Literal strings. Got "
@@ -3101,7 +3102,7 @@ test "union_string_forward_refs_unresolved" {
         os.path.join(CHECKER_FIXTURES, "checker_union_forward_ref_unresolved.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     user_errors = [
         err
         for err in program.errors_had
@@ -3123,7 +3124,7 @@ test "getattr_support" {
     program = JacProgram();
     path = os.path.join(FIXTURES, "checker_getattr_support.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     user_errors = [
         err
@@ -3144,7 +3145,7 @@ test "namedtuple_constructor" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_namedtuple.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     user_errors = [
         err
@@ -3169,7 +3170,7 @@ test "overload_resolution_concrete_types" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_overload_resolution.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     user_errors = [
         err
@@ -3187,7 +3188,7 @@ test "literal_string_type_checking" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_literal_string.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     user_errors = [
         err
@@ -3219,7 +3220,7 @@ test "module_level_overload" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_module_level_overload.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     user_errors = [
         err
@@ -3245,7 +3246,7 @@ test "py_pkg_imports" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_py_pkg_imports.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0;
     assert mod.sym_tab.lookup("MyClass") is not None , "MyClass not in sym_tab - star re-export chain broken";
     assert mod.sym_tab.lookup("subpkg") is not None , "subpkg not in sym_tab - subpackage resolution broken";
@@ -3262,7 +3263,7 @@ test "stdlib_star_reexport" {
         os.path.join(CHECKER_FIXTURES, "checker_stdlib_star_reexport.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
         program.errors_had
     )}:\n"
@@ -3288,7 +3289,7 @@ test "stdlib_pyi_relative_reexport" {
         os.path.join(CHECKER_FIXTURES, "checker_stdlib_pyi_relative_reexport.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
         program.errors_had
     )}:\n"
@@ -3301,7 +3302,7 @@ test "classvar_type_annotation" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_classvar.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
         program.errors_had
     )}:\n"
@@ -3317,7 +3318,7 @@ test "final_union_type_no_crash" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_final_union_type.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Should complete without crashing - no errors expected
     assert len(program.errors_had) == 0;
 }
@@ -3329,7 +3330,7 @@ test "enumerate_type_inference" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_gap_enumerate_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2 , f"Expected 2 type errors, got {len(
         program.errors_had
     )}";
@@ -3342,7 +3343,7 @@ test "generic_call_inference" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_gap_generic_call_inference.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 2 , f"Expected 2 type errors, got {len(
         program.errors_had
     )}";
@@ -3356,7 +3357,7 @@ test "bidirectional_container_inference" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_bidirectional_container.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # 5 errors: bad_list return, bad_dict return, bad_set return,
     # bad list assignment, bad type[int] assignment
     assert len(program.errors_had) == 5 , f"Expected 5 type errors, got {len(
@@ -3380,7 +3381,7 @@ test "self_type_resolution" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_gap_self_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Should have 3 errors for enumerate, list, and dict Self returns
     assert len(program.errors_had) == 3 , f"Expected 3 type errors, got {len(
         program.errors_had
@@ -3397,7 +3398,7 @@ test "walrus_operator_narrowing" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_walrus_narrowing.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3409,7 +3410,7 @@ test "type_subscript_member_access" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_type_subscript_member.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3421,7 +3422,7 @@ test "isinstance_ternary_narrowing" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_isinstance_ternary.jac");
     mod = program.compile(path);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3433,7 +3434,7 @@ test "list_generator_type_inference" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_list_generator_inference.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3445,7 +3446,7 @@ test "bug_lambda_return_type_checks_against_enclosing_function" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_bug_lambda_return_type.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Case 1 and 2 should pass (valid returns), Case 3 should produce exactly 1 error
     # (str returned from lambda declared -> int).
     assert len(program.errors_had) == 1 , f"Expected 1 type error (lambda return mismatch), got {len(
@@ -3459,7 +3460,7 @@ test "function_type_attrs" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_function_attrs.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3471,7 +3472,7 @@ test "any_vs_object_attr_access" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_bug_typing_any_attr.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Any allows arbitrary access (no errors), but object.nonexistent should error
     assert len(program.errors_had) == 1 , f"Expected 1 type error, got {len(
         program.errors_had
@@ -3493,7 +3494,7 @@ test "typevar_union_return_types" {
         os.path.join(CHECKER_FIXTURES, "checker_typevar_union_return.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3507,7 +3508,7 @@ test "typevar_overload_inference" {
         os.path.join(CHECKER_FIXTURES, "checker_typevar_overload_inference.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3520,7 +3521,7 @@ test "typing_cast_special_form" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_typing_cast.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3534,7 +3535,7 @@ test "match_case_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_match_case_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3547,7 +3548,7 @@ test "enum_static_method" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_enum_static_method.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3566,7 +3567,7 @@ test "enum_typed_base" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_enum_typed_base.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # Exactly one error expected: `bad: list[int] = [Plain.A, Plain.B]`
     # (plain Enum members are not int instances).
     assert len(program.errors_had) == 1 , f"Expected 1 type error, got {len(
@@ -3586,7 +3587,7 @@ test "generic_self_member_type_propagation" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_generic_self_member.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 type errors, got {len(
         program.errors_had
     )}:\n"
@@ -3607,7 +3608,7 @@ test "self_typevar_attr_access_via_enclosing_class" {
         os.path.join(CHECKER_FIXTURES, "checker_self_type_attr_access.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     user_errors = [
         err
         for err in program.errors_had
@@ -3632,7 +3633,7 @@ test "self_class_member_access_5688" {
         os.path.join(CHECKER_FIXTURES, "checker_self_class_member_access.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     user_errors = [
         err
         for err in program.errors_had
@@ -3666,7 +3667,7 @@ test "narrowing_gap_a_early_return_after_nested_if" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Gap A errors are on lines 85-129 (fail_early_return_* and fail_truthiness/isinstance variants)
     gap_a_errors = [
@@ -3692,7 +3693,7 @@ test "narrowing_gap_b_ternary_fn_arg" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Gap B errors are on lines 155-170 (fail_ternary_*_fn_arg functions)
     gap_b_errors = [
@@ -3718,7 +3719,7 @@ test "narrowing_gap_c_ternary_attr_access" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Gap C errors are on lines 180-196 (fail_ternary_attr_* functions)
     gap_c_errors = [
@@ -3743,7 +3744,7 @@ test "narrowing_gaps_ok_functions_no_errors" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # ok_ functions are on lines 64-82 — these should produce no errors
     ok_errors = [
@@ -3766,7 +3767,7 @@ test "narrowing_gaps_total_error_count" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # All gaps fixed: Gap A (CFG propagation), Gap B+C (eager IfElseExpr evaluation),
     # Gap D (assignment in if-body narrows after block).
@@ -3782,7 +3783,7 @@ test "narrowing_gap_d_assign_in_if_body" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_gaps.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Gap D ok_ functions: lines 210-300 (includes try/finally pattern)
     gap_d_errors = [
@@ -3811,7 +3812,7 @@ test "runtime_attr_truthiness_and_isinstance_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Issue 1 ok_ functions: lines 60-100 (attr truthiness, isinstance, loop patterns)
     i1_errors = [
@@ -3836,7 +3837,7 @@ test "runtime_compound_or_guard_attr_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Issue 2 ok_ functions: lines 120-175 (compound or guard patterns)
     i2_errors = [
@@ -3856,7 +3857,7 @@ test "runtime_ternary_isinstance_generic_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Issue 3 ok_ functions: lines 195-230 (ternary isinstance with generic types)
     i3_errors = [
@@ -3876,7 +3877,7 @@ test "runtime_isinstance_preserves_generic_params" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Issue 4 ok_ functions: lines 240-290 (isinstance preserving generics)
     i4_errors = [
@@ -3897,7 +3898,7 @@ test "runtime_errors_total" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_runtime_errors.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"All runtime patterns should produce 0 errors, got {len(
         program.errors_had
@@ -3927,7 +3928,7 @@ test "root_cause_1_raise_does_not_narrow" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # ok_ function (line 96-101) must produce no errors
     ok_errors = [
@@ -3971,7 +3972,7 @@ test "root_cause_2_unknown_cascade" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 148-162) — one root E1030 cascades into E1032s
     rc2_errors = [
@@ -4004,7 +4005,7 @@ test "root_cause_3_callable_as_special_form" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 175-193) — Callable resolves to _SpecialForm
     rc3_errors = [
@@ -4033,7 +4034,7 @@ test "root_cause_4_assign_to_narrowed_none" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ function (lines 208-216) — assign Callable to narrowed-NoneType field
     rc4_errors = [
@@ -4061,7 +4062,7 @@ test "root_cause_5_string_slice_preserves_type" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Regression guard for the former "string slice loses type" root cause.
     # The pass_ functions exercise the three patterns that used to degrade
@@ -4093,7 +4094,7 @@ test "root_cause_6_stdlib_returns_unknown" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 267-305) — importlib.util returns Unknown
     rc6_errors = [
@@ -4130,7 +4131,7 @@ test "root_cause_7_nullable_attr_access" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 316-350) — nullable access without guard
     rc7_errors = [
@@ -4163,7 +4164,7 @@ test "root_cause_8_dynamic_class_attrs" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 360-390) — dynamic attrs and stdlib methods
     rc8_errors = [
@@ -4196,7 +4197,7 @@ test "root_cause_9_any_in_union" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # fail_ functions (lines 396-415) — Any in union blocks attr access
     rc9_errors = [
@@ -4204,11 +4205,18 @@ test "root_cause_9_any_in_union" {
         for e in program.errors_had
         if e.loc and 396 <= e.loc.first_line <= 415
     ];
-    # 2 errors. The Any-in-union attr-access bug is fixed (#7158): `Any` now
-    # absorbs, so no E1099 "missing from Any" is emitted here. The 2 remaining
-    # errors are E1002/E1053 cascades from the fixture's undefined EdgeAnchor /
-    # GenericEdge symbols (Unknown members), not the union-with-Any handling.
-    assert len(rc9_errors) == 2 , f"Expected 2 any-in-union errors, got {len(
+    # 1 error. The any-in-union attr-access bug is fixed (#7158): `any`
+    # absorbs, so no E1099 "missing from any" is emitted here.
+    #
+    # This was 2 while the fixture spelled the union member `Any` without
+    # importing it: an unbound name made the whole union Unknown, so
+    # `edge.__jac__` errored for a reason that had nothing to do with union
+    # handling. Spelling it `any` lets the absorb actually run, and that
+    # error is gone. What remains is one E1053 in fail_any_in_union_method:
+    # `(any | str).upper()` yields Unknown rather than `str | any`, so it
+    # cannot pass as Sized -- a real remaining gap, which is what this
+    # fixture exists to pin.
+    assert len(rc9_errors) == 1 , f"Expected 1 any-in-union error, got {len(
         rc9_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in rc9_errors);
@@ -4230,7 +4238,7 @@ test "any_in_union_is_wildcard" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_any_in_union.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     errors = [
         e
@@ -4255,7 +4263,7 @@ test "root_cause_10_typevar_in_impl" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_typevar_impl.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # The impl file should NOT trigger E1065 — module-level TypeVars are valid
     rc10_errors = [
@@ -4277,7 +4285,7 @@ test "root_cause_10_typevar_in_def_ok" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # ok_typevar_in_def (lines 420-425) — should have no E1065 errors
     ok_errors = [
@@ -4301,23 +4309,26 @@ test "root_causes_total_error_count" {
         os.path.join(CHECKER_FIXTURES, "checker_narrowing_root_causes.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
-    # 25 errors located in the fixture itself (the count is scoped to the
+    # 24 errors located in the fixture itself (the count is scoped to the
     # fixture file: stub-evaluation diagnostics such as typeshed E0075 are
     # attributed to whichever program first evaluates the stub classes, so
-    # an unscoped count is process-order-dependent). Down from 29: dotted
-    # stdlib submodules (`importlib.util`) resolve through ModuleType
-    # attribute access, removing the `.util`-on-Unknown errors from the
-    # Root Cause 6 corpus. Before that, 29 was down from 35: partial union
-    # member access returning resolved types instead of Unknown eliminated
-    # 6 cascading errors.
+    # an unscoped count is process-order-dependent). Down from 25: Root
+    # Cause 9's union member is spelled `any` now instead of an `Any` the
+    # fixture never imported, so the union absorbs instead of collapsing to
+    # Unknown and one error there is gone (see root_cause_9_any_in_union).
+    # 25 was down from 29: dotted stdlib submodules (`importlib.util`)
+    # resolve through ModuleType attribute access, removing the
+    # `.util`-on-Unknown errors from the Root Cause 6 corpus. Before that,
+    # 29 was down from 35: partial union member access returning resolved
+    # types instead of Unknown eliminated 6 cascading errors.
     _fixture_errors = [
         e
         for e in program.errors_had
         if e.loc and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
     ];
-    assert len(_fixture_errors) == 25 , f"Expected 25 fixture errors, got {len(
+    assert len(_fixture_errors) == 24 , f"Expected 24 fixture errors, got {len(
         _fixture_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in _fixture_errors);
@@ -4334,7 +4345,7 @@ test "mro_reexport_through_init" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_mro_reexport.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"MRO reexport should produce 0 errors, got {len(
         program.errors_had
@@ -4351,7 +4362,7 @@ test "scope_narrowing_isolation_between_impl_bodies" {
         os.path.join(CHECKER_FIXTURES, "checker_static_method_inherit.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"Scope narrowing should not leak between impl bodies, got {len(
         program.errors_had
@@ -4368,7 +4379,7 @@ test "bare_generic_iteration_yields_any" {
         os.path.join(CHECKER_FIXTURES, "checker_bare_generic_iteration.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 1 , f"Expected 1 error (int->str), got {len(
         program.errors_had
@@ -4402,7 +4413,7 @@ test "bare_generic_any_propagates_through_operations" {
         os.path.join(CHECKER_FIXTURES, "checker_bare_generic_any_propagation.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 0 , f"Expected 0 errors, got {len(
         program.errors_had
@@ -4418,7 +4429,7 @@ test "bare_generic_in_signatures_emits_w1036" {
         os.path.join(CHECKER_FIXTURES, "checker_bare_generic_signatures.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     bare_generic_warnings = [
         w
@@ -4449,7 +4460,7 @@ test "explicit_any_annotations_emit_w1037" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_explicit_any.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     explicit_any_warnings = [
         w
@@ -4477,7 +4488,7 @@ test "explicit_typing_any_annotations_emit_w1037" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_explicit_typing_any.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     explicit_any_warnings = [
         w
@@ -4503,7 +4514,7 @@ test "callable_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_callable_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 4 , "Expected exactly 4 type errors, but got "
         + f"{len(program.errors_had)}:\n"
@@ -4547,7 +4558,7 @@ test "hasattr_narrowing" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_hasattr_narrowing.jac"), options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 5 , "Expected exactly 5 type errors, but got "
         + f"{len(program.errors_had)}:\n"
@@ -4582,7 +4593,7 @@ test "type_alias_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_type_alias_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 2 , "Expected exactly 2 type errors, but got "
         + f"{len(program.errors_had)}:\n"
@@ -4611,7 +4622,7 @@ test "param_isinstance_narrowing" {
         os.path.join(CHECKER_FIXTURES, "checker_param_isinstance_narrowing.jac"),
         options=NO_TC
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Only the unguarded access (test_no_guard) should produce errors.
     # The guarded cases should all pass thanks to isinstance narrowing.
@@ -4644,7 +4655,7 @@ test "jsx_step1_callable_annotation" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step1_callable_annotation.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1053_errors = [
         e
@@ -4661,7 +4672,7 @@ test "jsx_step2_handler_aliases" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step2_handler_aliases.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1053_errors = [
         e
@@ -4678,7 +4689,7 @@ test "jsx_step3_jsx_prop_check" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step3_jsx_prop_check.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1100_errors = [
         e
@@ -4698,7 +4709,7 @@ test "jsx_step4_lambda_inference" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step4_lambda_inference.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # `e` is inferred as MouseEvent, so accessing `.nonexistent` is a no-such-
     # attribute error on a known type (E1030) -- stronger than E1032 (Unknown),
@@ -4721,7 +4732,7 @@ test "jsx_step5_intrinsic_props" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step5_intrinsic_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1103_errors = [
         e
@@ -4741,7 +4752,7 @@ test "jsx_step6_spread_props" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step6_spread_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1104_errors = [
         e
@@ -4761,7 +4772,7 @@ test "jsx_reserved_props_key_ref" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_reserved_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1101_errors = [
         e
@@ -4790,7 +4801,7 @@ test "jsx_props_bag_untyped_and_typed" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_props_bag.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Only the typed bag's unknown 'bogus' prop should raise E1101 — the
     # untyped bag must accept its arbitrary attributes silently.
@@ -4847,7 +4858,7 @@ test "jsx_intrinsic_tag_names_do_not_emit_w1051" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_intrinsic_tag_resolution.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     w1051_warnings = [
         w
@@ -4873,7 +4884,7 @@ test "dom_browser_globals_resolve_to_storage" {
     path = os.path.join(CHECKER_FIXTURES, "checker_dom_browser_globals.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1032_errors = [
         e
@@ -4922,7 +4933,7 @@ test "lambda_block_body_return_type_inference" {
     path = os.path.join(CHECKER_FIXTURES, "checker_lambda_block_body_return.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     all_errors = [
         e
@@ -4946,7 +4957,7 @@ test "walker_reports_attribute_resolves" {
     path = os.path.join(CHECKER_FIXTURES, "checker_walker_reports.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 errors for walker .reports access, got {len(
         program.errors_had
     )}:\n"
@@ -4960,7 +4971,7 @@ test "component_impl_scope_resolves_has_vars" {
     path = os.path.join(CHECKER_FIXTURES, "checker_component_impl_scope.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 errors for component impl scope, got {len(
         program.errors_had
     )}:\n"
@@ -4973,7 +4984,7 @@ test "root_special_var_returns_root_type" {
     path = os.path.join(CHECKER_FIXTURES, "checker_root_call_type.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected 0 errors, got {len(
         program.errors_had
     )}:\n"
@@ -4996,7 +5007,7 @@ test "compare_operator_validation" {
     path = os.path.join(CHECKER_FIXTURES, "checker_compare_operator_validation.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     # At least 7 errors expected (exact count may vary across Python/typeshed
     # versions due to differences in stub overload signatures):
     #   - "hello" > 5           — E1110: str vs int
@@ -5044,7 +5055,7 @@ test "undeclared_obj_attr_warns_w2080" {
     path = os.path.join(CHECKER_FIXTURES, "checker_undeclared_obj_attr.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Collect warnings
     all_warnings = [w.pretty_print() for w in program.warnings_had];
@@ -5099,7 +5110,7 @@ test "optional_chaining_no_false_e1030" {
     path = os.path.join(CHECKER_FIXTURES, "checker_optional_chaining.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     all_errors = [e.pretty_print() for e in program.errors_had];
     e1030_errors = [
@@ -5136,7 +5147,7 @@ test "annotated_self_assign_no_false_e1001" {
     path = os.path.join(CHECKER_FIXTURES, "checker_annotated_self_assign.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     all_errors = [e.pretty_print() for e in program.errors_had];
     e1001_errors = [
@@ -5163,7 +5174,7 @@ test "generator_yield_return_type_check" {
     path = os.path.join(CHECKER_FIXTURES, "checker_generator_yield_return.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 2 , f"Expected 2 errors, got {len(
         program.errors_had
@@ -5202,7 +5213,7 @@ test "uniform_gradual_any_in_jac_modules" {
     path = os.path.join(CHECKER_FIXTURES, "checker_strict_any_jac.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no errors under uniform gradual Any, got {len(
         program.errors_had
     )}:\n"
@@ -5216,7 +5227,7 @@ test "walker_typed_reports_validation" {
     path = os.path.join(CHECKER_FIXTURES, "checker_walker_typed_reports.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     e1112 = [
         e
         for e in program.errors_had
@@ -5250,7 +5261,7 @@ test "isinstance_and_narrowing" {
     path = os.path.join(CHECKER_FIXTURES, "checker_isinstance_and_narrowing.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # All functions use isinstance in AND conditions to guard attribute access.
     # No errors should be produced — the narrowing should resolve all attributes.
@@ -5273,7 +5284,7 @@ test "pipe_forward_typing_matches_call_form" {
     path = os.path.join(CHECKER_FIXTURES, "checker_pipe_forward_typing.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     w1051 = [
         w
@@ -5301,7 +5312,7 @@ test "as_cast_resolves_any_assignment" {
     path = os.path.join(CHECKER_FIXTURES, "checker_as_cast.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1001 = [
         e
@@ -5328,7 +5339,7 @@ test "cast_target_must_be_a_type" {
     path = os.path.join(CHECKER_FIXTURES, "checker_cast_target_not_type.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     e1044 = [
         e
@@ -5362,7 +5373,7 @@ test "numeric_kind_same_kind_assignment" {
     path = os.path.join(CHECKER_FIXTURES, "checker_numeric_kind_assign.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     typed_errs = [
         e
@@ -5379,7 +5390,7 @@ test "numeric_kind_disallows_float_to_int" {
     path = os.path.join(CHECKER_FIXTURES, "checker_numeric_kind_disallowed.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Each of the 4 functions performs a FloatKind -> IntKind move (3 returns,
     # 1 local assignment). All must remain type errors.
@@ -5401,7 +5412,7 @@ test "comprehension_filter_narrows_head" {
     path = os.path.join(CHECKER_FIXTURES, "checker_compr_filter_narrowing.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     narrow_errs = [
         e
@@ -5422,7 +5433,7 @@ test "subscript_narrowing_stable_indices" {
     path = os.path.join(CHECKER_FIXTURES, "checker_subscript_narrowing_stable.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     narrow_errs = [
         e
@@ -5443,7 +5454,7 @@ test "enum_member_assignable_to_base_type" {
     path = os.path.join(CHECKER_FIXTURES, "checker_enum_member_as_base.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     enum_errs = [
         e
@@ -5466,7 +5477,7 @@ test "local_module_shadows_stdlib_in_resolver" {
     path = os.path.join(CHECKER_FIXTURES, "checker_local_shadows_stdlib", "entry.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     cascade = [
         e
@@ -5507,7 +5518,7 @@ test "comprehension_in_ternary_narrowing" {
     path = os.path.join(CHECKER_FIXTURES, "checker_comprehension_in_ternary.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1 , "Expected exactly 1 error (no-guard case), got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(e.pretty_print() for e in program.errors_had);
@@ -5521,7 +5532,7 @@ test "spread_with_explicit_kwarg_no_false_positive" {
     path = os.path.join(CHECKER_FIXTURES, "checker_spread_with_kwarg.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 0 , f"Expected no errors for spread + explicit kwarg, got {len(
         program.errors_had
     )}:\n"
@@ -5545,7 +5556,7 @@ test "callable_null_default_rejected_outside_native" {
     path = os.path.join(CHECKER_FIXTURES, "checker_callable_null_default.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     assert len(program.errors_had) == 1 , "Expected exactly 1 error, got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(e.pretty_print() for e in program.errors_had);
@@ -5886,7 +5897,7 @@ test "none_equality_not_flagged" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_none_equality.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     eq_errors = [
         e
         for e in program.errors_had
@@ -5904,7 +5915,7 @@ test "match_wildcard_no_warning_noise" {
     program = JacProgram();
     path = os.path.join(CHECKER_FIXTURES, "checker_match_wildcard.jac");
     mod = program.compile(path, options=NO_TC);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     noise = [
         w
         for w in program.warnings_had

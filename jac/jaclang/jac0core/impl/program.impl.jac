@@ -11,6 +11,16 @@ impl JacProgram.init(
     self._compile_options: CompileOptions = CompileOptions();
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
+    self._na_verdict_resolving: set = set();
+
+    self._na_unverified_live: dict = {};
+
+    self._na_verdict_misses: int = 0;
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};
@@ -184,15 +194,18 @@ impl JacProgram.load_dependency_module(
         if resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.jac0core.compiler { run_pass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
             import from jaclang.jac0core.helpers { read_file_with_encoding }
             src = use_str or read_file_with_encoding(source_path);
             uni_source = uni.Source(src, source_path);
-            mod = PyastBuildPass(
-                ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
-                prog=self,
+            mod = run_pass(
+                PyastBuildPass,
+                uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
+                self
             ).ir_out;
-            SymTabBuildPass(ir_in=mod, prog=self);
+            compiler.resolve_absorb_imports(mod, self);
+            run_pass(SymTabBuildPass, mod, self);
             mod.stub_only = True;
         } else {
             mod = self.compile(
@@ -408,7 +421,7 @@ impl JacProgram.build(
 impl JacProgram.run_schedule(
     self: JacProgram,
     mod: uni.Module,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     self._get_compiler().run_schedule(mod, self, passes, cancel_token);

@@ -110,10 +110,10 @@ def get_sysinfo -> object {
     d["canonicalised_linked_libraries"] = None;
     """Canonicalises the representation of the binary::libraries as a
         sequence of strings""";
-    def canonicalise_library_type(dso: Any) -> object {
+    def canonicalise_library_type(dso: any) -> object {
         return [getattr(x, "name", x) for x in dso.libraries];
     }
-    def canonicalise_library_spelling(libs: Any) -> object {
+    def canonicalise_library_spelling(libs: any) -> object {
         fixes = [];
         for lib in libs {
             path_stripped = os.path.split(lib)[-1];

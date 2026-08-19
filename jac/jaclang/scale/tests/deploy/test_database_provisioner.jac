@@ -1,7 +1,9 @@
 import inspect;
-import from types { SimpleNamespace }
 import unittest.mock;
 
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
     KubernetesTargetBase
 }
@@ -22,9 +24,7 @@ test "provision passes _deploy_databases the same number of args the real method
 
     mock_target = unittest.mock.MagicMock();
     mock_target.env_list = [];
-    mock_target.k8s_config = SimpleNamespace(
-        postgres_enabled=True, namespace="test-ns"
-    );
+    mock_target.k8s_config = KubernetesConfig(app_name="test-app", namespace="test-ns");
     mock_target._get_database_init_containers.return_value = [];
 
     provisioner = DatabaseProvisioner(k8s_target=mock_target);

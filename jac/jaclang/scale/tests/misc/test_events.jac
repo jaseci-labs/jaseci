@@ -11,7 +11,6 @@ import from jaclang.scale.events.broker {
     StreamPosition,
     starts_at_earliest
 }
-import from typing { Callable }
 import from threading { Event as _ThreadStop }
 import from jaclang.scale.events.publisher { publish, set_broker }
 import from jaclang.scale.events.subscriber { subscribe, get_subscriptions }

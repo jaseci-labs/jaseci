@@ -1,4 +1,6 @@
 import os;
+import type from jaclang.jac0core.srcloc { CodeLocInfo }
+import type from jaclang.jac0core.unitree { Expr }
 
 def pascal_to_snake(pascal_string: str) -> str {
     snake_string = '';
@@ -117,7 +119,7 @@ def pretty_print_source_location(
             if (err_token_len < 1) {
                 err_token_len = 1;
             }
-            underline = '^' * err_token_len;
+            underline: str = '^' * err_token_len;
             if colors {
                 underline = f"{ANSIColors.RED}{underline}{ANSIColors.END}";
             }
@@ -133,7 +135,7 @@ def pretty_print_source_location(
 }
 
 def format_related_spans(
-    related: list[tuple[str, object]], *, colors: bool = False
+    related: list[tuple[str, CodeLocInfo]], *, colors: bool = False
 ) -> str {
     result = '';
     for (label, loc) in related {
@@ -197,13 +199,13 @@ def read_file_with_encoding(file_path: str) -> str {
 
 
 def path_matches_exclude(
-    file_path: str, patterns: list, project_root: str = ""
+    file_path: str, patterns: list[str], project_root: str = ""
 ) -> bool {
     import from fnmatch { fnmatch }
     if not patterns {
         return False;
     }
-    norm = file_path.replace(os.sep, '/');
+    norm: str = file_path.replace(os.sep, '/');
     if project_root {
         root_prefix = project_root.replace(os.sep, '/').rstrip('/') + '/';
         if norm.startswith(root_prefix) {
@@ -260,7 +262,7 @@ def read_jacignore_patterns(project_root: str) -> list[str] {
 }
 
 
-def _is_version_info_access(expr: 'uni.Expr') -> bool {
+def _is_version_info_access(expr: Expr) -> bool {
     import jaclang.jac0core.unitree as uni;
 
     if not isinstance(expr, uni.AtomTrailer) {
@@ -277,24 +279,29 @@ def _is_version_info_access(expr: 'uni.Expr') -> bool {
     );
 }
 
-def _is_type_checking_ref(expr: 'uni.Expr') -> bool {
+def _is_type_checking_ref(expr: Expr) -> bool {
     import jaclang.jac0core.unitree as uni;
 
+    inner = expr;
     if isinstance(expr, uni.AtomUnit) {
-        expr = expr.value;
+        unwrapped = expr.value;
+        if not isinstance(unwrapped, uni.Expr) {
+            return False;
+        }
+        inner = unwrapped;
     }
-    if isinstance(expr, uni.Name) {
-        return expr.value == "TYPE_CHECKING";
+    if isinstance(inner, uni.Name) {
+        return inner.value == "TYPE_CHECKING";
     }
-    if isinstance(expr, uni.AtomTrailer) and expr.is_attr {
+    if isinstance(inner, uni.AtomTrailer) and inner.is_attr {
         return (
-            isinstance(expr.right, uni.Name) and expr.right.value == "TYPE_CHECKING"
+            isinstance(inner.right, uni.Name) and inner.right.value == "TYPE_CHECKING"
         );
     }
     return False;
 }
 
-def _extract_version_tuple(expr: 'uni.Expr') -> tuple[int, int] | None {
+def _extract_version_tuple(expr: Expr) -> tuple[int, int] | None {
     import jaclang.jac0core.unitree as uni;
 
     if not isinstance(expr, uni.TupleVal) {
@@ -310,14 +317,18 @@ def _extract_version_tuple(expr: 'uni.Expr') -> tuple[int, int] | None {
     return (major.lit_value, minor.lit_value);
 }
 
-def evaluate_version_condition(condition: 'uni.Expr') -> bool | None {
+def evaluate_version_condition(condition: Expr) -> bool | None {
     import sys;
     import jaclang.jac0core.unitree as uni;
     import from jaclang.jac0core.constant { Tokens as Tok }
 
     cond = condition;
-    if isinstance(cond, uni.AtomUnit) {
-        cond = cond.value;
+    if isinstance(condition, uni.AtomUnit) {
+        unwrapped = condition.value;
+        if not isinstance(unwrapped, uni.Expr) {
+            return None;
+        }
+        cond = unwrapped;
     }
 
     if _is_type_checking_ref(cond) {

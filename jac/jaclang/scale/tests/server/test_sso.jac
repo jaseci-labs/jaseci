@@ -7,7 +7,6 @@ import from dataclasses { dataclass }
 import from types { TracebackType }
 import unittest.mock;
 
-import pytest;
 import from jaclang.runtimelib.serving.datatypes { Request }
 import from jaclang.runtimelib.serving.datatypes { JSONResponse, RedirectResponse }
 
