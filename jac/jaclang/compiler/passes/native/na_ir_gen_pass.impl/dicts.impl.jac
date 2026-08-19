@@ -296,6 +296,9 @@ impl NaIRGenPass._box_to_jacval(value: ir.Value) -> ir.Value {
             b.store(ir.Constant(i8, ptr_tag), tag_ptr);
         }
         b.store(payload, payload_ptr);
+    } elif isinstance(value.type, ir.VoidType) {
+        b.store(ir.Constant(i8, 8), tag_ptr);
+        b.store(ir.Constant(i64, 0), payload_ptr);
     } else {
         self.emit(E5092, kind="expression", name=f"`any` box of {value.type}");
         b.store(ir.Constant(i8, 0), tag_ptr);
