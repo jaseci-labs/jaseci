@@ -446,10 +446,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
-         (
-             "compiler/passes/main/cfg_build_pass.jac::"
-             "CFGBuildPass._find_next_cfg_stmt_after"
-         ),
 
      ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
@@ -632,9 +628,9 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "reaches the emitter as a bare pointer, and the second "
              "cascades on `unparse_node`. They clear together when a "
              "container stored inside a container keeps its layout. "
-             "`_find_next_cfg_stmt_after` is on the real schedule and "
-             "reads a `Sequence` element through `cast`; it clears when "
-             "that read lowers."
+             "`_find_next_cfg_stmt_after` was here until it learned to "
+             "read the body through the classes that own one; it lowers "
+             "now and its waiver is gone."
          ),
          (
              "jcir interop manifest and driver reads",
