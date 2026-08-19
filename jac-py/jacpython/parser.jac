@@ -10917,6 +10917,20 @@ def rule_simple_stmt(p: peg_parser) -> stmt | None {
         }
     }
     peg_reset(p, mark);
+    if ((peg_expect_soft_keyword(p, "type") is not None)) {
+        # `&"type" type_alias` MUST precede star_expressions (CPython order):
+        # otherwise a bare `type` matches as an expression and memoizes, hiding
+        # the type-alias statement. The soft-keyword check is a lookahead;
+        # rule_type_alias re-consumes "type", so rewind before calling it.
+        peg_reset(p, mark);
+        type_alias = rule_type_alias(p);
+        if type_alias is not None {
+            res = type_alias;
+            peg_insert_memo(p, mark, RULE_simple_stmt, res);
+            return res;
+        }
+    }
+    peg_reset(p, mark);
     e = rule_star_expressions(p);
     if e is not None {
         end_tok = p.tokens[p.mark - 1];
@@ -10925,15 +10939,6 @@ def rule_simple_stmt(p: peg_parser) -> stmt | None {
         res = pa_ast_expr_stmt(e, start_lineno, start_col_offset, end_lineno, end_col_offset);
         peg_insert_memo(p, mark, RULE_simple_stmt, res);
         return res;
-    }
-    peg_reset(p, mark);
-    if ((peg_expect_soft_keyword(p, "type") is not None)) {
-        type_alias = rule_type_alias(p);
-        if type_alias is not None {
-            res = type_alias;
-            peg_insert_memo(p, mark, RULE_simple_stmt, res);
-            return res;
-        }
     }
     peg_reset(p, mark);
     if ((peg_positive_lookahead_token(p, 681) or peg_positive_lookahead_token(p, 702))) {
