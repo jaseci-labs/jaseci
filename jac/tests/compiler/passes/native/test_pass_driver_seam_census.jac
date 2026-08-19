@@ -54,13 +54,15 @@ glob DRIVER_SEAM_MARKERS: tuple = (
 """Backend gaps that keep a sym_tab_build method demoted, keyed as the census
 keys them. None of these touch the driver: each names a construct the native
 backend cannot lower yet, and each stays reachable through its Python fallback.
+
+This table held `SymTabBuildPass.exit_global_vars` until the inherited-slot
+repair (#8320) linked the base chain's method slots: its call to the
+inherited `Transform.ice` lowers through the adopted slot now, so the method
+stopped demoting and the waiver came out. What that call reaches at runtime
+is `ice`'s own waived stub -- the reachability suite carries that as the
+base chain's named construction gate.
 """
-glob SYM_TAB_SEAM_WAIVERS: dict[(str, str)] = {
-         "SymTabBuildPass.exit_global_vars": (
-             "backend gap: calls the inherited `Transform.ice`, which raises "
-             "through Python diagnostics machinery."
-         )
-     };
+glob SYM_TAB_SEAM_WAIVERS: dict[(str, str)] = {};
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
 
