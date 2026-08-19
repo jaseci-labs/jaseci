@@ -6,6 +6,7 @@ import from jaclang.jac0core.unitree {
     AssertStmt,
     AstElseBodyNode,
     AtomUnit,
+    AwaitingClause,
     BoolExpr,
     CfgExpr,
     CodeBlockStmt,
@@ -27,6 +28,7 @@ import from jaclang.jac0core.unitree {
     InnerCompr,
     IterForStmt,
     JsxSlot,
+    LambdaExpr,
     ListCompr,
     MatchCase,
     MatchStmt,
@@ -67,6 +69,10 @@ obj CFGBuildPass(UniPass) {
     def _is_terminal(nd: UniNode) -> bool;
     def _find_parent_of_types(
         nd: UniNode, types: tuple[type[UniCFGNode], ...]
+    ) -> (UniCFGNode | None);
+
+    def _next_in_body(
+        body: Sequence[CodeBlockStmt], child: UniNode
     ) -> (UniCFGNode | None);
 
     def _find_next_cfg_stmt_after(
