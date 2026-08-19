@@ -3108,3 +3108,39 @@ test "compiler_slice: band8 star seq no-match falls through to default" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == -1;
 }
+
+# ---- LOAD_FAST_BORROW strength reduction (flowgraph.optimize_load_fast) ----
+# Codegen emits owned LOAD_FAST for every fast-local load; the flowgraph pass
+# downgrades a load to LOAD_FAST_BORROW when it proves the borrow outlives the
+# value (consumed before the frame slot dies), and insert_superinstructions fuses
+# adjacent owned pairs first -- so a binop over two params fuses to
+# LOAD_FAST_BORROW_LOAD_FAST_BORROW, while a value stored back into a local stays
+# an owned LOAD_FAST. Verified against the oracle via nested function co_code
+# (the module body is blind to the bodies). Byte-exact for all of these.
+test "compiler_slice: fast-local load borrow/own strength reduction matches oracle" {
+    for src in [
+        # Fully-consumed operand pairs fuse to a borrowed pair load.
+        "def f(a, b):\n    return a + b\n",
+        "def f(a, b):\n    return (a, b)\n",
+        "def f(a, b, c):\n    return [a, b, c]\n",
+        "def f(a, b):\n    return {a: b}\n",
+        "def f(a, b):\n    return a < b\n",
+        "def f(a, b):\n    a += b\n    return a\n",
+        # A value stored back into a local escapes -> stays an owned LOAD_FAST.
+        "def f(x):\n    y = x\n    return y\n",
+        "def f(a, b):\n    c = a\n    return c + b\n",
+        # Loads separated by a consuming op do not fuse (each a single borrow).
+        "def f(x, lst):\n    lst.append(x)\n    return lst\n",
+        "def f(g, a, b):\n    return g(a, b)\n",
+        "def f(g, h, a, b):\n    return g(a) + h(b)\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert af.co_code == ef.co_code;
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}

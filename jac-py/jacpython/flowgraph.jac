@@ -27,10 +27,43 @@ import from opcode_meta {
     OP_STORE_FAST,
     OP_STORE_FAST_MAYBE_NULL,
     OP_LOAD_FAST,
+    OP_LOAD_FAST_BORROW,
     OP_LOAD_FAST_LOAD_FAST,
+    OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_AND_CLEAR,
     OP_STORE_FAST_LOAD_FAST,
     OP_STORE_FAST_STORE_FAST,
+    OP_DELETE_FAST,
+    OP_COPY,
+    OP_LOAD_ATTR,
+    OP_LOAD_SUPER_ATTR,
+    OP_LOAD_SPECIAL,
+    OP_PUSH_EXC_INFO,
+    OP_CHECK_EXC_MATCH,
+    OP_FOR_ITER,
+    OP_SEND,
+    OP_END_SEND,
+    OP_SET_FUNCTION_ATTRIBUTE,
+    OP_FORMAT_SIMPLE,
+    OP_GET_ANEXT,
+    OP_GET_LEN,
+    OP_GET_YIELD_FROM_ITER,
+    OP_IMPORT_FROM,
+    OP_MATCH_KEYS,
+    OP_MATCH_MAPPING,
+    OP_MATCH_SEQUENCE,
+    OP_WITH_EXCEPT_START,
+    OP_DICT_MERGE,
+    OP_DICT_UPDATE,
+    OP_LIST_APPEND,
+    OP_LIST_EXTEND,
+    OP_MAP_ADD,
+    OP_RERAISE,
+    OP_SET_ADD,
+    OP_SET_UPDATE,
     stack_effect,
+    _opcode_num_popped,
+    _opcode_num_pushed,
     has_target,
     is_unconditional_jump_opcode,
     is_scope_exit_opcode,
@@ -507,6 +540,9 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
         }
         ri = ri + 1;
     }
+    # Publish per-block entry depths for optimize_load_fast (indexed by block id;
+    # UNSET_STARTDEPTH for blocks unreachable via normal / jump / fallthrough edges).
+    u.block_startdepths = startdepths;
     return (maxdepth, None);
 }
 
@@ -927,8 +963,325 @@ def optimize_cfg(u: unverified_cfg) {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Superinstruction fusion (CPython flowgraph.c insert_superinstructions), run
+# globally over every block, restricted to LOAD_FAST -> LOAD_FAST_LOAD_FAST. Runs
+# BEFORE optimize_load_fast, which downgrades the non-escaping fused loads to their
+# borrow variants. Comprehension bodies already emit borrow shapes by hand, so this
+# finds nothing owned there and is inert on them (see emit_name_load).
+#
+# STORE_FAST pair fusion (STORE_FAST_{LOAD,STORE}_FAST) is deliberately NOT done
+# here: jac's codegen already hand-emits those where CPython fuses (tuple targets,
+# swaps), and CPython keeps some adjacent same-line store pairs unfused because they
+# straddle a basic-block boundary its finer CFG splits but jac's coarser one does
+# not (e.g. a comprehension's save/restore epilogue). A global store fuse would
+# over-fuse exactly those, so store shapes are left to the existing emission.
+def insert_superinstructions(u: unverified_cfg) {
+    bi = 0;
+    while bi < len(u.blocks) {
+        b = u.blocks[bi];
+        i = 0;
+        while i < len(b.instrs) {
+            inst = b.instrs[i];
+            nextop = -1;
+            if i + 1 < len(b.instrs) {
+                nextop = b.instrs[i + 1].opcode;
+            }
+            if inst.opcode == OP_LOAD_FAST and nextop == OP_LOAD_FAST {
+                opt_make_super(inst, b.instrs[i + 1], OP_LOAD_FAST_LOAD_FAST);
+            }
+            i = i + 1;
+        }
+        opt_compact_block(b);
+        bi = bi + 1;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# LOAD_FAST -> LOAD_FAST_BORROW strength reduction (CPython flowgraph.c
+# optimize_load_fast). Codegen emits owned LOAD_FAST for every fast-local load;
+# this pass proves, per basic block via abstract interpretation over a stack of
+# "references", which loads produce values that are fully consumed before their
+# supporting frame local can be killed -- those can borrow. Any load whose value
+# escapes (stored back as a local, left on the stack across the local's death, or
+# still live at block end) stays owned. Faithful port of CPython 3.14.6; both
+# sentinels NOT_LOCAL and DUMMY_INSTR are -1 there, so we mirror that.
+glob LF_NOT_LOCAL: int = -1;
+glob LF_DUMMY_INSTR: int = -1;
+glob LF_SUPPORT_KILLED: int = 1;
+glob LF_STORED_AS_LOCAL: int = 2;
+glob LF_REF_UNCONSUMED: int = 4;
+
+# Abstract operand stack of references. instr[k] = index of the instruction that
+# produced ref k (or DUMMY_INSTR for a value inherited from a predecessor block);
+# local[k] = the frame local it refers to (or NOT_LOCAL).
+obj lf_stack {
+    has instr: list[int] = [],
+        local: list[int] = [];
+}
+
+def lf_push(s: lf_stack, instr: int, local: int) {
+    s.instr.append(instr);
+    s.local.append(local);
+}
+
+def lf_pop(s: lf_stack) -> tuple[int, int] {
+    n = len(s.instr);
+    if n == 0 {
+        return (LF_DUMMY_INSTR, LF_NOT_LOCAL);
+    }
+    ri = s.instr[n - 1];
+    rl = s.local[n - 1];
+    s.instr = s.instr[0:n - 1];
+    s.local = s.local[0:n - 1];
+    return (ri, rl);
+}
+
+def lf_at(s: lf_stack, idx: int) -> tuple[int, int] {
+    if idx < 0 or idx >= len(s.instr) {
+        return (LF_DUMMY_INSTR, LF_NOT_LOCAL);
+    }
+    return (s.instr[idx], s.local[idx]);
+}
+
+def lf_swap_top(s: lf_stack, off: int) {
+    n = len(s.instr);
+    idx = n - off;
+    if idx < 0 or idx >= n {
+        return;
+    }
+    ti = s.instr[idx];
+    tl = s.local[idx];
+    s.instr[idx] = s.instr[n - 1];
+    s.local[idx] = s.local[n - 1];
+    s.instr[n - 1] = ti;
+    s.local[n - 1] = tl;
+}
+
+# Mark every load that supports a still-on-stack reference to `local`: overwriting
+# or deleting the local kills the frame slot those borrowed refs depend on.
+def lf_kill_local(flags: list[int], s: lf_stack, local: int) {
+    i = 0;
+    while i < len(s.instr) {
+        if s.local[i] == local {
+            ii = s.instr[i];
+            if ii >= 0 {
+                flags[ii] = flags[ii] | LF_SUPPORT_KILLED;
+            }
+        }
+        i = i + 1;
+    }
+}
+
+def lf_store_local(flags: list[int], s: lf_stack, local: int, r_instr: int) {
+    lf_kill_local(flags, s, local);
+    if r_instr != LF_DUMMY_INSTR {
+        flags[r_instr] = flags[r_instr] | LF_STORED_AS_LOCAL;
+    }
+}
+
+# The opcodes that consume no inputs (net-push new, unnamed values) -- their
+# existing operands stay on the ref stack with their identity intact.
+def lf_is_no_input_op(op: int) -> bool {
+    return op == OP_FORMAT_SIMPLE
+        or op == OP_GET_ANEXT
+        or op == OP_GET_LEN
+        or op == OP_GET_YIELD_FROM_ITER
+        or op == OP_IMPORT_FROM
+        or op == OP_MATCH_KEYS
+        or op == OP_MATCH_MAPPING
+        or op == OP_MATCH_SEQUENCE
+        or op == OP_WITH_EXCEPT_START;
+}
+
+# The opcodes that consume some inputs and push nothing new.
+def lf_is_consume_only_op(op: int) -> bool {
+    return op == OP_DICT_MERGE
+        or op == OP_DICT_UPDATE
+        or op == OP_LIST_APPEND
+        or op == OP_LIST_EXTEND
+        or op == OP_MAP_ADD
+        or op == OP_RERAISE
+        or op == OP_SET_ADD
+        or op == OP_SET_UPDATE;
+}
+
+def optimize_load_fast(u: unverified_cfg) {
+    sds = u.block_startdepths;
+    bi = 0;
+    while bi < len(u.blocks) {
+        b = u.blocks[bi];
+        sd = UNSET_STARTDEPTH;
+        if b.id >= 0 and b.id < len(sds) {
+            sd = sds[b.id];
+        }
+        # Unreachable via normal/jump/fallthrough edges: leave loads owned.
+        if sd == UNSET_STARTDEPTH {
+            bi = bi + 1;
+            continue;
+        }
+        n = len(b.instrs);
+        flags: list[int] = [];
+        k = 0;
+        while k < n {
+            flags.append(0);
+            k = k + 1;
+        }
+        s = lf_stack(instr=[], local=[]);
+        # Seed the incoming stack with dummy refs (identity unknown).
+        k = 0;
+        while k < sd {
+            lf_push(s, LF_DUMMY_INSTR, LF_NOT_LOCAL);
+            k = k + 1;
+        }
+        i = 0;
+        while i < n {
+            ins = b.instrs[i];
+            op = ins.opcode;
+            arg = ins.oparg;
+            if op == OP_DELETE_FAST {
+                lf_kill_local(flags, s, arg);
+            } elif op == OP_LOAD_FAST {
+                lf_push(s, i, arg);
+            } elif op == OP_LOAD_FAST_AND_CLEAR {
+                lf_kill_local(flags, s, arg);
+                lf_push(s, i, arg);
+            } elif op == OP_LOAD_FAST_LOAD_FAST {
+                lf_push(s, i, arg // 16);
+                lf_push(s, i, arg % 16);
+            } elif op == OP_STORE_FAST {
+                r = lf_pop(s);
+                lf_store_local(flags, s, arg, r[0]);
+            } elif op == OP_STORE_FAST_LOAD_FAST {
+                r = lf_pop(s);
+                lf_store_local(flags, s, arg // 16, r[0]);
+                lf_push(s, i, arg % 16);
+            } elif op == OP_STORE_FAST_STORE_FAST {
+                r = lf_pop(s);
+                lf_store_local(flags, s, arg // 16, r[0]);
+                r2 = lf_pop(s);
+                lf_store_local(flags, s, arg % 16, r2[0]);
+            } elif op == OP_COPY {
+                idx = len(s.instr) - arg;
+                r = lf_at(s, idx);
+                lf_push(s, r[0], r[1]);
+            } elif op == OP_SWAP {
+                lf_swap_top(s, arg);
+            } elif lf_is_no_input_op(op) {
+                np = _opcode_num_popped(op, arg);
+                pu = _opcode_num_pushed(op, arg);
+                net_pushed = pu - np;
+                k2 = 0;
+                # CPython pushes the inner counter as the producing instr here
+                # (a faithful-to-source quirk); local is NOT_LOCAL either way.
+                while k2 < net_pushed {
+                    lf_push(s, k2, LF_NOT_LOCAL);
+                    k2 = k2 + 1;
+                }
+            } elif lf_is_consume_only_op(op) {
+                np = _opcode_num_popped(op, arg);
+                pu = _opcode_num_pushed(op, arg);
+                net_popped = np - pu;
+                k2 = 0;
+                while k2 < net_popped {
+                    dr = lf_pop(s);
+                    k2 = k2 + 1;
+                }
+            } elif op == OP_END_SEND or op == OP_SET_FUNCTION_ATTRIBUTE {
+                tos = lf_pop(s);
+                dr = lf_pop(s);
+                lf_push(s, tos[0], tos[1]);
+            } elif op == OP_CHECK_EXC_MATCH {
+                dr = lf_pop(s);
+                lf_push(s, i, LF_NOT_LOCAL);
+            } elif op == OP_FOR_ITER {
+                lf_push(s, i, LF_NOT_LOCAL);
+            } elif op == OP_LOAD_ATTR or op == OP_LOAD_SUPER_ATTR {
+                self_ref = lf_pop(s);
+                if op == OP_LOAD_SUPER_ATTR {
+                    dr = lf_pop(s);
+                    dr2 = lf_pop(s);
+                }
+                lf_push(s, i, LF_NOT_LOCAL);
+                if arg % 2 == 1 {
+                    # method form: self is conservatively pushed back.
+                    lf_push(s, self_ref[0], self_ref[1]);
+                }
+            } elif op == OP_LOAD_SPECIAL or op == OP_PUSH_EXC_INFO {
+                tos = lf_pop(s);
+                lf_push(s, i, LF_NOT_LOCAL);
+                lf_push(s, tos[0], tos[1]);
+            } elif op == OP_SEND {
+                dr = lf_pop(s);
+                lf_push(s, i, LF_NOT_LOCAL);
+            } else {
+                np = _opcode_num_popped(op, arg);
+                pu = _opcode_num_pushed(op, arg);
+                k2 = 0;
+                while k2 < np {
+                    dr = lf_pop(s);
+                    k2 = k2 + 1;
+                }
+                k2 = 0;
+                while k2 < pu {
+                    lf_push(s, i, LF_NOT_LOCAL);
+                    k2 = k2 + 1;
+                }
+            }
+            # CPython ends a basic block at every jump / scope exit and re-seeds the
+            # next block's ref stack with dummies. jac emits coarser blocks (a
+            # conditional jump does not start a new block -- e.g. match guards), so
+            # replicate the fine-grained boundary here: any reference still live at
+            # the jump escapes (stays owned), and identities reset to dummies for
+            # the following segment. Without this, a value loaded before a guard
+            # jump and consumed after it (in the same jac block) is wrongly seen as
+            # consumed and downgraded to a borrow.
+            if is_conditional_jump(op)
+                or is_unconditional_jump_opcode(op)
+                or is_scope_exit_opcode(op) {
+                seg = 0;
+                while seg < len(s.instr) {
+                    pseg = s.instr[seg];
+                    if pseg != -1 {
+                        flags[pseg] = flags[pseg] | LF_REF_UNCONSUMED;
+                    }
+                    s.instr[seg] = LF_DUMMY_INSTR;
+                    s.local[seg] = LF_NOT_LOCAL;
+                    seg = seg + 1;
+                }
+            }
+            i = i + 1;
+        }
+        # Any produced reference still live at block end escapes into the next
+        # block; the load that produced it must stay owned.
+        j = 0;
+        while j < len(s.instr) {
+            pi = s.instr[j];
+            if pi != -1 {
+                flags[pi] = flags[pi] | LF_REF_UNCONSUMED;
+            }
+            j = j + 1;
+        }
+        # Strength-reduce every unflagged fast load to its borrow variant.
+        i = 0;
+        while i < n {
+            if flags[i] == 0 {
+                op = b.instrs[i].opcode;
+                if op == OP_LOAD_FAST {
+                    b.instrs[i].opcode = OP_LOAD_FAST_BORROW;
+                } elif op == OP_LOAD_FAST_LOAD_FAST {
+                    b.instrs[i].opcode = OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW;
+                }
+            }
+            i = i + 1;
+        }
+        bi = bi + 1;
+    }
+}
+
 def verify_cfg(u: unverified_cfg) -> verified_cfg {
     optimize_cfg(u);
+    insert_superinstructions(u);
     normalize_jumps(u);
     tdiag = check_cfg_terminators(u);
     if tdiag is not None {
@@ -940,6 +1293,10 @@ def verify_cfg(u: unverified_cfg) -> verified_cfg {
     if sdiag is not None {
         return verified_cfg(unit=u, flat=[], stacksize=0, diag=sdiag);
     }
+    # Strength-reduce owned fast loads to borrows now that per-block entry depths
+    # are known (published on u by calculate_stackdepth). Preserves stack effects,
+    # so the stacksize computed above stays valid.
+    optimize_load_fast(u);
     fr = flatten_blocks(u);
     flat = fr.flat;
     block_starts = fr.block_starts;

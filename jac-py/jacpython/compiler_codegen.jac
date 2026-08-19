@@ -940,7 +940,18 @@ def emit_name_load(
                 return True;
             }
         }
-        g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
+        if g.u.comp_depth > 0 {
+            # Comprehension bodies keep their hand-emitted borrow shapes; the
+            # flowgraph strength-reduction passes are inert on them (they only
+            # transform owned LOAD_FAST). See flowgraph.optimize_load_fast.
+            g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
+        } else {
+            # Emit an owned load. flowgraph.insert_superinstructions fuses adjacent
+            # owned pairs and flowgraph.optimize_load_fast downgrades every load
+            # whose borrow it can prove safe -- matching CPython, which emits owned
+            # loads and strength-reduces them after the CFG is built.
+            g.emit_op(OP_LOAD_FAST, fi, tloc);
+        }
         return True;
     }
     if g.sym_top is not None and g.sym_top.block_type != "module" {
@@ -2113,6 +2124,13 @@ def fast_local_index(g: cfg_builder, name: str) -> int {
 def try_emit_fast_local_pair_load(
     g: cfg_builder, left: expr, right: expr, tloc: cloc
 ) -> bool {
+    # Outside a comprehension, let the two operands emit owned LOAD_FAST loads
+    # individually: flowgraph.insert_superinstructions fuses them and
+    # optimize_load_fast picks the correct owned/borrow fused variant. Only
+    # comprehension bodies (which keep hand-emitted borrow shapes) fuse here.
+    if g.u.comp_depth == 0 {
+        return False;
+    }
     if not isinstance(left, Name) or not isinstance(right, Name) {
         return False;
     }

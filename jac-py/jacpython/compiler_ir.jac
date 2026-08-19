@@ -222,6 +222,10 @@ obj unverified_cfg {
         names: list[str] = [],
         blocks: list[basicblock] = [],
         next_block_id: int = 0,
+        # Per-block entry stack depth (indexed by block id), stashed by
+        # calculate_stackdepth on success so optimize_load_fast can seed each
+        # block's abstract ref stack with the right number of incoming values.
+        block_startdepths: list[int] = [],
         except_regions: list[except_region] = [],
         comp_handlers: list[comp_handler] = [],
         comp_handler_group: int = 0,
