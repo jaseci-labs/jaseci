@@ -294,12 +294,20 @@ def prefix_fallback_count -> int {
     );
 }
 
+def _is_frontier_stop(rec: dict[str, any]) -> bool {
+    return rec["clause"] == "prefix-declined" and bool(rec["executed"]);
+}
+
+def prefix_quiet_fallback(rec: dict[str, any]) -> bool {
+    return rec["clause"] in _QUIET_CLAUSES or _is_frontier_stop(rec);
+}
+
 def prefix_loud_fallback_count -> int {
     return len(
         [
             r
             for r in _prefix_census.values()
-            if not r["admitted"] and r["clause"] not in _QUIET_CLAUSES
+            if not r["admitted"] and not prefix_quiet_fallback(r)
         ]
     );
 }
