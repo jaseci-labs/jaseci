@@ -1,13 +1,12 @@
 """Client test whose mock is found by the tests/__mocks__ convention.
 
-No `[test.client.mocks]` entry exists for `fake-widgets` -- dropping the file
-into `tests/__mocks__/` is the whole configuration. The mock itself imports a
-stylesheet for side effect and re-exports from a second, unmapped package.
+Dropping the file into `tests/__mocks__/` is the whole configuration.
 """
 
 import from "fake-widgets" { widget, helper }
 
-test "a mock found by convention loads and returns real values" {
+test "a mock loads, and its own helper file was staged with it" {
+    # "w1" comes from ./support/ids, so this passes only if it was staged.
     assert widget.id() == "w1";
 }
 

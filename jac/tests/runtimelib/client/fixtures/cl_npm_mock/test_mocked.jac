@@ -1,7 +1,7 @@
 """Client tests whose npm dependencies are replaced by behaving mocks.
 
 `fake-editor` and `@fake/telemetry` are mapped to real modules by this
-project's `[test.npm-stubs]`; `unmapped-pkg` is not, so it keeps the universal
+project's `[test.client.mocks]`; `unmapped-pkg` is not, so it keeps the universal
 Proxy stub.  Both paths have to work in the same file.
 """
 

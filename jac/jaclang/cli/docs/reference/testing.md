@@ -234,7 +234,7 @@ test "prompts with the configured interpreters" {
 }
 ```
 
-That is the whole setup -- no configuration entry required. Mocks can be written in JavaScript or in Jac, and any spec left unmocked keeps the Proxy and is reported at the end of the run, so a test that passes without really checking anything is visible rather than silent.
+That is the whole setup -- no configuration entry required. Mocks can be written in JavaScript or in Jac, and a JavaScript mock may import helper files of its own; they are staged into the harness along with it. Any spec left unmocked keeps the Proxy and is reported at the end of the run, so a test that passes without really checking anything is visible rather than silent.
 
 See [`[test.client]`](config/index.md#testclient) for explicit mappings, scoped packages, pinning a Jac mock to the client codespace, and turning stub reports into failures.
 

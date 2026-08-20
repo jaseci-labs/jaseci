@@ -20,6 +20,10 @@ glob _RESULT_SENTINEL: str = "__JAC_CL_TEST_RESULTS__",
          r"\s*from\s*[\"'](?P<spec>[^\"']+)[\"']\s*;?"
      ),
      _BARE_IMPORT = re.compile(r"import\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"),
+     _DYNAMIC_IMPORT = re.compile(r"\bimport\s*\(\s*[\"'](?P<spec>[^\"']+)[\"']\s*\)"),
+     _REQUIRE_CALL = re.compile(r"\brequire\s*\(\s*[\"'](?P<spec>[^\"']+)[\"']\s*\)"),
+     _NATIVE_PREFIXES: tuple[str, ...] = ("node:", "bun:"),
+     _REL_EXTS: tuple[str, ...] = (".js", ".mjs", ".cjs"),
      _NAMED_BINDING = re.compile(r"([A-Za-z_$][\w$]*)\s*(?:as\s+[A-Za-z_$][\w$]*)?"),
      _PRELUDE_TEMPLATE: str = """
 // --- jac cl test prelude (injected by cl_test_runner) ---
@@ -87,12 +91,19 @@ obj ClImportPlan {
     has paths: dict[str, str] postinit,
         staged: dict[str, str] postinit,
         stubbed: list[str] postinit,
+        star_stubbed: list[str] postinit,
         uses_runtime: bool = False;
 
     def postinit -> None;
 }
 
+def _scan_all_specs(js: str) -> dict[str, dict];
+
 def _scan_import_specs(js: str) -> dict[str, dict];
+
+def _scan_relative_specs(js: str) -> list[str];
+
+def _resolve_relative_source(base_dir: str, spec: str) -> (str | None);
 
 def _mock_target(spec: str) -> str;
 
@@ -106,7 +117,7 @@ def _resolve_client_imports(
     source_path: (str | None), entry_js: str, dep_files: dict[str, str]
 ) -> ClImportPlan;
 
-def _report_stubbed(source_path: (str | None), stubbed: list[str]) -> None;
+def _report_stubbed(source_path: (str | None), plan: ClImportPlan) -> None;
 
 def _build_harness(
     module_js: str, tests: list, api_base_url: str = "", storage: (dict | None) = None

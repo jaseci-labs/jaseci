@@ -12,11 +12,15 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtimelib.cl_test_runner {
+    ClImportPlan,
     module_is_client,
     run_cl_test_file,
     _mock_sources_for,
     _render_tsconfig,
-    _scan_import_specs
+    _report_stubbed,
+    _resolve_relative_source,
+    _scan_import_specs,
+    _scan_relative_specs
 }
 
 glob FIXTURES = Path(__file__).parent / "fixtures";
@@ -48,6 +52,45 @@ test "scanning finds specs and bindings in every static import form" {
     assert uses["pkg-default"]["default"];
     assert not uses["pkg-ns"]["default"] , "a namespace import needs no default export";
     assert uses["pkg-side/theme.css"]["named"] == set();
+}
+
+test "a deferred import still gets a resolution target" {
+    # No bindings to declare, but still a spec that needs somewhere to go.
+    uses = _scan_import_specs(
+        'const a = await import("lazy-pkg");\nconst b = require("cjs-pkg");\n'
+    );
+    assert sorted(uses.keys()) == ["cjs-pkg", "lazy-pkg"] , f"got {sorted(
+        uses.keys()
+    )}";
+    assert uses["lazy-pkg"]["named"] == set();
+    assert not uses["lazy-pkg"]["default"];
+}
+
+test "node and bun builtins are left for the runtime to resolve" {
+    # Reporting one as stubbed would fail a run under on_stub = "error".
+    uses = _scan_import_specs(
+        'import { join } from "node:path";\n'
+            + 'import { test } from "bun:test";\n'
+            + 'import { z } from "zod";\n'
+    );
+    assert sorted(uses.keys()) == ["zod"] , f"builtins leaked through: {sorted(
+        uses.keys()
+    )}";
+}
+
+test "a bare export-star is flagged, an aliased one is not" {
+    # A bare `export *` must forward names a stub cannot know; `as ns` needn't.
+    assert _scan_import_specs('export * from "pkg-a";')["pkg-a"]["star"];
+    assert not _scan_import_specs('export * as ns from "pkg-b";')["pkg-b"]["star"];
+    assert not _scan_import_specs('export { x } from "pkg-c";')["pkg-c"]["star"];
+}
+
+test "relative specs are reported separately from bare ones" {
+    src = 'import { a } from "./support/ids";\n'
+        + 'import { b } from "../shared/label.js";\n'
+        + 'import { c } from "pkg";\n';
+    assert _scan_relative_specs(src) == ["../shared/label.js", "./support/ids"];
+    assert sorted(_scan_import_specs(src).keys()) == ["pkg"];
 }
 
 # ------------------------------------------------------------- materializing
@@ -126,6 +169,73 @@ test "a configured mock path that does not exist names the spec and the search d
     }
 }
 
+# ------------------------------------------------- relative mock dependencies
+
+test "a mock's own relative imports resolve to real files" {
+    with TemporaryDirectory() as td {
+        mocks_dir = Path(td, "tests", "__mocks__");
+        Path(mocks_dir, "support").mkdir(parents=True);
+        Path(mocks_dir, "support", "ids.js").write_text("export const n=1;\n");
+        Path(mocks_dir, "vscode.js").write_text("export const w=1;\n");
+        base = str(mocks_dir);
+        assert _resolve_relative_source(base, "./vscode.js").endswith("vscode.js");
+        found = _resolve_relative_source(base, "./support/ids");
+        assert found is not None , "an extensionless specifier must find its .js file";
+        assert found.endswith("ids.js") , f"resolved to {found}";
+        assert _resolve_relative_source(base, "./nope") is None;
+    }
+}
+
+# --------------------------------------------------------- stub reporting
+
+test "on_stub decides whether a proxied import is a note or a failure" {
+    plan = ClImportPlan();
+    plan.stubbed = ["react"];
+
+    def report_with(setting: str) -> str {
+        with TemporaryDirectory() as td {
+            Path(td, "jac.toml").write_text(
+                '[project]\nname = "x"\n\n[test.client]\n' + f'on_stub = "{setting}"\n',
+                encoding="utf-8"
+            );
+            try {
+                _report_stubbed(str(Path(td, "test_x.jac")), plan);
+            } except Exception as exc {
+                return str(exc);
+            }
+            return "";
+        }
+    }
+
+    assert report_with("note") == "" , "note must not raise";
+    assert report_with("warn") == "" , "warn must not raise";
+    raised = report_with("error");
+    assert "react" in raised , f"error must name the stubbed spec: {raised}";
+}
+
+test "a bare export-star through a stub is called out by name" {
+    plan = ClImportPlan();
+    plan.stubbed = ["pkg-a"];
+    plan.star_stubbed = ["pkg-a"];
+    with TemporaryDirectory() as td {
+        Path(td, "jac.toml").write_text(
+            '[project]\nname = "x"\n\n[test.client]\non_stub = "error"\n',
+            encoding="utf-8"
+        );
+        caught = "";
+        try {
+            _report_stubbed(str(Path(td, "test_x.jac")), plan);
+        } except Exception as exc {
+            caught = str(exc);
+        }
+        assert "export * from" in caught , f"no export-star guidance: {caught}";
+    }
+}
+
+test "nothing is reported when every spec resolved" {
+    _report_stubbed(None, ClImportPlan());
+}
+
 # --------------------------------------------------------------- end to end
 
 test "a client test importing only an npm module runs under bun" {
@@ -149,9 +259,8 @@ test "mocked modules behave while unmapped ones keep the proxy" {
     }
 }
 
-test "a mock may itself re-export and side-effect import" {
-    # Resolution is by tsconfig path, not by rewriting text, so import forms
-    # the old regex never matched now resolve on their own.
+test "a mock may re-export, side-effect import, and carry its own files" {
+    # Import forms the old regex never matched now resolve on their own.
     fixture = str(FIXTURES / "cl_npm_forms" / "test_forms.jac");
     results = run_cl_test_file(fixture);
     assert len(results) == 2 , f"expected 2 client tests, got {len(results)}";

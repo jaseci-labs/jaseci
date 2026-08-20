@@ -1,5 +1,6 @@
 import json;
 import os;
+import posixpath;
 import re;
 import shutil;
 import socket;
@@ -56,14 +57,15 @@ impl ClImportPlan.postinit -> None {
     self.paths = {};
     self.staged = {};
     self.stubbed = [];
+    self.star_stubbed = [];
 }
 
-impl _scan_import_specs(js: str) -> dict[str, dict] {
+impl _scan_all_specs(js: str) -> dict[str, dict] {
     uses: dict[str, dict] = {};
 
     def record(spec: str) -> dict {
         if spec not in uses {
-            uses[spec] = {"named": set(), "default": False};
+            uses[spec] = {"named": set(), "default": False, "star": False};
         }
         return uses[spec];
     }
@@ -80,12 +82,8 @@ impl _scan_import_specs(js: str) -> dict[str, dict] {
     }
 
     for m in _IMPORT_FROM.finditer(js) {
-        spec = m.group("spec");
-        if spec.startswith(".") {
-            continue;
-        }
-        use = record(spec);
-        clause = m.group("clause").strip();
+        use = record(m.group("spec"));
+        clause = str(m.group("clause")).strip();
         collect(use, clause);
         head = clause.split("{")[0].split(",")[0].strip();
         if head and (not head.startswith("*")) {
@@ -93,19 +91,61 @@ impl _scan_import_specs(js: str) -> dict[str, dict] {
         }
     }
     for m in _EXPORT_FROM.finditer(js) {
-        spec = m.group("spec");
-        if spec.startswith(".") {
-            continue;
+        use = record(m.group("spec"));
+        clause = str(m.group("clause")).strip();
+        collect(use, clause);
+
+        if clause.startswith("*") and (" as " not in clause) {
+            use["star"] = True;
         }
-        collect(record(spec), m.group("clause").strip());
     }
     for m in _BARE_IMPORT.finditer(js) {
-        spec = m.group("spec");
-        if not spec.startswith(".") {
-            record(spec);
-        }
+        record(m.group("spec"));
+    }
+    for m in _DYNAMIC_IMPORT.finditer(js) {
+        record(m.group("spec"));
+    }
+    for m in _REQUIRE_CALL.finditer(js) {
+        record(m.group("spec"));
     }
     return uses;
+}
+
+impl _scan_import_specs(js: str) -> dict[str, dict] {
+    bare: dict[str, dict] = {};
+    for (spec, use) in _scan_all_specs(js).items() {
+        if spec.startswith(".") or spec.startswith(_NATIVE_PREFIXES) {
+            continue;
+        }
+        bare[spec] = use;
+    }
+    return bare;
+}
+
+impl _scan_relative_specs(js: str) -> list[str] {
+    found: list[str] = [];
+    for spec in _scan_all_specs(js).keys() {
+        if spec.startswith(".") {
+            found.append(spec);
+        }
+    }
+    return sorted(found);
+}
+
+impl _resolve_relative_source(base_dir: str, spec: str) -> (str | None) {
+    base = Path(base_dir);
+    direct = base / spec;
+    cands: list[Path] = [direct];
+    for ext in _REL_EXTS {
+        cands.append(base / (spec + ext));
+        cands.append(direct / ("index" + ext));
+    }
+    for cand in cands {
+        if cand.is_file() {
+            return str(cand.resolve());
+        }
+    }
+    return None;
 }
 
 impl _mock_target(spec: str) -> str {
@@ -184,8 +224,8 @@ impl _render_npm_stub(named: set, needs_default: bool) -> str {
     return "\n".join(lines) + "\n";
 }
 
-impl _report_stubbed(source_path: (str | None), stubbed: list[str]) -> None {
-    if not stubbed {
+impl _report_stubbed(source_path: (str | None), plan: ClImportPlan) -> None {
+    if not plan.stubbed {
         return;
     }
     import from jaclang.project.config { JacConfig }
@@ -197,12 +237,20 @@ impl _report_stubbed(source_path: (str | None), stubbed: list[str]) -> None {
             on_stub = config.`test.client.on_stub or "note";
         }
     }
-    listed = ", ".join(sorted(stubbed));
+    listed = ", ".join(sorted(plan.stubbed));
     label = Path(source_path).name if source_path else "cl test";
     message = (
         f"{label}: stubbed npm imports with the universal proxy: {listed}. "
         "Assertions against these are vacuous; supply a mock to make them real."
     );
+    if plan.star_stubbed {
+        starred = ", ".join(sorted(plan.star_stubbed));
+        message += (
+            " A proxy stub also cannot forward names through 'export * from' "
+            f"({starred}); importing a name that way fails at load time, so "
+            "those specs need a mock rather than a stub."
+        );
+    }
     if on_stub == "error" {
         raise RuntimeError(message);
     }
@@ -221,17 +269,51 @@ impl _resolve_client_imports(
     plan = ClImportPlan();
     mocks = _mock_sources_for(source_path);
     uses: dict[str, dict] = {};
-    pending: list[str] = [entry_js];
+
+    pending: list[tuple] = [(entry_js, None, None)];
+    seen_sources: set = set();
     for (_dep_name, dep_js) in dep_files.items() {
-        pending.append(dep_js);
+        pending.append((dep_js, None, None));
     }
 
     def merge(spec: str, use: dict) {
         if spec not in uses {
-            uses[spec] = {"named": set(), "default": False};
+            uses[spec] = {"named": set(), "default": False, "star": False};
         }
         uses[spec]["named"] |= use["named"];
         uses[spec]["default"] = uses[spec]["default"] or use["default"];
+        uses[spec]["star"] = uses[spec]["star"] or use["star"];
+    }
+
+    def stage_relatives(js: str, src_file: str, staged_path: str) {
+        base_dir = str(Path(src_file).parent);
+        staged_dir = posixpath.dirname(staged_path);
+        for spec in _scan_relative_specs(js) {
+            dep_src = _resolve_relative_source(base_dir, spec);
+            if dep_src is None {
+                raise RuntimeError(
+                    f"mock '{staged_path}' imports '{spec}', which does not "
+                    f"resolve to a file next to {src_file}"
+                );
+            }
+
+            rel = os.path.relpath(dep_src, base_dir).replace(os.sep, "/");
+            dep_staged = posixpath.normpath(posixpath.join(staged_dir, rel));
+            if dep_staged.startswith("..") {
+                raise RuntimeError(
+                    f"mock '{staged_path}' imports '{spec}', which resolves "
+                    "outside the harness directory; keep the files a mock "
+                    "needs beside it"
+                );
+            }
+            if (dep_src, dep_staged) in seen_sources {
+                continue;
+            }
+            seen_sources.add((dep_src, dep_staged));
+            dep_js = Path(dep_src).read_text(encoding="utf-8");
+            plan.staged[dep_staged] = dep_js;
+            pending.append((dep_js, dep_src, dep_staged));
+        }
     }
 
     def stage_virtual(spec: str) {
@@ -252,21 +334,23 @@ impl _resolve_client_imports(
                 js = js.replace(core_match.group(1), "./client_runtime_core.js");
                 core_js = _compile_runtime_core_js();
                 plan.staged["client_runtime_core.js"] = core_js;
-                pending.append(core_js);
+                pending.append((core_js, None, None));
             }
             plan.staged["jac_runtime.js"] = js;
             plan.paths[spec] = "./jac_runtime.js";
-            pending.append(js);
+            pending.append((js, None, None));
             return;
         }
         (js, _t, _i, _s) = compile_cl_module(src);
         target = "jac_" + spec[len(_VIRTUAL_PREFIX):].replace("/", "_") + ".js";
         plan.staged[target] = js;
         plan.paths[spec] = "./" + target;
-        pending.append(js);
+        pending.append((js, None, None));
     }
 
     def stage_mock(spec: str, path: str) {
+        target = _mock_target(spec);
+        staged_path = target[2:];
         if path.endswith(".jac") {
             (js, _t, _i, _s) = compile_cl_module(path);
             if not js.strip() {
@@ -276,21 +360,37 @@ impl _resolve_client_imports(
                     "[placement.pins] entry setting it to 'client'"
                 );
             }
-        } else {
-            js = Path(path).read_text(encoding="utf-8");
+            siblings = _scan_relative_specs(js);
+            if siblings {
+                raise RuntimeError(
+                    f"mock for '{spec}' ({path}) imports "
+                    f"{', '.join(siblings)}; a .jac mock that pulls in sibling "
+                    "modules is not supported yet -- inline what it needs, or "
+                    "write the mock in JavaScript"
+                );
+            }
+            plan.staged[staged_path] = js;
+            plan.paths[spec] = target;
+            pending.append((js, None, None));
+            return;
         }
-        target = _mock_target(spec);
-        plan.staged[target[2:]] = js;
+        js = Path(path).read_text(encoding="utf-8");
+        resolved = str(Path(path).resolve());
+        seen_sources.add((resolved, staged_path));
+        plan.staged[staged_path] = js;
         plan.paths[spec] = target;
-        pending.append(js);
+        pending.append((js, resolved, staged_path));
     }
 
     while pending {
-        js = pending.pop(0);
+        (js, src_file, staged_path) = pending.pop(0);
+        if src_file is not None {
+            stage_relatives(js, src_file, staged_path);
+        }
         for (spec, use) in _scan_import_specs(js).items() {
-            seen = spec in uses;
+            already = spec in uses;
             merge(spec, use);
-            if seen or (spec in plan.paths) {
+            if already or (spec in plan.paths) {
                 continue;
             }
             if spec in mocks {
@@ -309,6 +409,9 @@ impl _resolve_client_imports(
     for spec in plan.stubbed {
         stub_named |= uses[spec]["named"];
         stub_default = stub_default or uses[spec]["default"];
+        if uses[spec]["star"] {
+            plan.star_stubbed.append(spec);
+        }
     }
     if plan.stubbed {
         plan.staged[_NPM_STUB_FILE] = _render_npm_stub(stub_named, stub_default);
@@ -682,7 +785,7 @@ impl _run_harness(
         (work_dir / _TSCONFIG_FILE).write_text(
             _render_tsconfig(plan.paths), encoding="utf-8"
         );
-        _report_stubbed(source_path, plan.stubbed);
+        _report_stubbed(source_path, plan);
 
         harness = _build_harness(
             module_js, tests, api_base_url=api_base_url, storage=storage

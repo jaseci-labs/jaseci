@@ -344,8 +344,9 @@ resolves each spec through ordered tiers:
 
 Resolution is materialized as a generated `tsconfig.json` in the harness
 directory, which bun honours natively. The compiled JavaScript is never
-rewritten, so every static import form -- including side-effect
-`import "pkg/theme.css"` and `export ... from "pkg"` -- resolves normally.
+rewritten, so every import form -- including side-effect
+`import "pkg/theme.css"`, `export ... from "pkg"`, and a deferred
+`import("pkg")` -- resolves normally.
 
 **Supplying a mock.** Zero config is the happy path: drop a file into
 `tests/__mocks__/`, named for the spec it stands in for. Scoped packages nest as
@@ -365,8 +366,18 @@ declares them:
 vscode = "tests/doubles/editor.js"
 ```
 
+A JavaScript mock may be written like any other module: its own relative
+imports are followed and staged into the harness beside it, so a mock is free
+to keep helpers in a file or a subdirectory of its own.
+
+```
+tests/__mocks__/vscode.js          # imports ./support/window.js
+tests/__mocks__/support/window.js  # staged with it, automatically
+```
+
 Mocks may be JavaScript or Jac. A `.jac` mock compiles through the ordinary
-client pipeline, so `:pub` is what makes a name importable. Because placement is
+client pipeline, so `:pub` is what makes a name importable. (A `.jac` mock that
+imports sibling Jac modules is not supported yet, and says so.) Because placement is
 inferred, a mock containing no client-only syntax lands in the server codespace
 and compiles to no JS -- the runner detects exactly that and asks for a pin:
 
@@ -386,6 +397,10 @@ on_stub = "note"    # note (default) | warn | error
 
 `error` turns an accidentally unmocked dependency into a failure rather than a
 test that passes without checking anything -- useful in CI for library authors.
+
+One case is always worth a mock rather than a stub: `export * from "pkg"` has
+to forward names the stub cannot know, so importing a name through it fails at
+load time. The report calls those specs out by name.
 
 ---
 
