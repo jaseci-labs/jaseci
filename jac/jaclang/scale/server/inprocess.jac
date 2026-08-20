@@ -11,7 +11,6 @@ import from jaclang.scale.server.serve { JacAPIServer }
 
 obj PreparedInProcessRuntime {
     has server: any,
-        transport_kind: str,
         client: any | None = None,
         _prior_ctx: (ExecutionContext | None) = None;
 
@@ -70,21 +69,9 @@ def prepare_inprocess_runtime(
     jac_file: str,
     base_path: str,
     endpoint_profile: str = "full",
-    setup_background_services: bool = True,
-    transport_kind: str = "testclient"
+    setup_background_services: bool = True
 ) -> PreparedInProcessRuntime {
     import from jaclang.runtimelib.serving.testing { ServingTestClient }
-
-    if transport_kind != "testclient" {
-        raise NotImplementedError(
-            "transport_kind='"
-                + str(transport_kind)
-                + "' is not implemented; "
-                + "only 'testclient' (in-process, single serialized worker) is "
-                + "supported today. 'asgi' / 'isolated_worker' are reserved for the "
-                + "execution-isolation choice recorded in #6596 P0-0."
-        );
-    }
 
     (base, _) = os.path.split(jac_file);
     base = base or "./";
@@ -137,7 +124,6 @@ def prepare_inprocess_runtime(
         );
         return PreparedInProcessRuntime(
             server=server,
-            transport_kind=transport_kind,
             client=client,
             _prior_ctx=prior_ctx
         );
