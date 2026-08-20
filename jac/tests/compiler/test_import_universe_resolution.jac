@@ -246,9 +246,7 @@ test "a module named after the npm package it wraps does not self-import" {
         );
         _install_pkg(proj, "sonner");
         prog = JacProgram();
-        wrapper = prog.compile(
-            str(proj / "components" / "ui" / "sonner.jac")
-        );
+        wrapper = prog.compile(str(proj / "components" / "ui" / "sonner.jac"));
         js = wrapper.gen.js or "";
         assert 'from "sonner"' in js , "the wrapper must import the npm package";
         assert "./sonner.js" not in js , "the wrapper must never import itself";

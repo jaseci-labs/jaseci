@@ -21,10 +21,7 @@ def compile_fixture(fixture_name: str, enforce: bool = False) -> JacProgram {
     if enforce {
         import from jaclang.jac0core.compile_options { CompileOptions }
         program.compile(
-            path,
-            options=CompileOptions(
-                na_gc_mode="none", nogc_enforce_all=True
-            )
+            path, options=CompileOptions(na_gc_mode="none", nogc_enforce_all=True)
         );
     } else {
         program.compile(path);

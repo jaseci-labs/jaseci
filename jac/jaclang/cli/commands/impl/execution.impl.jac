@@ -344,10 +344,7 @@ impl run(
                 full_path = os.path.abspath(filename);
                 program = Jac.get_program();
                 _run_options = (
-                    _RunOpts(
-                        force_codespace='native',
-                        force_target_program=True
-                    )
+                    _RunOpts(force_codespace='native', force_target_program=True)
                         if _kind_forced
                         else None
                 );

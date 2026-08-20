@@ -1,5 +1,5 @@
 """Fixtures for RcFactsPass move-lowerability proofs. Each function has one `bN = a` candidate; the
-proof must mark exactly the sound ones. Compiled with `type_check=False`, so the
+proof must mark exactly the sound ones. The
 marks come purely from the native proof, never the ownership checker."""
 
 obj Box {

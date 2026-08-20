@@ -2932,8 +2932,7 @@ test "clib AArch64 AAPCS ABI lowering" {
     try {
         prog = JacProgram();
         ir = prog.compile(
-            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")),
-            options=CompileOptions()
+            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")), options=CompileOptions()
         );
         assert not prog.errors_had , f"Errors: {prog.errors_had}";
         assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
@@ -3214,8 +3213,7 @@ def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
     prog = JacProgram();
     try {
         ir = prog.compile(
-            file_path=file_path,
-            options=CompileOptions(default_codespace='native')
+            file_path=file_path, options=CompileOptions(default_codespace='native')
         );
     } finally {
         set_effective_default_codespace('');

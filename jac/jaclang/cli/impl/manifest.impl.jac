@@ -149,7 +149,10 @@ def _command_routes -> list[CommandMeta] {
                 ('jac build --as binary', 'Build a self-contained executable'),
                 ('jac build --fat', 'Build a fat jab (Python deps vendored)'),
                 ('jac build --as wheel', 'Build a PyPI wheel'),
-                ('jac build --check_only', 'Type-check the whole project without building'),
+                (
+                    'jac build --check_only',
+                    'Type-check the whole project without building'
+                ),
                 ('jac build --client mobile', 'Build the mobile client shell')
             ],
             args=[

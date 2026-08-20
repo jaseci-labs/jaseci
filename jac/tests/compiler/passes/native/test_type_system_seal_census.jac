@@ -590,7 +590,7 @@ The flip was performed and measured, and then reverted, because on its own it
 does not pay. Declaring the field moves every boundary seam from `inherited
 field read 'evaluator'` to `erased field 'TypeCheckPass.evaluator'` and adds
 two declaration seams of its own (`TypeCheckPass.evaluator` and
-`TypeInferencePass.evaluator`, both `type 'TypeEvaluator'`), so the count goes
+`TypeCheckPass.evaluator`, both `type 'TypeEvaluator'`), so the count goes
 up rather than down -- and the closure does not move. `type_evaluator.jac`
 still is not in it. A declaration cannot pull a module into a unit; only the
 closure walk can, and the closure walk refuses.

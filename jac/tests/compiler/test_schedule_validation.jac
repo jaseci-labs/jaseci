@@ -87,8 +87,7 @@ test "every declared requirement is satisfied within the one pipeline" {
     provided: set[str] = set();
     for p in sched {
         for tag in (getattr(p, 'REQUIRES', ()) or ()) {
-            assert tag in provided ,
-                f"{p.__name__} requires '{tag}' with no earlier provider";
+            assert tag in provided , f"{p.__name__} requires '{tag}' with no earlier provider";
         }
         for tag in (getattr(p, 'PROVIDES', ()) or ()) {
             provided.add(tag);

@@ -81,9 +81,7 @@ impl AstTool.ir(args: list[str]) -> str {
                 ir = prog.compile(
                     use_str=rep_src,
                     file_path=(file_name[:-3] + '.jac'),
-                    options=CompileOptions(
-                        no_cgen=True, force_target_program=True
-                    )
+                    options=CompileOptions(no_cgen=True, force_target_program=True)
                 );
             } except Exception as e {
                 return f"Error While Jac to Py AST conversion: {e}";
@@ -91,9 +89,7 @@ impl AstTool.ir(args: list[str]) -> str {
         } else {
             ir = prog.compile(
                 file_name,
-                options=CompileOptions(
-                    no_cgen=True, force_target_program=True
-                )
+                options=CompileOptions(no_cgen=True, force_target_program=True)
             );
         }
         match output {
@@ -147,8 +143,7 @@ impl AstTool.ir(args: list[str]) -> str {
 
             case 'pyast':
                 ir = prog.compile(
-                    file_name,
-                    options=CompileOptions(force_target_program=True)
+                    file_name, options=CompileOptions(force_target_program=True)
                 );
                 return f"{py_ast.dump(ir.gen.py_ast[0], indent=2)}"
                     if isinstance(ir.gen.py_ast[0], py_ast.AST)
@@ -159,8 +154,7 @@ impl AstTool.ir(args: list[str]) -> str {
 
             case 'py':
                 ir = prog.compile(
-                    file_name,
-                    options=CompileOptions(force_target_program=True)
+                    file_name, options=CompileOptions(force_target_program=True)
                 );
                 return f"{ir.gen.py}"
                     if isinstance(ir.gen.py[0], str)

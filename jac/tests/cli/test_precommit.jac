@@ -196,4 +196,3 @@ test "precommit gates the commit on type errors" {
     }
     assert rc != 0 , "a staged type error must fail the precommit gate";
 }
-

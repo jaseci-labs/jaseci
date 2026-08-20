@@ -106,9 +106,7 @@ parameter even after the `impl/` body stops using one. Dropping it leaves only
 what the impl actually wrote -- which is where the behavior lives."""
 def _compiled_body(path: Path, backend: any, name: str) -> str {
     prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(path), options=CompileOptions(no_cgen=True)
-    );
+    ir = prog.compile(file_path=str(path), options=CompileOptions(no_cgen=True));
     fatal = [
         e
         for e in prog.errors_had

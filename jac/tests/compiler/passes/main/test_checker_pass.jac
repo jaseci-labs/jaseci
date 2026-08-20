@@ -31,9 +31,7 @@ def assert_error_pretty_found(needle: str, haystack: str) {
 
 test "explicit_type_annotation_in_assignment" {
     program = JacProgram();
-    program.compile(
-        os.path.join(FIXTURES, "type_annotation_assignment.jac")
-    );
+    program.compile(os.path.join(FIXTURES, "type_annotation_assignment.jac"));
     assert len(program.errors_had) == 2;
     assert_error_pretty_found(
         """
@@ -5535,9 +5533,7 @@ test "edge_endpoint_typing_narrows_neighbour_traversals" {
     # traversal infer the declared node type instead of `any`, with no
     # `[?:Type]` filter -- so a field read off the result resolves statically.
     program = JacProgram();
-    mod = program.compile(
-        os.path.join(CHECKER_FIXTURES, "edge_endpoint_typing.jac")
-    );
+    mod = program.compile(os.path.join(CHECKER_FIXTURES, "edge_endpoint_typing.jac"));
     assert len(program.errors_had) == 0 , "Unexpected errors:\\n"
         + "\\n---\\n".join(e.pretty_print() for e in program.errors_had);
     expected = {
@@ -5566,9 +5562,7 @@ test "edge_endpoint_clause_rejected_on_non_edge" {
     # Issue #6657: the endpoint clause is edge-only; a node carrying one is an
     # E2027 rather than a silently-ignored declaration.
     program = JacProgram();
-    program.compile(
-        os.path.join(CHECKER_FIXTURES, "edge_endpoint_on_node.jac")
-    );
+    program.compile(os.path.join(CHECKER_FIXTURES, "edge_endpoint_on_node.jac"));
     has_e2027 = False;
     for alrt in program.errors_had {
         if alrt.code is not None and alrt.code.code == "E2027" {
@@ -5589,9 +5583,7 @@ test "mobui_project_forbids_html_intrinsic_tags" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(
-            project_kind="mobui", project_root=CHECKER_FIXTURES
-        )
+        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
     );
 
     e1105 = [
@@ -5639,9 +5631,7 @@ test "mobui_project_allows_lowercase_component_in_scope" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(
-            project_kind="mobui", project_root=CHECKER_FIXTURES
-        )
+        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     e1105 = [
         e
@@ -5665,9 +5655,7 @@ test "mobui_project_lowercase_component_no_w1050" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(
-            project_kind="mobui", project_root=CHECKER_FIXTURES
-        )
+        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     w1050 = [
         w
@@ -5690,10 +5678,7 @@ test "mobui_kind_does_not_leak_outside_project_root" {
     with tempfile.TemporaryDirectory() as tmp_root {
         program = JacProgram();
         program.compile(
-            path,
-            options=CompileOptions(
-                project_kind="mobui", project_root=tmp_root
-            )
+            path, options=CompileOptions(project_kind="mobui", project_root=tmp_root)
         );
         e1105 = [
             e
@@ -5787,9 +5772,7 @@ test "builtin_inference_regressions" {
     # `{**c}` folded the spread dict in as a single entry VALUE, inferring
     # dict[<Unknown>, dict[K, V]] instead of dict[K, V].
     program = JacProgram();
-    program.compile(
-        os.path.join(CHECKER_FIXTURES, "checker_builtin_inference.jac")
-    );
+    program.compile(os.path.join(CHECKER_FIXTURES, "checker_builtin_inference.jac"));
     pretty = "\n".join([e.pretty_print() for e in program.errors_had]);
     assert len(program.errors_had) == 0 , "round() results and **spread dict literals must infer cleanly, "
     f"got {len(program.errors_had)} diagnostic(s):\n{pretty}";

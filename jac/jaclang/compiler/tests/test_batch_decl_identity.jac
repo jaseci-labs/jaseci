@@ -48,9 +48,7 @@ def check_batch(files: list[str]) -> list[str] {
         }
         prog.compile(
             file_path=file_path,
-            options=CompileOptions(
-                no_cgen=True, force_target_program=True
-            )
+            options=CompileOptions(no_cgen=True, force_target_program=True)
         );
     }
     return [str(e) for e in prog.errors_had];

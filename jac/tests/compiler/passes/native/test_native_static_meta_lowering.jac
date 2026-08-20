@@ -47,9 +47,7 @@ def server_errors(name: str) -> list {
     prog = JacProgram();
     prog.compile(
         file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(
-            no_ir_cache=True, force_codespace='server'
-        )
+        options=CompileOptions(no_ir_cache=True, force_codespace='server')
     );
     return [str(e) for e in prog.errors_had];
 }

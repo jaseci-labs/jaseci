@@ -527,11 +527,7 @@ test "jac bundle --target npm writes a tarball to dist/" {
     os.chdir(tmp_path);
     try {
         _scaffold_lib(tmp_path, "mylib");
-        result = run(
-            ["jac", "build", "--as", "npm"],
-            capture_output=True,
-            text=True
-        );
+        result = run(["jac", "build", "--as", "npm"], capture_output=True, text=True);
         assert result.returncode == 0 , (
             f"exit {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
         );

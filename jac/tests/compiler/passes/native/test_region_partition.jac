@@ -33,8 +33,7 @@ glob FIXTURE = os.path.join(
 test "children draw pages from the parent behind the reabsorb contract" {
     prog = JacProgram();
     ir = prog.compile(
-        file_path=SHARE_FIXTURE,
-        options=CompileOptions(aot_mode=True, na_gc_mode="rc")
+        file_path=SHARE_FIXTURE, options=CompileOptions(aot_mode=True, na_gc_mode="rc")
     );
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     text = str(ir.gen.llvm_ir);

@@ -178,4 +178,3 @@ class TypeCheckPass(UniPass) {
     def _check_event_trigger_archetype(self: TypeCheckPass, nd: Ability) -> None;
     def _check_unresolved_lambda_params(self: TypeCheckPass) -> None;
 }
-

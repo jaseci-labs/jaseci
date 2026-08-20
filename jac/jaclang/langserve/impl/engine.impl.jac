@@ -146,9 +146,7 @@ impl JacLangServer.type_check_file(
             file_path=main_path,
             use_str=main_doc.source,
             options=CompileOptions(
-                no_cgen=True,
-                force_target_program=True,
-                cancel_token=cancel_token
+                no_cgen=True, force_target_program=True, cancel_token=cancel_token
             )
         );
 

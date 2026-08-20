@@ -1045,7 +1045,6 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self.evaluator._pass = self;
     self._insert_builtin_symbols();
     self.evaluator._narrowing_cache = {};
-
 }
 
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {

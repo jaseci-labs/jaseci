@@ -427,7 +427,7 @@ obj CodeIntelligence {
         }
     }
 
-        def _dir_signature -> dict[str, float] {
+    def _dir_signature -> dict[str, float] {
         dirs: set[str] = {self._root_real};
         for f in self._files {
             dirs.add(os.path.dirname(_real(f)));

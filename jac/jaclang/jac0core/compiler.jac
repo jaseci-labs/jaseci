@@ -169,9 +169,7 @@ def get_symtab_ir_sched -> list[type[Transform]] {
 
 glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
      _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
-     _analysis_sched_loading = ContextVar(
-         'jac_analysis_sched_loading', default=False
-     );
+     _analysis_sched_loading = ContextVar('jac_analysis_sched_loading', default=False);
 
 def pass_requires(p: type[Transform]) -> tuple {
     return getattr(p, 'REQUIRES', ()) or ();
@@ -520,10 +518,7 @@ def native_pipeline_available -> tuple[bool, str] {
         );
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
-        return (
-            False,
-            'native pipeline undecided: the compiler is still initializing'
-        );
+        return (False, 'native pipeline undecided: the compiler is still initializing');
     } except Exception {
         reason = (
             'native pipeline unavailable: LLVM shim (libjacllvm) '

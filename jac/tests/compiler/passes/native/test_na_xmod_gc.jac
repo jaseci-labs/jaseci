@@ -29,9 +29,7 @@ def _compile_ir(entry_path: str, gc_mode: str, enforce: list) -> str {
         ir = prog.compile(
             file_path=entry_path,
             options=CompileOptions(
-                aot_mode=True,
-                na_gc_mode=gc_mode,
-                nogc_enforce_modules=enforce
+                aot_mode=True, na_gc_mode=gc_mode, nogc_enforce_modules=enforce
             )
         );
         assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];

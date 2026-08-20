@@ -27,9 +27,7 @@ test "chunk bodies build view headers without allocating" {
     prog = JacProgram();
     ir = prog.compile(
         file_path=FIXTURE,
-        options=CompileOptions(
-            aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
-        )
+        options=CompileOptions(aot_mode=True, na_gc_mode="none", nogc_enforce_all=True)
     );
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     text = str(ir.gen.llvm_ir);

@@ -1358,9 +1358,7 @@ impl JacCompiler._compile_once(
         cb_worklist: list = [mod_targ];
 
         cb_opts = CompileOptions(
-            no_cgen=True,
-            force_target_program=True,
-            cancel_token=options.cancel_token
+            no_cgen=True, force_target_program=True, cancel_token=options.cancel_token
         );
         while cb_worklist {
             cb_cur = cb_worklist.pop();

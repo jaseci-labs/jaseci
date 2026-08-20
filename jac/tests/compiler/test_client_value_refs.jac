@@ -42,10 +42,7 @@ def build_fixture(rel: str) -> tuple[JacProgram, uni.Module] {
 """Compile a codespace fixture for analysis only (the `jac check` path)."""
 def check_fixture(rel: str) -> JacProgram {
     prog = JacProgram();
-    prog.compile(
-        os.path.join(FIXTURE_DIR, rel),
-        options=CompileOptions(no_cgen=True)
-    );
+    prog.compile(os.path.join(FIXTURE_DIR, rel), options=CompileOptions(no_cgen=True));
     return prog;
 }
 

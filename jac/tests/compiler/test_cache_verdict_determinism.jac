@@ -48,9 +48,7 @@ def brand_errors(space: str) -> list[str] {
         file_path=BRAND_PATH,
         use_str=BRAND_SRC,
         options=CompileOptions(
-            no_cgen=True,
-            force_codespace=space,
-            force_target_program=True
+            no_cgen=True, force_codespace=space, force_target_program=True
         )
     );
     return [

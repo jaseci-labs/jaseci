@@ -383,9 +383,7 @@ impl JacProgram.compile(
 ) -> uni.Module {
     if (options is None) {
         options = CompileOptions(
-            symtab_ir_only=symtab_ir_only,
-            no_cgen=no_cgen,
-            cancel_token=cancel_token
+            symtab_ir_only=symtab_ir_only, no_cgen=no_cgen, cancel_token=cancel_token
         );
     }
     mod = self._get_compiler().compile(

@@ -66,7 +66,7 @@ def _fatal_compile_errors(prog: JacProgram) -> list[Alert] {
     # Filter out type-checker diagnostics (non-fatal warnings about
     # Unknown types in client code).  Only fail on parse/compile errors.
     # issubclass: diagnostics may come from TypeCheckPass itself or its
-    # TypeInferencePass schedule entry.
+    # TypeCheckPass schedule entry.
     return [
         e
         for e in prog.errors_had

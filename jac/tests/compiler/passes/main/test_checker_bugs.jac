@@ -653,9 +653,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
     );
     program = JacProgram();
-    program.compile(
-        os.path.join(fixture_dir, "impl_has_var_reassign.jac")
-    );
+    program.compile(os.path.join(fixture_dir, "impl_has_var_reassign.jac"));
 
     # Expected after fix: 0 errors. The impl body should type-check cleanly:
     #   - `tasks + [task]` resolves via list[dict].__add__

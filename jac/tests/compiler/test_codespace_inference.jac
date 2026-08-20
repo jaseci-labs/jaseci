@@ -277,9 +277,7 @@ def compile_with_default(name: str, dcs: str, cgen: bool = False) -> object {
     try {
         mod = prog.compile(
             os.path.join(FIXTURE_DIR, name),
-            options=CompileOptions(
-                default_codespace=dcs, no_cgen=not cgen
-            )
+            options=CompileOptions(default_codespace=dcs, no_cgen=not cgen)
         );
     } finally {
         set_effective_default_codespace(_prev_dcs);
@@ -655,9 +653,7 @@ test "aot native mandate still fails loudly" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
-        options=CompileOptions(
-            aot_mode=True, default_codespace='native'
-        )
+        options=CompileOptions(aot_mode=True, default_codespace='native')
     );
     assert prog.errors_had , "forced-native modules must surface lowering errors";
 }

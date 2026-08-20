@@ -680,9 +680,7 @@ test "stale has read emits W3041" {
     # Compile with type_check=True so the lint schedule (JacLintCheckPass)
     # runs and W3041 surfaces in prog.warnings_had.
     prog = JacProgram();
-    _ir = prog.compile(
-        file_path=fixture_path("stale_has_read.jac"), no_cgen=True
-    );
+    _ir = prog.compile(file_path=fixture_path("stale_has_read.jac"), no_cgen=True);
     assert not prog.errors_had , (
         "Compilation errors: " + str([str(e) for e in prog.errors_had])
     );

@@ -552,9 +552,7 @@ impl module_is_client(filepath: str) -> bool {
     import from jaclang.jac0core.program { JacProgram }
     result = False;
     try {
-        mod = JacProgram().compile(
-            path, options=CompileOptions(symtab_ir_only=True)
-        );
+        mod = JacProgram().compile(path, options=CompileOptions(symtab_ir_only=True));
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
     } except Exception as probe_exc {

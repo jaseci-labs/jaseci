@@ -330,9 +330,7 @@ test "gap 46 impl file standalone scope resolution" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_gap_impl_scope.impl.jac"),
-        options=CompileOptions(
-            resolve_annex_parent=True, default_codespace='server'
-        )
+        options=CompileOptions(resolve_annex_parent=True, default_codespace='server')
     );
     run_pass(TypeCheckPass, mod, program);
 

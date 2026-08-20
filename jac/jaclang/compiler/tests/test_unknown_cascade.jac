@@ -21,9 +21,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 def check_src(src: str) -> list[str] {
     prog = JacProgram();
     prog.compile(
-        file_path="uc_src.jac",
-        use_str=src,
-        options=CompileOptions(no_cgen=True)
+        file_path="uc_src.jac", use_str=src, options=CompileOptions(no_cgen=True)
     );
     return [str(e) for e in prog.errors_had];
 }
