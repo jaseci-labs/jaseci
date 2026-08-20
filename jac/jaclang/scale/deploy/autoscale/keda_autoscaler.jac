@@ -38,11 +38,21 @@ obj KEDAAutoscaler(Autoscaler) {
         trigger: Trigger, app_name: str, trigger_index: int
     ) -> dict[str, any];
 
-    def _apply_trigger_auth(
-        api: any, trigger: Trigger, namespace: str, app_name: str, trigger_index: int
+    def _build_trigger_auth_manifest(
+        trigger: Trigger, namespace: str, app_name: str, trigger_index: int
+    ) -> (dict[str, any] | None);
+
+    def _apply_custom_object(
+        api: any,
+        group: str,
+        version: str,
+        namespace: str,
+        plural: str,
+        name: str,
+        body: dict[str, any]
     ) -> None;
 
-    def _build_manifests(spec: AutoscalerSpec) -> dict[str, any];
+    def _build_manifests(spec: AutoscalerSpec) -> list[dict[str, any]];
     def preflight -> list[str];
     def apply(spec: AutoscalerSpec) -> bool;
     def destroy(autoscaler_name: str, namespace: str) -> None;
