@@ -273,8 +273,8 @@ obj ClientResponse {
     }
 
     async def _iter_sized -> any {
-        remaining = _content_length(self.headers);
-        if remaining is None {
+        length = _content_length(self.headers);
+        if length is None {
             while True {
                 block: bytes = await self.reader.read(65536);
                 if not block {
@@ -285,6 +285,7 @@ obj ClientResponse {
             self._drained = True;
             return;
         }
+        remaining: int = length;
         while remaining > 0 {
             block: bytes = await self.reader.read(min(65536, remaining));
             if not block {
