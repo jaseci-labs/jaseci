@@ -3192,34 +3192,6 @@ impl TypeEvaluator.assign_type(
         }
     }
 
-    if isinstance(src_type, ClassType)
-        and isinstance(dest_type, ClassType)
-        and src_type.is_class_instance()
-        and dest_type.is_class_instance()
-        and self._in_native_context()
-        and not self._distinct_brand_mismatch(src_type, dest_type) {
-        src_is_ptr = (
-            src_type.is_builtin("int")
-            or src_type.is_builtin("str")
-            or not src_type.is_builtin()
-        );
-        dest_is_ptr = (
-            dest_type.is_builtin("int")
-            or dest_type.is_builtin("str")
-            or not dest_type.is_builtin()
-        );
-        if src_is_ptr
-            and dest_is_ptr
-            and (
-                src_type.is_builtin("int")
-                or src_type.is_builtin("str")
-                or dest_type.is_builtin("int")
-                or dest_type.is_builtin("str")
-            ) {
-            return True;
-        }
-    }
-
     if self.is_any_type(dest_type) or self.is_any_type(src_type) {
         return True;
     }
@@ -3230,12 +3202,7 @@ impl TypeEvaluator.assign_type(
 
     if isinstance(src_type, UnionType) and not isinstance(dest_type, UnionType) {
         for src_member in src_type.types {
-            src_member_inst = self._convert_to_instance(src_member);
-            if self.assign_type(src_member_inst, dest_type, strict) {
-                continue;
-            }
-            if src_member_inst is src_member
-                or not self.assign_type(src_member, dest_type, strict) {
+            if not self.assign_type(src_member, dest_type, strict) {
                 return False;
             }
         }

@@ -323,7 +323,12 @@ def get_type_of_binary_operation(
         if expr.op.name == Tok.BW_OR {
             if is_annotation_type(evaluator, left_type)
                 and is_annotation_type(evaluator, right_type) {
-                return UnionType(types=[left_type, right_type]);
+                return UnionType(
+                    types=[
+                        evaluator._convert_to_instance(left_type),
+                        evaluator._convert_to_instance(right_type)
+                    ]
+                );
             }
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];

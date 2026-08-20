@@ -80,3 +80,18 @@ test "type inference is a hard requirement of the environment" {
     require_typeshed_stubs();
     assert issubclass(TypeshedUnavailableError, RuntimeError);
 }
+
+
+test "a type error blocks a natively lowered module too" {
+    src = "obj Point {\n"
+        + "    has x: int, y: int;\n"
+        + "}\n"
+        + "with entry {\n"
+        + "    p = Point(x=3, y=4);\n"
+        + "    bad: int = \"not an int\";\n"
+        + "    total: int = p.x + p.y;\n"
+        + "}\n";
+    (mod, codes) = _compile_src(src);
+    assert codes , "a natively lowered module swallowed its type error";
+    assert not mod.gen.py_bytecode , "a type error still produced bytecode";
+}
