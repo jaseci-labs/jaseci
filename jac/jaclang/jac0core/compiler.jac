@@ -1094,29 +1094,29 @@ def import_binds_client_native(nd: uni.Import, manifest: object) -> bool {
 }
 
 glob _na_demotion_memo: dict[str, tuple] = {},
-     _na_census: dict[str, dict] = {},
-     _na_census_state: dict[str, bool] = {"enabled": False},
+     _na_coverage: dict[str, dict] = {},
+     _na_coverage_state: dict[str, bool] = {"enabled": False},
      _na_cap_noted: dict[str, bool] = {};
 
-def na_census_begin {
+def na_coverage_begin {
     import from jaclang.jac0core.placement_solver { native_scan_memo_clear }
-    _na_census.clear();
+    _na_coverage.clear();
     _na_demotion_memo.clear();
     native_scan_memo_clear();
-    _na_census_state["enabled"] = True;
+    _na_coverage_state["enabled"] = True;
 }
 
-def na_census_record(path: str, outcome: str, code: str = '', detail: str = '') {
-    if not _na_census_state["enabled"] or not path {
+def na_coverage_record(path: str, outcome: str, code: str = '', detail: str = '') {
+    if not _na_coverage_state["enabled"] or not path {
         return;
     }
     key = os.path.realpath(path);
-    prev = _na_census.get(key);
+    prev = _na_coverage.get(key);
     sticky = ('demoted', 'ice');
     if prev is not None and prev['outcome'] in sticky and outcome not in sticky {
         return;
     }
-    _na_census[key] = {
+    _na_coverage[key] = {
         'outcome': outcome,
         'code': code,
         'detail': detail,
@@ -1124,22 +1124,22 @@ def na_census_record(path: str, outcome: str, code: str = '', detail: str = '') 
     };
 }
 
-def na_census_seam(path: str, reason: str) {
-    if not _na_census_state["enabled"] or not path {
+def na_coverage_seam(path: str, reason: str) {
+    if not _na_coverage_state["enabled"] or not path {
         return;
     }
     key = os.path.realpath(path);
-    rec = _na_census.get(key);
+    rec = _na_coverage.get(key);
     if rec is None {
         rec = {'outcome': 'native', 'code': '', 'detail': '', 'seams': []};
-        _na_census[key] = rec;
+        _na_coverage[key] = rec;
     }
     rec['seams'].append(reason);
 }
 
-def na_census_end -> dict {
-    snap = dict(_na_census);
-    _na_census_state["enabled"] = False;
+def na_coverage_end -> dict {
+    snap = dict(_na_coverage);
+    _na_coverage_state["enabled"] = False;
     return snap;
 }
 

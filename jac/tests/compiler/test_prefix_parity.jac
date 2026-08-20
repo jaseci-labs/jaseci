@@ -58,7 +58,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.prefix_flip {
     clear_prefix_entry,
-    prefix_census_reset,
+    prefix_outcomes_reset,
     prefix_quarantine_clear,
     prefix_snapshot,
     set_prefix_entry
@@ -109,7 +109,7 @@ def _corpus_paths -> list[str] {
 
 def _reset {
     clear_prefix_entry();
-    prefix_census_reset();
+    prefix_outcomes_reset();
     prefix_quarantine_clear();
 }
 
@@ -130,7 +130,7 @@ and the second finds the path already marked and skips the native attempt
 entirely. The routes then differ in `decided_codespace`, `parent`, and
 everything the second pass recomputed -- by compile ORDER, not by route.
 
-`na_census_begin` is called for its side effect rather than its census: it
+`na_coverage_begin` is called for its side effect rather than its coverage: it
 clears that demotion memo and the native scan memo, so neither route inherits
 the other's verdicts even for modules the pin does not cover.
 
@@ -139,9 +139,9 @@ Both are the same class of correction as the dependency warnings scoped out of
 the fields it corrupts. Every comparator, code objects included, still runs
 over the full schedule."""
 def _compile_route(path: str, route: any) -> tuple[any] {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     _reset();
-    na_census_begin();
+    na_coverage_begin();
     if route is not None {
         set_prefix_entry(route);
     }
@@ -159,7 +159,7 @@ def _compile_route(path: str, route: any) -> tuple[any] {
         snap = prefix_snapshot();
     } finally {
         clear_prefix_entry();
-        na_census_end();
+        na_coverage_end();
     }
     return (prog, mod, snap);
 }

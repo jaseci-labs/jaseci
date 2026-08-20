@@ -14,7 +14,7 @@ arms is untagged.
 *Abstract base classes.* `collections.abc.Sequence` is a Python object no
 native unit can host. It answers by reducing to the finite set of native shapes
 that inhabit it; ABCs with no exact reduction refuse loudly instead, and the
-refusal is read back off the census seam that demotes the method, naming the
+refusal is read back off the coverage seam that demotes the method, naming the
 ABC, rather than being a wrong answer nobody sees.
 
 *Type arms that arrive as values.* `isinstance(x, types)` with `types` a
@@ -142,19 +142,19 @@ test "abc arm: Mapping separates dicts from sequences" {
 
 
 test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=str(os.path.join(FIXTURES, "isinstance_abc_opaque.jac")),
             options=native_force_opts()
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     said = " ".join(
-        str(seam) for rec in census.values() for seam in (rec["seams"] or [])
+        str(seam) for rec in coverage.values() for seam in (rec["seams"] or [])
     );
     assert "isinstance against `Iterable`" in said , (
         "an unreducible ABC has to name itself in the seam that demotes the "
@@ -164,19 +164,19 @@ test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
 
 
 test "abc arm: a Python-based operand refuses rather than read a partial MRO" {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=str(os.path.join(FIXTURES, "isinstance_pyb_abc.jac")),
             options=native_force_opts()
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     said = " ".join(
-        str(seam) for rec in census.values() for seam in (rec["seams"] or [])
+        str(seam) for rec in coverage.values() for seam in (rec["seams"] or [])
     );
     assert "isinstance against `Sequence`" in said , (
         "a reducible ABC is only exact while the operand's whole MRO is "
@@ -207,7 +207,7 @@ test "value arms: a variadic tuple of types loops over a runtime length" {
 }
 
 
-test "seam shapes: the census sites' own spellings lower and answer" {
+test "seam shapes: the coverage sites' own spellings lower and answer" {
     walk = native_fn("chk_parent_walk", argc=0);
     assert walk() == 1 , (
         "`_find_parent_of_types` walks parents until an arm in the runtime "
