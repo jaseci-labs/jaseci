@@ -37,7 +37,8 @@ class JacProgram {
         _analyses_run: dict,
         _placement_summaries: dict,
         _placement_state: dict,
-        _boundary_parse_memo: dict;
+        _boundary_parse_memo: dict,
+        _compile_depth: int;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;

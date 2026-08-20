@@ -36,6 +36,8 @@ impl JacProgram.init(
     self._placement_state: dict = {};
 
     self._boundary_parse_memo: dict = {};
+
+    self._compile_depth: int = 0;
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
@@ -294,6 +296,11 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
     # The sub-node table is keyed by concrete node type, so the abstract
     # `Expr` key is never in it -- walk the tree instead (jac#8222).
     for mod in self.mod.hub.values() {
+        # Stub trees are memoized process-wide and shared by every program,
+        # so their types are not this program's to release.
+        if mod.stub_only {
+            continue;
+        }
         stack: list[uni.UniNode] = [mod];
         while stack {
             nd = stack.pop();
@@ -352,13 +359,10 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
     }
     ev._flow_node_type_cache.clear();
     ev._flow_key_type_cache.clear();
-    ev._flow_pending_symbols.clear();
-    ev._flow_pending_keys.clear();
     ev._and_narrowing_overrides.clear();
     ev._strict_site_cache.clear();
     ev._sv_async_syms_cache.clear();
     ev._loop_written_keys_cache.clear();
-    ev._ts_synth_class_cache.clear();
     ev._type_guard_probes.clear();
 }
 

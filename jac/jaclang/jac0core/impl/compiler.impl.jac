@@ -1217,12 +1217,19 @@ impl JacCompiler.compile(
     self._reentrant_depth = _depth_prev + 1;
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
+    _scratch_prog: (JacProgram | None) = None;
     try {
         if options.force_target_program {
             _wrap_prog = target_program;
         } else {
             _wrap_prog = self._resolve_program(file_path, target_program);
         }
+
+        # Depth lives on the program, not on this compiler: a nested compile
+        # can be driven by a freshly built JacCompiler, whose own re-entrancy
+        # counter would read zero and release scratch mid-flight.
+        _scratch_prog = _wrap_prog;
+        _wrap_prog._compile_depth += 1;
         if _depth_prev > 0 {
             _outer_prog = _wrap_prog;
             _outer_opts = _wrap_prog._compile_options;
@@ -1318,23 +1325,22 @@ impl JacCompiler.compile(
         if _depth_prev == 0 {
             import from jaclang.jac0core.prefix_flip { emit_prefix_summary }
             emit_prefix_summary();
-            self._release_compile_scratch(target_program);
+        }
+        if _scratch_prog is not None {
+            _scratch_prog._compile_depth -= 1;
+            if _scratch_prog._compile_depth <= 0 {
+                _scratch_prog._compile_depth = 0;
+                self._release_compile_scratch(_scratch_prog);
+            }
         }
     }
 }
 
 impl JacCompiler._release_compile_scratch(target_program: JacProgram) -> None {
-    progs: list[JacProgram] = [target_program];
-    if (self._internal_program is not None
-        and self._internal_program is not target_program) {
-        progs.append(self._internal_program);
-    }
-    for prog in progs {
-        try {
-            prog.release_native_dep_units();
-            prog.release_check_caches();
-        } except Exception { }
-    }
+    try {
+        target_program.release_native_dep_units();
+        target_program.release_check_caches();
+    } except Exception { }
 }
 
 impl JacCompiler._compile_once(

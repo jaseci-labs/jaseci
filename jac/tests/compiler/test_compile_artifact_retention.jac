@@ -276,6 +276,14 @@ test "a verdict query's dep units do not outlive the compile that asked" {
     );
 }
 
+"""Two evaluator structures are deliberately NOT in the released set.
+
+`_flow_pending_symbols` / `_flow_pending_keys` are in-flight recursion
+guards rather than caches, and `_ts_synth_class_cache` holds synthesized
+class types whose identity later comparisons depend on. Clearing either
+at the compile boundary changes checker results (an order-dependent
+E1053 on `isinstance` narrowing), so they stay.
+"""
 test "the flow-narrowing caches do not survive the compile" {
     tmp = write_mods(
         {
@@ -316,7 +324,6 @@ test "the flow-narrowing caches do not survive the compile" {
             "_strict_site_cache": len(ev._strict_site_cache),
             "_loop_written_keys_cache": len(ev._loop_written_keys_cache),
             "_sv_async_syms_cache": len(ev._sv_async_syms_cache),
-            "_ts_synth_class_cache": len(ev._ts_synth_class_cache),
             "_type_guard_probes": len(ev._type_guard_probes)
         };
         kept = {
@@ -355,6 +362,9 @@ test "clear_type_system actually releases expression types" {
     }
     before = 0;
     for mod in prog.mod.hub.values() {
+        if mod.stub_only {
+            continue;
+        }
         (_, typed, narrowed) = type_census(mod);
         before += typed + narrowed;
     }
@@ -362,6 +372,9 @@ test "clear_type_system actually releases expression types" {
     prog.clear_type_system();
     after = 0;
     for mod in prog.mod.hub.values() {
+        if mod.stub_only {
+            continue;
+        }
         (_, typed, narrowed) = type_census(mod);
         after += typed + narrowed;
     }
