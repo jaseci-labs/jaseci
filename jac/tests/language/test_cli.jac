@@ -2675,6 +2675,36 @@ test "jac check on impl file redirects to base and filters errors" {
     }
 }
 
+"""A directory walk skips annexes the base module in the same run already compiles."""
+test "jac check directory skips covered annexes" {
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.runtime { JacRuntime }
+
+    with tempfile.TemporaryDirectory() as tmpdir {
+        with open(os.path.join(tmpdir, "mymod.jac"), "w") as f {
+            f.write("def greet(name: str) -> str;\n");
+        }
+        impl_dir = os.path.join(tmpdir, "impl");
+        os.makedirs(impl_dir);
+        with open(os.path.join(impl_dir, "mymod.impl.jac"), "w") as f {
+            f.write("impl greet(name: str) -> str { return name; }\n");
+        }
+        with open(os.path.join(tmpdir, "orphan.impl.jac"), "w") as f {
+            f.write("impl nobase.thing { return 1; }\n");
+        }
+        JacRuntime.program = JacProgram();
+        # mymod.jac plus the orphan annex no base module covers -- not
+        # mymod.impl.jac, which compiling mymod.jac already folds in.
+        assert _run_jac_check(tmpdir) == 2;
+        JacRuntime.program = JacProgram();
+        # An annex folder named directly is still walked.
+        assert _run_jac_check(impl_dir) == 1;
+        JacRuntime.program = JacProgram();
+        # So is an annex named directly.
+        assert _run_jac_check(os.path.join(impl_dir, "mymod.impl.jac")) == 1;
+    }
+}
+
 # ===== install --extras CLI tests =====
 glob _EXTRAS_JAC_TOML = (
          '[project]\nname = "mypkg"\nversion = "0.1.0"\n\n'
