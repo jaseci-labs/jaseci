@@ -1570,6 +1570,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                     or isinstance(right_type, UnknownType)
                     or left_type.is_any_type()
                     or right_type.is_any_type()
+                    or left_type.is_any_instance()
+                    or right_type.is_any_instance()
                 ) {
                     continue;
                 }

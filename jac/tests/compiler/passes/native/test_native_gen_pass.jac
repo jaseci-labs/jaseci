@@ -298,6 +298,7 @@ test "native partial class: un-lowerable method skipped, sibling stays native" {
     assert measure(b"hello") == 5;
     assert measure(b"") == 0;
     layout = ir.gen.native_layout;
+    assert layout is not None , "native layout missing";
     # The native-eligible method is exported; the eval-using one is skipped.
     assert "Literal.length" in layout.methods;
     assert "Literal.evaluate" not in layout.methods;
@@ -4113,6 +4114,7 @@ test "jir bitcode cache round-trip" {
     # Step 5: Verify native engine was restored via get_native_interop_setup
     (engine, _) = compiler2.get_native_interop_setup(fixture, prog2);
     assert engine is not None , "Native engine should be restored from bitcode cache";
+    assert isinstance(engine, ExecutionEngine) , "restored engine has the wrong type";
     add = get_func(engine, "add", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert add(17, 25) == 42 , f"add(17,25) via cached engine should be 42, got {add(
         17, 25
@@ -5565,7 +5567,9 @@ test "a failing native test must not abort the host process" {
     # and the no-handler abort() path -- calling the failing test twice in
     # one process proves the handler is popped/re-armed correctly too.
     (eng, ir) = compile_native("test_blocks.jac");
-    by_name = {t.name: t for t in ir.gen.native_layout.tests};
+    blocks_layout = ir.gen.native_layout;
+    assert blocks_layout is not None , "native layout missing";
+    by_name = {t.name: t for t in blocks_layout.tests};
     failing = get_func(eng, by_name["test_deliberate_failure"].symbol, ctypes.c_char_p);
     assert failing() is not None;
     assert failing() is not None;
