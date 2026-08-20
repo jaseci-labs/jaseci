@@ -1,9 +1,12 @@
 @__jac_value__
-obj rotating_node_t {}
-glob rotating_tree_enum_fn = object;
+obj rotating_tree_enum_fn {
+    def call(`node: rotating_node_t, arg: object) -> int {
+        ;
+    }
+}
 
 @__jac_value__
-obj rotating_node_s {
+obj rotating_node_t {
     has key: object = object();
     has left: rotating_node_t = rotating_node_t();
     has right: rotating_node_t = rotating_node_t();
@@ -42,7 +45,7 @@ def RotatingTree_RandomBits(bits: int) -> int {
     return randombits(bits);
 }
 
-def RotatingTree_Add(`root: object, `node: rotating_node_t) -> None {
+def RotatingTree_Add(`root: rotating_node_t, `node: rotating_node_t) -> None {
     while (`root != None) {
         if (`node.key < `root.key) {
             `root = `root.left;
@@ -56,7 +59,7 @@ def RotatingTree_Add(`root: object, `node: rotating_node_t) -> None {
     `root = `node;
 }
 
-def RotatingTree_Get(`root: object, key: object) -> rotating_node_t {
+def RotatingTree_Get(`root: rotating_node_t, key: object) -> rotating_node_t {
     if (randombits(3) != 4) {
         `node: rotating_node_t = `root;
         while (`node != None) {

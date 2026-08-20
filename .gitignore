@@ -78,6 +78,8 @@ reference/
 # c2jac sidecar reports are generated next to each input by `jac c2jac` (and by
 # running the transpiler over test fixtures) -- generated output, never tracked.
 *.c2jac.report.json
+!jac-py/tools/p1_corpus/baseline/project.c2jac.report.json
+!jac-py/Modules/_lifted/p1_corpus_slice1b/project.c2jac.report.json
 
 # Agent / IDE working notes (not repo artifacts)
 AGENTS.md

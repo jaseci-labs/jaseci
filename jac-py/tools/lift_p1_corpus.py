@@ -46,17 +46,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"lift_p1_corpus: missing corpus dir {source_dir}", file=sys.stderr)
         return 1
     out_dir.mkdir(parents=True, exist_ok=True)
-    _run(
-        [
-            str(_JAC),
-            "tool",
-            "c2jac",
-            "--project",
-            str(source_dir.relative_to(_REPO)),
-            "-o",
-            str(out_dir.relative_to(_REPO)),
-        ]
-    )
+    cmd = [
+        str(_JAC),
+        "tool",
+        "c2jac",
+        "--project",
+        str(source_dir.relative_to(_REPO)),
+        "-o",
+        str(out_dir.relative_to(_REPO)),
+    ]
+    include_dir = manifest.get("include_dir")
+    if include_dir:
+        inc_path = (_HERE / "p1_corpus" / include_dir).resolve()
+        if inc_path.is_dir():
+            cmd.extend(["-I", str(inc_path.relative_to(_REPO))])
+    _run(cmd)
     report = out_dir / "project.c2jac.report.json"
     print(f"lifted corpus -> {out_dir.relative_to(_REPO)}")
     print(f"aggregate report -> {report.relative_to(_REPO)}")
