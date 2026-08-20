@@ -182,7 +182,7 @@ impl StaticAnalysisPass._literal_case_suggestion(name: str) -> (str | None) {
 
 
 impl StaticAnalysisPass._osp_shape_position(name_nd: Name) -> (str | None) {
-    cur = name_nd;
+    cur: UniNode = name_nd;
     parent = cur.parent;
 
     for _ in range(8) {
@@ -242,7 +242,7 @@ impl StaticAnalysisPass._native_type_position(name_nd: Name) -> (str | None) {
 }
 
 impl StaticAnalysisPass._check_unreachable_code(mod: Module) -> None {
-    container_types = [
+    container_types: list[type[UniNode]] = [
         Ability,
         ImplDef,
         IfStmt,
@@ -253,7 +253,7 @@ impl StaticAnalysisPass._check_unreachable_code(mod: Module) -> None {
         InForStmt,
         IterForStmt
     ];
-    containers: list = [];
+    containers: list[UniNode] = [];
     for typ in container_types {
         containers.extend(mod.get_all_sub_nodes(typ=typ));
     }
@@ -468,6 +468,9 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
         }
         pinned_server = import_target_pinned_server(nd);
         for item in nd.items {
+            if not isinstance(item, ModuleItem) {
+                continue;
+            }
             verdict = classify_client_import_item(source_mod, item);
             if verdict == ClientImportVerdict.DEAD
                 and not (pinned_server and decl_has_access(source_mod, item)) {

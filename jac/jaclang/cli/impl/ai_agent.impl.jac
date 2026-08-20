@@ -615,7 +615,9 @@ impl ProcessTools.start_app(entry_file: str) -> str {
 sem ProcessTools.serve = "Start the web/full-stack dev server and wait until it is actually serving, returning the URL to open. The first start can take a while because it installs the client dependencies and builds the client; this tool blocks until the server is ready (or fails) so you do not have to guess. On success, call browse_open on the returned URL. On failure it returns the server log tail -- read it, go back to Build to fix the cause, and do not conclude the app works.";
 sem ProcessTools.serve.entry_file = "Entry .jac file to serve; empty string means 'main.jac'.";
 
-def _poll_for_server_url(proc: object, log_path: str, timeout: float) -> str {
+def _poll_for_server_url(
+    proc: subprocess.Popen[str], log_path: str, timeout: float
+) -> str {
     url_re = re.compile(
         "https?://(?:localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(?::\\d+)?\\S*"
     );
@@ -1083,8 +1085,7 @@ impl AgentEventBus.publish_ledger -> None {
 }
 
 impl AgentEventBus.subscribe -> any {
-    import from queue { Queue }
-    q = Queue();
+    q: Queue[dict] = Queue();
     self._subscribers.append(q);
     return q;
 }

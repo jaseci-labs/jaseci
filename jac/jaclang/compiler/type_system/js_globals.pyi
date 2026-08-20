@@ -70,6 +70,7 @@ __all__ = [
     "history",
     "screen",
     "performance",
+    "globalThis",
     # Global functions
     "parseInt",
     "parseFloat",
@@ -536,6 +537,31 @@ class _Console:
     def clear(self) -> None: ...
 
 console: _Console
+
+class _HostObject:
+    """A host-injected JavaScript value reached through `globalThis`.
+
+    The desktop plugin broker, the wasm bridge and the client test hooks attach
+    their own objects to the global. No stub can enumerate them, so a host
+    value stays open: any property is another host value, it may be called, and
+    it may be awaited. This keeps such bridges checkable without pretending the
+    shapes are known.
+    """
+
+    def __getattr__(self, name: str) -> _HostObject: ...
+    def __call__(self, *args: object, **kwargs: object) -> _HostObject: ...
+    def __await__(self) -> Generator[object, object, object]: ...
+
+class _GlobalThis:
+    """The `globalThis` object.
+
+    Standard globals are declared in this file; anything a host injects is
+    reached as an open `_HostObject`.
+    """
+
+    def __getattr__(self, name: str) -> _HostObject: ...
+
+globalThis: _GlobalThis
 
 class _Performance:
     """The `performance` object (High Resolution Time)."""

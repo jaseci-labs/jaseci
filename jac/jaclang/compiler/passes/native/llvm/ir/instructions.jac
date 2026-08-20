@@ -560,6 +560,7 @@ class LoadInstr(Instruction) {
 class StoreInstr(Instruction) {
     def init(self: StoreInstr, parent: any, val: any, ptr: any) -> object {
         super.init(parent, types.VoidType(), "store", [val, ptr]);
+        self.align = None;
     }
 
     def descr(self: StoreInstr, buf: any) -> object {

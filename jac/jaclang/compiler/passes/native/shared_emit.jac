@@ -240,19 +240,25 @@ def emit_shared_library(
     }
 
     target = llvm.Target.from_default_triple();
+    assert isinstance(target, llvm.Target);
     triple = llvm.get_default_triple();
+    assert isinstance(triple, str);
     target_machine = target.create_target_machine(
         opt=2, reloc="pic", codemodel="small"
     );
+    assert isinstance(target_machine, llvm.TargetMachine);
 
     if opt_level > 0 {
         pto = llvm.create_pipeline_tuning_options(speed_level=opt_level);
         pb = llvm.create_pass_builder(target_machine, pto);
+        assert isinstance(pb, llvm.PassBuilder);
         opt_mpm = pb.getModulePassManager();
+        assert isinstance(opt_mpm, llvm.ModulePassManager);
         opt_mpm.run(mod, pb);
     }
 
     obj_bytes = target_machine.emit_object(mod);
+    assert isinstance(obj_bytes, bytes);
 
     is_windows = sys.platform.startswith("win");
     is_macos = sys.platform == "darwin";

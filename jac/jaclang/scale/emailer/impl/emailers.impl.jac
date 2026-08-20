@@ -28,13 +28,13 @@ impl SMTPEmailer.send_email(
         logger.error("SMTPEmailer: no from_address configured");
         return False;
     }
-    msg = MIMEMultipart('alternative');
+    msg = EmailMessage();
     msg['Subject'] = subject;
     msg['From'] = sender;
     msg['To'] = to_addr;
-    msg.attach(MIMEText(body_text, 'plain', 'utf-8'));
+    msg.set_content(body_text, subtype='plain', charset='utf-8');
     if body_html {
-        msg.attach(MIMEText(body_html, 'html', 'utf-8'));
+        msg.add_alternative(body_html, subtype='html', charset='utf-8');
     }
     try {
         with smtplib.SMTP(self.host, self.port, timeout=self.timeout) as smtp {

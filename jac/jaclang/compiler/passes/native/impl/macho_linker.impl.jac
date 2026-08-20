@@ -138,21 +138,26 @@ def _trie_common_prefix(a: str, b: str) -> int {
     return i;
 }
 
+obj _ExportTrieNode {
+    has term: (int | None) = None,
+        kids: dict[str, _ExportTrieNode] = {};
+}
+
 def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
     if len(symbols) == 0 {
         return bytes([0, 0]);
     }
 
-    trie_root: dict = {"term": None, "kids": {}};
+    trie_root = _ExportTrieNode();
     for (name, addr) in symbols {
         cur = trie_root;
         rest = name;
         while True {
             if rest == "" {
-                cur["term"] = addr;
+                cur.term = addr;
                 break;
             }
-            kids = cur["kids"];
+            kids = cur.kids;
             matched = False;
             for label in list(kids.keys()) {
                 c = _trie_common_prefix(label, rest);
@@ -163,7 +168,7 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
                     cur = kids[label];
                 } else {
                     child = kids.pop(label);
-                    mid = {"term": None, "kids": {label[c:]: child}};
+                    mid = _ExportTrieNode(term=None, kids={label[c:]: child});
                     kids[label[:c]] = mid;
                     cur = mid;
                 }
@@ -172,22 +177,22 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
                 break;
             }
             if not matched {
-                kids[rest] = {"term": addr, "kids": {}};
+                kids[rest] = _ExportTrieNode(term=addr, kids={});
                 break;
             }
         }
     }
 
-    order: list = [];
-    stack: list = [trie_root];
+    order: list[_ExportTrieNode] = [];
+    stack: list[_ExportTrieNode] = [trie_root];
     while stack {
         nd = stack.pop();
         order.append(nd);
-        for label in sorted(nd["kids"].keys(), reverse=True) {
-            stack.append(nd["kids"][label]);
+        for label in sorted(nd.kids.keys(), reverse=True) {
+            stack.append(nd.kids[label]);
         }
     }
-    node_index: dict = {};
+    node_index: dict[int, int] = {};
     for (i, nd) in enumerate(order) {
         node_index[id(nd)] = i;
     }
@@ -197,16 +202,17 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
     for _iter in range(16) {
         encs = [];
         for nd in order {
-            if nd["term"] is not None {
+            term_addr = nd.term;
+            if term_addr is not None {
                 info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR)
-                    + _encode_uleb128(nd["term"]);
+                    + _encode_uleb128(term_addr);
                 e = _encode_uleb128(len(info)) + info;
             } else {
                 e = _encode_uleb128(0);
             }
-            e += bytes([len(nd["kids"])]);
-            for label in sorted(nd["kids"].keys()) {
-                child = nd["kids"][label];
+            e += bytes([len(nd.kids)]);
+            for label in sorted(nd.kids.keys()) {
+                child = nd.kids[label];
                 e += label.encode("utf-8")
                     + b"\x00"
                     + _encode_uleb128(offsets[node_index[id(child)]]);

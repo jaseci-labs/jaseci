@@ -397,7 +397,11 @@ impl JacAPIServerOps.register_ops_endpoints -> None {
 
         return JSONResponse(content={"ok": True, "data": {"signals": signals}});
     }
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/ops/health",

@@ -73,7 +73,7 @@ class IRBuilder(object) {
         The current basic block.
         """
     @property
-    def block(self: IRBuilder) -> object {
+    def block(self: IRBuilder) -> values.Block {
         return self._block;
     }
 
@@ -85,7 +85,7 @@ class IRBuilder(object) {
         The current function.
         """
     @property
-    def function(self: IRBuilder) -> object {
+    def function(self: IRBuilder) -> values.Function {
         return self.block.parent;
     }
 
@@ -321,7 +321,7 @@ class IRBuilder(object) {
     def fneg(self: IRBuilder, arg: any, name: any = '', flags: any = ()) -> object { }
 
     def _icmp(
-        self: IRBuilder, prefix: any, cmpop: any, lhs: any, rhs: any, name: any
+        self: IRBuilder, prefix: str, cmpop: any, lhs: any, rhs: any, name: any
     ) -> object {
         try {
             op = _CMP_MAP[cmpop];

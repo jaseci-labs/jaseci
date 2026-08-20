@@ -163,16 +163,16 @@ impl ReactBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
 impl ReactBackend._view_attr_property(attr: any, sync_loc: any) -> es.Property {
     import from jaclang.compiler.passes.ecmascript.view_ir { DynamicAttr, EventAttr }
     if isinstance(attr, DynamicAttr) {
-        name = attr.name;
+        attr_name = attr.name;
         value = sync_loc(self.lower_view_expr(attr.value), jac_node=attr.jac_node);
     } elif isinstance(attr, EventAttr) {
-        name = attr.name;
+        attr_name = attr.name;
         value = attr.handler;
     } else {
-        name = attr.name;
+        attr_name = attr.name;
         value = attr.value;
     }
-    key_expr = sync_loc(es.Literal(value=name), jac_node=attr.jac_node);
+    key_expr = sync_loc(es.Literal(value=attr_name), jac_node=attr.jac_node);
     return sync_loc(
         es.Property(
             key=key_expr,
@@ -299,12 +299,11 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
 }
 
 impl ReactBackend.lower_state_update(u: StateUpdate) -> es.Expression {
+    setter_arg: es.Expression = u.value;
     if u.aug_op {
         setter_arg = es.BinaryExpression(
             operator=u.aug_op, left=self.lower_state_read(u.name), right=u.value
         );
-    } else {
-        setter_arg = u.value;
     }
     return es.CallExpression(
         callee=self._state_cell_member(u.name, 'set'), arguments=[setter_arg]

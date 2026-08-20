@@ -185,7 +185,7 @@ def:pub app -> JsxElement {
             ctrl = new(AbortController);
             ctrlRef.current = ctrl;
             try {
-                token = window.localStorage.getItem("jac_token");
+                token = localStorage.getItem("jac_token");
                 headers = {"Content-Type": "application/json"};
                 if token {
                     headers["Authorization"] = "Bearer " + token;

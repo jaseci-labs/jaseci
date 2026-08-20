@@ -1,4 +1,5 @@
 import importlib.util;
+import from importlib.machinery { ModuleSpec }
 import os;
 import sys;
 import from pathlib { Path }
@@ -218,7 +219,9 @@ def _resolve_path_alias(target: str, base_path: str) -> (str | None) {
     try {
         import from jaclang.project.config { get_config }
         config = get_config();
-        project_root = config.project_root if config else None;
+        project_root: (str | None) = (
+            str(config.project_root) if config and config.project_root else None
+        );
     } except (ImportError, AttributeError) {
         project_root = None;
     }
@@ -322,7 +325,11 @@ def resolve_module(
         } except (ImportError, AttributeError, ValueError) {
             spec = None;
         }
-        if (spec and spec.origin and (spec.origin not in {'built-in', 'frozen'})) {
+        if (
+            isinstance(spec, ModuleSpec)
+            and spec.origin
+            and (spec.origin not in {'built-in', 'frozen'})
+        ) {
             origin = os.path.normpath(spec.origin);
             lang = language_of(origin);
             if (lang != 'other') {
@@ -399,7 +406,7 @@ def resolve_relative_path(
 
 glob NPM_RUNTIME_CONDITIONS: tuple = ('browser', 'module', 'import', 'default'),
      NPM_TYPES_CONDITIONS: tuple = ('types', 'import', 'default'),
-     NPM_DTS_SUFFIXES: tuple = ('.d.ts', '.d.mts', '.d.cts');
+     NPM_DTS_SUFFIXES: tuple[str, ...] = ('.d.ts', '.d.mts', '.d.cts');
 
 def _find_npm_package(
     spec: str, base_path: str

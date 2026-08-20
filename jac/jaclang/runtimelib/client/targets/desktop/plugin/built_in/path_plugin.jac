@@ -1,8 +1,8 @@
 import os;
 import tempfile;
 import from pathlib { Path }
-import from desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
-import from manifest { PluginManifest, PluginContext }
+import from ..desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
+import from ..manifest { PluginManifest, PluginContext }
 
 
 obj PathPlugin(DesktopPlugin) {

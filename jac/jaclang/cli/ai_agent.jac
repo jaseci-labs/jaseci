@@ -1,4 +1,4 @@
-import from jaclang.jac0core.archetype { Root }
+import from queue { Queue }
 import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.parallel { mark_serialize }
 
@@ -124,7 +124,7 @@ obj AgentEventBus {
         path: list[str] = [],
         last_stats: dict = {},
         cancel_requested: bool = False,
-        _subscribers: list = [],
+        _subscribers: list[Queue[dict]] = [],
         _next_id: int = 1,
         _cap: int = 4000,
         needs_key: bool = False,

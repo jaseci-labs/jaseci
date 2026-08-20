@@ -2,7 +2,7 @@ import os;
 import stat;
 import from pathlib { Path }
 import from desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
-import from built_in.path_plugin { PathPlugin }
+import from path_plugin { PathPlugin }
 import from manifest { PluginManifest, PluginContext }
 
 
@@ -12,8 +12,8 @@ obj FsPlugin(DesktopPlugin) {
     has _path_plugin: PathPlugin,
         _allow_read: list = [],
         _allow_write: list = [],
-        _resolved_read: list = [],
-        _resolved_write: list = [];
+        _resolved_read: list[str] = [],
+        _resolved_write: list[str] = [];
 
     static def manifest -> PluginManifest {
         return PluginManifest(
@@ -26,7 +26,13 @@ obj FsPlugin(DesktopPlugin) {
     }
 
     static def build(ctx: PluginContext, config: object) -> DesktopPlugin {
-        return FsPlugin(DesktopPlugin._coerce_config(config), ctx.path_plugin);
+        path_plugin = ctx.path_plugin;
+        if not isinstance(path_plugin, PathPlugin) {
+            raise PluginError(
+                ErrorCode.NOT_READY, "The 'jac.path' plugin is not available."
+            );
+        }
+        return FsPlugin(DesktopPlugin._coerce_config(config), path_plugin);
     }
 
     def init(config: dict, path_plugin: PathPlugin) {
