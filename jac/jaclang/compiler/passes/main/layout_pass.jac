@@ -536,8 +536,8 @@ def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] 
         _values[mname] = _asn.value;
     }
     _placed.sort();
-    for entry in _placed {
-        out.append((entry[2], _values[entry[2]]));
+    for `entry in _placed {
+        out.append((`entry[2], _values[`entry[2]]));
     }
     return out;
 }

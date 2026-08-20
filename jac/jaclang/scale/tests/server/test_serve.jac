@@ -131,10 +131,10 @@ def _stop_server(server_process: subprocess.Popen | None) {
     if server_process {
         server_process.terminate();
         try {
-            server_process.wait(timeout=5);
+            server_process.`wait(timeout=5);
         } except subprocess.TimeoutExpired {
             server_process.kill();
-            server_process.wait();
+            server_process.`wait();
         }
     }
     time.sleep(0.2);
@@ -2004,7 +2004,7 @@ test "server startup - port fallback integration" {
         if sp2 {
             sp2.terminate();
             try {
-                sp2.wait(timeout=5);
+                sp2.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 sp2.kill();
             }
@@ -2190,7 +2190,7 @@ theme_color = "#000000"
         } finally {
             server.terminate();
             try {
-                server.wait(timeout=5);
+                server.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 server.kill();
             }

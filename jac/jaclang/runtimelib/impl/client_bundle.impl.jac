@@ -58,7 +58,7 @@ impl _prebuilt_bundle(module: ModuleType, source_path: Path) -> (ClientBundle | 
     if dist is None {
         return None;
     }
-    candidates = sorted(dist.glob('client.*.js'));
+    candidates = sorted(dist.`glob('client.*.js'));
     if not candidates {
         return None;
     }

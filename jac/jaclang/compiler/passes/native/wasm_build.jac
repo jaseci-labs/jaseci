@@ -396,7 +396,7 @@ def _project_gc_settings -> tuple[str, list[str], list[str]] {
         import from jaclang.project { get_config }
         cfg = get_config();
         if cfg {
-            gc_mode = cfg.gc.default;
+            gc_mode = cfg.gc.`default;
             enf_mods = list(cfg.gc.enforce.modules);
             enf_grand = list(cfg.gc.enforce.grandfathered);
         }

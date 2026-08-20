@@ -377,20 +377,20 @@ def reap_stale_stage_roots -> int {
     } except OSError {
         return 0;
     }
-    for entry in entries {
-        if not entry.is_dir() or not entry.name.startswith(STAGE_PREFIX) {
+    for `entry in entries {
+        if not `entry.is_dir() or not `entry.name.startswith(STAGE_PREFIX) {
             continue;
         }
-        pid = _stage_root_pid(entry.name);
+        pid = _stage_root_pid(`entry.name);
         if pid == 0 {
-            if not _stage_root_expired(entry) {
+            if not _stage_root_expired(`entry) {
                 continue;
             }
         } elif _pid_alive(pid) {
             continue;
         }
-        shutil.rmtree(str(entry), ignore_errors=True);
-        if not entry.exists() {
+        shutil.rmtree(str(`entry), ignore_errors=True);
+        if not `entry.exists() {
             removed += 1;
         }
     }

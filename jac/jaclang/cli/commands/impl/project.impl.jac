@@ -1695,7 +1695,7 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
         }
         return dist if dist.is_dir() else None;
     }
-    if dist.is_dir() and any(dist.glob('client.*.js')) {
+    if dist.is_dir() and any(dist.`glob('client.*.js')) {
         console.print(
             "  ⚠ bun unavailable; baking the existing client dist as-is",
             style="warning"
@@ -1927,7 +1927,7 @@ def _vendor_jab_deps(config: any, img: Path) -> bool {
     }
     write_vendor_manifest(img, specs, python_tag=python_tag());
 
-    wheels = sorted(wd.glob("*.whl"));
+    wheels = sorted(wd.`glob("*.whl"));
     total = sum([w.stat().st_size for w in wheels]);
     console.print(
         f"  ✔ Vendored {len(wheels)} wheel(s) ({total:,} bytes); "

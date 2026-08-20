@@ -115,6 +115,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
      ),
+     E0014 = _err(
+         "E0014",
+         Category.SYNTAX,
+         "'{name}' is not a keyword -- remove the backtick",
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+     ),
      E0020 = _err(
          "E0020",
          Category.SYNTAX,
@@ -1240,9 +1246,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Empty parentheses can be removed [remove-empty-parens]"
      ),
-     W3006 = _warn(
-         "W3006", Category.LINT, "Unnecessary keyword escape on '{name}' [remove-kwesc]"
-     ),
      W3007 = _warn(
          "W3007",
          Category.LINT,
@@ -1384,7 +1387,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "combine-glob": "W3003",
          "init-to-can": "W3004",
          "remove-empty-parens": "W3005",
-         "remove-kwesc": "W3006",
          "hasattr-to-null-ok": "W3007",
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",

@@ -262,10 +262,10 @@ test "uni_pass contributes no waiver at all" {
     import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_DEMOTION_WAIVERS }
     offending: list[str] = [];
     for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
-        for entry in names {
-            if entry.startswith("jac0core/passes/uni_pass.jac::")
-                and entry not in offending {
-                offending.append(entry);
+        for `entry in names {
+            if `entry.startswith("jac0core/passes/uni_pass.jac::")
+                and `entry not in offending {
+                offending.append(`entry);
             }
         }
     }

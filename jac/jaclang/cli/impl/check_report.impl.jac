@@ -185,15 +185,15 @@ impl print_placement_report(rows_by_module: dict) -> None {
         return;
     }
     counts: dict[str, int] = {};
-    for entry in rows_by_module.values() {
-        for row in entry['rows'] {
+    for `entry in rows_by_module.values() {
+        for row in `entry['rows'] {
             key = 'dual' if row['dual'] else row['space'];
             counts[key] = counts.get(key, 0) + 1;
         }
     }
     total_crossings = 0;
-    for entry in rows_by_module.values() {
-        total_crossings += entry.get('crossings', 0);
+    for `entry in rows_by_module.values() {
+        total_crossings += `entry.get('crossings', 0);
     }
     console.print(
         ", ".join(
@@ -205,8 +205,8 @@ impl print_placement_report(rows_by_module: dict) -> None {
         f"(client import items bridged over RPC)"
     );
     for path in sorted(rows_by_module.keys()) {
-        entry = rows_by_module[path];
-        decided = entry['decided'];
+        `entry = rows_by_module[path];
+        decided = `entry['decided'];
         rel = _census_relpath(path);
         suffix = '';
         if decided {
@@ -214,7 +214,7 @@ impl print_placement_report(rows_by_module: dict) -> None {
         }
         console.print("");
         console.print(rel + suffix);
-        for row in entry['rows'] {
+        for row in `entry['rows'] {
             row_space = row['space'];
             if row['dual'] {
                 row_space = row_space + ' (dual)';
