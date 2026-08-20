@@ -285,14 +285,15 @@ test "declining the prefix does not force the native parser binding" {
     _reset();
 }
 
-test "the quiet clauses are exactly the three missing capabilities" {
+test "the quiet clauses are exactly the missing capabilities" {
     quiet = list(prefix_quiet_clauses());
-    assert quiet == [
-        "image-unsealed",
-        "prefix-entry-absent",
-        "annex-present",
-        "codespace-pinned"
-    ] , (
+    assert quiet
+        == [
+            "image-unsealed",
+            "prefix-entry-absent",
+            "annex-present",
+            "codespace-pinned"
+        ] , (
         f"the quiet set changed to {quiet}. A clause goes quiet only when it "
         "names a whole capability the build lacks -- no image, no prefix "
         "entry, no annex weave, no codespace stamped before the crossing -- "
