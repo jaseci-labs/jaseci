@@ -2991,6 +2991,14 @@ impl TypeEvaluator.assign_type(
             and self._in_native_context() {
             return True;
         }
+
+        if isinstance(src_type, ClassType) and src_type.is_instantiable_class() {
+            for ctor in self.class_constructor_callables(src_type) {
+                if self._assign_callable(ctor, dest_type, strict) {
+                    return True;
+                }
+            }
+        }
     }
 
     if isinstance(src_type, FunctionType) {

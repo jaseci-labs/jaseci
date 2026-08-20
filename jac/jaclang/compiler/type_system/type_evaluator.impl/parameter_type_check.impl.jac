@@ -702,6 +702,11 @@ impl TypeEvaluator.assign_type_to_type_var(
         return True;
     }
 
+    if isinstance(arg_type, (UnknownType, AnyType)) or arg_type.is_any_instance() {
+        self.bind_type_vars_to_opaque(param_type, bindings, arg_type);
+        return True;
+    }
+
     if isinstance(param_type, UnionType) {
         for member in param_type.types {
             if isinstance(member, TypeVarType) {
@@ -759,6 +764,39 @@ impl TypeEvaluator.assign_type_to_type_var(
     return True;
 }
 
+
+impl TypeEvaluator.bind_type_vars_to_opaque(
+    param_type: TypeBase, bindings: dict[str, TypeBase], fill: TypeBase
+) -> None {
+    if isinstance(param_type, TypeVarType) {
+        if param_type.name and param_type.name not in bindings {
+            bindings[param_type.name] = fill;
+        }
+        return;
+    }
+    if isinstance(param_type, UnionType) {
+        for member in param_type.types {
+            self.bind_type_vars_to_opaque(member, bindings, fill);
+        }
+        return;
+    }
+    if isinstance(param_type, FunctionType) {
+        for parameter in (param_type.parameters or []) {
+            if parameter.param_type is not None {
+                self.bind_type_vars_to_opaque(parameter.param_type, bindings, fill);
+            }
+        }
+        if param_type.return_type is not None {
+            self.bind_type_vars_to_opaque(param_type.return_type, bindings, fill);
+        }
+        return;
+    }
+    if isinstance(param_type, ClassType) and param_type.private {
+        for type_arg in param_type.private.type_args {
+            self.bind_type_vars_to_opaque(type_arg, bindings, fill);
+        }
+    }
+}
 
 impl TypeEvaluator._infer_type_args_from_method(
     caller_type: ClassType, expr: FuncCall, matched_method: FunctionType | None
@@ -824,6 +862,56 @@ impl TypeEvaluator._substitute_type_vars(
         return typ.specialize_generics(new_args);
     }
     return typ;
+}
+
+impl TypeEvaluator.class_constructor_callables(cls_type: ClassType) -> list[FunctionType] {
+    out: list[FunctionType] = [];
+    instance = cls_type.clone_as_instance();
+    for name in ['init', '__init__', '__new__'] {
+        member = self._lookup_class_member(cls_type, name);
+        if member is None {
+            continue;
+        }
+        if member.class_type.shared.class_name == "object" {
+            continue;
+        }
+        raw_type = self.get_type_of_symbol(member.symbol);
+        candidates: list[TypeBase] = [];
+        if isinstance(raw_type, OverloadedType) and raw_type.overloads {
+            candidates = list(raw_type.overloads);
+        } else {
+            candidates = [raw_type];
+        }
+        for overload_sym in (member.overloads or []) {
+            overload_type = self.get_type_of_symbol(overload_sym);
+            if overload_type not in candidates {
+                candidates.append(overload_type);
+            }
+        }
+        for cand in candidates {
+            if not isinstance(cand, FunctionType) {
+                continue;
+            }
+            params = [
+                p
+                for p in (cand.parameters or [])
+                if not p.is_self and not p.is_cls
+            ];
+            out.append(
+                create_callable_type(
+                    [
+                        p.param_type if p.param_type is not None else UnknownType()
+                        for p in params
+                    ],
+                    instance
+                )
+            );
+        }
+        if out {
+            return out;
+        }
+    }
+    return out;
 }
 
 impl TypeEvaluator._find_matching_raw_constructor(
