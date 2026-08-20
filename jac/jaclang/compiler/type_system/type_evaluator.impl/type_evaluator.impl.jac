@@ -729,6 +729,24 @@ impl TypeEvaluator._get_type_of_expression_core(
                         expr.right.type = submod_type;
                         return submod_type;
                     }
+                    module_cls = self._get_type_from_module(
+                        self.types_module, "ModuleType"
+                    );
+                    if isinstance(module_cls, ClassType) {
+                        module_inst = self._convert_to_instance(module_cls);
+                        if isinstance(module_inst, ClassType) {
+                            if module_member
+                                := self._lookup_object_member(
+                                    module_inst, expr.right.value
+                                ) {
+                                module_member.symbol.add_use(expr.right);
+                                expr.right.type = self.get_type_of_member(
+                                    module_member, module_inst
+                                );
+                                return expr.right.type;
+                            }
+                        }
+                    }
                     return UnknownType();
                 } elif base_type.is_instantiable_class() {
                     assert isinstance(base_type, ClassType);
