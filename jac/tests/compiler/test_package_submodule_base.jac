@@ -44,3 +44,13 @@ test "a package segment of a dotted import resolves to the package" {
     errs = check_src(src);
     assert not errs , f"package segment unresolved: {errs}";
 }
+
+test "a namespace package resolves without an __init__" {
+    src = "import xml.etree.ElementTree;\n"
+        + "def probe(s: str) -> None {\n"
+        + "    parsed = xml.etree.ElementTree.fromstring(s);\n"
+        + "    assert parsed is not None;\n"
+        + "}\n";
+    errs = check_src(src);
+    assert not errs , f"package segment unresolved: {errs}";
+}

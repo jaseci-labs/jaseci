@@ -256,15 +256,13 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
                         break;
                     }
                 }
-                if pkg_sym_tab is not None {
-                    pkg_type = ModuleType(
-                        mod_name=npath.value,
-                        file_uri=pkg_dir.resolve(),
-                        symbol_table=pkg_sym_tab,
-                    );
-                    npath.type = pkg_type;
-                    self._module_type_cache[mod_path] = pkg_type;
-                }
+                pkg_type = ModuleType(
+                    mod_name=npath.value,
+                    file_uri=pkg_dir.resolve(),
+                    symbol_table=pkg_sym_tab,
+                );
+                npath.type = pkg_type;
+                self._module_type_cache[mod_path] = pkg_type;
                 continue;
             }
 
