@@ -173,17 +173,18 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
                 if isinstance(list_inst, ClassType) and expr.values {
                     elem_types: list[TypeBase] = [];
+                    expected_elem = self._get_expected_element_type(
+                        expected_type, self.prefetch.list_class
+                    );
                     for _val in expr.values {
-                        elem_type = self.get_type_of_expression(_val);
+                        elem_type = self.get_type_of_expression(
+                            _val, expected_type=expected_elem
+                        );
                         if not isinstance(elem_type, UnknownType)
                             and not self._type_in_list(elem_type, elem_types) {
                             elem_types.append(elem_type);
                         }
                     }
-
-                    expected_elem = self._get_expected_element_type(
-                        expected_type, self.prefetch.list_class
-                    );
                     if expected_elem is not None and elem_types {
                         all_compatible = True;
                         for et in elem_types {
