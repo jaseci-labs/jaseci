@@ -141,6 +141,43 @@ test "forever keyword preserved not rewritten" {
     assert "while" not in formatted;
 }
 
+test "awaiting fmt" {
+    compare_files(os.path.join(FIXTURES, "awaiting_fmt.jac"));
+}
+
+test "awaiting jsx fmt" {
+    compare_files(os.path.join(FIXTURES, "awaiting_jsx_fmt.jac"));
+}
+
+test "awaiting clause preserved not dropped" {
+    # Regression for #7916: `DocIRGenPass` had no `awaiting` handler, so the
+    # clause rendered as the empty string and `jac fmt` deleted it from disk,
+    # leaving the double space where its text should have been.
+    for name in ["awaiting_fmt.jac", "awaiting_jsx_fmt.jac"] {
+        path = os.path.join(FIXTURES, name);
+        prog = JacProgram.jac_file_formatter(path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+        assert "awaiting {" in formatted , (
+            f"formatter dropped the awaiting clause from {name}:\n{formatted}"
+        );
+        assert "}  except" not in formatted , (
+            f"empty render left a double space before except in {name}:\n{formatted}"
+        );
+    }
+    plain = JacProgram.jac_file_formatter(
+        os.path.join(FIXTURES, "awaiting_fmt.jac"), auto_lint=True
+    ).mod.main.gen.jac;
+    assert 'print("waiting");' in plain , (
+        f"formatter dropped the awaiting body:\n{plain}"
+    );
+    slotted = JacProgram.jac_file_formatter(
+        os.path.join(FIXTURES, "awaiting_jsx_fmt.jac"), auto_lint=True
+    ).mod.main.gen.jac;
+    assert "<p>loading</p>" in slotted , (
+        f"formatter dropped the awaiting fallback markup:\n{slotted}"
+    );
+}
+
 test "fstring comment not injected" {
     path = os.path.join(FIXTURES, "fstring_comment.jac");
     prog = JacProgram.jac_file_formatter(path, auto_lint=True);
@@ -1186,69 +1223,6 @@ def _overrides_handler(cls: type, snake: str) -> bool {
         }
     }
     return False;
-}
-
-test "awaiting clause survives formatting" {
-    # Regression for #7916: `DocIRGenPass` had no `awaiting` handler, so the
-    # clause rendered as the empty string and `jac fmt` deleted it from disk.
-    source = (
-        'def run -> None {\n'
-        '    try {\n'
-        '        print("body");\n'
-        '    } awaiting {\n'
-        '        print("waiting");\n'
-        '    } except Exception {\n'
-        '        print("failed");\n'
-        '    }\n'
-        '}\n'
-    );
-    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
-    assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
-    formatted = prog.mod.main.gen.jac;
-    assert "awaiting {" in formatted , (
-        f"formatter dropped the awaiting clause:\n{formatted}"
-    );
-    assert 'print("waiting");' in formatted , (
-        f"formatter dropped the awaiting body:\n{formatted}"
-    );
-    assert "}  except" not in formatted , (
-        f"empty render left a double space before except:\n{formatted}"
-    );
-    assert formatted == source , (
-        "already-formatted awaiting source must round-trip unchanged:\n"
-        + "\n".join(unified_diff(source.splitlines(), formatted.splitlines()))
-    );
-    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
-    assert formatted == prog2.mod.main.gen.jac , (
-        f"awaiting formatting is not idempotent:\n{formatted}"
-    );
-}
-
-test "awaiting clause survives formatting inside a jsx slot" {
-    source = (
-        'def:pub Panel -> JsxElement {\n'
-        '    return <div>{try {\n'
-        '        <p>ready</p>\n'
-        '    } awaiting {\n'
-        '        <p>loading</p>\n'
-        '    } except Exception {\n'
-        '        <p>failed</p>\n'
-        '    }}</div>;\n'
-        '}\n'
-    );
-    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
-    assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
-    formatted = prog.mod.main.gen.jac;
-    assert "awaiting {" in formatted , (
-        f"formatter dropped the awaiting clause in a jsx slot:\n{formatted}"
-    );
-    assert "<p>loading</p>" in formatted , (
-        f"formatter dropped the awaiting fallback markup:\n{formatted}"
-    );
-    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
-    assert formatted == prog2.mod.main.gen.jac , (
-        f"jsx awaiting formatting is not idempotent:\n{formatted}"
-    );
 }
 
 test "every normalized node kind also renders to doc IR" {
