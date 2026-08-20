@@ -129,8 +129,14 @@ def prepare_inprocess_runtime(
             server._setup_events();
         }
 
+        native_server = server.server;
+        if native_server is None {
+            raise RuntimeError(
+                "in-process runtime requires a started server"
+            );
+        }
         client = ServingTestClient(
-            app=server.server.app, raise_server_exceptions=False
+            app=native_server.app, raise_server_exceptions=False
         );
         return PreparedInProcessRuntime(
             server=server,

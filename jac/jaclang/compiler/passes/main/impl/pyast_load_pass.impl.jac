@@ -1027,16 +1027,19 @@ impl PyastBuildPass.proc_import(nd: py_ast.Import) -> Import {
             isinstance(name.expr, Name)
             and (isinstance(name.alias, Name) or (name.alias is None))
         ) {
+            segments: list[Name] = [
+                self.name_node(nd, part) for part in name.expr.value.split(".")
+            ];
+            if not segments {
+                segments = [name.expr];
+            }
+            seg_kid: list[UniNode] = list(segments);
+            if name.alias {
+                seg_kid.append(name.alias);
+            }
             paths.append(
                 ModulePath(
-                    path=[name.expr],
-                    level=0,
-                    alias=name.alias,
-                    kid=[
-                        i
-                        for i in name.kid
-                        if i
-                    ]
+                    path=segments, level=0, alias=name.alias, kid=seg_kid
                 )
             );
         } else {
