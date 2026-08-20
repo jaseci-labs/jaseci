@@ -488,6 +488,54 @@ test "a crossing that declines short names its own reason" {
     }
 }
 
+"""A source the parser REJECTS must not reach codegen through the crossing.
+
+The driver discounts the prefix's own alerts when it decides whether the parse
+failed, because a pass the crossing already ran must not have its errors
+counted twice. The span it discounts was recorded around the whole crossing
+entry -- and that entry delivers the PARSE diagnostics too. On a parse failure
+the crossing runs NO passes, so the span held nothing but parse errors and
+`n - n` read as a clean parse: the schedule ran and bytecode was emitted for a
+tree the parser had thrown out.
+
+That shipped artifacts from broken source, silently. Nothing caught it but a
+deploy test that needs a Kubernetes cluster, which is far too thin a guard for
+a defect this quiet, so the property is pinned here at the unit level. The
+entry below reports a parse failure exactly as the native crossing does --
+errors delivered into the program, empty executed list, `prefix-declined` --
+so this holds the driver's accounting, which is where the fault was.
+"""
+test "a source the parser rejects never reaches codegen through the crossing" {
+    _reset();
+    import tempfile;
+    try {
+        set_prefix_entry(reference_prefix_entry);
+        with tempfile.TemporaryDirectory() as tmp {
+            path = _probe_module(
+                tmp,
+                "syntax_bad.jac",
+                src="node Todo {\n    has text: str\n        done: bool = False;\n}\n"
+            );
+            (prog, mod) = _compile(path, no_cgen=False);
+            rec = prefix_snapshot().get(os.path.realpath(path));
+            assert rec is not None , f"the router never recorded {path}";
+            assert list(rec["executed"]) == [] , (
+                f"the crossing ran passes over a rejected tree: {rec}"
+            );
+            assert prog.errors_had , "the parse errors were never delivered";
+            assert mod.parse_failed , "parse_failed was not stamped on the module";
+            assert not mod.gen.py_bytecode , (
+                "a source the parser rejected reached codegen through the "
+                f"crossing: {len(prog.errors_had)} parse error(s) were "
+                "discounted as if they were the prefix's own pass alerts, so "
+                "the driver read the parse as clean and emitted bytecode"
+            );
+        }
+    } finally {
+        _reset();
+    }
+}
+
 test "the reference prefix is admitted and its passes are counted" {
     _reset();
     import tempfile;
