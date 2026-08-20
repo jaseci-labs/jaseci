@@ -2221,6 +2221,16 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
 
                     if (
                         isinstance(declared_inst, ClassType)
+                        and self.prefetch.final_class is not None
+                        and declared_inst.shared == self.prefetch.final_class.shared
+                        and not declared_inst.private.type_args
+                        and node_.parent.value is not None
+                    ) {
+                        return self.get_type_of_expression(node_.parent.value);
+                    }
+
+                    if (
+                        isinstance(declared_inst, ClassType)
                         and declared_inst.is_builtin("list")
                         and not declared_inst.private.type_args
                         and isinstance(node_.parent.value, ListVal)
