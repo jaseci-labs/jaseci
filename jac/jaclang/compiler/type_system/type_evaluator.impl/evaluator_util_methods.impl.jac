@@ -483,6 +483,7 @@ impl TypeEvaluator._edge_endpoint_type(
 }
 
 impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool {
+    import from jaclang.compiler.type_system.type_utils { types_equivalent }
     for existing in type_list {
         if isinstance(ty, ClassType) and isinstance(existing, ClassType) {
             if ty.shared == existing.shared {
@@ -493,8 +494,7 @@ impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> boo
         } elif (
             not isinstance(ty, ClassType)
             and not isinstance(existing, ClassType)
-            and type(ty) is type(existing)
-            and str(ty) == str(existing)
+            and types_equivalent(ty, existing)
         ) {
             return True;
         }

@@ -180,6 +180,108 @@ impl lookup_symtab(
     return symbol;
 }
 
+impl types_equivalent(a: TypeBase, b: TypeBase, depth: int = 0) -> bool {
+    if a is b {
+        return True;
+    }
+    if type(a) is not type(b) {
+        return False;
+    }
+    if depth > 8 {
+        return False;
+    }
+    if isinstance(a, (UnknownType, AnyType, NeverType)) {
+        return True;
+    }
+    if isinstance(a, ClassType) and isinstance(b, ClassType) {
+        if a.shared != b.shared or a.flags != b.flags {
+            return False;
+        }
+        if a.get_literal_value() != b.get_literal_value() {
+            return False;
+        }
+        a_args = a.private.type_args or [];
+        b_args = b.private.type_args or [];
+        if len(a_args) != len(b_args) {
+            return False;
+        }
+        for i in range(len(a_args)) {
+            if not types_equivalent(a_args[i], b_args[i], depth + 1) {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(a, FunctionType) and isinstance(b, FunctionType) {
+        a_params = a.parameters or [];
+        b_params = b.parameters or [];
+        if len(a_params) != len(b_params) {
+            return False;
+        }
+        for i in range(len(a_params)) {
+            at = a_params[i].param_type;
+            bt = b_params[i].param_type;
+            if (at is None) != (bt is None) {
+                return False;
+            }
+            if at is not None
+                and bt is not None
+                and not types_equivalent(at, bt, depth + 1) {
+                return False;
+            }
+        }
+        a_ret = a.return_type;
+        b_ret = b.return_type;
+        if (a_ret is None) != (b_ret is None) {
+            return False;
+        }
+        if a_ret is not None and b_ret is not None {
+            return types_equivalent(a_ret, b_ret, depth + 1);
+        }
+        return True;
+    }
+    if isinstance(a, UnionType) and isinstance(b, UnionType) {
+        a_types = a.types or [];
+        b_types = b.types or [];
+        if len(a_types) != len(b_types) {
+            return False;
+        }
+        for member in a_types {
+            matched = False;
+            for other in b_types {
+                if types_equivalent(member, other, depth + 1) {
+                    matched = True;
+                    break;
+                }
+            }
+            if not matched {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(a, TypeVarType) and isinstance(b, TypeVarType) {
+        return a.name == b.name;
+    }
+    if isinstance(a, EnumMemberType) and isinstance(b, EnumMemberType) {
+        a_cls = a.enum_class;
+        b_cls = b.enum_class;
+        if a_cls is None or b_cls is None {
+            return a_cls is b_cls;
+        }
+        if a_cls.shared != b_cls.shared {
+            return False;
+        }
+        a_info = a.member_info;
+        b_info = b.member_info;
+        if a_info is None or b_info is None {
+            return a_info is b_info;
+        }
+        return a_info.member_name == b_info.member_name;
+    }
+    return False;
+}
+
 impl origin_of_local_name(
     nd: UniNode, local: str
 ) -> tuple[str, (str | None)] {

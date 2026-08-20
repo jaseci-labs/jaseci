@@ -25,6 +25,8 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from .types {
+    NeverType,
+    EnumMemberType,
     AnyType,
     ClassType,
     FunctionType,
@@ -125,6 +127,8 @@ def get_completion_items(ty: (TypeBase | UniScopeNode)) -> list[CompletionItem];
 def lookup_symtab(
     symtable: UniScopeNode, name: str, builtins_to_inject: Module
 ) -> (Symbol | None);
+
+def types_equivalent(a: TypeBase, b: TypeBase, depth: int = 0) -> bool;
 
 def origin_of_local_name(nd: UniNode, local: str) -> tuple[str, (str | None)];
 
