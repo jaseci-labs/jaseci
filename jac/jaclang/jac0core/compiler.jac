@@ -137,6 +137,7 @@ def run_pass(
             ir_in=ir_in,
             prog=prog,
             cancel_token=cancel_token,
+            cancel_requested=bool(cancel_token is not None and cancel_token.is_set()),
             policy=pol,
             errors_had=errors,
             warnings_had=warnings,
@@ -166,10 +167,10 @@ def get_symtab_ir_sched -> list[type[Transform]] {
     );
 }
 
-glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
-     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
+glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', `default=False),
+     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', `default=False),
      _typecheck_sched_loading = ContextVar(
-         'jac_typecheck_sched_loading', default=False
+         'jac_typecheck_sched_loading', `default=False
      );
 
 def pass_requires(p: type[Transform]) -> tuple {
@@ -359,7 +360,7 @@ def native_schedule_failure -> str {
 }
 
 def compiler_source_failure_origin(err: BaseException) -> (str | None) {
-    root = _compiler_source_root() + os.sep;
+    `root = _compiler_source_root() + os.sep;
     cursor: any = err;
     for _ in range(8) {
         if cursor is None {
@@ -368,7 +369,7 @@ def compiler_source_failure_origin(err: BaseException) -> (str | None) {
         for cand in (cursor?.jac_source_path, cursor?.path) {
             if isinstance(cand, str) and cand {
                 real = os.path.realpath(cand);
-                if real.startswith(root) {
+                if real.startswith(`root) {
                     return real;
                 }
             }
@@ -1224,6 +1225,14 @@ obj JacCompiler {
         _jaclang_root: (str | None) = None;
 
     has internal_program: JacProgram { getter; }
+
+    def postinit {
+        import from jaclang.jac0core.native_brands {
+            DRIVER_ORIGIN,
+            ensure_native_brands_bound
+        }
+        ensure_native_brands_bound(DRIVER_ORIGIN);
+    }
 
     def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;

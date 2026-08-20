@@ -56,6 +56,10 @@ jobs:
               - 'jac/jaclang/runtimelib/client/targets/desktop/**'
             installer:
               - 'scripts/install.sh'
+              # The lane's own definition lives here, so a change to what it
+              # runs must run it -- same reasoning as `native` listing ci.yml.
+              # Without this an edit to the installer test ships unexercised.
+              - '.github/workflows/_installer.yml'
             # NARROWING filter (like `installer`, unlike `scale`/`byllm`, which
             # only ever widen `core`). The macOS and aarch64 native lanes cost a
             # macOS runner and a qemu-user cross build, and `core: jac/**` fired
@@ -1682,72 +1686,15 @@ jobs:
           echo "=== ingress controller logs ==="
           kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=50 || true
 
+  # Body lives in _installer.yml so the nightly lane runs the same test
+  # instead of a second copy of it. The PR lane lints install.sh; the nightly
+  # one does not (it exercises the published installer, not this checkout).
   installer-test:
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && needs.changes.outputs.installer == 'true') }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: ShellCheck install.sh
-        if: runner.os == 'Linux'
-        run: shellcheck scripts/install.sh
-
-      # A missing asset on the latest release is a release regression that
-      # breaks `curl ... | bash` -- fail loudly instead of skipping.
-      - name: Require a native binary asset on the latest release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if ! gh release view --repo "$GITHUB_REPOSITORY" \
-               --json assets --jq '.assets[].name' 2>/dev/null \
-               | grep -q "jac-.*-${{ matrix.platform }}$"; then
-            echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
-            exit 1
-          fi
-
-      - name: "install: download + run the binary"
-        env:
-          # install.sh authenticates its GitHub API calls when a token is set;
-          # shared runners (macOS especially) exhaust the unauthenticated
-          # per-IP rate limit.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/install.sh
-
-      - name: "install: verify jac"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          which jac
-          jac --version
-
-      - name: "install: run a test program"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          echo 'with entry { print("hello from the jac binary"); }' > /tmp/test_install.jac
-          jac /tmp/test_install.jac
-
-      - name: "install: uninstall"
-        run: bash scripts/install.sh --uninstall
-
-      - name: "install: verify removal"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if command -v jac &>/dev/null; then
-            echo "FAIL: jac still found after uninstall"
-            exit 1
-          fi
-          echo "PASS: jac removed"
+    uses: ./.github/workflows/_installer.yml
+    with:
+      shellcheck: true
 
   # Aggregate gate. GitHub has no "require all checks" branch-protection toggle
   # -- you can only enumerate individual contexts, and anything you forget to

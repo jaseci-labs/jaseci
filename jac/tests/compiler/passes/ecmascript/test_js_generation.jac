@@ -1986,7 +1986,7 @@ test "issue 5930 sibling if else branches share one hoisted let" {
     # per-branch `let` would make the name invisible after the if and
     # diverge from Jac semantics. The strict-mode node run below still
     # guards the original #5930 ReferenceError regression.
-    jac_code = "\"\"\"Test #5930 sibling block let.\"\"\"\n\ndef test(mode: bool) -> int {\n    if mode {\n        x: int = 1;\n        x = 2;\n    } else {\n        x: int = 3;\n        x = 4;\n    }\n    return 0;\n}\n";
+    jac_code = "\"\"\"Test #5930 sibling block let.\"\"\"\n\ndef `test(mode: bool) -> int {\n    if mode {\n        x: int = 1;\n        x = 2;\n    } else {\n        x: int = 3;\n        x = 4;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {

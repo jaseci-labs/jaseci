@@ -7,7 +7,7 @@ import os;
 import re;
 import sys;
 import threading;
-import from typing { Callable, Optional, Union }
+import from typing { Optional, Union }
 
 import from .types {
     Position,

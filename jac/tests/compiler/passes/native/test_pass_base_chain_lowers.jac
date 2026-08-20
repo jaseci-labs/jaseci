@@ -243,47 +243,39 @@ test "constructing a pass in a native root lowers, with the base chain linked" {
 }
 
 
-"""The traversal seam cleared, and the waiver table says so.
+"""uni_pass carries no waivers at all, and the table's shape says so.
 
-This test used to pin the opposite: `UniPass.transform`, `UniPass.traverse`
-and `UniPass.__post_init__` as waived seams -- stores to `ir_out` and
-`cur_node`, slots inherited from `BaseTransform`, and a
-`super.__post_init__` call. The inherited-slot fix (#8320: `extended_mro`
-continuing truncated linearizations, keyed by declaring-module provenance)
-cleared all three, and the payout commit dropped their waivers. What
-remains waived on `uni_pass.jac` is a different family entirely: the two
-`type[T]`-generic statics.
-
-Pinned both ways so a regression names itself: the cleared three must stay
-out of the waiver table (a re-appearance means inherited-slot access broke
-again and the fused prefix is re-blocked), and the generic statics must
-stay in it until generic statics lower. The mechanism itself is measured in
-`test_inherited_slot_adoption.jac`.
+This test has pinned three successive states of the same file. First the
+traversal methods as waived seams (inherited-slot stores, cleared by
+#8320's linearization repair). Then the two `type[T]`-generic statics as
+the honest remainder. Now those are gone too -- not lowered, RETIRED:
+`get_all_sub_nodes` and `find_parent_of_type` were forwarding shims for
+the same-named `UniNode` methods, every caller lived outside the sealed
+closure and calls the node methods directly now, and a shim with no
+callers is not a seam worth waiving, it is dead code the seal was
+carrying. With them gone, `uni_pass.jac` contributes zero entries to
+`NATIVE_SEAL_DEMOTION_WAIVERS`, which is what this pins: any name from
+this module reappearing in the table means pass machinery demoted again,
+and the fused prefix is re-blocked by whatever did it.
 """
-test "the traversal seams stay cleared, and the generic statics stay named" {
+test "uni_pass contributes no waiver at all" {
     (seams, _closure) = _ctor_probe();
     _ = seams;
-    import from jaclang.utils.precompile_bytecode { _UNI_PASS_SEAM_WAIVERS }
-    for gone in (
-        "jac0core/passes/uni_pass.jac::UniPass.transform",
-        "jac0core/passes/uni_pass.jac::UniPass.traverse",
-        "jac0core/passes/uni_pass.jac::UniPass.__post_init__"
-    ) {
-        assert gone not in _UNI_PASS_SEAM_WAIVERS , (
-            f"{gone} is waived again. The inherited-slot fix cleared it; a "
-            "returning waiver means a natively constructed pass lost its "
-            "traversal again, which re-blocks the fused prefix -- fix the "
-            "slot access rather than re-waiving it"
-        );
+    import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_DEMOTION_WAIVERS }
+    offending: list[str] = [];
+    for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
+        for `entry in names {
+            if `entry.startswith("jac0core/passes/uni_pass.jac::")
+                and `entry not in offending {
+                offending.append(`entry);
+            }
+        }
     }
-    for kept in (
-        "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-        "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type"
-    ) {
-        assert kept in _UNI_PASS_SEAM_WAIVERS , (
-            f"{kept} is no longer waived. If generic statics lower now, "
-            "collect the payout and say so; if the waiver merely moved, it "
-            "has to be findable here"
-        );
-    }
+    assert not offending , (
+        f"uni_pass.jac is back in the waiver table: {sorted(offending)}. "
+        "The traversal seams cleared with #8320's slot repair and the "
+        "generic-static shims were retired outright; a returning entry "
+        "means pass machinery demotes again and the fused prefix is "
+        "re-blocked -- fix the lowering rather than re-waiving it"
+    );
 }
