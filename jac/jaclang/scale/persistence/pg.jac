@@ -116,6 +116,7 @@ def shared_store -> (any | None) {
         store: (any | None) = None;
         reset = False;
         stage = 'resolve';
+        source = _url_source() if url else 'the embedded server';
         try {
             import from jaclang.runtimelib.session { conninfo_from_url, promotions_for }
             import from jaclang.runtimelib.store { PgStore }
@@ -154,7 +155,7 @@ def shared_store -> (any | None) {
                     store.close();
                 } except Exception { }
             }
-            _fail(_failure_reason(stage, store, e));
+            _fail(_failure_reason(stage, source, store, e));
             return None;
         }
         _holder['key'] = key;
@@ -166,13 +167,13 @@ def shared_store -> (any | None) {
 
 
 """Turn the stage that failed into a sentence that points at the fix."""
-def _failure_reason(stage: str, store: any, e: Exception) -> str {
+def _failure_reason(stage: str, source: str, store: any, e: Exception) -> str {
     cause = f"{type(e).__name__}: {e}";
     if stage == 'provision' {
         return f"the embedded Postgres server could not be provisioned ({cause})";
     }
     if stage == 'resolve' {
-        return f"the database named by {_url_source()} is unusable ({cause})";
+        return f"the store named by {source} could not be built ({cause})";
     }
     where = _store_target(store);
     if stage == 'schema' {
@@ -181,5 +182,5 @@ def _failure_reason(stage: str, store: any, e: Exception) -> str {
             f" ({cause})"
         );
     }
-    return f"cannot reach {where}, resolved from {_url_source()} ({cause})";
+    return f"cannot reach {where}, resolved from {source} ({cause})";
 }

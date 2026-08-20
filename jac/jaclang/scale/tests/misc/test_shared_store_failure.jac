@@ -64,6 +64,56 @@ test "a url that resolves but cannot be reached is reported as such" {
 }
 
 
+obj _SchemaFailingStore {
+    has conninfo: any = None;
+
+    def rows(sql: str, params: dict) -> list {
+        return [];
+    }
+
+    def ensure_schema_once(promotions: dict) -> None {
+        raise RuntimeError(
+            'duplicate key value violates unique constraint'
+            ' "pg_type_typname_nsp_index"'
+        );
+    }
+
+    def close -> None { }
+}
+
+
+def _schema_failing(**kwargs: any) -> any {
+    return _SchemaFailingStore(conninfo=kwargs.get('conninfo'));
+}
+
+
+test "a store that connects but cannot set up the schema says so" {
+    # The #8166 shape exactly: the database is there, the schema race is what
+    # went wrong, and the operator has to be told which of the two it was.
+    _arm(_DEAD_URL);
+    try {
+        with unittest.mock.patch(
+            'jaclang.runtimelib.store.PgStore', _schema_failing
+        ) {
+            assert pg_mod.shared_store() is None;
+            reason: str = str(pg_mod.shared_store_failure() or '');
+            assert 'schema' in reason , (
+                f"a schema failure is reported as {reason!a}, which does not"
+                ' distinguish it from an unreachable database'
+            );
+            assert 'duplicate key' in reason , (
+                f"the underlying error is missing from {reason!a}"
+            );
+            assert '127.0.0.1:1' in reason , (
+                f"{reason!a} does not name the database that was reached"
+            );
+        }
+    } finally {
+        _disarm();
+    }
+}
+
+
 test "the identity manager renders the real cause" {
     _arm(_DEAD_URL);
     try {
