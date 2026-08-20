@@ -272,7 +272,7 @@ obj MonitoringDeployer {
                         'containers': [
                             {
                                 'name': 'prometheus',
-                                'image': 'prom/prometheus:latest',
+                                'image': 'prom/prometheus:v3.14.0',
                                 'securityContext': {
                                     'runAsNonRoot': True,
                                     'runAsUser': 65534,
@@ -1226,7 +1226,7 @@ obj MonitoringDeployer {
                         'containers': [
                             {
                                 'name': 'grafana',
-                                'image': 'grafana/grafana:latest',
+                                'image': 'grafana/grafana:13.2.0',
                                 'securityContext': {
                                     'runAsNonRoot': True,
                                     'runAsUser': 472,
