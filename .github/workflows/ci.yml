@@ -282,6 +282,10 @@ jobs:
   # cleanly in the server codespace with zero scheduling errors and no
   # native-demotion fallback. This path never runs elsewhere in CI because
   # every other job builds or bundles the shim (#7871 workstream H).
+  # Typeshed is materialized first: since #8398 type inference is on the
+  # critical path of every compilation, so a checkout without the stdlib stubs
+  # compiles nothing and the stub-less half of this job tests a configuration
+  # that no longer exists.
   test-no-llvm:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
@@ -292,19 +296,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Cold-clone compile (no shim, no typeshed stubs)
-        working-directory: jac
-        run: |
-          set -euxo pipefail
-          test ! -e jaclang/compiler/passes/native/llvm/libjacllvm.so
-          test ! -e jaclang/vendor/typeshed/stdlib
-          WORK="$(mktemp -d)"
-          printf 'def add(a: int, b: int) -> int {\n    return a + b;\n}\n\nwith entry {\n    print(add(40, 2));\n}\n' > "$WORK/prog.jac"
-          out="$(HOME="$WORK" XDG_CACHE_HOME="$WORK/cache" PYTHONPATH="$PWD" python -m jaclang run "$WORK/prog.jac" 2>&1)" || { echo "$out"; exit 1; }
-          echo "$out" | tail -5
-          echo "$out" | grep -qx '42'
-          ! echo "$out" | grep -q 'scheduling error'
-          ! echo "$out" | grep -q 'preferred native but did not lower'
       - name: Restore typeshed stdlib stubs (shared cache)
         id: typeshed
         uses: actions/cache/restore@v4
@@ -321,11 +312,12 @@ jobs:
         if: steps.typeshed.outputs.cache-hit != 'true'
         working-directory: jac
         run: zig build -Dno-ninja fetch-typeshed --summary all
-      - name: No-LLVM compile (typeshed present, shim absent)
+      - name: Cold-cache compile (shim absent, stubs present)
         working-directory: jac
         run: |
           set -euxo pipefail
           test ! -e jaclang/compiler/passes/native/llvm/libjacllvm.so
+          test -e jaclang/vendor/typeshed/stdlib
           WORK="$(mktemp -d)"
           printf 'def mul(a: int, b: int) -> int {\n    return a * b;\n}\n\nwith entry {\n    print(mul(6, 7));\n}\n' > "$WORK/prog.jac"
           out="$(HOME="$WORK" XDG_CACHE_HOME="$WORK/cache" PYTHONPATH="$PWD" python -m jaclang run "$WORK/prog.jac" 2>&1)" || { echo "$out"; exit 1; }
