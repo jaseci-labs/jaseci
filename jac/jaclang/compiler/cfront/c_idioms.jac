@@ -1,4 +1,5 @@
 import from jaclang.vendor.pycparser { c_ast }
+import from jaclang.compiler.cfront.c_common { c_field }
 import from jaclang.compiler.cfront.c_types {
     JacPrim,
     C_PRIM_MAP,
@@ -166,4 +167,164 @@ def realloc_elidable(
         return False;
     }
     return ptr.name in list_bound or ptr.name in ptr_params;
+}
+
+glob REFCOUNT_VOID_ELIDE: set[str] = {
+         "Py_INCREF",
+         "Py_DECREF",
+         "Py_XDECREF"
+     },
+     REFCOUNT_VALUE_ELIDE: set[str] = {"Py_NewRef", "Py_XNewRef"};
+
+def is_refcount_void_elide(nd: c_ast.Node) -> bool {
+    return (
+        isinstance(nd, c_ast.FuncCall)
+        and isinstance(nd.name, c_ast.ID)
+        and nd.name.name in REFCOUNT_VOID_ELIDE
+    );
+}
+
+def is_refcount_value_elide(nd: c_ast.Node) -> bool {
+    return (
+        isinstance(nd, c_ast.FuncCall)
+        and isinstance(nd.name, c_ast.ID)
+        and nd.name.name in REFCOUNT_VALUE_ELIDE
+    );
+}
+
+def py_clear_arg(nd: c_ast.Node) -> c_ast.Node | None {
+    if not _is_call_1arg(nd, "Py_CLEAR") {
+        return None;
+    }
+    return nd.args.exprs[0];
+}
+
+def _is_null_expr(nd: c_ast.Node) -> bool {
+    if isinstance(nd, c_ast.ID) and nd.name == "NULL" {
+        return True;
+    }
+    return False;
+}
+
+def _is_error_int(expr: c_ast.Node) -> bool {
+    if isinstance(expr, c_ast.Constant) and str(expr.value) == "-1" {
+        return True;
+    }
+    if (
+        isinstance(expr, c_ast.UnaryOp)
+        and expr.op == "-"
+        and isinstance(expr.expr, c_ast.Constant)
+        and str(expr.expr.value) == "1"
+    ) {
+        return True;
+    }
+    return False;
+}
+
+def is_error_return_value(expr: c_ast.Node | None) -> bool {
+    if expr is None {
+        return False;
+    }
+    if _is_null_expr(expr) {
+        return True;
+    }
+    return _is_error_int(expr);
+}
+
+def is_null_check_cond(cond: c_ast.Node) -> bool {
+    if isinstance(cond, c_ast.BinaryOp) and cond.op == "==" {
+        return _is_null_expr(cond.right) or _is_null_expr(cond.left);
+    }
+    return False;
+}
+
+def is_null_return_elidable_if(nd: c_ast.Node) -> bool {
+    if not isinstance(nd, c_ast.If) or nd.iffalse is not None {
+        return False;
+    }
+    inner = nd.iftrue;
+    if isinstance(inner, c_ast.Return) {
+        return is_error_return_value(inner.expr);
+    }
+    if isinstance(inner, c_ast.Compound) {
+        items = inner.block_items or [];
+        if len(items) == 1 and isinstance(items[0], c_ast.Return) {
+            return is_error_return_value(items[0].expr);
+        }
+    }
+    return False;
+}
+
+def null_check_var(cond: c_ast.Node) -> str | None {
+    if not isinstance(cond, c_ast.BinaryOp) or cond.op != "==" {
+        return None;
+    }
+    if _is_null_expr(cond.right) and isinstance(cond.left, c_ast.ID) {
+        return cond.left.name;
+    }
+    if _is_null_expr(cond.left) and isinstance(cond.right, c_ast.ID) {
+        return cond.right.name;
+    }
+    return None;
+}
+
+def assigned_var(stmt: c_ast.Node) -> str | None {
+    if isinstance(stmt, c_ast.Decl) {
+        name = c_field(stmt, "name");
+        return name if isinstance(name, str) else None;
+    }
+    if isinstance(stmt, c_ast.Assignment) {
+        lval = c_field(stmt, "lvalue");
+        if isinstance(lval, c_ast.ID) {
+            return lval.name;
+        }
+    }
+    return None;
+}
+
+def is_call_init(stmt: c_ast.Node) -> bool {
+    if isinstance(stmt, c_ast.Decl) {
+        init = c_field(stmt, "init");
+        return init is not None and isinstance(init, c_ast.FuncCall);
+    }
+    if isinstance(stmt, c_ast.Assignment) {
+        rval = c_field(stmt, "rvalue");
+        return rval is not None and isinstance(rval, c_ast.FuncCall);
+    }
+    return False;
+}
+
+def is_null_propagation_pair(prev: c_ast.Node, if_nd: c_ast.Node) -> bool {
+    if not is_call_init(prev) {
+        return False;
+    }
+    if not is_null_return_elidable_if(if_nd) {
+        return False;
+    }
+    var = assigned_var(prev);
+    if var is None {
+        return False;
+    }
+    return null_check_var(if_nd.cond) == var;
+}
+
+def pyerr_set_pair(stmt: c_ast.Node) -> tuple[str, str] | None {
+    if not isinstance(stmt, c_ast.FuncCall) {
+        return None;
+    }
+    if not isinstance(stmt.name, c_ast.ID) or stmt.name.name != "PyErr_SetString" {
+        return None;
+    }
+    if stmt.args is None or len(stmt.args.exprs) < 2 {
+        return None;
+    }
+    exc = stmt.args.exprs[0];
+    msg = stmt.args.exprs[1];
+    if not isinstance(exc, c_ast.ID) or not exc.name.startswith("PyExc_") {
+        return None;
+    }
+    if not isinstance(msg, c_ast.Constant) or msg.type != "string" {
+        return None;
+    }
+    return (exc.name[6:], str(msg.value));
 }

@@ -176,15 +176,56 @@ def is_char_ptr(ptr_decl: c_ast.Node) -> bool {
     return _char_ptr_names(ptr_decl) is not None;
 }
 
+def is_pyobj_type(t: c_ast.Node) -> bool {
+    if isinstance(t, c_ast.Struct) and t.name == "PyObject" {
+        return True;
+    }
+    names = t?.names or [];
+    return names and names[-1] == "PyObject";
+}
+
+def ptr_depth(decl_type: c_ast.Node) -> int {
+    depth = 0;
+    t = decl_type;
+    while isinstance(t, c_ast.PtrDecl) {
+        depth += 1;
+        t = t.type;
+    }
+    return depth;
+}
+
+def peel_ptr(decl_type: c_ast.Node) -> c_ast.Node {
+    t = decl_type;
+    if isinstance(t, c_ast.PtrDecl) {
+        return t.type;
+    }
+    return decl_type;
+}
+
+def fn_ptr_typedecl(decl_type: c_ast.Node) -> c_ast.Node | None {
+    chain = walk_to_typedecl(decl_type);
+    if chain.kind != TypeKind.PTR {
+        return None;
+    }
+    inner = chain.node.type;
+    if isinstance(inner, c_ast.FuncDecl) {
+        return inner;
+    }
+    return None;
+}
+
 def ptr_typename(ptr_decl: c_ast.Node) -> str {
     if is_char_ptr(ptr_decl) {
         return "str";
     }
     inner = ptr_inner_typedecl(ptr_decl);
     if inner is not None {
+        if is_pyobj_type(inner.type) {
+            return "PyObj";
+        }
         user = user_type_name(inner.type);
         if user is not None {
-            return user;
+            return "PyObj" if user == "PyObject" else user;
         }
     }
     return "object";
@@ -217,4 +258,11 @@ def typename(decl_type: c_ast.Node) -> str {
 
 def elem_typename(decl_type: c_ast.Node) -> str {
     return _resolve_decl(decl_type, True);
+}
+
+def param_typename(decl_type: c_ast.Node) -> str {
+    if ptr_depth(decl_type) >= 2 {
+        return elem_typename(peel_ptr(decl_type));
+    }
+    return elem_typename(decl_type);
 }

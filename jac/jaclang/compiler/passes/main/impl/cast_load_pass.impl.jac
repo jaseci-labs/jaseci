@@ -16,6 +16,7 @@ impl CastBuildPass.postinit -> None {
     self._module_globals = set();
     self._func_global_writes = set();
     self._struct_fields = {};
+    self._struct_aliases = {};
     super.postinit();
 }
 
@@ -103,6 +104,12 @@ impl CastBuildPass.convert(
         inc = self._inc_dec_stmt(nd);
         if inc is not None {
             return inc;
+        }
+    }
+    if stmt and isinstance(nd, c_ast.FuncCall) {
+        elided = self._refcount_stmt_elide(nd);
+        if elided is not None {
+            return elided;
         }
     }
     tname = type(nd).__name__;
@@ -348,7 +355,36 @@ impl CastBuildPass.proc_file_ast(nd: c_ast.Node) -> uni.Module {
 impl CastBuildPass.proc_compound(nd: c_ast.Node) -> list[uni.CodeBlockStmt] {
     out: list[uni.CodeBlockStmt] = [];
     items = nd?.block_items or [];
-    for it in items {
+    i = 0;
+    while i < len(items) {
+        it = items[i];
+        if i + 1 < len(items) {
+            pair = pyerr_set_pair(it);
+            nxt = items[i + 1];
+            if (
+                pair is not None
+                and isinstance(nxt, c_ast.Return)
+                and is_error_return_value(nxt.expr)
+            ) {
+                out.append(self._pyerr_raise(it, pair));
+                i += 2;
+                continue;
+            }
+            if isinstance(nxt, c_ast.If) and is_null_propagation_pair(it, nxt) {
+                res = self.convert(it, stmt=True);
+                if isinstance(res, list) {
+                    for r in res {
+                        if isinstance(r, uni.CodeBlockStmt) {
+                            out.append(r);
+                        }
+                    }
+                } elif isinstance(res, uni.CodeBlockStmt) {
+                    out.append(res);
+                }
+                i += 2;
+                continue;
+            }
+        }
         res = self.convert(it, stmt=True);
         if isinstance(res, list) {
             for r in res {
@@ -359,6 +395,7 @@ impl CastBuildPass.proc_compound(nd: c_ast.Node) -> list[uni.CodeBlockStmt] {
         } elif isinstance(res, uni.CodeBlockStmt) {
             out.append(res);
         }
+        i += 1;
     }
     return out;
 }
@@ -383,11 +420,11 @@ impl CastBuildPass.proc_func_def(nd: c_ast.Node) -> uni.Ability {
             if p.name is None {
                 continue;
             }
-            if ptr_realloc_elidable(p.type) {
+            if ptr_depth(p.type) >= 2 or ptr_realloc_elidable(p.type) {
                 self._ptr_params.add(p.name);
             }
             self._record_scalar_type(p.name, p.type);
-            ann = self._name(p, elem_typename(p.type));
+            ann = self._name(p, param_typename(p.type));
             annot = uni.SubTag[uni.Expr](tag=ann, kid=[ann]);
             pname = self._ident(p, p.name);
             params.append(
@@ -954,6 +991,15 @@ impl CastBuildPass._lit(
 }
 
 impl CastBuildPass.proc_func_call(nd: c_ast.Node) -> object {
+    if isinstance(nd.name, c_ast.ID) and is_refcount_value_elide(nd) {
+        args = nd?.args?.exprs or [];
+        if len(args) == 1 {
+            val = self.conv_expr(args[0]);
+            if isinstance(val, uni.Expr) {
+                return val;
+            }
+        }
+    }
     if isinstance(nd.name, c_ast.ID) and nd.name.name == "free" {
         return self._pass_semi(nd);
     }
@@ -1357,6 +1403,56 @@ impl CastBuildPass._bool_true(c_node: c_ast.Node) -> uni.Literal {
 impl CastBuildPass._null_lit(c_node: c_ast.Node) -> uni.Literal {
     (line, col) = self._coord(c_node);
     return self._lit(uni.Null, Tok.NULL, "None", line, col);
+}
+
+impl CastBuildPass._refcount_stmt_elide(nd: c_ast.Node) -> uni.UniNode | None {
+    if is_refcount_void_elide(nd) {
+        return self._pass_semi(nd);
+    }
+    arg = py_clear_arg(nd);
+    if arg is not None {
+        clear = self._py_clear_assign(nd, arg);
+        if clear is not None {
+            return clear;
+        }
+    }
+    if is_refcount_value_elide(nd) {
+        return self._pass_semi(nd);
+    }
+    return None;
+}
+
+impl CastBuildPass._py_clear_assign(
+    c_node: c_ast.Node, arg: c_ast.Node
+) -> uni.Assignment | None {
+    target = self.conv_expr(arg);
+    if not isinstance(target, uni.Expr) {
+        return None;
+    }
+    value = self._null_lit(c_node);
+    return uni.Assignment(
+        target=[target],
+        value=value,
+        type_tag=None,
+        mutable=False,
+        kid=[target, value]
+    );
+}
+
+impl CastBuildPass._pyerr_raise(
+    c_node: c_ast.Node, pair: tuple[str, str]
+) -> uni.RaiseStmt {
+    (exc_name, msg_raw) = pair;
+    (line, col) = self._coord(c_node);
+    exc = self._name(c_node, exc_name);
+    inner = c_string_inner(msg_raw);
+    text = inner if inner is not None else msg_raw;
+    msg_lit = self._lit(uni.String, Tok.STRING, f'"{text}"', line, col);
+    exc_call = uni.FuncCall(
+        target=exc, params=[msg_lit], genai_call=None, kid=[exc, msg_lit]
+    );
+    raise_tok = self._op_tok(c_node, Tok.KW_RAISE, "raise");
+    return uni.RaiseStmt(cause=exc_call, from_target=None, kid=[raise_tok, exc_call]);
 }
 
 impl CastBuildPass._is_surrogate(expr: c_ast.Node) -> bool {
@@ -2078,13 +2174,109 @@ impl CastBuildPass._struct_archetype(
 }
 
 impl CastBuildPass.proc_struct(nd: c_ast.Node) -> uni.Archetype {
-    return self._struct_archetype(nd, nd.name or "_AnonStruct", nd);
+    tag = nd.name or "_AnonStruct";
+    name = self._struct_aliases.get(tag, tag);
+    return self._struct_archetype(nd, name, nd);
+}
+
+impl CastBuildPass._callback_params(
+    funcdecl: c_ast.Node, origin: c_ast.Node
+) -> list[uni.ParamVar] {
+    params: list[uni.ParamVar] = [];
+    pl = funcdecl.args;
+    if pl is None {
+        return params;
+    }
+    for p in pl.params {
+        if isinstance(p, c_ast.EllipsisParam) {
+            self.emit_c_diag(origin, 4207);
+            continue;
+        }
+        if p.name is None {
+            continue;
+        }
+        ann = self._name(p, param_typename(p.type));
+        annot = uni.SubTag[uni.Expr](tag=ann, kid=[ann]);
+        pname = self._ident(p, p.name);
+        params.append(
+            uni.ParamVar(
+                name=pname,
+                type_tag=annot,
+                unpack=None,
+                value=None,
+                kid=[pname, annot]
+            )
+        );
+    }
+    return params;
+}
+
+impl CastBuildPass._callback_archetype(
+    name: str, funcdecl: c_ast.Node, origin: c_ast.Node
+) -> uni.Archetype {
+    params = self._callback_params(funcdecl, origin);
+    ret_ann = self._name(origin, elem_typename(funcdecl.type));
+    call_name = self._name(origin, "call");
+    sig_kids: list[uni.UniNode] = [*params, ret_ann];
+    sig = uni.FuncSignature(
+        posonly_params=[],
+        params=params,
+        varargs=None,
+        kwonlyargs=[],
+        kwargs=None,
+        return_type=ret_ann,
+        kid=sig_kids
+    );
+    body = [self._pass_semi(origin)];
+    ability_kid: list[uni.UniNode] = [call_name, sig, *body];
+    ability = self.nu(
+        uni.Ability(
+            name_ref=call_name,
+            is_async=False,
+            is_static=False,
+            is_classmethod=False,
+            is_abstract=False,
+            is_override=False,
+            access=None,
+            signature=sig,
+            body=body,
+            decorators=None,
+            doc=None,
+            kid=ability_kid
+        )
+    );
+    arch_type = self._op_tok(origin, Tok.KW_OBJECT, "obj");
+    name_node = self._name(origin, name);
+    value_dec = self._name(origin, VALUE_ARCH_DECORATOR);
+    body_kids: list[uni.UniNode] = [ability];
+    return uni.Archetype(
+        name=name_node,
+        arch_type=arch_type,
+        access=None,
+        base_classes=[],
+        body=[ability],
+        doc=None,
+        decorators=[value_dec],
+        kid=[value_dec, arch_type, name_node, *body_kids]
+    );
 }
 
 impl CastBuildPass.proc_typedef(nd: c_ast.Node) -> object {
+    fn = fn_ptr_typedecl(nd.type);
+    if fn is not None {
+        return self._callback_archetype(nd.name, fn, nd);
+    }
     inner = nd.type;
     if isinstance(inner, c_ast.TypeDecl) and isinstance(inner.type, c_ast.Struct) {
-        return self._struct_archetype(inner.type, nd.name, nd);
+        snode = inner.type;
+        if snode.decls is None {
+            tag = snode.name;
+            if tag {
+                self._struct_aliases[tag] = nd.name;
+            }
+            return [];
+        }
+        return self._struct_archetype(snode, nd.name, nd);
     }
 
     target = self._ident(nd, nd.name);

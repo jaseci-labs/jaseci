@@ -307,3 +307,47 @@ test "null_sentinel.c lowers C NULL to Jac None" {
     assert "NULL" not in out , out;
     assert res.diags == [] , res.diags;
 }
+
+test "refcount_err_return.c elides refcount ops and lifts PyErr returns" {
+    src = _read("refcount_err_return.c");
+    res = lift_c_str(src, "refcount_err_return.c");
+    out = res.module.unparse(requires_format=True);
+    assert "Py_INCREF" not in out , out;
+    assert "Py_DECREF" not in out , out;
+    assert "Py_XDECREF" not in out , out;
+    assert "Py_CLEAR" not in out , out;
+    assert "Py_NewRef" not in out , out;
+    assert "Py_XNewRef" not in out , out;
+    assert "PyErr_SetString" not in out.split("def fail_value")[1].split("def ")[0] , out;
+    assert "PyErr_SetString" not in out.split("def fail_int")[1].split("def ")[0] , out;
+    assert 'raise ValueError("bad arg")' in out , out;
+    assert 'raise TypeError("wrong type")' in out , out;
+    assert "slot = None" in out , out;
+    assert "return `obj" in out , out;
+    assert "def borrow(`obj: PyObj)" in out , out;
+    assert "def get_item(lst: PyObj, i: int) -> PyObj" in out , out;
+    assert res.diags == [] , res.diags;
+}
+
+test "pyobj_types.c maps PyObject pointers to PyObj" {
+    src = _read("pyobj_types.c");
+    res = lift_c_str(src, "pyobj_types.c");
+    out = res.module.unparse(requires_format=True);
+    assert "def identity(`obj: PyObj) -> PyObj" in out , out;
+    assert "def clear_slot(slot: PyObj) -> None" in out , out;
+    assert "def maybe(`obj: PyObj) -> PyObj" in out , out;
+    assert "PyObject" not in out , out;
+    assert "NULL" not in out , out;
+    assert res.diags == [] , res.diags;
+}
+
+test "fn_ptr_callback.c lifts function-pointer typedefs to callback objs" {
+    src = _read("fn_ptr_callback.c");
+    res = lift_c_str(src, "fn_ptr_callback.c");
+    out = res.module.unparse(requires_format=True);
+    assert "obj comparator {" in out , out;
+    assert "def call(a: object, b: object) -> int" in out , out;
+    assert "def invoke(cmp: comparator, x: int, y: int) -> int" in out , out;
+    assert "glob comparator = " not in out , out;
+    assert res.diags == [] , res.diags;
+}

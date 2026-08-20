@@ -33,13 +33,16 @@ import from jaclang.compiler.cfront.c_common {
 import from jaclang.compiler.cfront.c_types {
     elem_typename,
     typename,
+    param_typename,
     jac_prim,
     JacPrim,
     C_PRIM_MAP,
     c_type_is_unsigned,
     is_char_ptr,
     walk_to_typedecl,
-    TypeKind
+    TypeKind,
+    ptr_depth,
+    fn_ptr_typedecl
 }
 import from jaclang.compiler.cfront.c_idioms {
     malloc_array_match,
@@ -48,7 +51,13 @@ import from jaclang.compiler.cfront.c_idioms {
     realloc_elidable,
     ptr_realloc_elidable,
     flatten_mult,
-    sizeof_type
+    sizeof_type,
+    is_refcount_void_elide,
+    is_refcount_value_elide,
+    py_clear_arg,
+    is_error_return_value,
+    pyerr_set_pair,
+    is_null_propagation_pair
 }
 import from jaclang.compiler.cfront.enum_prepass {
     EnumVerdicts,
@@ -134,7 +143,8 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         _module_globals: set[str] postinit,
         _func_global_writes: set[str] postinit,
         _needs_cdiv: bool postinit,
-        _struct_fields: dict[str, list[tuple[str, object]]] postinit;
+        _struct_fields: dict[str, list[tuple[str, object]]] postinit,
+        _struct_aliases: dict[str, str] postinit;
 
     def postinit -> None;
     def _build_member_owner_map -> dict[str, str];
@@ -217,6 +227,9 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def proc_for(nd: c_ast.Node) -> object;
     def _bool_true(c_node: c_ast.Node) -> uni.Literal;
     def _null_lit(c_node: c_ast.Node) -> uni.Literal;
+    def _refcount_stmt_elide(nd: c_ast.Node) -> uni.UniNode | None;
+    def _py_clear_assign(c_node: c_ast.Node, arg: c_ast.Node) -> uni.Assignment | None;
+    def _pyerr_raise(c_node: c_ast.Node, pair: tuple[str, str]) -> uni.RaiseStmt;
     def _is_surrogate(expr: c_ast.Node) -> bool;
     def proc_break(nd: c_ast.Node) -> uni.CtrlStmt;
     def proc_continue(nd: c_ast.Node) -> uni.CtrlStmt;
@@ -264,6 +277,14 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def _struct_archetype(
         snode: c_ast.Node, name: str, origin: c_ast.Node
     ) -> uni.Archetype;
+
+    def _callback_archetype(
+        name: str, funcdecl: c_ast.Node, origin: c_ast.Node
+    ) -> uni.Archetype;
+
+    def _callback_params(
+        funcdecl: c_ast.Node, origin: c_ast.Node
+    ) -> list[uni.ParamVar];
 
     def proc_struct(nd: c_ast.Node) -> uni.Archetype;
     def proc_typedef(nd: c_ast.Node) -> object;
