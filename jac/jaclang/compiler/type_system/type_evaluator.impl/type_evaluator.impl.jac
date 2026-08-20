@@ -1557,17 +1557,6 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
                     }
                 }
-                if (
-                    self._in_native_context()
-                    and isinstance(base_type, ClassType)
-                    and base_type.is_class_instance()
-                    and not base_type.is_builtin()
-                ) {
-                    idx_type = self.get_type_of_expression(subscript_arg);
-                    if isinstance(idx_type, ClassType) and idx_type.is_builtin("int") {
-                        return base_type;
-                    }
-                }
                 return result or UnknownType();
             }
 
