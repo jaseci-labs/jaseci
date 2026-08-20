@@ -37,7 +37,7 @@ import from jaclang.runtimelib.serving.server { ServingServer }
 import from jaclang.runtimelib.static_files { find_static_candidate, is_asset_request }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
-import from jaclang.runtimelib.scheduler { Scheduler }
+import from jaclang.runtimelib.scheduler { ScheduleSpec, Scheduler }
 import from jaclang.jac0core.constant { Constants as Con }
 import type from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
 
@@ -105,6 +105,7 @@ obj ExecutionManager {
     async def report_collector(
         call_state: CallState
     ) -> list[JsonValue] | Generator | AsyncGenerator;
+
     async def _finalize_call_response(
         call_state: CallState, result: any
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;

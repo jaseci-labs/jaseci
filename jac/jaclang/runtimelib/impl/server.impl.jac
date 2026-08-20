@@ -4,6 +4,7 @@ import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.client_bundle { MissingBunError, _ensure_js_generated }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.auth_models {
+    IdentityInput,
     IdentityType,
     LoginRequest,
     RegisterRequest
@@ -354,6 +355,18 @@ def _occ_policy -> tuple[str, int, int] {
     return (mode, max_attempts, backoff_ms);
 }
 
+async def _acall_function(
+    handler: ExecutionHandler, name: str, args: dict[(str, any)], username: str
+) -> TransportResponse {
+    return await handler.call_function(name, args, username);
+}
+
+async def _aspawn_walker(
+    handler: ExecutionHandler, name: str, fields: dict[(str, any)], username: str
+) -> TransportResponse {
+    return await handler.spawn_walker(name, fields, username);
+}
+
 impl ExecutionManager._finalize_call_response(
     call_state: CallState, result: any
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
@@ -691,7 +704,9 @@ impl ModuleIntrospector._extract_access_levels -> None {
             return;
         }
     }
-    main_mod = Jac.get_program().find_module(os.path.abspath(mod_path)) if mod_path else None;
+    main_mod = Jac.get_program().find_module(os.path.abspath(mod_path))
+        if mod_path
+        else None;
 
     if not main_mod and mod_path {
         try {
@@ -954,10 +969,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        if ast_node is None or ast_node?.loc is None {
+        if ast_node is None {
             continue;
         }
-        src_path: str = ast_node.loc.mod_path;
+        src_path: str = getattr(getattr(ast_node, 'loc', ''), 'mod_path', '');
         if not src_path {
             continue;
         }
@@ -974,10 +989,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        if ast_node is None or ast_node?.loc is None {
+        if ast_node is None {
             continue;
         }
-        src_path: str = ast_node.loc.mod_path;
+        src_path: str = getattr(getattr(ast_node, 'loc', ''), 'mod_path', '');
         if not src_path {
             continue;
         }
@@ -2023,7 +2038,7 @@ impl JacAPIServer.build_app -> ServingApp {
         } except ValueError as ve {
             return JSONResponse(content={'error': str(ve)}, status_code=400);
         }
-        username_identity = None;
+        username_identity: (IdentityInput | None) = None;
         for ident in register_req.identities {
             if ident.type == IdentityType.USERNAME.value {
                 username_identity = ident;
@@ -2076,7 +2091,7 @@ impl JacAPIServer.build_app -> ServingApp {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         return asyncio.run(
-            server.execution_handler.call_function(name, data, username)
+            _acall_function(server.execution_handler, name, data, username)
         );
     }
 
@@ -2096,7 +2111,7 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         fields = data | {'_jac_spawn_node': node_id};
         return asyncio.run(
-            server.execution_handler.spawn_walker(name, fields, username)
+            _aspawn_walker(server.execution_handler, name, fields, username)
         );
     }
 
@@ -2405,13 +2420,15 @@ impl JacAPIServer.start(
     self._ensure_sv_siblings();
 
     for (name, walker_cls) in self.introspector._walkers.items() {
-        if walker_cls?.schedule_spec {
-            self.scheduler.register(name, walker_cls, walker_cls.schedule_spec, True);
+        walker_spec = getattr(walker_cls, 'schedule_spec', '');
+        if isinstance(walker_spec, ScheduleSpec) {
+            self.scheduler.register(name, walker_cls, walker_spec, True);
         }
     }
     for (name, func) in self.introspector._functions.items() {
-        if func?.schedule_spec {
-            self.scheduler.register(name, func, func.schedule_spec, False);
+        func_spec = getattr(func, 'schedule_spec', '');
+        if isinstance(func_spec, ScheduleSpec) {
+            self.scheduler.register(name, func, func_spec, False);
         }
     }
     if self.scheduler.has_pending() {
@@ -2575,7 +2592,8 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         section('FUNCTIONS', 'Authenticated');
         for (name, func) in functions.items() {
             sig = server.introspector.introspect_callable(func);
-            params = [format_param(n, i) for (n, i) in sig['parameters'].items()];
+            sig_params: dict[str, dict[str, any]] = sig['parameters'];
+            params = [format_param(n, i) for (n, i) in sig_params.items()];
             params_str = ', '.join(params) if params else 'none';
             endpoint('GET', f"/function/{name}", 'Get signature');
             endpoint(
@@ -2590,7 +2608,8 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         section('WALKERS', 'Authenticated');
         for (name, walker_cls) in walkers.items() {
             info = server.introspector.introspect_walker(walker_cls);
-            fields = [format_param(n, i) for (n, i) in info['fields'].items()];
+            info_fields: dict[str, dict[str, any]] = info['fields'];
+            fields = [format_param(n, i) for (n, i) in info_fields.items()];
             fields_str = ', '.join(fields[:3]);
             if (len(fields) > 3) {
                 fields_str += f", ... (+{(len(fields) - 3)} more)";

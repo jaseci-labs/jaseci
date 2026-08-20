@@ -75,6 +75,8 @@ __all__ = [
     "AbortSignal",
     "ResizeObserver",
     "ResizeObserverEntry",
+    "Reflect",
+    "Proxy",
     # Global functions
     "parseInt",
     "parseFloat",
@@ -291,6 +293,44 @@ class Object:
     def create(proto: object, *args: object) -> object: ...
     @staticmethod
     def fromEntries(entries: object) -> object: ...
+    @staticmethod
+    def getPrototypeOf(obj: object) -> object: ...
+    prototype: _ObjectPrototype
+    @staticmethod
+    def is_(a: object, b: object) -> bool: ...
+
+class _BoundToString:
+    """`Object.prototype.toString`, reached to brand-check a value."""
+
+    def call(self, this: object, *args: object) -> str: ...
+
+class _ObjectPrototype:
+    """`Object.prototype`, used for the `[object Tag]` brand check."""
+
+    toString: _BoundToString
+    def hasOwnProperty(self, key: str) -> bool: ...
+
+class Reflect:
+    """The `Reflect` global. Jac has no `new`, so host construction goes
+    through `Reflect.construct`."""
+
+    @staticmethod
+    def construct(target: object, args: object = ...) -> _HostObject: ...
+    @staticmethod
+    def deleteProperty(target: object, key: object) -> bool: ...
+    @staticmethod
+    def get(target: object, key: object) -> _HostObject: ...
+    @staticmethod
+    def set(target: object, key: object, value: object) -> bool: ...
+    @staticmethod
+    def has(target: object, key: object) -> bool: ...
+    @staticmethod
+    def ownKeys(target: object) -> list[str]: ...
+
+class Proxy:
+    """The `Proxy` global; constructed through `Reflect.construct`."""
+
+    def __init__(self, target: object, handler: object) -> None: ...
 
 class BigInt(int):
     """The `BigInt` global: arbitrary-precision integer coercion + static
@@ -666,6 +706,8 @@ class _Navigator:
     languages: list[str]
     platform: str
     onLine: bool
+    maxTouchPoints: float
+    standalone: bool
     clipboard: _Clipboard
     geolocation: object
     def vibrate(self, pattern: object) -> bool: ...
@@ -691,6 +733,7 @@ class _Document:
     title: str
     cookie: str
     readyState: str
+    referrer: str
     # Always-present root elements. Typed as the real HTMLElement (from
     # dom_types.pyi, merged into builtins) rather than the bare `object`
     # placeholder so member access like `.classList`/`.style` resolves.
@@ -739,6 +782,7 @@ class _Window:
     screen: _Screen
     document: _Document
     console: _Console
+    def dispatchEvent(self, event: object) -> bool: ...
     def alert(self, message: object = ...) -> None: ...
     def confirm(self, message: object = ...) -> bool: ...
     def prompt(self, message: object = ..., default: object = ...) -> str | None: ...
