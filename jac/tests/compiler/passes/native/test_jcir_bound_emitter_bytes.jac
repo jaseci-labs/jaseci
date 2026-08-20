@@ -5,7 +5,7 @@ file can deliver. This was `test_jcir_sealed_bytes.jac`, and it claimed
 to compare **sealed-emitter** bytes against **source-lane** bytes. It
 does not, and it cannot yet.
 
-The #8288 M1 crossing census measured why. `pass_serve._bind_one`
+The #8288 M1 crossing coverage measured why. `pass_serve._bind_one`
 resolves the artifact, `dlopen`s it, calls `__jac_shared_init`, checks
 that every advertised export resolves by `dlsym`, and probes
 `jac_str_new` for liveness -- and then retains the engine and **no

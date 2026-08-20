@@ -6,7 +6,7 @@ import from jaclang.cli.check_report {
     print_failures,
     print_failed_summary,
     print_final_summary,
-    print_native_census,
+    print_native_coverage,
     print_placement_report,
     print_compile_stats
 }
@@ -27,7 +27,7 @@ impl check(
     nowarn: bool = False,
     lint_only: bool = False,
     fix: bool = False,
-    native_census: bool = False,
+    native_coverage: bool = False,
     placements: bool = False,
     compile_stats: bool = False
 ) -> int {
@@ -51,13 +51,13 @@ impl check(
                 + ", ".join(unknown_codes)
         );
     }
-    if native_census {
-        import from jaclang.jac0core.compiler { na_census_begin }
-        na_census_begin();
+    if native_coverage {
+        import from jaclang.jac0core.compiler { na_coverage_begin }
+        na_coverage_begin();
     }
     if compile_stats {
-        import from jaclang.jac0core.prefix_flip { prefix_census_reset }
-        prefix_census_reset();
+        import from jaclang.jac0core.prefix_flip { prefix_outcomes_reset }
+        prefix_outcomes_reset();
     }
 
     total_files = failed_files=total_errors=total_warnings=0;
@@ -127,7 +127,7 @@ impl check(
                 prog.compile(
                     file_path=file_path,
                     options=CompileOptions(
-                        no_cgen=not native_census,
+                        no_cgen=not native_coverage,
                         force_target_program=True,
                         suppress_codes=suppressed_codes
                     )
@@ -198,9 +198,9 @@ impl check(
         _maybe_malloc_trim();
     }
 
-    if native_census {
-        import from jaclang.jac0core.compiler { na_census_end }
-        print_native_census(na_census_end());
+    if native_coverage {
+        import from jaclang.jac0core.compiler { na_coverage_end }
+        print_native_coverage(na_coverage_end());
     }
     if compile_stats {
         print_compile_stats();

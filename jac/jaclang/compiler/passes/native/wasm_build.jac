@@ -436,13 +436,13 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
         push_native_target_env,
         pop_native_target_env
     }
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     (gc_mode, enf_mods, enf_grand) = _project_gc_settings();
     prev = push_native_target_env("wasm32-unknown-unknown");
     auto_promote = True;
     try {
         prog = JacProgram();
-        na_census_begin();
+        na_coverage_begin();
         try {
             ir = prog.compile(
                 file_path=os.path.abspath(file_path),
@@ -456,7 +456,7 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
                 )
             );
         } finally {
-            census = na_census_end();
+            coverage = na_coverage_end();
         }
         if prog.errors_had {
             first = prog.errors_had[0].pretty_print();
@@ -465,7 +465,7 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
             raise RuntimeError(f"{first}{suffix}");
         }
         if (ir is None) or (ir.gen.llvm_ir is None) {
-            rec = census.get(os.path.realpath(os.path.abspath(file_path)));
+            rec = coverage.get(os.path.realpath(os.path.abspath(file_path)));
             reason = "the module did not lower to native IR"
                 + " (no demotion recorded; it likely compiled as a"
                 + " non-native codespace)";

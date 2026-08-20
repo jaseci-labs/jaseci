@@ -1,4 +1,4 @@
-"""The production flip's machinery: routing, the fallback taxonomy, the census.
+"""The production flip's machinery: routing, the fallback taxonomy, the outcome table.
 
 Wave A' item A5. The sealed binary compiles through the fused native prefix by
 default; a module the prefix cannot take rides the staged pass loop, and every
@@ -55,7 +55,7 @@ import from jaclang.jac0core.prefix_flip {
     clear_prefix_entry,
     drop_executed_prefix,
     prefix_admit_count,
-    prefix_census_reset,
+    prefix_outcomes_reset,
     prefix_clause_help,
     prefix_clause_names,
     prefix_entry,
@@ -108,7 +108,7 @@ def _compile(path: str, no_cgen: bool = True) -> tuple[any] {
 
 def _reset {
     clear_prefix_entry();
-    prefix_census_reset();
+    prefix_outcomes_reset();
     prefix_quarantine_clear();
 }
 
@@ -534,7 +534,7 @@ test "the summary line is silent on quiet clauses and loud on real declines" {
         _reset();
     }
     assert prefix_summary_line() == "" , (
-        "an empty census must produce no line at all"
+        "an empty outcome table must produce no line at all"
     );
 }
 

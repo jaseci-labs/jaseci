@@ -2,8 +2,8 @@
 
 A waiver in `NATIVE_SEAL_DEMOTION_WAIVERS` ships an `abort()` stub into the
 artifact, so a waived method that turns out to be reachable trades a wrong
-answer for a process kill with no diagnostic. `test_unitree_seal_census.jac`
-and `test_pass_seal_wave1_census.jac` pin that each waiver still names a real
+answer for a process kill with no diagnostic. `test_unitree_seal_baseline.jac`
+and `test_pass_seal_wave1_baseline.jac` pin that each waiver still names a real
 seam; this pins the other half, that none of them can be called.
 
 The closure below is a deliberate over-approximation, so "not in it" is a

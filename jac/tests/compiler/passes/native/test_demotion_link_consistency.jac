@@ -28,7 +28,7 @@ import os;
 import re;
 import jaclang;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image }
 
@@ -42,7 +42,7 @@ glob FIXTURES = os.path.join(
      ),
      _MEMO: list = [];
 
-"""Compile the cycle root as a native unit; (linked IR text, census)."""
+"""Compile the cycle root as a native unit; (linked IR text, coverage)."""
 def _linked_unit -> tuple {
     if _jaclang_image() is not None {
         testskip("a sealed image measures its trust boundary, not this");
@@ -52,7 +52,7 @@ def _linked_unit -> tuple {
     }
     path = os.path.join(FIXTURES, "demote_cycle_root.jac");
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=path,
@@ -65,13 +65,13 @@ def _linked_unit -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert ir is not None and ir.gen.llvm_ir is not None , (
         "the cycle root produced no linked native IR, so nothing below "
         "measures anything"
     );
-    result = (str(ir.gen.llvm_ir), census, );
+    result = (str(ir.gen.llvm_ir), coverage, );
     _MEMO.append(result);
     return result;
 }
@@ -97,8 +97,8 @@ def _dangling_demoted(ir_text: str) -> list[str] {
 
 
 test "the fixture's callee still demotes, so the cycle measures something" {
-    (ir_text, census) = _linked_unit();
-    helpers_rec = census.get(
+    (ir_text, coverage) = _linked_unit();
+    helpers_rec = coverage.get(
         os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"))
     );
     seams = {
@@ -117,7 +117,7 @@ test "the fixture's callee still demotes, so the cycle measures something" {
 
 
 test "no emission in the unit calls a symbol its verdict popped" {
-    (ir_text, _census) = _linked_unit();
+    (ir_text, _coverage) = _linked_unit();
     dangling = _dangling_demoted(ir_text);
     assert not dangling , (
         f"the linked unit declares {dangling} without defining them, and "
@@ -130,8 +130,8 @@ test "no emission in the unit calls a symbol its verdict popped" {
 
 
 test "the betrayed caller re-emits and cascades honestly" {
-    (_ir_text, census) = _linked_unit();
-    caller_rec = census.get(
+    (_ir_text, coverage) = _linked_unit();
+    caller_rec = coverage.get(
         os.path.realpath(os.path.join(FIXTURES, "demote_cycle_caller.jac"))
     );
     seams = {
@@ -141,7 +141,7 @@ test "the betrayed caller re-emits and cascades honestly" {
         "CycleReporter.describe kept a live body against a demoted callee "
         "(or its cascade demotion went unrecorded). The re-emission must "
         "produce the same verdict the acyclic order produces: the caller of "
-        "a demoted function demotes, and the census says so"
+        "a demoted function demotes, and the coverage says so"
     );
 }
 
@@ -300,7 +300,7 @@ test "the wheel-shaped lane stays quiet on the live closure" {
 
 A consumer method reading `CodeGenTarget.doc_ir` -- an accessor its
 jaclang-internal defining module demotes -- must end in one of two honest
-states: the verdict binds and the consumer demotes with the census saying
+states: the verdict binds and the consumer demotes with the coverage saying
 so, or the module never joins the unit and the read refuses by name. What
 it must never do is dangle: a declared symbol whose only definition was
 renamed away. The same `_dangling_demoted` scan the cycle tests use is the
@@ -313,7 +313,7 @@ test "an internal module's demoted method cannot dangle through a consumer" {
     }
     path = os.path.join(FIXTURES, "demote_internal_method.jac");
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=path,
@@ -326,7 +326,7 @@ test "an internal module's demoted method cannot dangle through a consumer" {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert ir is not None and ir.gen.llvm_ir is not None , (
         "the internal-method probe produced no linked native IR, so nothing "
@@ -339,7 +339,7 @@ test "an internal module's demoted method cannot dangle through a consumer" {
         "with a `.__jac_demoted` twin -- the methods-side emission ran "
         "ahead of its callee module's verdict (#8323 A10b's scenario)"
     );
-    rec = census.get(os.path.realpath(path));
+    rec = coverage.get(os.path.realpath(path));
     seams = {str(s).partition(": ")[0] for s in ((rec or {}).get("seams") or [])};
     assert "InternalProbe.read_docir" in seams , (
         "the consumer's read of a demoted internal accessor neither demoted "
