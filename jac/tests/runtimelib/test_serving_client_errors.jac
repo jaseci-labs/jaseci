@@ -99,8 +99,10 @@ def _http_500(conn: any) {
 }
 
 
+glob _sse_reset_gate: any = threading.Event();
+
+
 def _sse_one_event_then_reset(conn: any) {
-    import time;
     conn.recv(65536);
     conn.sendall(
         b"HTTP/1.1 200 OK\r\n"
@@ -108,7 +110,7 @@ def _sse_one_event_then_reset(conn: any) {
             + b"Connection: close\r\n\r\n"
             + b"data: {\"n\": 1}\n\n"
     );
-    time.sleep(0.5);
+    _sse_reset_gate.`wait(5.0);
     conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0));
     conn.close();
 }
@@ -229,25 +231,29 @@ test "post_stream_aware_sync classifies HTTP 500 as ClientRequestSent" {
 
 
 test "mid-stream connection loss raises from the consumer's iterator" {
+    _sse_reset_gate.clear();
     (srv, held, port) = _start_server(_sse_one_event_then_reset);
     try {
         (kind, gen) = post_stream_aware_sync(
             f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0
         );
         assert kind == 'sse';
-        got: list = [];
+        it = iter(gen);
+        got: list = [next(it)];
+        _sse_reset_gate.set();
         raised: any = None;
         try {
-            for item in gen {
+            for item in it {
                 got.append(item);
             }
         } except RuntimeError as e {
             raised = e;
         }
-        assert raised is not None;
-        assert "raised" in str(raised);
-        assert got == [{"n": 1}];
+        assert raised is not None , got;
+        assert "raised" in str(raised) , str(raised);
+        assert got == [{"n": 1}] , got;
     } finally {
+        _sse_reset_gate.set();
         _stop_server(srv, held);
     }
 }

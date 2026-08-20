@@ -535,11 +535,12 @@ connection. Exhausting the iterator OR letting it go out of scope
 closes the connection cleanly. Dropping mid-stream (consumer
 disconnects) closes too - the producer's `finally` blocks run.
 
-`rpc_timeout` semantics on streaming: the timeout applies to
-*establishing* the connection and to each blocking read between
-events. A long, idle stream that sends no events for `rpc_timeout`
-seconds will time out, matching the behavior we want for a hung
-producer; a fast-stepping stream of any total duration is fine.
+`rpc_timeout` semantics on streaming: the timeout bounds
+*establishing* the connection and the wait for the response head.
+Once the head has arrived, reads of the event body are not bounded
+by `rpc_timeout`: a producer that stalls between events holds the
+consumer's iterator open until the connection drops (see #8429).
+A fast-stepping stream of any total duration is fine.
 
 Retries happen only for connect-phase failures (DNS, refused,
 connect timeout), where the request provably never reached the peer.
