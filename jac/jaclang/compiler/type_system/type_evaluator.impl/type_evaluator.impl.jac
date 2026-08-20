@@ -429,15 +429,18 @@ impl TypeEvaluator._get_type_of_expression_core(
             }
 
         case GenCompr():
-            if self.prefetch and self.prefetch.list_class {
-                list_inst = self._convert_to_instance(self.prefetch.list_class);
+            if self.prefetch and self.prefetch.generator_class {
+                gen_inst = self._convert_to_instance(self.prefetch.generator_class);
                 self._walk_compr_clauses(expr.compr);
                 elem_type = self.get_type_of_expression(expr.out_expr);
-                if isinstance(list_inst, ClassType)
+                none_inst = self._convert_to_instance(self.prefetch.none_type_class)
+                    if self.prefetch.none_type_class
+                    else UnknownType();
+                if isinstance(gen_inst, ClassType)
                     and not isinstance(elem_type, UnknownType) {
-                    list_inst.private.type_args = [elem_type];
+                    gen_inst.private.type_args = [elem_type, none_inst, none_inst];
                 }
-                return list_inst;
+                return gen_inst;
             }
 
         case ListCompr():
@@ -1090,6 +1093,21 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if self.is_explicit_any(union_member)
                             or isinstance(union_member, UnknownType) {
                             member_types.append(union_member);
+                            continue;
+                        }
+                        if isinstance(union_member, EnumMemberType) {
+                            enum_attr = expr.right.value;
+                            if enum_attr in ('name', '_name_') {
+                                member_types.append(
+                                    self._convert_to_instance(self.prefetch.str_class)
+                                );
+                            } elif enum_attr in ('value', '_value_') {
+                                member_types.append(
+                                    self._convert_to_instance(
+                                        union_member.get_value_type()
+                                    )
+                                );
+                            }
                             continue;
                         }
                         if isinstance(union_member, ClassType)
@@ -3581,6 +3599,7 @@ impl TypeEvaluator._prefetch_types{
     self.prefetch.classmethod_class = get_builtin_class("classmethod");
 
     self.prefetch.coroutine_class = get_typing_class("Coroutine");
+    self.prefetch.generator_class = get_typing_class("Generator");
     self.prefetch.function_class = get_types_class("FunctionType");
 
     self.prefetch.tuple_class = get_builtin_class("tuple");

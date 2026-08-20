@@ -235,6 +235,7 @@ obj PrefetchedTypes {
         object_class: ClassType | None = None,
         type_class: ClassType | None = None,
         coroutine_class: ClassType | None = None,
+        generator_class: ClassType | None = None,
         function_class: ClassType | None = None,
         tuple_class: ClassType | None = None,
         bool_class: ClassType | None = None,
