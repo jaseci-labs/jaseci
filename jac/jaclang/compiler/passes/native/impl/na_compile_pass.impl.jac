@@ -140,16 +140,16 @@ impl native_unit_demotions(
     prog: any, real_path: str, options: any
 ) -> (set[str] | None) {
     import os as _ud_os;
-    entry: any = prog._na_dep_units.get(real_path);
+    `entry: any = prog._na_dep_units.get(real_path);
     _ud_mid_compile = False;
-    if entry is None {
+    if `entry is None {
         for _ud_key in (real_path, _ud_os.path.abspath(real_path)) {
             _ud_mod = prog.mod.hub.get(_ud_key);
             if _ud_mod is None {
                 continue;
             }
             if _ud_mod.gen.llvm_ir is not None {
-                entry = _ud_mod;
+                `entry = _ud_mod;
             } else {
                 _ud_mid_compile = True;
             }
@@ -157,7 +157,7 @@ impl native_unit_demotions(
         }
     }
     if (
-        entry is None
+        `entry is None
         and not _ud_mid_compile
         and real_path not in prog._na_dep_inflight
         and real_path not in prog._na_verdict_resolving
@@ -180,20 +180,20 @@ impl native_unit_demotions(
         }
         prog._na_verdict_resolving.add(real_path);
         try {
-            entry = prog.compile(
+            `entry = prog.compile(
                 file_path=real_path, options=options.clone_for_native_import()
             );
         } except Exception as _ud_exc {
-            entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
+            `entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
         } finally {
             prog._na_verdict_resolving.discard(real_path);
         }
-        prog._na_dep_units[real_path] = entry;
+        prog._na_dep_units[real_path] = `entry;
     }
-    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+    if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
         prog._na_verdict_misses += 1;
-        _ud_tree = entry
-            if (entry is not None and not isinstance(entry, str))
+        _ud_tree = `entry
+            if (`entry is not None and not isinstance(`entry, str))
             else prog.mod.hub.get(real_path);
         if _ud_tree is None {
             return None;
@@ -220,7 +220,7 @@ impl native_unit_demotions(
         }
         return _ud_all;
     }
-    return set(native_demoted_ir_symbols(str(entry.gen.llvm_ir)));
+    return set(native_demoted_ir_symbols(str(`entry.gen.llvm_ir)));
 }
 
 impl native_live_call_conflicts(

@@ -77,7 +77,7 @@ glob registry = get_registry();
         Arg.create(
             "compile-stats",
             typ=bool,
-            default=False,
+            `default=False,
             short="",
             help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop"
         ),

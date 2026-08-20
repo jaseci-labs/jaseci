@@ -331,7 +331,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='compile-stats',
                     typ='bool',
-                    default=False,
+                    `default=False,
                     help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
                     short=''
                 ),
@@ -1412,7 +1412,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='scrub',
                     kind=ArgKind.FLAG,
-                    default=False,
+                    `default=False,
                     help='Scrub build: wipe cached IR and recompile everything from scratch',
                     short='s'
                 ),
@@ -1425,14 +1425,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='shared',
                     kind=ArgKind.FLAG,
-                    default=False,
+                    `default=False,
                     help='Build a C-ABI shared library (.so/.dylib/.dll) exporting `:pub` symbols instead of an executable',
                     short=''
                 ),
                 ArgMeta(
                     name='debug',
                     kind=ArgKind.FLAG,
-                    default=False,
+                    `default=False,
                     help='Emit DWARF debug info + symbol table so the binary is debuggable with gdb/lldb',
                     short='g'
                 ),
@@ -1445,14 +1445,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='assert-no-rc',
                     kind=ArgKind.FLAG,
-                    default=False,
+                    `default=False,
                     help='Fail the build if the emitted IR contains any RC/collector machinery: __rc_* helpers, trace functions, roots-buffer globals, or entry-point GC env probes',
                     short=''
                 ),
                 ArgMeta(
                     name='enforce-nogc',
                     kind=ArgKind.FLAG,
-                    default=False,
+                    `default=False,
                     help='Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns',
                     short=''
                 ),
