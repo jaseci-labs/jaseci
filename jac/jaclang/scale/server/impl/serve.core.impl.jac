@@ -278,7 +278,9 @@ impl JacAPIServerCore.start(
     if on_ready {
         on_ready(self.port);
     }
-    self.server.run_server(port=self.port);
+    self.server.run_server(
+        port=self.port, max_retries=0 if self.strict_port else PORT_RETRY_LIMIT
+    );
 }
 
 impl JacAPIServerCore._print_startup_banner(dev: bool, no_client: bool) -> None {
