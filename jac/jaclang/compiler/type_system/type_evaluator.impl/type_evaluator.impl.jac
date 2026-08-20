@@ -780,6 +780,24 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if expr.is_null_ok {
                         return self._null_ok_attr_type(expr);
                     }
+                    if isinstance(lookup_type, ClassType)
+                        and lookup_type.is_instantiable_class()
+                        and self.prefetch is not None
+                        and self.prefetch.type_class is not None {
+                        meta_inst = self._convert_to_instance(self.prefetch.type_class);
+                        if isinstance(meta_inst, ClassType) {
+                            if meta_member
+                                := self._lookup_object_member(
+                                    meta_inst, expr.right.value
+                                ) {
+                                meta_member.symbol.add_use(expr.right);
+                                expr.right.type = self.get_type_of_symbol(
+                                    meta_member.symbol
+                                );
+                                return expr.right.type;
+                            }
+                        }
+                    }
                     if not self.is_any_type(lookup_type) {
                         _has_tvars = (
                             isinstance(lookup_type, ClassType)
