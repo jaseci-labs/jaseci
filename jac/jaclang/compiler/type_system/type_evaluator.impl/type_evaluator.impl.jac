@@ -687,15 +687,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if isinstance(sym_type, FunctionType) {
                             overloaded_fns: list[FunctionType] = [sym_type];
 
+                            def_sym = self.resolve_to_definition_symbol(sym);
                             overload_scope = base_type.symbol_table;
-                            if sym.parent_tab is not None {
-                                overload_scope = sym.parent_tab;
+                            if def_sym.parent_tab is not None {
+                                overload_scope = def_sym.parent_tab;
                             }
                             all_syms = collect_member_syms(
-                                overload_scope, expr.right.value
+                                overload_scope, def_sym.sym_name
                             );
                             for overload_symbol in all_syms {
-                                if overload_symbol == sym {
+                                if overload_symbol == def_sym {
                                     continue;
                                 }
                                 overload_type = self.get_type_of_symbol(
@@ -3199,7 +3200,11 @@ impl TypeEvaluator.assign_type(
     if isinstance(src_type, UnionType) and not isinstance(dest_type, UnionType) {
         for src_member in src_type.types {
             src_member_inst = self._convert_to_instance(src_member);
-            if not self.assign_type(src_member_inst, dest_type, strict) {
+            if self.assign_type(src_member_inst, dest_type, strict) {
+                continue;
+            }
+            if src_member_inst is src_member
+                or not self.assign_type(src_member, dest_type, strict) {
                 return False;
             }
         }
