@@ -145,12 +145,11 @@ def _command_routes -> list[CommandMeta] {
             handler_module='jaclang.cli.commands.build',
             handler_name='build',
             examples=[
-                ('jac build', 'Gate + build a single .jab into dist/'),
-                ('jac build --as binary', 'Gate + build a self-contained executable'),
-                ('jac build --fat', 'Gate + build a fat jab (Python deps vendored)'),
-                ('jac build --as wheel', 'Gate + build a PyPI wheel'),
-                ('jac build --check_only', 'Run the whole-program gate only'),
-                ('jac build --no_typecheck', 'Build without the gate (escape hatch)'),
+                ('jac build', 'Build a single .jab into dist/'),
+                ('jac build --as binary', 'Build a self-contained executable'),
+                ('jac build --fat', 'Build a fat jab (Python deps vendored)'),
+                ('jac build --as wheel', 'Build a PyPI wheel'),
+                ('jac build --check_only', 'Type-check the whole project without building'),
                 ('jac build --client mobile', 'Build the mobile client shell')
             ],
             args=[
@@ -181,13 +180,6 @@ def _command_routes -> list[CommandMeta] {
                     default='dist',
                     help='Output directory for the built artifact',
                     short='o'
-                ),
-                ArgMeta(
-                    name='no_typecheck',
-                    typ='bool',
-                    default=False,
-                    help='Skip the whole-program type-check gate (escape hatch)',
-                    short='n'
                 ),
                 ArgMeta(
                     name='fat',

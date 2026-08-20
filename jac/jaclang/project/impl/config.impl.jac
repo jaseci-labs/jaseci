@@ -1181,7 +1181,6 @@ impl _parse_toml_data(
             _native_opt = _builtin_native.opt_level;
         }
         config.build = BuildConfig(
-            typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
             native_closure_cap=_cap,
@@ -1251,10 +1250,6 @@ impl _parse_toml_data(
     if "format" in data {
         fmt = data["format"];
         config.format = FormatConfig(outfile=fmt.get("outfile", ""));
-    }
-    if "precommit" in data {
-        pc_data = data["precommit"];
-        config.precommit = PrecommitConfig(typecheck=pc_data.get("typecheck", True));
     }
     if "check" in data {
         check_data = data["check"];

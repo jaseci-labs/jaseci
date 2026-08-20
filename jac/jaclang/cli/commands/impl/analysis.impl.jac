@@ -1067,18 +1067,8 @@ impl precommit(
     if tmp_root {
         shutil.rmtree(tmp_root, ignore_errors=True);
     }
-    run_typecheck = True;
-    pc_config = get_config();
-    if pc_config {
-        run_typecheck = pc_config.precommit.typecheck;
-    }
-    if run_typecheck {
-        console.print("[precommit] Running check...");
-        check_ret = check(targets);
-    } else {
-        console.print("[precommit] Skipping check ([precommit] typecheck = false).");
-        check_ret = 0;
-    }
+    console.print("[precommit] Running check...");
+    check_ret = check(targets);
     if not verify
         and check_ret == 0
         and fmt_ret == 0

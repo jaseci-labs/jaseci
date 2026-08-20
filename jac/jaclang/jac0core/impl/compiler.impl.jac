@@ -1292,7 +1292,8 @@ impl JacCompiler._compile_once(
         );
     }
 
-    _full_head = 'cfg' in providers_of(_head_sched);
+    _analyze = 'cfg' in providers_of(_head_sched)
+        and actual_program is not self._internal_program;
     if _prefix_ran {
         mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
     }
@@ -1321,7 +1322,7 @@ impl JacCompiler._compile_once(
     is_native_mod = mod_targ is not None
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
 
-    if _full_head {
+    if _analyze {
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,

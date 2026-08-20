@@ -447,13 +447,19 @@ def get_analysis_sched -> list[type[Transform]] {
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
         import jaclang.compiler.passes.main.pyast_load_pass;
+        import jaclang.compiler.passes.main.rc_facts_pass;
         import jaclang.compiler.type_system.type_utils;
         import jaclang.compiler.type_system.ts_decl_parser;
         import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.expr_keys;
         import jaclang.compiler.type_registry;
+        import jaclang.jac0core.bccache;
+        import jaclang.jac0core.codeinfo;
+        import jaclang.jac0core.diagnostic_utils;
         import jaclang.jac0core.modresolver;
         import jaclang.jac0core.tomlio;
         import jaclang.project.client_kind;
+        import jaclang.project.config;
         import from jaclang.compiler.passes.main.static_analysis_pass {
             StaticAnalysisPass
         }

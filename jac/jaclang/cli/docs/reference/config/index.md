@@ -244,7 +244,6 @@ Build configuration:
 
 ```toml
 [build]
-typecheck = false           # Enable type checking
 dir = ".jac"                # Build artifacts directory
 default_codespace = "native"  # Codespace for markerless .jac modules: "native"/"na" or "server"/"sv"
 ```
@@ -825,7 +824,6 @@ directory = "tests"
 verbose = true
 
 [build]
-typecheck = true
 dir = ".jac"
 
 [check.lint]
