@@ -780,6 +780,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if expr.is_null_ok {
                         return self._null_ok_attr_type(expr);
                     }
+                    if expr.right.value == "init" {
+                        if dunder_init
+                            := self._lookup_class_member(lookup_type, "__init__") {
+                            self._set_symbol_to_expr(expr.right, dunder_init.symbol);
+                            expr.right.type = self.get_type_of_member(
+                                dunder_init, lookup_type
+                            );
+                            return expr.right.type;
+                        }
+                    }
                     if isinstance(lookup_type, ClassType)
                         and lookup_type.is_instantiable_class()
                         and self.prefetch is not None
@@ -988,6 +998,17 @@ impl TypeEvaluator._get_type_of_expression_core(
                             td_member_ty = self.get_type_of_member(td_member, td_dict);
                             expr.right.type = td_member_ty;
                             return td_member_ty;
+                        }
+                    }
+                    if expr.right.value == "init"
+                        and isinstance(base_type, ClassType) {
+                        if dunder_init
+                            := self._lookup_object_member(base_type, "__init__") {
+                            self._set_symbol_to_expr(expr.right, dunder_init.symbol);
+                            expr.right.type = self.get_type_of_member(
+                                dunder_init, base_type
+                            );
+                            return expr.right.type;
                         }
                     }
                     if getattr_return := self._get_getattr_return_type(base_type) {
