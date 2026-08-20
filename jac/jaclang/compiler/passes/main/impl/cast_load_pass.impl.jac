@@ -874,6 +874,9 @@ impl CastBuildPass.proc_binary_op(nd: c_ast.Node) -> object {
 }
 
 impl CastBuildPass.proc_id(nd: c_ast.Node) -> uni.UniNode {
+    if nd.name == "NULL" {
+        return self._null_lit(nd);
+    }
     alias = self._enum_const_aliases.get(nd.name);
     if alias is not None {
         return self._name(nd, alias);
@@ -1349,6 +1352,11 @@ impl CastBuildPass.proc_for(nd: c_ast.Node) -> object {
 impl CastBuildPass._bool_true(c_node: c_ast.Node) -> uni.Literal {
     (line, col) = self._coord(c_node);
     return self._lit(uni.Bool, Tok.BOOL, "True", line, col);
+}
+
+impl CastBuildPass._null_lit(c_node: c_ast.Node) -> uni.Literal {
+    (line, col) = self._coord(c_node);
+    return self._lit(uni.Null, Tok.NULL, "None", line, col);
 }
 
 impl CastBuildPass._is_surrogate(expr: c_ast.Node) -> bool {

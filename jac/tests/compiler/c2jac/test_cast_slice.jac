@@ -296,3 +296,14 @@ test "lenient vs strict lift pick the W/E diagnostic twin for the same site" {
     assert "# c2jac: 1 best-effort site" in header , header;
     assert "[W4201]" in header;
 }
+
+test "null_sentinel.c lowers C NULL to Jac None" {
+    src = _read("null_sentinel.c");
+    res = lift_c_str(src, "null_sentinel.c");
+    out = res.module.unparse(requires_format=True);
+    assert "== None" in out , out;
+    assert "!= None" in out , out;
+    assert "= None;" in out , out;
+    assert "NULL" not in out , out;
+    assert res.diags == [] , res.diags;
+}

@@ -179,7 +179,8 @@ test "cpython/rotatingtree.c escapes reserved-keyword C identifiers" {
     # C params named `root` / `node` collide with reserved Jac keywords: they
     # are escaped with a single leading backtick so the lift stays valid Jac.
     assert "def RotatingTree_Add(`root: object, `node: rotating_node_t)" in out , out;
-    assert "`node.left = NULL;" in out;
+    assert "`node.left = None;" in out;
+    assert "NULL" not in out;
     assert res.diags == [] , res.diags;
 }
 

@@ -216,6 +216,7 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
 
     def proc_for(nd: c_ast.Node) -> object;
     def _bool_true(c_node: c_ast.Node) -> uni.Literal;
+    def _null_lit(c_node: c_ast.Node) -> uni.Literal;
     def _is_surrogate(expr: c_ast.Node) -> bool;
     def proc_break(nd: c_ast.Node) -> uni.CtrlStmt;
     def proc_continue(nd: c_ast.Node) -> uni.CtrlStmt;

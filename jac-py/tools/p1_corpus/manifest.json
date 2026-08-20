@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "name": "p1_corpus_slice1b",
+  "description": "P1 c2jac proving loop slice 1b: three header-free CPython leaf modules",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p1_corpus_slice1b",
+  "baseline_report": "jac-py/tools/p1_corpus/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "mysnprintf",
+      "fixture": "jac/tests/compiler/c2jac/fixtures/cpython/mysnprintf.c",
+      "header_free": true
+    },
+    {
+      "stem": "pystrcmp",
+      "fixture": "jac/tests/compiler/c2jac/fixtures/cpython/pystrcmp.c",
+      "header_free": true
+    },
+    {
+      "stem": "rotatingtree",
+      "fixture": "jac/tests/compiler/c2jac/fixtures/cpython/rotatingtree.c",
+      "header_free": true
+    }
+  ],
+  "full_corpus_pending": [
+    {
+      "stem": "_bisectmodule",
+      "cpython_path": "Modules/_bisectmodule.c",
+      "blocker": "requires Python.h and module init boilerplate; no header-free fixture yet"
+    },
+    {
+      "stem": "_heapqmodule",
+      "cpython_path": "Modules/_heapqmodule.c",
+      "blocker": "requires Python.h and PyObject* APIs; no header-free fixture yet"
+    },
+    {
+      "stem": "getbuildinfo",
+      "cpython_path": "Modules/getbuildinfo.c",
+      "blocker": "requires Python.h; not staged as a header-free fixture yet"
+    }
+  ]
+}
