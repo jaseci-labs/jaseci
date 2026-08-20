@@ -57,7 +57,7 @@ gated suite. A step naming one without setting the gate collects and skips it,
 which is the same as never running it."""
 def _workflow_text -> str {
     chunks: list[str] = [];
-    for wf in sorted(WORKFLOWS_DIR.glob("*.yml")) {
+    for wf in sorted(WORKFLOWS_DIR.`glob("*.yml")) {
         try {
             text = wf.read_text(encoding="utf-8");
         } except OSError {
