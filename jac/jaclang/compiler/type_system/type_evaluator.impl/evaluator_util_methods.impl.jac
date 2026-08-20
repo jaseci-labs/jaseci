@@ -48,8 +48,13 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_RIM_BASES }
     param_map: dict[str, Parameter] = {};
+    _erase_rim = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
+        if _erase_rim and cls.shared.class_name in NATIVE_ERASED_RIM_BASES {
+            continue;
+        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 continue;

@@ -1446,8 +1446,6 @@ impl Ability.postinit -> None {
         );
         name_spec_for_init: (Name | NameAtom) = synthetic_name_ref;
         self.name_ref = synthetic_name_ref;
-    } elif isinstance(self.name_ref, CtName) {
-        name_spec_for_init = self.name_ref.name_spec;
     } else {
         name_spec_for_init = self.name_ref;
     }
@@ -1528,8 +1526,6 @@ impl Ability.py_resolve_name -> str {
         return self.name_ref.value;
     } elif isinstance(self.name_ref, SpecialVarRef) {
         return self.name_ref.py_resolve_name();
-    } elif isinstance(self.name_ref, (CtName, CtSplice)) {
-        return self.name_ref.value;
     } else {
         raise NotImplementedError;
     }
@@ -1621,9 +1617,7 @@ impl EventSignature.postinit -> None {
 impl ParamVar.postinit -> None {
     self.param_kind = ParamKind.NORMAL;
     UniNode.postinit(self);
-    pv_spec: NameAtom = self.name.name_spec
-        if isinstance(self.name, CtName)
-        else self.name;
+    pv_spec: NameAtom = self.name;
     AstSymbolNode._init_symbol(
         self, sym_name=self.name.value, name_spec=pv_spec, sym_category=SymbolType.VAR
     );
@@ -1647,9 +1641,7 @@ impl ArchHas.postinit -> None {
 
 impl HasVar.postinit -> None {
     UniNode.postinit(self);
-    hv_spec: NameAtom = self.name.name_spec
-        if isinstance(self.name, CtName)
-        else self.name;
+    hv_spec: NameAtom = self.name;
     AstSymbolNode._init_symbol(
         self,
         sym_name=self.name.value,
@@ -1693,93 +1685,6 @@ impl ElseStmt.postinit -> None {
 impl ExprStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
-}
-
-
-impl CtBlock.postinit -> None {
-    UniNode.postinit(self);
-    Expr.postinit(self);
-}
-
-
-impl CtIf.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-    CodeBlockStmt.postinit(self);
-}
-
-
-impl CtElse.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-    CodeBlockStmt.postinit(self);
-}
-
-
-impl CtFor.postinit -> None {
-    self.body = `list(self.body);
-    UniNode.postinit(self);
-    CodeBlockStmt.postinit(self);
-}
-
-
-impl CtSplice.postinit -> None {
-    UniNode.postinit(self);
-    Expr.postinit(self);
-}
-
-
-impl CtSplice.value.getter -> str {
-    return "$";
-}
-
-
-impl CtSplice.create_symbol(
-    access: SymbolAccess,
-    parent_tab: (UniScopeNode | None) = None,
-    imported: bool = False
-) -> Symbol {
-    return self.name_spec.create_symbol(access, parent_tab, imported);
-}
-
-
-impl CtSplice.sym_name.getter -> str {
-    return self.value;
-}
-
-
-impl CtSplice.sym.getter -> (Symbol | None) {
-    return None;
-}
-
-
-impl CtName.postinit -> None {
-    self.parts = `list(self.parts);
-    UniNode.postinit(self);
-    Expr.postinit(self);
-    AstSymbolStubNode._init_stub(self, SymbolType.VAR);
-}
-
-
-impl CtName.value.getter -> str {
-    out = "";
-    for p in self.parts {
-        if isinstance(p, Name) {
-            out += p.value;
-        } else {
-            out += "$";
-        }
-    }
-    return out;
-}
-
-
-impl CtName.create_symbol(
-    access: SymbolAccess,
-    parent_tab: (UniScopeNode | None) = None,
-    imported: bool = False
-) -> Symbol {
-    return self.name_spec.create_symbol(access, parent_tab, imported);
 }
 
 

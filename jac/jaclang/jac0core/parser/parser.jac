@@ -31,12 +31,6 @@ import from jaclang.jac0core.unitree {
     ConcurrentExpr,
     ConnectOp,
     ContextAwareNode,
-    CtBlock,
-    CtElse,
-    CtFor,
-    CtIf,
-    CtName,
-    CtSplice,
     CtrlStmt,
     DeleteStmt,
     DictCompr,
@@ -520,17 +514,6 @@ obj Parser {
     def _apply_implicit_return(body: list[CodeBlockStmt]) -> list[CodeBlockStmt];
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
     def parse_statement -> CodeBlockStmt | None;
-    def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
-    def parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None;
-    def parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None;
-    def parse_ct_elif(mode: int) -> CtIf | None;
-    def parse_ct_else(mode: int) -> CtElse | None;
-    def parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode];
-    def parse_ct_block -> Expr | None;
-    def parse_ct_splice -> Expr | None;
-    def parse_ct_name(as_name: bool = True) -> Expr | None;
-    def _ct_name_follows -> bool;
-    def _ct_body_recover -> None;
     def _lookahead_advance -> None;
     def parse_if_stmt -> IfStmt;
     def parse_elif_stmt -> ElseIf;
@@ -595,7 +578,7 @@ obj Parser {
     ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> FuncSignature;
-    def parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf];
+    def parse_func_params(kid: list[UniNode]) -> list[ParamVar];
     def parse_param_var -> ParamVar | None;
     def parse_enum -> Enum;
     def parse_enum_member -> Assignment;

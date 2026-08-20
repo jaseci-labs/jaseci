@@ -4579,16 +4579,20 @@ impl EsastGenPass._has_import(name: str) -> bool {
     return False;
 }
 
-impl EsastGenPass._register_jac_runtime_import -> None {
+impl EsastGenPass._register_jac_virtual_import(module_id: str) -> None {
     import from jaclang.jac0core.modresolver { resolve_jac_virtual_module_path }
-    self._ensure_backend();
-    module_id = self.backend.runtime_module();
-    if module_id not in self.client_manifest.imports {
-        runtime_path = resolve_jac_virtual_module_path(module_id);
-        if runtime_path {
-            self.client_manifest.imports[module_id] = runtime_path;
-        }
+    if not self.client_manifest or module_id in self.client_manifest.imports {
+        return;
     }
+    source_path = resolve_jac_virtual_module_path(module_id);
+    if source_path {
+        self.client_manifest.imports[module_id] = source_path;
+    }
+}
+
+impl EsastGenPass._register_jac_runtime_import -> None {
+    self._ensure_backend();
+    self._register_jac_virtual_import(self.backend.runtime_module());
 }
 
 impl EsastGenPass._inject_runtime_import(name: str, nd: uni.UniNode) -> None {
@@ -6466,6 +6470,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
 
     bind_local = '__jac_na_bind';
     if bind_local not in self.injected_imports {
+        host_module = '@jac/wasm_host';
         specifier = self.sync_loc(
             es.ImportSpecifier(
                 imported=es.Identifier(name='__na_bind'),
@@ -6474,7 +6479,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
             jac_node=nd
         );
         source = self.sync_loc(
-            es.Literal(value='@jac/wasm_host', raw='"@jac/wasm_host"'), jac_node=nd
+            es.Literal(value=host_module, raw=f'"{host_module}"'), jac_node=nd
         );
         self.imports.append(
             self.sync_loc(
@@ -6482,6 +6487,7 @@ impl EsastGenPass._generate_na_import_binding(nd: uni.Import) -> None {
             )
         );
         self.injected_imports.add(bind_local);
+        self._register_jac_virtual_import(host_module);
     }
 
     props: list[(es.AssignmentProperty | es.RestElement)] = [];

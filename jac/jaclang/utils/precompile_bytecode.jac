@@ -57,7 +57,7 @@ def find_package_dir(source_dir: str) -> str | None {
         console.error(f"Error: {source_dir} is not a directory");
         return None;
     }
-    excluded: list = [
+    excluded: list[str] = [
         "tests",
         "test",
         "scripts",
@@ -283,7 +283,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-glob NATIVE_SEAL_ROOTS: tuple = (
+glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/unitree.jac",
          "jac0core/passes/annex_pass.jac",
          "jac0core/passes/ast_validation_pass.jac",
@@ -303,9 +303,10 @@ glob NATIVE_SEAL_ROOTS: tuple = (
 
      ),
      NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {},
-     NATIVE_SEAL_CLOSURE: tuple = (
+     NATIVE_SEAL_CLOSURE: tuple[str, ...] = (
          "jac0core/codegen_ir.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
          "jac0core/jcir_facts.jac",
@@ -321,6 +322,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/sym_tab_build_pass.jac",
+         "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
@@ -341,6 +343,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac",
          "runtimelib/na_stdlib/textwrap.jac",
 
@@ -350,7 +353,7 @@ glob NATIVE_SEAL_UNITREE_ROOT: str = "jac0core/unitree.jac",
      NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac",
      NATIVE_SEAL_JCIR_ROOT: str = "jac0core/passes/jcir_gen_pass.jac";
 
-glob _UNITREE_SEAM_WAIVERS: tuple = (
+glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
          "jac0core/unitree.jac::UniNode.gen.__get__",
@@ -361,12 +364,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
-     _TYPES_SEAM_WAIVERS: tuple = (
+     _TYPES_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
          "compiler/type_system/types.jac::FunctionType.specialize",
 
      ),
-     _TYPE_UTILS_SEAM_WAIVERS: tuple = (
+     _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::expr_primitive_name",
          "compiler/type_system/type_utils.jac::class_implements_protocol",
          "compiler/type_system/type_utils.jac::collect_member_syms",
@@ -380,7 +383,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/type_system/type_utils.jac::build_solution_from_specialized_class",
 
      ),
-     _HELPERS_SEAM_WAIVERS: tuple = (
+     _HELPERS_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/helpers.jac::pretty_print_source_location",
          "jac0core/helpers.jac::format_related_spans",
          "jac0core/helpers.jac::read_file_with_encoding",
@@ -392,31 +395,53 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/helpers.jac::evaluate_version_condition",
 
      ),
-     _CLOSURE_SEAM_WAIVERS: tuple = (
+     _TRANSFORM_SEAM_WAIVERS: tuple[str, ...] = (
+         "jac0core/passes/transform.jac::Alert.pretty_print",
+
+     ),
+     _MODULE_CODEGEN_SEAM_WAIVERS: tuple[str, ...] = (
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.archetype_refs"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.has_native_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_module_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_nested_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.shared_archetypes_for_context"
+         ),
+         ("jac0core/passes/module_codegen_pass.jac::" "client_capability_violations"),
+
+     ),
+     _LEAF_SEAM_WAIVERS: tuple[str, ...] = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
      ),
-     _UNI_PASS_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-
+     _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
+         _LEAF_SEAM_WAIVERS + _TRANSFORM_SEAM_WAIVERS
      ),
-     _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
+     _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
-     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
-
-     ),
-     _SYM_TAB_BUILD_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
-
-     ),
-     _CFG_BUILD_SEAM_WAIVERS: tuple = (
+     _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
@@ -426,7 +451,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          ),
 
      ),
-     _JCIR_INTEROP_SEAM_WAIVERS: tuple = (
+     _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
          (
@@ -441,7 +466,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_import",
 
      ),
-     _JCIR_LOWERING_SEAM_WAIVERS: tuple = (
+     _JCIR_LOWERING_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ability",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
@@ -452,35 +477,32 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
 
      ),
-     _JCIR_ENTITY_SEAM_WAIVERS: tuple = (
+     _JCIR_ENTITY_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_normal_attribute",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_text",
 
      ),
-     _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple = (
+     _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._query_filter_kws",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_edge_ref_trailer",
 
      ),
-     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
+     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
          ),
+         "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
          ),
          "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/semantic_analysis_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
-         ),
-         "jac0core/passes/sym_tab_build_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SYM_TAB_BUILD_SEAM_WAIVERS
-         ),
+         "jac0core/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -498,7 +520,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          )
      };
 
-glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
+glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
          (
              "unitree Python-only surface",
              _UNITREE_SEAM_WAIVERS,
@@ -553,14 +575,38 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "mechanism and it needs the cycle broken first."
          ),
          (
-             "uni_pass TypeVar-generic statics",
-             _UNI_PASS_SEAM_WAIVERS,
-             "`get_all_sub_nodes` and `find_parent_of_type` are "
-             "`type[T]`-generic statics that only forward to the "
-             "same-named `UniNode` methods, and the backend cannot lower "
-             "a TypeVar-bound signature. They clear when generic statics "
-             "lower, or when the forwarding shims are retired for the "
-             "`UniNode` methods they wrap."
+             "pass base chain rim surface",
+             _TRANSFORM_SEAM_WAIVERS,
+             "One left of the three the base chain's arrival brought in. "
+             "`Alert.pretty_print` renders source spans through "
+             "`helpers.pretty_print_source_location`, already waived above, "
+             "and clears with it. `BaseTransform.is_canceled` cleared when "
+             "cancellation started crossing as a scalar the pass reads "
+             "(`cancel_requested`; the event poll lives on the driver and "
+             "the Python loader now), and `Transform.ice` cleared when it "
+             "became the message-builder half of the internal-error guard "
+             "-- callers raise `RuntimeError(self.ice(...))`, a statement "
+             "the native raise path lowers."
+         ),
+         (
+             "module_codegen isinstance against an unreachable layout",
+             _MODULE_CODEGEN_SEAM_WAIVERS,
+             "One mechanism and its cascades, demoting in exactly one root "
+             "-- `uni_pass.jac`, the only root that links "
+             "`module_codegen_pass` without also linking the unitree layout "
+             "that would make its reads resolvable. `iter_context_stmts` "
+             "tests `isinstance` against `ElementStmt`, a unitree class "
+             "whose layout is not reachable there, which is the same named "
+             "backend gap `type_utils`'s `class_implements_protocol` and "
+             "`doc_of_sym` are waived for above; five of the others call "
+             "it, and `archetype_refs` hits the same wall one door over, "
+             "calling `UniNode.get_all_sub_nodes` on the layout that is "
+             "not there. It was always this way on this root -- the "
+             "ordering bug #8320's A1 fixed had been emitting it against "
+             "an unlanded verdict, so the seam only became visible when "
+             "the verdict started binding. They clear together the day a "
+             "call against an unreachable layout lowers -- one mechanism, "
+             "seven waivers, and no separate work of their own."
          ),
          (
              "endpoint effects written as codegen state",
@@ -570,22 +616,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "same family as unitree's waived `UniNode.gen.__get__`. They "
              "clear when endpoint effects are emitted as data the driver "
              "collects, the diagnostics-as-data pattern."
-         ),
-         (
-             "semantic_analysis ice construction",
-             _SEMANTIC_ANALYSIS_SEAM_WAIVERS,
-             "`Transform.ice` raises through Python diagnostics "
-             "machinery. Clears when ice construction lowers, or when the "
-             "internal-error guard moves behind the emit-as-data path."
-         ),
-         (
-             "sym_tab_build ice construction",
-             _SYM_TAB_BUILD_SEAM_WAIVERS,
-             "`exit_global_vars` calls the inherited `Transform.ice`, which "
-             "raises through Python diagnostics machinery. It is the exact "
-             "twin of the `semantic_analysis` waiver and clears the same "
-             "way: when ice construction lowers, or when the internal-error "
-             "guard moves behind the emit-as-data path."
          ),
          (
              "cfg_build graph tooling and erased basic-block storage",
@@ -667,7 +697,7 @@ def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
 }
 
 def _seal_demotions(
-    census: dict, pkg_path: (Path | None) = None
+    census: dict[str, dict[str, any]], pkg_path: (Path | None) = None
 ) -> list[tuple[str, str, str]] {
     found: list[tuple[str, str, str]] = [];
     for (path, rec) in sorted(census.items()) {
@@ -694,7 +724,9 @@ def _seal_demotions(
     return found;
 }
 
-def seal_waiver_names(rel: str, waivers: (dict | None) = None) -> tuple[set, set] {
+def seal_waiver_names(
+    rel: str, waivers: (dict[str, tuple[str, ...]] | None) = None
+) -> tuple[set[str], set[str]] {
     table = NATIVE_SEAL_DEMOTION_WAIVERS if waivers is None else waivers;
     qualified = set(table.get(rel, ()));
     bare = {q.split("::")[-1] for q in qualified};
@@ -703,8 +735,8 @@ def seal_waiver_names(rel: str, waivers: (dict | None) = None) -> tuple[set, set
 
 def seal_demotion_report(
     rel: str,
-    census: dict,
-    waivers: (dict | None) = None,
+    census: dict[str, dict[str, any]],
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
     pkg_path: (Path | None) = None
 ) -> tuple[str, list[str], list[str]] {
     (allowed, _bare) = seal_waiver_names(rel, waivers);
@@ -866,7 +898,7 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
             f"artifact: {shown}"
         );
     }
-    sys.stderr.write(f"    canary: __jac_shared_init + jac_str_new in {name}\n");
+    sys.stderr.write(f"    canary: __jac_shared_init in {name}\n");
     sys.stderr.flush();
     try {
         eng.initialize();
@@ -880,6 +912,8 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     if not probe {
         return "";
     }
+    sys.stderr.write(f"    canary: jac_str_new in {name}\n");
+    sys.stderr.flush();
     try {
         made = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
             probe
@@ -901,7 +935,7 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     return "";
 }
 
-glob _PARITY_CANARY_LINES: tuple = (
+glob _PARITY_CANARY_LINES: tuple[str, ...] = (
          "import os;",
          "glob G: int = 42, H: str = 'control-flow harness (Branch 4)';",
          "enum E { A = 1, B = 2 }",
@@ -933,7 +967,7 @@ glob _PARITY_CANARY_LINES: tuple = (
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
      ),
-     _PARITY_CORPUS_LINES: tuple = (
+     _PARITY_CORPUS_LINES: tuple[str, ...] = (
          "# leading comment: crossing envelopes must carry comments, and a",
          "# prior parse's envelope objects must never bleed into this tree",
          "import os;",
@@ -975,9 +1009,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "async def later -> None {}",
          "def guess(t: str) -> int by fake_llm();",
          "enum Tone: int {",
-         "    comptime for N in ('LOW', 'HIGH') {",
-         "        ${ct.name(N)} = ${len(N)},",
-         "    }",
+         "    LOW = 3,",
+         "    HIGH = 4,",
          "}",
          "def imp_scope -> int {",
          "    import from math { floor };",
@@ -999,7 +1032,7 @@ glob _PARITY_CANARY_LINES: tuple = (
 
      );
 
-glob _PARITY_IDENT_PROBES: tuple = (
+glob _PARITY_IDENT_PROBES: tuple[str, ...] = (
          '"abc"',
          '"ABC"',
          '"a1"',
@@ -1069,7 +1102,7 @@ def _parity_diff_at(left: any, right: any) -> int {
 }
 
 
-def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
+def _parity_window(items: list[str], at: int, span: int, sep: str = " ") -> str {
     lo = max(0, at - span);
     hi = min(len(items), at + span + 1);
     out = sep.join([str(x) for x in items[lo:hi]]);
@@ -1083,7 +1116,9 @@ def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
 }
 
 
-def _parity_pairwise(left: list, right: list, cap: int) -> tuple[(list[str], int)] {
+def _parity_pairwise(
+    left: list[str], right: list[str], cap: int
+) -> tuple[(list[str], int)] {
     shown: list[str] = [];
     total = 0;
     for i in range(max(len(left), len(right))) {
@@ -1128,7 +1163,7 @@ def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
 }
 
 
-def _parity_sym_report(canary_path: str, n_syms: list, p_syms: list) -> str {
+def _parity_sym_report(canary_path: str, n_syms: list[str], p_syms: list[str]) -> str {
     nl = chr(10);
     at = _parity_diff_at(n_syms, p_syms);
     n_show = n_syms[at] if at < len(n_syms) else "<end>";
@@ -1145,7 +1180,7 @@ def _parity_sym_report(canary_path: str, n_syms: list, p_syms: list) -> str {
 }
 
 
-def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
+def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
     import traceback;
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
     import from jaclang.jac0core.compile_options { env_na_debug }
@@ -1245,7 +1280,7 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     return _merge_probe_parity(np);
 }
 
-glob _MERGE_PROBE_MAIN: tuple = (
+glob _MERGE_PROBE_MAIN: tuple[str, ...] = (
          "obj Widget {",
          "    has size: int = 1;",
          "    def grow(n: int) -> int;",
@@ -1253,7 +1288,7 @@ glob _MERGE_PROBE_MAIN: tuple = (
          "with entry { print(Widget(size=2)); }",
 
      ),
-     _MERGE_PROBE_ANNEX: tuple = (
+     _MERGE_PROBE_ANNEX: tuple[str, ...] = (
          "impl Widget.grow(n: int) -> int {",
          "    self.size += n;",
          "    return self.size;",
@@ -1303,7 +1338,7 @@ def _merge_probe_parity(np: any) -> str {
     return "";
 }
 
-glob _JCIR_PROBE_LINES: tuple = (
+glob _JCIR_PROBE_LINES: tuple[str, ...] = (
          "\"\"\"Container probe.\"\"\"",
          "# a comment the crossing must not move",
          "glob seeded: int = 1;",
@@ -1505,7 +1540,7 @@ def seal_index_path(precompiled_dir: Path, triple: str) -> Path {
     return precompiled_dir / "native" / triple / NATIVE_SEAL_INDEX_NAME;
 }
 
-def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict] {
+def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict[str, any]] {
     try {
         doc = json.loads(
             seal_index_path(precompiled_dir, triple).read_text(encoding="utf-8")
@@ -1529,7 +1564,9 @@ def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict] {
     };
 }
 
-def write_seal_index(precompiled_dir: Path, triple: str, records: dict[str, dict]) {
+def write_seal_index(
+    precompiled_dir: Path, triple: str, records: dict[str, dict[str, any]]
+) {
     path = seal_index_path(precompiled_dir, triple);
     path.parent.mkdir(parents=True, exist_ok=True);
     path.write_text(
@@ -1606,7 +1643,9 @@ def seal_artifact_key(rel: str, triple: str, source_keys: dict[str, str]) -> str
     return h.hexdigest();
 }
 
-def seal_waiver_digest(rel: str, waivers: (dict | None) = None) -> str {
+def seal_waiver_digest(
+    rel: str, waivers: (dict[str, tuple[str, ...]] | None) = None
+) -> str {
     (qualified, _bare) = seal_waiver_names(rel, waivers);
     h = hashlib.sha256();
     for name in sorted(qualified) {
@@ -1616,7 +1655,7 @@ def seal_waiver_digest(rel: str, waivers: (dict | None) = None) -> str {
 }
 
 def seal_reuse_decision(
-    record: (dict | None),
+    record: (dict[str, any] | None),
     precompiled_dir: Path,
     rel: str,
     triple: str,
@@ -1675,7 +1714,9 @@ def seal_reuse_decision(
     return "";
 }
 
-def seal_export_symbols(layout_dict: dict, clib_symbols: any = None) -> list[str] {
+def seal_export_symbols(
+    layout_dict: dict[str, any], clib_symbols: any = None
+) -> list[str] {
     clib = set(clib_symbols or ());
     names = {
         fn_name
@@ -1690,7 +1731,7 @@ def seal_export_symbols(layout_dict: dict, clib_symbols: any = None) -> list[str
     return sorted(names);
 }
 
-glob PRECOMPILED_KEEP_DIRS: tuple = ("native", );
+glob PRECOMPILED_KEEP_DIRS: tuple[str, ...] = ("native", );
 
 def prune_stale_precompiled_dirs(precompiled_dir: Path, pyver: str) -> int {
     removed = 0;
@@ -1737,13 +1778,13 @@ def prune_native_outputs(precompiled_dir: Path, triple: str, keep: set[str]) -> 
 def seal_native_roots(
     pkg_path: Path,
     precompiled_dir: Path,
-    modules: (tuple | None) = None,
-    waivers: (dict | None) = None,
+    modules: (tuple[str, ...] | None) = None,
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
     canary_reused: bool = True,
-    unitree_layout: (dict | None) = None,
-    index_out: (dict | None) = None
-) -> (dict[str, dict] | None) {
-    artifacts: dict[str, dict] = {};
+    unitree_layout: (dict[str, any] | None) = None,
+    index_out: (dict[str, dict[str, any]] | None) = None
+) -> (dict[str, dict[str, any]] | None) {
+    artifacts: dict[str, dict[str, any]] = {};
     if sys.platform.startswith("win") {
         stale_native = precompiled_dir / "native";
         if stale_native.is_dir() {
@@ -1765,9 +1806,9 @@ def seal_native_roots(
     identity = compiler_identity();
     (forced_rebuild, _no_precompile) = cache_mode();
     index = {} if forced_rebuild else read_seal_index(precompiled_dir, triple);
-    fresh_index: dict[str, dict] = dict(index);
-    kept: dict[str, dict] = {};
-    _seal_layouts: dict[str, dict] = {};
+    fresh_index: dict[str, dict[str, any]] = dict(index);
+    kept: dict[str, dict[str, any]] = {};
+    _seal_layouts: dict[str, dict[str, any]] = {};
     if unitree_layout is not None {
         _seal_layouts[NATIVE_SEAL_UNITREE_ROOT] = unitree_layout;
     }
@@ -1832,7 +1873,7 @@ def seal_native_roots(
         if not why and record is not None {
             reuse_lib = precompiled_dir / str(record["lib"]);
             reuse_layout = precompiled_dir / str(record["layout"]);
-            reused_layout: (dict | None) = None;
+            reused_layout: (dict[str, any] | None) = None;
             try {
                 reused_layout = json.loads(reuse_layout.read_text(encoding="utf-8"));
             } except Exception as _layout_exc {
@@ -2210,7 +2251,7 @@ def seal_jaclang_root -> str {
 def seal_worker_spec(
     pkg_path: Path,
     precompiled_dir: Path,
-    waivers: (dict | None),
+    waivers: (dict[str, tuple[str, ...]] | None),
     canary_reused: bool,
     identity: str
 ) -> dict[str, any] {
@@ -2227,8 +2268,8 @@ def seal_worker_spec(
 }
 
 def _seal_worker_job(
-    spec: dict, work_dir: str, rel: str, unitree_layout: (str | None)
-) -> dict {
+    spec: dict[str, any], work_dir: str, rel: str, unitree_layout: (str | None)
+) -> dict[str, str] {
     slug = rel.replace("/", "__").replace(".", "_");
     request = os.path.join(work_dir, f"{slug}.request.json");
     result = os.path.join(work_dir, f"{slug}.result.json");
@@ -2270,7 +2311,7 @@ def seal_worker_argv -> list[str] {
     return argv + ["-c", _SEAL_WORKER_BOOT];
 }
 
-def _seal_worker_exec(job: dict) -> dict {
+def _seal_worker_exec(job: dict[str, str]) -> dict[str, any] {
     import subprocess;
     import time;
 
@@ -2292,7 +2333,7 @@ def _seal_worker_exec(job: dict) -> dict {
         "stderr": proc.stderr or "",
         "seconds": time.monotonic() - started
     };
-    landed: (dict | None) = None;
+    landed: (dict[str, any] | None) = None;
     try {
         landed = json.loads(Path(str(job["result"])).read_text(encoding="utf-8"));
     } except Exception { }
@@ -2326,7 +2367,9 @@ def _seal_exit_reason(code: int) -> str {
     }
 }
 
-def _seal_worker_run(job: dict, gate: any, state: dict) -> dict {
+def _seal_worker_run(
+    job: dict[str, str], gate: any, state: dict[str, bool]
+) -> dict[str, any] {
     gate.acquire();
     try {
         if state.get("failed") {
@@ -2367,17 +2410,20 @@ def _seal_worker_run(job: dict, gate: any, state: dict) -> dict {
     return result;
 }
 
-def _seal_dispatch(job: dict, gate: any, state: dict) -> any {
+def _seal_dispatch(job: dict[str, str], gate: any, state: dict[str, bool]) -> any {
     return flow _seal_worker_run(job, gate, state) ;
 }
 
-def _seal_replay(result: dict) {
-    if result.get("stdout") {
-        sys.stdout.write(str(result["stdout"]));
-        sys.stdout.flush();
+def _seal_replay(result: dict[str, any]) {
+    out = str(result.get("stdout") or "");
+    err = str(result.get("stderr") or "");
+    sink = sys.stdout if result.get("ok") else sys.stderr;
+    if out {
+        sink.write(out);
+        sink.flush();
     }
-    if result.get("stderr") {
-        sys.stderr.write(str(result["stderr"]));
+    if err {
+        sys.stderr.write(err);
         sys.stderr.flush();
     }
 }
@@ -2386,10 +2432,10 @@ def seal_native_pool(
     pkg_path: Path,
     precompiled_dir: Path,
     roots: list[str],
-    waivers: (dict | None),
+    waivers: (dict[str, tuple[str, ...]] | None),
     canary_reused: bool,
     jobs: int
-) -> (dict[str, dict] | None) {
+) -> (dict[str, dict[str, any]] | None) {
     import tempfile;
     import threading;
     import from jaclang.jac0core.jir { cache_mode }
@@ -2398,7 +2444,7 @@ def seal_native_pool(
     triple = llvm.get_default_triple();
     identity = compiler_identity();
     (forced_rebuild, _no_precompile) = cache_mode();
-    fresh_index: dict[str, dict] = (
+    fresh_index: dict[str, dict[str, any]] = (
         {} if forced_rebuild else dict(read_seal_index(precompiled_dir, triple))
     );
     spec = seal_worker_spec(
@@ -2407,7 +2453,7 @@ def seal_native_pool(
     work_dir = tempfile.mkdtemp(prefix="jac-seal-pool-");
     gate = threading.Semaphore(max(1, jobs));
     state: dict[str, bool] = {"failed": False};
-    results: dict[str, dict] = {};
+    results: dict[str, dict[str, any]] = {};
     try {
         phase_a = [
             r
@@ -2449,7 +2495,7 @@ def seal_native_pool(
                 f"  Seal phase 2/2: {len(phase_b)} root(s), {jobs} worker "
                 "process(es) in flight"
             );
-            handles: list = [];
+            handles: list[any] = [];
             for rel in phase_b {
                 handles.append(
                     _seal_dispatch(
@@ -2484,8 +2530,8 @@ def seal_native_pool(
         shutil.rmtree(work_dir, ignore_errors=True);
     }
 
-    artifacts: dict[str, dict] = {};
-    kept: dict[str, dict] = {};
+    artifacts: dict[str, dict[str, any]] = {};
+    kept: dict[str, dict[str, any]] = {};
     refused: list[str] = [];
     drained: list[str] = [];
     for rel in roots {
@@ -2529,11 +2575,11 @@ def seal_native_pool(
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
-    modules: (tuple | None) = None,
-    waivers: (dict | None) = None,
+    modules: (tuple[str, ...] | None) = None,
+    waivers: (dict[str, tuple[str, ...]] | None) = None,
     canary_reused: bool = True,
     jobs: (int | None) = None
-) -> (dict[str, dict] | None) {
+) -> (dict[str, dict[str, any]] | None) {
     if sys.platform.startswith("win") {
         return seal_native_roots(
             pkg_path, precompiled_dir, modules, waivers, canary_reused
@@ -2597,13 +2643,13 @@ def seal_worker_main -> int {
                 if raw_waivers is None
                 else {k: tuple(v) for (k, v) in raw_waivers.items()}
         );
-        layout: (dict | None) = None;
+        layout: (dict[str, any] | None) = None;
         if request.get("unitree_layout") {
             layout = json.loads(
                 Path(str(request["unitree_layout"])).read_text(encoding="utf-8")
             );
         }
-        records: dict[str, dict] = {};
+        records: dict[str, dict[str, any]] = {};
         arts = seal_native_roots(
             Path(str(request["pkg_path"])),
             Path(str(request["precompiled_dir"])),
@@ -2659,7 +2705,7 @@ def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
     return (source_rel, fullname, is_pkg);
 }
 
-def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
+def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
     if not (pkg_path / "jac.toml").is_file() {
         return {};
     }
@@ -2848,7 +2894,7 @@ def seal_finalize(
         }
     }
 
-    manifest_modules: dict[str, dict] = {};
+    manifest_modules: dict[str, dict[str, any]] = {};
     n_boot = 0;
     for jir in sorted(out_dir.rglob("*.jir")) {
         rel_jir = jir.relative_to(out_dir).as_posix();
@@ -2900,9 +2946,9 @@ def write_manifest(
     precompiled_dir: Path,
     pkg_name: str,
     pyver: str,
-    modules: dict[str, dict],
+    modules: dict[str, dict[str, any]],
     payloads: (dict[str, str] | None) = None,
-    app_meta: (dict | None) = None,
+    app_meta: (dict[str, any] | None) = None,
     native_seal: (dict[str, any] | None) = None
 ) {
     import from importlib.metadata { version as pkg_version }
@@ -2941,9 +2987,15 @@ def write_manifest(
     );
 }
 
+def precompile_exit(code: int) {
+    sys.stdout.flush();
+    sys.stderr.flush();
+    os._exit(code);
+}
+
 def main {
     if os.environ.get(NATIVE_SEAL_WORKER_ENV) {
-        sys.`exit(seal_worker_main());
+        precompile_exit(seal_worker_main());
     }
     args = sys.argv[1:];
     seal = "--seal" in args;
@@ -3017,7 +3069,7 @@ def main {
 
     if finalize_only {
         console.print(f"Sealing {pkg_name} for {pyver} (finalize)...");
-        sys.`exit(
+        precompile_exit(
             seal_finalize(
                 Path(package_dir),
                 precompiled_dir,
@@ -3128,12 +3180,13 @@ def main {
     );
 
     if seal {
-        sys.`exit(
+        precompile_exit(
             seal_finalize(
                 pkg_path, precompiled_dir, pkg_name, pyver, embed_src, canary_reused
             )
         );
     }
+    precompile_exit(0);
 }
 
 with entry:__main__ {

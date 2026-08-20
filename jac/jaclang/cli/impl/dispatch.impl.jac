@@ -163,11 +163,7 @@ def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
         if dict_key not in args_dict {
             continue;
         }
-        arg_default = arg.`default;
-        if arg_default is None and (arg.kind == ArgKind.FLAG or arg.typ == "bool") {
-            arg_default = False;
-        }
-        if args_dict[dict_key] != arg_default {
+        if args_dict[dict_key] != arg.`default {
             continue;
         }
         raw = config._raw_data.get(section, {});

@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from jaclang.jac0core.diagnostics {
     E1301,
     E1302,

@@ -111,7 +111,6 @@ enum TokenKind {
     KW_INIT = "init",
     KW_SUPER = "super",
     KW_POST_INIT = "postinit",
-    KW_COMPTIME = "comptime",
     LPAREN = "(",
     RPAREN = ")",
     LBRACE = "{",
@@ -197,7 +196,6 @@ enum TokenKind {
     F_TEXT_TSQ = "F_TEXT_TSQ",
     D_LBRACE = "{{",
     D_RBRACE = "}}",
-    DOLLAR_LBRACE = "${",
     CONV = "CONV",
     JSX_TEXT = "JSX_TEXT",
     JSX_COMMENT = "JSX_COMMENT",
@@ -352,7 +350,6 @@ glob KEYWORDS: dict[str, TokenKind] = {
          "init": TokenKind.KW_INIT,
          "super": TokenKind.KW_SUPER,
          "postinit": TokenKind.KW_POST_INIT,
-         "comptime": TokenKind.KW_COMPTIME,
          "True": TokenKind.BOOL,
          "False": TokenKind.BOOL,
          "None": TokenKind.NULL

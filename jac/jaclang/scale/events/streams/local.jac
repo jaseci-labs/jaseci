@@ -1,4 +1,3 @@
-import from typing { Callable }
 import from threading { Thread, Event as _ThreadStop, Lock }
 import from jaclang.scale.events.broker {
     EventStreamBroker,

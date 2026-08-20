@@ -11,7 +11,7 @@ import from jaclang.publish.package_json { generate_package_json, npm_tarball_fi
 def _resolve_externals(
     config: any, files: list[any]
 ) -> tuple[dict[str, str], dict[str, str]] {
-    externals: set = set();
+    externals: set[str] = set();
     for f in files {
         for ext in f.external_imports {
             externals.add(ext);

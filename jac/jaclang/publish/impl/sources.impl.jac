@@ -38,7 +38,7 @@ def _make_recursive(pattern: str) -> str {
 }
 
 def _collect_from_dir(
-    pkg_dir: Path, proj_root: Path, patterns: list[str], seen: set,
+    pkg_dir: Path, proj_root: Path, patterns: list[str], seen: set[str],
 ) -> list[SourceFile] {
     result: list[SourceFile] = [];
 
@@ -99,7 +99,7 @@ impl collect_source_files(
 
     global_patterns: list[str] = list(data_map.get("*", DEFAULT_INCLUDE_PATTERNS));
 
-    seen: set = set();
+    seen: set[str] = set();
     result: list[SourceFile] = [];
 
     package_patterns = pkg_include.packages;

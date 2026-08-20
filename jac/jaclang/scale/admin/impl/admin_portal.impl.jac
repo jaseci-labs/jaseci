@@ -1,5 +1,4 @@
 import logging;
-import from collections.abc { Callable }
 import from jaclang.runtimelib.serving.datatypes { Request }
 import from jaclang.runtimelib.serving.datatypes {
     FileResponse,

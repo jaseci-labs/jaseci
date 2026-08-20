@@ -1,5 +1,5 @@
 import from enum { IntEnum, StrEnum }
-import from typing { Dict, List, Optional, Union }
+import from typing { Optional, Union }
 
 glob TEXT_DOCUMENT_DID_OPEN = "textDocument/didOpen",
      TEXT_DOCUMENT_DID_SAVE = "textDocument/didSave",

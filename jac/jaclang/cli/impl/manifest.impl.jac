@@ -328,6 +328,13 @@ def _command_routes -> list[CommandMeta] {
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
                     short=''
                 ),
+                ArgMeta(
+                    name='compile-stats',
+                    typ='bool',
+                    default=False,
+                    help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
+                    short=''
+                ),
 
             ]
         ),
@@ -1165,8 +1172,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='npm',
                     typ='bool',
-                    `default=False,
-                    help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'",
+                    help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'. As --no-npm, skip npm dependencies during a full install",
                     short='n'
                 ),
                 ArgMeta(
@@ -1406,6 +1412,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='scrub',
                     kind=ArgKind.FLAG,
+                    default=False,
                     help='Scrub build: wipe cached IR and recompile everything from scratch',
                     short='s'
                 ),
@@ -1418,12 +1425,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='shared',
                     kind=ArgKind.FLAG,
+                    default=False,
                     help='Build a C-ABI shared library (.so/.dylib/.dll) exporting `:pub` symbols instead of an executable',
                     short=''
                 ),
                 ArgMeta(
                     name='debug',
                     kind=ArgKind.FLAG,
+                    default=False,
                     help='Emit DWARF debug info + symbol table so the binary is debuggable with gdb/lldb',
                     short='g'
                 ),
@@ -1436,12 +1445,14 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='assert-no-rc',
                     kind=ArgKind.FLAG,
+                    default=False,
                     help='Fail the build if the emitted IR contains any RC/collector machinery: __rc_* helpers, trace functions, roots-buffer globals, or entry-point GC env probes',
                     short=''
                 ),
                 ArgMeta(
                     name='enforce-nogc',
                     kind=ArgKind.FLAG,
+                    default=False,
                     help='Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns',
                     short=''
                 ),

@@ -1257,11 +1257,6 @@ impl Lexer.scan_operator -> LexToken {
     start_pos = self.pos;
     ch = self.current();
 
-    if self.match_string("${") {
-        return self.make_token(
-            TokenKind.DOLLAR_LBRACE, "${", start_line, start_col, start_pos
-        );
-    }
     if self.match_string("<-->") {
         return self.make_token(
             TokenKind.ARROW_BI, "<-->", start_line, start_col, start_pos

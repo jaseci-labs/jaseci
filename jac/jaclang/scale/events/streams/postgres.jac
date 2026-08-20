@@ -5,7 +5,7 @@ import os;
 import time;
 import uuid;
 import from threading { Thread, Event as _ThreadStop }
-import from typing { Callable, cast }
+import from typing { cast }
 import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.scale.events.broker {
     EventStreamBroker,

@@ -578,8 +578,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if style is not None {
             related.append(style);
         }
-        reflect_deps = _ct_reflect_deps(source_path);
-        related.extend(reflect_deps);
         fresh = cache_mtime > os.path.getmtime(source_path);
         if fresh {
             for f in related {
@@ -597,9 +595,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if fresh {
             return True;
         }
-        if reflect_deps {
-            return False;
-        }
 
         return jir_matches_source(data, source_path);
     } except OSError {
@@ -607,19 +602,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
     }
 }
 
-
-def _ct_reflect_deps(source_path: str) -> list[str] {
-    try {
-        src = open(source_path, encoding="utf-8").read();
-    } except OSError {
-        return [];
-    }
-    if "comptime" not in src or "reflect" not in src {
-        return [];
-    }
-    import from jaclang.jac0 { ct_reflect_source_deps }
-    return ct_reflect_source_deps(src);
-}
 
 def write_module_cache(
     source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None
