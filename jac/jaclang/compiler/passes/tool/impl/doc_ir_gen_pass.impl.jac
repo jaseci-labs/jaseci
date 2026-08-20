@@ -172,6 +172,23 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
             parts.append(attr_group);
         }
         is_self_closing = end_token.name == Tok.JSX_SELF_CLOSE;
+        open_end_tok: (uni.Token | None) = None;
+        close_start_idx = -1;
+        for (_ki, _kn) in enumerate(nd.kid) {
+            if not isinstance(_kn, uni.Token) {
+                continue;
+            }
+            if open_end_tok is None
+                and _kn.name in (Tok.JSX_TAG_END, Tok.JSX_SELF_CLOSE) {
+                open_end_tok = _kn;
+            }
+            if close_start_idx < 0 and _kn.value == "</" {
+                close_start_idx = _ki;
+            }
+        }
+        if (not is_self_closing and close_start_idx > 0 and open_end_tok is not None) {
+            parts.append(open_end_tok.gen.doc_ir);
+        }
         if (not is_self_closing and nd.children) {
             child_parts = self.jsx_mixed_child_parts(nd.children);
             inline_child_types = (uni.JsxText, uni.JsxExpression, uni.JsxComment);
@@ -218,6 +235,10 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
         if is_self_closing {
             parts.append(self.if_break(self.concat([]), self.space()));
             parts.append(end_token.gen.doc_ir);
+        } elif close_start_idx > 0 {
+            for _ck in nd.kid[close_start_idx:] {
+                parts.append(_ck.gen.doc_ir);
+            }
         } else {
             parts.append(end_token.gen.doc_ir);
         }

@@ -651,7 +651,6 @@ obj TypeEvaluator {
         is_constructor_call: bool = False
     ) -> dict[str, TypeBase];
 
-    def _is_jsx_tag_artifact(expr: JsxElement) -> bool;
     def _validate_jsx_props(
         expr: JsxElement, expected_type: TypeBase | None = None
     ) -> None;
