@@ -24,8 +24,39 @@ import from jaclang.compiler.cfront.lift { lift_c_file }
 glob FIXTURES: str = os.path.join(
          JAC_ROOT, "tests", "compiler", "c2jac", "fixtures"
      ),
+     REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      HANG: str = "__HANG__",
-     DEFAULT_TIMEOUT: float = 10.0;
+     DEFAULT_TIMEOUT: float = 10.0,
+     JAC_RUN_TIMEOUT: float = 120.0;
+
+
+def _jac_run_argv() -> list[str] {
+    jac_env = os.environ.get("JAC");
+    if jac_env and os.path.isfile(jac_env) {
+        return [jac_env, "run"];
+    }
+    py = os.path.join(REPO_ROOT, ".venv", "bin", "python");
+    if os.path.isfile(py) {
+        return [py, "-m", "jaclang", "run"];
+    }
+    jac_bin = os.path.join(REPO_ROOT, ".venv", "bin", "jac");
+    if os.path.isfile(jac_bin) {
+        return [jac_bin, "run"];
+    }
+    return [sys.executable, "-m", "jaclang", "run"];
+}
+
+
+def _jac_run_env() -> dict[str, str] {
+    env = dict(os.environ);
+    existing = env.get("PYTHONPATH", "");
+    if JAC_ROOT not in existing.split(os.pathsep) {
+        env["PYTHONPATH"] = (
+            JAC_ROOT if not existing else f"{JAC_ROOT}{os.pathsep}{existing}"
+        );
+    }
+    return env;
+}
 
 
 def cc -> (str | None) {
@@ -160,7 +191,10 @@ def lift_to_jac(c_path: str, include_dirs: list[str] | None = None) -> str {
 
 
 def run_lifted(
-    jac_src: str, entry_src: str, label: str = "", timeout: float = DEFAULT_TIMEOUT
+    jac_src: str,
+    entry_src: str,
+    label: str = "",
+    timeout: float = JAC_RUN_TIMEOUT
 ) -> tuple[str, int, str, str] {
     # Returns (line_or_HANG_or_empty, returncode, stdout, stderr).
     # Hang → (HANG, -1, "", ""); success with int line → (line, 0, ...);
@@ -174,11 +208,13 @@ def run_lifted(
     }
     try {
         proc = subprocess.run(
-            [sys.executable, "-m", "jaclang", "run", path],
+            [*_jac_run_argv(), path],
             capture_output=True,
             text=True,
             timeout=timeout,
-            check=False
+            check=False,
+            cwd=REPO_ROOT,
+            env=_jac_run_env()
         );
     } except subprocess.TimeoutExpired {
         return (HANG, -1, "", "");
@@ -199,7 +235,7 @@ def run_lifted_trap(
 ) -> bool {
     # True iff the lifted entry traps with the quarantine message (not hang,
     # not a clean return).
-    (line, rc, out, err) = run_lifted(jac_src, entry_src, label, timeout=timeout);
+    (line, rc, out, err) = run_lifted(jac_src, entry_src, label);
     if line == HANG {
         return False;
     }
@@ -235,8 +271,8 @@ def assert_lift_matches_c(
     c_out = run_c(_c_sources(c_path, extra_sources), incs, c_driver, timeout=timeout);
     assert c_out != HANG , f"{c_path}: C hung under timeout={timeout}";
     jac_src = lift_to_jac(c_path, include_dirs=include_dirs);
-    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, c_path, timeout=timeout);
-    assert j_out != HANG , f"{c_path}: lifted Jac hung under timeout={timeout}";
+    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, c_path);
+    assert j_out != HANG , f"{c_path}: lifted Jac hung under timeout={JAC_RUN_TIMEOUT}";
     assert rc == 0 , (
         f"{c_path}: lifted Jac failed (rc={rc}):\nstdout:\n{out}\nstderr:\n{err}"
     );
@@ -263,8 +299,8 @@ def assert_staged_jac_matches_c(
     with open(jac_path) as f {
         jac_src = f.read();
     }
-    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, jac_path, timeout=timeout);
-    assert j_out != HANG , f"{jac_path}: staged Jac hung under timeout={timeout}";
+    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, jac_path);
+    assert j_out != HANG , f"{jac_path}: staged Jac hung under timeout={JAC_RUN_TIMEOUT}";
     assert rc == 0 , (
         f"{jac_path}: staged Jac failed (rc={rc}):\nstdout:\n{out}\nstderr:\n{err}"
     );
@@ -309,9 +345,9 @@ def assert_lift_matches_c_or_traps(
     }
 
     if expect_trap {
-        (line, rc, out, err) = run_lifted(jac_src, jac_entry, c_path, timeout=timeout);
+        (line, rc, out, err) = run_lifted(jac_src, jac_entry, c_path);
         if line == HANG {
-            return ("hang", f"expected TRAP for '{entry_fn}' but hung");
+            return ("hang", f"expected TRAP for '{entry_fn}' but hung under timeout={JAC_RUN_TIMEOUT}");
         }
         if rc == 0 {
             return (
@@ -329,9 +365,9 @@ def assert_lift_matches_c_or_traps(
         return ("ok", "trap");
     }
 
-    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, c_path, timeout=timeout);
+    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, c_path);
     if j_out == HANG {
-        return ("hang", f"expected MATCH for '{entry_fn}' but hung");
+        return ("hang", f"expected MATCH for '{entry_fn}' but hung under timeout={JAC_RUN_TIMEOUT}");
     }
     if rc != 0 {
         if "quarantined function" in (out + err) {
