@@ -3,4 +3,8 @@ class Logger {
     def error(self: Logger, message: str, context: dict[str, any] = {}) -> None;
     def warn(self: Logger, message: str, context: dict[str, any] = {}) -> None;
     def debug(self: Logger, message: str, context: dict[str, any] = {}) -> None;
+
+    def warning(self: Logger, message: str, context: dict[str, any] = {}) -> None {
+        self.warn(message, context);
+    }
 }
