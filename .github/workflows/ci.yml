@@ -56,6 +56,10 @@ jobs:
               - 'jac/jaclang/runtimelib/client/targets/desktop/**'
             installer:
               - 'scripts/install.sh'
+              # The lane's own definition lives here, so a change to what it
+              # runs must run it -- same reasoning as `native` listing ci.yml.
+              # Without this an edit to the installer test ships unexercised.
+              - '.github/workflows/_installer.yml'
             # NARROWING filter (like `installer`, unlike `scale`/`byllm`, which
             # only ever widen `core`). The macOS and aarch64 native lanes cost a
             # macOS runner and a qemu-user cross build, and `core: jac/**` fired
@@ -70,9 +74,14 @@ jobs:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
+              - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
+              # The native lanes' own definitions live here, so a change to
+              # what they run must run them -- `core` already lists this file
+              # for the same reason.
+              - '.github/workflows/ci.yml'
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
@@ -219,17 +228,32 @@ jobs:
         run: zig build -Dno-ninja vendor-musl --summary all
       - name: Compiler suite via the binary
         working-directory: jac
+        # Chunked into sequential invocations: the materializer crossing leaks
+        # its native parse tree per compile (unitree cycles defeat plain RC and
+        # the artifact's cycle collector is not yet multi-module-safe), so one
+        # long run accumulates until the worker set OOMs the 16GB runner and
+        # the agent dies with "runner lost communication". Fresh workers per
+        # chunk bound the accumulation; each chunk also reports its own
+        # summary, so a dead runner names its chunk.
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
           rc=0
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/compiler | tee /tmp/compiler.log || rc=$?
-          {
-            echo "## binary compiler-suite result"
-            echo '```'
-            grep -E '^(FAILED|ERROR)|passed|failed' /tmp/compiler.log | tail -60 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          run_chunk() {
+            local tag="$1"; shift
+            local crc=0
+            HOME="$WORK" JAC_TEST_JOBS=auto jac test "$@" | tee "/tmp/compiler-$tag.log" || crc=$?
+            {
+              echo "## binary compiler-suite result ($tag, rc=$crc)"
+              echo '```'
+              grep -E '^(FAILED|ERROR)|passed|failed' "/tmp/compiler-$tag.log" | tail -40 || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            return "$crc"
+          }
+          run_chunk passes-native tests/compiler/passes/native tests/compiler/passes/tool || rc=$?
+          run_chunk passes-main tests/compiler/passes/main tests/compiler/passes/ecmascript || rc=$?
+          run_chunk toplevel tests/compiler/test_*.jac || rc=$?
           exit "$rc"
       - name: Cross-backend equivalence suite (py/es/native congruence)
         working-directory: jac
@@ -503,10 +527,6 @@ jobs:
           echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
           exit 1
 
-      - name: Verify jir_registry.jac is up to date
-        run: |
-          jac gen-jir-registry --verify
-
       - name: Verify manifest route table is up to date
         run: |
           jac gen-cli-manifest --verify
@@ -524,7 +544,12 @@ jobs:
       - name: Run jac check (using .jacignore)
         run: |
           set -euo pipefail
-          IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
+          # .jac-xdg is the dev lane's runtime cache root (setup-jac-dev points
+          # XDG_CACHE_HOME inside the workspace so actions/cache can save it).
+          # It materializes a full sealed jaclang tree in-place, which the
+          # full-repo `jac check .` walk would otherwise sweep as if it were
+          # source. Bare name -> any .jac-xdg path component is skipped.
+          IGNORE_ARGS="tests checker_*.jac *_err.jac .jac-xdg $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
             if [ "${{ steps.changes.outputs.any }}" != "true" ]; then
               echo "No .jac files changed in this PR; skipping jac check."
@@ -540,7 +565,9 @@ jobs:
         run: |
           set +e
           echo "Scanning the whole codebase (no ignores) for an error-code breakdown..."
-          jac check . --nowarn > jac-check-full.log 2>&1
+          # Only .jac-xdg is excluded -- it is the dev lane's runtime cache, not
+          # repo source, and its sealed tree would double-count every code.
+          jac check . --ignore .jac-xdg --nowarn > jac-check-full.log 2>&1
 
           {
             echo "## jac check error-code breakdown (whole codebase, no ignores)"
@@ -673,16 +700,26 @@ jobs:
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
-    - name: Run Solid jsdom runtime test
+    - name: Run jsdom runtime tests
+      # Every suite here skips itself unless JAC_CLIENT_INTEGRATION is set, so
+      # this step is the ONLY place they actually execute -- the ungated
+      # `jac test tests/` lane collects them and skips. A jsdom suite not named
+      # here is a suite that never runs.
       env:
         JAC_CLIENT_INTEGRATION: "1"
-      run: jac test jac/tests/runtimelib/test_solid_jsdom.jac -x
+      run: |
+        jac test \
+          jac/tests/runtimelib/test_solid_jsdom.jac \
+          jac/tests/runtimelib/test_react_state_semantics.jac \
+          jac/tests/runtimelib/test_react_auth_jsdom.jac \
+          -x
 
     - name: Run dependency-free desktop tests
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
 
   test-client:
-    needs: build-jac
+    needs: [changes, build-jac]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
     # (serve/client/cli tests). Under the dev lane each such spawn would
@@ -719,8 +756,8 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
-      # Serial: xdist workers intermittently disagree on collection of
-      # test_react_native_target.jac ("Different tests were collected").
+      # Serial: parallel workers intermittently disagreed on collection of
+      # test_react_native_target.jac under the old pytest-xdist runner.
       env:
         JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
@@ -823,8 +860,18 @@ jobs:
         # os.path + textwrap + keyword are pure-compute na modules that must
         # agree on darwin; the shutil pin self-skips there until the stat
         # seam gets a per-OS floor (see test_prim_equivalence.jac).
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
-      run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+        #
+        # The str/bytes pins are here because darwin ran no string-primitive
+        # equivalence at all: `str.lower()` lowers to a per-byte libc
+        # `tolower`, and the linkers differ (Linux executables statically
+        # link vendored musl, Mach-O binds every undefined symbol to
+        # libSystem), so identical IR can get two different implementations.
+        # The seal's parse parity canary is red on macos-aarch64 for a
+        # divergence in exactly this family; nothing before this pin ran the
+        # string surface on darwin on a PR.
+      run: >-
+        jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+        -f "shutil or path or textwrap or keyword or str or bytes"
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
     - name: Save JIR compile caches
@@ -874,11 +921,12 @@ jobs:
     - name: Run aarch64 cross tests under qemu
       env:
         JAC_TEST_JOBS: "0"
-        PYTEST_ADDOPTS: -k aarch64
         # The sealed CI binary's pkg_root only bundles host-arch musl; point
         # the static-link search at the repo-vendored cross runtime.
         JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
-      run: jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+      run: >-
+        jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+        -f aarch64
 
   # Launcher unit tests: trailer codec + `.jab`-overlay round-trip
   # (append / detect / materialize-steps-over-overlay / graft). runtime.zig is
@@ -1112,10 +1160,9 @@ jobs:
       with:
         submodules: true
 
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.12
+    # No setup-python: every step below runs through the jac binary, which
+    # brings its own CPython. The pin existed only because check-guide.sh
+    # piped into a host `python3`; it now pipes into `jac -c`.
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
@@ -1145,6 +1192,51 @@ jobs:
       run: |
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
+
+    # The same capacity floor build-binaries.yml gained in #8279 and
+    # .github/actions/setup-jac carries for the workflows that build through
+    # it. This job does not build the binary -- it downloads build-jac's -- but
+    # the step below runs the precompiler, and the inline seal that closes it
+    # is the same one-process compile of every NATIVE_SEAL_ROOTS entry, with
+    # the same stranded materializer trees. It died here exactly as it died
+    # there: "the runner lost communication" and no diagnostic.
+    - name: Swap headroom for the sealed precompile (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "--- before"
+        free -h
+        swapon --show || true
+        df -h
+        WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
+        MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
+        if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
+          SWAP_DIR=/mnt
+          RESERVE_GB=2
+        else
+          SWAP_DIR="$RUNNER_TEMP"
+          RESERVE_GB=25
+        fi
+        AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+        SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
+        if [ "$SIZE_GB" -gt 24 ]; then
+          SIZE_GB=24
+        fi
+        if [ "$SIZE_GB" -lt 4 ]; then
+          echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+               "the seal needs swap headroom at this root count and would exhaust the runner"
+          exit 1
+        fi
+        SWAP_FILE="$SWAP_DIR/jac-seal-swap"
+        sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+          || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+        sudo chmod 600 "$SWAP_FILE"
+        sudo mkswap "$SWAP_FILE"
+        sudo swapon "$SWAP_FILE"
+        echo "--- after"
+        free -h
+        swapon --show
 
     - name: Precompile all packages
       run: |
@@ -1594,72 +1686,15 @@ jobs:
           echo "=== ingress controller logs ==="
           kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=50 || true
 
+  # Body lives in _installer.yml so the nightly lane runs the same test
+  # instead of a second copy of it. The PR lane lints install.sh; the nightly
+  # one does not (it exercises the published installer, not this checkout).
   installer-test:
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && needs.changes.outputs.installer == 'true') }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: ShellCheck install.sh
-        if: runner.os == 'Linux'
-        run: shellcheck scripts/install.sh
-
-      # A missing asset on the latest release is a release regression that
-      # breaks `curl ... | bash` -- fail loudly instead of skipping.
-      - name: Require a native binary asset on the latest release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if ! gh release view --repo "$GITHUB_REPOSITORY" \
-               --json assets --jq '.assets[].name' 2>/dev/null \
-               | grep -q "jac-.*-${{ matrix.platform }}$"; then
-            echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
-            exit 1
-          fi
-
-      - name: "install: download + run the binary"
-        env:
-          # install.sh authenticates its GitHub API calls when a token is set;
-          # shared runners (macOS especially) exhaust the unauthenticated
-          # per-IP rate limit.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/install.sh
-
-      - name: "install: verify jac"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          which jac
-          jac --version
-
-      - name: "install: run a test program"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          echo 'with entry { print("hello from the jac binary"); }' > /tmp/test_install.jac
-          jac /tmp/test_install.jac
-
-      - name: "install: uninstall"
-        run: bash scripts/install.sh --uninstall
-
-      - name: "install: verify removal"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if command -v jac &>/dev/null; then
-            echo "FAIL: jac still found after uninstall"
-            exit 1
-          fi
-          echo "PASS: jac removed"
+    uses: ./.github/workflows/_installer.yml
+    with:
+      shellcheck: true
 
   # Aggregate gate. GitHub has no "require all checks" branch-protection toggle
   # -- you can only enumerate individual contexts, and anything you forget to

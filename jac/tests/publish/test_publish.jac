@@ -16,6 +16,7 @@ import tarfile;
 import tomllib;
 import zipfile;
 import json;
+import sys;
 import tempfile;
 import shutil;
 import from pathlib { Path }
@@ -136,11 +137,11 @@ test "generate_metadata raises when package section missing" {
 # record --------------------------------------------------------------------------
 test "record_entry_from_bytes has correct sha256 and size" {
     data = b"hello jac";
-    entry = record_entry_from_bytes("pkg/main.jac", data);
-    assert entry.path == "pkg/main.jac";
-    assert entry.hash_value == sha256_b64(data);
-    assert entry.size == len(data);
-    assert "=" not in entry.hash_value[len("sha256="):];
+    `entry = record_entry_from_bytes("pkg/main.jac", data);
+    assert `entry.path == "pkg/main.jac";
+    assert `entry.hash_value == sha256_b64(data);
+    assert `entry.size == len(data);
+    assert "=" not in `entry.hash_value[len("sha256="):];
 }
 
 test "generate_record self-entry last with empty hash and unix line endings" {
@@ -214,7 +215,12 @@ test "collect_source_files gathers jac files and excludes build artifacts" {
         (pkg / "stale.pyc").write_bytes(bytes([0]));
         pycache = pkg / "__pycache__";
         pycache.mkdir();
-        (pycache / "main.cpython-312.pyc").write_bytes(bytes([0]));
+        (
+            pycache
+            / f"main.cpython-{sys.version_info.major}{sys.version_info.minor}.pyc"
+        ).write_bytes(
+            bytes([0])
+        );
         cfg = pkg_config_with_include(proj, "mypkg");
         files = collect_source_files(cfg, project_root=proj);
         paths = [sf.wheel_path for sf in files];

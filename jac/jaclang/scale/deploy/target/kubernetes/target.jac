@@ -11,6 +11,8 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     create_k8s_secret,
     delete_if_exists,
     get_cluster_provider,
+    privileged_pss_labels,
+    PSS_ENFORCE_LABEL,
     _resolve_current_rs_hashes,
     _refresh_rs_hashes
 }
@@ -18,6 +20,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    with_config_revision,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -168,6 +171,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
         self._emit("rollout", "ok", "Fleet is ready");
 
+        service_url = self.get_service_url(app_name) if bundle.get("ingress") else None;
+        access_hint = None if service_url else self.port_forward_hint();
+
         svc_count = len(bundle["pod_specs"]) - 1;
         success_msg = (
             f"Applied {svc_count} service Deployment+Service pair(s) "
@@ -183,7 +189,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"once the underlying issue is fixed."
             );
         }
-        return DeploymentResult(success=True, message=success_msg, details=bundle);
+        return DeploymentResult(
+            success=True,
+            service_url=service_url,
+            access_hint=access_hint,
+            message=success_msg,
+            details=bundle
+        );
     }
 
     def _scan_for_crash_loop(
@@ -671,26 +683,26 @@ obj KubernetesTarget(KubernetesTargetBase) {
         try {
             ns = core_v1.read_namespace(name=namespace);
             labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
-            current: str = labels.get("pod-security.kubernetes.io/enforce", "");
-            if current {
+            new_labels = privileged_pss_labels(labels);
+            if new_labels is None {
                 if self.logger {
+                    current = labels.get(PSS_ENFORCE_LABEL, "");
                     self.logger.warn(
                         f"namespace '{namespace}' has "
-                        f"pod-security.kubernetes.io/enforce={current}; "
+                        f"{PSS_ENFORCE_LABEL}={current} from outside jac-scale; "
                         f"hostPath DaemonSets (node-exporter, Alloy) may be "
                         f"rejected. Relabel manually with `kubectl label "
                         f"namespace {namespace} "
-                        f"pod-security.kubernetes.io/enforce=privileged "
+                        f"{PSS_ENFORCE_LABEL}=privileged "
                         f"--overwrite` if you want to enable them."
                     );
                 }
                 return;
             }
-            patch = {
-                "metadata": {
-                    "labels": {"pod-security.kubernetes.io/enforce": "privileged"}
-                }
-            };
+            if not new_labels {
+                return;
+            }
+            patch = {"metadata": {"labels": new_labels}};
             core_v1.patch_namespace(name=namespace, body=patch);
             if self.logger {
                 self.logger.info(
@@ -713,7 +725,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _build_observability_config -> KubernetesConfig {
-        overrides: dict[str, Any] = dict(self.k8s_config.to_dict());
+        overrides: dict[str, any] = dict(self.k8s_config.to_dict());
         overrides["monitoring_enabled"] = True;
 
         overrides["loki_enabled"] = self._read_microservices_logs_config().get(
@@ -725,7 +737,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return KubernetesConfig.from_dict(KubernetesConfig, overrides);
     }
 
-    def _read_microservices_logs_config -> dict[str, Any] {
+    def _read_microservices_logs_config -> dict[str, any] {
         try {
             ms_cfg = self._ms_cfg();
             return dict(ms_cfg.get("logs", {}));
@@ -740,7 +752,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _read_microservices_tracing_config -> dict[str, Any] {
+    def _read_microservices_tracing_config -> dict[str, any] {
         try {
             ms_cfg = self._ms_cfg();
             return dict(ms_cfg.get("tracing", {}));
@@ -780,7 +792,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             env_list=list(self._deploy_context.env_list),
             init_containers=self._deploy_context.init_containers
         );
-        present = {entry.get("name") for entry in ctx.env_list};
+        present = {`entry.get("name") for `entry in ctx.env_list};
         for (env_name, env_value) in self.env.items() {
             if env_name not in present {
                 ctx.env_list.append({"name": env_name, "value": str(env_value)});
@@ -846,6 +858,46 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return triggers;
     }
 
+    def _autoscaler_spec(
+        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+    ) -> AutoscalerSpec {
+        k8s_name = k8s_safe_name(svc_name);
+        return AutoscalerSpec(
+            scale_target_name=f"{k8s_name}-deployment",
+            autoscaler_name=autoscaler.resource_name_for(k8s_name),
+            app_name=k8s_name,
+            namespace=namespace,
+            min_replicas=int(cfg.get("min", 1)),
+            max_replicas=int(cfg.get("max", 3)),
+            idle_replicas=self.k8s_config.idle_replicas,
+            polling_interval=self.k8s_config.autoscaler_polling_interval,
+            cooldown_period=self.k8s_config.autoscaler_cooldown,
+            initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
+            scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
+            scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
+            triggers=self._resolve_service_triggers(svc_name, cfg),
+            behavior_overlay=cfg.get("behavior", {})
+        );
+    }
+
+    def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
+        out: list[dict[str, any]] = [];
+        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+            cfg = dict(cfg_raw or {});
+            autoscaler = AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
+            );
+            built = autoscaler._build_manifests(
+                self._autoscaler_spec(
+                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+                )
+            );
+
+            out.append(built["body"] if "body" in built else built);
+        }
+        return out;
+    }
+
     def apply_manifests(bundle: dict[str, any]) {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -896,14 +948,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        config_revision: str = "";
         user_secret = bundle.get("user_secret");
         if user_secret {
-            create_k8s_secret(
+            config_revision = create_k8s_secret(
                 core_v1,
                 namespace,
                 user_secret["metadata"]["name"],
                 user_secret["stringData"]
             );
+            if not config_revision {
+                raise RuntimeError(
+                    f"Applied the Secret for '{self.k8s_config.app_name}' but "
+                    "could not read the "
+                    "revision it returned, so a config change could not be made "
+                    "to reach running pods. Refusing to deploy workloads rather "
+                    "than reporting a success that leaves the old config live."
+                );
+            }
             if self.logger {
                 self.logger.info(
                     f"Applied Secret for user-defined [scale.secrets] "
@@ -930,7 +992,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, dep_manifest) in bundle["deployments"].items() {
+        for (svc_name, raw_manifest) in bundle["deployments"].items() {
+            dep_manifest = with_config_revision(raw_manifest, config_revision);
             self._apply_or_replace(
                 apps_v1,
                 "read_namespaced_deployment",
@@ -950,37 +1013,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
         for svc_name in bundle.get("autoscalers", {}).keys() {
-            k8s_name = k8s_safe_name(svc_name);
             cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine,
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            triggers = self._resolve_service_triggers(svc_name, cfg);
-            autoscaler_name = autoscaler.resource_name_for(k8s_name);
-            autoscaler_applied = autoscaler.apply(
-                AutoscalerSpec(
-                    scale_target_name=f"{k8s_name}-deployment",
-                    autoscaler_name=autoscaler_name,
-                    app_name=k8s_name,
-                    namespace=namespace,
-                    min_replicas=int(cfg.get("min", 1)),
-                    max_replicas=int(cfg.get("max", 3)),
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers,
-                    behavior_overlay=cfg.get("behavior", {})
-                )
-            );
+            spec = self._autoscaler_spec(svc_name, cfg, autoscaler, namespace);
+            autoscaler_applied = autoscaler.apply(spec);
 
             if self.logger and autoscaler_applied {
                 self.logger.info(
-                    f"Applied autoscaler for '{svc_name}'", {"name": autoscaler_name}
+                    f"Applied autoscaler for '{svc_name}'",
+                    {"name": spec.autoscaler_name}
                 );
             }
         }

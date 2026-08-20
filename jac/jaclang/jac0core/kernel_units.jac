@@ -61,7 +61,7 @@ def fmt_kernel_unit_path(variant: str) -> str {
 def _artifact_key(unit_path: str, fingerprint: str) -> str {
     import hashlib;
     import from importlib.metadata { version as pkg_version }
-    import from jaclang.jac0core.jir { schema_digest }
+    import from jaclang.jac0core.jir { running_compiler_digest }
     try {
         jac_ver = pkg_version('jaclang');
     } except Exception {
@@ -69,7 +69,7 @@ def _artifact_key(unit_path: str, fingerprint: str) -> str {
     }
     h = hashlib.sha256();
     h.update(jac_ver.encode());
-    h.update(schema_digest().encode());
+    h.update(running_compiler_digest().encode());
     with open(unit_path, "rb") as f {
         h.update(f.read());
     }
@@ -97,7 +97,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
     import glob as _g;
     path = unit_artifact_path(unit_path, kind, fingerprint);
     stem = os.path.splitext(os.path.basename(unit_path))[0];
-    for stale in _g.glob(os.path.join(_units_dir(), f"{stem}.*.{kind}")) {
+    for stale in _g.`glob(os.path.join(_units_dir(), f"{stem}.*.{kind}")) {
         if stale != path {
             try {
                 os.remove(stale);
@@ -105,6 +105,15 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
                 ;
             }
         }
+    }
+    try {
+        with open(path, "r") as f {
+            if f.read() == text {
+                return;
+            }
+        }
+    } except Exception {
+        ;
     }
     _atomic_write(path, text);
 }
@@ -117,7 +126,7 @@ def es_pass_fingerprint -> str {
     );
     h = hashlib.sha256();
     for pat in ["*.jac", os.path.join("impl", "*.jac")] {
-        for p in sorted(_g.glob(os.path.join(es_dir, pat))) {
+        for p in sorted(_g.`glob(os.path.join(es_dir, pat))) {
             try {
                 with open(p, "rb") as f {
                     h.update(f.read());

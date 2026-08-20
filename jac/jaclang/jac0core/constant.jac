@@ -120,17 +120,11 @@ enum ExprCtx { LOAD = 'load', STORE = 'store', DEL = 'del' }
 
 enum OwnershipKind: int { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
 
-enum ArgCat: int {
-    KID = 0,
-    SOURCE = 1,
-    NODE = 2,
-    STR = 3,
-    INT = 4,
-    BOOL = 5,
-    ENUM = 6,
-    LIST = 7,
-    POLY = 8
-}
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     ),
+     NATIVE_ERASED_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"}),
+     NATIVE_ERASED_ANNOTATIONS: frozenset = frozenset({"ClassVar"});
 
 glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
          {
@@ -415,7 +409,6 @@ class Tokens(StrEnum) {
         DOT_BKWD = 'DOT_BKWD';
         LBRACE = 'LBRACE';
         RBRACE = 'RBRACE';
-        DOLLAR_LBRACE = 'DOLLAR_LBRACE';
         SEMI = 'SEMI';
         EQ = 'EQ';
         ADD_EQ = 'ADD_EQ';
@@ -520,7 +513,6 @@ class Tokens(StrEnum) {
         KW_SUPER = 'KW_SUPER';
         KW_ROOT = 'KW_ROOT';
         KW_POST_INIT = 'KW_POST_INIT';
-        KW_COMPTIME = 'KW_COMPTIME';
         KW_IMPL = 'KW_IMPL';
         KW_SEM = 'KW_SEM';
         A_PIPE_FWD = 'A_PIPE_FWD';
@@ -678,7 +670,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_OVERRIDE': 'override',
          'KW_AWAITING': 'awaiting',
          'KW_POST_INIT': 'postinit',
-         'KW_COMPTIME': 'comptime',
          'KW_PRIV': 'priv',
          'KW_PROPS': 'props',
          'KW_PROT': 'protect',
@@ -704,7 +695,6 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_WITH': 'with',
          'KW_YIELD': 'yield',
          'LBRACE': '{',
-         'DOLLAR_LBRACE': '${',
          'LPAREN': '(',
          'LSHIFT': '<<',
          'LSHIFT_EQ': '<<=',

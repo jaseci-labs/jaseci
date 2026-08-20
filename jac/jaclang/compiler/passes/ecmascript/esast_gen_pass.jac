@@ -1,6 +1,5 @@
 import json;
-import from collections.abc { Callable, Sequence }
-import from typing { Any, TypeVar, cast }
+import from typing { cast }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
@@ -33,7 +32,9 @@ import from jaclang.jac0core.diagnostics {
     W5015,
     E5080,
     E5081,
-    E5085
+    E5085,
+    E5086,
+    E5099
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -212,6 +213,10 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def enter_node(nd: uni.UniNode) -> None;
     def exit_node(nd: uni.UniNode) -> None;
     def sync_loc(es_node: _T, jac_node: (uni.UniNode | None) = None) -> _T;
+    def _template_element(
+        text: str, tail: bool, jac_node: uni.UniNode
+    ) -> es.TemplateElement;
+
     def _push_scope(nd: uni.UniScopeNode) -> None;
     def _pop_scope(nd: uni.UniScopeNode) -> None;
     def _alt_branch_scope_to_finalize(nd: uni.UniNode) -> (uni.UniScopeNode | None);
@@ -347,6 +352,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _inject_runtime_import(name: str, nd: uni.UniNode) -> None;
     def _ref_head_name(expr: (uni.UniNode | None)) -> (str | None);
     def _ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None);
+    def _register_jac_virtual_import(module_id: str) -> None;
     def _register_jac_runtime_import -> None;
     def _ensure_backend -> None;
     def _transform_to_useeffect(nd: uni.Ability) -> None;
@@ -501,7 +507,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _wrap_to_wire_if_boundary(
         expr: es.Expression,
         type_name: str,
-        boundary_types: dict[(str, Any)],
+        boundary_types: dict[(str, any)],
         jac_node: uni.UniNode
     ) -> es.Expression;
 
@@ -512,7 +518,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _wrap_return_with_boundary(
         call_expr: es.Expression,
         ret_type: str,
-        boundary_types: dict[(str, Any)],
+        boundary_types: dict[(str, any)],
         jac_node: uni.UniNode,
         pre_awaited: bool
     ) -> es.Expression;
@@ -552,6 +558,16 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         props: list[(es.Property | es.SpreadElement)]
     ) -> (es.Expression | None);
 
+    def _warn_rpc_callable_params(
+        ability_node: uni.Ability, func_name: str, at: uni.UniNode
+    ) -> None;
+
+    def _forwarder_ret_label(ability_node: uni.Ability) -> str;
+    def _build_server_forwarder(
+        ability_node: uni.Ability, func_name: str, jac_node: uni.UniNode
+    ) -> es.FunctionDeclaration;
+
+    def _bind_client_value_refs(nd: uni.Module) -> list[es.Statement];
     def exit_func_call(nd: uni.FuncCall) -> None;
     def exit_index_slice(nd: uni.IndexSlice) -> None;
     def exit_special_var_ref(nd: uni.SpecialVarRef) -> None;
@@ -591,6 +607,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_null(nd: uni.Null) -> None;
     def exit_name(nd: uni.Name) -> None;
     def exit_builtin_type(nd: uni.BuiltinType) -> None;
+    def _in_identifier_slot(nd: uni.UniNode) -> bool;
     def _in_type_slot(nd: uni.UniNode) -> bool;
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;

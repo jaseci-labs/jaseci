@@ -118,6 +118,52 @@ def:pub abspath(p: str) -> str {
 }
 
 
+def:pub normcase(p: str) -> str {
+    return p;
+}
+
+
+def:pub relpath(p: str, start: str = ".") -> str {
+    if p == "" {
+        raise ValueError("no path specified");
+    }
+    start_list: list[str] = [];
+    for seg in abspath(start).split(sep) {
+        if seg != "" {
+            start_list.append(seg);
+        }
+    }
+    path_list: list[str] = [];
+    for seg in abspath(p).split(sep) {
+        if seg != "" {
+            path_list.append(seg);
+        }
+    }
+    shared: int = 0;
+    limit: int = len(start_list);
+    if len(path_list) < limit {
+        limit = len(path_list);
+    }
+    while shared < limit and start_list[shared] == path_list[shared] {
+        shared += 1;
+    }
+    rel_list: list[str] = [];
+    back: int = len(start_list) - shared;
+    while len(rel_list) < back {
+        rel_list.append(pardir);
+    }
+    idx: int = shared;
+    while idx < len(path_list) {
+        rel_list.append(path_list[idx]);
+        idx += 1;
+    }
+    if not rel_list {
+        return curdir;
+    }
+    return sep.join(rel_list);
+}
+
+
 def:pub normpath(p: str) -> str {
     if p == "" {
         return ".";

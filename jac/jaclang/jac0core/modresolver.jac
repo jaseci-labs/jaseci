@@ -370,15 +370,15 @@ def resolve_module(
         target_jac = actual_parts[-1] + '.jac';
         target_py = actual_parts[-1] + '.py';
         target_js = actual_parts[-1] + '.js';
-        for (root, _, files) in os.walk(jacpath) {
+        for (walk_dir, _, files) in os.walk(jacpath) {
             if (target_jac in files) {
-                return (os.path.join(root, target_jac), 'jac');
+                return (os.path.join(walk_dir, target_jac), 'jac');
             }
             if (target_py in files) {
-                return (os.path.join(root, target_py), 'py');
+                return (os.path.join(walk_dir, target_py), 'py');
             }
             if (target_js in files) {
-                return (os.path.join(root, target_js), 'js');
+                return (os.path.join(walk_dir, target_js), 'js');
             }
         }
     }
@@ -661,9 +661,9 @@ def resolve_client_npm_declarations(spec: str, base_path: str) -> (str | None) {
                 }
             }
         }
-        entry = resolve_client_npm_package(spec, base_path);
-        if entry {
-            sibling = sibling_declaration_file(entry);
+        `entry = resolve_client_npm_package(spec, base_path);
+        if `entry {
+            sibling = sibling_declaration_file(`entry);
             if sibling {
                 return sibling;
             }
@@ -763,12 +763,12 @@ def _npm_package_entry(pkg_dir: str, data: dict) -> (str | None) {
         }
     }
     entries.append(os.path.join(pkg_dir, 'index'));
-    for entry in entries {
-        resolved = _npm_file_with_ext(entry);
+    for `entry in entries {
+        resolved = _npm_file_with_ext(`entry);
         if resolved {
             return resolved;
         }
-        nested = _npm_file_with_ext(os.path.join(entry, 'index'));
+        nested = _npm_file_with_ext(os.path.join(`entry, 'index'));
         if nested {
             return nested;
         }

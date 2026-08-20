@@ -1,11 +1,9 @@
 import logging;
 import os;
 import threading;
-import from typing { Any }
-
 glob logger = logging.getLogger(__name__),
      _lock = threading.Lock(),
-     _holder: dict[str, Any] = {},
+     _holder: dict[str, any] = {},
      _DOCS_DDL = (
          'CREATE TABLE IF NOT EXISTS jac_docs ('
          'collection text NOT NULL, '
@@ -16,7 +14,7 @@ glob logger = logging.getLogger(__name__),
      __all__ = ['scale_db_url', 'shared_store', 'open_docs_store'];
 
 
-def open_docs_store -> (Any | None) {
+def open_docs_store -> (any | None) {
     store = shared_store();
     if store is None {
         return None;
@@ -42,7 +40,7 @@ def scale_db_url -> (str | None) {
 }
 
 
-def shared_store -> (Any | None) {
+def shared_store -> (any | None) {
     with _lock {
         import from jaclang.jac0core.runtime { JacRuntime }
         url = scale_db_url();
@@ -54,37 +52,37 @@ def shared_store -> (Any | None) {
         if _holder.get('key') == key and 'store' in _holder {
             return _holder['store'];
         }
-        old_store: Any = _holder.pop('store', None);
+        old_store: any = _holder.pop('store', None);
         if old_store is not None {
             try {
                 old_store.close();
             } except Exception { }
         }
-        store: (Any | None) = None;
+        store: (any | None) = None;
+        reset = False;
         try {
-            import from jaclang.runtimelib.session { conninfo_from_url }
+            import from jaclang.runtimelib.session { conninfo_from_url, promotions_for }
             import from jaclang.runtimelib.store { PgStore }
+            promotions = promotions_for(JacRuntime.get_base_path_dir());
             if url {
-                store = PgStore(conninfo=conninfo_from_url(url));
+                store = PgStore(conninfo=conninfo_from_url(url), promotions=promotions);
             } else {
-                import from jaclang.runtimelib.pgembed { PgRuntime }
-                import from jaclang.runtimelib.session {
-                    project_db_name,
-                    shared_pg_data_dir
-                }
+                import from jaclang.runtimelib.session { runtime_for_base }
                 base = JacRuntime.get_base_path_dir();
                 if base {
-                    rt = PgRuntime(
-                        data_dir=shared_pg_data_dir(),
-                        database=project_db_name(
-                            base, JacRuntime.get_full_target_path()
-                        )
+                    lease = runtime_for_base(base, JacRuntime.get_full_target_path());
+                    rt = lease.runtime;
+                    store = PgStore(
+                        conninfo=rt.ensure(), ensure_cb=rt.ensure, promotions=promotions
                     );
-                    store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+                    reset = lease.reset;
                 }
             }
             if store is not None {
-                store.ensure_schema({});
+                store.ensure_schema_once(promotions);
+                if reset {
+                    store.reset_data();
+                }
             }
         } except Exception as e {
             logger.warning(f"scale shared store unavailable: {e}");

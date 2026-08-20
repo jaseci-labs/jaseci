@@ -17,8 +17,8 @@ impl runtime_pkg_name(config: JacConfig) -> str {
     return _DEFAULT_RUNTIME_PKG;
 }
 
-def _top_level_decls(js: str) -> set {
-    names: set = set();
+def _top_level_decls(js: str) -> set[str] {
+    names: set[str] = set();
     for m in re.finditer(
         r"(?m)^(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)",
         js
@@ -86,7 +86,7 @@ def _in_excluded_dir(file_path: Path, pkg_root: Path) -> bool {
 }
 
 def _package_dirs(config: JacConfig, proj_root: Path) -> list[Path] {
-    package_patterns = config.project.include.packages;
+    package_patterns = config.project.`include.packages;
     if not package_patterns and config.project.name {
         package_patterns = [config.project.name.replace("-", "_")];
     }
@@ -134,8 +134,9 @@ def _compile_module(program: any, path: Path) -> any {
         raise ValueError(f"Failed to compile '{path}' for npm bundle:\n{formatted}");
     }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+    import from jaclang.jac0core.compiler { run_pass }
     if mod and mod.gen and not mod.gen.js {
-        EsastGenPass(ir_in=mod, prog=program);
+        run_pass(EsastGenPass, mod, program);
     }
     return mod;
 }
@@ -161,7 +162,7 @@ impl collect_npm_sources(
 
     runtime_pkg = runtime_pkg_name(config);
     result: list[NpmSourceFile] = [];
-    seen: set = set();
+    seen: set[str] = set();
 
     for pkg_dir in _package_dirs(config, proj_root) {
         for src in sorted(pkg_dir.rglob("*.jac")) {
@@ -214,9 +215,9 @@ impl resolve_npm_entry(config: JacConfig, files: list[NpmSourceFile],) -> str | 
     paths = {f.npm_path for f in files};
 
     npm = config._raw_data.get("npm", {});
-    entry = npm.get("entry", "") if isinstance(npm, dict) else "";
-    if entry {
-        candidate = npm_js_path(entry.replace("\\", "/"));
+    `entry = npm.get("entry", "") if isinstance(npm, dict) else "";
+    if `entry {
+        candidate = npm_js_path(`entry.replace("\\", "/"));
         if candidate in paths {
             return candidate;
         }

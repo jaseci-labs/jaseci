@@ -56,8 +56,8 @@ pub fn build(b: *std.Build) void {
     // built once then run on other runners via the setup-jac output cache. A
     // native-CPU build emits instructions (e.g. AVX-512) a different CPU may not
     // have, crashing the launcher with SIGILL ("Illegal instruction at address
-    // ..."); that in turn hangs `jac test`, whose xdist workers re-exec this
-    // binary and die mid-run. The launcher is a thin shim, so baseline costs
+    // ..."); that in turn takes down `jac test`, whose worker processes are
+    // forked from this binary. The launcher is a thin shim, so baseline costs
     // nothing. If an explicit `-Dtarget=` is passed we honor it as-is; otherwise
     // we pin the host arch/os to a baseline CPU.
     const target = if (b.user_input_options.contains("target"))
@@ -184,19 +184,21 @@ pub fn build(b: *std.Build) void {
     addTests(b, target, optimize);
 
     // The one Zig build tool (launcher/payload.zig) that replaces the old
-    // bash scripts; it uses std for http/tar/crypto and all DEcompression, plus
-    // vendored libzstd (below) for the one thing std cannot do: ENcode the zstd
-    // runtime payload. It shells out only to the fetched pbs python (pip + JIR
-    // precompile). Built for the host since it runs at build time. Created here
-    // (not inside the payload block) so the arch-independent `fetch-typeshed`
-    // step can reuse it.
+    // bash scripts; it uses std for http/tar/crypto and network DEcompression,
+    // plus vendored libzstd (below) for the one thing std cannot do: ENcode
+    // the zstd runtime payload -- and for the fast decode that verifies cached
+    // deps-layer frames on reuse (payload.zig frameDecodesTo), hence `.both`.
+    // It shells out only to the fetched pbs python (pip + JIR precompile).
+    // Built for the host since it runs at build time. Created here (not inside
+    // the payload block) so the arch-independent `fetch-typeshed` step can
+    // reuse it.
     const tool_mod = b.createModule(.{
         .root_source_file = b.path("launcher/payload.zig"),
         .target = b.graph.host,
         .optimize = .ReleaseSafe,
         .link_libc = true,
     });
-    linkLibzstd(b, tool_mod, .compress);
+    linkLibzstd(b, tool_mod, .both);
     const tool = b.addExecutable(.{ .name = "payload", .root_module = tool_mod });
     const root = b.pathFromRoot(".");
 
@@ -388,6 +390,18 @@ pub fn build(b: *std.Build) void {
             mk.addArg(b.fmt("--precompiled-cache={s}", .{b.pathFromRoot(".precompiled-build")}));
         }
 
+        // Persistent deps-layer frame cache (mirrors .precompiled-build): the
+        // payload's dependency layer (CPython tree, pip helpers, editor
+        // closure, native shims) is tarred deterministically, keyed on its
+        // exact bytes, and its level-19 zstd frame -- the pack's dominant cost
+        // -- is reused from this dir when the content is unchanged. Like the
+        // precompile cache it is deliberately NOT a tracked input: a cached
+        // frame is decompressed and byte-compared before reuse, so the dir can
+        // never change the payload -- only how fast it packs. Passed in every
+        // mode (dev/linked-source packs benefit the most: their payload is
+        // almost entirely deps layer).
+        mk.addArg(b.fmt("--layer-cache={s}", .{b.pathFromRoot(".payload-layers")}));
+
         // Fused ninja editor: stage the assembled nvim tree (runtime + config)
         // into the payload. A directory arg normally defeats caching (the path
         // alone is hashed -- see the NOTE below), but this path is a WriteFiles
@@ -510,7 +524,9 @@ pub fn build(b: *std.Build) void {
         }
         mk.addFileInput(b.path("_jac_finder.py"));
         mk.addFileInput(b.path("sitecustomize.py"));
-        mk.addFileInput(b.path("jac.toml"));
+        // The project manifest (version stamped into dist-info) lives at the
+        // repo root, one level above this build root.
+        mk.addFileInput(.{ .cwd_relative = b.pathFromRoot("../jac.toml") });
         mk.addFileInput(b.path("launcher/payload.zig"));
         // The slice pins (dirname/hash/size) moved here; a bump must repack.
         mk.addFileInput(b.path("launcher/llvm_release.zig"));

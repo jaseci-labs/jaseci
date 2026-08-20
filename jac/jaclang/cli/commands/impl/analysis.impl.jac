@@ -7,7 +7,8 @@ import from jaclang.cli.check_report {
     print_failed_summary,
     print_final_summary,
     print_native_census,
-    print_placement_report
+    print_placement_report,
+    print_compile_stats
 }
 
 def _maybe_malloc_trim {
@@ -27,7 +28,8 @@ impl check(
     lint_only: bool = False,
     fix: bool = False,
     native_census: bool = False,
-    placements: bool = False
+    placements: bool = False,
+    compile_stats: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
@@ -52,6 +54,10 @@ impl check(
     if native_census {
         import from jaclang.jac0core.compiler { na_census_begin }
         na_census_begin();
+    }
+    if compile_stats {
+        import from jaclang.jac0core.prefix_flip { prefix_census_reset }
+        prefix_census_reset();
     }
 
     total_files = failed_files=total_errors=total_warnings=0;
@@ -183,7 +189,9 @@ impl check(
         }
     }
     prog = JacProgram();
-    (all_files, had_path_errors) = _iter_jac_files(paths, ignore_list);
+    (all_files, had_path_errors) = _iter_jac_files(
+        paths, ignore_list, include_annex=False
+    );
     total_to_check = len(all_files);
     for (idx, jac_file_path) in enumerate(all_files, 1) {
         process_file_result(jac_file_path, idx, total_to_check);
@@ -194,6 +202,9 @@ impl check(
     if native_census {
         import from jaclang.jac0core.compiler { na_census_end }
         print_native_census(na_census_end());
+    }
+    if compile_stats {
+        print_compile_stats();
     }
     if placements {
         print_placement_report(placement_report);
@@ -1222,30 +1233,27 @@ impl `test(
     ignore: str = ""
 ) -> int {
     import os;
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-
+    import from jaclang.runtimelib.test_runner { run_tests }
     if isinstance(paths, str) {
         paths = [paths];
     }
-
     if (not paths and not directory) {
         import from jaclang.project.config { get_config }
         cfg = get_config();
-        if (cfg and cfg.test.directory) {
-            directory = cfg.test.directory;
+        if (cfg and cfg.`test.directory) {
+            directory = cfg.`test.directory;
             if (cfg.project_root and not os.path.isabs(directory)) {
                 directory = os.path.join(str(cfg.project_root), directory);
             }
             if not Path(directory).is_dir() {
                 console.error(
-                    f"Error: [test] directory '{cfg.test.directory}' "
+                    f"Error: [test] directory '{cfg.`test.directory}' "
                     f"(resolved to '{directory}') does not exist."
                 );
                 return 1;
             }
         }
     }
-
     if (test_name and not paths) {
         console.error(
             "Error: --test_name requires a filepath. "
@@ -1254,98 +1262,45 @@ impl `test(
         );
         return 1;
     }
-
     for fp in paths {
         if not Path(fp).exists() {
             console.error(
                 f"Error: File not found: '{fp}'\n"
-                "Make sure you are in the correct directory or provide the full path.\n"
-                f"Usage: jac test /full/path/to/{fp}"
+                "Make sure you are in the correct directory or provide the "
+                f"full path.\nUsage: jac test /full/path/to/{fp}"
             );
             return 1;
         }
     }
-
-    run_pytest = not os.environ.get('JAC_TEST_NATIVE', '');
-    if run_pytest {
-        try {
-            import pytest;
-        } except ImportError {
-            run_pytest = False;
-        }
-        if run_pytest {
-            pargs: list[str] = [];
-
-            targets = paths or ([directory] if directory else []);
-            for target in targets {
-                pargs.append(target);
-            }
-
-            if directory and not paths {
-                pargs.append('--jac-test-dir');
-                pargs.append(str(Path(directory).resolve()));
-            }
-
-            if ignore {
-                pargs.append('--ignore=' + ignore);
-            }
-
-            jobs = os.environ.get('JAC_TEST_JOBS', '');
-            if not jobs {
-                import from jaclang.project.config { get_config }
-                jobs_cfg = get_config();
-                jobs = jobs_cfg.dev.test_jobs if jobs_cfg else 'auto';
-            }
-
-            if jobs and jobs != '0' and not test_name {
-                pargs.append('-n');
-                pargs.append(jobs);
-            }
-            if xit {
-                pargs.append('-x');
-            }
-            if maxfail {
-                pargs.append('--maxfail');
-                pargs.append(str(maxfail));
-            }
-            if test_name {
-                pargs.append('-k');
-                pargs.append(' and '.join(test_name.split()) or test_name);
-            } elif filter {
-                pargs.append('-k');
-                pargs.append(filter);
-            }
-            if verbose {
-                pargs.append('-vv');
-            }
-            return int(pytest.main(pargs));
-        }
+    jobs = os.environ.get('JAC_TEST_JOBS', '');
+    if not jobs {
+        import from jaclang.project.config { get_config }
+        jobs_cfg = get_config();
+        jobs = jobs_cfg.dev.test_jobs if jobs_cfg else '';
     }
-    normalized_name = test_name.strip().replace(' ', '_') if test_name else '';
-    func_name = ('test_' + normalized_name) if normalized_name else None;
-
-    run_targets = paths or [""];
-    failcount = 0;
-    for fp in run_targets {
-        failcount += Jac.run_test(
-            filepath=fp,
-            func_name=func_name,
+    rc = 0;
+    try {
+        rc = run_tests(
+            paths=paths,
+            directory=directory,
+            test_name=test_name,
             filter=filter,
             xit=xit,
             maxfail=maxfail,
-            directory=directory,
-            verbose=verbose
+            verbose=verbose,
+            ignore=([ignore] if ignore else []),
+            jobs=jobs
         );
-
-        if xit and failcount > 0 {
-            break;
-        }
-    }
-    if failcount {
-        console.error(f"Tests failed: {failcount}");
+    } except (ValueError, FileNotFoundError) as exc {
+        console.error(f"Error: {exc}");
         return 1;
     }
-    return 0;
+    if rc == 5 {
+        console.error("No tests ran.");
+    } elif rc {
+        console.error("Tests failed.");
+    }
+    return rc;
 }
 
 impl gen_parser -> int {
@@ -1371,7 +1326,8 @@ impl grammar(output: str = "", strict: bool = False) -> int {
         }
         return 1;
     }
-    pass_ = GrammarExtractPass(ir_in=mod, prog=prog);
+    import from jaclang.jac0core.compiler { run_pass }
+    pass_ = run_pass(GrammarExtractPass, mod, prog);
     if len(pass_.rules) == 0 {
         console.error("No grammar rules extracted.");
         return 1;
@@ -1393,19 +1349,22 @@ impl grammar(output: str = "", strict: bool = False) -> int {
 }
 
 def _iter_jac_files(
-    paths: list, ignore_list: (list | None) = None
+    paths: list, ignore_list: (list | None) = None, include_annex: bool = True
 ) -> tuple[list[str], bool] {
+    import os;
     ignore_list = ignore_list or [];
     result: list[str] = [];
+    explicit: set[str] = set();
     had_errors = False;
     for path in paths {
         path_obj = Path(path);
         if path.endswith('.jac') {
             if not _should_ignore(path, ignore_list) {
                 result.append(path);
+                explicit.add(os.path.realpath(path));
             }
         } elif path_obj.is_dir() {
-            for jac_file in path_obj.glob('**/*.jac') {
+            for jac_file in path_obj.`glob('**/*.jac') {
                 if not jac_file.is_file() {
                     continue;
                 }
@@ -1418,18 +1377,37 @@ def _iter_jac_files(
             had_errors = True;
         }
     }
+    if not include_annex {
+        result = _drop_covered_annexes(result, explicit);
+    }
     return (result, had_errors);
 }
 
-def _normalize_ignore_patterns(ignore: list) -> list {
-    normalized = [];
-    for p in (ignore or []) {
-        stripped = p.strip();
-        if stripped {
-            normalized.append(stripped.rstrip('/'));
+def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
+    import os;
+    import from jaclang.jac0core.bccache { discover_base_file }
+    import from jaclang.jac0core.ext_registry { is_annex }
+    modules = {
+        os.path.realpath(f)
+        for f in files
+        if not is_annex(f)
+    };
+    kept: list[str] = [];
+    for f in files {
+        if is_annex(f) and (os.path.realpath(f) not in explicit) {
+            base = discover_base_file(f);
+            if (base is not None) and (os.path.realpath(base) in modules) {
+                continue;
+            }
         }
+        kept.append(f);
     }
-    return normalized;
+    return kept;
+}
+
+def _normalize_ignore_patterns(ignore: list) -> list {
+    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    return normalize_exclude_patterns(ignore);
 }
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {

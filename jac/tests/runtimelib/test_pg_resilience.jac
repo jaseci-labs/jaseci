@@ -29,7 +29,6 @@ import os;
 import time;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from typing { Any }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.session { shared_pg_data_dir, project_db_name }
 import from jaclang.runtimelib.store { ConnInfo, PgStore }
@@ -57,14 +56,18 @@ def _restartish(e: Exception) -> bool {
 
 def _mk_store(td: str) -> tuple {
     target = str(Path(td) / 'app.jac');
-    rt = PgRuntime(data_dir=shared_pg_data_dir(), database=project_db_name(td, target));
+    rt = PgRuntime(
+        data_dir=shared_pg_data_dir(),
+        database=project_db_name(td, target),
+        owner_path=td
+    );
     info = rt.ensure();
     return (PgStore(conninfo=info, ensure_cb=rt.ensure), info, target, rt);
 }
 
 
-def _peer(info: ConnInfo, app_name: str) -> Any {
-    last: Any = None;
+def _peer(info: ConnInfo, app_name: str) -> any {
+    last: any = None;
     for _ in range(30) {
         try {
             return pg_connect(
@@ -88,7 +91,7 @@ def _peer(info: ConnInfo, app_name: str) -> Any {
 }
 
 
-def _hold_write(peer: Any) {
+def _hold_write(peer: any) {
     # An open transaction that has written to anchors: RowExclusiveLock,
     # which any CREATE INDEX [IF NOT EXISTS] replay must wait behind.
     peer.run('BEGIN');
@@ -101,7 +104,7 @@ def _hold_write(peer: Any) {
 }
 
 
-def _release(peer: Any) {
+def _release(peer: any) {
     try {
         peer.run('ROLLBACK');
     } except Exception { }
@@ -111,9 +114,9 @@ def _release(peer: Any) {
 }
 
 
-def _armed_peer(info: ConnInfo, app_name: str) -> Any {
+def _armed_peer(info: ConnInfo, app_name: str) -> any {
     # Peer with an open write transaction, re-armed through restarts.
-    last: Any = None;
+    last: any = None;
     for _ in range(10) {
         peer = _peer(info, app_name);
         try {
@@ -212,7 +215,7 @@ test "layer2: blocker owned by a live process raises a structured conflict" {
         import from jaclang.runtimelib.store { SessionConflictError }
         (s1, info, _, rt) = _mk_store(td);
         s1.ensure_schema({});
-        got: Any = None;
+        got: any = None;
         # A cluster restart mid-scenario silently drops the blocking
         # transaction; re-arm and try the whole scenario again.
         for attempt in range(3) {

@@ -107,7 +107,9 @@ def:pub Dashboard() -> JsxElement {
 
 ## Protecting routes with `AuthGuard` (preferred over inline guards)
 
-`AuthGuard` from `@jac/runtime` wraps children and redirects unauthenticated users - no per-page guard code, no rules-of-hooks ordering trap. With file-based routing, one layout protects a whole route group:
+`AuthGuard` from `@jac/runtime` redirects unauthenticated users and renders the protected subtree for everyone else - no per-page guard code, no rules-of-hooks ordering trap. Its signature is `AuthGuard(redirect: str = "/login", children: any = None)`: given children it renders them, and with none it renders `<Outlet />`, i.e. whichever **child route** matched. Both shapes are supported; which one to reach for depends on how much you are protecting.
+
+**Guarding a group of pages - put the guard ABOVE the routes.** This is the better shape whenever more than one page is protected, and it is what the `(auth)/` codegen generates. With file-based routing, one layout protects a whole route group:
 
 ```jac
 # pages/(auth)/layout.jac - every page in (auth)/ now requires login
@@ -118,7 +120,35 @@ def:pub AuthShell() -> JsxLayout {
 }
 ```
 
-In manual routing, wrap the protected subtree the same way: `<AuthGuard redirect="/login"><Dashboard /></AuthGuard>`. Reserve the inline `jacIsLoggedIn()` guard for one-off cases.
+In manual routing, the same idea is a pathless parent route - the guard runs once and every child route below it is protected:
+
+```jac
+# frontend.jac - manual routing shell
+import from "@jac/runtime" { Router, Routes, Route, AuthGuard }
+
+def:pub AppShell() -> JsxElement {
+    <Router>
+        <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<AuthGuard redirect="/login" />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/settings" element={<Settings />} />
+            </Route>
+        </Routes>
+    </Router>
+}
+```
+
+**Guarding one page - wrap it.** `<Route path="/dashboard" element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />`. Reserve the inline `jacIsLoggedIn()` guard for one-off cases.
+
+> **Version note.** The wrapper form renders its children only on runtimes carrying the `AuthGuard` children fix. On older jaclang the guard ignored children and rendered `<Outlet />` unconditionally, which resolves to nothing in a flat route - a **blank page with no error anywhere**. The parent-route and layout forms above are correct on every version, so prefer them if you need to support both.
+
+The redirect target for the `(auth)/` codegen comes from `jac.toml`; `AuthGuard`'s own `redirect` defaults to `/login`:
+
+```toml
+[client.routing]
+auth_redirect = "/signin"
+```
 
 ## SSO login
 

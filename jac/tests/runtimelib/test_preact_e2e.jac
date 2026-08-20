@@ -5,7 +5,6 @@ import re;
 import shutil;
 import socket;
 import time;
-import pytest;
 import from pathlib { Path }
 import from subprocess { Popen }
 import from tempfile { TemporaryDirectory }
@@ -18,7 +17,7 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures");
 """Skip unless the Vite/Bun client toolchain is available."""
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "Preact E2E requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -100,10 +99,10 @@ def _start_preact_server(project_dir: Path) -> tuple {
 def _stop_server(proc: Popen) {
     proc.terminate();
     try {
-        proc.wait(timeout=20);
+        proc.`wait(timeout=20);
     } except Exception {
         proc.kill();
-        proc.wait(timeout=5);
+        proc.`wait(timeout=5);
     }
 }
 
@@ -154,7 +153,7 @@ test "preact counter increments in browser" {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
-        pytest.skip("playwright not installed (pip install playwright)");
+        testskip("playwright not installed (pip install playwright)");
     }
     with TemporaryDirectory() as tmpdir {
         project = Path(tmpdir) / "preact_browser";

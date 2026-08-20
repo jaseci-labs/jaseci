@@ -161,8 +161,10 @@ test "a mock may itself re-export and side-effect import" {
 }
 
 test "__mocks__ modules are not collected as tests themselves" {
-    import from jaclang.pytest_plugin { _is_excluded_support_dir }
-    assert _is_excluded_support_dir(Path("/p/tests/__mocks__/vscode.jac"));
-    assert _is_excluded_support_dir(Path("/p/tests/fixtures/thing.jac"));
-    assert not _is_excluded_support_dir(Path("/p/tests/test_real.jac"));
+    import from jaclang.runtimelib.test_runner { _under_support_dir }
+    assert _under_support_dir(
+        os.sep.join(["", "p", "tests", "__mocks__", "vscode.jac"])
+    );
+    assert _under_support_dir(os.sep.join(["", "p", "tests", "fixtures", "thing.jac"]));
+    assert not _under_support_dir(os.sep.join(["", "p", "tests", "test_real.jac"]));
 }

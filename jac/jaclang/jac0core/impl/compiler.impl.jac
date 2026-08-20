@@ -56,13 +56,13 @@ impl JacCompiler.internal_program.getter -> JacProgram {
     return self._internal_program;
 }
 
-impl JacCompiler._get_jaclang_root(cls: any) -> str {
-    if (cls._jaclang_root is None) {
-        cls._jaclang_root = os.path.realpath(
+impl JacCompiler._get_jaclang_root -> str {
+    if (self._jaclang_root is None) {
+        self._jaclang_root = os.path.realpath(
             os.path.dirname(os.path.dirname(__file__))
         );
     }
-    return cls._jaclang_root;
+    return self._jaclang_root;
 }
 
 impl JacCompiler._resolve_program(
@@ -219,9 +219,15 @@ impl JacCompiler.get_bytecode(
     precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
     if precompiled_bc is not None {
         try {
-            import from jaclang.jac0core.jir { write_precompiled_jir, FLAG_PRECOMPILED }
+            import from jaclang.jac0core.jir {
+                write_precompiled_jir,
+                module_jir_key_sections,
+                FLAG_PRECOMPILED
+            }
             jir_bytes = write_precompiled_jir(
-                precompiled_bc, compute_module_key(full_target), FLAG_PRECOMPILED
+                precompiled_bc,
+                flags=FLAG_PRECOMPILED,
+                extra_sections=module_jir_key_sections(full_target)
             );
             cache_path.parent.mkdir(parents=True, exist_ok=True);
 
@@ -258,7 +264,6 @@ impl JacCompiler.get_bytecode(
                 import zlib;
                 sections: dict[int, bytes] = {};
                 sections[SEC_BYTECODE] = result.gen.py_bytecode;
-                sections[SEC_MODKEY] = compute_module_key(full_target).encode('utf-8');
                 if actual_program.mtir_map {
                     sections[SEC_MTIR] = pickle.dumps(
                         actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
@@ -295,12 +300,23 @@ impl JacCompiler.get_bytecode(
                 } except Exception {
                     ;
                 }
-                import from jaclang.jac0core.jir { write_module_jir_cache }
-                write_module_jir_cache(full_target, result, extra_sections=sections);
+                import from jaclang.jac0core.jir { write_module_cache }
+                cache_bc: any = result.gen?.py_bytecode;
+                if cache_bc is not None and not result.parse_failed {
+                    write_module_cache(full_target, cache_bc, extra_sections=sections);
+                }
             } except Exception {
                 ;
             }
+            if is_internal {
+                note_compiler_source_failure(full_target, '');
+            }
             return marshal.loads(result.gen.py_bytecode);
+        }
+        if is_internal {
+            note_compiler_source_failure(
+                full_target, module_scoped_failure_details(full_target, actual_program)
+            );
         }
         return None;
     } finally {
@@ -364,7 +380,10 @@ impl JacCompiler._load_native_from_cache(
         target = llvm.Target.from_default_triple();
         target_machine = target.create_target_machine();
         engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
-        import from jaclang.jac0core.codeinfo { CodeGenTarget }
+        import from jaclang.jac0core.codeinfo {
+            CodeGenTarget,
+            install_native_static_init
+        }
         gen = CodeGenTarget();
         gen.native_engine = engine;
         py_func_table: dict = {};
@@ -379,6 +398,7 @@ impl JacCompiler._load_native_from_cache(
                 register_py_callbacks(manifest, py_func_table, callbacks_list);
             }
         }
+        install_native_static_init(engine, gen.interop_manifest);
         target_program._native_cache[full_target] = gen;
     } except Exception as e {
         import logging;
@@ -426,7 +446,7 @@ impl JacCompiler._load_native_from_bitcode(
     target = llvm.Target.from_default_triple();
     target_machine = target.create_target_machine();
     engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
-    import from jaclang.jac0core.codeinfo { CodeGenTarget }
+    import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
     gen = CodeGenTarget();
     gen.native_engine = engine;
     py_func_table: dict = {};
@@ -441,6 +461,7 @@ impl JacCompiler._load_native_from_bitcode(
             register_py_callbacks(manifest, py_func_table, callbacks_list);
         }
     }
+    install_native_static_init(engine, gen.interop_manifest);
     target_program._native_cache[full_target] = gen;
 }
 
@@ -579,7 +600,7 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     jir_data = _Path(jir_path).read_bytes();
                     trusted = (
                         sealed_img is not None
-                        or jir_matches_source(jir_data, norm_file)
+                        or precompiled_jir_matches_source(jir_data, norm_file)
                     );
                     if trusted {
                         bc = read_bytecode_only(jir_data);
@@ -658,24 +679,25 @@ impl JacCompiler.parse_str(
     source_str: str,
     file_path: str,
     target_program: JacProgram,
-    cancel_token: (Event | None) = None
+    cancel_token: (Event | None) = None,
+    prefix_kind: str = ''
 ) -> uni.Module {
     had_error = False;
     run_codespace_infer = False;
     if (file_path.endswith('.py') or file_path.endswith('.pyi')) {
         import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
         parsed_ast = py_ast.parse(source_str);
-        py_ast_ret = PyastBuildPass(
-            ir_in=uni.PythonModuleAst(
+        py_ast_ret = run_pass(
+            PyastBuildPass,
+            uni.PythonModuleAst(
                 parsed_ast, orig_src=uni.Source(source_str, mod_path=file_path)
             ),
-            prog=target_program,
+            target_program,
             cancel_token=cancel_token
         );
         had_error = len(py_ast_ret.errors_had) > 0;
         mod = py_ast_ret.ir_out;
     } else {
-        import from jaclang.jac0core.parser { parse as rd_parse }
         import from jaclang.jac0core.ext_registry {
             is_retired_client_marker,
             is_retired_native_marker
@@ -696,7 +718,15 @@ impl JacCompiler.parse_str(
                 "'jac fix placement' to migrate the project."
             );
         }
-        (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
+        import from jaclang.jac0core.prefix_flip { parse_with_prefix }
+        _p_opts_pre = target_program._compile_options;
+        (mod, had_error) = parse_with_prefix(
+            source_str,
+            file_path,
+            target_program,
+            kind=prefix_kind,
+            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False
+        );
         codespace = '';
         import from jaclang.jac0core.codeinfo {
             is_client_by_location as _cbl,
@@ -733,6 +763,15 @@ impl JacCompiler.parse_str(
                 codespace = _forced_pre;
             }
         }
+        if not codespace and target_program is not self._internal_program {
+            import from jaclang.jac0core.placement_pins {
+                config_kind_space as _kind_space_of
+            }
+            _kind_space = _kind_space_of(file_path);
+            if _kind_space in ('client', 'native') {
+                codespace = _kind_space;
+            }
+        }
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
@@ -742,7 +781,11 @@ impl JacCompiler.parse_str(
             run_codespace_infer = True;
         }
     }
+    hub_key = target_program.hub_key(mod.loc.mod_path);
     if had_error {
+        mod.parse_failed = True;
+        target_program.mod.hub[hub_key] = mod;
+        target_program.hub_cache_stamp(hub_key);
         return mod;
     }
     if target_program.mod.main.stub_only {
@@ -750,10 +793,10 @@ impl JacCompiler.parse_str(
         target_program.mod = uni.ProgramModule(main_mod=mod);
         target_program.mod.hub.update(old_hub);
     }
-    import from pathlib { Path as _HubPath }
-    target_program.mod.hub[str(_HubPath(mod.loc.mod_path).resolve())] = mod;
+    target_program.mod.hub[hub_key] = mod;
 
-    JacAnnexPass(ir_in=mod, prog=target_program);
+    mod.annex_mods = self.load_annex_modules(mod, target_program);
+    run_pass(JacAnnexPass, mod, target_program);
     if run_codespace_infer {
         _opts = target_program._compile_options;
         _analysis_only = _opts is not None and _opts.no_cgen;
@@ -774,6 +817,281 @@ impl JacCompiler.parse_str(
         }
     }
     return mod;
+}
+
+impl JacCompiler.load_annex_modules(
+    mod: uni.Module, target_program: JacProgram
+) -> list[uni.Module] {
+    import from jaclang.jac0core.bccache { discover_annex_files }
+    import from jaclang.jac0core.parser { parse as rd_parse }
+    mod_path = mod.loc.mod_path;
+    if (mod.stub_only or not mod_path.endswith('.jac') or mod.annexable_by) {
+        return [];
+    }
+    annexes: list[uni.Module] = [];
+    seen: set[str] = set();
+    for path in [
+        *discover_annex_files(mod_path, '.impl.jac'),
+        *discover_annex_files(mod_path, '.test.jac')
+    ] {
+        if path in seen {
+            continue;
+        }
+        seen.add(path);
+        source_str = read_file_with_encoding(path);
+        (annex_mod, _had_error) = rd_parse(source_str, path, prog=target_program);
+        annexes.append(annex_mod);
+    }
+    return annexes;
+}
+
+impl JacCompiler.resolve_absorb_imports(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.jac0core.unitree { find_python_scope_node_of }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is not None {
+            for item in imp.items {
+                if (
+                    isinstance(item, uni.ModulePath) and item.path and not item.alias
+                ) {
+                    imp.jac_detected = imp.is_jac;
+                    break;
+                }
+            }
+        }
+        if not imp.is_absorb {
+            continue;
+        }
+        if (find_python_scope_node_of(imp) is None) {
+            continue;
+        }
+        path_node = imp.items[0];
+        if not isinstance(path_node, uni.ModulePath) {
+            continue;
+        }
+        resolved = path_node.resolve_relative_path();
+        module: (uni.Module | None) = None;
+        if (resolved in target_program.mod.hub) {
+            module = target_program.mod.hub[resolved];
+        } else {
+            try {
+                module = target_program.compile(
+                    resolved, no_cgen=True, type_check=False
+                );
+            } except Exception {
+                module = None;
+            }
+        }
+        imp.absorbed_mod = module;
+    }
+}
+
+impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
+    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    mod.jac_project_root = find_jac_project_root(mod.loc.mod_path) if mod.loc else None;
+    enforce = False;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+        if (config and config.check) {
+            enforce = config.check.enforce_access;
+        }
+    } except Exception {
+        enforce = False;
+    }
+    mod.access_enforced = enforce;
+}
+
+impl JacCompiler.stamp_native_import_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    """Stamp each import with the emitter's native-only verdict.
+
+    Whether an import resolves to a module the native lane owns, and
+    whether that module lives inside jaclang's own tree, are both
+    import-resolution questions: they need the hub, the placement pins
+    and the filesystem, which is the driver's ground and not a pass's.
+    The emitter used to ask for them through `self.prog`, the one
+    driver read left in a sealed pass. It now consumes a bool.
+    """;
+    import os;
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        target = native_only_import_target(imp, target_program);
+        imp.native_only_drop = target is not None
+            and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
+    }
+}
+
+impl JacCompiler.stamp_client_kind_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.project.client_kind { resolve_client_kind_context }
+    opts = target_program._compile_options;
+    mod_path = mod.loc.mod_path if mod.loc else '';
+    (kind, proj_root) = resolve_client_kind_context(
+        mod_path, opts.project_kind, opts.project_root
+    );
+    mod.mobui_enforced_root = proj_root if kind == 'mobui' else None;
+}
+
+impl JacCompiler.stamp_boundary_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.jac0core.codeinfo {
+        is_bundled_native_module,
+        resolve_native_module
+    }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+
+    base_dir = '.';
+    if mod.loc {
+        base_dir = os.path.dirname(mod.loc.mod_path);
+    }
+    in_native_mod = mod.loc is not None and mod.decided_codespace == 'native';
+
+    def resolve_native(module_name: str, inferred_ok: bool) -> (str | None) {
+        (src_mod_str, _full_path) = resolve_native_module(
+            module_name, base_dir, allow_inferred=inferred_ok
+        );
+        return src_mod_str;
+    }
+
+    def parse_only_module(file_path: str) -> (uni.Module | None) {
+        try {
+            src_text = read_file_with_encoding(file_path);
+            return JacCompiler().parse_str(
+                source_str=src_text, file_path=file_path, target_program=JacProgram()
+            );
+        } except Exception {
+            return None;
+        }
+    }
+
+    def source_mod_for(resolved_path: (str | None)) -> (uni.Module | None) {
+        if resolved_path is None {
+            return None;
+        }
+        found: (uni.Module | None) = None;
+        if (target_program.mod and target_program.mod.hub) {
+            found = target_program.mod.hub.get(resolved_path);
+        }
+        if (found is None and os.path.isfile(resolved_path)) {
+            found = parse_only_module(resolved_path);
+        }
+        return found;
+    }
+
+    for nd in mod.get_all_sub_nodes(uni.Import) {
+        facts = uni.ImportBoundaryFacts();
+        nd.boundary_facts = facts;
+        native_ctx = nd.codespace() == CodeContext.NATIVE;
+
+        if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
+            module_name = nd.from_loc.dot_path_str;
+            if (not module_name and nd.from_loc.path) {
+                module_name = '.'.join(p.value for p in nd.from_loc.path);
+            }
+            if module_name {
+                cl_na_edge = is_client_native_edge_import(nd, target_program);
+                facts.client_native_edge = cl_na_edge;
+                na_intent = (
+                    native_ctx
+                    or in_native_mod
+                    or import_declares_native_target(nd)
+                    or cl_na_edge
+                );
+                facts.native_from_path = resolve_native(module_name, na_intent);
+                try {
+                    facts.from_loc_resolved = nd.from_loc.resolve_relative_path();
+                } except Exception {
+                    facts.from_loc_resolved = None;
+                }
+                facts.is_service = nd.is_service_import;
+                if (nd.items and not facts.is_service and nd.in_client_context()) {
+                    resolved = facts.from_loc_resolved;
+                    if (resolved is not None and resolved.endswith('.jac')) {
+                        try {
+                            facts.pinned_server = (
+                                config_module_pin(resolved) == 'server'
+                            );
+                        } except Exception {
+                            facts.pinned_server = False;
+                        }
+                    }
+                }
+                if (
+                    (facts.is_service and not facts.native_from_path)
+                    or (nd.items and not facts.is_service and facts.pinned_server)
+                ) {
+                    facts.sv_source_mod = source_mod_for(facts.from_loc_resolved);
+                }
+                if (cl_na_edge and nd.items) {
+                    facts.na_source_mod = source_mod_for(facts.from_loc_resolved);
+                }
+                if (
+                    nd.items
+                    and not facts.is_service
+                    and not facts.pinned_server
+                    and not cl_na_edge
+                    and is_client_boundary_import(nd)
+                ) {
+                    linked_mod = symbol_linked_source_module(nd);
+                    if linked_mod is not None {
+                        for item in nd.items {
+                            if not isinstance(item, uni.ModuleItem) {
+                                continue;
+                            }
+                            verdict = classify_client_import_item(linked_mod, item);
+                            if verdict != ClientImportVerdict.BRIDGED {
+                                continue;
+                            }
+                            sym_name = item.name.value;
+                            decl = ability_of_symbol(linked_mod.lookup(sym_name));
+                            if decl is not None {
+                                facts.bridged_decls[sym_name] = decl;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ((not nd.from_loc) and nd.is_absorb and nd.items and (not nd.clib_decls)) {
+            item = nd.items[0];
+            if (isinstance(item, uni.ModulePath) and item.path) {
+                module_name = '.'.join(p.value for p in item.path);
+                if module_name {
+                    na_intent = (
+                        native_ctx or in_native_mod or import_declares_native_target(nd)
+                    );
+                    facts.native_absorb_path = resolve_native(module_name, na_intent);
+                }
+            }
+            continue;
+        }
+
+        if ((not nd.from_loc) and nd.items and (not nd.clib_decls)) {
+            for item in nd.items {
+                if (isinstance(item, uni.ModulePath) and item.path) {
+                    whole_name = '.'.join(p.value for p in item.path);
+                    eligible = is_bundled_native_module(whole_name)
+                        or (item.alias is None and len(item.path) == 1);
+                    if (whole_name and eligible) {
+                        na_intent = (
+                            native_ctx
+                            or in_native_mod
+                            or import_declares_native_target(nd)
+                        );
+                        item_path = resolve_native(whole_name, na_intent);
+                        if item_path {
+                            facts.native_item_paths[whole_name] = item_path;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl JacCompiler.compile(
@@ -815,6 +1133,19 @@ impl JacCompiler.compile(
             );
         } except Exception as _e {
             _crash = _e;
+        }
+        if _crash is not None {
+            _re_entered = import_error_re_enters(_crash, file_path);
+            if _re_entered is not None {
+                raise CompilerSourceError(
+                    f"compiling {file_path} re-entered it: a pass imported "
+                    f"'{_re_entered}' while Python was still executing that "
+                    "module, so the name is not bound yet. A pass's run-time "
+                    "imports must be pre-imported while the schedule loads "
+                    "(see get_ir_gen_sched / get_symtab_ir_sched), never "
+                    "reached for the first time during a compile."
+                ) from _crash;
+            }
         }
         _resolved = os.path.realpath(file_path);
         _probe = _mod if _mod is not None else _wrap_prog.mod.hub.get(_resolved);
@@ -877,6 +1208,10 @@ impl JacCompiler.compile(
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog._compile_options = _outer_opts;
         }
+        if _depth_prev == 0 {
+            import from jaclang.jac0core.prefix_flip { emit_prefix_summary }
+            emit_prefix_summary();
+        }
     }
 }
 
@@ -924,33 +1259,49 @@ impl JacCompiler._compile_once(
     }
     keep_str = use_str or read_file_with_encoding(file_path);
     had_parse_errors = len(actual_program.errors_had);
+    import from jaclang.jac0core.prefix_flip {
+        drop_executed_prefix,
+        mark_prefix_provided,
+        prefix_span_blocking,
+        prefix_span_errors,
+        take_prefix_handoff
+    }
     mod_targ = self.parse_str(
-        keep_str, file_path, actual_program, cancel_token=options.cancel_token
+        keep_str,
+        file_path,
+        actual_program,
+        cancel_token=options.cancel_token,
+        prefix_kind=('symtab-ir' if options.symtab_ir_only else 'ir-gen')
     );
-    had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    _prefix_span = take_prefix_handoff(mod_targ);
+    _prefix_ran = _prefix_span[0];
+    had_parse_errors = (
+        len(actual_program.errors_had) - prefix_span_errors(_prefix_span)
+    )
+        > had_parse_errors;
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
-    );
+    )
+        - prefix_span_blocking(actual_program, _prefix_span, cur_mod_path);
     if options.symtab_ir_only {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_symtab_ir_sched(),
-            cancel_token=options.cancel_token
-        );
+        _head_sched = get_symtab_ir_sched();
     } else {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_ir_gen_sched(
-                is_internal=(actual_program is self._internal_program),
-                gen_mtir=not options.no_cgen
-            ),
-            cancel_token=options.cancel_token
+        _head_sched = get_ir_gen_sched(
+            is_internal=(actual_program is self._internal_program),
+            gen_mtir=not options.no_cgen
         );
     }
+    if _prefix_ran {
+        mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
+    }
+    self.run_schedule(
+        mod=mod_targ,
+        target_program=actual_program,
+        passes=drop_executed_prefix(_head_sched, _prefix_ran),
+        cancel_token=options.cancel_token
+    );
 
     blocking_errs_post_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
@@ -997,7 +1348,8 @@ impl JacCompiler._compile_once(
         import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
             if (dep_mod is mod_targ)
-                or (id(dep_mod) in actual_program._inferred_mods) {
+                or (id(dep_mod) in actual_program._inferred_mods)
+                or dep_mod.parse_failed {
                 continue;
             }
             if dep_mod.decided_codespace == 'native' {
@@ -1056,7 +1408,7 @@ impl JacCompiler._compile_once(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
+        _parity_passes: list[type[Transform]] = [];
         if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
@@ -1068,7 +1420,8 @@ impl JacCompiler._compile_once(
                     drop_unsatisfiable=True,
                     origin='native check-parity schedule'
                 );
-            } except ImportError {
+            } except ImportError as e {
+                fail_loud_on_compiler_source(e);
                 _parity_passes = [];
             }
         }
@@ -1134,7 +1487,9 @@ impl JacCompiler._compile_once(
                     and cb_mod.gen.interop_manifest
                     and bool(cb_mod.gen.interop_manifest.bindings)
                 );
-                if not cb_has_facts {
+
+                cb_known_bad = actual_program.has_failed_parse(cb_src);
+                if not cb_has_facts and not cb_known_bad {
                     try {
                         cb_mod = self.compile(
                             file_path=cb_src,
@@ -1166,7 +1521,12 @@ impl JacCompiler._compile_once(
             cancel_token=options.cancel_token
         );
         if mod_targ.decided_codespace == 'native' {
-            JacCompiler._scrub_native_artifacts_on_error(actual_program, mod_targ);
+            _scrubbed = JacCompiler._scrub_native_artifacts_on_error(
+                actual_program, mod_targ
+            );
+            if options.aot_mode and not _scrubbed {
+                JacCompiler._report_missing_native_ir(actual_program, mod_targ);
+            }
         }
     }
     return mod_targ;
@@ -1181,14 +1541,14 @@ impl JacCompiler.build(
     actual_program = self._resolve_program(file_path, target_program);
     options = CompileOptions(type_check=type_check);
     mod_targ = self.compile(file_path, actual_program, use_str, options=options);
-    SemanticAnalysisPass(ir_in=mod_targ, prog=actual_program);
+    run_pass(SemanticAnalysisPass, mod_targ, actual_program);
     return mod_targ;
 }
 
 impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));
@@ -1201,11 +1561,28 @@ impl JacCompiler.run_schedule(
         preprovided=provided,
         origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
     );
+    _policy = build_diagnostic_policy(target_program);
+    self.stamp_access_check_facts(mod);
+    jsx_guard_pass = _jsx_intrinsic_guard_pass_type();
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
         }
-        current_pass(ir_in=mod, prog=target_program, cancel_token=cancel_token);
+        if current_pass is SymTabBuildPass {
+            self.resolve_absorb_imports(mod, target_program);
+        }
+        if current_pass is BoundaryAnalysisPass {
+            self.stamp_boundary_facts(mod, target_program);
+        }
+        if current_pass is JcirGenPass {
+            self.stamp_native_import_facts(mod, target_program);
+        }
+        if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
+            self.stamp_client_kind_facts(mod, target_program);
+        }
+        run_pass(
+            current_pass, mod, target_program, cancel_token=cancel_token, policy=_policy
+        );
         for _prov in (getattr(current_pass, 'PROVIDES', ()) or ()) {
             provided.add(_prov);
         }
@@ -1291,15 +1668,67 @@ impl JacCompiler._scrub_native_artifacts_on_error(
     return True;
 }
 
+impl JacCompiler._report_missing_native_ir(
+    target_program: JacProgram, mod: uni.Module
+) -> None {
+    if mod?.gen is None or mod.gen.llvm_ir is not None {
+        return;
+    }
+    mod_path = mod.loc.mod_path if mod?.loc else '';
+    if not mod_path or JacCompiler._count_module_errors(target_program, mod_path) > 0 {
+        return;
+    }
+    import from jaclang.jac0core.diagnostics { E5092 }
+    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.jac0core.passes.transform { Alert }
+    reason = native_schedule_failure();
+    if not reason {
+        (_avail, _why) = native_pipeline_available();
+        if not _avail {
+            reason = _why;
+        }
+    }
+    if reason {
+        detail = f"the native codegen schedule could not be built ({reason})";
+    } elif not ModuleCodegenPass.has_native_context_stmts(mod) {
+        detail = "the module declares no native code for the backend to lower";
+    } else {
+        detail = (
+            "the native codegen passes ran but emitted neither IR nor a "
+            "diagnostic; this is a compiler bug -- please report it"
+        );
+    }
+    from_pass: any = JcirGenPass;
+    try {
+        import from jaclang.compiler.passes.native { NaIRGenPass }
+        from_pass = NaIRGenPass;
+    } except Exception {
+        ;
+    }
+    deliver_alerts(
+        [
+            Alert(
+                msg=E5092.format_message(
+                    kind='module', name=os.path.basename(mod_path)
+                ),
+                loc=mod.loc.snapshot(),
+                from_pass=from_pass,
+                code=E5092,
+                help_text=detail
+            )
+        ],
+        [],
+        target_program
+    );
+}
+
 impl JacCompiler._prepare_tool_program(
-    source_str: str, file_path: str, expand: bool = False
+    source_str: str, file_path: str
 ) -> tuple[JacProgram, (uni.Module | None)] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(
-        source_str, file_path, prog=prog, expand=expand
-    );
+    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);
@@ -1317,7 +1746,7 @@ impl JacCompiler.jac_file_formatter(
         return prog;
     }
     for pass_cls in get_format_sched(auto_lint=auto_lint) {
-        current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out;
+        current_mod = run_pass(pass_cls, current_mod, prog).ir_out;
     }
     prog.mod = uni.ProgramModule(main_mod=current_mod);
     return prog;
@@ -1331,7 +1760,7 @@ impl JacCompiler.jac_str_formatter(
         return prog;
     }
     for pass_cls in get_format_sched(auto_lint=auto_lint) {
-        current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out;
+        current_mod = run_pass(pass_cls, current_mod, prog).ir_out;
     }
     prog.mod = uni.ProgramModule(main_mod=current_mod);
     return prog;
@@ -1339,14 +1768,12 @@ impl JacCompiler.jac_str_formatter(
 
 impl JacCompiler.jac_file_linter(file_path: str) -> JacProgram {
     source_str = read_file_with_encoding(file_path);
-    (prog, current_mod) = JacCompiler._prepare_tool_program(
-        source_str, file_path, expand=True
-    );
+    (prog, current_mod) = JacCompiler._prepare_tool_program(source_str, file_path);
     if current_mod is None {
         return prog;
     }
     for pass_cls in get_lint_sched() {
-        current_mod = pass_cls(ir_in=current_mod, prog=prog).ir_out;
+        current_mod = run_pass(pass_cls, current_mod, prog).ir_out;
     }
     prog.mod = uni.ProgramModule(main_mod=current_mod);
     return prog;

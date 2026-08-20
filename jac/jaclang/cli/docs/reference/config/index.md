@@ -72,7 +72,7 @@ jac-version = "==0.34.3"   # stamped by `jac create`; widen to `>=`, `<=`, or a 
 # Publishing metadata -- only needed to run `jac build --as wheel`
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 keywords = ["jac", "ai"]
 authors = [{ name = "Your Name", email = "you@example.com" }]
 maintainers = [{ name = "Another Person", email = "them@example.com" }]
@@ -92,7 +92,7 @@ repository = "https://github.com/user/repo"
 | `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac start --scale` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
 | `license` | string | SPDX license identifier (e.g. `"MIT"`) |
 | `readme` | string | Path to README file (default: `README.md`) |
-| `requires-python` | string | Minimum Python version (e.g. `">=3.12"`) |
+| `requires-python` | string | Minimum Python version (e.g. `">=3.14"`) -- the wheel carries bytecode precompiled for the CPython the `jac` binary bundles, so a lower floor than that cannot load it |
 | `keywords` | list | Search keywords shown on PyPI |
 | `authors` | list of `{name, email}` | Package authors |
 | `maintainers` | list of `{name, email}` | Package maintainers |
@@ -456,7 +456,6 @@ select = ["combine-has", "remove-empty-parens"]
 | `combine-glob` | `W3003` | Combine consecutive `glob` statements with same modifiers | default |
 | `init-to-can` | `W3004` | Convert `def __init__` / `def __post_init__` to `can init` / `can postinit` | default |
 | `remove-empty-parens` | `W3005` | Remove empty parentheses from declarations (`def foo()` → `def foo`) | default |
-| `remove-kwesc` | `W3006` | Remove unnecessary backtick escaping from non-keyword names | default |
 | `hasattr-to-null-ok` | `W3007` | Convert `hasattr(obj, "attr")` to null-safe access (`obj?.attr`) | default |
 | `simplify-ternary` | `W3008` | Simplify `x if x else default` to `x or default` | default |
 | `remove-future-annotations` | `W3009` | Remove `import from __future__ { annotations }` (not needed in Jac) | default |
@@ -916,7 +915,9 @@ test_fixtures/
 *.generated.jac
 ```
 
-Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.).
+Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
+
+A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
@@ -947,7 +948,10 @@ Each line is a filename or pattern that should be skipped during Jac compilation
 
 | Variable | Description |
 |----------|-------------|
-| `JAC_DB_URL` | Postgres connection URL (overrides `[scale.database].url`) |
+| `JAC_DB_URL` | Postgres connection URL for **this process** (overrides `[scale.database].url` at runtime). A deploy ignores it: what database the deployed app gets is decided by `[scale.kubernetes]` `database_mode` / `database_url`, then `[scale.database]` `url`, then provisioning |
+| `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
+| `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
+| `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
 | `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
 

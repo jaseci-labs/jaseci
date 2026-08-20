@@ -1,6 +1,5 @@
 import re;
 import from contextlib { contextmanager }
-import from typing { Iterator }
 
 glob _COLOR_CACHE: dict[(str, bool)] = {};
 
@@ -12,20 +11,16 @@ glob _RESULT_SENTINEL: str = "__JAC_CL_TEST_RESULTS__",
      _VIRTUAL_PREFIX: str = "@jac/",
      _RUNTIME_SPEC: str = "@jac/runtime",
      _SERVER_ENTRY_NAMES: tuple = ("server.jac", "main.jac"),
-     _IMPORT_LINE: re.Pattern = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
-     _IMPORT_FROM: re.Pattern = re.compile(
+     _IMPORT_LINE = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
+     _IMPORT_FROM = re.compile(
          r"import\s+(?P<clause>[^;]*?)\s+from\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"
      ),
-     _EXPORT_FROM: re.Pattern = re.compile(
+     _EXPORT_FROM = re.compile(
          r"export\s+(?P<clause>\*(?:\s+as\s+[A-Za-z_$][\w$]*)?|\{[^}]*\})"
          r"\s*from\s*[\"'](?P<spec>[^\"']+)[\"']\s*;?"
      ),
-     _BARE_IMPORT: re.Pattern = re.compile(
-         r"import\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"
-     ),
-     _NAMED_BINDING: re.Pattern = re.compile(
-         r"([A-Za-z_$][\w$]*)\s*(?:as\s+[A-Za-z_$][\w$]*)?"
-     ),
+     _BARE_IMPORT = re.compile(r"import\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"),
+     _NAMED_BINDING = re.compile(r"([A-Za-z_$][\w$]*)\s*(?:as\s+[A-Za-z_$][\w$]*)?"),
      _PRELUDE_TEMPLATE: str = """
 // --- jac cl test prelude (injected by cl_test_runner) ---
 globalThis.__JAC_API_BASE_URL__ = %%BASE_URL%%;

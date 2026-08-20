@@ -1,4 +1,4 @@
-impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
+def _toml_section(base_path: (str | None), section: str) -> dict {
     if not base_path {
         return {};
     }
@@ -11,18 +11,23 @@ impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
         with open(manifest, 'rb') as f {
             data = tomllib.load(f);
         }
-        raw = (data.get('database') or {}).get('indexes') or {};
-        out: dict[str, list[str]] = {};
-        for (arch, fields_l) in raw.items() {
-            if isinstance(fields_l, list) {
-                out[str(arch)] = [str(x) for x in fields_l];
-            }
-        }
-        return out;
+        return data.get(section) or {};
     } except Exception as e {
-        logger.warning(f"could not read [database.indexes] from {manifest}: {e}");
+        logger.warning(f"could not read [{section}] from {manifest}: {e}");
         return {};
     }
+}
+
+
+impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
+    raw = _toml_section(base_path, 'database').get('indexes') or {};
+    out: dict[str, list[str]] = {};
+    for (arch, fields_l) in raw.items() {
+        if isinstance(fields_l, list) {
+            out[str(arch)] = [str(x) for x in fields_l];
+        }
+    }
+    return out;
 }
 
 
@@ -55,15 +60,110 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
 }
 
 
+glob _scratch_bases: set[str] = set(),
+     _scratch: list[ScratchState] = [];
+
+
+impl mark_scratch_base(base_path: str) -> None {
+    _scratch_bases.add(os.path.abspath(base_path));
+}
+
+
+impl scratch_requested(base_path: (str | None)) -> bool {
+    if os.environ.get(SCRATCH_ENV, '').strip().lower()
+        not in ('', '0', 'false', 'no') {
+        return True;
+    }
+    return bool(base_path) and os.path.abspath(base_path) in _scratch_bases;
+}
+
+
+impl scratch_lease(base_path: str) -> ScratchLease {
+    import secrets;
+    base = os.path.abspath(base_path);
+    if not _scratch {
+        import atexit;
+        _scratch.append(
+            ScratchState(
+                database=f"{SCRATCH_PREFIX}{os.getpid()}_{secrets.token_hex(3)}",
+                base_path=base
+            )
+        );
+        atexit.register(drop_scratch_database);
+        return ScratchLease(database=_scratch[0].database);
+    }
+    state = _scratch[0];
+    reset = state.base_path != base;
+    state.base_path = base;
+    return ScratchLease(database=state.database, reset=reset);
+}
+
+
+impl drop_scratch_database -> None {
+    if not _scratch {
+        return;
+    }
+    state = _scratch.pop();
+    stop_heartbeat(state.database);
+    try {
+        rt = PgRuntime(data_dir=shared_pg_data_dir(), database=MAINTENANCE_DB);
+        if rt.is_running() {
+            rt.drop_database(state.database, force=True);
+        }
+    } except Exception as e {
+        logger.debug(f"could not drop the scratch database {state.database}: {e}");
+    }
+}
+
+
+impl retention_days_for(base_path: (str | None)) -> int {
+    raw: str = os.environ.get(RETENTION_ENV, '').strip();
+    if not raw {
+        raw = str(_toml_section(base_path, 'database').get('retention_days') or '');
+    }
+    if not raw {
+        return 0;
+    }
+    try {
+        days = int(raw);
+    } except ValueError {
+        logger.warning(f"ignoring non-integer database retention setting {raw!r}");
+        return 0;
+    }
+    return days if days > 0 else 0;
+}
+
+
+impl runtime_for_base(
+    base_path: str, target_path: (str | None) = None
+) -> RuntimeLease {
+    lease: (ScratchLease | None) = None;
+    if scratch_requested(base_path) {
+        lease = scratch_lease(base_path);
+    }
+    return RuntimeLease(
+        runtime=PgRuntime(
+            data_dir=shared_pg_data_dir(),
+            database=(
+                lease.database
+                    if lease is not None
+                    else project_db_name(base_path, target_path)
+            ),
+            owner_path=os.path.abspath(base_path),
+            kind=DbKind.SCRATCH if lease is not None else DbKind.PROJECT,
+            retention_days=(0 if lease is not None else retention_days_for(base_path))
+        ),
+        reset=lease is not None and lease.reset
+    );
+}
+
+
 impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
     url = os.environ.get('JAC_DB_URL', '');
     if url {
         store = PgStore(conninfo=conninfo_from_url(url));
     } else {
-        rt = PgRuntime(
-            data_dir=shared_pg_data_dir(),
-            database=project_db_name(base_path, target_path)
-        );
+        rt = runtime_for_base(base_path, target_path).runtime;
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
     }
     try {
@@ -114,18 +214,6 @@ def _is_serialization_conflict(e: Exception) -> bool {
 }
 
 
-glob _schema_ready: set[str] = set();
-
-
-def _store_ns(store: (Any | None)) -> str {
-    if isinstance(store, PgStore) {
-        info = store.conninfo;
-        return (f"{info.unix_socket_dir or info.host}:" f"{info.port}/{info.database}");
-    }
-    return '';
-}
-
-
 def _json_default(o: object) -> str {
     return str(o);
 }
@@ -158,31 +246,36 @@ impl Session.postinit -> None {
     self._txn_changed = set();
     self._runtime = None;
     self._active_units = 0;
+    self._flushing = None;
+    self._read_scopes = 0;
+    self._snapshot_reads = set();
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
         if url {
-            pgs = PgStore(conninfo=conninfo_from_url(url));
-        } else {
-            rt = PgRuntime(
-                data_dir=shared_pg_data_dir(),
-                database=project_db_name(self.base_path, self.target_path)
+            self.store = PgStore(
+                conninfo=conninfo_from_url(url), promotions=promos, auto_schema=True
             );
-            self._runtime = rt;
-            pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+        } else {
+            lease = runtime_for_base(self.base_path, self.target_path);
+            self._runtime = lease.runtime;
+            pgs = PgStore(
+                conninfo=lease.runtime.conninfo(),
+                ensure_cb=lease.runtime.ensure,
+                promotions=promos,
+                auto_schema=True
+            );
+            if lease.reset {
+                pgs.reset_data();
+            }
+            self.store = pgs;
         }
-        ns = _store_ns(pgs);
-        if ns not in _schema_ready {
-            pgs.ensure_schema(promos);
-            _schema_ready.add(ns);
-        }
-        self.store = pgs;
     }
 }
 
 
 impl Session.data_location -> (str | None) {
-    rt: Any = self._runtime;
+    rt: any = self._runtime;
     if rt is not None {
         return f"{rt.data_dir}/{rt.database}";
     }
@@ -492,10 +585,48 @@ impl Session._fire_on_commit -> None {
 }
 
 
+impl Session._txn_isolation -> TxnIsolation {
+    if self._read_scopes > 0
+        and self._active_units == 0
+        and not self._dirty
+        and not self._deleted {
+        return TxnIsolation.SNAPSHOT_READ_ONLY;
+    }
+    return TxnIsolation.SERIALIZABLE;
+}
+
+
+impl Session._drop_snapshot_reads -> None {
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+    for id in self._snapshot_reads {
+        if id in self._dirty or id in self._deleted {
+            continue;
+        }
+        stale = self.__mem__.pop(id, None);
+        self._flushed_hash.pop(id, None);
+        if isinstance(stale, EdgeAnchor) {
+            sv_forget_edge(stale, self);
+        }
+    }
+    self._snapshot_reads.clear();
+}
+
+
 impl Session._ensure_txn -> None {
     with self._lock {
-        if self.store is not None and not self.store.in_txn() {
-            self.store.begin(serializable=True);
+        if self.store is None {
+            return;
+        }
+        wanted = self._txn_isolation();
+        if not self.store.in_txn() {
+            self.store.begin(wanted);
+            return;
+        }
+        if wanted is TxnIsolation.SERIALIZABLE
+            and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+            self.store.commit();
+            self._drop_snapshot_reads();
+            self.store.begin(TxnIsolation.SERIALIZABLE);
         }
     }
 }
@@ -504,6 +635,40 @@ impl Session._ensure_txn -> None {
 impl Session.unit_enter -> None {
     with self._lock {
         self._active_units += 1;
+        if self.store is not None and self.store.in_txn() {
+            self._ensure_txn();
+        }
+    }
+}
+
+
+impl Session.read_scope_enter -> None {
+    with self._lock {
+        self._read_scopes += 1;
+    }
+}
+
+
+impl Session.read_scope_exit -> None {
+    with self._lock {
+        self._read_scopes = max(0, self._read_scopes - 1);
+        if self._read_scopes > 0 or self.store is None {
+            return;
+        }
+        if self.store.txn_isolation() is not TxnIsolation.SNAPSHOT_READ_ONLY {
+            return;
+        }
+        try {
+            self.store.commit();
+        } except Exception as e {
+            logger.warning(
+                f"read snapshot close failed; rolling back: {type(e).__name__}: {e}"
+            );
+            try {
+                self.store.rollback();
+            } except Exception { }
+        }
+        self._drop_snapshot_reads();
     }
 }
 
@@ -577,12 +742,27 @@ impl Session.read_barrier -> None {
 
 
 impl Session.flush(full: bool = False) -> None {
+    import threading;
     import from jaclang.runtimelib.serializer { Serializer }
     if self.store is None {
         return;
     }
     with self._lock {
-        self._ensure_txn();
+        if self._flushing == threading.get_ident() {
+            return;
+        }
+        self._flushing = threading.get_ident();
+        try {
+            self._flush_locked(full);
+        } finally {
+            self._flushing = None;
+        }
+    }
+}
+
+
+impl Session._flush_locked(full: bool) -> None {
+    if self.store is not None {
         candidates: list[UUID];
         if full {
             candidates = list(self.__mem__.keys());
@@ -607,6 +787,9 @@ impl Session.flush(full: bool = False) -> None {
             }
             rows.append(self._serialize(anchor));
             pending.append((anchor, h));
+        }
+        if rows or self._deleted {
+            self._ensure_txn();
         }
         if rows {
             self.store.upsert(rows);
@@ -708,15 +891,18 @@ impl Session._materialize(
     self.__mem__[row.id] = anchor;
     self._flushed_hash[row.id] = _persist_hash(anchor);
     anchor.hash = self._flushed_hash[row.id];
+    if self.store is not None
+        and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+        self._snapshot_reads.add(row.id);
+    }
     return anchor;
 }
 
 
-impl Session.run_request(body: Callable) -> Any {
+impl Session.run_request(body: Callable) -> any {
     attempt = 0;
     while True {
         try {
-            self._ensure_txn();
             result = body();
             self.commit();
             return result;

@@ -1,12 +1,11 @@
 import logging;
-import from typing { Any }
 import from jaclang.scale.state.state_backend { StateBackend }
 
 glob logger = logging.getLogger(__name__);
 
 
 obj PgStateBackend(StateBackend) {
-    has store: Any;
+    has store: any;
 
     def get(key: str) -> (str | None) {
         return self.store.kv_get(key);

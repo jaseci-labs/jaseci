@@ -185,11 +185,11 @@ def stop_server(server: any) -> None {
     }
     server.terminate();
     try {
-        server.wait(timeout=15);
+        server.`wait(timeout=15);
     } except Exception {
         server.kill();
         try {
-            server.wait(timeout=5);
+            server.`wait(timeout=5);
         } except Exception {
             0;
         }

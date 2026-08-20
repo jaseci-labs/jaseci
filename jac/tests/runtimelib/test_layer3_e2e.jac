@@ -88,7 +88,7 @@ test "archetype_alias resolves a renamed class back to the new class" {
         # No row should have been quarantined — the alias covers the rename.
         import sqlite3;
         data_dir = Path(tmpdir) / ".jac" / "data";
-        for db in sorted(data_dir.glob("*.db")) {
+        for db in sorted(data_dir.`glob("*.db")) {
             conn = sqlite3.connect(str(db));
             q = conn.execute("SELECT count(*) FROM anchors_quarantine").fetchone()[0];
             conn.close();
@@ -118,11 +118,11 @@ test "rename without alias quarantines the stored anchors (control)" {
         import hashlib;
         import from jaclang.runtimelib.pgembed { PgRuntime }
         import from jaclang.runtimelib.session { shared_pg_data_dir }
-        import from jaclang.runtimelib.store { PgStore }
+        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
         digest = hashlib.sha1(os.path.abspath(tmpdir).encode('utf-8')).hexdigest()[:8];
         admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
         admin = PgStore(conninfo=admin_rt.ensure());
-        admin.begin(serializable=False);
+        admin.begin(TxnIsolation.READ_COMMITTED);
         names = [
             str(r[0])
             for r in admin.rows(
@@ -196,7 +196,7 @@ test "field type int->str coerces on load without quarantine" {
         # No quarantine expected for type-change handled by coercion.
         import sqlite3;
         data_dir = Path(tmpdir) / ".jac" / "data";
-        for db in sorted(data_dir.glob("*.db")) {
+        for db in sorted(data_dir.`glob("*.db")) {
             conn = sqlite3.connect(str(db));
             q = conn.execute("SELECT count(*) FROM anchors_quarantine").fetchone()[0];
             conn.close();

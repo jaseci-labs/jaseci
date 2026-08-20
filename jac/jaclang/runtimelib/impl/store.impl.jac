@@ -85,16 +85,114 @@ def _sanitize_ident(name: str) -> str {
 }
 
 
+def _store_ns(info: ConnInfo) -> str {
+    return f"{info.unix_socket_dir or info.host}:{info.port}/{info.database}";
+}
+
+
+glob _PG_CHANNEL_LIMIT = 63,
+     _CHANNEL_DIGEST_LEN = 16,
+     _CHANNEL_ENVELOPE_KEY = '__jac_channel',
+     _CHANNEL_ENVELOPE_VERSION = 1,
+     _LISTEN_POLL_SECONDS = 1.0,
+     _LISTEN_JOIN_SECONDS = 5.0;
+
+
+def _channel_travels_verbatim(channel: str) -> bool {
+    return (
+        bool(channel)
+        and '\x00' not in channel
+        and len(channel.encode('utf-8')) <= _PG_CHANNEL_LIMIT
+    );
+}
+
+
+def _channel_ident(channel: str) -> str {
+    if _channel_travels_verbatim(channel) {
+        return channel;
+    }
+    import hashlib;
+    digest = hashlib.sha256(channel.encode('utf-8')).hexdigest()[:_CHANNEL_DIGEST_LEN];
+    stem = _sanitize_ident(channel)[:_PG_CHANNEL_LIMIT - _CHANNEL_DIGEST_LEN - 1];
+    return f"{stem}_{digest}";
+}
+
+
+def _quote_channel(ident: str) -> str {
+    escaped = ident.replace('"', '""');
+    return f'"{escaped}"';
+}
+
+
+def _channel_wire_payload(channel: str, ident: str, payload: str) -> str {
+    if ident == channel {
+        return payload;
+    }
+    return json.dumps(
+        {
+            _CHANNEL_ENVELOPE_KEY: _CHANNEL_ENVELOPE_VERSION,
+            'channel': channel,
+            'payload': payload
+        }
+    );
+}
+
+
+def _channel_envelope(payload: str) -> (ChannelMessage | None) {
+    try {
+        data = json.loads(payload);
+    } except Exception {
+        return None;
+    }
+    if not isinstance(data, dict)
+        or data.get(_CHANNEL_ENVELOPE_KEY) != _CHANNEL_ENVELOPE_VERSION {
+        return None;
+    }
+    return ChannelMessage(
+        channel=str(data.get('channel', '')), payload=str(data.get('payload', ''))
+    );
+}
+
+
 impl PgStore.postinit -> None {
     self._conn = None;
     self._side_conn = None;
     self._lock = threading.RLock();
     self._server_version = None;
     self._in_txn = False;
+    self._isolation = None;
     self._known_types = set();
     self._listeners = [];
     self._listen_thread = None;
     self._listen_stop = None;
+    self._booted = False;
+    self._ready = False;
+    self._readying = None;
+}
+
+
+impl PgStore._ensure_ready -> None {
+    if self._ready {
+        return;
+    }
+    with self._lock {
+        if self._ready or self._readying == threading.get_ident() {
+            return;
+        }
+        self._readying = threading.get_ident();
+        try {
+            if self.ensure_cb is not None and not self._booted {
+                self.conninfo = self.ensure_cb();
+                self._booted = True;
+            }
+            if self.auto_schema {
+                self.ensure_schema_once(self.promotions);
+            }
+            self._ready = True;
+        } finally {
+            self._readying = None;
+        }
+    }
 }
 
 
@@ -184,7 +282,7 @@ def _owner_alive(pid: (int | None)) -> bool {
 }
 
 
-impl PgStore._connect -> Any {
+impl PgStore._connect -> any {
     import from jaclang.vendor.pgload { connect as pg_connect }
     info = self.conninfo;
     return pg_connect(
@@ -199,7 +297,7 @@ impl PgStore._connect -> Any {
 }
 
 
-impl PgStore._main -> Any {
+impl PgStore._main -> any {
     if self._conn is None {
         self._conn = self._connect();
     }
@@ -207,7 +305,8 @@ impl PgStore._main -> Any {
 }
 
 
-impl PgStore._side -> Any {
+impl PgStore._side -> any {
+    self._ensure_ready();
     if self._side_conn is None {
         self._side_conn = self._connect();
     }
@@ -230,8 +329,9 @@ def _conn_dead(e: Exception) -> bool {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
+    self._ensure_ready();
     with self._lock {
-        conn: Any = None;
+        conn: any = None;
         try {
             conn = self._main();
         } except Exception as e {
@@ -265,7 +365,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
                         {'C': '08006', 'M': 'connection lost mid-transaction; retry'}
                     ) from e;
                 }
-                conn2: Any = self._main();
+                conn2: any = self._main();
                 return conn2.run(sql, **params) or [];
             }
             if self._in_txn {
@@ -331,6 +431,44 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         }
         self.kv_put(SCHEMA_STAMP_KEY, fp);
         self._load_known_types();
+    }
+}
+
+
+impl PgStore.ensure_schema_once(promotions: dict[str, list[str]]) -> None {
+    ns = _store_ns(self.conninfo);
+    if ns in _schema_ready {
+        return;
+    }
+    with _schema_gate {
+        if ns in _schema_ready {
+            return;
+        }
+        self.ensure_schema(promotions);
+        _schema_ready.add(ns);
+    }
+}
+
+
+impl PgStore.reset_data -> None {
+    with self._lock {
+        if self._in_txn {
+            self.rollback();
+        }
+        listed = self._run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
+        );
+        tables = [str(row[0]) for row in listed];
+        if not tables {
+            return;
+        }
+        stamp = self._schema_stamp();
+        targets = ', '.join(f'"{name}"' for name in sorted(tables));
+        self._run(f"TRUNCATE {targets} RESTART IDENTITY CASCADE", {});
+        if stamp {
+            self.kv_put(SCHEMA_STAMP_KEY, stamp);
+        }
+        self._known_types = set();
     }
 }
 
@@ -481,21 +619,14 @@ impl PgStore.takeover -> int {
 }
 
 
-impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
+impl PgStore.begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None {
     with self._lock {
         if self._in_txn {
             return;
         }
-        if read_only {
-            level = 'REPEATABLE READ';
-        } elif serializable {
-            level = 'SERIALIZABLE';
-        } else {
-            level = 'READ COMMITTED';
-        }
-        suffix = ' READ ONLY' if read_only else '';
-        self._run(f"BEGIN ISOLATION LEVEL {level}{suffix}", {});
+        self._run(f"BEGIN {isolation.value}", {});
         self._in_txn = True;
+        self._isolation = isolation;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
         } except Exception { }
@@ -508,8 +639,12 @@ impl PgStore.commit -> None {
         if not self._in_txn {
             return;
         }
-        self._run('COMMIT', {});
-        self._in_txn = False;
+        try {
+            self._run('COMMIT', {});
+        } finally {
+            self._in_txn = False;
+            self._isolation = None;
+        }
     }
 }
 
@@ -523,6 +658,7 @@ impl PgStore.rollback -> None {
             self._run('ROLLBACK', {});
         } finally {
             self._in_txn = False;
+            self._isolation = None;
         }
     }
 }
@@ -530,6 +666,11 @@ impl PgStore.rollback -> None {
 
 impl PgStore.in_txn -> bool {
     return self._in_txn;
+}
+
+
+impl PgStore.txn_isolation -> (TxnIsolation | None) {
+    return self._isolation if self._in_txn else None;
 }
 
 
@@ -615,7 +756,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
             params[f"src{i}"] = str(row.src) if row.src else None;
             params[f"dst{i}"] = str(row.dst) if row.dst else None;
             params[f"undirected{i}"] = row.undirected;
-            params[f"props{i}"] = json.dumps(row.props, default=_jsonable);
+            params[f"props{i}"] = json.dumps(row.props, `default=_jsonable);
             params[f"fv{i}"] = SCHEMA_VERSION;
         }
         self._run(
@@ -753,7 +894,7 @@ impl PgStore.kv_put(key: str, value: str) -> None {
 
 impl PgStore.kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None {
     with self._lock {
-        conn: Any = self._side();
+        conn: any = self._side();
         conn.run(
             """
             INSERT INTO kv_state (key, value, expires_at, updated_at)
@@ -781,6 +922,9 @@ impl PgStore.kv_delete(key: str) -> None {
 impl PgStore.quarantine(
     missing_id: UUID, referrer_id: (UUID | None), kind: str
 ) -> None {
+    if self._isolation is TxnIsolation.SNAPSHOT_READ_ONLY {
+        return;
+    }
     self._run(
         """
         INSERT INTO quarantine (missing_id, referrer_id, kind)
@@ -798,20 +942,28 @@ impl PgStore.quarantine(
 
 impl PgStore.notify(channel: str, payload: str) -> None {
     with self._lock {
-        conn: Any = self._side();
-        conn.run('SELECT pg_notify(:c, :p)', c=channel, p=payload);
+        ident = _channel_ident(channel);
+        conn: any = self._side();
+        conn.run(
+            'SELECT pg_notify(:c, :p)',
+            c=ident,
+            p=_channel_wire_payload(channel, ident, payload)
+        );
     }
 }
 
 
-impl PgStore.listen(channel: str, callback: Any) -> None {
+impl PgStore.listen(channel: str, callback: any) -> None {
     with self._lock {
-        self._listeners.append((channel, callback));
-        conn: Any = self._side();
-        conn.run(f'LISTEN {_sanitize_ident(channel)}');
+        ident = _channel_ident(channel);
+        self._listeners.append(
+            ChannelListener(channel=channel, ident=ident, callback=callback)
+        );
+        conn: any = self._side();
+        conn.run(f"LISTEN {_quote_channel(ident)}");
         if self._listen_thread is None {
             self._listen_stop = threading.Event();
-            t: Any = threading.Thread(
+            t: any = threading.Thread(
                 target=self._listen_loop, daemon=True, name='jac-pg-listen'
             );
             self._listen_thread = t;
@@ -821,18 +973,72 @@ impl PgStore.listen(channel: str, callback: Any) -> None {
 }
 
 
+impl PgStore.unlisten(channel: str) -> None {
+    parked: any = None;
+    with self._lock {
+        ident = _channel_ident(channel);
+        kept = [
+            lst
+            for lst in self._listeners
+            if lst.channel != channel
+        ];
+        if len(kept) == len(self._listeners) {
+            return;
+        }
+        self._listeners = kept;
+        shared = any((lst.ident == ident) for lst in kept);
+        conn: any = self._side_conn;
+        if conn is not None and not shared {
+            try {
+                conn.run(f"UNLISTEN {_quote_channel(ident)}");
+            } except Exception as e {
+                logger.debug(f"unlisten {channel} failed: {e}");
+            }
+        }
+        if not self._listeners {
+            parked = self._stop_listen_thread();
+        }
+    }
+    self._join_listen_thread(parked);
+}
+
+
+impl PgStore._stop_listen_thread -> any {
+    if self._listen_stop is not None {
+        self._listen_stop.set();
+    }
+    parked = self._listen_thread;
+    self._listen_thread = None;
+    return parked;
+}
+
+
+impl PgStore._join_listen_thread(parked: any) -> None {
+    if parked is None or parked is threading.current_thread() {
+        return;
+    }
+    parked.join(timeout=_LISTEN_JOIN_SECONDS);
+    if parked.is_alive() {
+        logger.warning('pg listen thread did not stop within its join window');
+    }
+}
+
+
 impl PgStore._listen_loop -> None {
     import select;
-    stop: Any = self._listen_stop;
+    stop: any = self._listen_stop;
     if stop is None {
         return;
     }
     while not stop.is_set() {
         pending: list = [];
-        sock: Any = None;
+        sock: any = None;
         try {
             with self._lock {
-                conn: Any = self._side();
+                conn: any = self._side_conn;
+                if conn is None {
+                    break;
+                }
                 if conn.notifications {
                     pending = list(conn.notifications);
                     conn.notifications.clear();
@@ -842,10 +1048,10 @@ impl PgStore._listen_loop -> None {
             }
             if not pending {
                 if sock is None {
-                    stop.wait(1.0);
+                    stop.`wait(_LISTEN_POLL_SECONDS);
                     continue;
                 }
-                readable = select.select([sock], [], [], 10.0)[0];
+                readable = select.select([sock], [], [], _LISTEN_POLL_SECONDS)[0];
                 if stop.is_set() {
                     break;
                 }
@@ -853,26 +1059,54 @@ impl PgStore._listen_loop -> None {
                     continue;
                 }
                 with self._lock {
-                    conn2: Any = self._side();
+                    conn2: any = self._side_conn;
+                    if conn2 is None {
+                        break;
+                    }
                     conn2.run('SELECT 1');
                     pending = list(conn2.notifications);
                     conn2.notifications.clear();
                 }
             }
             for (pid, channel, payload) in pending {
-                for (want, cb) in list(self._listeners) {
-                    if _sanitize_ident(want) == channel {
-                        try {
-                            cb(payload);
-                        } except Exception as e {
-                            logger.warning(f"listener callback failed: {e}");
-                        }
-                    }
-                }
+                self._dispatch_notification(channel, payload);
             }
         } except Exception as e {
             logger.debug(f"listen loop hiccup: {e}");
-            stop.wait(1.0);
+            stop.`wait(_LISTEN_POLL_SECONDS);
+        }
+    }
+}
+
+
+impl PgStore._dispatch_notification(channel: str, payload: str) -> None {
+    envelope: (ChannelMessage | None) = None;
+    decoded = False;
+    for lst in list(self._listeners) {
+        if lst.ident != channel {
+            continue;
+        }
+        body = payload;
+        if lst.channel != channel {
+            if not decoded {
+                envelope = _channel_envelope(payload);
+                decoded = True;
+                if envelope is None {
+                    logger.warning(
+                        f"notification on {channel} carries no channel envelope;"
+                        ' dropping it rather than guessing a subscriber'
+                    );
+                }
+            }
+            if envelope is None or envelope.channel != lst.channel {
+                continue;
+            }
+            body = envelope.payload;
+        }
+        try {
+            lst.callback(body);
+        } except Exception as e {
+            logger.warning(f"listener callback failed: {e}");
         }
     }
 }
@@ -954,10 +1188,10 @@ impl PgStore._property_graph_ddl -> None {
 
 
 impl PgStore.close -> None {
+    parked: any = None;
     with self._lock {
-        if self._listen_stop is not None {
-            self._listen_stop.set();
-        }
+        parked = self._stop_listen_thread();
+        self._listeners = [];
         for c in [self._conn, self._side_conn] {
             if c is not None {
                 try {
@@ -969,4 +1203,5 @@ impl PgStore.close -> None {
         self._side_conn = None;
         self._in_txn = False;
     }
+    self._join_listen_thread(parked);
 }

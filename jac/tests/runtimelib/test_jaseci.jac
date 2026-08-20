@@ -9,7 +9,7 @@ import from tempfile { mkdtemp }
 import jaclang;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from tests.conftest { get_object }
+import from tests.support { get_object }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "runtimelib", "fixtures");
 
@@ -1062,7 +1062,7 @@ test "run persistent reuse" {
         # server; inspect them out-of-band through a fresh store connection.
         import from jaclang.runtimelib.pgembed { PgRuntime }
         import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
-        import from jaclang.runtimelib.store { PgStore }
+        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
 
         def _db_counts -> tuple {
             rt = PgRuntime(
@@ -1072,7 +1072,7 @@ test "run persistent reuse" {
                 )
             );
             st = PgStore(conninfo=rt.ensure());
-            st.begin(serializable=False);
+            st.begin(TxnIsolation.READ_COMMITTED);
             rows = st.rows(
                 "SELECT 1 FROM anchors WHERE id = CAST(:i AS uuid)",
                 {'i': "00000000-0000-0000-0000-000000000000"}

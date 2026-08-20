@@ -47,15 +47,12 @@ factor ::= ("~" | "-" | "+") factor | connect
 connect ::= atomic_pipe (connect_op atomic_pipe)*
 
 connect_op ::=
-    (
-        "del" edge_op_ref
-        | "++>"
-        | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
-        | "<++"
-        | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)?
-          (":<+" | ":+>")
-        | "<++>"
-    )?
+    "del" edge_op_ref
+    | "++>"
+    | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
+    | "<++"
+    | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? (":<+" | ":+>")
+    | "<++>"
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
 
@@ -77,7 +74,8 @@ pipe_call ::= ("|>" | ":>") atomic_chain | atomic_chain
 
 atomic_chain ::=
     atom (
-        ("." | "?" | ".>" | "<.") ("." | ".>" | "<.")? (ct_name | NAME | KWESC_NAME)?
+        ("." | "?" | ".>" | "<.") ("." | ".>" | "<.")?
+        (NAME | KWESC_NAME | "getter" | "setter" | "deleter")?
         | "(" filter_compr_inner
         | "(" assign_compr_inner
         | "(" call_args ")"
@@ -108,57 +106,51 @@ assign_compr_inner ::=
     "=" ((NAME | KWESC_NAME) "=" expression ("," (NAME | KWESC_NAME) "=" expression)*)?
     ")"
 
-atom_literal ::= (INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS)?
+atom_literal ::= INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS
 
 multistring ::= (NAME STRING | STRING | fstring) (NAME STRING | STRING | fstring)*
 
 builtin_type ::=
-    (
-        "str"
-        | "int"
-        | "float"
-        | "list"
-        | "tuple"
-        | "set"
-        | "dict"
-        | "bool"
-        | "bytes"
-        | "any"
-        | "type"
-        | "i8"
-        | "u8"
-        | "i16"
-        | "u16"
-        | "i32"
-        | "u32"
-        | "i64"
-        | "u64"
-        | "f32"
-        | "f64"
-    )?
+    "str"
+    | "int"
+    | "float"
+    | "list"
+    | "tuple"
+    | "set"
+    | "dict"
+    | "bool"
+    | "bytes"
+    | "any"
+    | "type"
+    | "i8"
+    | "u8"
+    | "i16"
+    | "u16"
+    | "i32"
+    | "u32"
+    | "i64"
+    | "u64"
+    | "f32"
+    | "f64"
 
 special_ref ::=
-    (
-        "self"
-        | "super"
-        | "here"
-        | "root"
-        | "visitor"
-        | "props"
-        | "init"
-        | "postinit"
-        | "node"
-        | "edge"
-        | "walker"
-        | "obj"
-        | "class"
-        | "enum"
-    )?
+    "self"
+    | "super"
+    | "here"
+    | "root"
+    | "visitor"
+    | "props"
+    | "init"
+    | "postinit"
+    | "node"
+    | "edge"
+    | "walker"
+    | "obj"
+    | "class"
+    | "enum"
 
 atom ::=
-    ct_block
-    | ct_name
-    | atom_literal
+    atom_literal
     | multistring
     | builtin_type
     | special_ref
@@ -201,13 +193,11 @@ edge_ref_chain ::=
     )* "]"
 
 edge_op_ref ::=
-    (
-        "-->"
-        | "<--"
-        | "<-->"
-        | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
-        | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
-    )?
+    "-->"
+    | "<--"
+    | "<-->"
+    | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
+    | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
 
 dict_or_set ::=
     "}"
@@ -248,12 +238,10 @@ jsx_attributes ::=
 jsx_children ::= jsx_child*
 
 jsx_child ::=
-    (
-        JSX_TEXT jsx_child?
-        | JSX_COMMENT
-        | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
-        | jsx_element
-    )?
+    JSX_TEXT jsx_child?
+    | JSX_COMMENT
+    | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
+    | jsx_element
 
 element_stmt ::=
     ";"
@@ -267,7 +255,6 @@ element_stmt ::=
     | global_var
     | impl_def
     | sem_def
-    | ct_element
     | PYNLINE
     | module_code
 
@@ -279,13 +266,13 @@ module_code ::=
 
 code_block_stmts ::= (statement ";"?)*
 
-ctrl_stmt ::= (("break" | "continue" | "skip") ";" | "disengage" ";")?
+ctrl_stmt ::= ("break" | "continue" | "skip") ";" | "disengage" ";"
 
 statement ::=
-    ct_element
-    | ";"
+    ";"
     | jsx_element ";"?
     | expression ("}" ";"?)?
+    | (NAME | KWESC_NAME) assignment_with_target
     | import_stmt
     | if_stmt
     | while_stmt
@@ -367,7 +354,7 @@ literal_pattern ::= INT | FLOAT | multistring | "-" (INT | FLOAT)? | expression
 name_pattern ::=
     (NAME | KWESC_NAME)
     (("." (NAME | KWESC_NAME))* class_pattern_args? | class_pattern_args)?
-    | NAME class_pattern_args?
+    | (NAME | KWESC_NAME) class_pattern_args?
     | expression
 
 sequence_pattern ::= "[" (("*" (NAME | KWESC_NAME) | pattern) ","?)* "]"
@@ -440,7 +427,6 @@ archetype_member ::=
     STRING? (
         ability
         | has_stmt
-        | ct_element
         | archetype
         | enum
         | impl_def
@@ -458,52 +444,25 @@ accessor ::= func_signature ("{" code_block_stmts "}" | ";")
 
 ability ::=
     ("@" atomic_chain)* "override"? "class"? "static"? ("async" "class"?)?
-    ("def" | "can") access_tag (ct_name | NAME | KWESC_NAME)? ("[" type_params "]")?
+    ("def" | "can") access_tag (NAME | KWESC_NAME)? ("[" type_params "]")?
     ("with" expression? ("entry" | "exit") | func_signature)
     ("{" code_block_stmts "}" | "by" expression ";" | "abst"? ";")
 
 func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 
-func_params ::= ("*" ","? | "/" ","? | ct_element ","? | param_var ","?)*
+func_params ::= ("*" ","? | "/" ","? | param_var ","?)*
 
 param_var ::=
-    ("*" | "**")? (
-        ct_name
-        | NAME
-        | KWESC_NAME
-        | "self"
-        | "props"
-        | "here"
-        | "visitor"
-        | "str"
-        | "int"
-        | "float"
-        | "list"
-        | "tuple"
-        | "set"
-        | "dict"
-        | "bool"
-        | "bytes"
-        | "any"
-        | "type"
-        | "i8"
-        | "u8"
-        | "i16"
-        | "u16"
-        | "i32"
-        | "u32"
-        | "i64"
-        | "u64"
-        | "f32"
-        | "f64"
-    ) (":" ownership_prefix pipe)? ("=" expression)?
+    ("*" | "**")?
+    (NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
+    (":" ownership_prefix pipe)? ("=" expression)?
 
 enum ::=
     ("@" atomic_chain)* "enum" access_tag (NAME | KWESC_NAME)
     (":" atomic_chain | "(" (atomic_chain ("," atomic_chain)*)? ")")?
-    ("{" (ct_element | enum_member ","? | PYNLINE | module_code)* "}" | ";")
+    ("{" (enum_member ","? | PYNLINE | module_code)* "}" | ";")
 
-enum_member ::= (ct_name | NAME | KWESC_NAME) ("=" expression)?
+enum_member ::= (NAME | KWESC_NAME) ("=" expression)?
 
 test ::= ("@" atomic_chain)* "test" STRING? "{" code_block_stmts "}"
 
@@ -514,8 +473,7 @@ switch_case ::= ("default" | "case" pattern) ":" statement*
 global_var ::= "glob" access_tag global_var_assignment ("," global_var_assignment)* ";"
 
 global_var_assignment ::=
-    (ct_name | NAME | KWESC_NAME) (":" ownership_prefix pipe)?
-    ("=" expression ("=" expression)*)?
+    (NAME | KWESC_NAME) (":" ownership_prefix pipe)? ("=" expression ("=" expression)*)?
 
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (
@@ -525,7 +483,17 @@ impl_def ::=
     )? ("{" (impl_enum_body | code_block_stmts) "}" | "by" expression ";" | ";")
 
 impl_target_name ::=
-    NAME | KWESC_NAME | "init" | "postinit" | "entry" | "exit" | "default"
+    NAME
+    | KWESC_NAME
+    | "init"
+    | "postinit"
+    | "entry"
+    | "exit"
+    | "default"
+    | "getter"
+    | "setter"
+    | "deleter"
+    | "return"
 
 impl_enum_body ::= ((NAME | KWESC_NAME) (":" pipe)? ("=" expression)? ","?)*
 
@@ -542,24 +510,3 @@ type_params ::=
 visit_stmt ::= "visit" (":" expression ":")? expression (else_stmt | ";")?
 
 report_stmt ::= "report" expression ";"
-
-ct_element ::= "comptime" (ct_for | ct_if | ability)
-
-ct_for ::= "for" (NAME | KWESC_NAME) "in" expression "{" ct_body "}"
-
-ct_if ::= "if" expression "{" ct_body "}" (ct_elif | ct_else)?
-
-ct_elif ::= "elif" expression "{" ct_body "}" (ct_elif | ct_else)?
-
-ct_else ::= "else" "{" ct_body "}"
-
-ct_body ::=
-    ((ct_element | enum_member) ","?)*
-    | ((ct_element | param_var) ","?)*
-    | (element_stmt | archetype_member | statement)*
-
-ct_block ::= "comptime" "{" expression "}"
-
-ct_splice ::= "${" expression "}"
-
-ct_name ::= (ct_splice | NAME | KWESC_NAME)*

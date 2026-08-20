@@ -9,7 +9,6 @@ import tempfile;
 import time;
 import from contextlib { suppress }
 import from pathlib { Path }
-import from collections.abc { Callable }
 import from jaclang.cli.console { console }
 
 impl compile_cl_module(filepath: str) -> tuple[str, list, dict, list] {
@@ -141,7 +140,7 @@ impl _mock_sources_for(source_path: (str | None)) -> dict[str, str] {
         }
     }
 
-    for (spec, rel) in (config.test.client.mocks or {}).items() {
+    for (spec, rel) in (config.`test.client.mocks or {}).items() {
         cand = Path(rel);
         if not cand.is_absolute() {
             cand = base_dir / cand;
@@ -195,7 +194,7 @@ impl _report_stubbed(source_path: (str | None), stubbed: list[str]) -> None {
     if source_path {
         config = JacConfig.discover(start_path=Path(source_path).resolve().parent);
         if config is not None {
-            on_stub = config.test.client.on_stub or "note";
+            on_stub = config.`test.client.on_stub or "note";
         }
     }
     listed = ", ".join(sorted(stubbed));
@@ -435,11 +434,11 @@ impl _exported_names(js: str) -> set {
     names: set = set();
     for m in re.finditer(r"export\s*\{([^}]*)\}", js) {
         for part in m.group(1).split(",") {
-            entry = part.strip();
-            if not entry {
+            `entry = part.strip();
+            if not `entry {
                 continue;
             }
-            names.add(entry.split(" as ")[-1].strip());
+            names.add(`entry.split(" as ")[-1].strip());
         }
     }
     decl_pat = (
@@ -456,11 +455,11 @@ impl find_server_entry(
     test_filepath: str, server_imports: (list[str] | None) = None
 ) -> (str | None) {
     test_dir = Path(test_filepath).resolve().parent;
-    override = os.environ.get("JAC_CL_TEST_SERVER");
-    if override {
-        cand = Path(override);
+    `override = os.environ.get("JAC_CL_TEST_SERVER");
+    if `override {
+        cand = Path(`override);
         if not cand.is_absolute() {
-            cand = test_dir / override;
+            cand = test_dir / `override;
         }
         return str(cand) if cand.exists() else None;
     }
@@ -566,7 +565,7 @@ impl _serve_in_background(server_entry: str, base_path: str) -> Iterator[int] {
         with suppress(Exception) {
             proc.terminate();
             try {
-                proc.wait(timeout=5);
+                proc.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 proc.kill();
             }
@@ -655,9 +654,9 @@ impl _run_harness(
         dep_files: dict[str, str] = {};
         dep_imports: dict[str, str] = {};
         if source_path is not None {
-            entry = Path(source_path).resolve();
+            `entry = Path(source_path).resolve();
             (dep_files, dep_imports) = _collect_local_imports(
-                module_js, str(entry.parent), str(entry)
+                module_js, str(`entry.parent), str(`entry)
             );
         }
 
@@ -749,7 +748,32 @@ impl module_is_client(filepath: str) -> bool {
         );
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
-    } except Exception {
+    } except Exception as probe_exc {
+        import from jaclang.jac0core.compiler {
+            CompilerSourceError,
+            compiler_source_failure_origin
+        }
+        origin = compiler_source_failure_origin(probe_exc);
+        if origin is not None {
+            raise CompilerSourceError(
+                f"the client-codespace probe for {path} failed inside the "
+                f"compiler's own source ({origin}), so the module's codespace "
+                f"is unknown; refusing to degrade it to the server codespace: "
+                f"{type(probe_exc).__name__}: {probe_exc}"
+            ) from probe_exc;
+        }
+        try {
+            os.write(
+                2,
+                (
+                    f"jac: client-codespace probe failed for {path}; "
+                    f"treating as server: {type(probe_exc).__name__}: "
+                    f"{probe_exc}\n"
+                ).encode(
+                    "utf-8", "replace"
+                )
+            );
+        } except OSError { }
         result = False;
     }
     _COLOR_CACHE[path] = result;

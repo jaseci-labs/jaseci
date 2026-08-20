@@ -24,14 +24,14 @@ impl MemoryBackplane.publish(channel: str, message: dict) -> None {
     await asyncio.gather(*tasks, return_exceptions=True);
 }
 
-impl MemoryBackplane.subscribe(channel: str, handler: Any) {
+impl MemoryBackplane.subscribe(channel: str, handler: any) {
     if channel not in self._subs {
         self._subs[channel] = [];
     }
     self._subs[channel].append(handler);
 }
 
-impl MemoryBackplane.unsubscribe(channel: str, handler: Any) {
+impl MemoryBackplane.unsubscribe(channel: str, handler: any) {
     handlers = self._subs.get(channel);
     if handlers is None {
         return;
@@ -52,11 +52,7 @@ impl MemoryBackplane.close{
 
 
 impl PgBackplane._pg_channel(channel: str) -> str {
-    out = '';
-    for ch in channel.lower() {
-        out += ch if (ch.isalnum() or ch == '_') else '_';
-    }
-    return f"jac_ws_{out}"[:63];
+    return f"jac_ws_{channel}";
 }
 
 
@@ -118,7 +114,7 @@ impl PgBackplane._on_notify(channel: str, payload: str) -> None {
     }
     for (name, handlers) in list(self._handlers.items()) {
         if self._pg_channel(name) == channel and handlers {
-            coro: Any = self._dispatch(name, data);
+            coro: any = self._dispatch(name, data);
             asyncio.run_coroutine_threadsafe(coro, self._loop);
         }
     }
@@ -134,7 +130,7 @@ impl PgBackplane._dispatch(channel: str, message: dict) -> None {
 }
 
 
-impl PgBackplane.subscribe(channel: str, handler: Any) {
+impl PgBackplane.subscribe(channel: str, handler: any) {
     await self.start();
     if channel not in self._handlers {
         self._handlers[channel] = [];
@@ -149,7 +145,7 @@ impl PgBackplane.subscribe(channel: str, handler: Any) {
 }
 
 
-impl PgBackplane.unsubscribe(channel: str, handler: Any) {
+impl PgBackplane.unsubscribe(channel: str, handler: any) {
     handlers = self._handlers.get(channel);
     if handlers is None {
         return;

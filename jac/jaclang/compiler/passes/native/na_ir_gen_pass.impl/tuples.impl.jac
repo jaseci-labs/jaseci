@@ -339,3 +339,236 @@ impl NaIRGenPass._codegen_tuple_index(
     );
     return self.builder.load(elem_ptr, name=f"tuple.idx.{idx}");
 }
+
+impl NaIRGenPass._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None) {
+    """The native shape of a tuple annotation that withholds its arity.
+
+    `tuple[T, ...]` describes any number of `T`, and a native tuple carries its
+    arity in its type, so no tuple struct can stand for it. The one native shape
+    that holds N-of-T with N only known at runtime is the sequence `list[T]`
+    already lowers to, and that is what such an annotation means here. The type
+    system marks the variadic form by parking an `UnknownType` among the type
+    arguments, which is the same signal `_tuple_has_variadic_arg` reads.
+    """;
+    try {
+        import from jaclang.compiler.type_system.types { UnknownType as _VtUnknown }
+    } except ImportError {
+        return None;
+    }
+    elems = [
+        a
+        for a in type_args
+        if not isinstance(a, _VtUnknown)
+    ];
+    if len(elems) == len(type_args) or not elems {
+        return None;
+    }
+    lowered: list[ir.Type] = [];
+    for a in elems {
+        et = self._lower_type(a);
+        if et is None {
+            return None;
+        }
+        if self._str_desc_ty is not None and et == self._str_desc_ty {
+            et = ir.IntType(8).as_pointer();
+        }
+        lowered.append(et);
+    }
+    flavor = self._tuple_seq_flavor(lowered);
+    if flavor is None {
+        return None;
+    }
+    (spec, store_type) = flavor;
+    self._emit_list_helpers(spec, store_type);
+    return self.list_types[spec].as_pointer();
+}
+
+impl NaIRGenPass._tuple_seq_coerce(
+    val: ir.Value, target_type: ir.Type
+) -> (ir.Value | None) {
+    """Materialize a tuple value into the sequence a variadic tuple lowers to.
+
+    Only fires when the target is exactly the sequence type the value's own
+    element flavor would build, so the conversion never silently reinterprets
+    one element flavor as another.
+    """;
+    if not isinstance(target_type, ir.PointerType) {
+        return None;
+    }
+    spec = self._spec_from_list_slot_type(target_type);
+    if spec is None or spec not in self.list_types {
+        return None;
+    }
+    if self.list_types[spec].as_pointer() != target_type {
+        return None;
+    }
+    st = self._tuple_struct_of_value(val);
+    if st is None {
+        return None;
+    }
+    flavor = self._tuple_seq_flavor([e for e in st.elements]);
+    if flavor is None or flavor[0] != spec {
+        return None;
+    }
+    seq = self._tuple_iter_seq(None, val);
+    return seq[0] if seq is not None else None;
+}
+
+impl NaIRGenPass._tuple_struct_of_value(
+    val: (ir.Value | None)
+) -> (ir.LiteralStructType | None) {
+    if val is None {
+        return None;
+    }
+    if isinstance(val.type, ir.LiteralStructType) {
+        return val.type;
+    }
+    if isinstance(val.type, ir.PointerType)
+        and isinstance(val.type.pointee, ir.LiteralStructType) {
+        return val.type.pointee;
+    }
+    return None;
+}
+
+impl NaIRGenPass._tuple_iter_shape(
+    expr: (uni.UniNode | None), val: (ir.Value | None)
+) -> bool {
+    _lit = expr;
+    while isinstance(_lit, uni.AtomUnit) {
+        _lit = _lit.value;
+    }
+    if isinstance(_lit, uni.TupleVal) and not _lit.values {
+        return True;
+    }
+    if val is None {
+        return False;
+    }
+    _t = val.type;
+    _pl = self._opt_payload_of(_t);
+    if _pl is not None {
+        _t = _pl;
+    }
+    if isinstance(_t, ir.LiteralStructType) {
+        return True;
+    }
+    return isinstance(_t, ir.PointerType)
+        and isinstance(_t.pointee, ir.LiteralStructType);
+}
+
+impl NaIRGenPass._tuple_seq_flavor(elem_types: list) -> (tuple | None) {
+    i8p = ir.IntType(8).as_pointer();
+    if not elem_types {
+        return ("i64", ir.IntType(64));
+    }
+    first = elem_types[0];
+    for t in elem_types[1:] {
+        if t != first {
+            return None;
+        }
+    }
+    if isinstance(first, ir.DoubleType) {
+        return ("f64", ir.DoubleType());
+    }
+    if isinstance(first, ir.PointerType) {
+        if isinstance(first.pointee, ir.FunctionType) {
+            return None;
+        }
+        return ("ptr", i8p);
+    }
+    if self?.jacval_type and first == self.jacval_type {
+        return ("jacval", self.jacval_type);
+    }
+    if isinstance(first, ir.IntType) {
+        return ("i64", ir.IntType(64));
+    }
+    return None;
+}
+
+impl NaIRGenPass._tuple_iter_seq(
+    expr: (uni.UniNode | None), val: (ir.Value | None)
+) -> (tuple | None) {
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    _lit = expr;
+    while isinstance(_lit, uni.AtomUnit) {
+        _lit = _lit.value;
+    }
+    empty_lit = isinstance(_lit, uni.TupleVal) and not _lit.values;
+    struct_type: (ir.LiteralStructType | None) = None;
+    if not empty_lit {
+        if val is None {
+            return None;
+        }
+        _opt_pl = self._opt_payload_of(val.type);
+        if _opt_pl is not None {
+            val = self._coerce_type(val, _opt_pl);
+        }
+        struct_type = self._tuple_struct_of_value(val);
+        if struct_type is None {
+            return None;
+        }
+    }
+    elem_types: list = [] if struct_type is None else [e for e in struct_type.elements];
+    flavor = self._tuple_seq_flavor(elem_types);
+    if flavor is None {
+        return None;
+    }
+    (spec, store_type) = flavor;
+    self._emit_list_helpers(spec, store_type);
+    helpers = self.list_helpers[spec];
+
+    _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{expr.loc.first_line
+        if expr is not None and expr.loc
+        else 0}";
+    seq = self._rc_call_with_ctx(
+        helpers["new"], [], op="new", loc=_loc, name="tuple.seq"
+    );
+    self._mark_owned(seq);
+
+    is_value = struct_type is not None and isinstance(val.type, ir.LiteralStructType);
+    owned_flags = val?.na_tuple_owned if val is not None else None;
+    for i in range(len(elem_types)) {
+        if is_value {
+            elem = self.builder.extract_value(val, i, name=f"tseq.{i}");
+        } else {
+            _slot = self.builder.gep(
+                val, [ir.Constant(i32, 0), ir.Constant(i32, i)], name=f"tseq.{i}.ptr"
+            );
+            elem = self.builder.load(_slot, name=f"tseq.{i}");
+        }
+        raw = elem;
+        if spec == "ptr" and isinstance(elem.type, ir.PointerType) {
+            elem = self.builder.bitcast(elem, i8p, name=f"tseq.{i}.cast");
+        } else {
+            elem = self._coerce_type(elem, helpers["elem_type"]);
+        }
+        self._rc_call_with_ctx(
+            helpers["append"], [seq, elem], op="tuple_seq", loc=_loc
+        );
+        if is_value
+            and owned_flags is not None
+            and i < len(owned_flags)
+            and owned_flags[i]
+            and isinstance(raw.type, ir.PointerType)
+            and self._gc_mode() != "none" {
+            self._emit_rc_release_simple(raw, op="tuple_seq", loc=_loc);
+        }
+    }
+    if (not is_value)
+        and val is not None
+        and self._is_owned(val)
+        and self._gc_mode() != "none" {
+        self._emit_rc_release_simple(val, op="tuple_seq_box", loc=_loc);
+    }
+
+    elem_cast: (ir.Type | None) = None;
+    loop_elem_type = helpers["elem_type"];
+    if spec == "ptr" and elem_types {
+        _first = elem_types[0];
+        if isinstance(_first, ir.PointerType) and _first != i8p {
+            elem_cast = _first;
+            loop_elem_type = _first;
+        }
+    }
+    return (seq, spec, loop_elem_type, elem_cast);
+}

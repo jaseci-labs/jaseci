@@ -25,6 +25,11 @@ class JacProgram {
         _compiler: JacCompiler | None,
         _compile_options: CompileOptions,
         _native_cache: dict[(str, any)],
+        _na_dep_units: dict[(str, any)],
+        _na_dep_inflight: set,
+        _na_verdict_resolving: set,
+        _na_unverified_live: dict[(str, dict)],
+        _na_verdict_misses: int,
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,
@@ -54,7 +59,9 @@ class JacProgram {
         use_str: (str | None) = None
     ) -> uni.Module;
 
-    def _relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None;
+    def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
+    static def hub_key(path: str) -> str;
+    def has_failed_parse(self: JacProgram, path: str) -> bool;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
@@ -86,7 +93,7 @@ class JacProgram {
     def run_schedule(
         self: JacProgram,
         mod: uni.Module,
-        passes: list[type[Transform[uni.Module, uni.Module]]],
+        passes: list[type[Transform]],
         cancel_token: (Event | None) = None
     ) -> None;
 

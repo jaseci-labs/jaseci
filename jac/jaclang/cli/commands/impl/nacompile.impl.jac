@@ -228,7 +228,7 @@ impl nacompile(
         _gc_cfg = _cfg.gc;
     }
     if not gc {
-        gc = _gc_cfg.default if _gc_cfg else "cycles";
+        gc = _gc_cfg.`default if _gc_cfg else "cycles";
     }
     if gc not in ("cycles", "rc", "none") {
         console.error(f"Invalid --gc mode '{gc}' (expected: cycles, rc, none)");
@@ -365,12 +365,13 @@ impl nacompile(
                 "  Remove the incompatible constructs it names."
             );
         } else {
-            console.error("Native compilation produced no LLVM IR.");
+            console.error(
+                f"Native compilation produced no LLVM IR for {filename} and no\n"
+                "  diagnostic explains why; this is a compiler bug -- please report it."
+            );
         }
-        if prog.errors_had {
-            for err in prog.errors_had {
-                console.error(err.pretty_print());
-            }
+        for _warn in prog.warnings_had {
+            console.print(_warn.pretty_print());
         }
         return 1;
     }
@@ -733,7 +734,7 @@ def _resolve_ca_bundle(pkg_root: str) -> (str | None) {
 
     import glob;
     hits = sorted(
-        glob.glob(
+        `glob.`glob(
             os.path.join(
                 pkg_root,
                 ".pbs-build",

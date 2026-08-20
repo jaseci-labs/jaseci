@@ -453,6 +453,16 @@ impl Lexer.scan_kwesc_name -> LexToken {
     while not self.at_end() and self.is_alnum(self.current()) {
         value += self.advance();
     }
+    bare = value[1:];
+    if lookup_keyword(bare) is None {
+        self.error(
+            f"'{bare}' is not a keyword -- remove the backtick",
+            start_line,
+            start_col,
+            start_pos,
+            code_str="E0014"
+        );
+    }
     return self.make_token(
         TokenKind.KWESC_NAME, value, start_line, start_col, start_pos
     );
@@ -566,6 +576,7 @@ impl Lexer.scan_string(quote: str) -> LexToken {
         pp -= 1;
     }
     is_raw = prefix.lower() in ["r", "rb", "br"];
+    is_bytes = prefix.lower() in ["b", "rb", "br"];
     triple = False;
 
     if self.peek() == quote and self.peek(2) == quote {
@@ -618,7 +629,15 @@ impl Lexer.scan_string(quote: str) -> LexToken {
                 esc = self.current();
                 value += self.advance();
 
-                if (
+                if (not is_raw and not is_bytes and esc == "N") {
+                    self.error(
+                        "Unsupported escape sequence '\\N{...}'",
+                        esc_line,
+                        esc_col,
+                        esc_pos,
+                        code_str="E0110"
+                    );
+                } elif (
                     not is_raw
                     and esc not in "nrtbfva01234567xNuU"
                     and esc != "\\"
@@ -1238,11 +1257,6 @@ impl Lexer.scan_operator -> LexToken {
     start_pos = self.pos;
     ch = self.current();
 
-    if self.match_string("${") {
-        return self.make_token(
-            TokenKind.DOLLAR_LBRACE, "${", start_line, start_col, start_pos
-        );
-    }
     if self.match_string("<-->") {
         return self.make_token(
             TokenKind.ARROW_BI, "<-->", start_line, start_col, start_pos
