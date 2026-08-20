@@ -11,9 +11,11 @@ import from jaclang.jac0core.unitree {
     Expr,
     HasVar,
     IfStmt,
+    Import,
     ImplDef,
     KWPair,
     Module,
+    ModuleItem,
     Name,
     ModulePath,
     Symbol,
@@ -123,6 +125,8 @@ def get_completion_items(ty: (TypeBase | UniScopeNode)) -> list[CompletionItem];
 def lookup_symtab(
     symtable: UniScopeNode, name: str, builtins_to_inject: Module
 ) -> (Symbol | None);
+
+def origin_of_local_name(nd: UniNode, local: str) -> tuple[str, (str | None)];
 
 def collect_member_syms(
     scope: UniScopeNode, name: str, deep: bool = False

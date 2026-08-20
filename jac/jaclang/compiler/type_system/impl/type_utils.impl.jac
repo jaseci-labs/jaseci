@@ -180,6 +180,32 @@ impl lookup_symtab(
     return symbol;
 }
 
+impl origin_of_local_name(
+    nd: UniNode, local: str
+) -> tuple[str, (str | None)] {
+    mod = nd.find_parent_of_type(Module);
+    if mod is None {
+        return (local, None);
+    }
+    for imp in mod.get_all_sub_nodes(Import) {
+        if imp.from_loc is None {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, ModuleItem) or not isinstance(item.name, Name) {
+                continue;
+            }
+            bound = item.alias.value
+                if (item.alias is not None and isinstance(item.alias, Name))
+                else item.name.value;
+            if bound == local {
+                return (item.name.value, imp.from_loc.dot_path_str);
+            }
+        }
+    }
+    return (local, None);
+}
+
 impl collect_member_syms(
     scope: UniScopeNode, name: str, deep: bool = False
 ) -> list[Symbol] {
@@ -206,7 +232,14 @@ impl collect_member_syms(
         }
         for dec in decl.decorators or [] {
             tail = dec.right if isinstance(dec, AtomTrailer) else dec;
-            if isinstance(tail, Name) and tail.value == "overload" {
+            if not isinstance(tail, Name) {
+                continue;
+            }
+            (canonical, origin) = origin_of_local_name(decl, tail.value);
+            if canonical != "overload" {
+                continue;
+            }
+            if origin is None or origin in ("typing", "typing_extensions") {
                 return True;
             }
         }
