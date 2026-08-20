@@ -5,7 +5,7 @@ impl NaIRGenCore.postinit -> None {
     self._rc_debug_codegen = bool(_ni_opts.rc_debug_codegen);
     _ni_src: str = self.ir_in.loc.mod_path if self.ir_in.loc else "";
     _ni_mod_name: str = _ni_os.path.basename(_ni_src) if _ni_src else "jac_native";
-    self.llvm_module = ir.Module(name=_ni_mod_name, context=ir.Context());
+    self._llvm_module = ir.Module(name=_ni_mod_name, context=ir.Context());
     import jaclang.compiler.passes.native.llvm.binding as _llvm_bind;
 
     _ni_target_ovr = _ni_opts.native_target or "";
@@ -57,7 +57,7 @@ impl NaIRGenCore.postinit -> None {
         "i1": ir.IntType(1),
         "i8*": ir.IntType(8).as_pointer()
     };
-    self.type_map = {};
+    self._type_map = {};
     try {
         import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
         for (_name, _spec) in JAC_TYPE_REGISTRY.na_type_entries() {
@@ -78,18 +78,18 @@ impl NaIRGenCore.postinit -> None {
 
     self.type_map["type"] = _spec_map["i8*"];
 
-    self.complex_struct_type = self.llvm_module.context.get_identified_type(
+    self._complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
     self.complex_struct_type.set_body(ir.DoubleType(), ir.DoubleType());
 
-    self.range_struct_type = self.llvm_module.context.get_identified_type("JacRange");
+    self._range_struct_type = self.llvm_module.context.get_identified_type("JacRange");
     self.range_struct_type.set_body(ir.IntType(64), ir.IntType(64), ir.IntType(64));
 
-    self.slice_struct_type = self.llvm_module.context.get_identified_type("JacSlice");
+    self._slice_struct_type = self.llvm_module.context.get_identified_type("JacSlice");
     self.slice_struct_type.set_body(ir.IntType(64), ir.IntType(64), ir.IntType(64));
 
-    self.jacval_type = self.llvm_module.context.get_identified_type("JacVal");
+    self._jacval_type = self.llvm_module.context.get_identified_type("JacVal");
     self.jacval_type.set_body(ir.IntType(8), ir.IntType(64));
 
     super.postinit();

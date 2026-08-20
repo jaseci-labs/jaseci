@@ -3,12 +3,12 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 
 obj NaIRGenState(ModuleCodegenPass) {
-    has llvm_module: ir.Module postinit,
-        type_map: dict[str, ir.Type] postinit,
-        complex_struct_type: object postinit,
-        range_struct_type: object postinit,
-        slice_struct_type: object postinit,
-        jacval_type: object postinit,
+    has _llvm_module: (ir.Module | None) = None,
+        _type_map: (dict[str, ir.Type] | None) = None,
+        _complex_struct_type: (object | None) = None,
+        _range_struct_type: (object | None) = None,
+        _slice_struct_type: (object | None) = None,
+        _jacval_type: (object | None) = None,
         _builder: (ir.IRBuilder | None) = None,
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
@@ -244,5 +244,10 @@ obj NaIRGenState(ModuleCodegenPass) {
 
     has builder: ir.IRBuilder { getter; }
 
-    def postinit -> None;
+    has llvm_module: ir.Module { getter; }
+    has type_map: dict[str, ir.Type] { getter; }
+    has complex_struct_type: object { getter; }
+    has range_struct_type: object { getter; }
+    has slice_struct_type: object { getter; }
+    has jacval_type: object { getter; }
 }
