@@ -489,7 +489,7 @@ impl enter(
     return 0;
 }
 
-impl dev(filename: str = "", port: int = 8000, api_port: int = 0) -> int {
+impl dev(filename: str = "", port: int = 0, api_port: int = 0) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
     import from jaclang.project.kinds { resolve_entry }

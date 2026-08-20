@@ -1840,6 +1840,7 @@ import from jaclang.runtimelib.net {
     find_available_port as _find_available_port,
     PORT_RETRY_LIMIT,
     ERRNO_ADDR_IN_USE_LINUX,
+    ERRNO_ADDR_IN_USE_MACOS,
     ERRNO_ADDR_IN_USE_WINDOWS
 }
 import from jaclang.cli.commands.execution { _find_free_port }
@@ -1926,6 +1927,13 @@ test "an explicitly requested port is never relocated" {
             app_err = e;
         }
         _assert_refuses("app port", blocked, app_err);
+        collide_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, blocked, True);
+        } except OSError as e {
+            collide_err = e;
+        }
+        _assert_refuses("app port equal to the api port", blocked, collide_err);
     }
 }
 
@@ -1979,6 +1987,7 @@ test "network IPs - returns valid IP list" {
 test "port constants - values are correct" {
     assert PORT_RETRY_LIMIT == 10 , "PORT_RETRY_LIMIT should be 10";
     assert ERRNO_ADDR_IN_USE_LINUX == 98 , "ERRNO_ADDR_IN_USE_LINUX should be 98";
+    assert ERRNO_ADDR_IN_USE_MACOS == 48 , "ERRNO_ADDR_IN_USE_MACOS should be 48";
     assert ERRNO_ADDR_IN_USE_WINDOWS == 10048 , "ERRNO_ADDR_IN_USE_WINDOWS should be 10048";
 }
 

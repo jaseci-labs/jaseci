@@ -110,12 +110,7 @@ glob _jwt_config = get_scale_config().get_jwt_config(),
      SSO_HOST = _sso_config['host'],
      logger = logging.getLogger(__name__);
 
-import from jaclang.runtimelib.net {
-    ERRNO_ADDR_IN_USE_LINUX,
-    ERRNO_ADDR_IN_USE_WINDOWS,
-    PORT_RETRY_LIMIT,
-    find_available_port
-}
+import from jaclang.runtimelib.net { PORT_RETRY_LIMIT, find_available_port }
 
 def _get_network_ips -> list[str];
 

@@ -13,8 +13,12 @@ def find_available_port(
     strict: bool = False
 ) -> int {
     candidate = start_port;
+    pinned_taken = f"Port {start_port} is already in use";
     for _ in range(max_retries) {
         if candidate == skip_port {
+            if strict {
+                raise OSError(pinned_taken) from None;
+            }
             candidate += 1;
             continue;
         }
@@ -36,7 +40,7 @@ def find_available_port(
                 raise;
             }
             if strict {
-                raise OSError(f"Port {start_port} is already in use") from None;
+                raise OSError(pinned_taken) from None;
             }
             candidate += 1;
         }
