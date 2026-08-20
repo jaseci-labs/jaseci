@@ -1,8 +1,5 @@
 impl _type_to_schema(
-    ty: type,
-    title: str = "",
-    desc: str = "",
-    info: (Info | str | tuple | None) = None
+    ty: type, title: str = "", desc: str = "", info: (Info | str | tuple | None) = None
 ) -> dict {
     title = title.replace("_", " ").title();
     context = ({"title": title} if title else {})

@@ -10,10 +10,7 @@ glob _SCHEMA_OBJECT_WRAPPER = "schema_object_wrapper",
      _SCHEMA_DICT_WRAPPER = "schema_dict_wrapper";
 
 def _type_to_schema(
-    ty: type,
-    title: str = "",
-    desc: str = "",
-    info: (Info | str | tuple | None) = None
+    ty: type, title: str = "", desc: str = "", info: (Info | str | tuple | None) = None
 ) -> dict;
 
 def _name_of_type(ty: type, info: (Info | str | tuple | None) = None) -> str;
@@ -24,6 +21,7 @@ def _unwrap_from_object(json_obj: dict) -> dict;
 def type_to_schema(
     resp_type: type, info: (Info | str | tuple | None) = None
 ) -> dict[str, object];
+
 def tool_to_schema(
     func: Callable, description: str, params_desc: dict[str, str], info: Info
 ) -> dict[str, object];

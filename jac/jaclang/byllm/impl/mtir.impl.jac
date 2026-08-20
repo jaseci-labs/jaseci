@@ -111,8 +111,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         parent_info = fn_info.parent_class if isinstance(fn_info, MethodInfo) else None;
         if has_mtir {
             inputs_detail.insert(
-                0,
-                f"self = {(bound_self, parent_info.semstr if parent_info else '')}"
+                0, f"self = {(bound_self, parent_info.semstr if parent_info else '')}"
             );
         } else {
             inputs_detail.insert(0, f"self = {bound_self}");
