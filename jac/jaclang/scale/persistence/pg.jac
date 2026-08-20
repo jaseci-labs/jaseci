@@ -53,11 +53,7 @@ def scale_db_url -> (str | None) {
 
 """Where the resolved url came from, for a message an operator can act on."""
 def _url_source -> str {
-    return (
-        'JAC_DB_URL'
-            if os.environ.get('JAC_DB_URL')
-            else '[scale.database] url'
-    );
+    return ('JAC_DB_URL' if os.environ.get('JAC_DB_URL') else '[scale.database] url');
 }
 
 
@@ -81,7 +77,13 @@ the holder key: a store that failed once must be attempted again, or a
 single bad moment at boot outlives the outage that caused it.
 """
 def _fail(reason: str) {
-    logger.warning(f"scale shared store unavailable: {reason}");
+    if _holder.get('failure') == reason {
+        # Retryable means re-attempted, which means re-reported; say the same
+        # thing twice at warning and a polled health probe becomes the log.
+        logger.debug(f"scale shared store still unavailable: {reason}");
+    } else {
+        logger.warning(f"scale shared store unavailable: {reason}");
+    }
     _holder.pop('key', None);
     _holder.pop('store', None);
     _holder['failure'] = reason;

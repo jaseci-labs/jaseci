@@ -60,18 +60,14 @@ def _sqlstate_of(e: Exception) -> str {
 
 
 def _advisory_locks(store: any) -> int {
-    rows = store.rows(
-        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'", {}
-    );
+    rows = store.rows("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'", {});
     return int(rows[0][0]);
 }
 
 
 def _race_round(td: str, racers: int) -> list[Exception] {
     (rt, info) = _fresh_db(td);
-    stores = [
-        PgStore(conninfo=info, ensure_cb=rt.ensure) for _ in range(racers)
-    ];
+    stores = [PgStore(conninfo=info, ensure_cb=rt.ensure) for _ in range(racers)];
     # Connect and cache server_version before the barrier: otherwise the
     # SCRAM handshake staggers the racers and the DDL never overlaps.
     for s in stores {
@@ -191,9 +187,9 @@ obj _CatalogRaceStore(PgStore) {
                     'S': 'ERROR',
                     'C': self.fault_state,
                     'M': 'duplicate key value violates unique constraint'
-                        ' "pg_type_typname_nsp_index"',
+                    ' "pg_type_typname_nsp_index"',
                     'D': 'Key (typname, typnamespace)=(anchors, 2200)'
-                        ' already exists.'
+                    ' already exists.'
                 }
             );
         }

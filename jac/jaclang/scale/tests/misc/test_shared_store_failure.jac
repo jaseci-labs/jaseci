@@ -48,8 +48,7 @@ test "a url that resolves but cannot be reached is reported as such" {
             'the store failed and told nobody why; the cause must survive'
         );
         assert '127.0.0.1:1' in reason , (
-            f"the failure {reason!a} does not name the database it could not"
-            ' reach'
+            f"the failure {reason!a} does not name the database it could not" ' reach'
         );
         assert 'JAC_DB_URL' in reason , (
             f"the failure {reason!a} does not name where the url came from"
@@ -92,9 +91,7 @@ test "a store that connects but cannot set up the schema says so" {
     # went wrong, and the operator has to be told which of the two it was.
     _arm(_DEAD_URL);
     try {
-        with unittest.mock.patch(
-            'jaclang.runtimelib.store.PgStore', _schema_failing
-        ) {
+        with unittest.mock.patch('jaclang.runtimelib.store.PgStore', _schema_failing) {
             assert pg_mod.shared_store() is None;
             reason: str = str(pg_mod.shared_store_failure() or '');
             assert 'schema' in reason , (
@@ -162,8 +159,7 @@ test "a failed store is retried, not pinned for the process lifetime" {
     _arm(_DEAD_URL);
     try {
         with unittest.mock.patch(
-            'jaclang.runtimelib.store.PgStore',
-            side_effect=RuntimeError('transient')
+            'jaclang.runtimelib.store.PgStore', side_effect=RuntimeError('transient')
         ) as fake {
             assert pg_mod.shared_store() is None;
             assert pg_mod.shared_store() is None;
@@ -188,8 +184,7 @@ test "a configured [scale.database] url is a real source, not just a message" {
             'url': 'postgresql://u@example:5432/d'
         };
         with unittest.mock.patch(
-            'jaclang.scale.config.config_loader.get_scale_config',
-            return_value=stub
+            'jaclang.scale.config.config_loader.get_scale_config', return_value=stub
         ) {
             assert pg_mod.scale_db_url() == 'postgresql://u@example:5432/d' , (
                 'the identity error offers [scale.database] url as the fix,'
