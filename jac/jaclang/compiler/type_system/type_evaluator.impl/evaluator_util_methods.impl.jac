@@ -466,6 +466,13 @@ impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> boo
             }
         } elif ty is existing {
             return True;
+        } elif (
+            not isinstance(ty, ClassType)
+            and not isinstance(existing, ClassType)
+            and type(ty) is type(existing)
+            and str(ty) == str(existing)
+        ) {
+            return True;
         }
     }
     return False;

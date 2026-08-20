@@ -85,10 +85,26 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None
     }
 }
 
+impl TypeEvaluator._is_jsx_tag_artifact(expr: JsxElement) -> bool {
+    parent = expr.parent;
+    if not isinstance(parent, JsxElement) {
+        return False;
+    }
+    for child in parent.children or [] {
+        if child is expr {
+            return False;
+        }
+    }
+    return True;
+}
+
 impl TypeEvaluator._validate_jsx_props(
     expr: JsxElement, expected_type: TypeBase | None = None
 ) -> None {
     if not expr.name or not expr.attributes {
+        return;
+    }
+    if self._is_jsx_tag_artifact(expr) {
         return;
     }
     first_part = expr.name.parts[0] if expr.name.parts else None;
@@ -236,6 +252,10 @@ impl TypeEvaluator._validate_component_jsx_props(
                 );
             }
         }
+    }
+
+    if expr.children {
+        matched_params.add("children");
     }
 
     for (pname, p) in param_map.items() {

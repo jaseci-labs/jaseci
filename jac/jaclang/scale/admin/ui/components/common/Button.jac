@@ -1,7 +1,7 @@
 """Reusable button component with variants."""
 
 def:pub Button(
-    children: any = None,
+    children: any,
     onClick: any = None,
     variant: str = "primary",
     size: str = "md",

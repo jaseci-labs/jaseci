@@ -5049,15 +5049,8 @@ impl TypeEvaluator._union_narrowed_types(types_list: list) -> TypeBase {
     }
 
     unique: list[TypeBase] = [];
-    seen_shared: set = set();
     for t in flat {
-        if isinstance(t, ClassType) {
-            shared_id = id(t.shared);
-            if shared_id not in seen_shared {
-                seen_shared.add(shared_id);
-                unique.append(t);
-            }
-        } else {
+        if not self._type_in_list(t, unique) {
             unique.append(t);
         }
     }
