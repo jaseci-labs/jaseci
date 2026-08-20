@@ -618,6 +618,7 @@ impl TypeEvaluator.get_none_type -> TypeBase {
 impl TypeEvaluator._super_owner_for(
     node_: SpecialVarRef, rest: list[ClassType]
 ) -> ClassType {
+    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     parent = node_.parent;
     member_name: str | None = None;
     if isinstance(parent, AtomTrailer) and isinstance(parent.right, Name) {
@@ -626,7 +627,6 @@ impl TypeEvaluator._super_owner_for(
     if member_name is None {
         return rest[0];
     }
-    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     lookup_names = [member_name];
     if member_name == "init" {
         lookup_names.append("__init__");
@@ -640,3 +640,5 @@ impl TypeEvaluator._super_owner_for(
     }
     return rest[0];
 }
+
+
