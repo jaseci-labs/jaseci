@@ -5,7 +5,8 @@ import from pathlib { Path }
 import from jaclang.scale.config.config_loader {
     JacScaleConfig,
     get_scale_config,
-    reset_scale_config
+    reset_scale_config,
+    sanitize_prometheus_namespace
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -281,4 +282,12 @@ test "get_monitoring_config derives the namespace when monitoring.namespace is e
         "monitoring": {"namespace": ""}
     };
     assert cfg.get_monitoring_config()["namespace"] == "jac_shop_prod";
+}
+
+
+test "sanitize_prometheus_namespace produces a valid Prometheus namespace" {
+    assert sanitize_prometheus_namespace("jac--shop") == "jac_shop";
+    assert sanitize_prometheus_namespace("-prod-") == "prod";
+    assert sanitize_prometheus_namespace("1prod") == "_1prod";
+    assert sanitize_prometheus_namespace("---") == "jaclang_scale";
 }
