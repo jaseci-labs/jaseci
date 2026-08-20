@@ -553,38 +553,9 @@ def prefix_span_errors(span: tuple[any]) -> int {
     return err_end - err_start;
 }
 
-def _pinned_codespace(file_path: str) -> str {
-    try {
-        import from jaclang.jac0core.codeinfo {
-            is_client_by_location,
-            is_native_by_location
-        }
-        import from jaclang.jac0core.placement_pins {
-            config_kind_space,
-            config_module_pin
-        }
-    } except Exception {
-        return "";
-    }
-    try {
-        if is_native_by_location(file_path) {
-            return "native";
-        }
-        if is_client_by_location(file_path) {
-            return "client";
-        }
-        for decided in (config_module_pin(file_path), config_kind_space(file_path), ) {
-            if decided in ("client", "native", ) {
-                return str(decided);
-            }
-        }
-    } except Exception {
-        return "";
-    }
-    return "";
-}
-
-def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[str] {
+def _pre_parse_decline(
+    file_path: str, kind: str, claimed: tuple[str], codespace: str = ""
+) -> tuple[str] {
     if prefix_disabled() {
         return ("disabled-by-env", f"{PREFIX_ENV}=off");
     }
@@ -616,11 +587,10 @@ def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[
             f"{len(annexes)} annex source(s) weave into this module"
         );
     }
-    pinned = _pinned_codespace(file_path);
-    if pinned {
+    if codespace in ("client", "native", ) {
         return (
             "codespace-pinned",
-            f"the module's codespace is {pinned}; the driver stamps "
+            f"the driver decided this module is {codespace}; it stamps "
             "code_context onto the tree after the crossing would have run"
         );
     }
@@ -675,14 +645,19 @@ def _assert_no_absorb(mod: any, file_path: str) -> str {
 }
 
 def parse_with_prefix(
-    source_str: str, file_path: str, prog: any, kind: str = "", no_cgen: bool = False
+    source_str: str,
+    file_path: str,
+    prog: any,
+    kind: str = "",
+    no_cgen: bool = False,
+    codespace: str = ""
 ) -> tuple[any] {
     if not kind {
         _prefix_handoff.clear();
         return _staged(source_str, file_path, prog);
     }
     claimed = sealed_prefix_names(kind, no_cgen);
-    decline = _pre_parse_decline(file_path, kind, claimed);
+    decline = _pre_parse_decline(file_path, kind, claimed, codespace);
     if decline {
         (clause, detail) = decline;
         return _fall_back(source_str, file_path, prog, claimed, clause, detail);
