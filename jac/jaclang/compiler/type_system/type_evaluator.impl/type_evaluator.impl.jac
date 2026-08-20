@@ -2490,7 +2490,8 @@ impl TypeEvaluator._get_type_of_symbol_decl(
             }
 
             if isinstance(node_.parent, ModulePath) {
-                return self.get_type_of_module(node_.parent);
+                mod_path_type = self.get_type_of_module(node_.parent);
+                return node_.type or mod_path_type;
             }
             if isinstance(node_.parent, ModuleItem) {
                 return self.get_type_of_module_item(node_.parent);

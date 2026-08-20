@@ -244,6 +244,27 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
 
             if Path(mod_path).is_dir() {
                 npath._sym_category = SymbolType.MODULE;
+                pkg_dir = Path(mod_path);
+                pkg_sym_tab: (Module | None) = None;
+                for ext in (".jac", ".py", ".pyi") {
+                    init_file = pkg_dir / f"__init__{ext}";
+                    if init_file.exists() {
+                        pkg_sym_tab = self._import_module_from_path(
+                            str(init_file),
+                            importer_path=self._resolve_importer_path(node_)
+                        );
+                        break;
+                    }
+                }
+                if pkg_sym_tab is not None {
+                    pkg_type = ModuleType(
+                        mod_name=npath.value,
+                        file_uri=pkg_dir.resolve(),
+                        symbol_table=pkg_sym_tab,
+                    );
+                    npath.type = pkg_type;
+                    self._module_type_cache[mod_path] = pkg_type;
+                }
                 continue;
             }
 

@@ -57,6 +57,7 @@ impl TypeEvaluator._build_field_params(
         }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
+                param_map.pop(has_var.name.value, None);
                 continue;
             }
 
