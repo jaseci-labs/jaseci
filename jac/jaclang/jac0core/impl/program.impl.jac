@@ -416,7 +416,7 @@ impl JacProgram.find_module(self: JacProgram, path: str) -> (uni.Module | None) 
 
     try {
         keyed = JacProgram.hub_key(path);
-    } except OSError {
+    } except Exception {
         keyed = path;
     }
     if keyed != path {
