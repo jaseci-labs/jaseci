@@ -19,6 +19,7 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_HOST,
     DEFAULT_CLIENT_DIST_DIR
 }
+import from jaclang.runtimelib.serving.static_assets { AssetRoot }
 
 import from jaclang.scale.admin.admin_portal { JacAPIServerAdmin }
 import from jaclang.scale.admin.workloads { JacAPIServerWorkloads }
@@ -55,9 +56,11 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _routes_refreshed_at: float = 0.0;
+        _routes_refreshed_at: float = 0.0,
+        _asset_table: list[AssetRoot] | None = None;
 
     def setup -> ServingApp;
+    def _get_asset_table -> list[AssetRoot];
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
     def handle_health -> Response;
     def handle_health_live -> Response;

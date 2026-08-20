@@ -17,7 +17,7 @@ def _resolve_root(local_dir: str) -> Path {
     p = Path(local_dir);
     try {
         return p.resolve();
-    } except OSError {
+    } except (OSError, ValueError) {
         _logger.warning(
             f"could not resolve asset root {local_dir!r}, using unresolved path"
         );
@@ -44,9 +44,7 @@ def asset_root_table(
                 )
             );
         } else {
-            _logger.warning(
-                f"static mount missing url_prefix/local_path, dropped: {m}"
-            );
+            _logger.debug(f"static mount missing url_prefix/local_path, dropped: {m}");
         }
     }
 
@@ -141,7 +139,7 @@ def resolve_asset(
             if not resolved.is_relative_to(base) {
                 continue;
             }
-        } except OSError {
+        } except (OSError, ValueError) {
             continue;
         }
         if resolved.is_file() {
@@ -153,9 +151,14 @@ def resolve_asset(
 
 
 def asset_response(target: Path) -> Response {
-    policy = "no-cache"
-        if target.suffix in (".html", "")
-        else "public, max-age=3600, must-revalidate";
+    cacheable = target.suffix not in (".html", "");
+    policy = "public, max-age=3600, must-revalidate" if cacheable else "no-cache";
     headers = {"Cache-Control": policy};
+    if cacheable {
+        import from email.utils { formatdate }
+        st = target.stat();
+        headers["Last-Modified"] = formatdate(st.st_mtime, usegmt=True);
+        headers["ETag"] = f'"{st.st_mtime_ns:x}-{st.st_size:x}"';
+    }
     return FileResponse(path=str(target), headers=headers);
 }

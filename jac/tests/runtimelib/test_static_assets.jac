@@ -92,6 +92,17 @@ test "..-traversal escapes are jailed" {
 }
 
 
+test "a URL with an embedded null byte is a miss, not an unhandled exception" {
+    proj = _project();
+    _write(proj, "public/logo.png", b"OK");
+
+    # Path.resolve() raises ValueError (not OSError) on an embedded NUL, so a
+    # request for /%00 must not escape resolve_asset as an exception - every
+    # host consuming this resolver would otherwise turn it into a 500.
+    assert resolve_asset(_table(proj), "/\x00") is None , "an embedded null byte must resolve to a miss, not raise";
+}
+
+
 test "symlink pointing outside a root is jailed" {
     proj = _project();
     (proj / "public").mkdir(parents=True, exist_ok=True);

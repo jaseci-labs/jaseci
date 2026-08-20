@@ -438,6 +438,16 @@ impl MicroserviceGateway.handle_metrics -> Response {
     return Response(content=body, media_type=ctype);
 }
 
+impl MicroserviceGateway._get_asset_table -> list[AssetRoot] {
+    if self._asset_table is None {
+        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        self._asset_table = asset_root_table(
+            Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
+        );
+    }
+    return self._asset_table;
+}
+
 impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response | None {
     if request.method != "GET" {
         return None;
@@ -447,14 +457,10 @@ impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response 
     }
 
     import from jaclang.runtimelib.serving.static_assets {
-        asset_root_table,
         resolve_asset,
         asset_response
     }
-    table = asset_root_table(
-        Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
-    );
-    hit = resolve_asset(table, path);
+    hit = resolve_asset(self._get_asset_table(), path);
     if hit is None {
         return None;
     }
@@ -481,6 +487,8 @@ impl MicroserviceGateway.setup -> ServingApp {
     import time;
     self.app = ServingApp(title="Jac Microservice Gateway");
     gw = self;
+
+    self._get_asset_table();
 
     self.bootstrap_admin_ui();
 

@@ -27,6 +27,7 @@ import from jaclang.runtimelib.serving.endpoint {
     WSEndPoint
 }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.runtimelib.serving.static_assets { AssetRoot }
 import from jaclang.runtimelib.server { JacAPIServer as JServer }
 import from jaclang.runtimelib.server { JsonValue }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
@@ -228,6 +229,7 @@ obj JacAPIServerScheduler {
 
 obj JacAPIServerStatic {
     def asset_base_path -> Path;
+    def _get_asset_table -> list[AssetRoot];
     def serve_static_file(file_path: str) -> Response;
     def register_static_file_endpoint -> None;
     def serve_client_js_callback -> Callable[..., Response];
@@ -249,5 +251,6 @@ obj JacAPIServer(JacAPIServerCore, JacAPIServerAuth, JacAPIServerEndpoints, JacA
         _metrics: MetricsCollector | None = None,
         _ws_manager: WebSocketConnectionManager | None = None,
         _broker: EventStreamBroker | None = None,
-        _emailer: Emailer | None = None;
+        _emailer: Emailer | None = None,
+        _asset_table: list[AssetRoot] | None = None;
 }

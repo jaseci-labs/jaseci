@@ -58,16 +58,22 @@ impl EmbeddedGateway._call_member(
 }
 
 
+impl EmbeddedGateway._get_asset_table -> list[AssetRoot] {
+    if self._asset_table is None {
+        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        self._asset_table = asset_root_table(
+            Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
+        );
+    }
+    return self._asset_table;
+}
+
 impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
     import from jaclang.runtimelib.serving.static_assets {
-        asset_root_table,
         resolve_asset,
         asset_response
     }
-    table = asset_root_table(
-        Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
-    );
-    hit = resolve_asset(table, path);
+    hit = resolve_asset(self._get_asset_table(), path);
     if hit is not None {
         (target, _) = hit;
         return asset_response(target);
@@ -130,6 +136,7 @@ impl EmbeddedGateway.setup -> None {
     app.add_middleware(dispatcher);
     self.middleware.install(app);
 
+    self._get_asset_table();
     self.app = app;
 }
 

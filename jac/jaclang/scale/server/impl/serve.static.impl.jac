@@ -13,18 +13,16 @@ import from jaclang.runtimelib.serving.endpoint {
 }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { JsonValue }
+import from jaclang.runtimelib.serving.static_assets { AssetRoot }
 import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
     try {
         import from jaclang.runtimelib.serving.static_assets {
-            asset_root_table,
             resolve_asset,
             asset_response
         }
-        base_path = self.asset_base_path();
-        table = asset_root_table(base_path, base_path / '.jac' / 'client' / 'dist', []);
-        hit = resolve_asset(table, '/static/' + file_path);
+        hit = resolve_asset(self._get_asset_table(), '/static/' + file_path);
         if hit is None {
             return Response(
                 status_code=404,
@@ -41,16 +39,19 @@ impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
 
 
 impl JacAPIServerStatic.asset_base_path -> Path {
-    import from jaclang.project.config { find_project_root }
-    base_path_dir = Path(bp_dir)
-        if (bp_dir := Jac.get_context().base_path_dir or Jac.get_base_path_dir())
-        else Path.cwd();
-    project_root_result = find_project_root(base_path_dir);
-    if project_root_result {
-        (base_path, _) = project_root_result;
-        return base_path;
+    import from jaclang.project.config { resolve_base_path }
+    return resolve_base_path();
+}
+
+impl JacAPIServerStatic._get_asset_table -> list[AssetRoot] {
+    if self._asset_table is None {
+        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        base_path = self.asset_base_path();
+        self._asset_table = asset_root_table(
+            base_path, base_path / '.jac' / 'client' / 'dist', []
+        );
     }
-    return base_path_dir;
+    return self._asset_table;
 }
 
 impl JacAPIServerStatic.register_static_file_endpoint -> None {
@@ -197,7 +198,6 @@ impl JacAPIServerStatic.render_base_route_callback(
 impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     import from jaclang.project.config { get_config }
     import from jaclang.runtimelib.serving.static_assets {
-        asset_root_table,
         resolve_asset,
         asset_response
     }
@@ -209,9 +209,7 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
         return Response(status_code=404, content='Not found', media_type='text/plain');
     }
 
-    base_path = self.asset_base_path();
-    table = asset_root_table(base_path, base_path / '.jac' / 'client' / 'dist', []);
-    hit = resolve_asset(table, '/' + file_path);
+    hit = resolve_asset(self._get_asset_table(), '/' + file_path);
     if hit is not None {
         (target, _) = hit;
         return asset_response(target);

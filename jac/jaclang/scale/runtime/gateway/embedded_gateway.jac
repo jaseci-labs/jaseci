@@ -15,6 +15,7 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_HOST,
     DEFAULT_CLIENT_DIST_DIR
 }
+import from jaclang.runtimelib.serving.static_assets { AssetRoot }
 
 glob _logger = logging.getLogger(__name__);
 
@@ -27,9 +28,11 @@ obj EmbeddedGateway(Gateway) {
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
         base_path: str = ".",
         static_mounts: list[dict[str, str]] = [],
-        app: any = None;
+        app: any = None,
+        _asset_table: list[AssetRoot] | None = None;
 
     def setup -> None;
+    def _get_asset_table -> list[AssetRoot];
     def _service_prefixes -> list[str];
     def _service_for_prefix(prefix: str) -> str;
     async def dispatch(request: Request) -> Response;
