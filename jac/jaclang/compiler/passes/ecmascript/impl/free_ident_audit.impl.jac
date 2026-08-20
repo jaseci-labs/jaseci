@@ -124,7 +124,15 @@ glob _REF_FIELDS: dict[str, set[str]] = {'AssignmentPattern': {'right'}};
 
 glob _REFERENCE_ONLY_NODES: set[str] = {'MemberExpression', 'CallExpression'};
 
-glob _SYNTACTIC_IDENTIFIERS: set[str] = {'this', 'super'};
+glob _SYNTACTIC_IDENTIFIERS: set[str] = {
+         'this',
+         'super',
+         'true',
+         'false',
+         'null',
+         'undefined',
+         'void'
+     };
 
 def _stub_names(path: str) -> set[str] {
     import ast;

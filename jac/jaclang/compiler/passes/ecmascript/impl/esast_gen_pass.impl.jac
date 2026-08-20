@@ -7451,14 +7451,15 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
     if not frees {
         return;
     }
-    names: (list | None) = None;
+    names = nd.get_all_sub_nodes(typ=uni.Name);
+    reported: set[str] = set();
     for free in frees {
-        if names is None {
-            names = nd.get_all_sub_nodes(typ=uni.Name);
+        if free.name in reported {
+            continue;
         }
-        origin: uni.UniNode = nd;
+        origin: (uni.Name | None) = None;
         for cand in names {
-            if cand.value != free.name {
+            if (cand.value != free.name) or (cand.sym is None) {
                 continue;
             }
             origin = cand;
@@ -7466,6 +7467,10 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
                 break;
             }
         }
+        if origin is None {
+            continue;
+        }
+        reported.add(free.name);
         self.emit(E5101, node_override=origin, name=free.name);
     }
 }
