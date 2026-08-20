@@ -11,6 +11,8 @@ import hashlib
 import importlib.abc
 import importlib.machinery
 import importlib.util
+from importlib.abc import Loader, MetaPathFinder
+from importlib.machinery import ModuleSpec
 import logging
 import marshal
 import os
@@ -174,7 +176,7 @@ sys.modules["jaclang.jac0core.modresolver"] = _modresolver
 get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
-class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+class JacMetaImporter(MetaPathFinder, Loader):
     """Meta path importer to load .jac modules via Python's import system."""
 
     # Directory containing the jaclang package (for bootstrap detection)
@@ -199,7 +201,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         fullname: str,
         path: Sequence[str] | None = None,
         target: ModuleType | None = None,
-    ) -> importlib.machinery.ModuleSpec | None:
+    ) -> ModuleSpec | None:
         """Find the spec for the module."""
         # Sealed image is authoritative: a sealed binary resolves its modules
         # from the manifest by name, with no filesystem probing for .jac. This

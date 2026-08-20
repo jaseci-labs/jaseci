@@ -1,5 +1,4 @@
 import struct;
-import from itertools { repeat }
 import from jaclang.compiler.passes.native.llvm { ir_layer_typed_pointers_enabled }
 import from jaclang.compiler.passes.native.llvm.ir._utils { _StrCaching }
 def _wrapname(x: any) -> object {
@@ -220,9 +219,9 @@ class IntType(Type) {
     @classmethod
     def __new(cls: any, bits: any) -> object {
         assert (isinstance(bits, int) and (bits >= 0));
-        inst: IntType = object.__new__(cls);
-        inst.width = bits;
-        return inst;
+        self = super.__new__(cls);
+        self.width = bits;
+        return self;
     }
 
     def __getnewargs__(self: IntType) -> object {
@@ -367,10 +366,6 @@ class _Repeat(object) {
         return self.size;
     }
 
-    def __iter__(self: _Repeat) -> object {
-        return repeat(self.value, self.size);
-    }
-
     def __getitem__(self: _Repeat, item: any) -> object {
         if (0 <= item < self.size) {
             return self.value;
@@ -386,7 +381,7 @@ class VectorType(Type) {
         self.count = count;
     }
 
-    has elements: _Repeat {
+    has elements: object {
         getter {
             return _Repeat(self.element, self.count);
         }
@@ -448,14 +443,6 @@ class VectorType(Type) {
 }
 
 class Aggregate(Type) {
-    with entry {
-        elements: (_Repeat | tuple | None);
-    }
-
-    def __len__(self: Aggregate) -> object {
-        raise NotImplementedError;
-    }
-
     def wrap_constant_value(self: Aggregate, values: any) -> object {
         import from jaclang.compiler.passes.native.llvm.ir { Value, Constant }
         if not isinstance(values, (`list, `tuple)) {
@@ -466,7 +453,6 @@ class Aggregate(Type) {
                 ("wrong constant size for %s: got %d elements" % (self, len(values)))
             );
         }
-        assert (self.elements is not None);
         return [
             Constant(ty, val) if not isinstance(val, Value) else val
             for (ty, val) in zip(self.elements, values)
@@ -480,7 +466,7 @@ class ArrayType(Aggregate) {
         self.count = count;
     }
 
-    has elements: _Repeat {
+    has elements: object {
         getter {
             return _Repeat(self.element, self.count);
         }
@@ -610,7 +596,6 @@ class LiteralStructType(BaseStructType) {
 class IdentifiedStructType(BaseStructType) {
     with entry {
         null = 'zeroinitializer';
-        elements: (tuple | None);
     }
 
     def init(

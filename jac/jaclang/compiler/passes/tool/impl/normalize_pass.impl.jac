@@ -557,7 +557,9 @@ impl NormalizePass.enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
     nd.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass._normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None {
+impl NormalizePass._normalize_cond_block(
+    nd: (uni.IfStmt | uni.WhileStmt), kw: Tok
+) -> None {
     new_kid: list[uni.UniNode] = [
         nd.gen_token(kw),
         nd.condition,
@@ -574,7 +576,9 @@ impl NormalizePass._normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None {
     nd.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass._normalize_name_list_stmt(nd: uni.UniNode, op: Tok) -> None {
+impl NormalizePass._normalize_name_list_stmt(
+    nd: (uni.SemDef | uni.ImplDef), op: Tok
+) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(op)];
     for idx in range(len(nd.target)) {
         new_kid.append(nd.target[idx]);
@@ -994,7 +998,10 @@ impl NormalizePass.enter_multi_string(nd: uni.MultiString) -> None {
 }
 
 impl NormalizePass.enter_f_string(nd: uni.FString) -> None {
-    new_kid: list[uni.UniNode] = [nd.start] if nd.start is not None else [];
+    new_kid: list[uni.UniNode] = [];
+    if nd.start is not None {
+        new_kid.append(nd.start);
+    }
     for part in nd.parts {
         new_kid.append(part);
     }
@@ -1032,9 +1039,10 @@ impl NormalizePass.enter_list_val(nd: uni.ListVal) -> None {
 
 impl NormalizePass.enter_set_val(nd: uni.SetVal) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.LBRACE)];
-    for idx in range(len(nd.values)) {
-        new_kid.append(nd.values[idx]);
-        if idx < len(nd.values) - 1 {
+    values = nd.values if nd.values is not None else [];
+    for idx in range(len(values)) {
+        new_kid.append(values[idx]);
+        if idx < len(values) - 1 {
             new_kid.append(nd.gen_token(Tok.COMMA));
         }
     }
@@ -1056,9 +1064,10 @@ impl NormalizePass.enter_tuple_val(nd: uni.TupleVal) -> None {
         and index_slice_parent.parent
         and isinstance(index_slice_parent.parent.parent, uni.FuncSignature)
     );
-    new_kid: list[uni.UniNode] = (
-        [nd.gen_token(Tok.LPAREN), ] if not in_ret_type else []
-    );
+    new_kid: list[uni.UniNode] = [];
+    if not in_ret_type {
+        new_kid.append(nd.gen_token(Tok.LPAREN));
+    }
     for idx in range(len(nd.values)) {
         new_kid.append(nd.values[idx]);
         if idx < len(nd.values) - 1 {
@@ -1198,13 +1207,14 @@ impl NormalizePass.enter_yield_expr(nd: uni.YieldExpr) -> None {
 
 impl NormalizePass.enter_func_call(nd: uni.FuncCall) -> None {
     new_kids: list[uni.UniNode] = [nd.target];
-    is_gencompr = len(nd.params) == 1 and isinstance(nd.params[0], uni.GenCompr);
+    params = nd.params if nd.params is not None else [];
+    is_gencompr = len(params) == 1 and isinstance(params[0], uni.GenCompr);
     if not is_gencompr {
         new_kids.append(nd.gen_token(Tok.LPAREN));
     }
-    for i in range(len(nd.params)) {
-        new_kids.append(nd.params[i]);
-        if i < len(nd.params) - 1 {
+    for i in range(len(params)) {
+        new_kids.append(params[i]);
+        if i < len(params) - 1 {
             new_kids.append(nd.gen_token(Tok.COMMA));
         }
     }
@@ -1487,11 +1497,7 @@ impl NormalizePass.enter_jsx_slot(nd: uni.JsxSlot) -> None {
 }
 
 impl NormalizePass.enter_jsx_comment(nd: uni.JsxComment) -> None {
-    if isinstance(nd.value, uni.Token) {
-        nd.set_kids(nodes=[nd.value]);
-    } else {
-        nd.set_kids(nodes=[nd.gen_token(Tok.JSX_COMMENT, value=str(nd.value))]);
-    }
+    nd.set_kids(nodes=[nd.value]);
 }
 
 impl NormalizePass.enter_match_stmt(nd: uni.MatchStmt) -> None {
