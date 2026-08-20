@@ -174,8 +174,22 @@ impl JacConfig.apply_profile(
     for (section, obj) in section_map.items() {
         if section in profile {
             for (key, value) in profile[section].items() {
-                if hasattr(obj, key) {
-                    setattr(obj, key, value);
+                attr = str(key);
+                if hasattr(obj, attr) {
+                    current = getattr(obj, attr);
+                    if isinstance(value, dict)
+                        and (current is not None)
+                        and (not isinstance(current, dict))
+                        and hasattr(current, "__dict__") {
+                        for (sub_key, sub_value) in value.items() {
+                            sub_attr = str(sub_key);
+                            if hasattr(current, sub_attr) {
+                                setattr(current, sub_attr, sub_value);
+                            }
+                        }
+                    } else {
+                        setattr(obj, attr, value);
+                    }
                 }
             }
         }
