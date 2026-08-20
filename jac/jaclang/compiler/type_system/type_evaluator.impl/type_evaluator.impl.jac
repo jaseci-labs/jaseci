@@ -2125,7 +2125,46 @@ impl TypeEvaluator._widen_literal_for_declaration(ty: TypeBase) -> TypeBase {
 }
 
 impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
-    node_ = symbol.decl.name_of;
+    if len(symbol.defn) > 1 {
+        has_import = False;
+        for cand in symbol.defn {
+            if cand.name_of.find_parent_of_type(Import) is not None {
+                has_import = True;
+                break;
+            }
+        }
+        if has_import {
+            binding_types: list[TypeBase] = [];
+            for cand in symbol.defn {
+                cand_type = self._get_type_of_symbol_decl(symbol, cand);
+                if isinstance(cand_type, UnknownType) {
+                    continue;
+                }
+                if not self._type_in_list(cand_type, binding_types) {
+                    binding_types.append(cand_type);
+                }
+            }
+            has_none = False;
+            has_value = False;
+            for bt in binding_types {
+                if self.is_none_type(bt) {
+                    has_none = True;
+                } else {
+                    has_value = True;
+                }
+            }
+            if len(binding_types) > 1 and has_none and has_value {
+                return UnionType(types=binding_types);
+            }
+        }
+    }
+    return self._get_type_of_symbol_decl(symbol, symbol.decl);
+}
+
+impl TypeEvaluator._get_type_of_symbol_decl(
+    symbol: Symbol, decl: NameAtom
+) -> TypeBase {
+    node_ = decl.name_of;
     match node_ {
         case Enum():
             return self.get_type_of_enum(node_);

@@ -169,9 +169,26 @@ impl SymTabBuildPass.exit_import(self: SymTabBuildPass, nd: Import) -> None {
     }
 }
 
+impl SymTabBuildPass.import_binding_scope(
+    self: SymTabBuildPass, nd: AstSymbolNode
+) -> UniScopeNode {
+    scope = nd.sym_tab;
+    while (
+        not isinstance(
+            scope, (Module, Ability, Archetype, Enum, ImplDef, Test, LambdaExpr)
+        )
+        and scope.parent_scope is not None
+    ) {
+        scope = scope.parent_scope;
+    }
+    return scope;
+}
+
 impl SymTabBuildPass.exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> None {
     if nd.alias {
-        nd.alias.sym_tab.def_insert(nd.alias, single_decl='import', imported=True);
+        self.import_binding_scope(nd.alias).def_insert(
+            nd.alias, single_decl='import', imported=True
+        );
     } elif (
         nd.path
         and not nd.is_import_from
@@ -182,7 +199,9 @@ impl SymTabBuildPass.exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> 
         )
     ) {
         if isinstance(nd.path[0], Name) {
-            nd.path[0].sym_tab.def_insert(nd.path[0], imported=True);
+            self.import_binding_scope(nd.path[0]).def_insert(
+                nd.path[0], imported=True
+            );
         }
     } else {
         ;
@@ -195,7 +214,9 @@ impl SymTabBuildPass.exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> 
 impl SymTabBuildPass.exit_module_item(self: SymTabBuildPass, nd: ModuleItem) -> None {
     if isinstance(nd.name, Name) {
         sym_node = nd.alias or nd.name;
-        sym_node.sym_tab.def_insert(sym_node, single_decl='import', imported=True);
+        self.import_binding_scope(sym_node).def_insert(
+            sym_node, single_decl='import', imported=True
+        );
         if nd.alias {
             nd.name.sym = nd.name.create_symbol(
                 access=SymbolAccess.PUBLIC, imported=True
@@ -203,7 +224,9 @@ impl SymTabBuildPass.exit_module_item(self: SymTabBuildPass, nd: ModuleItem) -> 
         }
     } elif (isinstance(nd.name, Token) and nd.alias) {
         sym_node = nd.alias;
-        sym_node.sym_tab.def_insert(sym_node, single_decl='import', imported=True);
+        self.import_binding_scope(sym_node).def_insert(
+            sym_node, single_decl='import', imported=True
+        );
     }
 }
 

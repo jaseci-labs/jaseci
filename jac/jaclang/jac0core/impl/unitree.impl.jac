@@ -2849,6 +2849,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 (i.sym_name in i.sym_tab.names_in_scope)
                 and ((sym := i.sym_tab.names_in_scope[i.sym_name]) is not None)
             ) {
+                if sym.imported and isinstance(nd.value, Null) {
+                    sym.add_defn(i.name_spec);
+                }
                 sym.add_use(i.name_spec);
                 record_cross_scope_rebind(i.sym_tab, i.sym_name, sym);
             } elif (
@@ -2866,6 +2869,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                     if (
                         (outer := py_scope.lookup(i.sym_name, deep=False)) is not None
                     ) {
+                        if outer.imported and isinstance(nd.value, Null) {
+                            outer.add_defn(i.name_spec);
+                        }
                         outer.add_use(i.name_spec);
                         record_cross_scope_rebind(py_scope, i.sym_name, outer);
                     } else {

@@ -483,6 +483,7 @@ obj TypeEvaluator {
     ) -> bool;
 
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
+    def _get_type_of_symbol_decl(symbol: Symbol, decl: NameAtom) -> TypeBase;
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
     def get_type_of_member(member: any, class_type: ClassType) -> TypeBase;
     def declaring_class_of(symbol: Symbol, base_type: ClassType) -> (ClassType | None);
