@@ -45,7 +45,7 @@ def audit(kernel: str, mode: str) -> dict {
     cmd = ["jac", "nacompile", str(src)] + mode_flags(mode) + ["-o", str(out)];
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env);
     if r.returncode != 0 {
-        sys.exit(f"compile failed: {' '.join(cmd)}\n{r.stdout}\n{r.stderr}");
+        sys.`exit(f"compile failed: {' '.join(cmd)}\n{r.stdout}\n{r.stderr}");
     }
     text = ll.read_text();
     out.unlink(missing_ok=True);
@@ -73,7 +73,7 @@ def parse_opts(argv: list[str]) -> dict {
             opts[flag[2:]] = argv[i + 1];
             i += 2;
         } else {
-            sys.exit(f"unknown option: {flag}\n{__doc__}");
+            sys.`exit(f"unknown option: {flag}\n{__doc__}");
         }
     }
     return opts;
@@ -110,7 +110,7 @@ def main(opts: dict) {
     out.write_text(json.dumps(census, indent=2) + "\n");
     print(f"wrote {out}");
     if bad {
-        sys.exit("zero-RC audit FAILED for an enforced build");
+        sys.`exit("zero-RC audit FAILED for an enforced build");
     }
 }
 

@@ -99,10 +99,10 @@ def _start_preact_server(project_dir: Path) -> tuple {
 def _stop_server(proc: Popen) {
     proc.terminate();
     try {
-        proc.wait(timeout=20);
+        proc.`wait(timeout=20);
     } except Exception {
         proc.kill();
-        proc.wait(timeout=5);
+        proc.`wait(timeout=5);
     }
 }
 

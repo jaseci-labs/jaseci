@@ -7,6 +7,7 @@ import from jaclang.jac0core.diagnostics {
     E5026,
     E5060,
     E5088,
+    E5089,
     E5090,
     E5091,
     E5092,
@@ -900,6 +901,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _pyb_base_of(arch_name: str) -> (tuple | None);
     def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
+    def _pyb_native_override_owner(arch_name: str, meth: str) -> (str | None);
+    def _pyb_shadowed_dispatch(arch_name: str, method_name: str) -> (tuple | None);
     def _pyb_helper(name: str) -> ir.Function;
     def _pyb_emit_conv1(
         name: str,

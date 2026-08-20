@@ -881,13 +881,15 @@ impl NaIRGenPass._walk_imported_module_abilities(
     }
 
     _wl_internal = False;
+    _wl_jac_internal = False;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os2;
 
-        _wl_internal = imported_mod.decided_codespace != 'native'
-            and (_wl_os2.sep + "jaclang" + _wl_os2.sep)
-                in _wl_os2.path.abspath(imported_mod.loc.mod_path);
-        if _wl_internal {
+        _wl_abs = _wl_os2.path.abspath(imported_mod.loc.mod_path);
+        _wl_jac_internal = imported_mod.decided_codespace != 'native'
+            and (_wl_os2.sep + "jaclang" + _wl_os2.sep) in _wl_abs
+            and (_wl_os2.sep + "na_stdlib" + _wl_os2.sep) not in _wl_abs;
+        if _wl_jac_internal {
             try {
                 import from jaclang.jac0core { sealed as _wl_sealed }
                 _wl_internal = _wl_sealed._jaclang_image() is not None;
@@ -897,8 +899,74 @@ impl NaIRGenPass._walk_imported_module_abilities(
         }
     }
     _imp_fn_unavail: (set | None) = None;
-    if with_fn_verdicts and _imp_layout is None and not _wl_internal {
+    _imp_verdicts_wanted = (
+        with_fn_verdicts and _imp_layout is None and not _wl_internal
+    );
+    if _imp_verdicts_wanted {
         _imp_fn_unavail = self._imported_function_demotions(imported_mod);
+    }
+    if (
+        with_fn_verdicts
+        and _imp_layout is None
+        and _imp_fn_unavail is None
+        and _wl_jac_internal
+    ) {
+        _wl_all_fns: set = set();
+        for _wl_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+            if (
+                isinstance(_wl_stmt, uni.Ability)
+                and _wl_stmt.name_ref
+                and not _wl_stmt.type_params
+                and isinstance(_wl_stmt.signature, uni.FuncSignature)
+            ) {
+                _wl_all_fns.add(_wl_stmt.name_ref.sym_name);
+            }
+        }
+        _imp_fn_unavail = _wl_all_fns;
+    }
+    if (
+        _imp_verdicts_wanted
+        and _imp_fn_unavail is None
+        and bool(self.prog._compile_options and self.prog._compile_options.aot_mode)
+        and self.ir_in?.loc
+        and self.ir_in.loc.mod_path
+        and imported_mod?.loc
+        and imported_mod.loc.mod_path
+    ) {
+        import os as _uv_os;
+        _uv_self = _uv_os.path.realpath(self.ir_in.loc.mod_path);
+        _uv_callee = _uv_os.path.realpath(imported_mod.loc.mod_path);
+        _uv_names: set = set();
+        for _uv_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+            if (
+                isinstance(_uv_stmt, uni.Ability)
+                and _uv_stmt.name_ref
+                and _uv_stmt.body is not None
+                and not _uv_stmt.type_params
+                and isinstance(_uv_stmt.signature, uni.FuncSignature)
+            ) {
+                _uv_names.add(_uv_stmt.name_ref.sym_name);
+            } elif isinstance(_uv_stmt, uni.Archetype)
+                and _uv_stmt.body is not None
+                and _uv_stmt.name is not None {
+                for _uv_meth in _uv_stmt.body {
+                    if (
+                        isinstance(_uv_meth, uni.Ability)
+                        and _uv_meth.name_ref
+                        and _uv_meth.body is not None
+                        and isinstance(_uv_meth.signature, uni.FuncSignature)
+                    ) {
+                        _uv_names.add(
+                            f"{_uv_stmt.name.value}.{_uv_meth.name_ref.sym_name}"
+                        );
+                    }
+                }
+            }
+        }
+        if _uv_names {
+            _uv_rec = self.prog._na_unverified_live.setdefault(_uv_self, {});
+            _uv_rec[_uv_callee] = set(_uv_rec.get(_uv_callee) or set()) | _uv_names;
+        }
     }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)
@@ -984,6 +1052,11 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
         if _name not in _cons_reg.class_parents
             or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.class_parents[_name] = _parents;
+        }
+    }
+    for (_name, _pmods) in _imp_reg.parent_mods.items() {
+        if _name not in _cons_reg.parent_mods {
+            _cons_reg.parent_mods[_name] = _pmods;
         }
     }
     for (_name, _mro) in _imp_reg.mro_order.items() {
@@ -1136,11 +1209,11 @@ impl NaIRGenPass._imported_function_demotions(
     mod_path = imported_mod.loc.mod_path;
     real_path = _fd_os.path.realpath(mod_path);
     units = self.prog._na_dep_units;
-    entry: any = None;
+    `entry: any = None;
     if real_path in units {
-        entry = units[real_path];
+        `entry = units[real_path];
     } elif imported_mod.gen.llvm_ir is not None {
-        entry = imported_mod;
+        `entry = imported_mod;
     } else {
         import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
         _opts_src = self.prog?._compile_options or _FdOpts();
@@ -1159,7 +1232,6 @@ impl NaIRGenPass._imported_function_demotions(
                         == _opts_src.codegen_fingerprint() {
                         return set(_fd_meta.get("demoted_symbols") or []);
                     }
-                    return None;
                 }
             } except Exception { }
         }
@@ -1169,16 +1241,16 @@ impl NaIRGenPass._imported_function_demotions(
             return None;
         }
         try {
-            entry = self.prog.compile(
+            `entry = self.prog.compile(
                 file_path=mod_path, options=_opts_src.clone_for_native_import()
             );
         } except Exception as _fd_exc {
-            entry = f"{type(_fd_exc).__name__}: {_fd_exc}";
+            `entry = f"{type(_fd_exc).__name__}: {_fd_exc}";
         }
-        units[real_path] = entry;
+        units[real_path] = `entry;
     }
 
-    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+    if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
         _fd_all: set = set();
         for _fd_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
             if (
@@ -1193,7 +1265,7 @@ impl NaIRGenPass._imported_function_demotions(
         return _fd_all;
     }
     demoted: set = set();
-    _fd_mod = entry.gen.llvm_ir;
+    _fd_mod = `entry.gen.llvm_ir;
     _fd_names: list = [];
     try {
         _fd_names = list(_fd_mod.globals);
