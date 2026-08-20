@@ -2,11 +2,10 @@ import base64;
 import os;
 import tarfile;
 import time;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import requests;
 import urllib3;
-import from dotenv { dotenv_values }
+import from jaclang.scale.config.project_env { read_project_env }
 import from jaclang.scale._optdeps.kubernetes {
     client,
     config,

@@ -73,65 +73,12 @@ jobs:
   # Exercises the real `curl ... | bash` path daily: install.sh breakage is
   # usually caused by release/tag changes elsewhere, which the PR-time check in
   # ci.yml (path-gated on scripts/install.sh) can never catch.
+  # Same body as ci.yml's installer-test (see _installer.yml). ci.yml runs it
+  # when scripts/install.sh changes; this runs it daily, so a release that
+  # ships a missing or broken asset is caught without an installer PR.
   installer-live:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '17 8 * * *' }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Require a native binary asset on the latest release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if ! gh release view --repo "$GITHUB_REPOSITORY" \
-               --json assets --jq '.assets[].name' 2>/dev/null \
-               | grep -q "jac-.*-${{ matrix.platform }}$"; then
-            echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
-            exit 1
-          fi
-
-      - name: "install: download + run the binary"
-        env:
-          # install.sh authenticates its GitHub API calls when a token is set;
-          # shared runners (macOS especially) exhaust the unauthenticated
-          # per-IP rate limit.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/install.sh
-
-      - name: "install: verify jac"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          which jac
-          jac --version
-
-      - name: "install: run a test program"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          echo 'with entry { print("hello from the jac binary"); }' > /tmp/test_install.jac
-          jac /tmp/test_install.jac
-
-      - name: "install: uninstall"
-        run: bash scripts/install.sh --uninstall
-
-      - name: "install: verify removal"
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if command -v jac &>/dev/null; then
-            echo "FAIL: jac still found after uninstall"
-            exit 1
-          fi
-          echo "PASS: jac removed"
+    uses: ./.github/workflows/_installer.yml
 
   # PR CI's test jobs run the dev lane ([dev] jaclang_source: the checkout's
   # compiler over a cached host binary), and build-jac smokes the sealed boot

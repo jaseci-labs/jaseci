@@ -126,8 +126,8 @@ def _materialize_mask(
             for k in d.keys() {
                 keys.add(k);
                 if k.startswith("_") and "__" in k[1:] {
-                    priv = k[k.index("__", 1):];
-                    mangle[priv] = k;
+                    `priv = k[k.index("__", 1):];
+                    mangle[`priv] = k;
                 }
             }
             for v in d.values() {
@@ -167,12 +167,12 @@ def _norm(t: str) -> str {
 }
 
 def _base_of(t: str) -> str {
-    m = re.match(r"^(\w+)", t);
+    m = re.`match(r"^(\w+)", t);
     return m.group(1) if m else "";
 }
 
 def _inner(t: str) -> str {
-    m = re.match(r"^\w+\[(.*)\]$", t);
+    m = re.`match(r"^\w+\[(.*)\]$", t);
     return m.group(1) if m else "";
 }
 

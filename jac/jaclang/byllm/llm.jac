@@ -6,7 +6,7 @@ import json;
 import random;
 import time;
 
-import from typing { Callable, Generator }
+import from typing { Generator }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm._optdeps.litellm { litellm, _disable_debugging }
 import from jaclang.byllm._optdeps.openai { openai, OpenAI, AsyncOpenAI }

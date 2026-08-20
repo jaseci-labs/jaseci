@@ -141,13 +141,13 @@ def _built -> tuple {
 
 def _artifact_resolver(tmp: str, arts: dict) -> any {
     def _resolve(fullname: str) -> (tuple | None) {
-        entry = arts.get(fullname);
-        if entry is None {
+        `entry = arts.get(fullname);
+        if `entry is None {
             return None;
         }
-        lib_path = os.path.join(tmp, entry["lib"]);
+        lib_path = os.path.join(tmp, `entry["lib"]);
         layout = json.loads(
-            Path(os.path.join(tmp, entry["layout"])).read_text(encoding="utf-8")
+            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
         );
         return (lib_path, layout, );
     }
