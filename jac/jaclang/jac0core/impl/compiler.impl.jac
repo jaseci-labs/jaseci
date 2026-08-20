@@ -776,7 +776,7 @@ impl JacCompiler.parse_str(
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
             _coerce_native_module(mod);
-            na_census_record(mod.loc.mod_path, 'native');
+            na_coverage_record(mod.loc.mod_path, 'native');
         } else {
             run_codespace_infer = True;
         }
@@ -810,9 +810,9 @@ impl JacCompiler.parse_str(
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
-                na_census_record(mod.loc.mod_path, 'native');
+                na_coverage_record(mod.loc.mod_path, 'native');
             } else {
-                na_census_record(mod.loc.mod_path, 'server', '', _na_why);
+                na_coverage_record(mod.loc.mod_path, 'server', '', _na_why);
             }
         }
     }
@@ -1176,7 +1176,7 @@ impl JacCompiler.compile(
                 if (_demote_alerts and _demote_alerts[0].code is not None)
                 else type(_crash).__name__
         );
-        na_census_record(
+        na_coverage_record(
             _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
         );
         _mark_demoted_native(_resolved);

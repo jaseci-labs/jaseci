@@ -3139,7 +3139,7 @@ test "E5018 names the rewrite that makes the pattern lower (#8375)" {
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         pats = [
             e

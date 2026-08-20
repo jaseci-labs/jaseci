@@ -1,6 +1,6 @@
 """The JCIR emitter joins the native seal, measured the way the sealer measures.
 
-Same discipline as `test_pass_seal_wave1_census.jac` and its wave-2
+Same discipline as `test_pass_seal_wave1_baseline.jac` and its wave-2
 sibling: the root is compiled exactly as `seal_native_artifacts` compiles
 it, and three things are pinned -- exact closure membership, native IR
 production, and the seam set two-way against
@@ -58,15 +58,15 @@ clears it:
     reshaping this source.
 
 The measurement is a source-lane one: under a sealed jaclang image the
-census reads the image's trust boundary instead of the unit's own
-coupling, so `_root_census` skips there (both gates below).
+coverage reads the image's trust boundary instead of the unit's own
+coupling, so `_root_coverage` skips there (both gates below).
 """
 
 import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
@@ -123,32 +123,32 @@ glob JCIR_CLEAN_MEMBERS: tuple = (
          "runtimelib/na_stdlib/textwrap.jac"
      );
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
 """A root's dotted module name, for the sealed-runtime skip gate."""
 def _root_module_name(rel: str) -> str {
     return "jaclang." + rel[:-4].replace("/", ".");
 }
 
-"""Compile the root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile the root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if _jaclang_image() is not None {
         testskip(
-            "this runtime is a sealed jaclang image; a source census here "
+            "this runtime is a sealed jaclang image; a source coverage here "
             "measures the image's trust boundary, not the unit's own seams"
         );
     }
     if native_artifact_for(_root_module_name(rel)) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
+    if rel in _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[rel];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -161,20 +161,20 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
+    result = (coverage, has_ir, errors, );
+    _COVERAGE_MEMO[rel] = result;
     return result;
 }
 
-"""Census seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
+"""Coverage seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
 def _seams_by_key(rel: str) -> dict[(str, str)] {
-    (census, _has_ir, _errors) = _root_census(rel);
+    (coverage, _has_ir, _errors) = _root_coverage(rel);
     found: dict[(str, str)] = {};
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         for seam in (rec["seams"] or []) {
             (name, sep, why) = str(seam).partition(": ");
@@ -190,7 +190,7 @@ def _seams_by_key(rel: str) -> dict[(str, str)] {
 
 test "the jcir root is registered for the seal" {
     assert JCIR_ROOT in NATIVE_SEAL_ROOTS , (
-        f"{JCIR_ROOT} is not in NATIVE_SEAL_ROOTS; this census would gate "
+        f"{JCIR_ROOT} is not in NATIVE_SEAL_ROOTS; this coverage would gate "
         "nothing at seal time"
     );
     assert JCIR_ROOT not in NATIVE_SEAL_REFUSED_ROOTS , (
@@ -207,14 +207,15 @@ test "the jcir root is registered for the seal" {
 
 
 test "the jcir root's native closure is exactly the measured set" {
-    (census, _has_ir, errors) = _root_census(JCIR_ROOT);
+    (coverage, _has_ir, errors) = _root_coverage(JCIR_ROOT);
     assert not errors , (
         f"{JCIR_ROOT} compile errors (closure below is 'not reached', not "
         f"'clean'): {errors[:5]}"
     );
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen == JCIR_CLOSURE , (
@@ -226,10 +227,10 @@ test "the jcir root's native closure is exactly the measured set" {
 
 
 test "the jcir root's closure produces native IR" {
-    (_census, has_ir, _errors) = _root_census(JCIR_ROOT);
+    (_coverage, has_ir, _errors) = _root_coverage(JCIR_ROOT);
     assert has_ir , (
         f"no LLVM IR for {JCIR_ROOT} -- the compile aborted before codegen, "
-        "so a zero-seam census would mean 'not reached', not 'clean'"
+        "so a zero-seam coverage would mean 'not reached', not 'clean'"
     );
 }
 

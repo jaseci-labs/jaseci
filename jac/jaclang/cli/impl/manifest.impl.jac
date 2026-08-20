@@ -233,7 +233,7 @@ def _command_routes -> list[CommandMeta] {
             examples=[
                 ('jac check myprogram.jac', 'Check a single file'),
                 (
-                    'jac check . --native-census',
+                    'jac check . --native-coverage',
                     'Rank modules by native compile outcome'
                 ),
                 ('jac check . --placements', 'Show element placements with evidence'),
@@ -310,7 +310,7 @@ def _command_routes -> list[CommandMeta] {
                     short=''
                 ),
                 ArgMeta(
-                    name='native-census',
+                    name='native-coverage',
                     typ='bool',
                     `default=False,
                     help='Compile with codegen and report per-module native outcome (native / demoted / server) ranked by reason (needs the native toolchain)',

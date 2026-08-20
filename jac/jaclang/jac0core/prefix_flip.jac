@@ -87,7 +87,7 @@ glob PREFIX_IR_GEN: tuple[str] = (
 
      );
 
-glob _prefix_census: dict[str, dict[str, any]] = {},
+glob _prefix_outcomes: dict[str, dict[str, any]] = {},
      _prefix_quarantine: dict[str, str] = {},
      _prefix_entry_memo: list[tuple[any]] = [],
      _prefix_entry_override: list[any] = [],
@@ -240,8 +240,8 @@ def prefix_facts_for(file_path: str, prog: any) -> PrefixFacts {
     );
 }
 
-def prefix_census_reset {
-    _prefix_census.clear();
+def prefix_outcomes_reset {
+    _prefix_outcomes.clear();
     _prefix_emitted.clear();
 }
 
@@ -254,7 +254,7 @@ def prefix_quarantine_clear {
 }
 
 def _record(outcome: PrefixOutcome) {
-    _prefix_census[os.path.realpath(outcome.mod_path)] = {
+    _prefix_outcomes[os.path.realpath(outcome.mod_path)] = {
         "admitted": outcome.admitted,
         "clause": outcome.clause,
         "detail": outcome.detail,
@@ -264,14 +264,14 @@ def _record(outcome: PrefixOutcome) {
 }
 
 def prefix_snapshot -> dict[str, dict[str, any]] {
-    return dict(_prefix_census);
+    return dict(_prefix_outcomes);
 }
 
 def prefix_admit_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
+            for r in _prefix_outcomes.values()
             if r["admitted"]
         ]
     );
@@ -281,7 +281,7 @@ def prefix_fallback_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
+            for r in _prefix_outcomes.values()
             if not r["admitted"]
         ]
     );
@@ -291,7 +291,7 @@ def prefix_loud_fallback_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
+            for r in _prefix_outcomes.values()
             if not r["admitted"] and r["clause"] not in _QUIET_CLAUSES
         ]
     );
@@ -299,7 +299,7 @@ def prefix_loud_fallback_count -> int {
 
 def prefix_native_pass_count -> int {
     total = 0;
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         total += len(r["executed"]);
     }
     return total;
@@ -307,7 +307,7 @@ def prefix_native_pass_count -> int {
 
 def prefix_claimed_pass_count -> int {
     total = 0;
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         total += len(r["claimed"]);
     }
     return total;
@@ -315,7 +315,7 @@ def prefix_claimed_pass_count -> int {
 
 def prefix_fallbacks_by_clause -> dict[str, int] {
     counts: dict[str, int] = {};
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         if not r["admitted"] {
             counts[r["clause"]] = counts.get(r["clause"], 0) + 1;
         }
@@ -328,7 +328,7 @@ def prefix_summary_line -> str {
     if loud == 0 and not prefix_report_enabled() {
         return "";
     }
-    total = len(_prefix_census);
+    total = len(_prefix_outcomes);
     if total == 0 {
         return "";
     }
@@ -348,8 +348,8 @@ def prefix_summary_line -> str {
 
 def prefix_report_lines -> list[str] {
     lines: list[str] = [];
-    for path in sorted(_prefix_census) {
-        rec = _prefix_census[path];
+    for path in sorted(_prefix_outcomes) {
+        rec = _prefix_outcomes[path];
         if rec["admitted"] {
             lines.append(
                 f"  {path}: prefix ran {len(rec['executed'])} pass(es) "
@@ -384,7 +384,7 @@ def prefix_strict_assert -> None {
 }
 
 def prefix_stats_lines -> list[str] {
-    total_mods = len(_prefix_census);
+    total_mods = len(_prefix_outcomes);
     if total_mods == 0 {
         return ["compile stats: no module reached the prefix router"];
     }
@@ -396,8 +396,8 @@ def prefix_stats_lines -> list[str] {
         f"native prefix; {ran}/{claimed} claimed prefix pass(es) executed "
         f"natively ({pct:.1f}%)"
     ];
-    for path in sorted(_prefix_census) {
-        rec = _prefix_census[path];
+    for path in sorted(_prefix_outcomes) {
+        rec = _prefix_outcomes[path];
         names = ", ".join(rec["executed"]) if rec["executed"] else "-";
         out.append(
             f"  {path}: {len(rec['executed'])}/{len(rec['claimed'])} native "
@@ -623,11 +623,11 @@ def parse_with_prefix(
         (clause, detail) = decline;
         return _fall_back(source_str, file_path, prog, claimed, clause, detail);
     }
-    (entry_fn, _c, _d) = prefix_entry();
+    (`entry, _c, _d) = prefix_entry();
     facts = prefix_facts_for(file_path, prog);
     err_start = len(prog.errors_had) if prog is not None else 0;
     try {
-        result = entry_fn(source_str, file_path, prog, claimed, facts);
+        result = `entry(source_str, file_path, prog, claimed, facts);
     } except Exception as exc {
         return _fall_back(
             source_str,

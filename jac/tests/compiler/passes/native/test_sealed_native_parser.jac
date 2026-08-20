@@ -652,7 +652,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
 test "refcount soundness: repeated materialization is object-count stable" {
     # Parity cannot see a leak, only a corruption (#8139 Step 2). Assert the
     # class-handle/key/enum registry does not accumulate references and that
-    # dropped trees actually die: live UniNode census and sampled refcounts
+    # dropped trees actually die: live UniNode coverage and sampled refcounts
     # return to baseline across repeated parses.
     (np, _out, _rec) = _build_binding();
     src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");

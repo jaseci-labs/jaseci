@@ -3,11 +3,11 @@
 `types.jac` is the keystone: nothing else in `jaclang.compiler.type_system` can
 enter a native unit until the module that defines `ClassType` lowers, because
 every other module in the stage carries its types in fields and signatures. A
-module-scoped refusal denies the whole module its IR, so a seam census taken
+module-scoped refusal denies the whole module its IR, so a seam coverage report taken
 against it reads "not reached" rather than "clean" -- which is why `has_ir` is
 asserted before any seam count is believed.
 
-Seven measurements, one memoized census each, and they answer different
+Seven measurements, one memoized coverage run each, and they answer different
 questions:
 
 * `types.jac` -- does the keystone reach codegen at all, and which of its
@@ -31,7 +31,7 @@ questions:
   the bare `tuple` key was the only un-lowerable half.
 * `type_checker_pass.jac` -- the evaluator's only consumer, and the other half
   of the pair M2 has to seal. It reaches codegen already; what it does not
-  reach is the evaluator, and the census says so in one number.
+  reach is the evaluator, and the coverage says so in one number.
 * `enum_utils.jac` and `operations.jac` -- measurable since #8285. A parameter
   typed `TypeEvaluator` is resolved when the ability is declared, which used to
   be before any body opened a demotion window, so it stranded the module the
@@ -52,7 +52,7 @@ nothing here is a count.
 
 Only seams in files this stage owns are enumerated -- `unitree.jac`,
 `type_utils.jac` and `helpers.jac` ride in `types.jac`'s closure and their
-seams are owned by `test_unitree_seal_census.jac`, the seal's own gate, which
+seams are owned by `test_unitree_seal_baseline.jac`, the seal's own gate, which
 would double-book them here.
 """
 
@@ -60,7 +60,7 @@ import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
@@ -79,7 +79,7 @@ field, which is a layout dependency no matter that the import is `import type`.
 compile-time import name made `types.jac` linkable, which closed the
 `unitree <-> types` layout cycle in the other direction too, and the modules
 on the far side of it are in the unit whichever end is the root. This set is
-`unitree`'s closure exactly -- `test_unitree_seal_census.jac` pins the same
+`unitree`'s closure exactly -- `test_unitree_seal_baseline.jac` pins the same
 eleven from the other root, and that is the seal's own view.
 """
 glob TYPES_CLOSURE: tuple = (
@@ -132,7 +132,7 @@ glob TYPES_CLOSURE: tuple = (
          "unitree.jac"
      );
 
-"""Files this stage owns; seams outside them belong to another census test."""
+"""Files this stage owns; seams outside them belong to another coverage test."""
 glob STAGE_FILES: tuple = ("types.jac", "ts_decl_parser.jac");
 
 """Seams that stay, each naming what has to land before it goes.
@@ -189,18 +189,18 @@ each call a `type_utils` function that demotes. Before that protocol the
 importer emitted their call sites before the dependency's verdicts existed,
 so the caller lowered and the artifact linked against a name the demotion had
 renamed away. Every seam this table holds is identical to the one the unitree
-census records for `types.jac` from the other root, which is the point: the
+coverage records for `types.jac` from the other root, which is the point: the
 seal reads the closure, not the entry it was reached from.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::ClassType.lookup_member_symbol": (
              "Cascade: calls `type_utils.collect_member_syms`, which demotes "
              "on `helpers.evaluate_version_condition` and is waived in the "
-             "unitree census."
+             "unitree coverage."
          ),
          "types.jac::FunctionType.specialize": (
              "Cascade: calls `type_utils.build_type_var_solution`, waived in "
-             "the unitree census for its `enumerate(...)` for-loop iterable."
+             "the unitree coverage for its `enumerate(...)` for-loop iterable."
          )
      },
      DECL_PARSER_SEAM_WAIVERS: dict[(str, str)] = {
@@ -249,7 +249,7 @@ glob EVALUATOR_CLOSURE: tuple = (
          "unitree.jac"
      );
 
-"""The evaluator's census: 80 seams, keyed by the cause they share.
+"""The evaluator's coverage: 80 seams, keyed by the cause they share.
 
 Keyed cause-first because the measurement has that shape. Forty-eight of the
 80 are cascades on a sibling method -- a body whose only refusal is that it
@@ -262,7 +262,7 @@ It read 109 across 50 causes when it was first taken and 106 across 46 after
 across 41 now, and one declaration closed the difference: `_pass` was typed
 `object | None`.
 
-That is the whole of the `**` gap, and it was never a `**` gap. The census
+That is the whole of the `**` gap, and it was never a `**` gap. The coverage
 recorded `TypeEvaluator.emit_diag` as demoting on `call argument unpacking
 '**'` and read the spelling as the cause, with thirty seams hanging off it --
 `emit_diag`, its seven callers, and the twenty-one behind
@@ -529,7 +529,7 @@ glob CHECKER_CLOSURE: tuple = (
          "unitree.jac"
      );
 
-"""The checker's census, and the handshake decision it decides.
+"""The checker's coverage, and the handshake decision it decides.
 
 Forty-three seams, and 36 of them -- every visitor the pass has except the
 seven that fail earlier for their own reasons -- are one cause: `self.evaluator`
@@ -620,7 +620,7 @@ The joint seal was then built in that configuration and measured, so B4 knows
 what its entry is worth before it spends the work. With the entry empty and
 `has evaluator: TypeEvaluator;` declared, `type_checker_pass.jac` compiles
 with IR over a **28-module closure that contains `type_evaluator.jac`**, and
-its census reads **14 seams across 8 causes against 43 across 8**. Of the 36
+its coverage reads **14 seams across 8 causes against 43 across 8**. Of the 36
 boundary refusals, **31 clear outright** and five keep demoting for causes of
 their own -- `_insert_builtin_symbols`, `exit_ability`, `exit_archetype` and
 `exit_enum` on `inherited field access 'ir_in'`, `exit_assignment` on `field
@@ -665,7 +665,7 @@ rather than in three places:
   - `ownership_check_pass.jac`'s eleven `emit` seams are the same wall. With
     the entry lifted, `transform.jac` and `uni_pass.jac` join its closure and
     all eleven clear: 26 own seams to 12, and the `emit` family reads empty.
-    `test_pass_seal_wave3_census.jac` predicted exactly this and named the
+    `test_pass_seal_wave3_baseline.jac` predicted exactly this and named the
     price as transform's own 33 seams; transform's rung-2 redesign since cut
     that to 3.
   - `static_analysis_pass.jac`'s twelfth seam, `_check_undefined_names`, is
@@ -768,15 +768,15 @@ glob SIGNATURE_SEAM_WAIVERS: dict[(str, dict)] = {
          }
      };
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
-"""Compile one module the way `seal_native_artifacts` does, up to the census.
+"""Compile one module the way `seal_native_artifacts` does, up to the coverage.
 
-Returns the per-module census, whether the root produced LLVM IR, and the
+Returns the per-module coverage, whether the root produced LLVM IR, and the
 native refusals that survived every method demotion -- the ones that own the
 `has_ir` verdict.
 """
-def _census_of(src: Path) -> tuple[(dict, bool, list)] {
+def _coverage_of(src: Path) -> tuple[(dict, bool, list)] {
     # Runs in dev trees AND inside payload lanes that still compile from
     # source. When THIS runtime serves `unitree` from its own native seal the
     # measurement is not expressible: `unitree` sits in `types.jac`'s closure,
@@ -789,11 +789,11 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
         );
     }
     key = str(src);
-    if key in _CENSUS_MEMO {
-        return _CENSUS_MEMO[key];
+    if key in _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[key];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=key,
@@ -806,22 +806,22 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     fatal = [
         str(err)
         for err in prog.errors_had
         if err.code is not None and str(err.code.code).startswith("E50")
     ];
-    result = (census, ir is not None and ir.gen.llvm_ir is not None, fatal, );
-    _CENSUS_MEMO[key] = result;
+    result = (coverage, ir is not None and ir.gen.llvm_ir is not None, fatal, );
+    _COVERAGE_MEMO[key] = result;
     return result;
 }
 
-"""Census seams as `<module>::<Type>.<method>` -> reason, for the named files."""
-def _seams_of(census: dict, files: tuple) -> dict[(str, str)] {
+"""Coverage seams as `<module>::<Type>.<method>` -> reason, for the named files."""
+def _seams_of(coverage: dict, files: tuple) -> dict[(str, str)] {
     found: dict[(str, str)] = {};
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = os.path.basename(path);
         if where not in files {
             continue;
@@ -870,7 +870,7 @@ def _seam_cause(why: str) -> str {
     return txt.replace("Native pathway does not yet support ", "unsupported ");
 }
 
-"""Assert a cause-keyed seam table against a census, three ways.
+"""Assert a cause-keyed seam table against a coverage report, three ways.
 
 Un-waived seams fail, waived members that stopped demoting fail, and -- the
 one a flat table cannot check -- a member that still demotes but for a
@@ -941,7 +941,7 @@ def _assert_waivers_match(found: dict, waived: dict, label: str) {
 
 
 test "types.jac lowers to native IR" {
-    (_census, has_ir, fatal) = _census_of(TS_PATH / "types.jac");
+    (_coverage, has_ir, fatal) = _coverage_of(TS_PATH / "types.jac");
     assert has_ir , (
         "no LLVM IR for types.jac -- the keystone refused codegen, so every "
         "seam count taken against it means 'not reached', not 'clean', and no "
@@ -952,8 +952,8 @@ test "types.jac lowers to native IR" {
 
 
 test "types.jac's native closure is exactly the measured set" {
-    (census, _has_ir, _fatal) = _census_of(TS_PATH / "types.jac");
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    (coverage, _has_ir, _fatal) = _coverage_of(TS_PATH / "types.jac");
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == TYPES_CLOSURE , (
         f"types.jac's native closure changed: {seen} != {TYPES_CLOSURE}. "
         "A new member has to reach zero seams too before the stage can seal."
@@ -962,25 +962,25 @@ test "types.jac's native closure is exactly the measured set" {
 
 
 test "every types.jac seam is waived, and every waiver is live" {
-    (census, _has_ir, _fatal) = _census_of(TS_PATH / "types.jac");
+    (coverage, _has_ir, _fatal) = _coverage_of(TS_PATH / "types.jac");
     _assert_waivers_match(
-        _seams_of(census, STAGE_FILES), TYPES_SEAM_WAIVERS, "types.jac"
+        _seams_of(coverage, STAGE_FILES), TYPES_SEAM_WAIVERS, "types.jac"
     );
 }
 
 
 test "properties.jac lowers whole" {
-    (census, has_ir, fatal) = _census_of(TS_PATH / "properties.jac");
+    (coverage, has_ir, fatal) = _coverage_of(TS_PATH / "properties.jac");
     assert has_ir , (
         "no LLVM IR for properties.jac -- it links the keystone, so a refusal "
         "here means the keystone stopped being linkable:\n"
         + "\n".join(f"  {f}" for f in fatal)
     );
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == PROPERTIES_CLOSURE , (
         f"properties.jac's native closure changed: {seen} != " f"{PROPERTIES_CLOSURE}."
     );
-    own_seams = _seams_of(census, ("properties.jac", ));
+    own_seams = _seams_of(coverage, ("properties.jac", ));
     assert not own_seams , (
         f"{len(own_seams)} seam(s) in properties.jac, which lowered whole when "
         "the keystone became linkable:\n"
@@ -990,29 +990,29 @@ test "properties.jac lowers whole" {
 
 
 test "ts_decl_parser stays clean" {
-    (census, has_ir, fatal) = _census_of(TS_PATH / "ts_decl_parser.jac");
+    (coverage, has_ir, fatal) = _coverage_of(TS_PATH / "ts_decl_parser.jac");
     assert has_ir , (
         "no LLVM IR for ts_decl_parser.jac:\n" + "\n".join(f"  {f}" for f in fatal)
     );
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == DECL_PARSER_CLOSURE , (
         f"ts_decl_parser.jac's native closure changed: {seen} != "
         f"{DECL_PARSER_CLOSURE}."
     );
     _assert_waivers_match(
-        _seams_of(census, STAGE_FILES), DECL_PARSER_SEAM_WAIVERS, "ts_decl_parser.jac"
+        _seams_of(coverage, STAGE_FILES), DECL_PARSER_SEAM_WAIVERS, "ts_decl_parser.jac"
     );
 }
 
 
 test "the evaluator reaches per-method demotion" {
-    (census, _has_ir, _fatal) = _census_of(TS_PATH / "type_evaluator.jac");
+    (coverage, _has_ir, _fatal) = _coverage_of(TS_PATH / "type_evaluator.jac");
     evaluator = [
         rec
-        for (path, rec) in census.items()
+        for (path, rec) in coverage.items()
         if os.path.basename(path) == "type_evaluator.jac"
     ];
-    assert evaluator , "the census recorded nothing for type_evaluator.jac";
+    assert evaluator , "the coverage recorded nothing for type_evaluator.jac";
     assert evaluator[0]["seams"] , (
         "type_evaluator.jac recorded no seams at all. That is not a clean "
         "module -- it is a module the backend refused before it could isolate "
@@ -1022,7 +1022,7 @@ test "the evaluator reaches per-method demotion" {
 
 
 test "the evaluator lowers to native IR, with no refusal left ownerless" {
-    (_census, has_ir, fatal) = _census_of(TS_PATH / "type_evaluator.jac");
+    (_coverage, has_ir, fatal) = _coverage_of(TS_PATH / "type_evaluator.jac");
     found = _fatal_keys(fatal);
     assert not found , (
         f"{len(found)} module-scoped native refusal(s) in the evaluator. Each "
@@ -1040,8 +1040,8 @@ test "the evaluator lowers to native IR, with no refusal left ownerless" {
 
 
 test "the evaluator's native closure is exactly the measured set" {
-    (census, _has_ir, _fatal) = _census_of(TS_PATH / "type_evaluator.jac");
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    (coverage, _has_ir, _fatal) = _coverage_of(TS_PATH / "type_evaluator.jac");
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == EVALUATOR_CLOSURE , (
         f"type_evaluator.jac's native closure changed: {seen} != "
         f"{EVALUATOR_CLOSURE}. A new member has to reach zero seams too before "
@@ -1052,9 +1052,9 @@ test "the evaluator's native closure is exactly the measured set" {
 
 
 test "every evaluator seam is enumerated, and filed under the cause it has" {
-    (census, _has_ir, _fatal) = _census_of(TS_PATH / "type_evaluator.jac");
+    (coverage, _has_ir, _fatal) = _coverage_of(TS_PATH / "type_evaluator.jac");
     _assert_grouped_match(
-        _seams_of(census, ("type_evaluator.jac", )),
+        _seams_of(coverage, ("type_evaluator.jac", )),
         EVALUATOR_SEAM_WAIVERS,
         "type_evaluator.jac",
         "type_evaluator.jac"
@@ -1063,8 +1063,8 @@ test "every evaluator seam is enumerated, and filed under the cause it has" {
 
 
 test "an un-lowerable declaration is a seam on its field, not on its module" {
-    (census, has_ir, _fatal) = _census_of(TS_PATH / "type_evaluator.jac");
-    found = _seams_of(census, ("type_evaluator.jac", ));
+    (coverage, has_ir, _fatal) = _coverage_of(TS_PATH / "type_evaluator.jac");
+    found = _seams_of(coverage, ("type_evaluator.jac", ));
     decls = sorted(
         k
         for k in found
@@ -1096,11 +1096,11 @@ test "an un-lowerable declaration is a seam on its field, not on its module" {
 
 
 test "the checker lowers, and does not reach the evaluator" {
-    (census, has_ir, fatal) = _census_of(CHECKER_SRC);
+    (coverage, has_ir, fatal) = _coverage_of(CHECKER_SRC);
     assert has_ir , (
         "no LLVM IR for type_checker_pass.jac:\n" + "\n".join(f"  {f}" for f in fatal)
     );
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == CHECKER_CLOSURE , (
         f"type_checker_pass.jac's native closure changed: {seen} != "
         f"{CHECKER_CLOSURE}."
@@ -1115,9 +1115,9 @@ test "the checker lowers, and does not reach the evaluator" {
 
 
 test "every checker seam is enumerated, and filed under the cause it has" {
-    (census, _has_ir, _fatal) = _census_of(CHECKER_SRC);
+    (coverage, _has_ir, _fatal) = _coverage_of(CHECKER_SRC);
     _assert_grouped_match(
-        _seams_of(census, ("type_checker_pass.jac", )),
+        _seams_of(coverage, ("type_checker_pass.jac", )),
         CHECKER_SEAM_WAIVERS,
         "type_checker_pass.jac",
         "type_checker_pass.jac"
@@ -1126,8 +1126,8 @@ test "every checker seam is enumerated, and filed under the cause it has" {
 
 
 test "the checker's cost of not declaring its evaluator is one number" {
-    (census, _has_ir, _fatal) = _census_of(CHECKER_SRC);
-    found = _seams_of(census, ("type_checker_pass.jac", ));
+    (coverage, _has_ir, _fatal) = _coverage_of(CHECKER_SRC);
+    found = _seams_of(coverage, ("type_checker_pass.jac", ));
     boundary = sorted(
         k
         for k in found
@@ -1155,14 +1155,14 @@ test "the checker's cost of not declaring its evaluator is one number" {
 
 test "a signature type demotes its callable, not its module" {
     for (mod, waived) in sorted(SIGNATURE_SEAM_WAIVERS.items()) {
-        (census, has_ir, fatal) = _census_of(TS_PATH / mod);
+        (coverage, has_ir, fatal) = _coverage_of(TS_PATH / mod);
         assert has_ir , (
             f"no LLVM IR for {mod} -- a signature the backend cannot resolve "
             f"has to demote the ability that carries it, so nothing here is "
             f"module-fatal any more:\n"
             + "\n".join(f"  {f}" for f in fatal)
         );
-        found = _seams_of(census, (mod, ));
+        found = _seams_of(coverage, (mod, ));
         _assert_waivers_match(found, waived, mod);
         for (key, tname) in sorted(waived.items()) {
             assert "signature type" in found[key] and tname in found[key] , (
@@ -1171,7 +1171,7 @@ test "a signature type demotes its callable, not its module" {
                 f"{found[key]}"
             );
         }
-        seen = tuple(sorted({os.path.basename(p) for p in census}));
+        seen = tuple(sorted({os.path.basename(p) for p in coverage}));
         want = tuple(sorted(SIGNATURE_SEAM_CLOSURE + (mod, )));
         assert seen == want , (
             f"{mod}'s closure is {seen}, not {want}. The demotions cost each "
