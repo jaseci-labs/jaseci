@@ -169,8 +169,8 @@ def get_symtab_ir_sched -> list[type[Transform]] {
 
 glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
      _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
-     _typecheck_sched_loading = ContextVar(
-         'jac_typecheck_sched_loading', default=False
+     _analysis_sched_loading = ContextVar(
+         'jac_analysis_sched_loading', default=False
      );
 
 def pass_requires(p: type[Transform]) -> tuple {
@@ -179,16 +179,6 @@ def pass_requires(p: type[Transform]) -> tuple {
 
 def pass_provides(p: type[Transform]) -> tuple {
     return getattr(p, 'PROVIDES', ()) or ();
-}
-
-def providers_for(passes: list[type[Transform]]) -> dict[str, type[Transform]] {
-    out: dict[str, type[Transform]] = {};
-    for p in passes {
-        for tag in pass_provides(p) {
-            out[tag] = p;
-        }
-    }
-    return out;
 }
 
 def validate_schedule(
@@ -215,68 +205,9 @@ def validate_schedule(
     return passes;
 }
 
-def _schedule_into(
-    p: type[Transform],
-    provider_map: dict[str, type[Transform]],
-    acc_out: list[type[Transform]],
-    acc_provided: set[str],
-    chain: list[type[Transform]]
-) -> (str | None) {
-    if p in acc_out or p in chain {
-        return None;
-    }
-    for tag in pass_requires(p) {
-        if tag in acc_provided {
-            continue;
-        }
-        prov = provider_map.get(tag);
-        if prov is None {
-            return tag;
-        }
-        missing = _schedule_into(
-            prov, provider_map, acc_out, acc_provided, chain + [p]
-        );
-        if missing is not None or tag not in acc_provided {
-            return tag;
-        }
-    }
-    acc_out.append(p);
-    for tag in pass_provides(p) {
-        acc_provided.add(tag);
-    }
-    return None;
-}
-
-def resolve_schedule(
-    goals: list[type[Transform]],
-    providers: (dict[str, type[Transform]] | None) = None,
-    preprovided: (set[str] | None) = None,
-    drop_unsatisfiable: bool = False,
-    origin: str = 'schedule'
-) -> list[type[Transform]] {
-    provider_map = dict(providers) if providers is not None else {};
-    provided: set[str] = set(preprovided) if preprovided is not None else set();
-    out: list[type[Transform]] = [];
-    for g in goals {
-        trial_out = list(out);
-        trial_provided = set(provided);
-        missing = _schedule_into(g, provider_map, trial_out, trial_provided, []);
-        if missing is None {
-            out = trial_out;
-            provided = trial_provided;
-        } elif not drop_unsatisfiable {
-            raise RuntimeError(
-                f"scheduling error: pass {g.__name__} requires analysis "
-                f"'{missing}' which has no available provider while "
-                f"constructing the {origin} -- the schedule cannot satisfy a "
-                f"declared dependency."
-            );
-        }
-    }
-    return validate_schedule(out, preprovided=preprovided, origin=origin);
-}
-
 class CompilerSourceError(RuntimeError) {}
+
+class TypeshedUnavailableError(RuntimeError) {}
 
 glob _compiler_source_failures: dict[str, str] = {};
 
@@ -478,66 +409,6 @@ def get_ir_gen_sched(
     }
 }
 
-def get_cfg_sched -> list[type[Transform]] {
-    if _ir_sched_loading.get() {
-        return [];
-    }
-    _tok = _ir_sched_loading.set(True);
-    try {
-        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-        return validate_schedule([CFGBuildPass], origin='cfg schedule');
-    } except ImportError as e {
-        fail_loud_on_compiler_source(e);
-        return [];
-    } finally {
-        _ir_sched_loading.reset(_tok);
-    }
-}
-
-def get_type_check_sched(provided: (set[str] | None) = None) -> list[type[Transform]] {
-    if _typecheck_sched_loading.get() {
-        return [];
-    }
-    _tok = _typecheck_sched_loading.set(True);
-    goals: list[type[Transform]] = [];
-    try {
-        import from jaclang.compiler.passes.main.static_analysis_pass {
-            StaticAnalysisPass
-        }
-        import from jaclang.compiler.passes.main.access_check_pass { AccessCheckPass }
-        import from jaclang.compiler.passes.main.capability_check_pass {
-            ClientCapabilityCheckPass,
-            NativeCapabilityCheckPass,
-            PortabilityWarnPass
-        }
-        import from jaclang.compiler.passes.main.ownership_check_pass {
-            OwnershipCheckPass
-        }
-        import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacLintCheckPass }
-        goals = [
-            StaticAnalysisPass,
-            AccessCheckPass,
-            OwnershipCheckPass,
-            NativeCapabilityCheckPass,
-            ClientCapabilityCheckPass,
-            PortabilityWarnPass,
-            JacLintCheckPass
-        ];
-    } except ImportError as e {
-        fail_loud_on_compiler_source(e);
-        return [];
-    } finally {
-        _typecheck_sched_loading.reset(_tok);
-    }
-    return resolve_schedule(
-        goals,
-        providers=providers_for(get_cfg_sched() + get_inference_sched()),
-        preprovided=provided,
-        drop_unsatisfiable=True,
-        origin='type-check schedule'
-    );
-}
-
 def typeshed_stubs_available -> bool {
     return os.path.exists(
         os.path.join(
@@ -551,25 +422,70 @@ def typeshed_stubs_available -> bool {
     );
 }
 
-def get_inference_sched -> list[type[Transform]] {
-    if _typecheck_sched_loading.get() {
+def require_typeshed_stubs -> None {
+    if typeshed_stubs_available() {
+        return;
+    }
+    raise TypeshedUnavailableError(
+        "type inference is on the critical path of every compilation, but the "
+        "vendored typeshed stdlib stubs are missing from this environment, so "
+        "no module can be compiled. In a source checkout run "
+        "'zig build fetch-typeshed'; in an installed environment reinstall the "
+        "jac distribution, whose payload is required to carry the stubs."
+    );
+}
+
+def get_analysis_sched -> list[type[Transform]] {
+    if _analysis_sched_loading.get() {
         return [];
     }
-    _tok = _typecheck_sched_loading.set(True);
+    require_typeshed_stubs();
+    _tok = _analysis_sched_loading.set(True);
     try {
-        import from jaclang.compiler.passes.main.type_checker_pass { TypeInferencePass }
+        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
-        if not typeshed_stubs_available() {
-            return [];
+        import jaclang.compiler.passes.main.pyast_load_pass;
+        import jaclang.compiler.type_system.type_utils;
+        import jaclang.compiler.type_system.ts_decl_parser;
+        import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.type_registry;
+        import jaclang.jac0core.modresolver;
+        import jaclang.jac0core.tomlio;
+        import jaclang.project.client_kind;
+        import from jaclang.compiler.passes.main.static_analysis_pass {
+            StaticAnalysisPass
         }
-        return validate_schedule([TypeInferencePass], origin='inference schedule');
+        import from jaclang.compiler.passes.main.access_check_pass { AccessCheckPass }
+        import from jaclang.compiler.passes.main.capability_check_pass {
+            ClientCapabilityCheckPass,
+            NativeCapabilityCheckPass,
+            PortabilityWarnPass
+        }
+        import from jaclang.compiler.passes.main.ownership_check_pass {
+            OwnershipCheckPass
+        }
+        import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacLintCheckPass }
+        return validate_schedule(
+            [
+                TypeCheckPass,
+                StaticAnalysisPass,
+                AccessCheckPass,
+                OwnershipCheckPass,
+                NativeCapabilityCheckPass,
+                ClientCapabilityCheckPass,
+                PortabilityWarnPass,
+                JacLintCheckPass
+            ],
+            preprovided={'cfg'},
+            origin='analysis schedule'
+        );
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
-        return [];
+        raise;
     } finally {
-        _typecheck_sched_loading.reset(_tok);
+        _analysis_sched_loading.reset(_tok);
     }
 }
 
@@ -581,40 +497,32 @@ def native_pipeline_available -> tuple[bool, str] {
         return cached;
     }
     if (
-        _typecheck_sched_loading.get()
+        _analysis_sched_loading.get()
         or _ir_sched_loading.get()
         or _codegen_sched_loading.get()
     ) {
         return (True, '');
     }
     reason = '';
-    if not typeshed_stubs_available() {
+    try {
+        import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
+        _find_shim();
+    } except ModuleNotFoundError {
         reason = (
-            'native pipeline unavailable: type inference '
-            + '(vendor/typeshed stubs) is not available in this environment'
+            'native pipeline unavailable: LLVM shim (libjacllvm) '
+            + 'not found in this environment'
         );
-    }
-    if not reason {
-        try {
-            import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
-            _find_shim();
-        } except ModuleNotFoundError {
-            reason = (
-                'native pipeline unavailable: LLVM shim (libjacllvm) '
-                + 'not found in this environment'
-            );
-        } except ImportError as e {
-            fail_loud_on_compiler_source(e);
-            return (
-                False,
-                'native pipeline undecided: the compiler is still initializing'
-            );
-        } except Exception {
-            reason = (
-                'native pipeline unavailable: LLVM shim (libjacllvm) '
-                + 'not found in this environment'
-            );
-        }
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
+        return (
+            False,
+            'native pipeline undecided: the compiler is still initializing'
+        );
+    } except Exception {
+        reason = (
+            'native pipeline unavailable: LLVM shim (libjacllvm) '
+            + 'not found in this environment'
+        );
     }
     verdict = (not reason, reason);
     _native_env_memo['verdict'] = verdict;
@@ -642,30 +550,13 @@ def get_py_code_gen(
                 NaIRGenPass,
                 NativeCompilePass
             }
-            native_goals: list[type[Transform]] = [NaIRGenPass, NativeCompilePass];
-            native_providers = providers_for([RcFactsPass]);
-            cross: set[str] = set(provided) if provided is not None else set();
-            if provided is None {
-                for g in native_goals {
-                    for tag in pass_requires(g) {
-                        if tag not in native_providers {
-                            cross.add(tag);
-                        }
-                    }
-                }
-            }
-            passes.extend(
-                resolve_schedule(
-                    native_goals,
-                    providers=native_providers,
-                    preprovided=cross,
-                    origin='native codegen schedule'
-                )
-            );
+            passes.extend([RcFactsPass, NaIRGenPass, NativeCompilePass]);
             _note_native_schedule_failure(None);
         }
         passes.extend(_py_codegen_tail());
-        return passes;
+        return validate_schedule(
+            passes, preprovided=provided, origin='codegen schedule'
+        );
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
         if native {
@@ -675,6 +566,28 @@ def get_py_code_gen(
     } finally {
         _codegen_sched_loading.reset(_tok);
     }
+}
+
+def get_compile_sched(
+    gen_mtir: bool = True, native: bool = True
+) -> list[type[Transform]] {
+    analyzed = get_ir_gen_sched(gen_mtir=gen_mtir)
+        + get_analysis_sched()
+        + get_boundary_analysis_sched();
+    return validate_schedule(
+        analyzed + get_py_code_gen(native=native, provided=providers_of(analyzed)),
+        origin='compile schedule'
+    );
+}
+
+def providers_of(passes: list[type[Transform]]) -> set[str] {
+    out: set[str] = set();
+    for p in passes {
+        for tag in pass_provides(p) {
+            out.add(tag);
+        }
+    }
+    return out;
 }
 
 def get_format_sched(auto_lint: bool = False) -> list[type[Transform]] {
@@ -1310,10 +1223,7 @@ obj JacCompiler {
     ) -> uni.Module;
 
     def build(
-        file_path: str,
-        target_program: JacProgram,
-        use_str: (str | None) = None,
-        type_check: bool = False
+        file_path: str, target_program: JacProgram, use_str: (str | None) = None
     ) -> uni.Module;
 
     def run_schedule(

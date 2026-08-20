@@ -214,39 +214,6 @@ obj EntryPoint {
 }
 
 
-glob _INDEX_SCHEMA: int = 1;
-
-
-obj ModuleIndex {
-    has archetypes: list[SymbolInfo] = [],
-        entry_points: list[EntryPoint] = [];
-
-    def to_dict -> dict {
-        return {
-            "schema": _INDEX_SCHEMA,
-            "archetypes": [a.to_dict() for a in self.archetypes],
-            "entry_points": [e.to_dict() for e in self.entry_points]
-        };
-    }
-
-    static def from_dict(d: dict) -> ModuleIndex | None {
-        if int(d.get("schema", 0)) != _INDEX_SCHEMA {
-            return None;
-        }
-        return ModuleIndex(
-            archetypes=[SymbolInfo.from_dict(x) for x in d.get("archetypes", [])],
-            entry_points=[EntryPoint.from_dict(x) for x in d.get("entry_points", [])]
-        );
-    }
-}
-
-
-def _index_cache_path(file: str) -> Path {
-    base = get_module_cache_path(file);
-    return base.with_name(base.stem + ".symidx.jir");
-}
-
-
 def _combined_source_hash(file: str) -> int {
     crc = 0;
     try {
@@ -275,62 +242,6 @@ def _combined_source_hash(file: str) -> int {
         }
     }
     return crc & 0xFFFFFFFF;
-}
-
-
-def _read_index_cache(file: str) -> ModuleIndex | None {
-    path = _index_cache_path(file);
-    if not path.exists() {
-        return None;
-    }
-    try {
-        data = path.read_bytes();
-        header = parse_header(data);
-        if header is None or not header.is_compatible() {
-            return None;
-        }
-        if header.source_content_hash != _combined_source_hash(file) {
-            return None;
-        }
-        magic: any = SECTIONS_MAGIC;
-        pos = data.find(magic, HEADER_SIZE);
-        if pos < 0 {
-            return None;
-        }
-        sections = read_sections(data, pos + len(magic));
-        raw = sections.get(SEC_SYMINDEX);
-        if raw is None {
-            return None;
-        }
-        return ModuleIndex.from_dict(json.loads(bytes(raw).decode('utf-8')));
-    } except Exception as e {
-        _ = e;
-        return None;
-    }
-}
-
-
-def _write_index_cache(file: str, idx: ModuleIndex) {
-    try {
-        payload = json.dumps(idx.to_dict()).encode('utf-8');
-        header = create_header(
-            source_hash=_combined_source_hash(file),
-            node_count=0,
-            symbol_count=len(idx.archetypes),
-            string_pool_size=0
-        );
-        empty_payload = zlib.compress(bytes(1), 1);
-        blob = header.to_bytes()
-            + empty_payload
-            + write_sections({SEC_SYMINDEX: payload});
-        path = _index_cache_path(file);
-        path.parent.mkdir(parents=True, exist_ok=True);
-        tmp = path.with_suffix(".tmp");
-        tmp.write_bytes(blob);
-        tmp.rename(path);
-    } except Exception as e {
-        _ = e;
-    }
 }
 
 
@@ -373,9 +284,6 @@ obj ContextSlice {
 
 obj CodeIntelligence {
     has proj_dir: str,
-        type_check: bool = True,
-        structural: bool = False,
-        lazy: bool = False,
         on_event: any = None;
 
     def postinit {
@@ -386,10 +294,6 @@ obj CodeIntelligence {
         self._files: list[str] = [];
         self._file_set: set[str] = set();
         self._compiled: dict[str, uni.Module] = {};
-
-        self._index: dict[str, ModuleIndex] = {};
-
-        self._full_compiled: bool = False;
 
         self._dir_sig: dict[str, float] = {};
         self._loaded: bool = False;
@@ -402,10 +306,6 @@ obj CodeIntelligence {
         self.prog.errors_had = [];
         self.prog.warnings_had = [];
         self._compiled = {};
-        self._index = {};
-
-        self._full_compiled = False;
-
         parsed = 0;
         cached = 0;
         for f in self._files {
@@ -519,104 +419,26 @@ obj CodeIntelligence {
         if real in self._compiled {
             del self._compiled[real];
         }
-        if real in self._index {
-            del self._index[real];
-        }
         self._dir_sig = self._dir_signature();
     }
 
     def _compile_one(file: str) -> bool {
-        if self.structural or (self.lazy and not self._full_compiled) {
-            return self._index_one(file);
-        }
         self._full_compile_one(file);
         return False;
     }
 
     def _full_compile_one(file: str) {
         try {
-            mod = self.prog.compile(
-                file_path=file, type_check=self.type_check, no_cgen=True
-            );
+            mod = self.prog.compile(file_path=file, no_cgen=True);
             if mod is not None and mod.loc {
-                key = _real(mod.loc.mod_path);
-                self._compiled[key] = mod;
-                try {
-                    self._index[key] = self._build_index(mod);
-                } except Exception as e {
-                    _ = e;
-                }
+                self._compiled[_real(mod.loc.mod_path)] = mod;
             }
         } except Exception as e {
             _ = e;
         }
     }
 
-    def _ensure_full {
-        if not self.lazy or self._full_compiled {
-            return;
-        }
-        self._ensure();
-        t0 = time.time();
-        self._full_compiled = True;
-        self.prog.errors_had = [];
-        self.prog.warnings_had = [];
-        try {
-            self.prog.clear_type_system(clear_hub=True);
-        } except Exception as e {
-            _ = e;
-        }
-        self._compiled = {};
-        self._index = {};
-        for f in self._files {
-            self._full_compile_one(f);
-        }
-        self._emit("typecheck", "", len(self._files), t0);
-    }
-
-    def _index_one(file: str) -> bool {
-        real = _real(file);
-        cached = _read_index_cache(file);
-        if cached is not None {
-            self._index[real] = cached;
-            return True;
-        }
-        try {
-            mod = self.prog.parse_str(Path(file).read_text(), file);
-            if mod is not None and mod.loc {
-                key = _real(mod.loc.mod_path);
-                self._compiled[key] = mod;
-                idx = self._build_index(mod);
-                self._index[key] = idx;
-                _write_index_cache(file, idx);
-            }
-        } except Exception as e {
-            _ = e;
-        }
-        return False;
-    }
-
-    def _build_index(mod: uni.Module) -> ModuleIndex {
-        idx = ModuleIndex();
-        try {
-            for arch in mod.get_all_sub_nodes(uni.Archetype) {
-                info = self._archetype_info(arch);
-                if info is not None {
-                    idx.archetypes.append(info);
-                }
-            }
-        } except Exception as e {
-            _ = e;
-        }
-        try {
-            idx.entry_points = self._module_entry_points(mod);
-        } except Exception as e {
-            _ = e;
-        }
-        return idx;
-    }
-
-    def _dir_signature -> dict[str, float] {
+        def _dir_signature -> dict[str, float] {
         dirs: set[str] = {self._root_real};
         for f in self._files {
             dirs.add(os.path.dirname(_real(f)));
@@ -679,7 +501,6 @@ obj CodeIntelligence {
 
     def _modules -> list[uni.Module] {
         self._ensure();
-        self._ensure_full();
         return list(self._compiled.values());
     }
 
@@ -934,17 +755,6 @@ obj CodeIntelligence {
 
     def archetypes(kind: str = "") -> list[SymbolInfo] {
         out: list[SymbolInfo] = [];
-        if self.structural or self.lazy {
-            self._ensure();
-            for idx in self._index.values() {
-                for info in idx.archetypes {
-                    if not kind or info.kind == kind {
-                        out.append(info);
-                    }
-                }
-            }
-            return out;
-        }
         for mod in self._modules() {
             try {
                 for arch in mod.get_all_sub_nodes(uni.Archetype) {
@@ -975,13 +785,6 @@ obj CodeIntelligence {
 
     def entry_points -> list[EntryPoint] {
         out: list[EntryPoint] = [];
-        if self.structural or self.lazy {
-            self._ensure();
-            for idx in self._index.values() {
-                out.extend(idx.entry_points);
-            }
-            return out;
-        }
         for mod in self._modules() {
             out.extend(self._module_entry_points(mod));
         }
@@ -1045,7 +848,6 @@ obj CodeIntelligence {
     def diagnostics(file: str = "") -> list[Diagnostic] {
         self._ensure();
 
-        self._ensure_full();
         target = _real(file) if file else "";
         out: list[Diagnostic] = [];
         for (sev, alerts) in [

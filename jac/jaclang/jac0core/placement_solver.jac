@@ -300,10 +300,7 @@ def _materialize_module(path: str, prog: any) -> (uni.Module | None) {
         prog.compile(
             file_path=path,
             options=CompileOptions(
-                symtab_ir_only=True,
-                no_cgen=True,
-                type_check=False,
-                force_target_program=True
+                symtab_ir_only=True, no_cgen=True, force_target_program=True
             )
         );
     } except Exception {

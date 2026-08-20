@@ -250,7 +250,7 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    options = CompileOptions(type_check=False);
+    options = CompileOptions();
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
@@ -876,9 +876,7 @@ impl JacCompiler.resolve_absorb_imports(
             module = target_program.mod.hub[resolved];
         } else {
             try {
-                module = target_program.compile(
-                    resolved, no_cgen=True, type_check=False
-                );
+                module = target_program.compile(resolved, no_cgen=True);
             } except Exception {
                 module = None;
             }
@@ -1293,6 +1291,8 @@ impl JacCompiler._compile_once(
             gen_mtir=not options.no_cgen
         );
     }
+
+    _full_head = 'cfg' in providers_of(_head_sched);
     if _prefix_ran {
         mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
     }
@@ -1318,73 +1318,19 @@ impl JacCompiler._compile_once(
     }
 
     import from jaclang.jac0core.constant { CodeContext as _CodeCtx }
-    is_explicit_native = mod_targ is not None
+    is_native_mod = mod_targ is not None
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
-    is_client_mod = mod_targ is not None
-        and mod_targ.declares_codespace(_CodeCtx.CLIENT, path_hint=file_path);
-    is_native_mod = is_explicit_native;
 
-    run_inference = options.type_check
-        or is_native_mod
-        or (is_client_mod and not options.no_cgen and not options.symtab_ir_only);
-    if run_inference {
-        if options.symtab_ir_only {
-            self.run_schedule(
-                mod=mod_targ,
-                target_program=actual_program,
-                passes=get_cfg_sched(),
-                cancel_token=options.cancel_token
-            );
-        }
-
+    if _full_head {
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=get_inference_sched(),
-            cancel_token=options.cancel_token
-        );
-        actual_program._inferred_mods.add(id(mod_targ));
-
-        import from dataclasses { replace as _replace_opts }
-        for dep_mod in list(actual_program.mod.hub.values()) {
-            if (dep_mod is mod_targ)
-                or (id(dep_mod) in actual_program._inferred_mods)
-                or dep_mod.parse_failed {
-                continue;
-            }
-            if dep_mod.decided_codespace == 'native' {
-                _saved_opts = actual_program._compile_options;
-                actual_program._compile_options = _replace_opts(
-                    options, emit_diagnostics=False
-                );
-                try {
-                    self.run_schedule(
-                        mod=dep_mod,
-                        target_program=actual_program,
-                        passes=get_inference_sched(),
-                        cancel_token=options.cancel_token
-                    );
-                    actual_program._inferred_mods.add(id(dep_mod));
-                } finally {
-                    actual_program._compile_options = _saved_opts;
-                }
-            }
-        }
-    }
-
-    if options.type_check or is_native_mod {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_type_check_sched(
-                provided=actual_program._analyses_run.get(id(mod_targ), set())
-            ),
+            passes=get_analysis_sched(),
             cancel_token=options.cancel_token
         );
     }
 
-    if is_native_mod
-        and not had_blocking_errors
+    if not had_blocking_errors
         and self._count_module_errors(actual_program, cur_mod_path) > 0 {
         had_blocking_errors = True;
     }
@@ -1401,41 +1347,6 @@ impl JacCompiler._compile_once(
     }
 
     if (
-        options.no_cgen
-        and options.type_check
-        and not options.symtab_ir_only
-        and not had_parse_errors
-        and not had_blocking_errors
-        and is_explicit_native
-    ) {
-        _parity_passes: list[type[Transform]] = [];
-        if run_inference {
-            try {
-                import from jaclang.compiler.passes.native { NaIRGenPass }
-                import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
-                _parity_passes = resolve_schedule(
-                    [NaIRGenPass],
-                    providers=providers_for([RcFactsPass]),
-                    preprovided=actual_program._analyses_run.get(id(mod_targ), set()),
-                    drop_unsatisfiable=True,
-                    origin='native check-parity schedule'
-                );
-            } except ImportError as e {
-                fail_loud_on_compiler_source(e);
-                _parity_passes = [];
-            }
-        }
-        if _parity_passes {
-            self.run_schedule(
-                mod=mod_targ,
-                target_program=actual_program,
-                passes=_parity_passes,
-                cancel_token=options.cancel_token
-            );
-        }
-    }
-
-    if (
         not had_parse_errors
         and not had_blocking_errors
         and not options.symtab_ir_only
@@ -1446,7 +1357,6 @@ impl JacCompiler._compile_once(
         cb_worklist: list = [mod_targ];
 
         cb_opts = CompileOptions(
-            type_check=False,
             no_cgen=True,
             force_target_program=True,
             cancel_token=options.cancel_token
@@ -1533,14 +1443,12 @@ impl JacCompiler._compile_once(
 }
 
 impl JacCompiler.build(
-    file_path: str,
-    target_program: JacProgram,
-    use_str: (str | None) = None,
-    type_check: bool = False
+    file_path: str, target_program: JacProgram, use_str: (str | None) = None
 ) -> uni.Module {
     actual_program = self._resolve_program(file_path, target_program);
-    options = CompileOptions(type_check=type_check);
-    mod_targ = self.compile(file_path, actual_program, use_str, options=options);
+    mod_targ = self.compile(
+        file_path, actual_program, use_str, options=CompileOptions()
+    );
     run_pass(SemanticAnalysisPass, mod_targ, actual_program);
     return mod_targ;
 }

@@ -1046,102 +1046,14 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self._insert_builtin_symbols();
     self.evaluator._narrowing_cache = {};
 
-    _opts = self.prog?._compile_options;
-    _tc_requested = bool(_opts?.type_check);
-    _emit_intent = (_opts is None) or bool(_opts.emit_diagnostics);
-
-    emit_full = (not self.inference_only) or _tc_requested;
-    if not emit_full {
-        mod = self.ir_in;
-        emit_full = mod is not None and mod.decided_codespace == 'native';
-    }
-
-    if self.inference_only and not _emit_intent {
-        emit_full = False;
-    }
-    self._emit_diagnostics = emit_full;
-
-    if emit_full and self.ir_in?._deferred_type_diags {
-        stack = [self.ir_in];
-        while stack {
-            cur = stack.pop();
-            if isinstance(cur, Expr) {
-                cur.type = None;
-            }
-            stack.extend(cur.kid);
-        }
-
-        self.evaluator._flow_node_type_cache.clear();
-        self.evaluator._flow_key_type_cache.clear();
-        self.evaluator._and_narrowing_overrides.clear();
-    }
 }
 
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
-    if getattr(self, '_emit_diagnostics', True) {
-        self._check_unresolved_lambda_params();
-
-        stash = self.ir_in?._deferred_type_diags;
-        if stash {
-            for (diag, node_override, related, help_text, kwargs) in list(
-                stash.values()
-            ) {
-                super.emit(
-                    diag,
-                    node_override=node_override,
-                    related=related,
-                    help_text=help_text,
-                    **kwargs
-                );
-            }
-            stash.clear();
-        }
-    }
-
+    self._check_unresolved_lambda_params();
     if self._prev_eval_pass is not None and self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
 }
-
-impl TypeCheckPass.emit(
-    self: TypeCheckPass,
-    diag: DiagnosticInfo,
-    node_override: (UniNode | None) = None,
-    related: (list[tuple[str, UniNode]] | None) = None,
-    help_text: (str | None) = None,
-    **kwargs: any
-) -> bool {
-    if diag.category != Category.ICE {
-        stash = self.ir_in?._deferred_type_diags;
-        key = (
-            diag.code,
-            id(node_override) if node_override is not None else 0,
-            str(kwargs)
-        );
-        if not getattr(self, '_emit_diagnostics', True) {
-            if stash is None {
-                stash = {};
-                self.ir_in._deferred_type_diags = stash;
-            }
-            if key not in stash {
-                stash[key] = (diag, node_override, related, help_text, kwargs);
-            }
-            return False;
-        }
-
-        if stash is not None and key in stash {
-            del stash[key];
-        }
-    }
-    return super.emit(
-        diag,
-        node_override=node_override,
-        related=related,
-        help_text=help_text,
-        **kwargs
-    );
-}
-
 
 impl TypeCheckPass.exit_param_var(self: TypeCheckPass, nd: ParamVar) -> None {
     if (sym := nd.sym) {

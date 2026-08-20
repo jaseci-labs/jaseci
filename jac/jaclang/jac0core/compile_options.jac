@@ -18,9 +18,7 @@ def _project_config -> any {
 }
 
 obj CompileOptions {
-    has type_check: bool = True,
-        emit_diagnostics: bool = True,
-        symtab_ir_only: bool = False,
+    has symtab_ir_only: bool = False,
         no_cgen: bool = False,
         skip_native_engine: bool = False,
         no_ir_cache: bool = False,
@@ -126,7 +124,6 @@ obj CompileOptions {
     def clone_for_native_import -> CompileOptions {
         return CompileOptions(
             skip_native_engine=True,
-            type_check=False,
             aot_mode=True,
             default_codespace='native',
             force_target_program=True,

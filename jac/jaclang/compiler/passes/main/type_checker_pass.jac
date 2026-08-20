@@ -118,20 +118,10 @@ import from jaclang.jac0core.diagnostics {
 
 class TypeCheckPass(UniPass) {
     has _lambda_depth: int = 0;
-    static has PROVIDES: tuple = ('inference', ),
-        inference_only: bool = False;
+    static has PROVIDES: tuple = ('inference', );
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
-    def emit(
-        self: TypeCheckPass,
-        diag: DiagnosticInfo,
-        node_override: (UniNode | None) = None,
-        related: (list[tuple[str, UniNode]] | None) = None,
-        help_text: (str | None) = None,
-        **kwargs: any
-    ) -> bool;
-
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
     def enter_ability(self: TypeCheckPass, nd: Ability) -> None;
     def exit_ability(self: TypeCheckPass, nd: Ability) -> None;
@@ -189,6 +179,3 @@ class TypeCheckPass(UniPass) {
     def _check_unresolved_lambda_params(self: TypeCheckPass) -> None;
 }
 
-class TypeInferencePass(TypeCheckPass) {
-    static has inference_only: bool = True;
-}

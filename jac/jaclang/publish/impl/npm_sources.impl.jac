@@ -126,7 +126,7 @@ def _compile_module(program: any, path: Path) -> any {
     prev = len(program.errors_had);
 
     mod = program.compile(
-        source_key, options=CompileOptions(force_codespace='client', type_check=False)
+        source_key, options=CompileOptions(force_codespace='client')
     );
     new_errors = program.errors_had[prev:];
     if new_errors {

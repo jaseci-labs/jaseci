@@ -31,6 +31,6 @@ def build_agent_request(
         quiet=quiet,
         ui=ui,
         cwd=cwd,
-        code_intel=CodeIntelligence(proj_dir=cwd, lazy=True)
+        code_intel=CodeIntelligence(proj_dir=cwd)
     );
 }

@@ -1927,7 +1927,6 @@ def seal_native_roots(
                 file_path=str(src),
                 options=CompileOptions(
                     aot_mode=True,
-                    type_check=False,
                     force_codespace='native',
                     force_target_program=True,
                     na_gc_mode='cycles',

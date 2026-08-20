@@ -345,7 +345,6 @@ impl run(
                 program = Jac.get_program();
                 _run_options = (
                     _RunOpts(
-                        type_check=False,
                         force_codespace='native',
                         force_target_program=True
                     )

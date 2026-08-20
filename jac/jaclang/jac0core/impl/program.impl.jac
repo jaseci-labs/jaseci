@@ -27,8 +27,6 @@ impl JacProgram.init(
 
     self._track_dependencies: bool = False;
 
-    self._inferred_mods: set = set();
-
     self._analyses_run: dict = {};
 
     self._placement_summaries: dict = {};
@@ -209,11 +207,7 @@ impl JacProgram.load_dependency_module(
             mod.stub_only = True;
         } else {
             mod = self.compile(
-                source_path,
-                use_str=use_str,
-                no_cgen=True,
-                type_check=False,
-                symtab_ir_only=True
+                source_path, use_str=use_str, no_cgen=True, symtab_ir_only=True
             );
         }
         target_hub[resolved_path] = mod;
@@ -383,14 +377,12 @@ impl JacProgram.compile(
     file_path: str,
     use_str: (str | None) = None,
     no_cgen: bool = False,
-    type_check: bool = False,
     symtab_ir_only: bool = False,
     cancel_token: (Event | None) = None,
     options: (CompileOptions | None) = None
 ) -> uni.Module {
     if (options is None) {
         options = CompileOptions(
-            type_check=type_check,
             symtab_ir_only=symtab_ir_only,
             no_cgen=no_cgen,
             cancel_token=cancel_token
@@ -410,12 +402,9 @@ impl JacProgram.compile(
 }
 
 impl JacProgram.build(
-    self: JacProgram,
-    file_path: str,
-    use_str: (str | None) = None,
-    type_check: bool = False
+    self: JacProgram, file_path: str, use_str: (str | None) = None
 ) -> uni.Module {
-    return self._get_compiler().build(file_path, self, use_str, type_check=type_check);
+    return self._get_compiler().build(file_path, self, use_str);
 }
 
 impl JacProgram.run_schedule(

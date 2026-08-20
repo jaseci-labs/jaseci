@@ -1081,7 +1081,6 @@ def _compile_osp_kernel_ir(
 
     kernel_opts = _KernelOpts(
         aot_mode=True,
-        type_check=False,
         default_codespace='native',
         na_gc_mode=gc_mode,
         nogc_enforce_all=enforce,
@@ -1188,7 +1187,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
     import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
 
     kernel_opts = _KernelOpts(
-        aot_mode=True, type_check=False, default_codespace='native', na_gc_mode='cycles'
+        aot_mode=True, default_codespace='native', na_gc_mode='cycles'
     );
     cache_key = kernel_opts.codegen_fingerprint();
     if cache_key in _FMT_KERNEL_IR_CACHE {

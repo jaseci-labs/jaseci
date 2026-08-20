@@ -94,7 +94,7 @@ def _module_is_client_source(source_path: Path) -> bool {
     try {
         mod = JacProgramRt().compile(
             str(source_path),
-            options=CompileOptions(symtab_ir_only=True, type_check=False)
+            options=CompileOptions(symtab_ir_only=True)
         );
         return mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=str(source_path));

@@ -160,7 +160,7 @@ impl Workspace.set_cwd(new_dir: str) {
 
     if self.ci is not None and new_root != prev_root {
         try {
-            new_ci = CodeIntelligence(proj_dir=new_root, lazy=True);
+            new_ci = CodeIntelligence(proj_dir=new_root);
             new_ci.on_event = self.ci.on_event;
             self.ci = new_ci;
             self.ci_dirty = False;
@@ -2288,7 +2288,7 @@ impl ui_configure -> None {
         n_ctx = int(os.environ.get("JAC_AI_UI_NCTX") or "0");
     } except Exception { }
 
-    agent.ws.ci = CodeIntelligence(proj_dir=agent.ws.cwd, lazy=True);
+    agent.ws.ci = CodeIntelligence(proj_dir=agent.ws.cwd);
     reset_session();
 
     agent.cfg.n_ctx = n_ctx;

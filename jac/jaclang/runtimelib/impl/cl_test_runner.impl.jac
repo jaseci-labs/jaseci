@@ -553,7 +553,7 @@ impl module_is_client(filepath: str) -> bool {
     result = False;
     try {
         mod = JacProgram().compile(
-            path, options=CompileOptions(symtab_ir_only=True, type_check=False)
+            path, options=CompileOptions(symtab_ir_only=True)
         );
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);

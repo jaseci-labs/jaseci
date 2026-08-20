@@ -127,7 +127,6 @@ impl check(
                 prog.compile(
                     file_path=file_path,
                     options=CompileOptions(
-                        type_check=True,
                         no_cgen=not native_census,
                         force_target_program=True,
                         suppress_codes=suppressed_codes
