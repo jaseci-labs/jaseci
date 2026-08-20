@@ -7447,6 +7447,9 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
 }
 
 impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -> None {
+    if not self.client_manifest.has_client {
+        return;
+    }
     allowed = client_ambient_globals() | RUNTIME_PRELUDE_GLOBALS;
     frees = free_identifiers(program, allowed);
     if not frees {
