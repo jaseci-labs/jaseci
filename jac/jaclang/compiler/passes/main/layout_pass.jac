@@ -444,7 +444,6 @@ obj LayoutPass(Transform) {
         _building: set[str] postinit,
         _base_aids: set[str] postinit,
         _closure_archs: dict[str, Archetype] postinit,
-        _dispatch_aids: set[str] postinit,
         _registered: list[str] postinit;
 
     def postinit -> None;
@@ -453,7 +452,6 @@ obj LayoutPass(Transform) {
     def _collect_isinstance_targets(module: Module) -> None;
     def _class_type_of(arch: Archetype) -> any;
     def _lays_out(arch: Archetype) -> bool;
-    def _method_names(arch: Archetype) -> set[str];
     def _base_archetypes(arch: Archetype) -> list[Archetype];
     def _discover_closure(arch_map: dict[str, Archetype]) -> None;
     def _ancestor_archetypes(arch: Archetype) -> list[Archetype];

@@ -8,7 +8,6 @@ impl LayoutPass.postinit -> None {
     self._building = set();
     self._base_aids = set();
     self._closure_archs = {};
-    self._dispatch_aids = set();
     self._registered = [];
     super.postinit();
 }
@@ -162,20 +161,6 @@ impl LayoutPass._lays_out(arch: Archetype) -> bool {
     return True;
 }
 
-impl LayoutPass._method_names(arch: Archetype) -> set[str] {
-    """Every method and accessor slot this declaration spells.""";
-    out: set[str] = set();
-    for method in arch.get_methods() {
-        mn = method.name_ref.sym_name if method.name_ref else None;
-        if mn is not None {
-            out.add(mn);
-        }
-    }
-    for (slot_name, _var, _acc) in archetype_accessors(arch) {
-        out.add(slot_name);
-    }
-    return out;
-}
 
 impl LayoutPass._base_archetypes(arch: Archetype) -> list[Archetype] {
     """`arch`'s DIRECT bases as their own declarations.
@@ -223,14 +208,9 @@ impl LayoutPass._discover_closure(arch_map: dict[str, Archetype]) -> None {
         }
         seen.add(aid);
         self._closure_archs[aid] = arch;
-        own_names = self._method_names(arch);
         for anc in self._ancestor_archetypes(arch) {
             anc_aid = archetype_id(anc);
             self._base_aids.add(anc_aid);
-
-            if not own_names.isdisjoint(self._method_names(anc)) {
-                self._dispatch_aids.add(anc_aid);
-            }
             stack.append(anc);
         }
         for base in self._base_archetypes(arch) {
