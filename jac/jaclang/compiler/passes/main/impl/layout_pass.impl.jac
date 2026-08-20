@@ -114,13 +114,7 @@ impl LayoutPass._ancestor_archetypes(arch: Archetype) -> list[Archetype] {
             return out;
         }
     }
-    # A linearization can come back with the class and nothing else even
-    # though the declaration names bases: the type system answers on demand,
-    # and a module reached as somebody's dependency can be asked before its
-    # bases resolve. `[Transform]` is a non-empty MRO carrying no ancestors,
-    # so testing the MRO for emptiness is not the same as testing whether it
-    # ANSWERED -- and taking it at its word cost a class every field it
-    # inherits, which is silent until a method touching one fails to lower.
+
     return self._base_archetypes(arch);
 }
 
@@ -132,36 +126,6 @@ impl LayoutPass._ensure_layout(arch: Archetype) -> (str | None) {
     built once, whichever descendant reaches it first.
     """;
     aid = archetype_id(arch);
-    import os as _dbg_os;
-    _dbg_want = _dbg_os.environ.get("JAC_LAYOUT_DEBUG", "");
-    _dbg_nm = arch.name.value if arch.name else "";
-    if _dbg_want and _dbg_nm in _dbg_want.split(",") {
-        import sys as _dbg_sys;
-        _dbg_cls = self._class_type_of(arch);
-        _dbg_shared = _dbg_cls.shared if _dbg_cls is not None else None;
-        _dbg_mro = list(_dbg_shared.mro) if (
-            _dbg_shared is not None and _dbg_shared.mro
-        ) else [];
-        _dbg_anc = [
-            (a.name.value if a.name else "?")
-            for a in self._ancestor_archetypes(arch)
-        ];
-        _dbg_base = [
-            (b.name.value if b.name else "?")
-            for b in self._base_archetypes(arch)
-        ];
-        _dbg_bexpr = [
-            str(base_expr_name(b)) for b in (arch.base_classes or [])
-        ];
-        _dbg_sys.stderr.write(
-            f"LAYOUT_DEBUG {aid}\n"
-            f"   cached={aid in self.registry.layouts}\n"
-            f"   class_type={_dbg_cls is not None} mro_len={len(_dbg_mro)}\n"
-            f"   base_exprs={_dbg_bexpr}\n"
-            f"   ancestors={_dbg_anc}\n"
-            f"   base_archs={_dbg_base}\n"
-        );
-    }
     if aid in self.registry.layouts {
         return aid;
     }

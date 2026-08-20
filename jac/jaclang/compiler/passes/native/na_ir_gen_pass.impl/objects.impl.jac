@@ -423,22 +423,6 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     if layout is None {
         return;
     }
-    import os as _sdbg_os;
-    _sdbg_want = _sdbg_os.environ.get("JAC_STRUCT_DEBUG", "");
-    if _sdbg_want and arch_name in _sdbg_want.split(",") {
-        import sys as _sdbg_sys;
-        _sdbg_sys.stderr.write(f"STRUCT_DEBUG {arch_name} in {self.ir_in.loc.mod_path}\n");
-        for _sf in layout.fields {
-            _sv = _sf.decl_node;
-            _sdbg_sys.stderr.write(
-                f"   {_sf.name}@{_sf.index} tag={_sf.type_tag!r} "
-                f"decl={_sv is not None} "
-                f"tt={(_sv.type_tag is not None) if _sv is not None else False} "
-                f"own={_sf.owner}\n"
-            );
-        }
-    }
-
     field_types: list[ir.Type] = [];
     field_index_map: dict[(str, int)] = {};
     field_type_map: dict[(str, ir.Type)] = {};

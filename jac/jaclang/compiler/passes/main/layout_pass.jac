@@ -182,7 +182,6 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
 }
 
 
-
 def layout_slot_count(lay: ArchetypeLayout) -> int {
     top = 0;
     for slot in [lay.vtable_ptr_slot, lay.type_tag_slot, lay.reports_slot] {
@@ -224,7 +223,7 @@ def archetype_id(arch: Archetype) -> str {
 }
 
 def base_expr_name(base_expr: UniNode) -> (str | None) {
-    """The bare name a base expression spells, or None."""; 
+    """The bare name a base expression spells, or None.""";
     if isinstance(base_expr, Name) {
         return base_expr.value;
     }
