@@ -567,16 +567,6 @@ class IRBuilder(object) {
     }
 
     """
-        Switch on *value*, jumping to *default_bb* unless a case added via
-        `add_case` matches.
-        """
-    def `switch(self: IRBuilder, value: any, default_bb: any) -> object {
-        swt = instructions.SwitchInstr(self.block, "switch", value, default_bb);
-        self._set_terminator(swt);
-        return swt;
-    }
-
-    """
         Conditional branch to *truebr* if *cond* is true, else to *falsebr*.
         """
     def cbranch(self: IRBuilder, cond: any, truebr: any, falsebr: any) -> object {
