@@ -32,10 +32,10 @@ impl TypeEvaluator._get_type_of_super(node_: SpecialVarRef) -> TypeBase {
         if isinstance(cls, Archetype) {
             current_class_type = self.get_type_of_class(cls);
 
-            if len(current_class_type.shared.mro) > 1 {
-                parent_class_type = current_class_type.shared.mro[1];
+            rest = current_class_type.shared.mro[1:];
+            if rest {
                 node_.sym = lookup_symtab(method, node_.value, self.builtins_module);
-                node_.type = parent_class_type.clone_as_instance();
+                node_.type = self._super_owner_for(node_, rest).clone_as_instance();
                 return node_.type;
             }
         }
@@ -612,4 +612,31 @@ impl TypeEvaluator.get_none_type -> TypeBase {
         return self.prefetch.none_type_class;
     }
     return UnknownType();
+}
+
+
+impl TypeEvaluator._super_owner_for(
+    node_: SpecialVarRef, rest: list[ClassType]
+) -> ClassType {
+    parent = node_.parent;
+    member_name: str | None = None;
+    if isinstance(parent, AtomTrailer) and isinstance(parent.right, Name) {
+        member_name = parent.right.value;
+    }
+    if member_name is None {
+        return rest[0];
+    }
+    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
+    lookup_names = [member_name];
+    if member_name == "init" {
+        lookup_names.append("__init__");
+    }
+    for candidate in rest {
+        for nm in lookup_names {
+            if collect_member_syms(candidate.shared.symbol_table, nm) {
+                return candidate;
+            }
+        }
+    }
+    return rest[0];
 }

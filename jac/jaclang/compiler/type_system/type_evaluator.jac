@@ -520,6 +520,7 @@ obj TypeEvaluator {
     def _get_enclosing_class(nd: UniNode) -> Archetype | None;
     def _get_type_of_self(node_: SpecialVarRef) -> TypeBase;
     def _get_type_of_super(node_: SpecialVarRef) -> TypeBase;
+    def _super_owner_for(node_: SpecialVarRef, rest: list[ClassType]) -> ClassType;
     def _get_type_of_root(node_: SpecialVarRef) -> TypeBase;
     def _get_type_of_lhs_assignment(expr: Name) -> TypeBase | None;
     def _extract_tuple_element_type(tuple_type: TypeBase, idx: int) -> TypeBase | None;
