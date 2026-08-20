@@ -390,7 +390,7 @@ impl LanguageServer.start_io -> None {
                 self.workspace.remove_text_document(typed_params.text_document.uri);
             }
 
-            handler: (Callable[[any, any], any] | None) = self._features.get(method);
+            handler = self._features.get(method);
             if handler is None {
                 if msg_id is not None {
                     self._send_response(msg_id, None);

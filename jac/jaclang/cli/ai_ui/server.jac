@@ -177,7 +177,7 @@ obj CallDetail {
 }
 
 """Map a raw bus snapshot dict into a typed PollResult for the client."""
-def _to_poll(snap: dict) -> PollResult {
+def _to_poll(snap: dict[str, any]) -> PollResult {
     evs: list[UiEvent] = [];
     for e in snap.get("events", []) {
         evs.append(
@@ -212,7 +212,7 @@ def _to_poll(snap: dict) -> PollResult {
         health_loaded=bool(s.get("health_loaded", False)),
         has_run=bool(s.get("has_run", False))
     );
-    led = snap.get("ledger", {}) or {};
+    led: dict[str, any] = snap.get("ledger", {}) or {};
     changes: list[LedgerEntry] = [];
     for c in led.get("changes", []) {
         changes.append(
