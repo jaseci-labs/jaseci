@@ -2059,6 +2059,11 @@ impl TypeEvaluator._widen_literal_for_declaration(ty: TypeBase) -> TypeBase {
         if ty.is_literal_type() {
             return ty.clone_with_literal(None);
         }
+        if ty.is_builtin("LiteralString")
+            and self.prefetch is not None
+            and self.prefetch.str_class is not None {
+            return self._convert_to_instance(self.prefetch.str_class);
+        }
         if ty.private.type_args {
             widened_args = [
                 self._widen_literal_for_declaration(arg) for arg in ty.private.type_args
