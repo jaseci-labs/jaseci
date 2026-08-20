@@ -45,17 +45,6 @@ def check_pods_restarted(
     _skip_config_load: bool = False
 ) -> bool;
 
-def parse_cpu_quantity(quantity: str) -> float;
-
-def parse_memory_quantity(quantity: str) -> float;
-
-def validate_resource_limits(
-    cpu_request: (str | None),
-    cpu_limit: (str | None),
-    memory_request: (str | None),
-    memory_limit: (str | None)
-) -> None;
-
 def load_env_variables(code_folder: str) -> list;
 
 def create_k8s_secret(
