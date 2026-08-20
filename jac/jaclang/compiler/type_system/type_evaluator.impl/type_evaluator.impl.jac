@@ -3158,13 +3158,6 @@ impl TypeEvaluator.assign_type(
             }
         }
 
-        if isinstance(src_type, ClassType)
-            and src_type.is_class_instance()
-            and src_type.is_builtin("int")
-            and self._in_native_context() {
-            return True;
-        }
-
         if isinstance(src_type, ClassType) and src_type.is_instantiable_class() {
             for ctor in self.class_constructor_callables(src_type) {
                 if self._assign_callable(ctor, dest_type, strict) {
@@ -3184,12 +3177,6 @@ impl TypeEvaluator.assign_type(
             }
         }
 
-        if isinstance(dest_type, ClassType)
-            and dest_type.is_builtin("int")
-            and self._in_native_context()
-            and not self._distinct_brand_mismatch(src_type, dest_type) {
-            return True;
-        }
     }
 
     if self.is_any_type(dest_type) or self.is_any_type(src_type) {
