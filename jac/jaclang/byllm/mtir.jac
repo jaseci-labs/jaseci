@@ -22,7 +22,7 @@ obj MTIR {
     has caller: Callable,
         args: dict[(int | str, object)],
         call_params: dict[(str, object)],
-        ir_info: Info;
+        ir_info: (Info | None);
 
     has runtime: MTRuntime { getter; }
 }
@@ -35,7 +35,7 @@ obj MTRuntime {
         call_params: dict[(str, object)],
         mtir: MTIR | None = None,
         _scaffolding_ids: list[int] = [],
-        _conversation_list: object = None,
+        _conversation_list: (list | None) = None,
         _final_output: object = None,
         _has_final_output: bool = False,
         _stream_reset_count: int = 0,

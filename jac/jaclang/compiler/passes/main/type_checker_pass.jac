@@ -174,7 +174,9 @@ class TypeCheckPass(UniPass) {
         self: TypeCheckPass, nd: HasVar, declared_type: object
     ) -> None;
 
-    def _enclosing_walker_report_elem_type(self: TypeCheckPass, nd: UniNode) -> object;
+    def _enclosing_walker_report_elem_type(
+        self: TypeCheckPass, nd: UniNode
+    ) -> (TypeBase | None);
     def _check_event_trigger_archetype(self: TypeCheckPass, nd: Ability) -> None;
     def _check_unresolved_lambda_params(self: TypeCheckPass) -> None;
 }

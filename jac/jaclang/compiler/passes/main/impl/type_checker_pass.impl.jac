@@ -209,9 +209,15 @@ impl TypeCheckPass._check_intrinsic_call(self: TypeCheckPass, nd: FuncCall) -> N
 
     intrinsics = intrinsic_registry_if_ready();
     name = nd.target.sym_name if isinstance(nd.target, Name) else None;
-    intr = intrinsics.get(name)
-        if intrinsics is not None and name is not None
-        else None;
+    if intrinsics is None or name is None {
+        return;
+    }
+    import from jaclang.compiler.intrinsic_registry { IntrinsicRegistry }
+
+    if not isinstance(intrinsics, IntrinsicRegistry) {
+        return;
+    }
+    intr = intrinsics.get(name);
     if intr is None {
         return;
     }
@@ -260,6 +266,11 @@ impl TypeCheckPass._check_intrinsic_collision(
 
     intrinsics = intrinsic_registry_if_ready();
     if intrinsics is None {
+        return;
+    }
+    import from jaclang.compiler.intrinsic_registry { IntrinsicRegistry }
+
+    if not isinstance(intrinsics, IntrinsicRegistry) {
         return;
     }
     name = nd.name_ref.sym_name if nd.name_ref is not None else None;
@@ -439,7 +450,10 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                 if isinstance(target, AtomTrailer) {
                     chain = target.as_attr_list;
                     if len(chain) >= 2 {
-                        chain[-1].type = declared_inst;
+                        chain_last = chain[-1];
+                        if isinstance(chain_last, Expr) {
+                            chain_last.type = declared_inst;
+                        }
                     }
                 }
                 left_type = declared_inst;
@@ -461,7 +475,10 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                             target_sym
                         );
                         if prop_result.kind == PropertyWriteKind.WRITABLE {
-                            left_type = prop_result.write_type;
+                            write_type = prop_result.write_type;
+                            if write_type is not None {
+                                left_type = write_type;
+                            }
                         } elif prop_result.kind == PropertyWriteKind.READ_ONLY {
                             self.emit(
                                 E1005, node_override=target, name=target.right.value
@@ -526,7 +543,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
             } elif left_type.bound and isinstance(left_type.bound, ClassType) {
                 if op_name {
                     result = self.evaluator.get_type_of_magic_method_call(
-                        left_type.bound, op_name, [nd.value], nd
+                        left_type.bound, op_name, [nd.value], nd.value
                     );
                     if result is None {
                         self.emit(
@@ -571,21 +588,22 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
             }
         }
 
-        if nd.aug_op is not None {
+        aug_op = nd.aug_op;
+        if aug_op is not None {
             if (
                 not isinstance(left_type, UnknownType)
                 and not isinstance(right_type, UnknownType)
             ) {
-                aug_magic = AUG_OPERATOR_MAP.get(nd.aug_op.name);
+                aug_magic = AUG_OPERATOR_MAP.get(aug_op.name);
                 if aug_magic is not None {
                     result = self.evaluator.get_type_of_magic_method_call(
                         left_type, aug_magic, [nd.value], nd.value
                     );
                     if result is None {
-                        base_op = AUG_TO_BINARY_MAP.get(nd.aug_op.name);
+                        base_op = AUG_TO_BINARY_MAP.get(aug_op.name);
                         if base_op is not None {
                             if base_op in ARITHMETIC_OPERATORS {
-                                if nd.aug_op is not None and nd.aug_op.value == "**=" {
+                                if aug_op.value == "**=" {
                                     promoted = get_pow_result_type(
                                         self.evaluator, left_type, right_type, nd.value
                                     );
@@ -617,7 +635,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                             self.emit(
                                 E1011,
                                 node_override=nd,
-                                op=nd.aug_op.value,
+                                op=aug_op.value,
                                 left=str(left_type),
                                 right=str(right_type)
                             );
@@ -744,7 +762,10 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
 
         is_generator = len(nd.get_all_sub_nodes(YieldExpr)) > 0;
 
-        is_stub = self.evaluator._is_ellipsis_only_body(nd.body);
+        body_stmts: list[CodeBlockStmt] = [
+            stmt for stmt in nd.body if isinstance(stmt, CodeBlockStmt)
+        ];
+        is_stub = self.evaluator._is_ellipsis_only_body(body_stmts);
         if not is_overload and not is_generator and not is_stub {
             ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
             ret_inst = self.evaluator._convert_to_instance(ret_type);
@@ -752,7 +773,7 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
                 self.evaluator.get_none_type()
             );
             if not self.evaluator.assign_type(none_type, ret_inst) {
-                if not self._body_always_returns(nd.body) {
+                if not self._body_always_returns(body_stmts) {
                     self.emit(
                         E1004,
                         node_override=nd,
@@ -863,7 +884,7 @@ impl TypeCheckPass._check_event_trigger_archetype(
     }
 
     targets: list[Expr] = (
-        list(sig.arch_tag_info.values)
+        [v for v in sig.arch_tag_info.values if isinstance(v, Expr)]
             if (isinstance(sig.arch_tag_info, TupleVal) and sig.arch_tag_info.values)
             else collect_union_leaves(sig.arch_tag_info)
     );
@@ -1044,7 +1065,6 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self._prev_eval_pass = self.evaluator._pass;
     self.evaluator._pass = self;
     self._insert_builtin_symbols();
-    self.evaluator._narrowing_cache = {};
 }
 
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
@@ -1146,7 +1166,7 @@ impl TypeCheckPass._check_walker_reports_shape(
 
 impl TypeCheckPass._enclosing_walker_report_elem_type(
     self: TypeCheckPass, nd: UniNode
-) -> object {
+) -> (TypeBase | None) {
     arch = nd.find_parent_of_type(Archetype);
     if arch is None {
         impl_def = nd.find_parent_of_type(ImplDef);

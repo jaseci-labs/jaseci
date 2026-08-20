@@ -134,7 +134,11 @@ obj PrometheusMetricsCollector(MetricsCollector) {
     def record_request(
         method: str, path: str, status_code: int, duration_seconds: float
     ) -> None {
-        if not self._enabled {
+        if (
+            not self._enabled
+            or self._request_count is None
+            or self._request_latency is None
+        ) {
             return;
         }
         self._request_count.labels(

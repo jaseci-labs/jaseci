@@ -1,5 +1,8 @@
 impl _type_to_schema(
-    ty: type, title: str = "", desc: str = "", info: Info | None = None
+    ty: type,
+    title: str = "",
+    desc: str = "",
+    info: (Info | str | tuple | None) = None
 ) -> dict {
     title = title.replace("_", " ").title();
     context = ({"title": title} if title else {})
@@ -283,7 +286,7 @@ impl _type_to_schema(
     );
 }
 
-impl _name_of_type(ty: type, info: Info = None) -> str {
+impl _name_of_type(ty: type, info: (Info | str | tuple | None) = None) -> str {
     if get_origin(ty) in (Union, UnionType) {
         names = [_name_of_type(arg) for arg in get_args(ty)];
         return "_or_".join(names);
@@ -357,7 +360,9 @@ impl _unwrap_from_object(json_obj: dict) -> dict {
     return json_obj;
 }
 
-impl type_to_schema(resp_type: type, info: Info) -> dict[str, object] {
+impl type_to_schema(
+    resp_type: type, info: (Info | str | tuple | None) = None
+) -> dict[str, object] {
     type_name = _name_of_type(resp_type, info=info);
     schema = _type_to_schema(resp_type, type_name, info=info);
     schema = _wrap_to_object(schema);

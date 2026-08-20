@@ -714,11 +714,12 @@ impl format(
         try {
             import multiprocessing as mp;
             ctx = mp.get_context("fork") if os.name != "nt" else None;
-            with ProcessPoolExecutor(
+            pool: ProcessPoolExecutor = ProcessPoolExecutor(
                 max_workers=max_workers, mp_context=ctx
-            ) as executor {
+            );
+            with pool {
                 futures = {
-                    executor.submit(
+                    pool.submit(
                         _format_single_file_worker,
                         fp,
                         lintfix,
@@ -839,7 +840,8 @@ impl format(
                         console.error(f"Error writing to '{res['path']}': {e}");
                     }
                 }
-                for (impl_path, impl_code) in res['impl_results'] {
+                impl_pairs: list[tuple[str, str]] = res['impl_results'];
+                for (impl_path, impl_code) in impl_pairs {
                     try {
                         if to_screen {
                             console.print(impl_code, markup=False, highlight=False);
@@ -975,7 +977,11 @@ impl precommit(
         targets = list(paths);
     } else {
         config = get_config();
-        targets = [str(config.project_root)] if config?.project_root else ["."];
+        if config is not None and config.project_root {
+            targets = [str(config.project_root)];
+        } else {
+            targets = ["."];
+        }
     }
 
     fmt_targets = targets;
