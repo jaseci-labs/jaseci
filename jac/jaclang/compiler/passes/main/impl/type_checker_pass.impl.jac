@@ -591,8 +591,10 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
         aug_op = nd.aug_op;
         if aug_op is not None {
             if (
-                not isinstance(left_type, UnknownType)
-                and not isinstance(right_type, UnknownType)
+                not isinstance(left_type, (UnknownType, AnyType))
+                and not isinstance(right_type, (UnknownType, AnyType))
+                and not left_type.is_any_instance()
+                and not right_type.is_any_instance()
             ) {
                 aug_magic = AUG_OPERATOR_MAP.get(aug_op.name);
                 if aug_magic is not None {

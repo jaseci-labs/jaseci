@@ -12,6 +12,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from .types {
+    AnyType,
     ClassType,
     FunctionType,
     NeverType,
@@ -227,6 +228,12 @@ def get_type_of_binary_operation(
     if isinstance(expr.op, Token)
         and expr.op.name in BINARY_OPERATOR_MAP
         and expr.op.name != Tok.BW_OR {
+        for operand_type in (left_type, right_type) {
+            if isinstance(operand_type, (UnknownType, AnyType))
+                or operand_type.is_any_instance() {
+                return operand_type;
+            }
+        }
         if isinstance(left_type, TypeVarType) {
             (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
