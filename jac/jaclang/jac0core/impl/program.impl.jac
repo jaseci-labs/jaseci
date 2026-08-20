@@ -34,6 +34,8 @@ impl JacProgram.init(
     self._placement_summaries: dict = {};
 
     self._placement_state: dict = {};
+
+    self._boundary_parse_memo: dict = {};
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
@@ -286,14 +288,78 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
     self.type_evaluator = None;
     if clear_hub {
         self.mod.hub.clear();
-    } else {
-        for mod in self.mod.hub.values() {
-            for nd in mod.get_all_sub_nodes(uni.Expr) {
+        return;
+    }
+
+    # The sub-node table is keyed by concrete node type, so the abstract
+    # `Expr` key is never in it -- walk the tree instead (jac#8222).
+    for mod in self.mod.hub.values() {
+        stack: list[uni.UniNode] = [mod];
+        while stack {
+            nd = stack.pop();
+            if isinstance(nd, uni.Expr) {
                 nd.type = None;
                 nd.narrowed_type = None;
             }
+            for kid in nd.kid {
+                stack.append(kid);
+            }
         }
     }
+    self._inferred_mods.clear();
+}
+
+"""Drop the dependency units the native verdict resolver compiled.
+
+`_na_dep_units` memoizes a dependency's compiled module so the link step
+can reuse it inside the same compile. What it holds is a module tree plus
+a live LLVM `ModuleRef` (and, for a JIT unit, an `ExecutionEngine`) --
+native allocations no Python collector accounts for. The verdicts those
+units were compiled to produce live in the on-disk `ir_meta` cache, so
+once the compile that asked is over the units themselves are dead weight.
+"""
+impl JacProgram.release_native_dep_units(self: JacProgram) -> None {
+    for unit in self._na_dep_units.values() {
+        if isinstance(unit, str) {
+            continue;
+        }
+        try {
+            gen = unit.gen;
+        } except Exception {
+            continue;
+        }
+        gen.native_engine = None;
+        gen.llvm_ir = None;
+        gen.native_bitcode = None;
+    }
+    self._na_dep_units.clear();
+    self._na_unverified_live.clear();
+    self._na_verdict_resolving.clear();
+}
+
+"""Drop the per-compile memos the type evaluator accumulated.
+
+Every cache cleared here is keyed by `id()` of a node the compile just
+finished with. Kept, they grow with every module a process ever checks,
+and a reused id() hands a new node an old node's narrowing. The types
+themselves stay on the tree: hover, semantic tokens and the client
+codegen all read `Expr.type` long after the compile returned.
+"""
+impl JacProgram.release_check_caches(self: JacProgram) -> None {
+    ev = self.type_evaluator;
+    if ev is None {
+        return;
+    }
+    ev._flow_node_type_cache.clear();
+    ev._flow_key_type_cache.clear();
+    ev._flow_pending_symbols.clear();
+    ev._flow_pending_keys.clear();
+    ev._and_narrowing_overrides.clear();
+    ev._strict_site_cache.clear();
+    ev._sv_async_syms_cache.clear();
+    ev._loop_written_keys_cache.clear();
+    ev._ts_synth_class_cache.clear();
+    ev._type_guard_probes.clear();
 }
 
 impl JacProgram.release_compile_closure(
@@ -341,6 +407,19 @@ impl JacProgram.find_module(self: JacProgram, path: str) -> (uni.Module | None) 
     for hub in hubs {
         if path in hub {
             return hub[path];
+        }
+    }
+
+    try {
+        keyed = JacProgram.hub_key(path);
+    } except OSError {
+        keyed = path;
+    }
+    if keyed != path {
+        for hub in hubs {
+            if keyed in hub {
+                return hub[keyed];
+            }
         }
     }
 

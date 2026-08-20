@@ -791,6 +791,12 @@ impl JacCompiler.parse_str(
     if target_program.mod.main.stub_only {
         old_hub = target_program.mod.hub;
         target_program.mod = uni.ProgramModule(main_mod=mod);
+
+        # ProgramModule seeds its hub with the main module's raw `loc.mod_path`.
+        # Keys here are hub_key-normalized (symlinks resolved), so the raw
+        # spelling would be a second key for a module the hub already holds,
+        # and the next lookup that normalizes would miss and re-parse.
+        target_program.mod.hub.clear();
         target_program.mod.hub.update(old_hub);
     }
     target_program.mod.hub[hub_key] = mod;
@@ -958,28 +964,129 @@ impl JacCompiler.stamp_boundary_facts(
     }
 
     def parse_only_module(file_path: str) -> (uni.Module | None) {
+        memo = target_program._boundary_parse_memo;
+        try {
+            key = JacProgram.hub_key(file_path);
+            stamp = os.path.getmtime(file_path);
+        } except OSError {
+            return None;
+        }
+        cached = memo.get(key);
+        if cached is not None and cached[0] == stamp {
+            return cached[1];
+        }
         try {
             src_text = read_file_with_encoding(file_path);
-            return JacCompiler().parse_str(
+            parsed = JacCompiler().parse_str(
                 source_str=src_text, file_path=file_path, target_program=JacProgram()
             );
         } except Exception {
             return None;
         }
+        memo[key] = (stamp, parsed);
+        return parsed;
     }
 
     def source_mod_for(resolved_path: (str | None)) -> (uni.Module | None) {
         if resolved_path is None {
             return None;
         }
-        found: (uni.Module | None) = None;
-        if (target_program.mod and target_program.mod.hub) {
-            found = target_program.mod.hub.get(resolved_path);
-        }
+        found = target_program.find_module(resolved_path);
         if (found is None and os.path.isfile(resolved_path)) {
             found = parse_only_module(resolved_path);
         }
         return found;
+    }
+
+    def collect_abilities(nd: uni.UniNode, out: dict[(str, uni.Ability)]) -> None {
+        if isinstance(nd, uni.Ability) and nd.sym_name {
+            out[nd.sym_name] = nd;
+        }
+        for k in nd.kid {
+            collect_abilities(k, out);
+        }
+    }
+
+    def collect_pub_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) -> None {
+        if isinstance(nd, uni.Archetype) and nd.sym_name {
+            if nd.arch_kind == 'walker' and bool(nd.public_access) {
+                out[nd.sym_name] = nd;
+            }
+        }
+        for k in nd.kid {
+            collect_pub_walkers(k, out);
+        }
+    }
+
+    def imported_names(imp: uni.Import) -> set[str] {
+        names: set[str] = set();
+        for item in imp.items {
+            if isinstance(item, uni.ModuleItem) {
+                names.add(item.name.value);
+            }
+        }
+        return names;
+    }
+
+    def stamp_sv_decls(imp: uni.Import, facts: uni.ImportBoundaryFacts) -> None {
+        wanted = imported_names(imp);
+        if not wanted {
+            return;
+        }
+        src = source_mod_for(facts.from_loc_resolved);
+        if src is None {
+            return;
+        }
+        abilities: dict[(str, uni.Ability)] = {};
+        walkers: dict[(str, uni.Archetype)] = {};
+        try {
+            collect_abilities(src, abilities);
+        } except Exception { }
+        try {
+            collect_pub_walkers(src, walkers);
+        } except Exception { }
+        for name in wanted {
+            wk_decl = walkers.get(name);
+            if wk_decl is not None {
+                facts.sv_walkers[name] = wk_decl;
+                continue;
+            }
+            ab_decl = abilities.get(name);
+            if ab_decl is not None {
+                facts.sv_abilities[name] = ab_decl;
+            }
+        }
+    }
+
+    def stamp_na_decls(imp: uni.Import, facts: uni.ImportBoundaryFacts) -> None {
+        wanted = imported_names(imp);
+        if not wanted {
+            return;
+        }
+        src = source_mod_for(facts.from_loc_resolved);
+        if src is None {
+            return;
+        }
+        for decl in src.body {
+            if not isinstance(decl, (uni.Ability, uni.Archetype, uni.Enum)) {
+                continue;
+            }
+            name = decl.sym_name;
+            if (
+                not name
+                or name not in wanted
+                or name in facts.na_target_decls
+                or name in facts.na_unmappable_targets
+            ) {
+                continue;
+            }
+            if isinstance(decl, uni.Ability)
+                and isinstance(decl.signature, uni.FuncSignature) {
+                facts.na_target_decls[name] = decl;
+            } else {
+                facts.na_unmappable_targets.append(name);
+            }
+        }
     }
 
     for nd in mod.get_all_sub_nodes(uni.Import) {
@@ -1024,10 +1131,10 @@ impl JacCompiler.stamp_boundary_facts(
                     (facts.is_service and not facts.native_from_path)
                     or (nd.items and not facts.is_service and facts.pinned_server)
                 ) {
-                    facts.sv_source_mod = source_mod_for(facts.from_loc_resolved);
+                    stamp_sv_decls(nd, facts);
                 }
                 if (cl_na_edge and nd.items) {
-                    facts.na_source_mod = source_mod_for(facts.from_loc_resolved);
+                    stamp_na_decls(nd, facts);
                 }
                 if (
                     nd.items
@@ -1211,7 +1318,22 @@ impl JacCompiler.compile(
         if _depth_prev == 0 {
             import from jaclang.jac0core.prefix_flip { emit_prefix_summary }
             emit_prefix_summary();
+            self._release_compile_scratch(target_program);
         }
+    }
+}
+
+impl JacCompiler._release_compile_scratch(target_program: JacProgram) -> None {
+    progs: list[JacProgram] = [target_program];
+    if (self._internal_program is not None
+        and self._internal_program is not target_program) {
+        progs.append(self._internal_program);
+    }
+    for prog in progs {
+        try {
+            prog.release_native_dep_units();
+            prog.release_check_caches();
+        } except Exception { }
     }
 }
 
