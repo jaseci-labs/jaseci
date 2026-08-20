@@ -621,6 +621,30 @@ jobs:
       - name: P1 corpus density ratchet (committed lift output)
         run: jac test jac-py/tests/test_p1_corpus_density.jac
 
+      - name: T8 acceptance validation unit tests
+        run: python3 -m unittest jac-py/tools/test_t8_accept.py
+
+      - name: P2 c2jac corpus lift + Tier-B density gate
+        run: python3 -m unittest jac-py/tools/test_p2_corpus_gate.py
+
+      - name: P2 module differential oracles
+        run: jac test jac-py/tests/test_p2_module_oracles.jac
+
+      - name: P2 staged vs lifted drift gate
+        run: jac test jac-py/tests/test_p2_staged_sync.jac
+
+      - name: P2 conformance harness (T6 skeleton)
+        run: jac test jac-py/tests/run_conformance.jac
+
+      - name: P2 libtest partial (bisect/heapq/platform)
+        run: jac test jac-py/tests/test_p2_libtest_partial.jac
+
+      - name: P2 conformance manifest gate
+        run: python3 -m unittest jac-py/tools/p2_conformance_gate.py
+
+      - name: P2 corpus density ratchet (committed lift output)
+        run: jac test jac-py/tests/test_p2_corpus_density.jac
+
   test-solid-and-desktop:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.desktop == 'true' }}

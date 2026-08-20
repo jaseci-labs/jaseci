@@ -80,6 +80,12 @@ reference/
 *.c2jac.report.json
 !jac-py/tools/p1_corpus/baseline/project.c2jac.report.json
 !jac-py/Modules/_lifted/p1_corpus_slice1b/project.c2jac.report.json
+!jac-py/tools/p2_corpus/baseline/project.c2jac.report.json
+!jac-py/Modules/_lifted/p2_corpus_wave1/project.c2jac.report.json
+!jac-py/Modules/_lifted/p2_corpus_wave1/*.jac
+
+# P2 corpus lift staging (ephemeral copies of manifest sources)
+jac-py/tools/p2_corpus/_staging/
 
 # Agent / IDE working notes (not repo artifacts)
 AGENTS.md

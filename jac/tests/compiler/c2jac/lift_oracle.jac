@@ -17,6 +17,7 @@ import shutil;
 import subprocess;
 import sys;
 import tempfile;
+import unittest;
 import from tests.support { JAC_ROOT }
 import from jaclang.compiler.cfront.lift { lift_c_file }
 
@@ -29,6 +30,21 @@ glob FIXTURES: str = os.path.join(
 
 def cc -> (str | None) {
     return shutil.which("cc") or shutil.which("gcc") or shutil.which("clang");
+}
+
+
+def require_cc -> str {
+    # Missing cc must never look like a green pass: fail on CI, skip elsewhere.
+    compiler = cc();
+    if compiler is not None {
+        return compiler;
+    }
+    if os.environ.get("CI") {
+        raise AssertionError(
+            "no C compiler (cc/gcc/clang) on PATH; lift oracle cannot run on CI"
+        );
+    }
+    raise unittest.SkipTest("no C compiler (cc/gcc/clang) on PATH");
 }
 
 
@@ -194,19 +210,29 @@ def run_lifted_trap(
 }
 
 
+def _c_sources(c_path: str, extra_sources: list[str] | None = None) -> list[str] {
+    sources = [c_path];
+    if extra_sources {
+        for src in extra_sources {
+            sources.append(src);
+        }
+    }
+    return sources;
+}
+
+
 def assert_lift_matches_c(
     c_path: str,
     c_driver: str,
     jac_entry: str,
     include_dirs: list[str] | None = None,
+    extra_sources: list[str] | None = None,
     timeout: float = DEFAULT_TIMEOUT
 ) {
     # MATCH-only helper (minilib / arr_sum). Hang or trap fails the assertion.
-    if cc() is None {
-        return;
-    }
+    require_cc();
     incs = include_dirs or [os.path.dirname(c_path)];
-    c_out = run_c([c_path], incs, c_driver, timeout=timeout);
+    c_out = run_c(_c_sources(c_path, extra_sources), incs, c_driver, timeout=timeout);
     assert c_out != HANG , f"{c_path}: C hung under timeout={timeout}";
     jac_src = lift_to_jac(c_path, include_dirs=include_dirs);
     (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, c_path, timeout=timeout);
@@ -219,12 +245,41 @@ def assert_lift_matches_c(
 }
 
 
+def assert_staged_jac_matches_c(
+    c_path: str,
+    jac_path: str,
+    c_driver: str,
+    jac_entry: str,
+    include_dirs: list[str] | None = None,
+    extra_sources: list[str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT
+) {
+    # MATCH-only helper for hand-staged modules: reads committed .jac instead of
+    # re-lifting from .c. Same cc vs jac run comparison as assert_lift_matches_c.
+    require_cc();
+    incs = include_dirs or [os.path.dirname(c_path)];
+    c_out = run_c(_c_sources(c_path, extra_sources), incs, c_driver, timeout=timeout);
+    assert c_out != HANG , f"{c_path}: C hung under timeout={timeout}";
+    with open(jac_path) as f {
+        jac_src = f.read();
+    }
+    (j_out, rc, out, err) = run_lifted(jac_src, jac_entry, jac_path, timeout=timeout);
+    assert j_out != HANG , f"{jac_path}: staged Jac hung under timeout={timeout}";
+    assert rc == 0 , (
+        f"{jac_path}: staged Jac failed (rc={rc}):\nstdout:\n{out}\nstderr:\n{err}"
+    );
+    assert j_out , f"{jac_path}: no int line in jac stdout:\n{out}";
+    assert c_out == j_out , f"oracle mismatch: cc={c_out!r} jac={j_out!r}";
+}
+
+
 def assert_lift_matches_c_or_traps(
     c_path: str,
     c_driver: str,
     jac_entry: str,
     entry_fn: str,
     include_dirs: list[str] | None = None,
+    extra_sources: list[str] | None = None,
     timeout: float = DEFAULT_TIMEOUT
 ) -> tuple[str, str] {
     # Auto-derive MATCH vs TRAP from whether `entry_fn` is quarantined.
@@ -245,7 +300,7 @@ def assert_lift_matches_c_or_traps(
     expect_trap = entry_fn in res.quarantined_functions;
 
     try {
-        c_out = run_c([c_path], incs, c_driver, timeout=timeout);
+        c_out = run_c(_c_sources(c_path, extra_sources), incs, c_driver, timeout=timeout);
     } except Exception as e {
         return ("mismatch", f"C side failed: {e}");
     }

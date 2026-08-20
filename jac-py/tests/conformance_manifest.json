@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "wave": "p2_wave1",
+  "description": "P2 proving wave conformance manifest (T6 skeleton)",
+  "module_count": 10,
+  "modules": [
+    {
+      "stem": "mysnprintf",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "No Python stdlib equivalent; cc vs staged jac oracle (PyOS_vsnprintf)."
+    },
+    {
+      "stem": "pystrcmp",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "No Python stdlib equivalent; cc vs lifted jac oracle."
+    },
+    {
+      "stem": "rotatingtree",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_rotatingtree_oracle.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "No Python stdlib equivalent; cc vs lifted jac oracle."
+    },
+    {
+      "stem": "getbuildinfo",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "Build-info internals; cc vs staged jac oracle (hand-edited empty-string semantics)."
+    },
+    {
+      "stem": "_bisectmodule",
+      "gate_type": "libtest",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [
+        "bisect_precomputed",
+        "bisect_insort"
+      ],
+      "notes": "Algorithm parity via bisect stdlib; C port oracle-gated separately.",
+      "libtest": {
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "cases": [
+          {
+            "name": "bisect_precomputed",
+            "passed": true,
+            "detail": "ok"
+          },
+          {
+            "name": "bisect_insort",
+            "passed": true,
+            "detail": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "stem": "_heapqmodule",
+      "gate_type": "libtest",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [
+        "heapq_push_pop",
+        "heapq_heapify"
+      ],
+      "notes": "Algorithm parity via heapq stdlib; C port oracle-gated separately.",
+      "libtest": {
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "cases": [
+          {
+            "name": "heapq_push_pop",
+            "passed": true,
+            "detail": "ok"
+          },
+          {
+            "name": "heapq_heapify",
+            "passed": true,
+            "detail": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "stem": "getplatform",
+      "gate_type": "libtest",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [
+        "platform_basic"
+      ],
+      "notes": "Partial Lib/test via platform module; Py_GetPlatform oracle-gated separately.",
+      "libtest": {
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "cases": [
+          {
+            "name": "platform_basic",
+            "passed": true,
+            "detail": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "stem": "getcompiler",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "No Python stdlib equivalent; cc vs lifted jac oracle."
+    },
+    {
+      "stem": "getcopyright",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "No Python stdlib equivalent; cc vs lifted jac oracle."
+    },
+    {
+      "stem": "pyfpe",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_p2_module_oracles.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "Legacy FPE hook; cc vs lifted jac oracle."
+    }
+  ],
+  "libtest_results": {
+    "_bisectmodule": {
+      "passed": 2,
+      "failed": 0,
+      "total": 2,
+      "cases": [
+        {
+          "name": "bisect_precomputed",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "name": "bisect_insort",
+          "passed": true,
+          "detail": "ok"
+        }
+      ]
+    },
+    "_heapqmodule": {
+      "passed": 2,
+      "failed": 0,
+      "total": 2,
+      "cases": [
+        {
+          "name": "heapq_push_pop",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "name": "heapq_heapify",
+          "passed": true,
+          "detail": "ok"
+        }
+      ]
+    },
+    "getplatform": {
+      "passed": 1,
+      "failed": 0,
+      "total": 1,
+      "cases": [
+        {
+          "name": "platform_basic",
+          "passed": true,
+          "detail": "ok"
+        }
+      ]
+    }
+  }
+}

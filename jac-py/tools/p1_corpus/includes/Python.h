@@ -8,12 +8,16 @@ typedef struct _typeobject PyTypeObject;
 typedef struct _listobject PyListObject;
 
 typedef PyObject *(*unaryfunc)(PyObject *);
-typedef int (*richcmpfunc)(PyObject *, PyObject *, int);
+typedef PyObject *(*richcmpfunc)(PyObject *, PyObject *, int);
 typedef PyObject *(*ssizeargfunc)(PyObject *, Py_ssize_t);
 
 typedef struct {
     ssizeargfunc sq_item;
 } PySequenceMethods;
+
+struct _object {
+    PyTypeObject *ob_type;
+};
 
 struct _typeobject {
     const char *tp_name;
@@ -25,10 +29,6 @@ struct _listobject {
     PyObject ob_base;
     Py_ssize_t ob_size;
     PyObject **ob_item;
-};
-
-struct _object {
-    PyTypeObject *ob_type;
 };
 
 #define PyObject_HEAD PyObject ob_base;
@@ -46,6 +46,9 @@ extern PyObject *PyExc_RuntimeError;
 extern PyObject *PyExc_ValueError;
 extern PyObject *PyExc_TypeError;
 extern PyObject *Py_None;
+extern PyObject *Py_True;
+extern PyObject *Py_False;
+extern PyObject *Py_NotImplemented;
 
 void Py_INCREF(PyObject *o);
 void Py_DECREF(PyObject *o);
