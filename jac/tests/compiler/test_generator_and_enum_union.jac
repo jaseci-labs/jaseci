@@ -59,3 +59,27 @@ test "value resolves on a union of enum members" {
     errs = check_src(src);
     assert not errs , f"enum union lost .value: {errs}";
 }
+
+test "any member resolves on a union of enum members" {
+    src = "import enum;\n"
+        + "class Color(enum.Enum) {\n"
+        + "    RED = 1;\n"
+        + "    GREEN = 2;\n"
+        + "}\n"
+        + "def probe(x: str) -> int {\n"
+        + "    c: (Color | None) = None;\n"
+        + "    if x == 'a' {\n"
+        + "        c = Color.RED;\n"
+        + "    } elif x == 'b' {\n"
+        + "        c = Color.GREEN;\n"
+        + "    }\n"
+        + "    if c is not None {\n"
+        + "        sibling = c.RED;\n"
+        + "        assert sibling is not None and c.name is not None;\n"
+        + "        return c.value;\n"
+        + "    }\n"
+        + "    return 0;\n"
+        + "}\n";
+    errs = check_src(src);
+    assert not errs , f"enum union lost a member: {errs}";
+}

@@ -1096,17 +1096,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                             continue;
                         }
                         if isinstance(union_member, EnumMemberType) {
-                            enum_attr = expr.right.value;
-                            if enum_attr in ('name', '_name_') {
-                                member_types.append(
-                                    self._convert_to_instance(self.prefetch.str_class)
-                                );
-                            } elif enum_attr in ('value', '_value_') {
-                                member_types.append(
-                                    self._convert_to_instance(
-                                        union_member.get_value_type()
-                                    )
-                                );
+                            enum_member_type = self._enum_member_attr_type(
+                                union_member, expr.right.value
+                            );
+                            if enum_member_type is not None {
+                                member_types.append(enum_member_type);
                             }
                             continue;
                         }
@@ -5731,6 +5725,29 @@ impl TypeEvaluator._resolve_py_ast_type_node(
             }
         }
         return None;
+    }
+    return None;
+}
+
+impl TypeEvaluator._enum_member_attr_type(
+    base_type: EnumMemberType, member_name: str
+) -> (TypeBase | None) {
+    if member_name in ('name', '_name_') {
+        return self._convert_to_instance(self.prefetch.str_class);
+    }
+    if member_name in ('value', '_value_') {
+        return self._convert_to_instance(base_type.get_value_type());
+    }
+    enum_cls = base_type.enum_class;
+    if enum_cls.shared.enum_members and member_name in enum_cls.shared.enum_members {
+        return EnumMemberType(
+            enum_class=enum_cls,
+            member_info=enum_cls.shared.enum_members[member_name],
+            flags=TypeFlags.Instance
+        );
+    }
+    if member := self._lookup_class_member(enum_cls, member_name) {
+        return self.get_type_of_symbol(member.symbol);
     }
     return None;
 }

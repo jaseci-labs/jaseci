@@ -592,6 +592,9 @@ obj TypeEvaluator {
 
     def _literal_type_from_expr(val: Expr) -> TypeBase | None;
     def _build_typeddict_fields(class_type: ClassType) -> dict[str, TypeBase];
+    def _enum_member_attr_type(
+        base_type: EnumMemberType, member_name: str
+    ) -> (TypeBase | None);
     def _has_typeddict_special_form_base(node_: Archetype) -> bool;
     def _typeddict_value_union(base_type: ClassType) -> TypeBase;
     def _get_typeddict_indexed_type(
