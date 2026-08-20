@@ -149,20 +149,38 @@ def class_model(prog: any) -> LayoutRegistry {
 }
 
 def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
-    """The class model, with `module`'s archetypes guaranteed present.
+    """The program's class model, with `module`'s archetypes guaranteed in it.
 
-    Consumers keep asking per-module because that is where they are; what
-    comes back is the shared model, not a private one.
+    "Has this module been laid out" is asked of the MODEL, not of
+    `module.gen.layout_registry`. Module IR is cached across JacProgram
+    instances, so that field outlives the program that set it: a second
+    program would find it already populated, skip the pass, and be handed a
+    model belonging to a program that no longer owns the compile -- while its
+    own `prog.class_model` stayed empty. Two models in play is the exact
+    failure the per-module registries had.
+
+    `module.gen.layout_registry` is still assigned, because consumers read it
+    directly, but it is a pointer to the shared model rather than a cache key.
     """;
-    reg = module.gen.layout_registry;
-    if reg is not None {
-        return reg;
+    model = class_model(prog);
+    if prog is None {
+        reg = module.gen.layout_registry;
+        if reg is not None {
+            return reg;
+        }
+    }
+    import os;
+    path = module.loc.mod_path if module.loc else None;
+    key = os.path.realpath(path) if path else "";
+    if key and key in model.modules_done {
+        return model;
     }
 
     import from jaclang.jac0core.compiler { run_pass }
     run_pass(LayoutPass, module, prog);
-    return module.gen.layout_registry or class_model(prog);
+    return module.gen.layout_registry or model;
 }
+
 
 
 def layout_slot_count(lay: ArchetypeLayout) -> int {
@@ -205,6 +223,43 @@ def archetype_id(arch: Archetype) -> str {
     return f"{arch_decl_module(arch)}::{name}";
 }
 
+def base_expr_name(base_expr: UniNode) -> (str | None) {
+    """The bare name a base expression spells, or None."""; 
+    if isinstance(base_expr, Name) {
+        return base_expr.value;
+    }
+    if isinstance(base_expr, AstSymbolNode) {
+        return base_expr.sym_name;
+    }
+    return None;
+}
+
+def sibling_archetype(arch: Archetype, name: str) -> (Archetype | None) {
+    """An archetype of `name` declared in the SAME module as `arch`.
+
+    The symbol a base expression carries is the identity-exact answer, but it
+    is not always bound -- a module compiled as somebody's dependency can
+    reach layout with its base expressions unresolved, and then a class loses
+    the fields it inherits and every method that touches one demotes.
+
+    Falling back to the name within the declaring module is safe where a
+    fully bare-name lookup is not: one module cannot declare the same
+    archetype name twice, so there is nothing here to confuse. It never
+    reaches outside that module, which is where bare names stop being
+    identities.
+    """;
+    mod = arch.find_parent_of_type(Module);
+    if mod is None {
+        return None;
+    }
+    for nd in mod.get_all_sub_nodes(Archetype) {
+        if nd is not arch and nd.name and nd.name.value == name {
+            return nd;
+        }
+    }
+    return None;
+}
+
 def base_declaration(base_expr: UniNode) -> (Archetype | None) {
     """The archetype a base expression names, through the symbol it carries.
 
@@ -214,7 +269,7 @@ def base_declaration(base_expr: UniNode) -> (Archetype | None) {
     path -- silently dropped a base declared elsewhere and silently accepted
     an unrelated class that happened to share the name.
     """;
-    decl = base_expr?.sym?.decl;
+    decl: (UniNode | None) = base_expr?.sym?.decl;
     if decl is None {
         return None;
     }
@@ -417,6 +472,7 @@ def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
 
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
+        modules_done: set[str] = set(),
         name_index: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         class_parents: dict[str, list[str]] = {},
@@ -450,6 +506,7 @@ obj LayoutPass(Transform) {
     def transform(ir_in: Module) -> Module;
     def _collect_archetypes(module: Module) -> dict[str, Archetype];
     def _collect_isinstance_targets(module: Module) -> None;
+    def _mark_module_done(module: Module) -> None;
     def _class_type_of(arch: Archetype) -> any;
     def _lays_out(arch: Archetype) -> bool;
     def _base_archetypes(arch: Archetype) -> list[Archetype];
