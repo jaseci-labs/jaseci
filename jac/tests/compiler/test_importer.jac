@@ -764,7 +764,6 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         prog.release_compile_closure(keep_stubs=True);
         gc.collect();
         assert ast_ref() is None , "released AST is still strongly referenced";
-
         # The hub is keyed by the resolved path (JacProgram.hub_key), and
         # find_module is the accessor that normalizes for you.
         assert prog.find_module(source_path) is None;

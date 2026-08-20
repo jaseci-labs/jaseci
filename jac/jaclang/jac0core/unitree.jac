@@ -464,15 +464,6 @@ obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
-"""The driver's answers about one import, stamped before boundary analysis.
-
-Every slot here outlives the compile: the facts hang off an `Import` node,
-and the node lives in the program hub for the process lifetime. So the
-slots hold the *decls the pass reads*, keyed by the imported name, never
-the source module they were read out of. A module reference here pins that
-module's whole tree and its `Source` text per boundary import, which is
-what jac#8222 measured.
-"""
 obj ImportBoundaryFacts {
     has native_from_path: (str | None) = None,
         from_loc_resolved: (str | None) = None,

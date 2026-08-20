@@ -293,11 +293,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         return;
     }
 
-    # The sub-node table is keyed by concrete node type, so the abstract
-    # `Expr` key is never in it -- walk the tree instead (jac#8222).
     for mod in self.mod.hub.values() {
-        # Stub trees are memoized process-wide and shared by every program,
-        # so their types are not this program's to release.
         if mod.stub_only {
             continue;
         }
@@ -316,15 +312,6 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
     self._inferred_mods.clear();
 }
 
-"""Drop the dependency units the native verdict resolver compiled.
-
-`_na_dep_units` memoizes a dependency's compiled module so the link step
-can reuse it inside the same compile. What it holds is a module tree plus
-a live LLVM `ModuleRef` (and, for a JIT unit, an `ExecutionEngine`) --
-native allocations no Python collector accounts for. The verdicts those
-units were compiled to produce live in the on-disk `ir_meta` cache, so
-once the compile that asked is over the units themselves are dead weight.
-"""
 impl JacProgram.release_native_dep_units(self: JacProgram) -> None {
     for unit in self._na_dep_units.values() {
         if isinstance(unit, str) {
@@ -344,14 +331,6 @@ impl JacProgram.release_native_dep_units(self: JacProgram) -> None {
     self._na_verdict_resolving.clear();
 }
 
-"""Drop the per-compile memos the type evaluator accumulated.
-
-Every cache cleared here is keyed by `id()` of a node the compile just
-finished with. Kept, they grow with every module a process ever checks,
-and a reused id() hands a new node an old node's narrowing. The types
-themselves stay on the tree: hover, semantic tokens and the client
-codegen all read `Expr.type` long after the compile returned.
-"""
 impl JacProgram.release_check_caches(self: JacProgram) -> None {
     ev = self.type_evaluator;
     if ev is None {

@@ -54,9 +54,7 @@ def pinned_server_project -> str {
         {
             "jac.toml": ('[placement.pins]\nprovider = "server"\n'),
             "provider.jac": (
-                "def:pub greet(who: str) -> str {\n"
-                "    return \"hi \" + who;\n"
-                "}\n"
+                "def:pub greet(who: str) -> str {\n" "    return \"hi \" + who;\n" "}\n"
             ),
             "app.jac": (
                 "import from .provider { greet as hello }\n\n"
@@ -74,7 +72,8 @@ def live_modules_for(path: str) -> list[uni.Module] {
     return [
         o
         for o in gc.get_objects()
-        if isinstance(o, uni.Module) and o.loc is not None
+        if isinstance(o, uni.Module)
+            and o.loc is not None
             and os.path.realpath(o.loc.mod_path) == os.path.realpath(path)
     ];
 }
@@ -223,9 +222,7 @@ test "a hub lookup finds the module however the path is spelled" {
 }
 
 test "a verdict query's dep units do not outlive the compile that asked" {
-    import from jaclang.compiler.passes.native.na_compile_pass {
-        native_unit_demotions
-    }
+    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
     tmp = write_mods(
         {
             "jac.toml": "[project]\nname = \"retention_na\"\n",

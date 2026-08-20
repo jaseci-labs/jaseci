@@ -792,10 +792,6 @@ impl JacCompiler.parse_str(
         old_hub = target_program.mod.hub;
         target_program.mod = uni.ProgramModule(main_mod=mod);
 
-        # ProgramModule seeds its hub with the main module's raw `loc.mod_path`.
-        # Keys here are hub_key-normalized (symlinks resolved), so the raw
-        # spelling would be a second key for a module the hub already holds,
-        # and the next lookup that normalizes would miss and re-parse.
         target_program.mod.hub.clear();
         target_program.mod.hub.update(old_hub);
     }
@@ -998,7 +994,7 @@ impl JacCompiler.stamp_boundary_facts(
         return found;
     }
 
-    def collect_abilities(nd: uni.UniNode, out: dict[(str, uni.Ability)]) -> None {
+    def collect_abilities(nd: uni.UniNode, out: dict[(str, uni.Ability)]) {
         if isinstance(nd, uni.Ability) and nd.sym_name {
             out[nd.sym_name] = nd;
         }
@@ -1007,7 +1003,7 @@ impl JacCompiler.stamp_boundary_facts(
         }
     }
 
-    def collect_pub_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) -> None {
+    def collect_pub_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) {
         if isinstance(nd, uni.Archetype) and nd.sym_name {
             if nd.arch_kind == 'walker' and bool(nd.public_access) {
                 out[nd.sym_name] = nd;
@@ -1225,9 +1221,6 @@ impl JacCompiler.compile(
             _wrap_prog = self._resolve_program(file_path, target_program);
         }
 
-        # Depth lives on the program, not on this compiler: a nested compile
-        # can be driven by a freshly built JacCompiler, whose own re-entrancy
-        # counter would read zero and release scratch mid-flight.
         _scratch_prog = _wrap_prog;
         _wrap_prog._compile_depth += 1;
         if _depth_prev > 0 {
@@ -1609,8 +1602,6 @@ impl JacCompiler._compile_once(
                 }
                 cb_seen.add(cb_src);
 
-                # find_module, not a raw hub probe: hub keys are resolved
-                # paths, so an abspath spelling misses on a symlinked root.
                 cb_mod = actual_program.find_module(cb_src);
                 cb_has_facts = (
                     cb_mod is not None
