@@ -31,7 +31,7 @@ obj Info {
 }
 
 obj VarInfo(Info) {
-    has type_info: (ClassInfo | str | tuple | None) = None;
+    has type_info: (ClassInfo | EnumInfo | str | tuple | None) = None;
 }
 
 obj ParamInfo(VarInfo) {}
@@ -52,8 +52,8 @@ obj ClassInfo(Info) {
 
 obj FunctionInfo(Info) {
     has params: (list[ParamInfo] | None) = None,
-        return_type: (str | ClassInfo | tuple | None) = None,
-        tools: (list[MethodInfo] | None) = None,
+        return_type: (str | ClassInfo | EnumInfo | tuple | None) = None,
+        tools: (list[FunctionInfo] | None) = None,
         by_call: bool = False;
 
     def postinit -> object;

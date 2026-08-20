@@ -8,17 +8,20 @@ impl Tool.postinit -> None {
         self.func.__annotations__ = annotations;
     }
     self.description = Tool.get_func_description(self.func);
-    if self.func?._jac_semstr_inner {
-        self.params_desc = self.func._jac_semstr_inner;
+    semstr_inner = getattr(self.func, "_jac_semstr_inner", {});
+    if semstr_inner {
+        self.params_desc = semstr_inner;
     } else {
         self.params_desc = {name: str(type) for (name, type) in annotations.items()};
     }
 
-    if self.func?._serialize is not None {
-        self.serialize = self.func._serialize;
+    serialize_flag = getattr(self.func, "_serialize", self.serialize);
+    if serialize_flag is not None {
+        self.serialize = serialize_flag;
     }
-    if self.func?._timeout_sec is not None {
-        self.timeout_sec = self.func._timeout_sec;
+    timeout_override = getattr(self.func, "_timeout_sec", self.timeout_sec);
+    if timeout_override is not None {
+        self.timeout_sec = timeout_override;
     }
 }
 
@@ -45,8 +48,9 @@ impl Tool.get_name -> str {
 }
 
 impl Tool.get_func_description(func: Callable) -> str {
-    if func?._jac_semstr {
-        return func._jac_semstr;
+    semstr = getattr(func, "_jac_semstr", "");
+    if semstr {
+        return semstr;
     }
     return func.__doc__ or func.__name__;
 }
@@ -78,7 +82,9 @@ impl Tool.is_finish_tool -> bool {
 }
 
 impl Tool.get_json_schema -> dict[str, object] {
-    return tool_to_schema(self.func, self.description, self.params_desc, self.info);
+    return tool_to_schema(
+        self.func, self.description, self.params_desc or {}, self.info
+    );
 }
 
 impl Tool.parse_arguments(args_json: dict) -> dict {

@@ -133,7 +133,9 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
             return;
         }
         name_kids = [
-            kid for kid in nd.kid if isinstance(kid, uni.JsxElementName)
+            kid
+            for kid in nd.kid
+            if isinstance(kid, uni.JsxElementName)
         ];
         name_node = name_kids[0] if name_kids else None;
         attr_docs = [attr.gen.doc_ir for attr in nd.attributes];
@@ -173,9 +175,8 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
         if (not is_self_closing and nd.children) {
             child_parts = self.jsx_mixed_child_parts(nd.children);
             inline_child_types = (uni.JsxText, uni.JsxExpression, uni.JsxComment);
-            all_inline_children = bool(nd.children) and all(
-                isinstance(child, inline_child_types) for child in nd.children
-            );
+            all_inline_children = bool(nd.children)
+                and all(isinstance(child, inline_child_types) for child in nd.children);
 
             if all_inline_children {
                 inline_doc = self.concat([child.gen.doc_ir for child in nd.children]);
@@ -229,12 +230,11 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
     }
     opening_doc = nd.kid[0].gen.doc_ir;
     closing_doc = nd.kid[-1].gen.doc_ir if (len(nd.kid) > 1) else self.concat([]);
-    children: Sequence[uni.UniNode] = nd.children if nd.children else [];
+    children: Sequence[uni.UniNode] = nd.children or [];
     child_parts = self.jsx_mixed_child_parts(children);
     inline_child_types = (uni.JsxText, uni.JsxExpression);
-    all_inline_children = bool(children) and all(
-        isinstance(child, inline_child_types) for child in children
-    );
+    all_inline_children = bool(children)
+        and all(isinstance(child, inline_child_types) for child in children);
     parts = [opening_doc];
 
     if all_inline_children {
@@ -317,11 +317,17 @@ impl DocIRGenPass.exit_int(nd: uni.Int) -> None {
 impl DocIRGenPass.exit_name(nd: uni.Name) -> None {
     name_text = f"`{nd.value}" if nd.is_kwesc else nd.value;
     by_kids = [
-        k for k in nd.kid if (isinstance(k, uni.Token) and (k.name == Tok.KW_BY))
+        k
+        for k in nd.kid
+        if (isinstance(k, uni.Token) and (k.name == Tok.KW_BY))
     ];
     by_kid = by_kids[0] if by_kids else None;
     if by_kid is not None {
-        semi_kids = [k for k in nd.kid if isinstance(k, uni.Semi)];
+        semi_kids = [
+            k
+            for k in nd.kid
+            if isinstance(k, uni.Semi)
+        ];
         semi_kid = semi_kids[0] if semi_kids else None;
         parts: list[doc.DocType] = [
             by_kid.gen.doc_ir,
@@ -640,8 +646,7 @@ impl DocIRGenPass.exit_switch_case(nd: uni.SwitchCase) -> None {
 }
 
 impl DocIRGenPass._assign_case_block_doc_ir(
-    nd: (uni.SwitchStmt | uni.MatchStmt),
-    case_cls: type[(uni.SwitchCase | uni.MatchCase)]
+    nd: (uni.SwitchStmt | uni.MatchStmt)
 ) -> None {
     parts: list[doc.DocType] = [];
     case_parts: list[doc.DocType] = [self.hard_line()];
@@ -649,7 +654,7 @@ impl DocIRGenPass._assign_case_block_doc_ir(
         if (i == nd.target) {
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
-        } elif isinstance(i, case_cls) {
+        } elif isinstance(i, (uni.SwitchCase, uni.MatchCase)) {
             case_parts.append(i.gen.doc_ir);
             case_parts.append(self.hard_line());
         } elif (isinstance(i, uni.Token) and (i.name == Tok.RBRACE)) {
@@ -671,7 +676,7 @@ impl DocIRGenPass._assign_case_block_doc_ir(
 }
 
 impl DocIRGenPass.exit_switch_stmt(nd: uni.SwitchStmt) -> None {
-    self._assign_case_block_doc_ir(nd, uni.SwitchCase);
+    self._assign_case_block_doc_ir(nd);
 }
 
 impl DocIRGenPass.exit_match_case(nd: uni.MatchCase) -> None {
@@ -697,7 +702,7 @@ impl DocIRGenPass.exit_match_case(nd: uni.MatchCase) -> None {
 }
 
 impl DocIRGenPass.exit_match_stmt(nd: uni.MatchStmt) -> None {
-    self._assign_case_block_doc_ir(nd, uni.MatchCase);
+    self._assign_case_block_doc_ir(nd);
 }
 
 impl DocIRGenPass.exit_test(nd: uni.Test) -> None {
@@ -1047,7 +1052,7 @@ impl DocIRGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
 
     _sbrace = len(body_stmts) == 0;
     if len(body_stmts) == 1 and body_stmts[0].kid {
-        _cur = body_stmts[0];
+        _cur: uni.UniNode = body_stmts[0];
         while _cur.kid {
             _last = _cur.kid[-1];
             if isinstance(_last, uni.Token) {
@@ -1108,7 +1113,7 @@ impl DocIRGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
         } elif isinstance(i, uni.FuncSignature) {
             if (isinstance(i.gen.doc_ir, doc.Text) and (i.gen.doc_ir.text == '()')) {
                 parts.append(i.gen.doc_ir);
-            } elif not nd.signature.params {
+            } elif not i.params {
                 parts.pop();
                 parts.append(i.gen.doc_ir);
                 parts.append(self.space());
@@ -1427,9 +1432,10 @@ impl DocIRGenPass.exit_has_var(nd: uni.HasVar) -> None {
                 inner.append(self.line());
                 inner.append(ad);
             }
+            open_doc: doc.DocType = lbrace_doc or self.concat([]);
             block = self.concat(
                 [
-                    lbrace_doc,
+                    open_doc,
                     self.indent(self.concat(inner), ast_node=nd),
                     self.line(),
                     i.gen.doc_ir
@@ -1890,7 +1896,7 @@ impl DocIRGenPass.exit_ability(nd: uni.Ability) -> None {
 impl DocIRGenPass.exit_archetype(nd: uni.Archetype) -> None {
     parts: list[doc.DocType] = [];
     body_parts: list[doc.DocType] = [];
-    prev_item = None;
+    prev_item: (uni.UniNode | None) = None;
     in_body = False;
     for i in nd.kid {
         if ((nd.doc and (i is nd.doc)) or (nd.decorators and (i in nd.decorators))) {
@@ -2092,7 +2098,7 @@ impl DocIRGenPass.exit_import(nd: uni.Import) -> None {
 
 impl DocIRGenPass.exit_module(nd: uni.Module) -> None {
     parts: list[doc.DocType] = [];
-    prev_kid = None;
+    prev_kid: (uni.UniNode | None) = None;
     first_kid = True;
     for i in nd.kid {
         if (

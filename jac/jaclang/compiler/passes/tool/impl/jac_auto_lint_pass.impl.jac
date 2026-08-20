@@ -154,20 +154,20 @@ impl JacAutoLintPass.enter_ability(ability_node: uni.Ability) -> None {
         or isinstance(ability_node.name_ref, uni.SpecialVarRef) {
         return;
     }
-    new_tok: Tok | None = None;
+    new_tok_name: (str | None) = None;
     if ability_node.name_ref.value == "__init__" {
-        new_tok = Tok.KW_INIT;
+        new_tok_name = Tok.KW_INIT.value;
     } elif ability_node.name_ref.value == "__post_init__" {
-        new_tok = Tok.KW_POST_INIT;
+        new_tok_name = Tok.KW_POST_INIT.value;
     }
-    if new_tok is not None {
+    if new_tok_name is not None {
         init_name = ability_node.name_ref.value;
         if not self.emit(W3004, node_override=ability_node, name=init_name) {
             return;
         }
         old_ref = ability_node.name_ref;
-        old_ref.name = new_tok.value;
-        old_ref.value = new_tok.value;
+        old_ref.name = new_tok_name;
+        old_ref.value = new_tok_name;
         special_ref = uni.SpecialVarRef(var=old_ref);
         special_ref.parent = ability_node;
         ability_node.name_ref = special_ref;
@@ -551,7 +551,7 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
     }
     unsafe_globalize = self.names_unsafe_to_globalize(module);
     entry_written = self.entry_written_names(module);
-    new_body: list[uni.UniNode] = [];
+    new_body: list[(uni.ElementStmt | uni.String | uni.EmptyToken)] = [];
     for stmt in module.body {
         if self._is_future_annotations_import(stmt)
             and self.emit(W3009, node_override=stmt) {
@@ -561,23 +561,29 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
         if isinstance(stmt, uni.ModuleCode) and stmt.name is None {
             pending_entry_stmts: list[uni.UniNode] = [];
             for inner_stmt in stmt.body {
-                extracted_stmt: uni.UniNode | None = None;
-
+                extracted_stmt: (uni.ElementStmt | None) = None;
+                assign_value: (uni.Expr | uni.YieldExpr | None) = (
+                    inner_stmt.value if isinstance(inner_stmt, uni.Assignment) else None
+                );
                 if isinstance(inner_stmt, uni.Assignment)
+                    and (assign_value is not None)
                     and self.can_convert_to_glob(inner_stmt)
                     and not any(
-                        target.value in unsafe_globalize for target in inner_stmt.target
+                        isinstance(target, uni.Name)
+                            and (target.value in unsafe_globalize)
+                        for target in inner_stmt.target
                     )
                     and not (
-                        isinstance(inner_stmt.value, uni.Name)
-                        and inner_stmt.value.value in entry_written
+                        isinstance(assign_value, uni.Name)
+                        and (assign_value.value in entry_written)
                     )
                     and not any(
                         nm.value in entry_written
-                        for nm in inner_stmt.value.get_all_sub_nodes(uni.Name)
+                        for nm in assign_value.get_all_sub_nodes(uni.Name)
                     ) {
                     extracted_stmt = self.create_glob_from_assignment(inner_stmt);
-                } elif self.is_module_level_construct(inner_stmt) {
+                } elif isinstance(inner_stmt, uni.ElementStmt)
+                    and self.is_module_level_construct(inner_stmt) {
                     extracted_stmt = inner_stmt;
                 }
 
@@ -632,7 +638,7 @@ impl JacAutoLintPass._convert_hasattr_to_null_ok(
     if nd.target.value != "hasattr" {
         return None;
     }
-    if len(nd.params) != 2 {
+    if nd.params is None or len(nd.params) != 2 {
         return None;
     }
     return self._funccall_to_null_safe(nd, False);
@@ -719,6 +725,9 @@ impl JacAutoLintPass._funccall_to_null_safe(
 ) -> (uni.AtomTrailer | None) {
     obj_expr = fc.params[0];
     attr_expr = fc.params[1];
+    if isinstance(obj_expr, uni.KWPair) {
+        return None;
+    }
     attr_value: str | None = None;
     string_node: uni.String | None = None;
     if isinstance(attr_expr, uni.String) {
@@ -855,8 +864,14 @@ impl JacAutoLintPass.exit_func_call(nd: uni.FuncCall) -> None {
     if not self._is_suppressed(W3007) {
         replacement = self._convert_hasattr_to_null_ok(nd);
         if replacement is not None {
+            if nd.params is None {
+                return;
+            }
             obj_expr = nd.params[0];
             attr_expr = nd.params[1];
+            if isinstance(obj_expr, uni.KWPair) or isinstance(attr_expr, uni.KWPair) {
+                return;
+            }
             attr_name = self._extract_string_literal_value(attr_expr);
 
             cfg_wrapper: uni.CfgExpr | None = None;
@@ -905,8 +920,9 @@ impl JacAutoLintPass.exit_func_call(nd: uni.FuncCall) -> None {
             }
             replacement.parent = parent;
             if isinstance(parent, uni.IfElseExpr) {
+                repl_cfg = uni.CfgExpr(expr=replacement, kid=[replacement]);
                 if parent.condition is nd {
-                    parent.condition = replacement;
+                    parent.condition = repl_cfg;
                     if attr_name is not None
                         and isinstance(parent.value, uni.AtomTrailer) {
                         if self._is_matching_attr_access(
@@ -916,15 +932,17 @@ impl JacAutoLintPass.exit_func_call(nd: uni.FuncCall) -> None {
                         }
                     }
                 } elif parent.value is nd {
-                    parent.value = replacement;
+                    parent.value = repl_cfg;
                 } elif parent.else_value is nd {
-                    parent.else_value = replacement;
+                    parent.else_value = repl_cfg;
                 }
             } elif isinstance(parent, uni.BoolExpr) {
-                new_values: list[uni.Expr] = [];
+                new_values: list[uni.CfgExpr] = [];
                 for val in parent.values {
                     if val is nd {
-                        new_values.append(replacement);
+                        new_values.append(
+                            uni.CfgExpr(expr=replacement, kid=[replacement])
+                        );
                     } else {
                         new_values.append(val);
                     }
@@ -994,7 +1012,7 @@ impl JacAutoLintPass._expr_to_key(expr: uni.Expr) -> (str | None) {
         return None;
     }
     if isinstance(expr, uni.SpecialVarRef) {
-        return expr.name.value if expr.name else None;
+        return expr.value;
     }
 
     if isinstance(expr, (uni.Int, uni.Float, uni.String, uni.Bool, uni.Null)) {
@@ -1268,13 +1286,16 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(impl_node: uni.ImplDef) -> Non
             }
         }
     }
-    if decl is None or decl.signature is None {
+    if decl is None {
+        return;
+    }
+    decl_sig = decl.signature;
+    if not isinstance(decl_sig, uni.FuncSignature) {
         return;
     }
     if not isinstance(impl_node.spec, uni.FuncSignature) {
         return;
     }
-    decl_sig = decl.signature;
     impl_sig = impl_node.spec;
     if self._signatures_match(decl_sig, impl_sig) {
         return;
@@ -1284,10 +1305,10 @@ impl JacAutoLintPass._fix_impl_signature_mismatch(impl_node: uni.ImplDef) -> Non
     }
     import copy;
 
-    saved_parent = decl.signature.parent;
-    decl.signature.parent = None;
-    new_sig = copy.deepcopy(decl.signature);
-    decl.signature.parent = saved_parent;
+    saved_parent = decl_sig.parent;
+    decl_sig.parent = None;
+    new_sig = copy.deepcopy(decl_sig);
+    decl_sig.parent = saved_parent;
     new_sig.parent = impl_node;
     old_spec = impl_node.spec;
 
@@ -1366,6 +1387,9 @@ impl JacAutoLintPass._impl_owner_archetype(
         return None;
     }
     for i in range(1, len(impl_node.target) - 1) {
+        if arch_node is None {
+            return None;
+        }
         nested_name = impl_node.target[i].sym_name if impl_node.target[i] else None;
 
         if not nested_name {
@@ -1421,8 +1445,10 @@ impl JacAutoLintPass._base_decl_archetypes(annex_path: str) -> list[uni.Archetyp
 impl JacAutoLintPass._signatures_match(
     decl_sig: uni.FuncSignature, impl_sig: uni.FuncSignature
 ) -> bool {
+    decl_params = decl_sig.params or [];
+    impl_params = impl_sig.params or [];
     if (
-        len(decl_sig.params) != len(impl_sig.params)
+        len(decl_params) != len(impl_params)
         or len(decl_sig.posonly_params) != len(impl_sig.posonly_params)
         or len(decl_sig.kwonlyargs) != len(impl_sig.kwonlyargs)
         or (decl_sig.varargs is None) != (impl_sig.varargs is None)
@@ -1431,8 +1457,8 @@ impl JacAutoLintPass._signatures_match(
     ) {
         return False;
     }
-    for (i, decl_param) in enumerate(decl_sig.params) {
-        impl_param = impl_sig.params[i];
+    for (i, decl_param) in enumerate(decl_params) {
+        impl_param = impl_params[i];
 
         if decl_param.name.value != impl_param.name.value {
             return False;
@@ -1455,15 +1481,55 @@ impl JacAutoLintPass._signatures_match(
     return True;
 }
 
+impl JacAutoLintPass._stmt_body_list(
+    nd: uni.UniNode
+) -> (Sequence[uni.UniNode] | None) {
+    if isinstance(nd, uni.Module) {
+        return nd.body;
+    }
+    if isinstance(
+        nd,
+        (
+            uni.Test,
+            uni.ModuleCode,
+            uni.TypedCtxBlock,
+            uni.OpenStmt,
+            uni.IfStmt,
+            uni.ElseStmt,
+            uni.TryStmt,
+            uni.AwaitingClause,
+            uni.Except,
+            uni.FinallyStmt,
+            uni.IterForStmt,
+            uni.InForStmt,
+            uni.WhileStmt,
+            uni.ForeverStmt,
+            uni.WithStmt,
+            uni.MatchCase,
+            uni.SwitchCase,
+            uni.JsxSlot
+        )
+    ) {
+        return nd.body;
+    }
+    if isinstance(nd, (uni.AstImplNeedingNode, uni.ImplDef, uni.LambdaExpr)) {
+        return nd.body if isinstance(nd.body, Sequence) else None;
+    }
+    return None;
+}
+
 impl JacAutoLintPass.enter_import(import_node: uni.Import) -> None {
     if not self.lint_enabled or self.report_only or import_node.from_loc is None {
         return;
     }
     parent = import_node.parent;
-    if parent is None or not parent?.body or not isinstance(parent?.body, list) {
+    if parent is None {
         return;
     }
-    body = parent.body;
+    body = self._stmt_body_list(parent);
+    if body is None or not isinstance(body, list) {
+        return;
+    }
     try {
         idx = body.index(import_node);
     } except ValueError {
@@ -1473,11 +1539,7 @@ impl JacAutoLintPass.enter_import(import_node: uni.Import) -> None {
         and isinstance(body[idx + 1], uni.Semi)
         and self.emit(W3011, node_override=import_node) {
         semi = body[idx + 1];
-        parent.body = [
-            s
-            for s in body
-            if s is not semi
-        ];
+        body.pop(idx + 1);
         parent.kid = [
             k
             for k in parent.kid
@@ -2005,8 +2067,8 @@ impl JacAutoLintPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
 
 impl JacAutoLintPass._check_unnecessary_none_return(
     nd: (uni.Ability | uni.LambdaExpr),
-    body: (list | uni.Expr),
-    sig: (uni.FuncSignature | None),
+    body: (uni.UniNode | Sequence[uni.UniNode] | None),
+    sig: (uni.FuncSignature | uni.EventSignature | None),
     name: str
 ) -> None {
     if self._is_suppressed(W3037) {
@@ -2332,6 +2394,9 @@ impl JacAutoLintPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
         return;
     }
     value_expr = call_node.params[0];
+    if isinstance(value_expr, uni.KWPair) {
+        return;
+    }
     lhs_name = uni.Name(
         orig_src=call_node.loc.orig_src,
         name=Tok.NAME.value,
@@ -2358,8 +2423,13 @@ impl JacAutoLintPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
     );
     assign.parent = parent;
 
-    if isinstance(parent?.body, list) {
-        parent.body = [assign if s is nd else s for s in parent.body];
+    parent_body = self._stmt_body_list(parent);
+    if parent_body is not None and isinstance(parent_body, list) {
+        for (i, s) in enumerate(parent_body) {
+            if s is nd {
+                parent_body[i] = assign;
+            }
+        }
     }
     parent.kid = [assign if k is nd else k for k in parent.kid];
     parent._invalidate_sub_node_tab();
@@ -2481,7 +2551,7 @@ impl JacAutoLintPass._strip_noise(nd: uni.Module) -> None {
 }
 
 impl JacAutoLintPass._strip_docstrings(start: uni.UniNode) -> None {
-    doc_nodes: list[uni.UniNode] = [];
+    doc_nodes: list[uni.AstDocNode] = [];
     self._collect_doc_nodes(start, doc_nodes);
     for `node in doc_nodes {
         doc_str = `node.doc;
@@ -2503,7 +2573,9 @@ impl JacAutoLintPass._strip_docstrings(start: uni.UniNode) -> None {
     }
 }
 
-impl JacAutoLintPass._collect_doc_nodes(`node: uni.UniNode, results: list) -> None {
+impl JacAutoLintPass._collect_doc_nodes(
+    `node: uni.UniNode, results: list[uni.AstDocNode]
+) -> None {
     stack: list[uni.UniNode] = [`node];
     while stack {
         current = stack.pop();
@@ -2557,11 +2629,14 @@ impl JacAutoLintPass._detect_map_lambda_jsx(
         for s in lam.body
         if not isinstance(s, uni.Semi)
     ];
-    if len(real_stmts) != 1 or not isinstance(real_stmts[0], uni.ReturnStmt) {
+    if len(real_stmts) != 1 {
         return None;
     }
-
-    jsx: uni.Expr = real_stmts[0].expr;
+    ret_stmt = real_stmts[0];
+    if not isinstance(ret_stmt, uni.ReturnStmt) or ret_stmt.expr is None {
+        return None;
+    }
+    jsx: uni.Expr = ret_stmt.expr;
     if isinstance(jsx, uni.AtomUnit) and isinstance(jsx.value, uni.JsxElement) {
         jsx = jsx.value;
     }
@@ -2772,7 +2847,7 @@ impl JacAutoLintPass._make_accessor_from_ability(
 }
 
 impl JacAutoLintPass._build_property_has(
-    ref_node: uni.UniNode, prop_name: str, type_expr: (uni.Expr | None), accessors: list
+    ref_node: uni.UniNode, prop_name: str, type_expr: uni.Expr, accessors: list
 ) -> uni.ArchHas {
     name_node = self._make_name_node(ref_node, prop_name);
     colon_tok = ref_node.gen_token(Tok.COLON);
@@ -2829,7 +2904,11 @@ impl JacAutoLintPass._convert_properties(container: uni.Archetype) -> None {
         }
 
         if role == "property" and pname not in prop_types {
-            declared = item.signature.return_type if item.signature else None;
+            declared = (
+                item.signature.return_type
+                    if isinstance(item.signature, uni.FuncSignature)
+                    else None
+            );
             if declared is not None {
                 prop_types[pname] = declared;
             }
@@ -2845,7 +2924,11 @@ impl JacAutoLintPass._convert_properties(container: uni.Archetype) -> None {
             continue;
         }
         getter_ab = g["property"];
-        type_expr = getter_ab.signature.return_type if getter_ab.signature else None;
+        type_expr = (
+            getter_ab.signature.return_type
+                if isinstance(getter_ab.signature, uni.FuncSignature)
+                else None
+        );
         if type_expr is None {
             type_expr = prop_types.get(pname);
         }
@@ -2943,7 +3026,7 @@ impl JacAutoLintPass._property_impl_roles(
     }
 
     for `getter in roles.get("property", []) {
-        if `getter.signature
+        if isinstance(`getter.signature, uni.FuncSignature)
             and (`getter.signature.return_type is not None)
             and not self._is_suppressed(W3043, `getter.loc) {
             return roles;
@@ -2993,17 +3076,17 @@ impl JacAutoLintPass._impl_property_kind(nd: uni.ImplDef) -> str {
     spec = nd.spec if isinstance(nd.spec, uni.FuncSignature) else None;
     for role in ["property", "setter", "deleter"] {
         acc = pending.get(role);
+        acc_sig = acc.signature if acc is not None else None;
         if (
-            (acc is not None)
-            and (acc.signature is not None)
+            isinstance(acc_sig, uni.FuncSignature)
             and (spec is not None)
-            and self._signatures_match(acc.signature, spec)
+            and self._signatures_match(acc_sig, spec)
         ) {
             return role;
         }
     }
 
-    takes_value = (spec is not None) and len(spec.params) > 0;
+    takes_value = (spec is not None) and len(spec.params or []) > 0;
     returns_value = (spec is not None) and (spec.return_type is not None);
     if takes_value and "setter" in pending {
         return "setter";
