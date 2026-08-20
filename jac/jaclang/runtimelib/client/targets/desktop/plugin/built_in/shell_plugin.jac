@@ -1,8 +1,8 @@
 import fnmatch;
 import shlex;
 import subprocess;
-import from ..desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
-import from ..manifest { PluginManifest, PluginContext }
+import from desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
+import from manifest { PluginManifest, PluginContext }
 
 
 def _pattern_matches(pattern_argv: list, argv: list) -> bool {

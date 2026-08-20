@@ -86,7 +86,10 @@ def type_to_str(t: object) -> str {
     try {
         import from dataclasses { is_dataclass }
         if (is_dataclass(t) and t?.name) {
-            return t.name;
+            tname = getattr(t, 'name', None);
+            if isinstance(tname, str) {
+                return tname;
+            }
         }
     } except Exception {
         ;
@@ -105,7 +108,8 @@ def type_to_str(t: object) -> str {
         if (head == 'union') {
             return '|'.join(type_to_str(x) for x in t[1:]);
         }
-        return (head + '[' + ','.join(type_to_str(x) for x in t[1:]) + ']');
+        inner = ','.join(type_to_str(x) for x in t[1:]);
+        return f"{head}[{inner}]";
     }
     return str(t);
 }
