@@ -774,7 +774,10 @@ impl JacLangServer.get_scope_at_position(
 
 impl JacLangServer.get_node_type(n: uni.UniNode) -> Optional[TypeBase] {
     if isinstance(n, uni.Expr) {
-        typ = self.get_type_evaluator().get_type_of_expression(n);
+        typ = n.type;
+        if typ is None {
+            typ = self.get_type_evaluator().get_type_of_expression(n);
+        }
         self.debug("found type " + str(typ) + " for expr " + str(n));
         return typ;
     }
