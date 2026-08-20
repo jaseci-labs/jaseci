@@ -3724,6 +3724,26 @@ def _find_cfg_node_for(at_node: UniNode) -> UniCFGNode | None {
     return None;
 }
 
+impl TypeEvaluator.flow_pred_never_returns(pred: UniCFGNode) -> bool {
+    if not isinstance(pred, ExprStmt) {
+        return False;
+    }
+    call = pred.expr;
+    if not isinstance(call, FuncCall) {
+        return False;
+    }
+    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
+    sym = resolve_expr_symbol(call.target);
+    if sym is None {
+        return False;
+    }
+    callee_type = self.get_type_of_symbol(sym);
+    if isinstance(callee_type, FunctionType) {
+        return isinstance(callee_type.return_type, NeverType);
+    }
+    return False;
+}
+
 impl TypeEvaluator.get_narrowed_type(
     symbol: Symbol, at_node: UniNode
 ) -> TypeBase | None {
@@ -3841,6 +3861,10 @@ impl TypeEvaluator._get_type_from_flow_node(
     for pred in flow_node.bb_in {
         if pred is flow_node {
             has_unnarrowed_pred = True;
+            continue;
+        }
+
+        if self.flow_pred_never_returns(pred) {
             continue;
         }
 

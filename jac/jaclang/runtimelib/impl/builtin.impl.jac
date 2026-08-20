@@ -214,12 +214,12 @@ impl managed(x: any) -> any {
     return x;
 }
 
-impl testskip(reason: str = "") -> None {
+impl testskip(reason: str = "") -> NoReturn {
     import from unittest { SkipTest }
     raise SkipTest(reason or "skipped");
 }
 
-impl testfail(reason: str = "") -> None {
+impl testfail(reason: str = "") -> NoReturn {
     raise AssertionError(reason or "explicit failure");
 }
 

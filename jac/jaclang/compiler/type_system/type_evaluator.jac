@@ -667,6 +667,7 @@ obj TypeEvaluator {
     def create_key_for_reference(expr: Expr) -> str | None;
     def _find_symbol_by_key(key: str, condition: Expr) -> Symbol | None;
     def classify_condition(condition: Expr) -> ConditionInfo | None;
+    def flow_pred_never_returns(pred: UniCFGNode) -> bool;
     def get_narrowed_type(symbol: Symbol, at_node: UniNode) -> TypeBase | None;
     def get_narrowed_type_for_expr(
         expr: Expr, declared_type: TypeBase, at_node: UniNode
