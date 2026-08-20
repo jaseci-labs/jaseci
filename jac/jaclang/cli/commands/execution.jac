@@ -176,8 +176,12 @@ def enter(
         Arg.create(
             "port",
             typ=int,
-            `default=8000,
-            help="Server port",
+            `default=0,
+            help=(
+                "Server port (default 8000). A port given here must be free: "
+                "it is a contract with whatever sits in front of it, so the "
+                "server fails rather than moving to another port."
+            ),
             short="p",
             config_key="serve.port"
         ),
@@ -319,7 +323,7 @@ def enter(
 )
 def start(
     filename: str,
-    port: int = 8000,
+    port: int = 0,
     main: bool = True,
     faux: bool = False,
     dev: bool = False,

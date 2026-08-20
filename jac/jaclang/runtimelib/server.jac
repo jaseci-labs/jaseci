@@ -205,6 +205,7 @@ obj JacAPIServer {
         base_path: str = "",
         module_file: (str | None) = None,
         is_sv_sibling: bool = False,
+        strict_port: bool = False,
         user_manager: UserManager postinit,
         execution_manager: ExecutionManager postinit,
         introspector: ModuleIntrospector postinit,
