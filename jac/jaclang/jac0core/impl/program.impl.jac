@@ -313,9 +313,23 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
 }
 
 impl JacProgram.release_native_dep_units(self: JacProgram) -> None {
-    for unit in self._na_dep_units.values() {
+    for (path, unit) in self._na_dep_units.items() {
         if isinstance(unit, str) {
             continue;
+        }
+        try {
+            keyed = JacProgram.hub_key(path);
+        } except Exception {
+            keyed = path;
+        }
+        probes: list[str] = [keyed];
+        if path != keyed {
+            probes.append(path);
+        }
+        for probe in probes {
+            if self.mod.hub.get(probe) is unit {
+                self.invalidate_module(probe);
+            }
         }
         try {
             gen = unit.gen;

@@ -281,6 +281,49 @@ test "a verdict query's dep units do not outlive the compile that asked" {
     );
 }
 
+"""Releasing a unit must not turn its verdict fail-closed.
+
+The unit the verdict resolver compiled is also the hub's module for that
+path, so stripping its LLVM IR in place leaves a hub entry that answers
+"no IR" -- and the resolver reads that as "demote every symbol in this
+module". That is safe but ruinous: it demotes whole modules to Python and
+can trip the verdict blast guard. Releasing has to evict the entry, so the
+next query recompiles instead of reading a hollowed one.
+"""
+test "a released dep unit still answers its real verdict" {
+    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
+    tmp = write_mods(
+        {
+            "jac.toml": "[project]\nname = \"retention_na2\"\n",
+            "leaf.jac": (
+                "def bad_fmt(n: int) -> str {\n"
+                "    return (\"%03d\" % n);\n"
+                "}\n\n"
+                "def ok(n: int) -> int {\n"
+                "    return n + 1;\n"
+                "}\n"
+            )
+        }
+    );
+    leaf = os.path.realpath(os.path.join(tmp, "leaf.jac"));
+    opts = CompileOptions(aot_mode=True, no_ir_cache=True);
+    prog = JacProgram();
+    first = native_unit_demotions(prog, leaf, opts);
+    assert first == {"bad_fmt"} , f"fixture verdict changed: {first!r}";
+    prog.release_native_dep_units();
+    second = native_unit_demotions(prog, leaf, opts);
+    assert second == first , (
+        f"the verdict went from {sorted(first)} to "
+        f"{sorted(second) if second is not None else None} after the release. "
+        "A stripped hub entry answers 'no IR', which the resolver reads as "
+        "'demote everything'; the release must evict the entry, not hollow it"
+    );
+    assert prog._na_verdict_misses == 0 , (
+        f"{prog._na_verdict_misses} fail-closed verdict misses after a "
+        "release; the second query took the no-IR path instead of recompiling"
+    );
+}
+
 """Two evaluator structures are deliberately NOT in the released set.
 
 `_flow_pending_symbols` / `_flow_pending_keys` are in-flight recursion
