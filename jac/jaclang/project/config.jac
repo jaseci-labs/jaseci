@@ -259,7 +259,7 @@ def get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None;
 
-def set_config(config: JacConfig) -> None;
+def set_config(config: JacConfig | None) -> None;
 
 def get_explicit_config -> JacConfig | None;
 

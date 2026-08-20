@@ -59,11 +59,11 @@ class _StrCaching(object) {
 class _StringReferenceCaching(object) {
     has __cached_refstr: str;
 
-    def _get_reference(self: _StringReferenceCaching) -> object {
+    def _get_reference(self: _StringReferenceCaching) -> str {
         raise NotImplementedError;
     }
 
-    def get_reference(self: _StringReferenceCaching) -> object {
+    def get_reference(self: _StringReferenceCaching) -> str {
         try {
             return self.__cached_refstr;
         } except AttributeError {

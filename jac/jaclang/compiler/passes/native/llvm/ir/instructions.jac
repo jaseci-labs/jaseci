@@ -10,9 +10,11 @@ import from jaclang.compiler.passes.native.llvm.ir.values {
     MetaDataArgument,
     MetaDataString,
     AttributeSet,
-    ArgumentAttributes
+    ArgumentAttributes,
+    Value
 }
 import from jaclang.compiler.passes.native.llvm.ir._utils { _HasMetadata }
+import from jaclang.compiler.passes.native.llvm.ir.module { Module }
 class Instruction(NamedValue, _HasMetadata) {
     def init(
         self: Instruction,
@@ -38,7 +40,7 @@ class Instruction(NamedValue, _HasMetadata) {
     }
 
     @property
-    def module(self: Instruction) -> object {
+    def module(self: Instruction) -> Module {
         return self.parent.function.module;
     }
 
@@ -169,7 +171,7 @@ class CallInstr(Instruction) {
     }
 
     @property
-    def callee(self: CallInstr) -> object {
+    def callee(self: CallInstr) -> NamedValue {
         return self.operands[0];
     }
 
@@ -179,7 +181,7 @@ class CallInstr(Instruction) {
     }
 
     @property
-    def args(self: CallInstr) -> object {
+    def args(self: CallInstr) -> list[Value] {
         return self.operands[1:];
     }
 
@@ -263,7 +265,7 @@ class Terminator(Instruction) {
 
 class PredictableInstr(Instruction) {
     def set_weights(self: PredictableInstr, weights: any) -> object {
-        operands = [MetaDataString(self.module, "branch_weights")];
+        operands: list[Value] = [MetaDataString(self.module, "branch_weights")];
         for w in weights {
             if (w < 0) {
                 raise ValueError("branch weight must be a positive integer");
@@ -282,7 +284,7 @@ class Ret(Terminator) {
     }
 
     @property
-    def return_value(self: Ret) -> object {
+    def return_value(self: Ret) -> (Value | None) {
         if self.operands {
             return self.operands[0];
         } else {
@@ -320,7 +322,7 @@ class SwitchInstr(PredictableInstr, Terminator) {
     }
 
     @property
-    def value(self: SwitchInstr) -> object {
+    def value(self: SwitchInstr) -> Value {
         return self.operands[0];
     }
 
@@ -370,17 +372,17 @@ class SelectInstr(Instruction) {
     }
 
     @property
-    def cond(self: SelectInstr) -> object {
+    def cond(self: SelectInstr) -> Value {
         return self.operands[0];
     }
 
     @property
-    def lhs(self: SelectInstr) -> object {
+    def lhs(self: SelectInstr) -> Value {
         return self.operands[1];
     }
 
     @property
-    def rhs(self: SelectInstr) -> object {
+    def rhs(self: SelectInstr) -> Value {
         return self.operands[2];
     }
 
@@ -404,6 +406,7 @@ class CompareInstr(Instruction) {
     with entry {
         OPNAME = 'invalid-compare';
         VALID_OP = {};
+        VALID_FLAG: `set[str];
     }
 
     def init(
@@ -425,7 +428,7 @@ class CompareInstr(Instruction) {
         }
         opname = self.OPNAME;
         if isinstance(lhs.type, types.VectorType) {
-            typ = types.VectorType(types.IntType(1), lhs.type.count);
+            typ: types.Type = types.VectorType(types.IntType(1), lhs.type.count);
         } else {
             typ = types.IntType(1);
         }
@@ -781,7 +784,7 @@ class Unreachable(Instruction) {
         super.init(parent, types.VoidType(), "unreachable", (), name='');
     }
 
-    def descr(self: Unreachable, buf: any) -> object {
+    def descr(self: Unreachable, buf: list[str]) -> object {
         buf += (self.opname, "\n");
     }
 }

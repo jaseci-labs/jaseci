@@ -241,9 +241,11 @@ impl UserManager.close -> None {
     }
 }
 
-impl ExecutionManager.report_collector(call_state: CallState) -> dict[str, JsonValue] {
+impl ExecutionManager.report_collector(
+    call_state: CallState
+) -> list[JsonValue] | Generator | AsyncGenerator {
     import from queue { Empty }
-    final_reports = [];
+    final_reports: list[JsonValue] = [];
     while True {
         try {
             report_item = call_state.reports.get_nowait();
@@ -278,12 +280,11 @@ async def _abegin_user_request_context(
     root_id = await user_manager.aget_root_id(username);
     if not root_id {
         import os;
-        if (
-            username != Con.GUEST.value
-            and os.environ.get('JAC_SV_SIBLING')
-            and hasattr(user_manager, 'ensure_user_root')
-        ) {
-            root_id = await asyncio.to_thread(user_manager.ensure_user_root, username);
+        if username != Con.GUEST.value and os.environ.get('JAC_SV_SIBLING') {
+            ensure_root = getattr(
+                user_manager, 'ensure_user_root', user_manager.get_root_id
+            );
+            root_id = await asyncio.to_thread(ensure_root, username);
         }
         if not root_id {
             return {'error': 'User not found'};
@@ -332,7 +333,7 @@ def _deserialize_wire_args(args: dict[(str, any)]) {
     }
 }
 
-def _occ_policy -> tuple {
+def _occ_policy -> tuple[str, int, int] {
     mode = "retry";
     max_attempts = 5;
     backoff_ms = 0;
@@ -366,7 +367,7 @@ impl ExecutionManager._finalize_call_response(
         return reports;
     }
 
-    envelope: dict[str, JsonValue] = {
+    envelope: dict[str, object] = {
         'result': Serializer.serialize(result, api_mode=True),
         'reports': Serializer.serialize(reports, api_mode=True)
     };
@@ -375,7 +376,7 @@ impl ExecutionManager._finalize_call_response(
         envelope['warnings'] = [d.to_dict() for d in ctx.diagnostics];
         ctx.diagnostics.clear();
     }
-    return envelope;
+    return dict[(str, JsonValue)](envelope);
 }
 
 async def _run_function_with_occ(
@@ -443,7 +444,10 @@ async def _run_function_with_occ(
         try {
             ctx.mem.unit_exit();
         } except Exception as ue {
-            logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
+            import logging;
+            logging.getLogger(__name__).warning(
+                f"unit exit failed: {type(ue).__name__}: {ue}"
+            );
         }
         Jac.reset_request_context(req_token);
     }
@@ -463,7 +467,9 @@ impl ExecutionManager.execute_function(
 impl ExecutionManager.execute_function_sync(
     func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, _ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         result = await asyncio.to_thread(func, **args);
 
         if iscoroutine(result) {
@@ -477,7 +483,9 @@ impl ExecutionManager.execute_function_sync(
 impl ExecutionManager.execute_function_async(
     func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, _ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         result = await func(**args);
         return await self._finalize_call_response(call_state, result);
     }
@@ -500,7 +508,9 @@ impl ExecutionManager.spawn_walker_sync(
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
-    async def run_attempt(call_state: CallState, ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -534,7 +544,9 @@ impl ExecutionManager.spawn_walker_async(
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
-    async def run_attempt(call_state: CallState, ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -616,7 +628,7 @@ impl ModuleIntrospector._load_manifest -> None {
         return;
     }
     base: dict = {};
-    mod_path = self._module?.__file__;
+    mod_path: str = getattr(self._module, '__file__', '');
     if mod_path {
         import from jaclang.runtimelib.sealed_serve { serve_manifest_for }
         sm = serve_manifest_for(mod_path);
@@ -628,12 +640,12 @@ impl ModuleIntrospector._load_manifest -> None {
         }
     }
     if mod_path {
-        mod = Jac.program.find_module(os.path.abspath(mod_path));
+        mod = Jac.get_program().find_module(os.path.abspath(mod_path));
         if not mod {
-            mod = Jac.program.compile(mod_path);
+            mod = Jac.get_program().compile(mod_path);
         }
         if mod and mod.gen.client_manifest and not mod.gen.client_manifest.exports {
-            _ensure_js_generated(mod, Jac.program);
+            _ensure_js_generated(mod, Jac.get_program());
         }
         if (mod and mod.gen.client_manifest) {
             manifest = mod.gen.client_manifest;
@@ -649,7 +661,7 @@ impl ModuleIntrospector._load_manifest -> None {
 
     aggregated: dict = {};
 
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for hub_mod in hub.values() {
             if hub_mod and hub_mod.gen.interop_manifest {
                 for (ekey, eeff) in hub_mod.gen.interop_manifest.endpoint_effects.items() {
@@ -669,7 +681,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
     import jaclang.jac0core.unitree as uni;
     self._function_access = {};
     self._walker_access = {};
-    mod_path = self._module?.__file__;
+    mod_path: str = getattr(self._module, '__file__', '');
     if mod_path {
         import from jaclang.runtimelib.sealed_serve { serve_manifest_for }
         sm = serve_manifest_for(mod_path);
@@ -679,11 +691,11 @@ impl ModuleIntrospector._extract_access_levels -> None {
             return;
         }
     }
-    main_mod = Jac.program.find_module(os.path.abspath(mod_path)) if mod_path else None;
+    main_mod = Jac.get_program().find_module(os.path.abspath(mod_path)) if mod_path else None;
 
     if not main_mod and mod_path {
         try {
-            main_mod = Jac.program.compile(os.path.abspath(mod_path));
+            main_mod = Jac.get_program().compile(os.path.abspath(mod_path));
         } except Exception as e {
             import logging;
             logging.getLogger(__name__).warning(
@@ -710,10 +722,10 @@ impl ModuleIntrospector._extract_access_levels -> None {
             if not (src and src.endswith(('.jac', '.jac'))) {
                 continue;
             }
-            prov = Jac.program.find_module(src);
+            prov = Jac.get_program().find_module(src);
             if not prov {
                 try {
-                    prov = Jac.program.compile(src);
+                    prov = Jac.get_program().compile(src);
                 } except Exception {
                     prov = None;
                 }
@@ -732,7 +744,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
 
         if not (man.walker_access or man.func_access) {
             try {
-                Jac.program.run_schedule(src_mod, get_boundary_analysis_sched());
+                Jac.get_program().run_schedule(src_mod, get_boundary_analysis_sched());
             } except Exception as e {
                 import logging;
                 logging.getLogger(__name__).warning(
@@ -830,13 +842,13 @@ impl ModuleIntrospector._register_sealed_bindings(
 }
 
 impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
-    if not (self._module and Jac.program and Jac.program.mod) {
+    if not (self._module and Jac.get_program().mod) {
         return;
     }
     import from jaclang.jac0core.constant { Tokens as Tok }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
-    sealed_mod_path = self._module?.__file__;
+    sealed_mod_path: str = getattr(self._module, '__file__', '');
     if sealed_mod_path {
         import from jaclang.runtimelib.sealed_serve {
             serve_manifest_for,
@@ -856,7 +868,7 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
     func_access: dict[str, bool] = {};
     walker_access: dict[str, bool] = {};
 
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for mod in hub.values() {
             man = mod.gen.interop_manifest if (mod and mod.gen) else None;
             if not man {
@@ -942,7 +954,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        src_path = ast_node.loc.mod_path if (ast_node and ast_node?.loc) else None;
+        if ast_node is None or ast_node?.loc is None {
+            continue;
+        }
+        src_path: str = ast_node.loc.mod_path;
         if not src_path {
             continue;
         }
@@ -959,7 +974,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        src_path = ast_node.loc.mod_path if (ast_node and ast_node?.loc) else None;
+        if ast_node is None or ast_node?.loc is None {
+            continue;
+        }
+        src_path: str = ast_node.loc.mod_path;
         if not src_path {
             continue;
         }
@@ -1086,7 +1104,7 @@ impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., any)]] {
     return {
         k: v
         for (k, v) in self._functions.items()
-        if not v?.schedule_spec
+        if not getattr(v, 'schedule_spec', '')
     };
 }
 
@@ -1979,7 +1997,11 @@ impl JacAPIServer.build_app -> ServingApp {
                 meta=Meta(extra={'http_status': 401})
             );
         }
-        return server.auth_handler.get_user_info(_bearer_token(request));
+        token = _bearer_token(request);
+        if token is None {
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
+        }
+        return server.auth_handler.get_user_info(token);
     }
 
     def _protected(request: Request) -> any {

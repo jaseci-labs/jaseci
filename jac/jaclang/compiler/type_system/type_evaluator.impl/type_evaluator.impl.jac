@@ -2347,10 +2347,14 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                         isinstance(declared_inst, ClassType)
                         and self.prefetch.final_class is not None
                         and declared_inst.shared == self.prefetch.final_class.shared
-                        and not declared_inst.private.type_args
-                        and node_.parent.value is not None
                     ) {
-                        return self.get_type_of_expression(node_.parent.value);
+                        final_args = declared_inst.private.type_args;
+                        if final_args {
+                            return self._convert_to_instance(final_args[0]);
+                        }
+                        if node_.parent.value is not None {
+                            return self.get_type_of_expression(node_.parent.value);
+                        }
                     }
 
                     if (

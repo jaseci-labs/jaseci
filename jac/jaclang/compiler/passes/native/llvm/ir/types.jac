@@ -28,7 +28,7 @@ class Type(_StrCaching) {
         return not (self == other);
     }
 
-    def format_constant(self: Type, value: any) -> object {
+    def format_constant(self: Type, value: any) -> str {
         return str(value);
     }
 
@@ -36,9 +36,13 @@ class Type(_StrCaching) {
         return value;
     }
 
-    def __call__(self: Type, value: any) -> object {
+    def __call__(self: Type, value: any) -> Constant {
         import from jaclang.compiler.passes.native.llvm.ir { Constant }
         return Constant(self, value);
+    }
+
+    def gep(self: Type, i: any) -> Type {
+        raise TypeError(f"{self} does not support gep");
     }
 }
 
@@ -135,7 +139,7 @@ class _TypedPointerType(PointerType) {
         return hash(_TypedPointerType);
     }
 
-    def gep(self: _TypedPointerType, i: any) -> object {
+    def gep(self: _TypedPointerType, i: any) -> Type {
         if not isinstance(i.type, IntType) {
             raise TypeError(i.type);
         }
@@ -249,7 +253,7 @@ class IntType(Type) {
         return hash(IntType);
     }
 
-    def format_constant(self: IntType, val: any) -> object {
+    def format_constant(self: IntType, val: any) -> str {
         if isinstance(val, bool) {
             return str(val).lower();
         } else {
@@ -278,15 +282,15 @@ def _as_half(value: any) -> object {
 }
 
 def _format_float_as_hex(
-    value: any, packfmt: any, unpackfmt: any, numdigits: any
-) -> object {
+    value: any, packfmt: str, unpackfmt: str, numdigits: int
+) -> str {
     raw = struct.pack(packfmt, float(value));
     intrep = struct.unpack(unpackfmt, raw)[0];
     out = '{{0:#{0}x}}'.format(numdigits).format(intrep);
     return out;
 }
 
-def _format_double(value: any) -> object {
+def _format_double(value: any) -> str {
     return _format_float_as_hex(value, 'd', 'Q', 16);
 }
 
@@ -318,7 +322,7 @@ class HalfType(_BaseFloatType) {
         return 'half';
     }
 
-    def format_constant(self: HalfType, value: any) -> object {
+    def format_constant(self: HalfType, value: any) -> str {
         return _format_double(_as_half(value));
     }
 }
@@ -332,7 +336,7 @@ class FloatType(_BaseFloatType) {
         return 'float';
     }
 
-    def format_constant(self: FloatType, value: any) -> object {
+    def format_constant(self: FloatType, value: any) -> str {
         return _format_double(_as_float(value));
     }
 }
@@ -346,7 +350,7 @@ class DoubleType(_BaseFloatType) {
         return 'double';
     }
 
-    def format_constant(self: DoubleType, value: any) -> object {
+    def format_constant(self: DoubleType, value: any) -> str {
         return _format_double(value);
     }
 }
@@ -415,7 +419,7 @@ class VectorType(Type) {
         return self;
     }
 
-    def format_constant(self: VectorType, value: any) -> object {
+    def format_constant(self: VectorType, value: any) -> str {
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
@@ -505,14 +509,14 @@ class ArrayType(Aggregate) {
         return hash(ArrayType);
     }
 
-    def gep(self: ArrayType, i: any) -> object {
+    def gep(self: ArrayType, i: any) -> Type {
         if not isinstance(i.type, IntType) {
             raise TypeError(i.type);
         }
         return self.element;
     }
 
-    def format_constant(self: ArrayType, value: any) -> object {
+    def format_constant(self: ArrayType, value: any) -> str {
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
@@ -555,7 +559,7 @@ class BaseStructType(Aggregate) {
         return self._wrap_packed(ret);
     }
 
-    def format_constant(self: BaseStructType, value: any) -> object {
+    def format_constant(self: BaseStructType, value: any) -> str {
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
@@ -563,14 +567,22 @@ class BaseStructType(Aggregate) {
         return self._wrap_packed(ret);
     }
 
-    def gep(self: BaseStructType, i: any) -> object {
+    def gep(self: BaseStructType, i: any) -> Type {
         if not isinstance(i.type, IntType) {
             raise TypeError(i.type);
         }
-        return self.elements[i.constant];
+        elems = self.elements;
+        if not isinstance(elems, tuple) {
+            raise TypeError(f"{self} has no indexable elements");
+        }
+        elem = elems[i.constant];
+        if not isinstance(elem, Type) {
+            raise TypeError(elem);
+        }
+        return elem;
     }
 
-    def _wrap_packed(self: BaseStructType, textrepr: any) -> object {
+    def _wrap_packed(self: BaseStructType, textrepr: str) -> str {
         if self.packed {
             return '<{}>'.format(textrepr);
         } else {

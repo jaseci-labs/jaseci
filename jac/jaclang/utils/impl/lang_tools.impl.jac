@@ -78,7 +78,7 @@ impl AstTool.ir(args: list[str]) -> str {
                 ).ir_out;
                 rep_src = unparse_module(rep);
                 console.print(rep_src);
-                ir = prog.compile(
+                ir_mod = prog.compile(
                     use_str=rep_src,
                     file_path=(file_name[:-3] + '.jac'),
                     options=CompileOptions(no_cgen=True, force_target_program=True)
@@ -87,7 +87,7 @@ impl AstTool.ir(args: list[str]) -> str {
                 return f"Error While Jac to Py AST conversion: {e}";
             }
         } else {
-            ir = prog.compile(
+            ir_mod = prog.compile(
                 file_name,
                 options=CompileOptions(no_cgen=True, force_target_program=True)
             );
@@ -111,8 +111,8 @@ impl AstTool.ir(args: list[str]) -> str {
                 return out;
 
             case 'sym.':
-                return printgraph_symtab_tree(ir.sym_tab)
-                    if isinstance(ir.sym_tab, UniScopeNode)
+                return printgraph_symtab_tree(ir_mod.sym_tab)
+                    if isinstance(ir_mod.sym_tab, UniScopeNode)
                     else 'Sym_tab is None.';
 
             case 'ast':
@@ -133,35 +133,35 @@ impl AstTool.ir(args: list[str]) -> str {
                 return out;
 
             case 'ast.':
-                return printgraph_ast_tree(ir);
+                return printgraph_ast_tree(ir_mod);
 
             case 'cfg.':
                 return cfg_dot_from_file(file_name);
 
             case 'unparse':
-                return unparse_module(ir);
+                return unparse_module(ir_mod);
 
             case 'pyast':
-                ir = prog.compile(
+                ir_mod = prog.compile(
                     file_name, options=CompileOptions(force_target_program=True)
                 );
-                return f"{py_ast.dump(ir.gen.py_ast[0], indent=2)}"
-                    if isinstance(ir.gen.py_ast[0], py_ast.AST)
+                return f"{py_ast.dump(ir_mod.gen.py_ast[0], indent=2)}"
+                    if isinstance(ir_mod.gen.py_ast[0], py_ast.AST)
                     else 'Compile failed.';
 
             case 'docir':
-                return str(run_pass(DocIRGenPass, ir, prog).ir_out.gen.doc_ir);
+                return str(run_pass(DocIRGenPass, ir_mod, prog).ir_out.gen.doc_ir);
 
             case 'py':
-                ir = prog.compile(
+                ir_mod = prog.compile(
                     file_name, options=CompileOptions(force_target_program=True)
                 );
-                return f"{ir.gen.py}"
-                    if isinstance(ir.gen.py[0], str)
+                return f"{ir_mod.gen.py}"
+                    if isinstance(ir_mod.gen.py[0], str)
                     else 'Compile failed.';
 
             case 'esast':
-                esast_pass = run_pass(EsastGenPass, ir, prog);
+                esast_pass = run_pass(EsastGenPass, ir_mod, prog);
                 es_ir = esast_pass.ir_out;
                 es_ast = es_ir.gen.es_ast;
                 if isinstance(es_ast, EsNode) {
@@ -171,7 +171,7 @@ impl AstTool.ir(args: list[str]) -> str {
                 }
 
             case 'es':
-                esast_pass = run_pass(EsastGenPass, ir, prog);
+                esast_pass = run_pass(EsastGenPass, ir_mod, prog);
                 es_ir = esast_pass.ir_out;
                 es_ast = es_ir.gen.es_ast;
                 if isinstance(es_ast, EsNode) {
@@ -199,10 +199,10 @@ impl AstTool.py_uni_nodes -> str {
         if method.startswith('visit_')
     ];
     node_names = [method.replace('visit_', '') for method in visit_methods];
-    pass_func_names = [];
-    for (name, value) in inspect.getmembers(PyastBuildPass) {
-        if (name.startswith('proc_') and inspect.isfunction(value)) {
-            pass_func_names.append(name.replace('proc_', ''));
+    pass_func_names: list[str] = [];
+    for (member_name, member_value) in inspect.getmembers(PyastBuildPass) {
+        if (member_name.startswith('proc_') and inspect.isfunction(member_value)) {
+            pass_func_names.append(member_name.replace('proc_', ''));
         }
     }
     output = '';
@@ -316,7 +316,7 @@ impl UniNodeInfo.process(cls: type[uni.UniNode]) -> None {
     UniNodeInfo.type_map[self.name] = cls;
     self.class_name_snake = pascal_to_snake(cls.__name__);
     self.init_sig = inspect.signature(cls.__init__);
-    self.kids: list[AstKidInfo] = [];
+    self.kids = [];
     for (param_name, param) in self.init_sig.parameters.items() {
         if (param_name not in ['self', 'parent', 'kid', 'line', 'sym_tab']) {
             param_type = param.annotation

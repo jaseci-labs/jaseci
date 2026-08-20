@@ -139,7 +139,7 @@ impl JacAccessValidation.check_access_level(
     ) {
         return access_level_cast(custom_level);
     }
-    access_level = AccessLevel.NO_ACCESS;
+    access_level: AccessLevel = AccessLevel.NO_ACCESS;
     if ((to_access := to.access).all.value > AccessLevel.NO_ACCESS.value) {
         access_level = to_access.all;
     }
@@ -198,7 +198,8 @@ impl JacWalker.spawn_call(
     import from jaclang.jac0core.osp_kernel { osp_spawn }
     import from jaclang.jac0core.osp_kernel_sv { desc_for, make_sv_runtime }
     warch = `walker.archetype;
-    osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), `list(`walker.next));
+    starts: list = `list(`walker.next);
+    osp_spawn(make_sv_runtime(), warch, desc_for(`type(warch)), starts);
     return warch;
 }
 
@@ -532,8 +533,12 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             cls.__annotations__ = {};
         }
         cls.__annotations__['reports'] = list;
-        cls.reports = dataclasses.field(
-            default_factory=`list, init=False, repr=False, compare=False
+        setattr(
+            cls,
+            'reports',
+            dataclasses.field(
+                default_factory=`list, init=False, repr=False, compare=False
+            )
         );
     }
     if cls.__dict__.get('__annotations__', {}) {
@@ -903,11 +908,14 @@ impl JacGraph.refs(
             if path.edges_only
             else resolve_query(ctx.mem, path)
     );
-    return [
-        a.archetype
-        for a in planned
-        if a.archetype is not None
-    ];
+    resolved: list[(NodeArchetype | EdgeArchetype)] = [];
+    for a in planned {
+        arch = a.archetype;
+        if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
+            resolved.append(arch);
+        }
+    }
+    return resolved;
 }
 
 impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
@@ -935,7 +943,7 @@ impl JacGraph.connect(
 ) -> (NodeArchetype | list[NodeArchetype] | list[EdgeArchetype]) {
     left = [left] if isinstance(left, NodeArchetype) else left;
     right_is_node = isinstance(right, NodeArchetype);
-    right = [right] if right_is_node else right;
+    right = [right] if isinstance(right, NodeArchetype) else right;
     edges = [];
     for i in left {
         _left = i.__jac__;
@@ -1082,7 +1090,7 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
     jctx = JacRuntimeInterface.get_context();
     if (not anchor.persistent and not anchor.root) {
         anchor.persistent = True;
-        anchor.root = jctx.user_root.id;
+        anchor.`root = jctx.user_root.id;
     }
     jctx.mem.put(anchor);
     match anchor {
@@ -1203,6 +1211,7 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     import os;
     import time;
     import urllib.request;
+    import from http.client { HTTPResponse }
     import from jaclang.runtimelib { sv_client }
     import from jaclang.runtimelib.server { JacAPIServer as CoreJacAPIServer }
     import from jaclang.runtimelib.serving.server { ServingServer }
@@ -1228,7 +1237,10 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     healthy = False;
     while time.time() < deadline {
         try {
-            with urllib.request.urlopen(f"{base_url}/functions", timeout=1) as resp {
+            probe: HTTPResponse = urllib.request.urlopen(
+                f"{base_url}/functions", timeout=1
+            );
+            with probe as resp {
                 if resp.status < 500 {
                     healthy = True;
                     break;
@@ -1325,7 +1337,7 @@ impl JacServe.sv_walker_call(
             try {
                 instance.reports = reports;
             } except Exception {
-                pass;
+                ;
             }
         }
         return instance;
@@ -1445,7 +1457,7 @@ impl JacLLM.by_operator(lhs: any, rhs: any) -> any {
 
 impl JacLLM.default_llm -> LLMModel {
     import os;
-    _cache = JacLLM?._default_llm_instance;
+    _cache = JacLLM._default_llm_instance;
     if (_cache is not None) {
         return _cache;
     }
@@ -1607,18 +1619,20 @@ impl JacModule.create_archetype_from_source(
     cachable: bool = False,
     keep_temporary_files: bool = False
 ) -> (types.ModuleType | None) {
-    if not base_path {
-        base_path = JacRuntime.get_base_path_dir() or os.getcwd();
-    }
-    if (base_path and not os.path.exists(base_path)) {
-        os.makedirs(base_path);
+    resolved_base: str = base_path or JacRuntime.get_base_path_dir() or os.getcwd();
+    if not os.path.exists(resolved_base) {
+        os.makedirs(resolved_base);
     }
     if not module_name {
         module_name = f"_dynamic_module_{len(JacRuntime.loaded_modules)}";
     }
     import tempfile;
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.jac', prefix=(module_name + '_'), dir=base_path, delete=False
+        mode='w',
+        suffix='.jac',
+        prefix=(module_name + '_'),
+        dir=resolved_base,
+        delete=False
     ) as tmp_file {
         tmp_file_path = tmp_file.name;
         tmp_file.write(source_code);
@@ -1628,7 +1642,7 @@ impl JacModule.create_archetype_from_source(
         (tmp_module_name, _) = os.path.splitext(tmp_file_basename);
         result = JacRuntimeInterface.jac_import(
             target=tmp_module_name,
-            base_path=base_path,
+            base_path=resolved_base,
             override_name=module_name,
             lng='jac'
         );

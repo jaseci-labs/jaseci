@@ -1718,8 +1718,10 @@ def seal_export_symbols(
         for fn_name in (layout_dict.get("functions") or {})
         if fn_name not in clib
     };
-    for struct_def in (layout_dict.get("structs") or {}).values() {
-        for kinds in (struct_def.get("accessors") or {}).values() {
+    structs: dict[str, dict[str, any]] = layout_dict.get("structs") or {};
+    for struct_def in structs.values() {
+        accessors: dict[str, dict[str, str]] = struct_def.get("accessors") or {};
+        for kinds in accessors.values() {
             names.update(kinds.values());
         }
     }
@@ -1797,10 +1799,13 @@ def seal_native_roots(
 
     pkg_name = pkg_path.name;
     triple = llvm.get_default_triple();
+    assert isinstance(triple, str);
     out_dir = precompiled_dir / "native" / triple;
     identity = compiler_identity();
     (forced_rebuild, _no_precompile) = cache_mode();
-    index = {} if forced_rebuild else read_seal_index(precompiled_dir, triple);
+    index: dict[str, dict[str, any]] = (
+        {} if forced_rebuild else read_seal_index(precompiled_dir, triple)
+    );
     fresh_index: dict[str, dict[str, any]] = dict(index);
     kept: dict[str, dict[str, any]] = {};
     _seal_layouts: dict[str, dict[str, any]] = {};
@@ -1853,6 +1858,10 @@ def seal_native_roots(
         layout_path = out_dir / f"{stem}.layout.json";
         waiver_digest = seal_waiver_digest(rel, waivers);
         record = index.get(rel);
+        record_sources: dict[str, any] = {};
+        if record is not None {
+            record_sources = record.get("sources") or {};
+        }
         why = "a full rebuild was requested (JAC_REBUILD)";
         if not forced_rebuild {
             why = seal_reuse_decision(
@@ -1862,7 +1871,7 @@ def seal_native_roots(
                 triple,
                 identity,
                 waiver_digest,
-                seal_source_keys(pkg_path, sorted((record or {}).get("sources") or {}))
+                seal_source_keys(pkg_path, sorted(record_sources))
             );
         }
         if not why and record is not None {
@@ -2034,13 +2043,15 @@ def seal_native_roots(
             layout_dict["materialize_manifest"] = _mat_manifest;
         }
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
-        for _sd in layout_dict["structs"].values() {
+        _layout_structs: dict[str, dict[str, any]] = layout_dict["structs"];
+        for _sd in _layout_structs.values() {
+            _sd_accessors: dict[str, dict[str, str]] = _sd.get("accessors") or {};
             _live = {
                 _fname: {
                     _kind: _sym
                     for (_kind, _sym) in _kinds.items()
                     if _sym not in _stub_syms
-                } for (_fname, _kinds) in (_sd.get("accessors") or {}).items()
+                } for (_fname, _kinds) in _sd_accessors.items()
             };
             _sd["accessors"] = {
                 _fname: _kinds
@@ -2436,6 +2447,7 @@ def seal_native_pool(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     triple = llvm.get_default_triple();
+    assert isinstance(triple, str);
     identity = compiler_identity();
     (forced_rebuild, _no_precompile) = cache_mode();
     fresh_index: dict[str, dict[str, any]] = (
@@ -2529,17 +2541,17 @@ def seal_native_pool(
     refused: list[str] = [];
     drained: list[str] = [];
     for rel in roots {
-        landed = results.get(rel);
-        if landed is None or landed.get("skipped") {
+        outcome = results.get(rel);
+        if outcome is None or outcome.get("skipped") {
             drained.append(rel);
             continue;
         }
-        if not landed["ok"] {
+        if not outcome["ok"] {
             refused.append(rel);
             continue;
         }
-        artifacts.update(landed["artifacts"]);
-        kept.update(landed["records"]);
+        artifacts.update(outcome["artifacts"]);
+        kept.update(outcome["records"]);
     }
     if refused or drained {
         for rel in refused {
@@ -2631,7 +2643,7 @@ def seal_worker_main -> int {
                 "different jaclang tree or compiler tier than its parent."
             );
         }
-        raw_waivers = request.get("waivers");
+        raw_waivers: (dict[str, any] | None) = request.get("waivers");
         table = (
             None
                 if raw_waivers is None

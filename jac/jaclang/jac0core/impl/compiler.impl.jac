@@ -274,7 +274,9 @@ impl JacCompiler.get_bytecode(
                 if native_bc is not None {
                     import struct as _struct;
                     import jaclang.compiler.passes.native.llvm.binding as _llvm;
-                    triple = _llvm.get_default_triple().encode('utf-8');
+                    triple_text = _llvm.get_default_triple();
+                    assert isinstance(triple_text, str);
+                    triple = triple_text.encode('utf-8');
                     hdr = _struct.pack('<H', len(triple)) + triple;
                     sections[SEC_NATIVE_OBJ] = hdr + native_bc;
                 } else {
@@ -378,8 +380,10 @@ impl JacCompiler._load_native_from_cache(
         llvm_mod = llvm.parse_assembly(cached_ir);
         llvm_mod.verify();
         target = llvm.Target.from_default_triple();
+        assert isinstance(target, llvm.Target);
         target_machine = target.create_target_machine();
         engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
+        assert isinstance(engine, llvm.ExecutionEngine);
         import from jaclang.jac0core.codeinfo {
             CodeGenTarget,
             install_native_static_init
@@ -444,8 +448,10 @@ impl JacCompiler._load_native_from_bitcode(
 
     llvm_mod = llvm.parse_bitcode(bitcode);
     target = llvm.Target.from_default_triple();
+    assert isinstance(target, llvm.Target);
     target_machine = target.create_target_machine();
     engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
+    assert isinstance(engine, llvm.ExecutionEngine);
     import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
     gen = CodeGenTarget();
     gen.native_engine = engine;
@@ -656,7 +662,8 @@ impl JacCompiler._deserialize_interop_table(
         InteropContext
     }
     manifest = InteropManifest();
-    for (name, data) in cached_interop.get('bindings', {}).items() {
+    cached_bindings: dict[str, dict[str, any]] = cached_interop.get('bindings', {});
+    for (name, data) in cached_bindings.items() {
         binding = InteropBinding(
             name=name,
             source_context=InteropContext(data['source_context']),
@@ -1104,7 +1111,7 @@ impl JacCompiler.compile(
         set_effective_default_codespace
     }
     _prev_cs = get_effective_default_codespace_override();
-    _depth_prev = getattr(self, '_reentrant_depth', 0);
+    _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
@@ -1158,6 +1165,7 @@ impl JacCompiler.compile(
             if _crash is not None {
                 raise _crash;
             }
+            assert _mod is not None;
             return _mod;
         }
 

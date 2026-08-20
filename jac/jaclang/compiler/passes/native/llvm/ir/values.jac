@@ -97,6 +97,15 @@ def _castop(opname: any) -> object {
     A mixin defining constant operations, for use in constant-like classes.
     """
 class _ConstOpMixin(object) {
+    with entry {
+        type: types.Type;
+        addrspace: int;
+    }
+
+    def get_reference(self: _ConstOpMixin) -> str {
+        raise NotImplementedError;
+    }
+
     """
         Left integer shift:
             lhs << rhs
@@ -224,7 +233,7 @@ class _ConstOpMixin(object) {
     def xor(self: _ConstOpMixin, other: any) -> object { }
 
     def _cmp(
-        self: _ConstOpMixin, prefix: any, sign: any, cmpop: any, other: any
+        self: _ConstOpMixin, prefix: str, sign: str, cmpop: any, other: any
     ) -> object {
         ins = prefix + 'cmp';
         try {
@@ -415,7 +424,7 @@ class _ConstOpMixin(object) {
                 ("can only call gep() on pointer constants, not '%s'" % (self.type, ))
             );
         }
-        outtype = self.type;
+        outtype: types.Type = self.type;
         for i in indices {
             outtype = outtype.gep(i);
         }
@@ -434,6 +443,10 @@ class _ConstOpMixin(object) {
     """
 class Value(object) {
     has type: types.Type;
+
+    def get_reference(self: Value) -> str {
+        raise NotImplementedError;
+    }
 
     def __repr__(self: Value) -> object {
         return ("<ir.%s type='%s' ...>" % (self.__class__.__name__, self.type));
@@ -567,6 +580,7 @@ class NamedValue(_StrCaching, _StringReferenceCaching, Value) {
     with entry {
         name_prefix = '%';
         deduplicate_name = True;
+        _name: str;
     }
 
     def init(self: NamedValue, parent: any, `type: any, name: any) -> object {
@@ -590,7 +604,7 @@ class NamedValue(_StrCaching, _StringReferenceCaching, Value) {
         raise NotImplementedError;
     }
 
-    def _get_name(self: NamedValue) -> object {
+    def _get_name(self: NamedValue) -> str {
         return self._name;
     }
 
@@ -599,8 +613,14 @@ class NamedValue(_StrCaching, _StringReferenceCaching, Value) {
         self._name = name;
     }
 
-    with entry {
-        name = property(_get_name, _set_name);
+    @property
+    def name(self: NamedValue) -> str {
+        return self._get_name();
+    }
+
+    @name.setter
+    def name(self: NamedValue, value: any) -> None {
+        self._set_name(value);
     }
 
     def _get_reference(self: NamedValue) -> object {
@@ -618,10 +638,10 @@ class NamedValue(_StrCaching, _StringReferenceCaching, Value) {
     }
 
     @property
-    def function_type(self: NamedValue) -> object {
+    def function_type(self: NamedValue) -> types.FunctionType {
         ty = self.type;
-        if isinstance(ty, types.PointerType) {
-            ty = self.type.pointee;
+        if isinstance(ty, types._TypedPointerType) {
+            ty = ty.pointee;
         }
         if isinstance(ty, types.FunctionType) {
             return ty;
@@ -641,7 +661,7 @@ class MetaDataString(NamedValue) {
         self.string = string;
     }
 
-    def descr(self: MetaDataString, buf: any) -> object {
+    def descr(self: MetaDataString, buf: list[str]) -> object {
         buf += (self.get_reference(), "\n");
     }
 
@@ -728,7 +748,7 @@ class MDValue(NamedValue) {
         parent.metadata.append(self);
     }
 
-    def descr(self: MDValue, buf: any) -> object {
+    def descr(self: MDValue, buf: list[str]) -> object {
         operands = [];
         for op in self.operands {
             if isinstance(op.type, types.MetaDataType) {
@@ -741,8 +761,7 @@ class MDValue(NamedValue) {
                 operands.append("{0} {1}".format(op.type, op.get_reference()));
             }
         }
-        operands = ', '.join(operands);
-        buf += ("!{{ {0} }}".format(operands), "\n");
+        buf += ("!{{ {0} }}".format(', '.join(operands)), "\n");
     }
 
     def _get_reference(self: MDValue) -> object {
@@ -803,7 +822,7 @@ class DIValue(NamedValue) {
         parent.metadata.append(self);
     }
 
-    def descr(self: DIValue, buf: any) -> object {
+    def descr(self: DIValue, buf: list[str]) -> object {
         if self.is_distinct {
             buf += ("distinct ", );
         }
@@ -832,8 +851,7 @@ class DIValue(NamedValue) {
             }
             operands.append("{0}: {1}".format(key, strvalue));
         }
-        operands = ', '.join(operands);
-        buf += ("!", self.kind, "(", operands, ")\n");
+        buf += ("!", self.kind, "(", ', '.join(operands), ")\n");
     }
 
     def _get_reference(self: DIValue) -> object {
@@ -883,6 +901,10 @@ class GlobalValue(NamedValue, _ConstOpMixin, _HasMetadata) {
     A global variable.
     """
 class GlobalVariable(GlobalValue) {
+    with entry {
+        initializer: (Value | None);
+    }
+
     def init(
         self: GlobalVariable, module: any, typ: any, name: any, addrspace: any = 0
     ) -> object {
@@ -968,7 +990,7 @@ class AttributeSet(`set) {
         }
     }
 
-    def _expand(self: AttributeSet, name: any, typ: any) -> object {
+    def _expand(self: AttributeSet, name: any, typ: any) -> str {
         return name;
     }
 
@@ -979,7 +1001,7 @@ class AttributeSet(`set) {
         return super.add(name);
     }
 
-    def _to_list(self: AttributeSet, typ: any) -> object {
+    def _to_list(self: AttributeSet, typ: any) -> list[str] {
         return [self._expand(i, typ) for i in sorted(self)];
     }
 }
@@ -1022,6 +1044,7 @@ class FunctionAttributes(AttributeSet) {
                 'uwtable'
             ]
         );
+        _personality: (GlobalValue | None);
     }
 
     def init(self: FunctionAttributes, args: any = ()) -> object {
@@ -1052,7 +1075,7 @@ class FunctionAttributes(AttributeSet) {
     }
 
     @property
-    def personality(self: FunctionAttributes) -> object {
+    def personality(self: FunctionAttributes) -> (GlobalValue | None) {
         return self._personality;
     }
 
@@ -1062,7 +1085,7 @@ class FunctionAttributes(AttributeSet) {
         self._personality = val;
     }
 
-    def _to_list(self: FunctionAttributes, ret_type: any) -> object {
+    def _to_list(self: FunctionAttributes, ret_type: any) -> list[str] {
         attrs = super._to_list(ret_type);
         if self.alignstack {
             attrs.append('alignstack({0:d})'.format(self.alignstack));
@@ -1084,7 +1107,7 @@ class FunctionAttributes(AttributeSet) {
     """
 class Function(GlobalValue) {
     def init(self: Function, module: any, ftype: any, name: any) -> object {
-        assert isinstance(ftype, types.Type);
+        assert isinstance(ftype, types.FunctionType);
         super.init(module, ftype.as_pointer(), name=name);
         self.ftype = ftype;
         self.scope = _utils.NameScope();
@@ -1230,7 +1253,7 @@ class ArgumentAttributes(AttributeSet) {
         super.init(args);
     }
 
-    def _expand(self: ArgumentAttributes, name: any, typ: any) -> object {
+    def _expand(self: ArgumentAttributes, name: any, typ: any) -> str {
         requires_type = self._known.get(name);
         if requires_type {
             return f"{name}({typ.pointee})";
@@ -1272,7 +1295,7 @@ class ArgumentAttributes(AttributeSet) {
         self._dereferenceable_or_null = val;
     }
 
-    def _to_list(self: ArgumentAttributes, typ: any) -> object {
+    def _to_list(self: ArgumentAttributes, typ: any) -> list[str] {
         attrs = super._to_list(typ);
         if self.align {
             attrs.append('align {0:d}'.format(self.align));
@@ -1367,7 +1390,7 @@ class Block(NamedValue) {
         return self.parent.module;
     }
 
-    def descr(self: Block, buf: any) -> object {
+    def descr(self: Block, buf: list[str]) -> object {
         buf.append("{0}:\n".format(self._format_name()));
         buf += ["  {0}\n".format(instr) for instr in self.instructions];
     }

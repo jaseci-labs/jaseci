@@ -113,7 +113,7 @@ def get_host_cpu_features -> object {
 """
     Return the default target triple LLVM is configured to produce code for.
     """
-def get_default_triple -> object {
+def get_default_triple -> str {
     with ffi.OutputString() as out {
         ffi.lib.LLVMPY_GetDefaultTargetTriple(out);
         return str(out);

@@ -471,7 +471,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     crash_pod = recheck["crash_pod"];
                 }
 
-                pulls = scan["pulls"];
+                pulls: dict[str, tuple[str, str, any]] = scan["pulls"];
                 imagepull_streak = {k: imagepull_streak.get(k, 0) + 1 for k in pulls};
                 pull_failure = "";
                 pull_pod = None;
@@ -495,7 +495,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         break;
                     }
                 }
-                creating_now = scan.get("creating", {});
+                creating_now: dict[str, any] = scan.get("creating", {});
                 creating_streak = {
                     k: creating_streak.get(k, 0) + 1 for k in creating_now
                 };
@@ -807,7 +807,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
         is_gateway = svc_name == GATEWAY_NAME;
         has_memory_request = bool(cfg.get("has_memory_request", True));
-        effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
+        effective_extra: list[dict[str, any]] = self.k8s_config.extra_triggers
+            if is_gateway
+            else [];
         triggers: list[Trigger] = [];
         if not cfg.get("triggers", []) and not effective_extra {
             triggers = [
@@ -835,7 +837,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
-        for raw in cfg.get("triggers", []) + effective_extra {
+        raw_triggers: list[dict[str, any]] = cfg.get("triggers", []) or [];
+        for raw in raw_triggers + effective_extra {
             t = Trigger(
                 type=str(raw.get("type", "")),
                 metadata=dict(raw.get("metadata", {})),
@@ -852,7 +855,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 }
                 continue;
             }
-            raw_auth = raw.get("auth");
+            raw_auth: dict[str, any] = raw.get("auth") or {};
             if raw_auth {
                 t.auth = TriggerAuth(secret_refs=dict(raw_auth.get("secret_refs", {})));
             }
@@ -885,7 +888,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
         out: list[dict[str, any]] = [];
-        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+        autoscalers: dict[str, any] = bundle.get("autoscalers", {}) or {};
+        for (svc_name, cfg_raw) in autoscalers.items() {
             cfg = dict(cfg_raw or {});
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
@@ -930,7 +934,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             self._apply_ops_rbac(namespace, ops_rbac);
         }
 
-        for (pvc_name, pvc_manifest) in bundle.get("pvcs", {}).items() {
+        pvcs: dict[str, dict[str, any]] = bundle.get("pvcs", {}) or {};
+        for (pvc_name, pvc_manifest) in pvcs.items() {
             self._apply_or_replace_pvc(core_v1, namespace, pvc_manifest);
             if self.logger {
                 self.logger.info(
@@ -978,7 +983,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, svc_manifest) in bundle["services"].items() {
+        services: dict[str, dict[str, any]] = bundle["services"];
+        for (svc_name, svc_manifest) in services.items() {
             self._apply_or_replace(
                 core_v1,
                 "read_namespaced_service",
@@ -995,7 +1001,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, raw_manifest) in bundle["deployments"].items() {
+        deployments: dict[str, dict[str, any]] = bundle["deployments"];
+        for (svc_name, raw_manifest) in deployments.items() {
             dep_manifest = with_config_revision(raw_manifest, config_revision);
             self._apply_or_replace(
                 apps_v1,
@@ -1033,7 +1040,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, pdb_manifest) in bundle.get("pdbs", {}).items() {
+        pdbs: dict[str, dict[str, any]] = bundle.get("pdbs", {}) or {};
+        for (svc_name, pdb_manifest) in pdbs.items() {
             self._apply_or_replace(
                 policy_v1,
                 "read_namespaced_pod_disruption_budget",
@@ -1299,7 +1307,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             services = core_v1.list_namespaced_service(
                 namespace=namespace, label_selector=ms_selector
             );
-            for svc in services.items {
+            service_items: list[any] = services.items;
+            for svc in service_items {
                 try {
                     core_v1.delete_namespaced_service(
                         name=svc.metadata.name, namespace=namespace

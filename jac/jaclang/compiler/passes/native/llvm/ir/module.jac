@@ -15,9 +15,10 @@ class Module(object) {
         self._metadatacache = {};
     }
 
-    def _fix_metadata_operands(self: Module, operands: any) -> object {
-        fixed_ops = [];
-        for op in operands {
+    def _fix_metadata_operands(self: Module, operands: any) -> list[any] {
+        fixed_ops: list[any] = [];
+        for raw_op in operands {
+            op: any = raw_op;
             if (op is None) {
                 op = types.MetaDataType()(None);
             } elif isinstance(op, str) {

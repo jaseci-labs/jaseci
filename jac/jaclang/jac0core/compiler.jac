@@ -1136,6 +1136,7 @@ def _note_native_closure_cap(root_path: str, cap: int) {
 obj JacCompiler {
     has _internal_program: (JacProgram | None) = None,
         _internal_bytecode_depth: int = 0,
+        _reentrant_depth: int = 0,
         _jaclang_root: (str | None) = None;
 
     has internal_program: JacProgram { getter; }

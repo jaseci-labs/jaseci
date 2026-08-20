@@ -1,6 +1,6 @@
 import from ctypes { c_bool, c_int, c_size_t, POINTER, Structure, byref, c_char_p }
-import from collections { namedtuple }
 import from enum { IntFlag }
+import from typing { NamedTuple }
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
 def create_new_module_pass_manager -> object {
     return ModulePassManager();
@@ -18,13 +18,14 @@ def create_pipeline_tuning_options(speed_level: any = 2) -> object {
     return PipelineTuningOptions(speed_level);
 }
 
-with entry {
-    _prunestats = namedtuple('PruneStats', 'basicblock diamond fanout fanout_raise');
-}
-
 """ Holds statistics from reference count pruning.
     """
-class PruneStats(_prunestats) {
+class PruneStats(NamedTuple) {
+    has basicblock: int;
+    has diamond: int;
+    has fanout: int;
+    has fanout_raise: int;
+
     def __add__(self: PruneStats, other: any) -> object {
         if not isinstance(other, PruneStats) {
             msg = 'PruneStats can only be added to another PruneStats, got {}.';
@@ -682,6 +683,10 @@ class TimePassesHandler(ffi.ObjectRef) {
 }
 
 class PassBuilder(ffi.ObjectRef) {
+    with entry {
+        _time_passes_handler: (TimePassesHandler | None);
+    }
+
     def init(self: PassBuilder, tm: any, pto: any) -> object {
         super.init(ffi.lib.LLVMPY_CreatePassBuilder(tm, pto));
         self._pto = pto;
