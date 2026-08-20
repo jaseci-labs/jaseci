@@ -1158,7 +1158,7 @@ with entry {
     args = sys.argv;
     if len(args) < 2 {
         print("Usage: greeter <name> [--shout]");
-        sys.exit(1);
+        sys.`exit(1);
     }
     name = args[1];
     shout = "--shout" in args;

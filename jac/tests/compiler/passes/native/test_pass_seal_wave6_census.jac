@@ -35,28 +35,28 @@ Python-base boundary `Transform.emit` sits behind, and the two
 `viols_reported` flags moved off `UniNode.gen` onto `Module` -- `gen`'s
 getter is a standing seam, so every read behind it was one too.
 
-## The five that remain, and what each one waits on
+## The four that remain, and what each one waits on
 
-Three are one fact: `jac0core/codeinfo.jac` is not in the closure.
-`scan_native_blockers` refuses it for `import from typing { Any }`, and
-`test_native_erased_any.jac` carries that measurement and its three-item
-clearing list. `classify_native_import` reads codeinfo's compile-time import
-table, `base_expr_is_erased` reads its erased-base table, and
-`name_in_type_position` is a pure cascade of the second.
+All four are one fact seen from different distances:
+`jac0core/codeinfo.jac` is not in the closure. `scan_native_blockers`
+refuses it for `import from typing { Any }`, and
+`test_native_erased_any.jac` carries that measurement and its clearing
+list. `classify_native_import` reads codeinfo's compile-time import
+table, `base_expr_is_erased` reads its erased-base table,
+`name_in_type_position` is a pure cascade of the second, and
+`native_capability_violations` cascades on the first and third -- plus
+one member gap of its own, `os.path.abspath`, which clears when that
+member lowers.
 
-Two are the pass-tier boundary. `native_capability_violations` calls
-`ModuleCodegenPass.iter_context_stmts` and `ClientCapabilityCheckPass`
-calls `client_capability_violations`, and both of those now lower --
-`module_codegen_pass` went from six own seams to zero in this wave, and its
-whole waiver tuple is deleted. The scan admits it as a dependency of
-capability, and it still does not join capability's closure: a sealed pass
-root is its own artifact, so one pass calling another crosses an artifact
-boundary rather than inlining it. These two clear when that crossing is
-linked, not when the callee is fixed -- the callee is already fixed.
+The fifth is gone. `ClientCapabilityCheckPass.transform` waited on the
+pass-tier boundary -- `client_capability_violations` lives in
+`module_codegen_pass` -- and #8320's re-land put the base chain in this
+closure (the honest `CodeLocInfo` import), so the callee linked and the
+seam cleared. The same link took the `iter_context_stmts` half out of
+`native_capability_violations`' causes.
 
-That is why this file pins `module_codegen_pass`'s zero separately below. It
-is the half of the work that landed, and it is invisible from capability's
-own census.
+This file still pins `module_codegen_pass`'s zero own seams below: it is
+the half of the wave's work that capability's census cannot see.
 """
 
 import os;
@@ -71,30 +71,52 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      CAPABILITY: str = "compiler/passes/main/capability_check_pass.jac",
      MODULE_CODEGEN: str = "jac0core/passes/module_codegen_pass.jac";
 
-"""capability_check_pass's exact native closure, as package-relative paths."""
+"""capability_check_pass's exact native closure, as package-relative paths.
+
+The pass base chain joined this closure when `transform.jac` started
+importing `CodeLocInfo` from its declaring module (#8320's re-land):
+`transform`, `uni_pass` and `module_codegen_pass` link in, and
+`diagnostic_utils` and the logging shim ride with them. That is the
+crossing the old pin's help text predicted -- and it collected the
+predicted payout below.
+"""
 glob CAPABILITY_CLOSURE: tuple = (
          "compiler/passes/main/capability_check_pass.jac",
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/transform.jac",
+         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac"
      );
 
-"""capability's own five, each mapped to the mechanism that clears it."""
+"""capability's own four, each mapped to the mechanism that clears it.
+
+This table held five until the base chain linked.
+`ClientCapabilityCheckPass.transform` was waiting on exactly that
+crossing -- `client_capability_violations` lives in `module_codegen_pass`
+-- and it cleared the moment the callee joined the closure.
+`native_capability_violations` stays, but its reasons moved: the
+`iter_context_stmts` half of its old cause cleared with the same link,
+and what remains is its codeinfo cascades plus an `os.path.abspath`
+member the native lane does not carry yet.
+"""
 glob CAPABILITY_SEAMS: dict[(str, str)] = {
          "classify_native_import": "codeinfo not in closure: reads native_erased_import_names",
          "base_expr_is_erased": "codeinfo not in closure: reads NATIVE_ERASED_BASES",
          "name_in_type_position": "cascade of base_expr_is_erased",
-         "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
-         "ClientCapabilityCheckPass.transform": "pass-tier crossing: calls client_capability_violations"
+         "native_capability_violations": "codeinfo cascades (classify_native_import, name_in_type_position) plus os.path.abspath"
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -214,9 +236,11 @@ test "capability_check_pass's own seams are exactly the five named" {
 test "module_codegen_pass carries no seams of its own" {
     # The half of this wave that capability's census cannot see. All six of
     # its former seams -- iter_context_stmts and the five cascades of it --
-    # cleared when iter_woven_segments stopped erasing the statement type,
-    # and `_MODULE_CODEGEN_SEAM_WAIVERS` is deleted. If this regresses, the
-    # waiver tuple has to come back before the pass can seal again.
+    # cleared when iter_woven_segments stopped erasing the statement type.
+    # `_MODULE_CODEGEN_SEAM_WAIVERS` survives for exactly one other root:
+    # on `uni_pass.jac`, the only unit that links this pass without the
+    # unitree layout, the family still demotes and is waived there. On its
+    # own root -- what this test measures -- the count is zero.
     seen = _own_seams(MODULE_CODEGEN, MODULE_CODEGEN);
     assert not seen , (
         f"module_codegen_pass demotes again: {sorted(seen)}. It reached zero "
