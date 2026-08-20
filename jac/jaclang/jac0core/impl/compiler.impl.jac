@@ -1602,7 +1602,10 @@ impl JacCompiler._compile_once(
                     continue;
                 }
                 cb_seen.add(cb_src);
-                cb_mod = actual_program.mod.hub.get(cb_src);
+
+                # find_module, not a raw hub probe: hub keys are resolved
+                # paths, so an abspath spelling misses on a symlinked root.
+                cb_mod = actual_program.find_module(cb_src);
                 cb_has_facts = (
                     cb_mod is not None
                     and cb_mod.gen
