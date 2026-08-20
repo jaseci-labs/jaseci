@@ -205,6 +205,25 @@ def archetype_id(arch: Archetype) -> str {
     return f"{arch_decl_module(arch)}::{name}";
 }
 
+def base_declaration(base_expr: UniNode) -> (Archetype | None) {
+    """The archetype a base expression names, through the symbol it carries.
+
+    Identity comes from the symbol the expression already resolved to, so an
+    imported base names the archetype that actually declares it. Matching a
+    base expression against a bare-name map of the current module -- the old
+    path -- silently dropped a base declared elsewhere and silently accepted
+    an unrelated class that happened to share the name.
+    """;
+    decl = base_expr?.sym?.decl;
+    if decl is None {
+        return None;
+    }
+    if isinstance(decl, Archetype) {
+        return decl;
+    }
+    return decl.find_parent_of_type(Archetype);
+}
+
 def class_type_decl(cls: any) -> (Archetype | None) {
     """The Archetype a ClassType was built from, or None.
 
@@ -424,13 +443,17 @@ obj LayoutPass(Transform) {
         isinstance_targets: set[str] postinit,
         _building: set[str] postinit,
         _base_aids: set[str] postinit,
-        _closure_archs: dict[str, Archetype] postinit;
+        _closure_archs: dict[str, Archetype] postinit,
+        _dispatch_aids: set[str] postinit,
+        _registered: list[str] postinit;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
     def _collect_archetypes(module: Module) -> dict[str, Archetype];
     def _collect_isinstance_targets(module: Module) -> None;
     def _class_type_of(arch: Archetype) -> any;
+    def _lays_out(arch: Archetype) -> bool;
+    def _method_names(arch: Archetype) -> set[str];
     def _base_archetypes(arch: Archetype) -> list[Archetype];
     def _discover_closure(arch_map: dict[str, Archetype]) -> None;
     def _ancestor_archetypes(arch: Archetype) -> list[Archetype];
@@ -444,7 +467,7 @@ obj LayoutPass(Transform) {
     def _acyclic_walk(aid: str, state: dict[str, int]) -> int;
     def _expand_type_keys(key: str) -> (list[str] | None);
     def _split_top_level(s: str, sep: str) -> list[str];
-    def _build_vtable_layout(aid: str, arch_map: dict[str, Archetype]) -> None;
+    def _build_vtable_layout(aid: str) -> None;
     def _validate_obj_fields(arch: Archetype, arch_map: dict[str, Archetype]) -> None;
     def _is_layout_compatible_type(
         type_node: (UniNode | None), arch_map: dict[str, Archetype]

@@ -8,6 +8,8 @@ impl LayoutPass.postinit -> None {
     self._building = set();
     self._base_aids = set();
     self._closure_archs = {};
+    self._dispatch_aids = set();
+    self._registered = [];
     super.postinit();
 }
 
@@ -34,16 +36,12 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
     self._collect_isinstance_targets(module);
     self._discover_closure(arch_map);
 
-    built: list[str] = [];
     for (_, arch) in arch_map.items() {
-        aid = self._ensure_layout(arch);
-        if aid is not None and aid not in built {
-            built.append(aid);
-        }
+        self._ensure_layout(arch);
     }
 
-    for aid in built {
-        self._build_vtable_layout(aid, arch_map);
+    for aid in self._registered {
+        self._build_vtable_layout(aid);
     }
 
     self._compute_acyclicity();
@@ -93,7 +91,7 @@ impl LayoutPass._ancestor_archetypes(arch: Archetype) -> list[Archetype] {
     if mro {
         for anc_cls in mro[1:] {
             anc = class_type_decl(anc_cls);
-            if anc is not None and anc is not arch {
+            if anc is not None and anc is not arch and self._lays_out(anc) {
                 out.append(anc);
             }
         }
@@ -131,10 +129,52 @@ impl LayoutPass._ensure_layout(arch: Archetype) -> (str | None) {
         }
         lay = self._build_layout(arch, aid, ancestors);
         self.registry.register(lay);
+        self._registered.append(aid);
     } finally {
         self._building.discard(aid);
     }
     return aid;
+}
+
+impl LayoutPass._lays_out(arch: Archetype) -> bool {
+    """Whether this declaration is one the backend assigns a layout to.
+
+    Two kinds of ancestor are reachable through the linearization but have
+    no runtime representation. Typeshed declarations -- `object` and the
+    rest -- are real classes to the type system and nothing to the backend.
+    Erasure markers (NATIVE_ERASED_BASES: `ABC`, `Protocol` and friends) are
+    erased in native context, so a class must not carry one as a native
+    parent; a module declaring a class of its own by one of those names
+    means that class, which is why the test is on where it is declared
+    rather than on the spelling alone.
+
+    The bare-name model excluded both by accident: it only ever knew
+    archetypes declared in the module being compiled.
+    """;
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
+    if arch_decl_module(arch).endswith(".pyi") {
+        return False;
+    }
+    aname = arch.name.value if arch.name else "";
+    if aname in NATIVE_ERASED_BASES {
+        return arch.find_parent_of_type(Module) is self.ir_in;
+    }
+    return True;
+}
+
+impl LayoutPass._method_names(arch: Archetype) -> set[str] {
+    """Every method and accessor slot this declaration spells.""";
+    out: set[str] = set();
+    for method in arch.get_methods() {
+        mn = method.name_ref.sym_name if method.name_ref else None;
+        if mn is not None {
+            out.add(mn);
+        }
+    }
+    for (slot_name, _var, _acc) in archetype_accessors(arch) {
+        out.add(slot_name);
+    }
+    return out;
 }
 
 impl LayoutPass._base_archetypes(arch: Archetype) -> list[Archetype] {
@@ -148,15 +188,13 @@ impl LayoutPass._base_archetypes(arch: Archetype) -> list[Archetype] {
     """;
     out: list[Archetype] = [];
     for base_expr in (arch.base_classes or []) {
-        sym = base_expr?.sym;
-        decl = sym.decl if sym is not None else None;
-        anc: (Archetype | None) = None;
-        if isinstance(decl, Archetype) {
-            anc = decl;
-        } elif decl is not None {
-            anc = decl.find_parent_of_type(Archetype);
-        }
-        if anc is not None and anc is not arch and anc not in out {
+        anc = base_declaration(base_expr);
+        if (
+            anc is not None
+            and anc is not arch
+            and anc not in out
+            and self._lays_out(anc)
+        ) {
             out.append(anc);
         }
     }
@@ -185,8 +223,14 @@ impl LayoutPass._discover_closure(arch_map: dict[str, Archetype]) -> None {
         }
         seen.add(aid);
         self._closure_archs[aid] = arch;
+        own_names = self._method_names(arch);
         for anc in self._ancestor_archetypes(arch) {
-            self._base_aids.add(archetype_id(anc));
+            anc_aid = archetype_id(anc);
+            self._base_aids.add(anc_aid);
+
+            if not own_names.isdisjoint(self._method_names(anc)) {
+                self._dispatch_aids.add(anc_aid);
+            }
             stack.append(anc);
         }
         for base in self._base_archetypes(arch) {
@@ -256,13 +300,20 @@ impl LayoutPass._build_layout(
     `ancestors` is the class's linearization, already laid out -- callers
     reach here through `_ensure_layout`, which builds ancestors first.
 
-    `needs_vtable` asks whether anything dispatches through this class. That
-    is answered from `_base_aids`, collected over the whole closure before
-    any slot was assigned, so a base whose only subclass lives in another
-    module is recognised as a base here. It used to be answered from the
-    current module alone, which is why a base could come out flat under a
-    subclass that had a vtable, and why their disagreeing headers needed
-    reconciling after the fact.
+    `needs_vtable` asks one question -- is anything dispatched through this
+    class -- and asks it of the whole closure. It used to also ask
+    `bool(parents)` ("do I have a base"), which is a property of the
+    declaration and says nothing about dispatch, while the dispatch half
+    could only see the current module. A base whose only subclass lived
+    elsewhere was nobody's base in its own registry and came out flat; its
+    child, merely for having a base, took a vtable pointer in slot 0, every
+    inherited field shifted by one, and `headers_agree` refused the pair.
+
+    The dispatch question is now asked of the whole closure, so a base with
+    a subclass anywhere is recognised as one -- exactly as a base with a
+    same-module subclass always was. `inherits_vtable` carries the header
+    down, so a subclass never has a narrower header than the ancestor whose
+    field indices it adopts.
     """;
     aname = arch.name.value if arch.name else "unknown";
     mro: list[str] = [aid];
@@ -280,7 +331,14 @@ impl LayoutPass._build_layout(
     vtable_by_dispatch = (
         is_osp or aid in self._base_aids or aname in self.isinstance_targets
     );
-    needs_vtable = bool(parents) or vtable_by_dispatch;
+    inherits_vtable = False;
+    for anc_lay in ancestors {
+        if anc_lay.has_vtable {
+            inherits_vtable = True;
+            break;
+        }
+    }
+    needs_vtable = bool(parents) or vtable_by_dispatch or inherits_vtable;
 
     fields: list[FieldInfo] = [];
     field_index: dict[str, int] = {};
@@ -482,7 +540,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
     }
 }
 
-impl LayoutPass._build_vtable_layout(aid: str, arch_map: dict[str, Archetype]) -> None {
+impl LayoutPass._build_vtable_layout(aid: str) -> None {
     """Order this class's vtable slots, ancestors' methods first.
 
     The MRO walked here is the class's own linearization, held as aids, and
@@ -537,9 +595,8 @@ impl LayoutPass._build_vtable_layout(aid: str, arch_map: dict[str, Archetype]) -
         sig_node: (UniNode | None) = None;
         owner = arch_name;
         for check_name in mro {
-            check_arch = (
-                self._closure_archs.get(check_name) or arch_map.get(check_name)
-            );
+            check_lay = reg.layouts.get(check_name);
+            check_arch = self._closure_archs.get(check_name);
             if check_arch is None {
                 continue;
             }
@@ -548,7 +605,7 @@ impl LayoutPass._build_vtable_layout(aid: str, arch_map: dict[str, Archetype]) -
                 mn = method.name_ref.sym_name if method.name_ref else None;
                 if mn == mname {
                     sig_node = method.signature;
-                    owner = check_name;
+                    owner = check_lay.name if check_lay is not None else arch_name;
                     found = True;
                     break;
                 }
@@ -557,7 +614,7 @@ impl LayoutPass._build_vtable_layout(aid: str, arch_map: dict[str, Archetype]) -
                 for (slot_name, _var, acc) in archetype_accessors(check_arch) {
                     if slot_name == mname {
                         sig_node = acc.signature;
-                        owner = check_name;
+                        owner = check_lay.name if check_lay is not None else arch_name;
                         found = True;
                         break;
                     }
