@@ -9,8 +9,8 @@ live, unwaivable call into a Python-only module. The bodies now live in
 `constant`; `symbol_utils` re-exports them so its other consumers are
 unchanged.
 
-The measurement is one census, asserted three ways. `expr_keys` has to
-compile natively, produce IR and carry zero seams -- a zero-seam census
+The measurement is one coverage run, asserted three ways. `expr_keys` has to
+compile natively, produce IR and carry zero seams -- a zero-seam coverage
 without IR would mean "not reached", not "clean" -- and no seam of
 `cfg_build_pass` may name either function, because the reason string is
 what a sealed build turns into an `abort()` stub.
@@ -22,7 +22,7 @@ so the backend has no static offset), and `CoalesceBBPass.enter_node`,
 `CoalesceBBPass._node_label` and `cfg_dot_from_file` are the dot-graph
 tooling family, reachable only from `jac tool` through `lang_tools`.
 
-One census, one test, deliberately. Each native root compile holds the
+One coverage run, one test, deliberately. Each native root compile holds the
 whole closure's IR, and `jac test` spreads tests across worker processes with
 no shared memo, so a file of N tests over one root is N full compiles in up
 to N workers. The compiler suite runs on a 16GB runner that already loses
@@ -32,7 +32,7 @@ communication when this accumulates.
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
@@ -41,16 +41,16 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      KEYS_MOD: str = "compiler/expr_keys.jac",
      HOISTED: tuple = ("collect_narrowing_symbols", "collect_assigned_symbols");
 
-"""Compile one root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -64,16 +64,16 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    return (census, has_ir, errors, );
+    return (coverage, has_ir, errors, );
 }
 
-"""The census record for one package-relative module in a root's closure."""
-def _record_for(census: dict, member: str) -> (dict | None) {
-    for (path, rec) in census.items() {
+"""The coverage record for one package-relative module in a root's closure."""
+def _record_for(coverage: dict, member: str) -> (dict | None) {
+    for (path, rec) in coverage.items() {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         if where == member {
             return rec;
@@ -84,14 +84,14 @@ def _record_for(census: dict, member: str) -> (dict | None) {
 
 
 test "the hoisted narrowing walk lowers, and no cfg seam names it" {
-    (census, has_ir, errors) = _root_census(CFG_ROOT);
+    (coverage, has_ir, errors) = _root_coverage(CFG_ROOT);
     assert not errors , (
-        f"{CFG_ROOT} compile errors (a census below would be 'not reached', "
+        f"{CFG_ROOT} compile errors (a coverage report below would be 'not reached', "
         f"not 'clean'): {errors[:5]}"
     );
     assert has_ir , f"no LLVM IR for {CFG_ROOT}: the compile aborted before codegen";
 
-    keys = _record_for(census, KEYS_MOD);
+    keys = _record_for(coverage, KEYS_MOD);
     assert keys is not None , (
         f"{KEYS_MOD} is not in {CFG_ROOT}'s native closure; CFGBuildPass no "
         "longer reaches the hoisted narrowing walk, or it reaches it through "
@@ -105,8 +105,8 @@ test "the hoisted narrowing walk lowers, and no cfg seam names it" {
         f"{keys['seams']}"
     );
 
-    cfg = _record_for(census, CFG_ROOT);
-    assert cfg is not None , f"{CFG_ROOT} is missing from its own census";
+    cfg = _record_for(coverage, CFG_ROOT);
+    assert cfg is not None , f"{CFG_ROOT} is missing from its own coverage";
     offenders: list[str] = [];
     for seam in (cfg["seams"] or []) {
         for name in HOISTED {
