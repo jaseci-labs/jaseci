@@ -2826,14 +2826,17 @@ impl TypeEvaluator.get_type_of_magic_method_call(
     if obj_type.category == TypeCategory.Class {
         assert isinstance(obj_type, ClassType);
         owner_type = obj_type;
-        if (
-            obj_type.is_instantiable_class()
-            and self._lookup_class_member(obj_type, method_name) is None
-        ) {
+        if obj_type.is_instantiable_class() {
             meta_owner = self._metaclass_of(obj_type);
-            if meta_owner is not None
-                and self._lookup_class_member(meta_owner, method_name) is not None {
-                owner_type = meta_owner;
+            if meta_owner is not None {
+                meta_member = self._lookup_class_member(meta_owner, method_name);
+                if (
+                    meta_member is not None
+                    and meta_member.class_type.shared.class_name
+                        not in ("type", "object")
+                ) {
+                    owner_type = meta_owner;
+                }
             }
         }
         if member := self._lookup_class_member(owner_type, method_name) {

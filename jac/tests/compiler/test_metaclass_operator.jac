@@ -43,3 +43,21 @@ test "a ctypes array type can be built" {
     errs = check_src(src);
     assert not errs , f"ctypes array construction rejected: {errs}";
 }
+
+test "a metaclass operator wins over one on the class itself" {
+    src = "class Meta(type) {\n"
+        + "    def __mul__(cls: Meta, other: int) -> str {\n"
+        + "        return 'meta';\n"
+        + "    }\n"
+        + "}\n"
+        + "class Both(metaclass=Meta) {\n"
+        + "    def __mul__(self: Both, other: int) -> int {\n"
+        + "        return 0;\n"
+        + "    }\n"
+        + "}\n"
+        + "def probe -> str {\n"
+        + "    return Both * 3;\n"
+        + "}\n";
+    errs = check_src(src);
+    assert not errs , f"class __mul__ shadowed the metaclass one: {errs}";
+}
