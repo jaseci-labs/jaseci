@@ -287,12 +287,18 @@ test "declining the prefix does not force the native parser binding" {
 
 test "the quiet clauses are exactly the three missing capabilities" {
     quiet = list(prefix_quiet_clauses());
-    assert quiet == ["image-unsealed", "prefix-entry-absent", "annex-present"] , (
+    assert quiet == [
+        "image-unsealed",
+        "prefix-entry-absent",
+        "annex-present",
+        "codespace-pinned"
+    ] , (
         f"the quiet set changed to {quiet}. A clause goes quiet only when it "
         "names a whole capability the build lacks -- no image, no prefix "
-        "entry, no annex weave -- because those fire for most modules of most "
-        "projects and a line each would be noise. Anything that names a "
-        "module going wrong stays loud. This tuple empties as the waves land."
+        "entry, no annex weave, no codespace stamped before the crossing -- "
+        "because those fire for most modules of most projects and a line each "
+        "would be noise. Anything that names a module going wrong stays loud. "
+        "This tuple empties as the waves land."
     );
     for q in quiet {
         assert q in prefix_clause_names() , (
@@ -531,6 +537,66 @@ test "a source the parser rejects never reaches codegen through the crossing" {
                 "the driver read the parse as clean and emitted bytecode"
             );
         }
+    } finally {
+        _reset();
+    }
+}
+
+"""A module whose codespace the driver stamps AFTER the parse must decline.
+
+The driver decides a module's codespace from its pin or its location and
+stamps `code_context` onto the tree -- but it does that after the parse step
+the crossing owns. A pass running inside the crossing therefore sees the
+`postinit` default, SERVER, no matter what the module is really pinned to.
+
+That is not hypothetical. `ASTValidationPass`, the one seat executing today,
+gates E0067 on exactly that field, so an ECMAScript fixture with backtick
+escaped `from`/`class` parameters -- legal in client code -- collected two
+Python-reserved-word errors the staged route never produces. Native and staged
+agree on identical input; what diverged was WHEN the pass ran relative to a
+fact the driver had not stamped yet.
+
+So the crossing declines by name instead of computing on a tree the driver has
+not finished preparing. Carrying the codespace across as a prefix fact and
+coercing inside the drive is the real fix, and it is a prerequisite for
+admitting seat two -- every later seat reads more driver-stamped facts than
+this one does.
+"""
+test "a codespace-pinned module declines instead of crossing" {
+    _reset();
+    try {
+        set_prefix_entry(reference_prefix_entry);
+        pinned = os.path.join(
+            str(JAC_ROOT),
+            "tests",
+            "compiler",
+            "passes",
+            "ecmascript",
+            "fixtures",
+            "advanced_language_features.jac"
+        );
+        assert os.path.isfile(pinned) , f"the pinned fixture moved: {pinned}";
+        (prog, mod) = _compile(pinned);
+        assert mod is not None;
+        rec = prefix_snapshot().get(os.path.realpath(pinned));
+        assert rec is not None , f"the router never recorded {pinned}";
+        assert rec["clause"] == "codespace-pinned" , (
+            f"a codespace-pinned module took clause {rec['clause']!r}; it must "
+            "decline by name rather than run passes over a tree whose "
+            "code_context the driver has not stamped yet"
+        );
+        assert list(rec["executed"]) == [] , (
+            f"the crossing ran passes on a pinned module: {rec}"
+        );
+        reserved = [
+            e
+            for e in prog.errors_had
+            if e.code is not None and e.code.code == "E0067"
+        ];
+        assert not reserved , (
+            "the crossing produced Python-reserved-word errors for a client "
+            f"module: {[str(e) for e in reserved]}"
+        );
     } finally {
         _reset();
     }

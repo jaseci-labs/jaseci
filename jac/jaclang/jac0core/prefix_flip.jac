@@ -31,6 +31,11 @@ glob PREFIX_CLAUSES: tuple[tuple[str, str]] = (
              "the crossing yet"
          ),
          (
+             "codespace-pinned",
+             "the module's codespace is pinned or decided by location, and the "
+             "driver stamps that onto the tree after the crossing would have run"
+         ),
+         (
              "absorbed-mod-present",
              "the module carries an absorb import whose tree the crossing "
              "cannot yet receive"
@@ -53,6 +58,7 @@ glob PREFIX_CLAUSES: tuple[tuple[str, str]] = (
          "image-unsealed",
          "prefix-entry-absent",
          "annex-present",
+         "codespace-pinned",
 
      ),
      PREFIX_ENV: str = "JAC_PREFIX",
@@ -547,6 +553,37 @@ def prefix_span_errors(span: tuple[any]) -> int {
     return err_end - err_start;
 }
 
+def _pinned_codespace(file_path: str) -> str {
+    try {
+        import from jaclang.jac0core.codeinfo {
+            is_client_by_location,
+            is_native_by_location
+        }
+        import from jaclang.jac0core.placement_pins {
+            config_kind_space,
+            config_module_pin
+        }
+    } except Exception {
+        return "";
+    }
+    try {
+        if is_native_by_location(file_path) {
+            return "native";
+        }
+        if is_client_by_location(file_path) {
+            return "client";
+        }
+        for decided in (config_module_pin(file_path), config_kind_space(file_path), ) {
+            if decided in ("client", "native", ) {
+                return str(decided);
+            }
+        }
+    } except Exception {
+        return "";
+    }
+    return "";
+}
+
 def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[str] {
     if prefix_disabled() {
         return ("disabled-by-env", f"{PREFIX_ENV}=off");
@@ -577,6 +614,14 @@ def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[
         return (
             "annex-present",
             f"{len(annexes)} annex source(s) weave into this module"
+        );
+    }
+    pinned = _pinned_codespace(file_path);
+    if pinned {
+        return (
+            "codespace-pinned",
+            f"the module's codespace is {pinned}; the driver stamps "
+            "code_context onto the tree after the crossing would have run"
         );
     }
     (fn, clause, detail) = prefix_entry();
