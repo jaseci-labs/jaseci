@@ -5,8 +5,8 @@ glob logger = logging.getLogger(__name__),
      _lock = threading.Lock(),
      _holder: dict[str, any] = {},
      NO_DATABASE_RESOLVED = (
-         'no [scale.database] url / JAC_DB_URL resolved and the embedded '
-         'server could not be provisioned'
+         'no [scale.database] url / JAC_DB_URL resolved, and no project '
+         'directory to provision an embedded server for'
      ),
      _DOCS_DDL = (
          'CREATE TABLE IF NOT EXISTS jac_docs ('
