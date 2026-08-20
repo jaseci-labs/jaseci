@@ -394,6 +394,8 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.errors_had.clear();
     self.warnings_had.clear();
+    self._boundary_parse_memo.clear();
+    self.release_native_dep_units();
 }
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {
