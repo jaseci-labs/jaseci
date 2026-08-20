@@ -215,7 +215,8 @@ test "the jcir root's native closure is exactly the measured set" {
     );
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in coverage
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen == JCIR_CLOSURE , (

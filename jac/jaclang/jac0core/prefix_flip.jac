@@ -623,11 +623,11 @@ def parse_with_prefix(
         (clause, detail) = decline;
         return _fall_back(source_str, file_path, prog, claimed, clause, detail);
     }
-    (entry, _c, _d) = prefix_entry();
+    (`entry, _c, _d) = prefix_entry();
     facts = prefix_facts_for(file_path, prog);
     err_start = len(prog.errors_had) if prog is not None else 0;
     try {
-        result = entry(source_str, file_path, prog, claimed, facts);
+        result = `entry(source_str, file_path, prog, claimed, facts);
     } except Exception as exc {
         return _fall_back(
             source_str,

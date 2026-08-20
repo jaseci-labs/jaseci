@@ -115,7 +115,8 @@ def _own_seams(pass_file: str) -> dict[(str, str)] {
     (coverage, _ir) = _pass_coverage(pass_file);
     rec = coverage.get(os.path.realpath(str(PASSES_DIR / pass_file)));
     assert rec is not None , (
-        f"{pass_file} never entered the native coverage -- the measurement is " "vacuous"
+        f"{pass_file} never entered the native coverage -- the measurement is "
+        "vacuous"
     );
     assert rec["outcome"] == "native" , (
         f"{pass_file} did not stay native ({rec['outcome']}: {rec['detail']}); "

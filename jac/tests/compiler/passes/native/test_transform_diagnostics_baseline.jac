@@ -152,7 +152,8 @@ def _own_seams -> dict[(str, str)] {
     (coverage, _ir, _prog) = _coverage();
     rec = coverage.get(os.path.realpath(TRANSFORM_JAC));
     assert rec is not None , (
-        "transform.jac never entered the native coverage -- the measurement " "is vacuous"
+        "transform.jac never entered the native coverage -- the measurement "
+        "is vacuous"
     );
     assert rec["outcome"] == "native" , (
         f"transform.jac did not stay native ({rec['outcome']}: "

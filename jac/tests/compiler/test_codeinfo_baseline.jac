@@ -172,7 +172,8 @@ test "codeinfo produces native IR, and every refusal left is a seam" {
 
     seen_closure = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in coverage
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen_closure == CODEINFO_CLOSURE , (

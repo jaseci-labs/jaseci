@@ -208,7 +208,8 @@ test "capability_check_pass's native closure is exactly the measured set" {
     (coverage, _has_ir, _errors) = _root_coverage(CAPABILITY);
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in coverage
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen == CAPABILITY_CLOSURE , (
