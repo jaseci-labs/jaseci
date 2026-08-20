@@ -3,7 +3,7 @@
 `unitree` cannot join `NATIVE_SEAL_ROOTS` until every module the native
 compile drags in with it lowers in full: a seam in a sealed artifact ships as
 an `abort()` stub, so one un-lowered method kills the process on first call.
-The seal's own refusal (`seal_demotion_report`) reads the same census this
+The seal's own refusal (`seal_demotion_report`) reads the same coverage this
 test reads, so this is the seal verdict without the link and the dlopen.
 
 Two things are asserted, and the closure assertion is the load-bearing one.
@@ -75,7 +75,7 @@ import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
@@ -161,7 +161,7 @@ glob UNITREE_CLOSURE: tuple = (
              "walks the filesystem. Read by the compile driver, not a parse."
          ),
          "unitree.jac::Import.__jac_detected.__get__": (
-             "Python-only, two layers: the census reports E5090 on its import "
+             "Python-only, two layers: the coverage reports E5090 on its import "
              "of `jac0core.ext_registry`, one of the plain-Python pre-runtime "
              "modules (with `cache_paths` and `sealed`) the bootstrap loads "
              "before any Jac runtime exists; beneath it every branch resolves "
@@ -172,7 +172,7 @@ glob UNITREE_CLOSURE: tuple = (
              "`jac0core.service_cut`, which stats and parses `jac.toml` "
              "(`os.path.getmtime` + `tomllib`), memoizes into a module-global "
              "dict, and resolves the project root through "
-             "`jac0core.modresolver`. The census reports E5092 -- the call "
+             "`jac0core.modresolver`. The coverage reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
@@ -291,33 +291,33 @@ glob UNITREE_CLOSURE: tuple = (
          )
      };
 
-glob _CENSUS_MEMO: list = [];
+glob _COVERAGE_MEMO: list = [];
 
 """The full waiver table."""
 def _waived_seams -> dict[(str, str)] {
     return dict(SEAM_WAIVERS);
 }
 
-"""Compile `unitree.jac` the way `seal_native_artifacts` does, up to the census."""
-def _unitree_census -> tuple[(dict, bool)] {
+"""Compile `unitree.jac` the way `seal_native_artifacts` does, up to the coverage."""
+def _unitree_coverage -> tuple[(dict, bool)] {
     # Runs in dev trees AND inside payload lanes that still compile from
     # source. When THIS runtime serves unitree from its own native seal, a
     # source measurement is not expressible: the compile is answered by the
-    # sealed artifact, so the census would read an empty closure and every
+    # sealed artifact, so the coverage would read an empty closure and every
     # assertion below would be vacuous. That build already ran this exact
-    # census at seal time (seal_demotion_report refuses un-waived seams),
+    # coverage at seal time (seal_demotion_report refuses un-waived seams),
     # which is the invariant this file pins for source lanes.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
         testskip(
-            "unitree is served from this runtime's native seal; the census "
+            "unitree is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
-    if _CENSUS_MEMO {
-        return _CENSUS_MEMO[0];
+    if _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[0];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(UNITREE_SRC),
@@ -331,18 +331,18 @@ def _unitree_census -> tuple[(dict, bool)] {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    result = (census, ir is not None and ir.gen.llvm_ir is not None, );
-    _CENSUS_MEMO.append(result);
+    result = (coverage, ir is not None and ir.gen.llvm_ir is not None, );
+    _COVERAGE_MEMO.append(result);
     return result;
 }
 
-"""Census seams as `<module>::<Type>.<method>` -> reason."""
+"""Coverage seams as `<module>::<Type>.<method>` -> reason."""
 def _seams_by_key -> dict[(str, str)] {
-    (census, _has_ir) = _unitree_census();
+    (coverage, _has_ir) = _unitree_coverage();
     found: dict[(str, str)] = {};
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = os.path.basename(path);
         for seam in (rec["seams"] or []) {
             (name, sep, why) = str(seam).partition(": ");
@@ -357,8 +357,8 @@ def _seams_by_key -> dict[(str, str)] {
 
 
 test "unitree's native closure is exactly the measured set" {
-    (census, _has_ir) = _unitree_census();
-    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    (coverage, _has_ir) = _unitree_coverage();
+    seen = tuple(sorted({os.path.basename(p) for p in coverage}));
     assert seen == UNITREE_CLOSURE , (
         f"unitree's native closure changed: {seen} != {UNITREE_CLOSURE}. "
         "A new member has to reach zero seams too before unitree can seal."
@@ -367,10 +367,10 @@ test "unitree's native closure is exactly the measured set" {
 
 
 test "unitree's closure produces native IR" {
-    (_census, has_ir) = _unitree_census();
+    (_coverage, has_ir) = _unitree_coverage();
     assert has_ir , (
         "no LLVM IR for unitree.jac -- the compile aborted before codegen, so "
-        "a zero-seam census below would mean 'not reached', not 'clean'"
+        "a zero-seam coverage below would mean 'not reached', not 'clean'"
     );
 }
 

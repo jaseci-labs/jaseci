@@ -1,8 +1,8 @@
 """Sealing wave 1: four compiler passes join the native seal.
 
 Each root below is measured exactly the way `seal_native_artifacts`
-measures it (same `CompileOptions`, same census), and three things are
-pinned per root, the same discipline `test_unitree_seal_census.jac` set:
+measures it (same `CompileOptions`, same coverage), and three things are
+pinned per root, the same discipline `test_unitree_seal_baseline.jac` set:
 
   1. **Closure membership** is exact. Every root drags `constant`,
      `srcloc` and `unitree` into its native unit and nothing else; the
@@ -10,7 +10,7 @@ pinned per root, the same discipline `test_unitree_seal_census.jac` set:
      (cross-module trust), so a new closure member means a module-level
      import changed and has to reach zero seams before the root can keep
      sealing.
-  2. **The root produces native IR.** A zero-seam census without IR means
+  2. **The root produces native IR.** A zero-seam coverage without IR means
      "not reached", not "clean".
   3. **The seam set matches `NATIVE_SEAL_DEMOTION_WAIVERS` two-way.** An
      un-waived seam fails (it would ship as an `abort()` stub), and a
@@ -20,7 +20,7 @@ pinned per root, the same discipline `test_unitree_seal_census.jac` set:
 Every waiver names what blocks it and what clears it:
 
   - `unitree`'s fifteen seams recur in every closure and are documented in
-    `test_unitree_seal_census.jac`; each pass root's waiver tuple extends
+    `test_unitree_seal_baseline.jac`; each pass root's waiver tuple extends
     `_UNITREE_SEAM_WAIVERS` rather than restating them.
   - `EndpointEffectPass.enter_ability` / `.enter_archetype` are
     Python-only: they write endpoint classifications through
@@ -61,7 +61,7 @@ import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
@@ -161,26 +161,26 @@ glob WAVE1_CLOSURES: dict[(str, tuple)] = {
          )
      };
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
 """A root's dotted module name, for the sealed-runtime skip gate."""
 def _root_module_name(rel: str) -> str {
     return "jaclang." + rel[:-4].replace("/", ".");
 }
 
-"""Compile one root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if native_artifact_for(_root_module_name(rel)) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
+    if rel in _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[rel];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -194,20 +194,20 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
+    result = (coverage, has_ir, errors, );
+    _COVERAGE_MEMO[rel] = result;
     return result;
 }
 
-"""Census seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
+"""Coverage seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
 def _seams_by_key(rel: str) -> dict[(str, str)] {
-    (census, _has_ir, _errors) = _root_census(rel);
+    (coverage, _has_ir, _errors) = _root_coverage(rel);
     found: dict[(str, str)] = {};
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         for seam in (rec["seams"] or []) {
             (name, sep, why) = str(seam).partition(": ");
@@ -224,7 +224,7 @@ def _seams_by_key(rel: str) -> dict[(str, str)] {
 test "every wave-1 root is registered for the seal" {
     for rel in WAVE1_ROOTS {
         assert rel in NATIVE_SEAL_ROOTS , (
-            f"{rel} is not in NATIVE_SEAL_ROOTS; this census would gate "
+            f"{rel} is not in NATIVE_SEAL_ROOTS; this coverage would gate "
             "nothing at seal time"
         );
         for member in WAVE1_CLOSURES[rel] {
@@ -239,7 +239,7 @@ test "every wave-1 root is registered for the seal" {
 
 test "each root's native closure is exactly the measured set" {
     for rel in WAVE1_ROOTS {
-        (census, _has_ir, errors) = _root_census(rel);
+        (coverage, _has_ir, errors) = _root_coverage(rel);
         assert not errors , (
             f"{rel} compile errors (closure below is 'not reached', not "
             f"'clean'): {errors[:5]}"
@@ -247,7 +247,7 @@ test "each root's native closure is exactly the measured set" {
         seen = tuple(
             sorted(
                 Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-                for p in census
+                for p in coverage
             )
         );
         assert seen == WAVE1_CLOSURES[rel] , (
@@ -261,10 +261,10 @@ test "each root's native closure is exactly the measured set" {
 
 test "each root's closure produces native IR" {
     for rel in WAVE1_ROOTS {
-        (_census, has_ir, _errors) = _root_census(rel);
+        (_coverage, has_ir, _errors) = _root_coverage(rel);
         assert has_ir , (
             f"no LLVM IR for {rel} -- the compile aborted before codegen, so "
-            "a zero-seam census would mean 'not reached', not 'clean'"
+            "a zero-seam coverage would mean 'not reached', not 'clean'"
         );
     }
 }

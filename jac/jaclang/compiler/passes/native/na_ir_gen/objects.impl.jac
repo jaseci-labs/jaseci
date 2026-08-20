@@ -1096,10 +1096,10 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
         }
     }
     try {
-        import from jaclang.jac0core.compiler { na_census_seam }
+        import from jaclang.jac0core.compiler { na_coverage_seam }
         _first_code = _own[0].code.code if _own[0].code is not None else "";
         _code_tag = f"[{_first_code}] " if _first_code else "";
-        na_census_seam(
+        na_coverage_seam(
             self.ir_in.loc.mod_path,
             f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
         );
@@ -1146,7 +1146,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
     way #8285 made a signature's declaration own its own: the slot erases to
     an opaque pointer, the field is recorded so that every read and write of
     it refuses inside the callable that performs it, and the refusal is
-    re-published as a census seam keyed on the field rather than swallowed.
+    re-published as a coverage seam keyed on the field rather than swallowed.
 
     An erased slot is storage the native side never writes, so the field also
     joins `struct_field_foreign` -- the constructor, the tracer, the arena and
@@ -1170,8 +1170,8 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
         );
     }
     try {
-        import from jaclang.jac0core.compiler { na_census_seam }
-        na_census_seam(
+        import from jaclang.jac0core.compiler { na_coverage_seam }
+        na_coverage_seam(
             self.ir_in.loc.mod_path,
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
         );

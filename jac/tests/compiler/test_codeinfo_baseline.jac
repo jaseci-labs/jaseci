@@ -45,19 +45,19 @@ inside a sealed artifact. `unitree` is in `NATIVE_SEAL_ROOTS`, so this is a
 live seal, not a hypothetical one.
 
 Clearing the hold means answering `codeinfo`'s 13 seams and that closure,
-which is wave work; `test_unitree_seal_census.jac` is the guard that catches
+which is wave work; `test_unitree_seal_baseline.jac` is the guard that catches
 it either way. This change is deliberately closure-neutral for every sealed
 root.
 
-One census, one test, deliberately: see the note in
-`test_expr_keys_census.jac` on what a file of N tests over one root costs
+One coverage run, one test, deliberately: see the note in
+`test_expr_keys_baseline.jac` on what a file of N tests over one root costs
 the 16GB compiler-suite runner.
 """
 
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { native_artifact_for }
 
@@ -69,7 +69,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 The pass base chain (`transform`, `uni_pass`, `module_codegen_pass`) and
 the diagnostics cluster it carries joined when `transform.jac` started
 importing `CodeLocInfo` from its declaring module (#8320's re-land) --
-the same arrival every pass root's census recorded. codeinfo's own seam
+the same arrival every pass root's coverage recorded. codeinfo's own seam
 set below did not move with it: the thirteen are filesystem, config and
 Python-codegen machinery, none of which the base chain touches.
 """
@@ -112,16 +112,16 @@ glob CODEINFO_SEAMS: tuple = (
          "resolve_native_module"
      );
 
-"""Compile one root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -135,17 +135,17 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    return (census, has_ir, errors, );
+    return (coverage, has_ir, errors, );
 }
 
 """The seam names one closure member reported, sorted."""
-def _seam_names(census: dict, member: str) -> tuple {
+def _seam_names(coverage: dict, member: str) -> tuple {
     names: list[str] = [];
-    for (path, rec) in census.items() {
+    for (path, rec) in coverage.items() {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         if where != member {
             continue;
@@ -160,26 +160,27 @@ def _seam_names(census: dict, member: str) -> tuple {
 
 
 test "codeinfo produces native IR, and every refusal left is a seam" {
-    (census, has_ir, errors) = _root_census(CODEINFO);
+    (coverage, has_ir, errors) = _root_coverage(CODEINFO);
     assert not errors , (
         "codeinfo must reach the backend with nothing fatal left; a "
         f"module-scope refusal hides every other one: {errors[:5]}"
     );
     assert has_ir , (
         "no LLVM IR for codeinfo -- the compile aborted before codegen, so "
-        "a zero-error census would mean 'not reached', not 'clean'"
+        "a zero-error coverage would mean 'not reached', not 'clean'"
     );
 
     seen_closure = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen_closure == CODEINFO_CLOSURE , (
         f"codeinfo's native closure changed: {seen_closure} != {CODEINFO_CLOSURE}"
     );
 
-    seen_seams = _seam_names(census, CODEINFO);
+    seen_seams = _seam_names(coverage, CODEINFO);
     assert seen_seams == CODEINFO_SEAMS , (
         "codeinfo's seam set moved. A new name means the data model grew a "
         "refusal the backend cannot lower; a missing one means a seam "

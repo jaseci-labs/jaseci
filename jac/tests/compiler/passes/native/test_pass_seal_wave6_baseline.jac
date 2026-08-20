@@ -1,6 +1,6 @@
 """Sealing wave 6: capability_check_pass reaches IR, and what the last five seams are.
 
-Same harness as waves 1, 2, 4 and 5 -- `na_census_begin` plus
+Same harness as waves 1, 2, 4 and 5 -- `na_coverage_begin` plus
 `force_codespace='native'`, exactly what `seal_native_artifacts` runs -- and
 the same two-way discipline: this file fails if the closure gains a member,
 if IR stops being produced, or if the seam set moves in either direction.
@@ -56,14 +56,14 @@ seam cleared. The same link took the `iter_context_stmts` half out of
 `native_capability_violations`' causes.
 
 This file still pins `module_codegen_pass`'s zero own seams below: it is
-the half of the wave's work that capability's census cannot see.
+the half of the wave's work that capability's coverage cannot see.
 """
 
 import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
@@ -119,32 +119,32 @@ glob CAPABILITY_SEAMS: dict[(str, str)] = {
          "native_capability_violations": "codeinfo cascades (classify_native_import, name_in_type_position) plus os.path.abspath"
      };
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
 """A root's dotted module name, for the sealed-runtime skip gate."""
 def _root_module_name(rel: str) -> str {
     return "jaclang." + rel[:-4].replace("/", ".");
 }
 
-"""Compile one root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if _jaclang_image() is not None {
         testskip(
-            "this runtime is a sealed jaclang image; a source census here "
+            "this runtime is a sealed jaclang image; a source coverage here "
             "measures the image's trust boundary, not the unit's own seams"
         );
     }
     if native_artifact_for(_root_module_name(rel)) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
+    if rel in _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[rel];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -158,20 +158,20 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
+    result = (coverage, has_ir, errors, );
+    _COVERAGE_MEMO[rel] = result;
     return result;
 }
 
 """The bare seam names a given closure member contributes."""
 def _own_seams(rel: str, member: str) -> set {
-    (census, _has_ir, _errors) = _root_census(rel);
+    (coverage, _has_ir, _errors) = _root_coverage(rel);
     found: set = set();
-    for (path, rec) in census.items() {
+    for (path, rec) in coverage.items() {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         if where != member {
             continue;
@@ -186,7 +186,7 @@ def _own_seams(rel: str, member: str) -> set {
 
 
 test "capability_check_pass compiles with no module-level errors" {
-    (_census, _has_ir, errors) = _root_census(CAPABILITY);
+    (_coverage, _has_ir, errors) = _root_coverage(CAPABILITY);
     assert not errors , (
         "capability_check_pass had seven module-level errors before this "
         f"wave and must keep zero; got {len(errors)}: {errors[:5]}"
@@ -195,7 +195,7 @@ test "capability_check_pass compiles with no module-level errors" {
 
 
 test "capability_check_pass produces native IR" {
-    (_census, has_ir, _errors) = _root_census(CAPABILITY);
+    (_coverage, has_ir, _errors) = _root_coverage(CAPABILITY);
     assert has_ir , (
         "no LLVM IR for capability_check_pass -- the compile aborted before "
         "codegen, so a seam count below would mean 'not reached', not "
@@ -205,10 +205,11 @@ test "capability_check_pass produces native IR" {
 
 
 test "capability_check_pass's native closure is exactly the measured set" {
-    (census, _has_ir, _errors) = _root_census(CAPABILITY);
+    (coverage, _has_ir, _errors) = _root_coverage(CAPABILITY);
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
+            for p in coverage
         )
     );
     assert seen == CAPABILITY_CLOSURE , (
@@ -234,7 +235,7 @@ test "capability_check_pass's own seams are exactly the five named" {
 
 
 test "module_codegen_pass carries no seams of its own" {
-    # The half of this wave that capability's census cannot see. All six of
+    # The half of this wave that capability's coverage cannot see. All six of
     # its former seams -- iter_context_stmts and the five cascades of it --
     # cleared when iter_woven_segments stopped erasing the statement type.
     # `_MODULE_CODEGEN_SEAM_WAIVERS` survives for exactly one other root:
@@ -250,7 +251,7 @@ test "module_codegen_pass carries no seams of its own" {
 
 
 test "module_codegen_pass compiles clean and produces IR" {
-    (_census, has_ir, errors) = _root_census(MODULE_CODEGEN);
+    (_coverage, has_ir, errors) = _root_coverage(MODULE_CODEGEN);
     assert not errors , f"module_codegen_pass errors: {errors[:5]}";
     assert has_ir , "no LLVM IR for module_codegen_pass";
 }

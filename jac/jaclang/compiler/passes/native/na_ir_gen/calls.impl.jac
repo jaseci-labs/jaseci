@@ -3181,7 +3181,7 @@ impl NaIRGenCalls._call_args_lowered(
     with an argument the callee cannot take. The builder's `TypeError` is
     then reported as an internal compiler error, which buries the real
     defect under a crash. Refusing here demotes the one callable and names
-    the parameter that did not line up, so the census records a fact rather
+    the parameter that did not line up, so the coverage records a fact rather
     than a stack trace.
     """;
     _n = min(len(coerced), len(func.args));

@@ -1,12 +1,12 @@
 """Sealing wave 3: the reference-count fact solver joins the native seal.
 
-Same discipline as `test_pass_seal_wave4_census.jac` and
-`test_pass_seal_wave5_census.jac`: the root is measured exactly the way
+Same discipline as `test_pass_seal_wave4_baseline.jac` and
+`test_pass_seal_wave5_baseline.jac`: the root is measured exactly the way
 `seal_native_artifacts` measures it, and three things are pinned --
 exact closure membership, native IR production, and the seam set two-way
 against `NATIVE_SEAL_DEMOTION_WAIVERS`.
 
-The wave-3 census (#8271) refused all five analysis-cluster roots.
+The wave-3 coverage (#8271) refused all five analysis-cluster roots.
 `rc_facts_pass` was refused at fourteen own seams whose named mechanism
 was "`id()`-keyed identity stamps ... the `id()` builtin still does not
 lower in these shapes, plus `rc_last_use`/`rc_move_in` field stamps and
@@ -75,12 +75,12 @@ build:
   `startswith` on a value out of an untyped tuple list. Both are
   element erasure, and both sit in methods whose other blocker is one of
   the three above, so neither is worth churning alone. The pass also
-  carries four type-checker errors of the same erasure -- a census with
+  carries four type-checker errors of the same erasure -- a coverage report with
   errors reports "not reached", not "clean", so they gate a seal too.
 
 `ownership_check_pass` -- refused, and the map is what this wave
 produces for it rather than a fix. #8271 measured 60 own seams; the wave-3
-census measured 26, and it measures **13** now. The last halving was not
+coverage measured 26, and it measures **13** now. The last halving was not
 work done on this pass: the `emit` family below was re-diagnosed as the
 Python-base wall rather than a lowering gap -- `Transform` sat outside
 this root's closure, so `self.emit` routed through the bridge, which
@@ -178,14 +178,14 @@ the region predicate hoisted out of `symbol_utils.jac`. That leaves
 remaining refusals, which is what `REFUSED_OWN_SEAMS` tracks.
 
 The measurement is a source-lane one: under a sealed jaclang image the
-census reads the image's trust boundary instead of each unit's own
-coupling, so `_root_census` skips there (both gates below).
+coverage reads the image's trust boundary instead of each unit's own
+coupling, so `_root_coverage` skips there (both gates below).
 """
 
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
@@ -234,32 +234,32 @@ glob REFUSED_OWN_SEAMS: dict[(str, int)] = {
          "compiler/passes/main/ownership_check_pass.jac": 13
      };
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
 
 """A root's dotted module name, for the sealed-runtime skip gate."""
 def _root_module_name(rel: str) -> str {
     return "jaclang." + rel[:-4].replace("/", ".");
 }
 
-"""Compile one root the way seal_native_artifacts does, up to the census."""
-def _root_census(rel: str) -> tuple {
+"""Compile one root the way seal_native_artifacts does, up to the coverage."""
+def _root_coverage(rel: str) -> tuple {
     if _jaclang_image() is not None {
         testskip(
-            "this runtime is a sealed jaclang image; a source census here "
+            "this runtime is a sealed jaclang image; a source coverage here "
             "measures the image's trust boundary, not the unit's own seams"
         );
     }
     if native_artifact_for(_root_module_name(rel)) is not None {
         testskip(
-            f"{rel} is served from this runtime's native seal; the census "
+            f"{rel} is served from this runtime's native seal; the coverage "
             "gated the build via seal_demotion_report"
         );
     }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
+    if rel in _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[rel];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=str(PKG_PATH / rel),
@@ -273,20 +273,20 @@ def _root_census(rel: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
+    result = (coverage, has_ir, errors, );
+    _COVERAGE_MEMO[rel] = result;
     return result;
 }
 
-"""Census seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
+"""Coverage seams as `<pkg-rel module>::<Type>.<method>` -> reason."""
 def _seams_by_key(rel: str) -> dict[(str, str)] {
-    (census, _has_ir, _errors) = _root_census(rel);
+    (coverage, _has_ir, _errors) = _root_coverage(rel);
     found: dict[(str, str)] = {};
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         for seam in (rec["seams"] or []) {
             (name, sep, why) = str(seam).partition(": ");
@@ -303,7 +303,7 @@ def _seams_by_key(rel: str) -> dict[(str, str)] {
 test "every wave-3 root is registered for the seal" {
     for rel in WAVE3_ROOTS {
         assert rel in NATIVE_SEAL_ROOTS , (
-            f"{rel} is not in NATIVE_SEAL_ROOTS; this census would gate "
+            f"{rel} is not in NATIVE_SEAL_ROOTS; this coverage would gate "
             "nothing at seal time"
         );
         for member in WAVE3_CLOSURES[rel] {
@@ -318,7 +318,7 @@ test "every wave-3 root is registered for the seal" {
 
 test "each wave-3 root's native closure is exactly the measured set" {
     for rel in WAVE3_ROOTS {
-        (census, _has_ir, errors) = _root_census(rel);
+        (coverage, _has_ir, errors) = _root_coverage(rel);
         assert not errors , (
             f"{rel} compile errors (closure below is 'not reached', not "
             f"'clean'): {errors[:5]}"
@@ -326,7 +326,7 @@ test "each wave-3 root's native closure is exactly the measured set" {
         seen = tuple(
             sorted(
                 Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-                for p in census
+                for p in coverage
             )
         );
         assert seen == WAVE3_CLOSURES[rel] , (
@@ -340,10 +340,10 @@ test "each wave-3 root's native closure is exactly the measured set" {
 
 test "each wave-3 root's closure produces native IR" {
     for rel in WAVE3_ROOTS {
-        (_census, has_ir, _errors) = _root_census(rel);
+        (_coverage, has_ir, _errors) = _root_coverage(rel);
         assert has_ir , (
             f"no LLVM IR for {rel} -- the compile aborted before codegen, so "
-            "a zero-seam census would mean 'not reached', not 'clean'"
+            "a zero-seam coverage would mean 'not reached', not 'clean'"
         );
     }
 }

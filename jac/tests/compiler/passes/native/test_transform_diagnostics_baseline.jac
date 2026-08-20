@@ -1,4 +1,4 @@
-"""Diagnostics census: the Transform unit owns no emission seam.
+"""Diagnostics coverage: the Transform unit owns no emission seam.
 
 `Transform.emit` used to append every alert to `prog.errors_had` through the
 `JacProgram` Python handle, and `Transform._is_suppressed` re-read project
@@ -10,8 +10,8 @@ lookup against the pre-resolved `DiagnosticPolicy` data object, and the
 Python driver (`run_pass`) delivers to the program ledger after the pass body
 finishes.
 
-This census compiles `transform.jac` natively, the same measurement
-`test_pass_driver_seam_census.jac` takes for the pass units, and pins that
+This coverage compiles `transform.jac` natively, the same measurement
+`test_pass_driver_seam_baseline.jac` takes for the pass units, and pins that
 the emission path stays seam-free: none of its callables demote, and none of
 the module's residual native errors touch them. Callables off the emission
 path that reach real Python machinery (console rendering, the cancel-token
@@ -54,15 +54,15 @@ bookkeeping this file's earlier revision described as not yet owed.
 
 The measurement is a source-lane one. Under a sealed jaclang image every
 method of an imported jaclang-internal archetype is untrusted by design, so
-the census would read the image's trust boundary rather than the emission
-path's own coupling; `_census` skips there.
+the coverage would read the image's trust boundary rather than the emission
+path's own coupling; `_coverage` skips there.
 """
 
 import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
@@ -104,14 +104,14 @@ deleted, so a construct that goes module-fatal again has a named place to
 fail. Entries would be keyed by the construct the diagnostic names."""
 glob KNOWN_CONSTRUCTOR_GAPS: tuple = ();
 
-glob _CENSUS_MEMO: list = [];
+glob _COVERAGE_MEMO: list = [];
 
-def _census -> tuple {
+def _coverage -> tuple {
     if _jaclang_image() is not None {
         testskip(
             "this runtime is a sealed jaclang image, so na_ir_gen_pass "
             "untrusts every method of an imported jaclang-internal archetype "
-            "that the image's layout does not carry; a source census here "
+            "that the image's layout does not carry; a source coverage here "
             "measures that trust boundary instead of the emission path's own "
             "coupling, which is what this file pins"
         );
@@ -119,14 +119,14 @@ def _census -> tuple {
     if native_artifact_for("jaclang.jac0core.passes.transform") is not None {
         testskip(
             "transform.jac is served from this runtime's native seal; the "
-            "census gated the build via seal_demotion_report"
+            "coverage gated the build via seal_demotion_report"
         );
     }
-    if _CENSUS_MEMO {
-        return _CENSUS_MEMO[0];
+    if _COVERAGE_MEMO {
+        return _COVERAGE_MEMO[0];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=TRANSFORM_JAC,
@@ -140,19 +140,20 @@ def _census -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    result = (census, ir, prog, );
-    _CENSUS_MEMO.append(result);
+    result = (coverage, ir, prog, );
+    _COVERAGE_MEMO.append(result);
     return result;
 }
 
-"""Seams the census recorded inside transform.jac itself, keyed by callable."""
+"""Seams the coverage recorded inside transform.jac itself, keyed by callable."""
 def _own_seams -> dict[(str, str)] {
-    (census, _ir, _prog) = _census();
-    rec = census.get(os.path.realpath(TRANSFORM_JAC));
+    (coverage, _ir, _prog) = _coverage();
+    rec = coverage.get(os.path.realpath(TRANSFORM_JAC));
     assert rec is not None , (
-        "transform.jac never entered the native census -- the measurement " "is vacuous"
+        "transform.jac never entered the native coverage -- the measurement "
+        "is vacuous"
     );
     assert rec["outcome"] == "native" , (
         f"transform.jac did not stay native ({rec['outcome']}: "
@@ -168,7 +169,7 @@ def _own_seams -> dict[(str, str)] {
 
 """The unit's own native errors, as message strings."""
 def _own_errors -> list[str] {
-    (_census_map, _ir, prog) = _census();
+    (_coverage_map, _ir, prog) = _coverage();
     return [
         str(e)
         for e in prog.errors_had
@@ -268,10 +269,10 @@ test "residual native errors are exactly the known constructor gaps" {
 
 
 test "the unit is clean enough to link, and the sealed roots link it" {
-    (census, _ir, _prog) = _census();
+    (coverage, _ir, _prog) = _coverage();
     linked = sorted(
         os.path.relpath(p, os.path.dirname(os.path.realpath(jaclang.__file__)))
-        for p in census
+        for p in coverage
         if os.path.realpath(p) != os.path.realpath(TRANSFORM_JAC)
     );
     # `transform.jac` compiles as a root here with no module-fatal error and
@@ -283,7 +284,7 @@ test "the unit is clean enough to link, and the sealed roots link it" {
     # three seams above are waived rather than merely inventoried.
     assert linked , (
         "transform.jac's own closure is empty, so the compile was never "
-        "reached and the seam census above is vacuous"
+        "reached and the seam coverage above is vacuous"
     );
     assert "jac0core/unitree.jac" in linked , (
         f"transform.jac stopped linking unitree ({linked}); the measurement "
