@@ -39,9 +39,31 @@
     {
       "stem": "test_set",
       "path": "Lib/test/test_set.py",
-      "baseline": { "passed": 4, "failed": 0, "errored": 0, "skipped": 9 },
+      "baseline": { "passed": 5, "failed": 0, "errored": 0, "skipped": 9 },
       "gate": "P3.1b",
-      "status": "pending"
+      "status": "gated"
+    },
+    {
+      "stem": "test_generators",
+      "path": "Lib/test/test_generators.py",
+      "baseline": { "passed": 14, "failed": 0, "errored": 0, "skipped": 8 },
+      "gate": "P3.1b",
+      "status": "gated"
+    },
+    {
+      "stem": "test_list",
+      "path": "Lib/test/test_list.py",
+      "baseline": { "passed": 4, "failed": 3, "errored": 0, "skipped": 6 },
+      "gate": "P3.1b",
+      "status": "gated",
+      "notes": "Known failures: test_repr_mutate, test_equal_operator_modifying_operand, test_lt_operator_modifying_operand (operand mutation during richcompare)"
+    },
+    {
+      "stem": "test_tuple",
+      "path": "Lib/test/test_tuple.py",
+      "baseline": { "passed": 2, "failed": 0, "errored": 0, "skipped": 5 },
+      "gate": "P3.1b",
+      "status": "gated"
     }
   ],
   "c2jac_objects_wave": [

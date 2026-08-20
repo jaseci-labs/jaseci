@@ -7,8 +7,9 @@ Layer-0 corpus replay against those baselines is **P3.1a** work — it must live
 ``jac-py/jacpython/layer0_replay.jac`` (or a sibling there), not here: ``jac-py/tests``
 cannot ``import layer0_replay`` on collection (``ModuleNotFoundError``).
 
-Until P3.1a lands, this file validates manifest shape and that P3.1b/P3.1c slots stay
-``pending`` / ``not_staged``.
+Layer-0/1 corpus replay ratchets live in ``jac-py/jacpython/layer0_replay_p3_gate.jac``
+(``jac run`` via ``tools/p3_object_core/replay_gate.py``); this file validates manifest
+shape and that P3.1c Objects/ slots stay ``not_staged``.
 """
 
 import json;
@@ -41,13 +42,25 @@ test "P3 manifest: Layer-0 baseline entries present" {
 }
 
 
-test "P3 manifest: Layer-1 entries documented but not gated yet (P3.1b)" {
+test "P3 manifest: Layer-1 entries gated with honest skip counts (P3.1b)" {
     manifest = _load_json(MANIFEST_PATH);
-    pending = manifest["layer1_files"] as list;
-    assert len(pending) >= 1;
-    for spec in pending {
-        assert (spec["status"] as str) == "pending";
+    entries = manifest["layer1_files"] as list;
+    assert len(entries) == 4;
+    expected_stems = ["test_set", "test_generators", "test_list", "test_tuple"];
+    seen: list[str] = [];
+    for spec in entries {
+        stem = spec["stem"] as str;
+        seen.append(stem);
+        assert (spec["status"] as str) == "gated";
         assert (spec["gate"] as str) == "P3.1b";
+        baseline = spec["baseline"] as dict;
+        assert (baseline["failed"] as int) >= 0;
+        assert (baseline["errored"] as int) == 0;
+        assert (baseline["passed"] as int) > 0;
+        assert (baseline["skipped"] as int) >= 0;
+    }
+    for stem in expected_stems {
+        assert stem in seen;
     }
 }
 

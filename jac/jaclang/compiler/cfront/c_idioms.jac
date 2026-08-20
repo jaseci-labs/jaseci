@@ -1,5 +1,12 @@
 import from jaclang.vendor.pycparser { c_ast }
-import from jaclang.compiler.cfront.c_common { c_field }
+import from jaclang.compiler.cfront.c_common {
+    c_field,
+    classify_c_constant,
+    CLIT_INT,
+    CLIT_STRING,
+    cast_scalar_target,
+    parse_c_int
+}
 import from jaclang.compiler.cfront.c_types {
     JacPrim,
     C_PRIM_MAP,
@@ -327,4 +334,204 @@ def pyerr_set_pair(stmt: c_ast.Node) -> tuple[str, str] | None {
         return None;
     }
     return (exc.name[6:], str(msg.value));
+}
+
+def _array_ref_base_name(nd: c_ast.Node) -> str | None {
+    if isinstance(nd, c_ast.ID) {
+        return nd.name;
+    }
+    if isinstance(nd, c_ast.ArrayRef) {
+        return _array_ref_base_name(nd.name);
+    }
+    return None;
+}
+
+def char_array_string_literal(c_init: c_ast.Node) -> c_ast.Constant | None {
+    if not isinstance(c_init, c_ast.Constant) {
+        return None;
+    }
+    if classify_c_constant(c_init.type) != CLIT_STRING {
+        return None;
+    }
+    return c_init;
+}
+
+def is_char_array_string_decl(nd: c_ast.Decl) -> bool {
+    if nd.name is None {
+        return False;
+    }
+    if not isinstance(nd.type, c_ast.ArrayDecl) {
+        return False;
+    }
+    chain = walk_to_typedecl(nd.type.type);
+    if chain.kind != TypeKind.SCALAR {
+        return False;
+    }
+    names = chain.node.type?.names or [];
+    if not names or names[-1] != "char" {
+        return False;
+    }
+    init = c_field(nd, "init");
+    if init is None {
+        return False;
+    }
+    return char_array_string_literal(init) is not None;
+}
+
+def _walk_string_table_refs(
+    c_node: c_ast.Node, candidates: set[str], found: set[str]
+) {
+    if isinstance(c_node, c_ast.ArrayRef) {
+        base = _array_ref_base_name(c_node.name);
+        if base is not None and base in candidates {
+            found.add(base);
+        }
+    }
+    for (_, child) in c_node.children() {
+        _walk_string_table_refs(child, candidates, found);
+    }
+}
+
+def collect_string_table_names(ext: list) -> set[str] {
+    candidates: set[str] = set();
+    for entry in ext {
+        if isinstance(entry, c_ast.Decl) and is_char_array_string_decl(entry) {
+            candidates.add(entry.name);
+        }
+    }
+    if not candidates {
+        return set();
+    }
+    found: set[str] = set();
+    for entry in ext {
+        _walk_string_table_refs(entry, candidates, found);
+    }
+    return found;
+}
+
+def is_string_table_cast_elidable(nd: c_ast.Cast, tables: set[str]) -> bool {
+    if not tables {
+        return False;
+    }
+    target = cast_scalar_target(nd);
+    if target not in ("char", "unsigned char") {
+        return False;
+    }
+    if not isinstance(nd.expr, c_ast.ArrayRef) {
+        return False;
+    }
+    base = _array_ref_base_name(nd.expr.name);
+    return base is not None and base in tables;
+}
+
+def is_redundant_int_widen_cast(nd: c_ast.Cast) -> bool {
+    target = cast_scalar_target(nd);
+    if target not in ("int", "unsigned int") {
+        return False;
+    }
+    return isinstance(nd.expr, c_ast.ID) or isinstance(nd.expr, c_ast.FuncCall);
+}
+
+def _cast_inner_safe_for_integral_elide(expr: c_ast.Node) -> bool {
+    if isinstance(expr, c_ast.ID) or isinstance(expr, c_ast.FuncCall) {
+        return True;
+    }
+    if isinstance(expr, c_ast.Constant) {
+        return True;
+    }
+    if isinstance(expr, c_ast.UnaryOp) {
+        op = expr.op;
+        return op == "+" or op == "-" or op == "~";
+    }
+    if isinstance(expr, c_ast.BinaryOp) {
+        op = expr.op;
+        return (
+            op == "&"
+            or op == "|"
+            or op == "^"
+            or op == "<<"
+            or op == ">>"
+            or op == "+"
+            or op == "-"
+            or op == "*"
+        );
+    }
+    return False;
+}
+
+def is_preserving_integral_cast_elidable(nd: c_ast.Cast) -> bool {
+    target = cast_scalar_target(nd);
+    if target is None {
+        return False;
+    }
+    if not _cast_inner_safe_for_integral_elide(nd.expr) {
+        return False;
+    }
+    lower = target.lower();
+    if lower in (
+        "char",
+        "signed char",
+        "unsigned char",
+        "short",
+        "unsigned short",
+        "float",
+        "double",
+        "long double"
+    ) {
+        return False;
+    }
+    if (
+        lower.startswith("unsigned")
+        or lower in ("int", "long", "mode_t", "size_t", "ssize_t")
+    ) {
+        return True;
+    }
+    return False;
+}
+
+def array_index_designator(d: c_ast.Node) -> int | None {
+    if not isinstance(d, c_ast.Constant) {
+        return None;
+    }
+    if classify_c_constant(d.type) != CLIT_INT {
+        return None;
+    }
+    return parse_c_int(str(d.value));
+}
+
+def sparse_designated_entries(
+    c_init: c_ast.InitList,
+) -> tuple[list[tuple[int, c_ast.Node]], list[c_ast.Node]] | None {
+    sparse: list[tuple[int, c_ast.Node]] = [];
+    positional: list[c_ast.Node] = [];
+    for e in c_init?.exprs or [] {
+        if isinstance(e, c_ast.NamedInitializer) {
+            names = e.name or [];
+            if len(names) != 1 {
+                return None;
+            }
+            idx = array_index_designator(names[0]);
+            if idx is None {
+                return None;
+            }
+            sparse.append((idx, e.expr));
+            continue;
+        }
+        positional.append(e);
+    }
+    if not sparse {
+        return None;
+    }
+    return (sparse, positional);
+}
+
+def is_byte_trunc_arith_cast_elidable(nd: c_ast.Cast) -> bool {
+    target = cast_scalar_target(nd);
+    if target != "char" {
+        return False;
+    }
+    if not isinstance(nd.expr, c_ast.BinaryOp) {
+        return False;
+    }
+    return nd.expr.op == "+";
 }

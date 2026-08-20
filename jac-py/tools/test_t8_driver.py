@@ -240,6 +240,119 @@ class RulePatcherTests(unittest.TestCase):
             self.assertIn("& 255", text)
             self.assertNotIn("[W4201]", text)
 
+    def test_w4201_char_py_tolower_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out_rel = "lift/pystrnicmp.jac"
+            jac = root / "lift" / "pystrnicmp.jac"
+            sidecar = root / "lift" / "pystrnicmp.c2jac.report.json"
+            jac.parent.mkdir(parents=True)
+            msg = (
+                "cast to `char` elided — representation-changing conversion "
+                "(truncation/narrowing/discard) not applied"
+            )
+            jac.write_text(
+                "\n".join(
+                    [
+                        "# c2jac: 1 best-effort site",
+                        f"#   L5 [W4201] {msg}",
+                        "",
+                        "def _py_tolower(c: int) -> int {",
+                        "    if ((c >= 65) and (c <= 90)) {",
+                        "        return (c + (97 - 65));",
+                        "    }",
+                        "    return c;",
+                        "}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            site = {
+                "sidecar": "lift/pystrnicmp.c2jac.report.json",
+                "source": "tools/fixture/pystrnicmp.c",
+                "output": out_rel,
+                "code": "W4201",
+                "function": "_py_tolower",
+                "line": 5,
+                "msg": msg,
+            }
+            _write_sidecar(
+                sidecar,
+                output=out_rel,
+                source="tools/fixture/pystrnicmp.c",
+                sites=[site],
+            )
+
+            with patch("t8_driver._REPO", root):
+                result = RulePatcher().apply(site, build_prompt_payload(site))
+                text = jac.read_text(encoding="utf-8")
+                sc = json.loads(sidecar.read_text(encoding="utf-8"))
+
+            self.assertTrue(result.applied)
+            self.assertEqual(sc["tier_b_count"], 0)
+            self.assertIn("& 255", text)
+
+    def test_w4201_int_pystrnicmp_rule_removes_duplicate_sites(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out_rel = "lift/pystrnicmp.jac"
+            jac = root / "lift" / "pystrnicmp.jac"
+            sidecar = root / "lift" / "pystrnicmp.c2jac.report.json"
+            jac.parent.mkdir(parents=True)
+            msg = (
+                "cast to `int` elided — representation-changing conversion "
+                "(truncation/narrowing/discard) not applied"
+            )
+            jac.write_text(
+                "\n".join(
+                    [
+                        "# c2jac: 2 best-effort sites",
+                        f"#   L23 [W4201] {msg}",
+                        f"#   L23 [W4201] {msg}",
+                        "",
+                        "def PyOS_mystrnicmp(s1: str, s2: str, size: int) -> int {",
+                        "    p1: str = s1;",
+                        "    p2: str = s2;",
+                        "    return (",
+                        "        _py_tolower((ord(p1[0]) if p1 else 0)) - _py_tolower((ord(p2[0]) if p2 else 0))",
+                        "    );",
+                        "}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            site = {
+                "band": "style",
+                "code": "W4201",
+                "function": "PyOS_mystrnicmp",
+                "line": 23,
+                "msg": msg,
+                "quarantined": False,
+            }
+            _write_sidecar(
+                sidecar,
+                output=out_rel,
+                source="tools/fixture/pystrnicmp.c",
+                sites=[site, dict(site)],
+            )
+            payload_site = {
+                "sidecar": "lift/pystrnicmp.c2jac.report.json",
+                "source": "tools/fixture/pystrnicmp.c",
+                "output": out_rel,
+                **site,
+            }
+
+            with patch("t8_driver._REPO", root):
+                result = RulePatcher().apply(payload_site, build_prompt_payload(payload_site))
+                text = jac.read_text(encoding="utf-8")
+                sc = json.loads(sidecar.read_text(encoding="utf-8"))
+
+            self.assertTrue(result.applied)
+            self.assertEqual(sc["tier_b_count"], 0)
+            self.assertIn("as int", text)
+
 
 class LoopTests(unittest.TestCase):
     def test_run_loop_accepts_mock_patcher(self) -> None:

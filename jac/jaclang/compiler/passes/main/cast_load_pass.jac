@@ -57,7 +57,14 @@ import from jaclang.compiler.cfront.c_idioms {
     py_clear_arg,
     is_error_return_value,
     pyerr_set_pair,
-    is_null_propagation_pair
+    is_null_propagation_pair,
+    collect_string_table_names,
+    char_array_string_literal,
+    is_string_table_cast_elidable,
+    is_redundant_int_widen_cast,
+    is_preserving_integral_cast_elidable,
+    is_byte_trunc_arith_cast_elidable,
+    sparse_designated_entries
 }
 import from jaclang.compiler.cfront.enum_prepass {
     EnumVerdicts,
@@ -141,6 +148,7 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         _sites: list[CLiftSite] postinit,
         _quarantined: list[str] postinit,
         _module_globals: set[str] postinit,
+        _string_tables: set[str] postinit,
         _func_global_writes: set[str] postinit,
         _needs_cdiv: bool postinit,
         _struct_fields: dict[str, list[tuple[str, object]]] postinit,
@@ -297,6 +305,9 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
 
     def _list_ann(c_node: c_ast.Node, elem_name: str) -> uni.AtomTrailer;
     def _elem_zero_lit(c_node: c_ast.Node, elem_name: str) -> uni.Literal;
+    def _char_string_table_listval(
+        c_node: c_ast.Node, const_nd: c_ast.Node
+    ) -> uni.ListVal;
     def _decl_array(nd: c_ast.Node) -> object;
     def proc_array_decl(nd: c_ast.Node) -> object;
     def proc_init_list(nd: c_ast.Node) -> object;
@@ -307,7 +318,9 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def _init_value(c_init: c_ast.Node, c_type: c_ast.Node) -> uni.Expr | None;
     def _typed_init(c_init: c_ast.Node, c_type: c_ast.Node) -> uni.Expr | None;
     def _array_init_from_list(
-        c_init: c_ast.Node, elem_type: c_ast.Node
+        c_init: c_ast.Node,
+        elem_type: c_ast.Node,
+        arr_decl: c_ast.Node | None = None
     ) -> uni.ListVal | None;
 
     def _struct_init_from_list(
@@ -317,4 +330,5 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def _field_index(type_name: str, field: str) -> int | None;
     def proc_expr_list(nd: c_ast.Node) -> object;
     def proc_cast(nd: c_ast.Node) -> object;
+    def _byte_mask_expr(c_node: c_ast.Node, inner: uni.Expr) -> uni.Expr;
 }

@@ -351,3 +351,63 @@ test "fn_ptr_callback.c lifts function-pointer typedefs to callback objs" {
     assert "glob comparator = " not in out , out;
     assert res.diags == [] , res.diags;
 }
+
+test "string_table.c lifts char[] lookup tables to list[int] ord values" {
+    src = _read("string_table.c");
+    res = lift_c_str(src, "string_table.c");
+    out = res.module.unparse(requires_format=True);
+    assert "glob _hexdigits: list[int] = [" in out , out;
+    assert "48" in out and "102" in out , out;
+    assert '"0123456789abcdef"' not in out , out;
+    assert "_hexdigits[(value >> 4)]" in out , out;
+    assert res.diags == [] , res.diags;
+}
+
+test "string_blob.c keeps char[] string literals when not subscripted" {
+    src = _read("string_blob.c");
+    res = lift_c_str(src, "string_blob.c");
+    out = res.module.unparse(requires_format=True);
+    assert 'glob msg: list[int] = "hello world"' in out , out;
+    assert "return msg" in out , out;
+    assert res.diags == [] , res.diags;
+}
+
+test "pystrnicmp_mini.c absorbs byte-trunc and int-widen casts" {
+    src = _read("pystrnicmp_mini.c");
+    res = lift_c_str(src, "pystrnicmp_mini.c");
+    out = res.module.unparse(requires_format=True);
+    assert "& 255" in out , out;
+    assert "def _py_tolower(c: int) -> int {" in out , out;
+    assert res.diags == [] , res.diags;
+}
+
+test "sparse_designated_array.c preserves sparse struct array indices" {
+    src = _read("sparse_designated_array.c");
+    res = lift_c_str(src, "sparse_designated_array.c");
+    out = res.module.unparse(requires_format=True);
+    assert "glob t: list[S] = [" in out , out;
+    assert "a=10" in out or "a = 10" in out , out;
+    assert "W4209" not in [d[0] for d in res.diags] , res.diags;
+    assert res.diags == [] , res.diags;
+}
+
+test "opcode_table_mini.c lifts sparse opcode metadata table" {
+    src = _read("opcode_table_mini.c");
+    res = lift_c_str(src, "opcode_table_mini.c");
+    out = res.module.unparse(requires_format=True);
+    assert "glob _PyOpcode_opcode_metadata: list[opcode_metadata] = [" in out , out;
+    assert ".valid_entry" in out , out;
+    assert "W4209" not in [d[0] for d in res.diags] , res.diags;
+    assert res.diags == [] , res.diags;
+}
+
+test "stat_mask.c parses C octal masks and elides mode_t casts" {
+    src = _read("stat_mask.c");
+    res = lift_c_str(src, "stat_mask.c");
+    out = res.module.unparse(requires_format=True);
+    assert "4095" in out , out;
+    assert "'07777'" not in out , out;
+    assert "W4210" not in [d[0] for d in res.diags] , res.diags;
+    assert "W4201" not in [d[0] for d in res.diags] , res.diags;
+    assert res.diags == [] , res.diags;
+}

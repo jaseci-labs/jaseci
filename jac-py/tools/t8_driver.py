@@ -228,6 +228,26 @@ def remove_site_from_sidecar(sidecar_path: Path, site: dict) -> bool:
     return True
 
 
+def remove_matching_sites_from_sidecar(sidecar_path: Path, site: dict) -> int:
+    """Remove every sidecar row matching ``site``'s key (handles duplicate queue entries)."""
+    sidecar_path = _resolve(sidecar_path)
+    data = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    key = _site_key(site)
+    kept: list[dict] = []
+    removed = 0
+    for row in data.get("sites", []):
+        if _site_key(row) == key:
+            removed += 1
+            continue
+        kept.append(row)
+    if removed == 0:
+        return 0
+    data["sites"] = kept
+    data["tier_b_count"] = len(kept)
+    sidecar_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return removed
+
+
 def refresh_aggregate_report(aggregate: Path) -> None:
     aggregate = _resolve(aggregate)
     data = json.loads(aggregate.read_text(encoding="utf-8"))
@@ -292,6 +312,42 @@ def _rule_w4201_char_strcmp(text: str, site: dict) -> str | None:
     return _remove_tier_b_header_line(text, site)
 
 
+def _rule_w4201_char_py_tolower(text: str, site: dict) -> str | None:
+    if site.get("code") != "W4201" or site.get("function") != "_py_tolower":
+        return None
+    if "char" not in (site.get("msg") or ""):
+        return None
+    old = "return (c + (97 - 65));"
+    new = "return ((c + (97 - 65)) & 255);"
+    if old not in text:
+        return None
+    text = text.replace(old, new, 1)
+    return _remove_tier_b_header_line(text, site)
+
+
+def _rule_w4201_int_pystrnicmp(text: str, site: dict) -> str | None:
+    if site.get("code") != "W4201" or site.get("function") != "PyOS_mystrnicmp":
+        return None
+    if "`int`" not in (site.get("msg") or ""):
+        return None
+    old = (
+        "    return (\n"
+        "        _py_tolower((ord(p1[0]) if p1 else 0)) - _py_tolower((ord(p2[0]) if p2 else 0))\n"
+        "    );"
+    )
+    new = (
+        "    return (\n"
+        "        (_py_tolower((ord(p1[0]) if p1 else 0)) as int)\n"
+        "        - (_py_tolower((ord(p2[0]) if p2 else 0)) as int)\n"
+        "    );"
+    )
+    if old not in text:
+        return None
+    text = text.replace(old, new, 1)
+    text = _remove_tier_b_header_line(text, site)
+    return _remove_tier_b_header_line(text, site)
+
+
 def _rule_w4201_size_t_bisect(text: str, site: dict) -> str | None:
     if site.get("code") != "W4201" or "size_t" not in (site.get("msg") or ""):
         return None
@@ -341,6 +397,8 @@ def _apply_rule_patch(site: dict) -> PatchResult:
     code = site.get("code")
     editors: list[Callable[[str, dict], str | None]] = [
         _rule_w4201_char_strcmp,
+        _rule_w4201_char_py_tolower,
+        _rule_w4201_int_pystrnicmp,
         _rule_w4201_size_t_bisect,
         _rule_w4207_variadic,
     ]
@@ -356,7 +414,8 @@ def _apply_rule_patch(site: dict) -> PatchResult:
         return PatchResult(False, f"no rule for {code} @ {output}")
 
     sidecar = _resolve(Path(site["sidecar"]))
-    if not remove_site_from_sidecar(sidecar, site):
+    removed = remove_matching_sites_from_sidecar(sidecar, site)
+    if removed == 0 and not remove_site_from_sidecar(sidecar, site):
         return PatchResult(False, f"rule edited jac but sidecar site missing: {sidecar}")
 
     return PatchResult(True, f"applied rule patch for {code}")

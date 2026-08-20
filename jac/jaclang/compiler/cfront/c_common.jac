@@ -42,6 +42,15 @@ glob C_BINOPS: dict[str, tuple[BinKind, str]] = {
      };
 
 def _c_int_autobase(raw: str) -> int {
+    # C legacy octal (0777) — Python 3 int(..., 0) rejects leading-zero octal.
+    if (
+        len(raw) > 1
+        and raw[0] == "0"
+        and raw[1] in "01234567"
+        and not raw.startswith(("0x", "0X", "0b", "0B"))
+    ) {
+        return int(raw, 8);
+    }
     return int(raw, 0);
 }
 

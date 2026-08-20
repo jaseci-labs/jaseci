@@ -14,6 +14,7 @@ impl CastBuildPass.postinit -> None {
     self._quarantined = [];
     self._needs_cdiv = False;
     self._module_globals = set();
+    self._string_tables = set();
     self._func_global_writes = set();
     self._struct_fields = {};
     self._struct_aliases = {};
@@ -321,6 +322,7 @@ impl CastBuildPass.proc_file_ast(nd: c_ast.Node) -> uni.Module {
     elements: list[uni.ElementStmt] = [];
     ext = nd?.ext or [];
     self._module_globals = self._collect_module_globals(ext);
+    self._string_tables = collect_string_table_names(ext);
     for entry in ext {
         res = self.convert(entry, stmt=True);
         if isinstance(res, list) {
@@ -2485,6 +2487,30 @@ impl CastBuildPass._elem_zero_lit(c_node: c_ast.Node, elem_name: str) -> uni.Lit
     return self._lit(uni.Int, Tok.INT, pz.text, line, col);
 }
 
+impl CastBuildPass._char_string_table_listval(
+    c_node: c_ast.Node, const_nd: c_ast.Node
+) -> uni.ListVal {
+    inner = c_string_inner(const_nd.value);
+    text = inner if inner is not None else "";
+    try {
+        decoded = bytes(text, "utf-8").decode("unicode_escape");
+    } except Exception {
+        decoded = text;
+    }
+    (line, col) = self._coord(c_node);
+    elts: list[uni.Expr] = [];
+    for ch in decoded {
+        lit = self._lit(uni.Int, Tok.INT, str(ord(ch)), line, col);
+        elts.append(lit);
+    }
+    if elts {
+        return uni.ListVal(values=elts, kid=[*elts]);
+    }
+    lb = self._op_tok(c_node, Tok.LSQUARE, "[");
+    rb = self._op_tok(c_node, Tok.RSQUARE, "]");
+    return uni.ListVal(values=[], kid=[lb, rb]);
+}
+
 impl CastBuildPass._decl_array(nd: c_ast.Node) -> object {
     arr_decl = nd.type;
     elem_name = elem_typename(arr_decl.type);
@@ -2494,7 +2520,16 @@ impl CastBuildPass._decl_array(nd: c_ast.Node) -> object {
     value: uni.Expr | None = None;
     nd_init = c_field(nd, "init");
     if nd_init is not None {
-        value = self._init_value(nd_init, arr_decl);
+        if nd.name in self._string_tables {
+            lit = char_array_string_literal(nd_init);
+            if lit is not None {
+                value = self._char_string_table_listval(nd, lit);
+            } else {
+                value = self._init_value(nd_init, arr_decl);
+            }
+        } else {
+            value = self._init_value(nd_init, arr_decl);
+        }
     } elif arr_decl.dim is not None {
         dim_expr = self.conv_expr(arr_decl.dim);
         if elem_name in C_PRIM_MAP and isinstance(dim_expr, uni.Expr) {
@@ -2592,7 +2627,7 @@ impl CastBuildPass._typed_init(
         if not self._needs_typed_init(chain.node.type) {
             return None;
         }
-        return self._array_init_from_list(c_init, chain.node.type);
+        return self._array_init_from_list(c_init, chain.node.type, chain.node);
     }
     if chain.kind == TypeKind.SCALAR {
         tname = elem_typename(c_type);
@@ -2604,8 +2639,64 @@ impl CastBuildPass._typed_init(
 }
 
 impl CastBuildPass._array_init_from_list(
-    c_init: c_ast.Node, elem_type: c_ast.Node
+    c_init: c_ast.Node,
+    elem_type: c_ast.Node,
+    arr_decl: c_ast.Node | None = None
 ) -> uni.ListVal | None {
+    parsed = (
+        sparse_designated_entries(c_init)
+        if isinstance(c_init, c_ast.InitList)
+        else None
+    );
+    if parsed is not None {
+        (sparse, positional) = parsed;
+        if positional {
+            for e in c_init?.exprs or [] {
+                if isinstance(e, c_ast.NamedInitializer) {
+                    names = e.name or [];
+                    field = ".".join([self._desig_name(d) for d in names]);
+                    self.emit_c_diag(e, 4209, field=field);
+                }
+            }
+            return None;
+        }
+        dim_val: int | None = None;
+        if arr_decl is not None and arr_decl.dim is not None {
+            dim_expr = self.conv_expr(arr_decl.dim);
+            if isinstance(dim_expr, uni.Int) {
+                dim_val = int(dim_expr.value);
+            }
+        }
+        if dim_val is not None and dim_val > 0 {
+            tname = elem_typename(elem_type);
+            default = self._elem_default(c_init, tname);
+            slots: list[uni.Expr] = [];
+            i = 0;
+            while i < dim_val {
+                slots.append(default);
+                i += 1;
+            }
+            for (idx, expr) in sparse {
+                if idx < 0 or idx >= dim_val {
+                    continue;
+                }
+                val = self._init_value(expr, elem_type);
+                if val is None {
+                    return None;
+                }
+                slots[idx] = val;
+            }
+            return uni.ListVal(values=slots, kid=[*slots]);
+        }
+        for e in c_init?.exprs or [] {
+            if isinstance(e, c_ast.NamedInitializer) {
+                names = e.name or [];
+                field = ".".join([self._desig_name(d) for d in names]);
+                self.emit_c_diag(e, 4209, field=field);
+            }
+        }
+        return None;
+    }
     elts: list[uni.Expr] = [];
     for e in c_init?.exprs or [] {
         if isinstance(e, c_ast.NamedInitializer) {
@@ -2708,9 +2799,34 @@ impl CastBuildPass.proc_expr_list(nd: c_ast.Node) -> object {
     return self.conv_expr(exprs[-1]);
 }
 
+impl CastBuildPass._byte_mask_expr(c_node: c_ast.Node, inner: uni.Expr) -> uni.Expr {
+    (line, col) = self._coord(c_node);
+    mask = self._lit(uni.Int, Tok.INT, "255", line, col);
+    op = self._op_tok(c_node, Tok.BW_AND, "&");
+    masked = uni.BinaryExpr(left=inner, op=op, right=mask, kid=[inner, op, mask]);
+    return uni.AtomUnit(
+        value=masked,
+        kid=[
+            self._op_tok(c_node, Tok.LPAREN, "("),
+            masked,
+            self._op_tok(c_node, Tok.RPAREN, ")")
+        ]
+    );
+}
+
 impl CastBuildPass.proc_cast(nd: c_ast.Node) -> object {
     target = cast_scalar_target(nd);
-    if target is not None {
+    table_elide = is_string_table_cast_elidable(nd, self._string_tables);
+    int_widen = is_redundant_int_widen_cast(nd);
+    preserving = is_preserving_integral_cast_elidable(nd);
+    byte_trunc = is_byte_trunc_arith_cast_elidable(nd);
+    if (
+        target is not None
+        and not table_elide
+        and not int_widen
+        and not preserving
+        and not byte_trunc
+    ) {
         self.emit_c_diag(
             nd,
             4201,
@@ -2719,5 +2835,9 @@ impl CastBuildPass.proc_cast(nd: c_ast.Node) -> object {
             "(truncation/narrowing/discard) not applied"
         );
     }
-    return self.conv_expr(nd.expr);
+    inner = self.conv_expr(nd.expr);
+    if byte_trunc and isinstance(inner, uni.Expr) {
+        return self._byte_mask_expr(nd, inner);
+    }
+    return inner;
 }

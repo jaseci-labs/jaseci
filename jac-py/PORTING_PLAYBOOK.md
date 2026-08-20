@@ -19,8 +19,10 @@ Object-core conformance (P3) uses a separate Layer-0 replay ratchet; see **§P3*
 |------|-----------|---------|------|
 | P1 | `tools/p1_corpus/manifest.json` | 6 (c2jac proving) | `test_p1_corpus_gate.py` |
 | P2 | `tools/p2_corpus/manifest.json` | 10 (P1 six + four Python/*.c extracts) | `test_p2_corpus_gate.py` |
+| P2 wave 2 | `tools/p2_corpus_wave2/manifest.json` | 4 (`_stat`, `_opcode`, `math_gcd`, `pystrnicmp`) | `test_p2_corpus_wave2_gate.py` |
+| P2 wave 3 | `tools/p2_corpus_wave3/manifest.json` | 4 (`math_count_bits`, `math_lcm_long`, `strhex_byte`, `pyctype_digit`) | `test_p2_corpus_wave3_gate.py` |
 
-Lift entire wave: `python jac-py/tools/lift_p2_corpus.py`
+Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), or `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3).
 
 ## Staged modules (P2 wave 1)
 
@@ -29,7 +31,15 @@ Ten files in `jac-py/Modules/`:
 - `rotatingtree`, `pystrcmp`, `mysnprintf`, `getbuildinfo`, `_bisectmodule`, `_heapqmodule` (from P1 fixtures)
 - `getplatform`, `getcompiler`, `getcopyright`, `pyfpe` (P2 header-free extracts)
 
-Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (ten module ports; staged `.jac` where hand-edited or PyObj-stubbed).
+**Wave 2** (four leaf extracts in `jac-py/Modules/`):
+
+- `_stat` (S_IMODE/S_IFMT), `_opcode` (is_valid/has_arg), `math_gcd` (gcd core), `pystrnicmp` (PyOS_mystrnicmp)
+
+**Wave 3** (four leaf extracts in `jac-py/Modules/`):
+
+- `math_count_bits` (popcount), `math_lcm_long` (lcm on long), `strhex_byte` (hex pack), `pyctype_digit` (Py_ISDIGIT-style)
+
+Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (wave 1), `test_p2_wave2_module_oracles.jac` (wave 2), `test_p2_wave3_module_oracles.jac` (wave 3).
 
 ## Dual pipeline - staged oracle vs lifted corpus
 
@@ -40,7 +50,7 @@ Two trees hold `.jac` for the same ten modules:
 | **Staged oracle** | `jac-py/Modules/{stem}.jac` | Runtime + differential-test truth; may include hand edits and PyObj stubs |
 | **Lifted corpus** | `jac-py/Modules/_lifted/p2_corpus_wave1/{stem}.jac` | Fresh c2jac output + T8 tier-B metrics input |
 
-Policy is recorded in `tools/p2_staged_manifest.json` (`staging`: `lift` | `hand`):
+Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged_manifest_wave2.json` (wave 2), or `tools/p2_staged_manifest_wave3.json` (wave 3) (`staging`: `lift` | `hand`):
 
 - **`lift`** - staged file must match committed `_lifted` byte-for-byte. Drift means re-lift (`lift_p2_corpus.py`) or accidental edit.
 - **`hand`** - staged oracle intentionally differs from fresh lift (`getbuildinfo`, `_bisectmodule`, `_heapqmodule`, `mysnprintf`). Exempt from equality gate; manifest `note` documents sync after burn-down.
@@ -52,10 +62,14 @@ Policy is recorded in `tools/p2_staged_manifest.json` (`staging`: `lift` | `hand
 **Sync hand oracle → lifted** (after tier-B burn-down on staged file, before density re-measure):
 
 ```bash
-python jac-py/tools/sync_staged_to_lifted.py          # all hand modules
+python jac-py/tools/sync_staged_to_lifted.py          # wave 1 hand modules
+python jac-py/tools/sync_staged_to_lifted.py --wave wave2
+python jac-py/tools/sync_staged_to_lifted.py --wave wave3
 python jac-py/tools/sync_staged_to_lifted.py --stem getbuildinfo
 python jac-py/tools/sync_staged_to_lifted.py --dry-run
 ```
+
+Wave 2 is fully lift-staged: `pystrnicmp` via W4201 byte-trunc/int-widen idioms; `_stat` via C octal parsing (W4210) and preserving-integral cast elision (W4201); `_opcode` via sparse designated array init (W4209). Wave 3 is fully lift-staged after the c2jac string-table idiom (char lookup tables → `list[int]` ord values).
 
 Workflow: edit staged oracle → oracle tests green → tier-B burn-down on staged → `sync_staged_to_lifted.py` → re-run `t8_tier_b_queue.py` / density ratchet on updated `_lifted` tree.
 
@@ -97,13 +111,16 @@ Unit tests: `python3 -m unittest jac-py/tools/test_t8_accept.py jac-py/tools/tes
 |----------|------|
 | `tools/p3_object_core/manifest.json` | Checked-in passed/failed/errored baselines for int/bool/str/dict/list/tuple Layer-0 replay |
 | `tests/test_p3_object_core_gate.jac` | Manifest shape + pending P3.1b/P3.1c slots |
-| `jacpython/layer0_replay.jac` | Harvests self-contained `assertEqual` pairs from `Lib/test/test_*.py`; P3 test `"p3: Layer-0 corpus meets manifest baselines"` ratchets counts |
+| `jacpython/layer0_replay.jac` | Harvests self-contained `assertEqual` pairs from `Lib/test/test_*.py`; regression tests for replay helpers |
+| `jacpython/layer0_replay_p3_gate.jac` | P3.1a/P3.1b manifest ratchet entrypoint (`jac run`, not `jac test`) |
+| `tools/p3_object_core/replay_gate.py` | CI driver: runs the ratchet jac on a clean ceval slate |
 
 CI (`jac-py-gates` job, after P2 steps):
 
 ```bash
 jac test jac-py/tests/test_p3_object_core_gate.jac
 jac test jac-py/jacpython/layer0_replay.jac
+python jac-py/tools/p3_object_core/replay_gate.py
 ```
 
 Requires pinned CPython reference (`fetch_cpython_reference.py`, same step as other jac-py gates). **T7** (`jac-py/tests/na_cliffs/t7_gate.py`) stays independent: it gates na-clean emission on `objects.jac`, not Lib/test replay counts.
