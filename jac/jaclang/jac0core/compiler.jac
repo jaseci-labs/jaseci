@@ -137,6 +137,7 @@ def run_pass(
             ir_in=ir_in,
             prog=prog,
             cancel_token=cancel_token,
+            cancel_requested=bool(cancel_token is not None and cancel_token.is_set()),
             policy=pol,
             errors_had=errors,
             warnings_had=warnings,
@@ -166,10 +167,10 @@ def get_symtab_ir_sched -> list[type[Transform]] {
     );
 }
 
-glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
-     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
+glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', `default=False),
+     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', `default=False),
      _typecheck_sched_loading = ContextVar(
-         'jac_typecheck_sched_loading', default=False
+         'jac_typecheck_sched_loading', `default=False
      );
 
 def pass_requires(p: type[Transform]) -> tuple {
@@ -359,7 +360,7 @@ def native_schedule_failure -> str {
 }
 
 def compiler_source_failure_origin(err: BaseException) -> (str | None) {
-    root = _compiler_source_root() + os.sep;
+    `root = _compiler_source_root() + os.sep;
     cursor: any = err;
     for _ in range(8) {
         if cursor is None {
@@ -368,7 +369,7 @@ def compiler_source_failure_origin(err: BaseException) -> (str | None) {
         for cand in (cursor?.jac_source_path, cursor?.path) {
             if isinstance(cand, str) and cand {
                 real = os.path.realpath(cand);
-                if real.startswith(root) {
+                if real.startswith(`root) {
                     return real;
                 }
             }
@@ -1093,29 +1094,29 @@ def import_binds_client_native(nd: uni.Import, manifest: object) -> bool {
 }
 
 glob _na_demotion_memo: dict[str, tuple] = {},
-     _na_census: dict[str, dict] = {},
-     _na_census_state: dict[str, bool] = {"enabled": False},
+     _na_coverage: dict[str, dict] = {},
+     _na_coverage_state: dict[str, bool] = {"enabled": False},
      _na_cap_noted: dict[str, bool] = {};
 
-def na_census_begin {
+def na_coverage_begin {
     import from jaclang.jac0core.placement_solver { native_scan_memo_clear }
-    _na_census.clear();
+    _na_coverage.clear();
     _na_demotion_memo.clear();
     native_scan_memo_clear();
-    _na_census_state["enabled"] = True;
+    _na_coverage_state["enabled"] = True;
 }
 
-def na_census_record(path: str, outcome: str, code: str = '', detail: str = '') {
-    if not _na_census_state["enabled"] or not path {
+def na_coverage_record(path: str, outcome: str, code: str = '', detail: str = '') {
+    if not _na_coverage_state["enabled"] or not path {
         return;
     }
     key = os.path.realpath(path);
-    prev = _na_census.get(key);
+    prev = _na_coverage.get(key);
     sticky = ('demoted', 'ice');
     if prev is not None and prev['outcome'] in sticky and outcome not in sticky {
         return;
     }
-    _na_census[key] = {
+    _na_coverage[key] = {
         'outcome': outcome,
         'code': code,
         'detail': detail,
@@ -1123,22 +1124,22 @@ def na_census_record(path: str, outcome: str, code: str = '', detail: str = '') 
     };
 }
 
-def na_census_seam(path: str, reason: str) {
-    if not _na_census_state["enabled"] or not path {
+def na_coverage_seam(path: str, reason: str) {
+    if not _na_coverage_state["enabled"] or not path {
         return;
     }
     key = os.path.realpath(path);
-    rec = _na_census.get(key);
+    rec = _na_coverage.get(key);
     if rec is None {
         rec = {'outcome': 'native', 'code': '', 'detail': '', 'seams': []};
-        _na_census[key] = rec;
+        _na_coverage[key] = rec;
     }
     rec['seams'].append(reason);
 }
 
-def na_census_end -> dict {
-    snap = dict(_na_census);
-    _na_census_state["enabled"] = False;
+def na_coverage_end -> dict {
+    snap = dict(_na_coverage);
+    _na_coverage_state["enabled"] = False;
     return snap;
 }
 
@@ -1294,6 +1295,7 @@ obj JacCompiler {
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def _release_compile_scratch(target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

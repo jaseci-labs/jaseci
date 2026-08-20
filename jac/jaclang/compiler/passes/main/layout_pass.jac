@@ -19,7 +19,6 @@ import from jaclang.jac0core.unitree {
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
@@ -445,7 +444,7 @@ def class_form_enum_scalar(t: any) -> (str | None) {
 
 def class_form_enum_decls(module: Module) -> list[Archetype] {
     out: list[Archetype] = [];
-    for nd in UniPass.get_all_sub_nodes(module, Archetype) {
+    for nd in module.get_all_sub_nodes(Archetype) {
         if nd.name is None {
             continue;
         }
@@ -537,8 +536,8 @@ def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] 
         _values[mname] = _asn.value;
     }
     _placed.sort();
-    for entry in _placed {
-        out.append((entry[2], _values[entry[2]]));
+    for `entry in _placed {
+        out.append((`entry[2], _values[`entry[2]]));
     }
     return out;
 }

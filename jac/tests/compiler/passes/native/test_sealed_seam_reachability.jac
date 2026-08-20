@@ -2,8 +2,8 @@
 
 A waiver in `NATIVE_SEAL_DEMOTION_WAIVERS` ships an `abort()` stub into the
 artifact, so a waived method that turns out to be reachable trades a wrong
-answer for a process kill with no diagnostic. `test_unitree_seal_census.jac`
-and `test_pass_seal_wave1_census.jac` pin that each waiver still names a real
+answer for a process kill with no diagnostic. `test_unitree_seal_baseline.jac`
+and `test_pass_seal_wave1_baseline.jac` pin that each waiver still names a real
 seam; this pins the other half, that none of them can be called.
 
 The closure below is a deliberate over-approximation, so "not in it" is a
@@ -145,38 +145,17 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
          "build_solution_from_specialized_class",
          "collect_member_syms"
      ),
-     # The base chain's construction set, argued once for the closure walk.
-     #
-     # These four became reachable when the pass base chain joined every
-     # sealed closure (#8320): the walk seeds every class's dunders, so
-     # `BaseTransform.postinit` seeds, and its `timed_transform` edge reaches
-     # `is_canceled` and `ice`; the two generic statics ride the same
-     # receiver-blind call edges. The path exists only through a pass
-     # CONSTRUCTION -- and no sealed entry point constructs a pass: the
-     # parser artifact exports parse/materialize entries, and the pass
-     # artifacts bind without executing bodies. The over-approximation is
-     # flagging an entry nothing exports yet.
-     #
-     # "Yet" is the point of writing it down. The fused prefix
-     # (`parse_and_run_prefix`, #8323 A3) is exactly the export that WILL
-     # construct passes natively, and it cannot ship while these four are
-     # stubs: `is_canceled` clears when cancellation crosses as a scalar,
-     # `ice` when diagnostics cross as data, and the statics when
-     # TypeVar-bound signatures lower. Each entry is checked below to be
-     # declared in a base-chain module and to still be both waived and
-     # reachable, so the table self-retires seam by seam as A3 lands --
-     # and an A3 crossing landing with this table non-empty is the wrong
-     # order, which is why the argument lives here rather than in a skip.
-     BASE_CHAIN_ARGUED: tuple = (
-         "BaseTransform.is_canceled",
-         "Transform.ice",
-         "UniPass.find_parent_of_type",
-         "UniPass.get_all_sub_nodes"
-     ),
-     BASE_CHAIN_DIRS: tuple = (
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac"
-     ),
+     # A third table, BASE_CHAIN_ARGUED, lived here for one wave: the four
+     # base-chain waivers (`is_canceled`, `ice`, the two generic statics)
+     # became reachable when the chain joined every sealed closure, and the
+     # table argued that the only path to them ran through a pass
+     # construction no sealed entry performs -- naming itself as the fused
+     # prefix's gate. It retired the way it promised: `is_canceled` reads
+     # the `cancel_requested` scalar now, `ice` builds the message its
+     # callers raise, and the generic-static shims were retired for the
+     # `UniNode` methods they wrapped. Nothing construction-reachable is
+     # waived anymore, so the walks below run against the plain argued
+     # tables again.
      TYPE_SYSTEM_DIR = "compiler/type_system",
      _CLOSURE_MEMO: list = [],
      _PASS_MEMO: dict[(str, tuple)] = {};
@@ -508,22 +487,13 @@ def pass_reachable(rel: str) -> tuple {
 
 """Waived seams, keyed the way `_seal_demotions` keys them, minus the module."""
 def _waived_names -> set {
-    return {entry.split("::")[-1] for entry in _CLOSURE_SEAM_WAIVERS};
+    return {`entry.split("::")[-1] for `entry in _CLOSURE_SEAM_WAIVERS};
 }
 
-"""One root's findings: (reachable waivers beyond the argued sets, stale argued).
-
-`BASE_CHAIN_ARGUED` excuses hits here too: a pass root's live surface
-includes the traversal methods the inherited-slot repair freed, and
-`timed_transform`'s edges reach the construction set from every root the
-base chain links into. Which subset each root reaches varies, so per-root
-staleness would be noise -- the closure test owns the staleness of that
-table, checking all four against the full walk.
-"""
+"""One root's findings: (reachable waivers beyond the argued set, stale argued)."""
 def _pass_findings(rel: str) -> tuple[(list, list)] {
     (seen, waived) = pass_reachable(rel);
-    accessor_argued = set(ACCESSOR_ARGUED.get(rel, ()));
-    argued = accessor_argued | set(BASE_CHAIN_ARGUED);
+    argued = set(ACCESSOR_ARGUED.get(rel, ()));
     hit = sorted(
         name
         for name in waived
@@ -531,7 +501,7 @@ def _pass_findings(rel: str) -> tuple[(list, list)] {
     );
     stale = sorted(
         name
-        for name in accessor_argued
+        for name in argued
         if name not in seen or name not in waived
     );
     return (hit, stale, );
@@ -580,7 +550,7 @@ test "the closure reaches the parser itself" {
 test "no waived seam is reachable from the sealed entry points" {
     seen = reachable();
     waived = _waived_names();
-    argued = set(PASSENGER_ARGUED) | set(BASE_CHAIN_ARGUED);
+    argued = set(PASSENGER_ARGUED);
     reachable_waivers = sorted(
         name
         for name in waived
@@ -601,27 +571,6 @@ test "no waived seam is reachable from the sealed entry points" {
         "waived) -- drop them, and say which mechanism cleared each:\n"
         + "\n".join(f"  {name}" for name in stale_argued)
     );
-}
-
-
-test "every base-chain carve-out is declared in the base chain" {
-    (_seen, tables) = sealed_walk();
-    (_arch_of, _mod_funcs, _globs, _reg, arch_mod, func_mod) = tables;
-    for name in BASE_CHAIN_ARGUED {
-        (owner, dot, _rest) = name.partition(".");
-        where = arch_mod.get(owner) if dot else func_mod.get(name);
-        assert where is not None , (
-            f"'{name}' is carved out as base-chain construction surface but "
-            "the walk cannot say which module declares it"
-        );
-        where_rel = str(where).replace(os.sep, "/");
-        assert any(d in where_rel for d in BASE_CHAIN_DIRS) , (
-            f"'{name}' is carved out as base-chain construction surface but "
-            f"is declared in {where}. The argument is that no sealed entry "
-            "constructs a pass, which can only excuse the chain's own "
-            "methods -- never a seam elsewhere in the closure."
-        );
-    }
 }
 
 
@@ -822,7 +771,7 @@ test "wave-5 roots: no waived seam is native-reachable from the live surface" {
         hit = sorted(
             name
             for name in waived
-            if name in seen and name not in BASE_CHAIN_ARGUED
+            if name in seen
         );
         assert not hit , (
             f"{rel}: {len(hit)} waived seam(s) are reachable through native "
@@ -867,7 +816,7 @@ test "jcir: no waived seam is native-reachable from the live surface" {
         "refusal belongs in NATIVE_SEAL_REFUSED_ROOTS with its blocker"
     );
     (seen, waived) = pass_reachable(JCIR_ROOT);
-    argued = set(ACCESSOR_ARGUED.get(JCIR_ROOT, ())) | set(BASE_CHAIN_ARGUED);
+    argued = set(ACCESSOR_ARGUED.get(JCIR_ROOT, ()));
     hit = sorted(
         name
         for name in waived

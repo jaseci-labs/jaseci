@@ -267,7 +267,7 @@ test "guardrail: Python module import is rejected" {
 
 # A dotted non-bundled Python import is equally unsupported (a dotted
 # bundled name like `os.path` now resolves, #6978; `collections.abc`
-# joined NATIVE_SUPPORTED_STDLIB with the unitree lowering census).
+# joined NATIVE_SUPPORTED_STDLIB with the unitree lowering coverage).
 test "guardrail: dotted Python module import is rejected" {
     prog = compile_na_inline(
         "py_import_dotted", "import xml.etree;\n" "with entry { print(\"hi\"); }\n"
