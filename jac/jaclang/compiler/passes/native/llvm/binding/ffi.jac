@@ -1,10 +1,7 @@
 import sys;
 import os;
 import ctypes;
-import from jaclang.compiler.passes.native.llvm.binding.common {
-    _decode_string,
-    _is_shutting_down
-}
+import from jaclang.compiler.passes.native.llvm.binding.common { _is_shutting_down }
 
 
 def _shim_name -> str {
@@ -51,7 +48,7 @@ def _find_shim -> str {
 
 class _LazyLib {
     def init(self: _LazyLib) {
-        self._handle = None;
+        self._handle: (ctypes.CDLL | None) = None;
     }
 
     def __getattr__(self: _LazyLib, name: str) -> any {
@@ -153,7 +150,7 @@ class OutputString {
         }
         s = self._ptr.value;
         assert s is not None;
-        return _decode_string(s);
+        return bytes(s).decode('utf-8');
     }
 
     def __bool__(self: OutputString) -> bool {

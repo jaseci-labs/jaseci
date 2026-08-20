@@ -94,7 +94,13 @@ impl ClientBundleBuilder.build(
         return prebuilt;
     }
     import from jaclang { JacRuntime as Jac }
-    mod = _lookup_module_in_hub(str(source_path), Jac.program.mod.hub);
+    program = Jac.program;
+    if program is None {
+        raise ClientBundleError(
+            f"No active Jac program; cannot build client bundle for '{source_path}'."
+        );
+    }
+    mod = _lookup_module_in_hub(str(source_path), program.mod.hub);
     if not mod {
         (_, mod) = self._compile_to_js(source_path);
     }
@@ -156,6 +162,11 @@ impl ClientBundleBuilder._compile_bundle(
 impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module] {
     import from jaclang { JacRuntime as Jac }
     program = Jac.program;
+    if program is None {
+        raise ClientBundleError(
+            f"No active Jac program; cannot compile '{source_path}' for client bundle."
+        );
+    }
     source_key = str(source_path);
     mod = _lookup_module_in_hub(source_key, program.mod.hub);
     if not mod {

@@ -100,8 +100,8 @@ def collect_floor_archives(
 ) -> tuple {
     import os;
     import from jaclang.compiler.passes.native.linker_common { select_ar_members }
-    member_bytes: list = [];
-    handled: set = set();
+    member_bytes: list[bytes] = [];
+    handled: set[str] = set();
 
     tl = triple.lower();
     is_pe = ("windows" in tl) or ("win32" in tl) or ("msvc" in tl) or ("mingw" in tl);
@@ -113,13 +113,13 @@ def collect_floor_archives(
         return (member_bytes, handled);
     }
 
-    syms_by_lib: dict = {};
+    syms_by_lib: dict[str, list[str]] = {};
     for (sym, raw) in clib_symbol_lib.items() {
         syms_by_lib.setdefault(raw, []).append(sym);
     }
 
-    roots_by_archive: dict = {};
-    paths_by_archive: dict = {};
+    roots_by_archive: dict[str, list[str]] = {};
+    paths_by_archive: dict[str, list[str]] = {};
     for clib_path in clib_paths {
         arch_file = os.path.join(lib_dir, clib_to_archive_name(clib_path));
         if not os.path.isfile(arch_file) {

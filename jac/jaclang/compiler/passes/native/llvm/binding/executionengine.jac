@@ -67,7 +67,7 @@ def check_jit_execution -> object {
     """
 class ExecutionEngine(ffi.ObjectRef) {
     with entry {
-        _object_cache = None;
+        _object_cache: (_ObjectCacheRef | None) = None;
     }
 
     """
@@ -75,7 +75,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         """
     def init(self: ExecutionEngine, ptr: any, module: any) -> object {
         self._modules = `set([module]);
-        self._td = None;
+        self._td: (targets.TargetData | None) = None;
         self.static_init_symbols = [];
         self.static_init_chained = `set();
         module._owned = True;

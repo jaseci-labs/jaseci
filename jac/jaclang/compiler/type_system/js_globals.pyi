@@ -69,6 +69,7 @@ __all__ = [
     "location",
     "history",
     "screen",
+    "performance",
     # Global functions
     "parseInt",
     "parseFloat",
@@ -535,6 +536,17 @@ class _Console:
     def clear(self) -> None: ...
 
 console: _Console
+
+class _Performance:
+    """The `performance` object (High Resolution Time)."""
+
+    def now(self) -> float: ...
+    def mark(self, name: str) -> object: ...
+    def measure(self, name: str, start: str = ..., end: str = ...) -> object: ...
+    @property
+    def timeOrigin(self) -> float: ...
+
+performance: _Performance
 
 class _Location:
     """The `window.location` object."""

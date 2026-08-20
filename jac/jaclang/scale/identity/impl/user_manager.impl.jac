@@ -480,7 +480,15 @@ impl JacScaleUserManager.firebase_token_auth_with_id_token(
             meta=Meta(extra={'http_status': 501})
         );
     }
+    import from jaclang.scale.sso.firebase { FirebaseSSOProvider }
     sso = self.get_sso(platform);
+    if not isinstance(sso, FirebaseSSOProvider) {
+        return TransportResponse.fail(
+            code='SSO_INIT_FAILED',
+            message=f"Failed to initialize SSO for platform '{platform}'",
+            meta=Meta(extra={'http_status': 500})
+        );
+    }
     try {
         user_info = await sso.handle_id_token(id_token);
     } except Exception as e {
