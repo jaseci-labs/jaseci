@@ -651,7 +651,6 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         if imported_mod is None {
             continue;
         }
-        self._ensure_imported_module_inferred(imported_mod);
         processed_modules.add(abs_key);
         imported_mods.append((src_mod_str, imported_mod));
 
@@ -751,33 +750,6 @@ impl NaIRGenPass._permuted_walk_order(mods: list) -> list {
         return _out;
     }
     raise ValueError(f"unknown native_module_walk_order: {_spec!r}");
-}
-
-impl NaIRGenPass._ensure_imported_module_inferred(imported_mod: uni.Module) -> None {
-    if id(imported_mod) in self.prog._inferred_mods {
-        return;
-    }
-    import from dataclasses { replace as _replace_opts }
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    import from jaclang.jac0core.compiler { get_cfg_sched, get_inference_sched }
-    compiler = self.prog._get_compiler();
-    _saved_opts = self.prog._compile_options;
-    _base_opts = _saved_opts if _saved_opts is not None else CompileOptions();
-    self.prog._compile_options = _replace_opts(_base_opts, emit_diagnostics=False);
-    try {
-        _analyses = self.prog._analyses_run.get(id(imported_mod), set());
-        if 'cfg' not in _analyses {
-            compiler.run_schedule(
-                mod=imported_mod, target_program=self.prog, passes=get_cfg_sched()
-            );
-        }
-        compiler.run_schedule(
-            mod=imported_mod, target_program=self.prog, passes=get_inference_sched()
-        );
-        self.prog._inferred_mods.add(id(imported_mod));
-    } finally {
-        self.prog._compile_options = _saved_opts;
-    }
 }
 
 impl NaIRGenPass._extract_import_module_name(imp: uni.Import) -> (str | None) {

@@ -15,20 +15,8 @@ impl primitive_type_name_of(ty: (TypeBase | None)) -> (str | None) {
     return None;
 }
 
-impl expr_primitive_name(prog: object, expr_node: UniNode) -> str {
-    import from jaclang.jac0core.program { JacProgram }
-    _ty = expr_node?.type;
-    if _ty is None and isinstance(prog, JacProgram) {
-        try {
-            _te = prog.get_type_evaluator();
-            if _te and isinstance(expr_node, Expr) {
-                _ty = _te.get_type_of_expression(expr_node);
-            }
-        } except Exception {
-            _ty = None;
-        }
-    }
-    return primitive_type_name_of(_ty) or "";
+impl expr_primitive_name(expr_node: UniNode) -> str {
+    return primitive_type_name_of(expr_node?.type) or "";
 }
 
 impl get_generator_type_args(return_type: TypeBase) -> (list[TypeBase] | None) {

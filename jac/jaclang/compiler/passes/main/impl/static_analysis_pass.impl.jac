@@ -343,7 +343,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
                         expr_primitive_name
                     }
                     left = nd.left if i == 0 else nd.rights[i - 1];
-                    if expr_primitive_name(self.prog, left) == "bool" {
+                    if expr_primitive_name(left) == "bool" {
                         self.emit(W2075, node_override=nd);
                     }
                 }

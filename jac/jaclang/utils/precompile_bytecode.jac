@@ -370,7 +370,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/type_system/type_utils.jac::expr_primitive_name",
          "compiler/type_system/type_utils.jac::class_implements_protocol",
          "compiler/type_system/type_utils.jac::collect_member_syms",
          "compiler/type_system/type_utils.jac::doc_of_sym",
@@ -554,11 +553,7 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "`build_solution_from_specialized_class`), and comprehensions or "
              "matches over element-erased collections "
              "(`shadowed_type_var_names`, `completion_kind_from_sym`). "
-             "`expr_primitive_name` is the one Python-only member: it reaches "
-             "`get_type_evaluator`, and `type_evaluator.jac` cannot join this "
-             "closure. Each clears with the named gap; "
-             "`expr_primitive_name` clears when the evaluator query crosses "
-             "as data."
+             "Each clears with the named gap."
          ),
          (
              "helpers rendering, file reads and the unitree cycle",

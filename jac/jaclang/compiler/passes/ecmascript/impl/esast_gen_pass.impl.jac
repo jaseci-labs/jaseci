@@ -2128,16 +2128,12 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         return;
     }
 
-    _emit_new = _call_kind == "instantiation";
-    if not _emit_new {
-        _target_type = nd.target?.type;
-        if (
-            _target_type is not None
-            and _target_type.is_instantiable_class()
-            and not _target_type.shared.is_builtin_class
-        ) {
-            _emit_new = True;
-        }
+    _target_type = nd.target?.type;
+    if _target_type is not None {
+        _emit_new = _target_type.is_instantiable_class()
+            and not _target_type.shared.is_builtin_class;
+    } else {
+        _emit_new = _call_kind == "instantiation";
     }
     if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
@@ -2534,7 +2530,7 @@ impl EsastGenPass._try_primitive_op(
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
 
     import from jaclang.compiler.type_system.type_utils { expr_primitive_name }
-    _type_name = expr_primitive_name(self.prog, expr_node);
+    _type_name = expr_primitive_name(expr_node);
     if not _type_name {
         return None;
     }
@@ -2575,7 +2571,7 @@ impl EsastGenPass._operand_str(unparser: object, es_node: es.Expression) -> str 
 
 impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
     import from jaclang.compiler.type_system.type_utils { expr_primitive_name }
-    return expr_primitive_name(self.prog, expr_node);
+    return expr_primitive_name(expr_node);
 }
 
 impl EsastGenPass._is_collection_expr(expr_node: uni.UniNode) -> bool {

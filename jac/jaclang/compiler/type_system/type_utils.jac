@@ -55,7 +55,7 @@ def compute_mro_linearization(cls: ClassType, _visiting: (set | None) = None) ->
 
 def primitive_type_name_of(ty: (TypeBase | None)) -> (str | None);
 
-def expr_primitive_name(prog: object, expr_node: UniNode) -> str;
+def expr_primitive_name(expr_node: UniNode) -> str;
 
 obj ParamAssignmentTracker {
     has params: list[Parameter],
