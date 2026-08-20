@@ -63,7 +63,7 @@ def _registry -> any {
     }
     prog = JacProgram();
     ir = prog.compile(
-        file_path=FIXTURE, options=CompileOptions(aot_mode=True, type_check=True)
+        file_path=FIXTURE, options=CompileOptions(aot_mode=True)
     );
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     reg = get_layout_registry(ir, prog);

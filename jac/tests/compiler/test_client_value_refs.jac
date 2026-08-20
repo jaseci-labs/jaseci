@@ -44,7 +44,7 @@ def check_fixture(rel: str) -> JacProgram {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, rel),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     return prog;
 }

@@ -482,7 +482,7 @@ test "dts_for_module declares exported functions, classes, and globals" {
             'def:pub names(items: list[str]) -> int { return len(items); }\n'
         );
         mod = JacProgram().compile(
-            str(src), options=CompileOptions(force_codespace='client', type_check=False)
+            str(src), options=CompileOptions(force_codespace='client')
         );
         dts = dts_for_module(mod);
         assert "export declare function add(a: number, b: number): number;" in dts;
@@ -528,7 +528,7 @@ test "jac bundle --target npm writes a tarball to dist/" {
     try {
         _scaffold_lib(tmp_path, "mylib");
         result = run(
-            ["jac", "build", "--as", "npm", "--no_typecheck"],
+            ["jac", "build", "--as", "npm"],
             capture_output=True,
             text=True
         );

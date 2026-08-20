@@ -39,7 +39,6 @@ def _opts(gc_mode: str | None = None, enforce: bool = False) -> object {
         return native_force_opts();
     }
     return CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode=gc_mode,

@@ -55,7 +55,7 @@ forms, matching the production bundler pipeline."""
 def compile_react(path: str) -> str {
     prog = JacProgram();
     ir = prog.compile(
-        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
+        file_path=str(path), options=CompileOptions(no_cgen=True)
     );
     fatal = [
         e

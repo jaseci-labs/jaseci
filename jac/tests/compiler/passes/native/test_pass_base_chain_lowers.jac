@@ -80,7 +80,6 @@ def _transform_seams -> dict[(str, str)] {
             file_path=path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -159,7 +158,6 @@ def _ctor_probe -> tuple {
             file_path=str(CTOR_PROBE),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

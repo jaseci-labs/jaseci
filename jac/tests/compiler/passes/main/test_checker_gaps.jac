@@ -46,7 +46,7 @@ def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, fixture_name),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     run_pass(TypeCheckPass, mod, program);
     return program;
@@ -331,7 +331,7 @@ test "gap 46 impl file standalone scope resolution" {
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_gap_impl_scope.impl.jac"),
         options=CompileOptions(
-            resolve_annex_parent=True, type_check=False, default_codespace='server'
+            resolve_annex_parent=True, default_codespace='server'
         )
     );
     run_pass(TypeCheckPass, mod, program);

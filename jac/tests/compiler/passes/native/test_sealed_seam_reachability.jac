@@ -177,7 +177,6 @@ def _program_tables(rel: str) -> tuple {
         file_path=str(PKG_PATH / rel),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             na_gc_mode='cycles',

@@ -117,7 +117,6 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
     prog.compile(
         file_path=src,
         options=CompileOptions(
-            type_check=True,
             no_cgen=True,
             force_codespace="native",
             force_target_program=True

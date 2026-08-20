@@ -102,7 +102,7 @@ def _compile(path: str, no_cgen: bool = True) -> tuple[any] {
     mod = prog.compile(
         file_path=path,
         options=CompileOptions(
-            type_check=False, no_cgen=no_cgen, force_target_program=True
+            no_cgen=no_cgen, force_target_program=True
         )
     );
     return (prog, mod);

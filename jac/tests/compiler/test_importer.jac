@@ -356,7 +356,6 @@ test "pyi loads build via PyastBuildPass and never compile" {
         file_path: str,
         use_str: (str | None) = None,
         no_cgen: bool = False,
-        type_check: bool = False,
         symtab_ir_only: bool = False,
         cancel_token = None,
         options = None
@@ -367,7 +366,6 @@ test "pyi loads build via PyastBuildPass and never compile" {
             file_path,
             use_str=use_str,
             no_cgen=no_cgen,
-            type_check=type_check,
             symtab_ir_only=symtab_ir_only,
             cancel_token=cancel_token,
             options=options
@@ -413,7 +411,6 @@ test "resolve_import_source_module never compiles pyi stubs" {
             file_path: str,
             use_str: (str | None) = None,
             no_cgen: bool = False,
-            type_check: bool = False,
             symtab_ir_only: bool = False,
             cancel_token = None,
             options = None
@@ -424,7 +421,6 @@ test "resolve_import_source_module never compiles pyi stubs" {
                 file_path,
                 use_str=use_str,
                 no_cgen=no_cgen,
-                type_check=type_check,
                 symtab_ir_only=symtab_ir_only,
                 cancel_token=cancel_token,
                 options=options

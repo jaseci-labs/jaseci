@@ -47,7 +47,6 @@ test "an AOT compile that lowers nothing names the module" {
         file_path=os.path.join(FIXTURES, "aot_no_lowerable_code.jac"),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             no_ir_cache=True

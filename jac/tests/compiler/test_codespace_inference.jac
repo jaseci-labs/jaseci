@@ -184,7 +184,7 @@ test "jac check flags a dead client import without codegen" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     dead_errs = [
         e
@@ -278,7 +278,7 @@ def compile_with_default(name: str, dcs: str, cgen: bool = False) -> object {
         mod = prog.compile(
             os.path.join(FIXTURE_DIR, name),
             options=CompileOptions(
-                default_codespace=dcs, no_cgen=not cgen, type_check=False
+                default_codespace=dcs, no_cgen=not cgen
             )
         );
     } finally {
@@ -622,7 +622,7 @@ test "codespace stamps invalidate stale module codegen" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     util = hub_module(prog, "infer_xmod_util.jac");
     assert util is not None , "imported module missing from hub";
@@ -656,7 +656,7 @@ test "aot native mandate still fails loudly" {
     prog.compile(
         os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
         options=CompileOptions(
-            type_check=False, aot_mode=True, default_codespace='native'
+            aot_mode=True, default_codespace='native'
         )
     );
     assert prog.errors_had , "forced-native modules must surface lowering errors";
@@ -673,7 +673,7 @@ test "client value use of a bare python import is E5084" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_client.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -693,7 +693,7 @@ test "annotation-only use of a bare python import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_annotation.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -711,7 +711,7 @@ test "server-side use of a bare python import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_server_use.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -729,7 +729,7 @@ test "unresolvable relative bare import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_relative_template.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e

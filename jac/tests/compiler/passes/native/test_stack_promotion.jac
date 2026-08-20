@@ -29,7 +29,6 @@ def _compile_ir(gc_mode: str, enforce: bool) -> str {
             file_path=FIXTURE,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=True,
                 na_gc_mode=gc_mode,
                 nogc_enforce_all=enforce
             )

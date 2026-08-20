@@ -45,7 +45,7 @@ def fixture_ir -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, FIXTURE),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had;
         return str(ir.gen.llvm_ir);

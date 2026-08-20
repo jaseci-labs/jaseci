@@ -43,7 +43,6 @@ def _write_pair(tmp: str, dep_stem: str) -> str {
 def _aot_opts(rc_debug: bool) -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
-        type_check=False,
         default_codespace='native',
         force_target_program=True,
         na_gc_mode='cycles',
@@ -100,7 +99,6 @@ test "rc debug trace gate is driven by the options object, not env" {
                     options=CompileOptions(
                         aot_mode=True,
                         skip_native_engine=True,
-                        type_check=False,
                         default_codespace='native',
                         force_target_program=True,
                         na_gc_mode='cycles',

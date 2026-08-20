@@ -799,7 +799,6 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
             file_path=key,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

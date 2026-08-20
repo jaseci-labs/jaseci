@@ -50,7 +50,7 @@ def emit_shared_object(fixture: str, triple: str) -> tuple {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had

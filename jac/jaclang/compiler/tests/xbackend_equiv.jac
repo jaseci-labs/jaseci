@@ -65,7 +65,7 @@ def compile_fixture_to_js(fixture_name: str) -> str {
     prog = JacProgram();
     # type_check=True: EsastGenPass consumes core call facts (call_kind/
     # callee_decl) that only the inference schedule stamps.
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     fatal = [
         e
         for e in prog.errors_had

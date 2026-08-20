@@ -137,7 +137,7 @@ def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, fixture_name),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     run_pass(TypeCheckPass, mod, program);
     return program;
@@ -654,7 +654,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
     );
     program = JacProgram();
     program.compile(
-        os.path.join(fixture_dir, "impl_has_var_reassign.jac"), type_check=True
+        os.path.join(fixture_dir, "impl_has_var_reassign.jac")
     );
 
     # Expected after fix: 0 errors. The impl body should type-check cleanly:
@@ -1276,7 +1276,7 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     run_pass(TypeCheckPass, mod, program);
 
@@ -1327,7 +1327,7 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     run_pass(TypeCheckPass, mod, program);
 
@@ -1371,7 +1371,7 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     evaluator = program.get_type_evaluator();
     config_sym = mod.names_in_scope.get("CONFIG");

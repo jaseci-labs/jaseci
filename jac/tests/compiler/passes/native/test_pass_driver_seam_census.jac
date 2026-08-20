@@ -95,7 +95,6 @@ def _pass_census(pass_file: str) -> tuple {
             file_path=str(PASSES_DIR / pass_file),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

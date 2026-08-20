@@ -17,7 +17,7 @@ glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
      ),
      LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
-     NO_TC = CompileOptions(type_check=False, default_codespace='server');
+     NO_TC = CompileOptions(default_codespace='server');
 
 def assert_error_pretty_found(needle: str, haystack: str) {
     for line in [
@@ -32,7 +32,7 @@ def assert_error_pretty_found(needle: str, haystack: str) {
 test "explicit_type_annotation_in_assignment" {
     program = JacProgram();
     program.compile(
-        os.path.join(FIXTURES, "type_annotation_assignment.jac"), type_check=True
+        os.path.join(FIXTURES, "type_annotation_assignment.jac")
     );
     assert len(program.errors_had) == 2;
     assert_error_pretty_found(
@@ -249,7 +249,7 @@ single-symbol re-export scope (regression: SQLAlchemy `create_engine`)."""
 test "imported_overloaded_function_call_resolves" {
     path = os.path.join(CHECKER_FIXTURES, "checker_imported_overload.jac");
     program = JacProgram();
-    program.compile(path, type_check=True);
+    program.compile(path);
     assert program.errors_had == [] , (
         "make(\"a\") matches the no-strict overload; expected no errors, got: "
         + str([e.pretty_print() for e in program.errors_had])
@@ -1102,7 +1102,7 @@ test "lambda_param_inferred_from_expected_callable" {
     # Unannotated lambda params infer from the key= callable, so no E1054/W1051.
     path = os.path.join(CHECKER_FIXTURES, "checker_lambda_param_inference.jac");
     program = JacProgram();
-    program.compile(path, type_check=True);
+    program.compile(path);
     assert len(program.errors_had) == 0 , f"Unexpected errors: {[
         e.pretty_print() for e in program.errors_had
     ]}";
@@ -1120,7 +1120,7 @@ test "lambda_param_inferred_from_expected_callable" {
 test "lambda_param_unresolved_requires_annotation" {
     path = os.path.join(CHECKER_FIXTURES, "checker_lambda_unresolved_param.jac");
     program = JacProgram();
-    program.compile(path, type_check=True);
+    program.compile(path);
     e1119 = [
         e
         for e in program.errors_had
@@ -1204,7 +1204,7 @@ test "undefined_osp_position" {
     # E2018, and W2001 must not duplicate any of the promoted spans.
     path = os.path.join(CHECKER_FIXTURES, "checker_undefined_osp_position.jac");
     program = JacProgram();
-    program.compile(path, type_check=True);
+    program.compile(path);
     e2018 = [
         e
         for e in program.errors_had
@@ -5504,7 +5504,7 @@ test "circular_import_preserves_class_identity" {
     abs_entry = os.path.join(CHECKER_FIXTURES, "circular_import_identity", "entry.jac");
     rel_entry = os.path.relpath(abs_entry);
     program = JacProgram();
-    program.compile(rel_entry, type_check=True);
+    program.compile(rel_entry);
     assert len(program.errors_had) == 0 , f"Circular import split the class identity, got {len(
         program.errors_had
     )} error(s):\n"
@@ -5536,7 +5536,7 @@ test "edge_endpoint_typing_narrows_neighbour_traversals" {
     # `[?:Type]` filter -- so a field read off the result resolves statically.
     program = JacProgram();
     mod = program.compile(
-        os.path.join(CHECKER_FIXTURES, "edge_endpoint_typing.jac"), type_check=True
+        os.path.join(CHECKER_FIXTURES, "edge_endpoint_typing.jac")
     );
     assert len(program.errors_had) == 0 , "Unexpected errors:\\n"
         + "\\n---\\n".join(e.pretty_print() for e in program.errors_had);
@@ -5567,7 +5567,7 @@ test "edge_endpoint_clause_rejected_on_non_edge" {
     # E2027 rather than a silently-ignored declaration.
     program = JacProgram();
     program.compile(
-        os.path.join(CHECKER_FIXTURES, "edge_endpoint_on_node.jac"), type_check=True
+        os.path.join(CHECKER_FIXTURES, "edge_endpoint_on_node.jac")
     );
     has_e2027 = False;
     for alrt in program.errors_had {
@@ -5590,7 +5590,7 @@ test "mobui_project_forbids_html_intrinsic_tags" {
     program.compile(
         path,
         options=CompileOptions(
-            type_check=False, project_kind="mobui", project_root=CHECKER_FIXTURES
+            project_kind="mobui", project_root=CHECKER_FIXTURES
         )
     );
 
@@ -5640,7 +5640,7 @@ test "mobui_project_allows_lowercase_component_in_scope" {
     program.compile(
         path,
         options=CompileOptions(
-            type_check=False, project_kind="mobui", project_root=CHECKER_FIXTURES
+            project_kind="mobui", project_root=CHECKER_FIXTURES
         )
     );
     e1105 = [
@@ -5666,7 +5666,7 @@ test "mobui_project_lowercase_component_no_w1050" {
     program.compile(
         path,
         options=CompileOptions(
-            type_check=True, project_kind="mobui", project_root=CHECKER_FIXTURES
+            project_kind="mobui", project_root=CHECKER_FIXTURES
         )
     );
     w1050 = [
@@ -5692,7 +5692,7 @@ test "mobui_kind_does_not_leak_outside_project_root" {
         program.compile(
             path,
             options=CompileOptions(
-                type_check=False, project_kind="mobui", project_root=tmp_root
+                project_kind="mobui", project_root=tmp_root
             )
         );
         e1105 = [
@@ -5735,7 +5735,7 @@ test "jac_toml_kind_mobui_round_trip" {
             fixture
         );
         program = JacProgram();
-        program.compile(fixture, options=CompileOptions(type_check=False));
+        program.compile(fixture, options=CompileOptions());
         e1105 = [
             e
             for e in program.errors_had
@@ -5767,7 +5767,7 @@ test "mobui_hello_example_discovers_kind_and_stays_e1105_clean" {
     );
 
     program = JacProgram();
-    program.compile(entry, options=CompileOptions(type_check=False));
+    program.compile(entry, options=CompileOptions());
     e1105 = [
         e
         for e in program.errors_had
@@ -5788,7 +5788,7 @@ test "builtin_inference_regressions" {
     # dict[<Unknown>, dict[K, V]] instead of dict[K, V].
     program = JacProgram();
     program.compile(
-        os.path.join(CHECKER_FIXTURES, "checker_builtin_inference.jac"), type_check=True
+        os.path.join(CHECKER_FIXTURES, "checker_builtin_inference.jac")
     );
     pretty = "\n".join([e.pretty_print() for e in program.errors_had]);
     assert len(program.errors_had) == 0 , "round() results and **spread dict literals must infer cleanly, "
@@ -5813,7 +5813,6 @@ test "bare_list_flow_inference" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_bare_list_flow_inference.jac"),
-        type_check=True
     );
     assert len(program.errors_had) == 0 , "Unexpected errors:\n"
         + "\n---\n".join(e.pretty_print() for e in program.errors_had);

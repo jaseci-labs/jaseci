@@ -23,11 +23,11 @@ def compile_fixture(fixture_name: str, enforce: bool = False) -> JacProgram {
         program.compile(
             path,
             options=CompileOptions(
-                type_check=True, na_gc_mode="none", nogc_enforce_all=True
+                na_gc_mode="none", nogc_enforce_all=True
             )
         );
     } else {
-        program.compile(path, type_check=True);
+        program.compile(path);
     }
     return program;
 }

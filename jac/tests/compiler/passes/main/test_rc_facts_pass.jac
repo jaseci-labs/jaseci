@@ -28,7 +28,7 @@ glob FIXTURES = os.path.join(TESTS_DIR, "compiler", "passes", "main", "fixtures"
 """Map every single-target `Name = ...` assignment to its move-lowerable mark."""
 def move_marks(fixture: str) -> dict[str, bool] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), type_check=False);
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     # Native codegen (which schedules this pass) is gated off for plain `.jac`

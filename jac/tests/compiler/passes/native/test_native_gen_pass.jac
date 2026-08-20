@@ -2753,7 +2753,7 @@ test "clib extensionless import resolves per platform (issue #6387)" {
         ] {
             _os.environ["JAC_NATIVE_TARGET"] = tgt;
             prog = JacProgram();
-            ir = prog.compile(_fix, options=CompileOptions(type_check=False));
+            ir = prog.compile(_fix, options=CompileOptions());
             assert not prog.errors_had , f"{tgt}: {prog.errors_had}";
             assert list(ir.gen._clib_paths) == [want] , f"{tgt}: got {ir.gen._clib_paths}, want [{want}]";
         }
@@ -2776,10 +2776,10 @@ test "clib dotted logical import maps to origin-relative subdir (issue #6387)" {
     _fix = str(os.path.join(FIXTURES, "clib_logical_dotted.jac"));
     try {
         _os.environ["JAC_NATIVE_TARGET"] = "x86_64-unknown-linux-gnu";
-        ir = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir.gen._clib_paths) == ["$ORIGIN/libs/libraylib.so"] , f"ELF: {ir.gen._clib_paths}";
         _os.environ["JAC_NATIVE_TARGET"] = "arm64-apple-darwin";
-        ir2 = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir2 = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir2.gen._clib_paths) == ["@loader_path/libs/libraylib.dylib"] , f"Mach-O: {ir2.gen._clib_paths}";
     } finally {
         if _saved is None {
@@ -2933,7 +2933,7 @@ test "clib AArch64 AAPCS ABI lowering" {
         prog = JacProgram();
         ir = prog.compile(
             str(os.path.join(FIXTURES, "clib_sysv_abi.jac")),
-            options=CompileOptions(type_check=False)
+            options=CompileOptions()
         );
         assert not prog.errors_had , f"Errors: {prog.errors_had}";
         assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
@@ -3215,7 +3215,7 @@ def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
     try {
         ir = prog.compile(
             file_path=file_path,
-            options=CompileOptions(default_codespace='native', type_check=False)
+            options=CompileOptions(default_codespace='native')
         );
     } finally {
         set_effective_default_codespace('');
@@ -5237,7 +5237,7 @@ test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway
     # is the assignability error.
     sv_prog = JacProgram();
     sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
-    sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
+    sv_prog.compile(file_path=sv_path, use_str=code);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
         "pointer-bitcast escape hatch must not apply outside native modules."

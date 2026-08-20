@@ -29,7 +29,7 @@ like the old suffix.
 def native_force_opts -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     return CompileOptions(
-        type_check=False, force_codespace='native', force_target_program=True
+        force_codespace='native', force_target_program=True
     );
 }
 

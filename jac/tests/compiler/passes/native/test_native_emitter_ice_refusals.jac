@@ -39,7 +39,6 @@ def measured -> tuple {
         ir = prog.compile(
             file_path=path,
             options=CompileOptions(
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 no_ir_cache=True

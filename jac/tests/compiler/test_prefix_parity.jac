@@ -150,7 +150,6 @@ def _compile_route(path: str, route: any) -> tuple[any] {
         mod = prog.compile(
             file_path=path,
             options=CompileOptions(
-                type_check=False,
                 no_cgen=False,
                 force_target_program=True,
                 default_codespace="server"

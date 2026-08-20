@@ -23,7 +23,7 @@ def check_src(src: str) -> list[str] {
     prog.compile(
         file_path="uc_src.jac",
         use_str=src,
-        options=CompileOptions(type_check=True, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
     return [str(e) for e in prog.errors_had];
 }

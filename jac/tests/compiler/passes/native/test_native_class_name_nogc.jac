@@ -52,7 +52,6 @@ glob FIXTURES = os.path.join(
 def _headerless_opts -> object {
     import from jaclang.jac0core.compile_options { CompileOptions }
     return CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode="none",

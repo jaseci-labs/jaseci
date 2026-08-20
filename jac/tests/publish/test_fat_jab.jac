@@ -100,7 +100,7 @@ test "jac build --fat vendors the dependency closure into the jab" {
         os.chdir(proj);
 
         result = run(
-            ["jac", "build", "--as", "jab", "--fat", "--no_typecheck"],
+            ["jac", "build", "--as", "jab", "--fat"],
             capture_output=True,
             text=True,
             env=_offline_env(wheelhouse)
@@ -152,7 +152,7 @@ test "a fat jab runs offline with its vendored dependency" {
         os.chdir(proj);
 
         build = run(
-            ["jac", "build", "--as", "jab", "--fat", "--no_typecheck"],
+            ["jac", "build", "--as", "jab", "--fat"],
             capture_output=True,
             text=True,
             env=_offline_env(wheelhouse)

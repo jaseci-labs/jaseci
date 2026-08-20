@@ -49,7 +49,7 @@ def check_batch(files: list[str]) -> list[str] {
         prog.compile(
             file_path=file_path,
             options=CompileOptions(
-                type_check=True, no_cgen=True, force_target_program=True
+                no_cgen=True, force_target_program=True
             )
         );
     }

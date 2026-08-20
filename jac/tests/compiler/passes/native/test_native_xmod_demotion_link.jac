@@ -83,7 +83,6 @@ glob FIXTURES = os.path.join(
 def _seal_opts -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode='cycles',

@@ -323,7 +323,6 @@ def _unitree_census -> tuple[(dict, bool)] {
             file_path=str(UNITREE_SRC),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

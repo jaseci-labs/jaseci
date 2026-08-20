@@ -43,7 +43,7 @@ type_check on, codegen off) so check-time capability behavior is pinned."""
 def check_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES, f"_check_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code, type_check=True, no_cgen=True);
+    prog.compile(file_path=path, use_str=code, no_cgen=True);
     return prog;
 }
 

@@ -34,7 +34,6 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_idiom_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
             no_cgen=True,
             force_codespace="native",
             force_target_program=True
@@ -181,7 +180,6 @@ test "helpers.jac lowers when a native unit reaches it" {
     prog = JacProgram();
     opts = CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         no_ir_cache=True
@@ -316,7 +314,7 @@ test "a test block still binds the assert names to symbols" {
         "    assertEqual(1, 1);\n"
         "    assertNotIn(2, [1]);\n"
         "}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     bound = {
         nd.value: (nd.sym is not None)
@@ -462,7 +460,7 @@ test "scan_native_blockers names the offending node from the table" {
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_jsx_blocker.jac"),
         use_str="def view -> any {\n    return <div>hi</div>;\n}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     (reason, _deps) = scan_native_blockers(ir, os.path.dirname(FIXTURES));
     assert reason == "contains JsxElement" , f"got reason {reason!r}";

@@ -73,7 +73,7 @@ stamps, so the fixture IR must be fact-stamped before EsastGenPass runs.
 """
 def compile_to_esast(filename: str) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
@@ -91,7 +91,7 @@ def compile_to_esast(filename: str) -> es.Program {
 """Compile Jac source to an ESTree program with an explicit FrameworkBackend."""
 def compile_to_esast_with_backend(filename: str, backend: object) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
@@ -681,7 +681,7 @@ test "stale has read emits W3041" {
     # runs and W3041 surfaces in prog.warnings_had.
     prog = JacProgram();
     _ir = prog.compile(
-        file_path=fixture_path("stale_has_read.jac"), no_cgen=True, type_check=True
+        file_path=fixture_path("stale_has_read.jac"), no_cgen=True
     );
     assert not prog.errors_had , (
         "Compilation errors: " + str([str(e) for e in prog.errors_had])

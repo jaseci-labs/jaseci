@@ -54,7 +54,7 @@ def compile_and_check(fixture_name: str) -> tuple {
     path = os.path.join(NEW_DIAG_FIXTURES, fixture_name);
     program = JacProgram();
     mod = program.compile(
-        path, options=CompileOptions(type_check=True, default_codespace='server')
+        path, options=CompileOptions(default_codespace='server')
     );
     return (program, mod);
 }

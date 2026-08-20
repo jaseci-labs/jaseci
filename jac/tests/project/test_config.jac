@@ -470,7 +470,7 @@ test "parse build native_closure_cap" {
     assert cfg.build.native_closure_cap == 8;
 
     config_mod._config = None;
-    base = JacConfig.from_toml_str("\n[build]\ntypecheck = true\n");
+    base = JacConfig.from_toml_str("\n[build]\ndir = \".jac\"\n");
     assert base.build.native_closure_cap == 256;
 
     config_mod._config = None;
@@ -494,7 +494,7 @@ test "closure cap override resolves through effective_native_closure_cap" {
 
 test "parse full config" {
     config_mod._config = None;
-    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ntypecheck = true\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\nenabled = false\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
+    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ndir = \".jac\"\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\nenabled = false\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
     cfg = JacConfig.from_toml_str(toml_str);
 
     # Project
@@ -514,7 +514,7 @@ test "parse full config" {
     assert cfg.run.cache is False;
 
     # Build config
-    assert cfg.build.typecheck is True;
+    assert cfg.build.dir == ".jac";
 
     # Test config
     assert cfg.test.directory == "tests";
@@ -1221,10 +1221,10 @@ test "profile merges file and infile" {
             "[project]\nname = \"test-project\"\n\n[serve]\nport = 8000\n\n[environments.prod]\n[environments.prod.serve]\nport = 443\n"
         );
         prod_toml = temp_project / "jac.prod.toml";
-        prod_toml.write_text("[build]\ntypecheck = true\n");
+        prod_toml.write_text("[build]\ndir = \"prod-out\"\n");
         cfg = JacConfig.load(jac_toml);
         cfg.apply_profile_overlay("prod");
-        assert cfg.build.typecheck is True;
+        assert cfg.build.dir == "prod-out";
         assert cfg.serve.port == 443;
         assert cfg.active_profile == "prod";
     }
@@ -1369,11 +1369,11 @@ test "merge plugins deep nested" {
 test "apply profile build section" {
     config_mod._config = None;
     cfg = JacConfig.from_toml_str(
-        "[project]\nname = \"test\"\n\n[build]\ntypecheck = false\n\n[environments.prod]\n[environments.prod.build]\ntypecheck = true\n"
+        "[project]\nname = \"test\"\n\n[build]\ndir = \"base-out\"\n\n[environments.prod]\n[environments.prod.build]\ndir = \"prod-out\"\n"
     );
-    assert cfg.build.typecheck is False;
+    assert cfg.build.dir == "base-out";
     cfg.apply_profile("prod");
-    assert cfg.build.typecheck is True;
+    assert cfg.build.dir == "prod-out";
 }
 
 test "apply profile format section" {

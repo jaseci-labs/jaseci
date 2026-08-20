@@ -306,18 +306,12 @@ obj CodeIntelligence {
         self.prog.errors_had = [];
         self.prog.warnings_had = [];
         self._compiled = {};
-        parsed = 0;
-        cached = 0;
         for f in self._files {
-            if self._compile_one(f) {
-                cached += 1;
-            } else {
-                parsed += 1;
-            }
+            self._full_compile_one(f);
         }
         self._dir_sig = self._dir_signature();
         self._loaded = True;
-        self._emit("load", "", parsed, t0, cached);
+        self._emit("load", "", len(self._files), t0);
     }
 
     def _emit(op: str, file: str, recompiled: int, t0: float, cached: int = 0) {
@@ -376,7 +370,7 @@ obj CodeIntelligence {
         recompiled = 0;
         for p in stale {
             if p in self._file_set {
-                self._compile_one(p);
+                self._full_compile_one(p);
                 recompiled += 1;
             }
         }
@@ -420,11 +414,6 @@ obj CodeIntelligence {
             del self._compiled[real];
         }
         self._dir_sig = self._dir_signature();
-    }
-
-    def _compile_one(file: str) -> bool {
-        self._full_compile_one(file);
-        return False;
     }
 
     def _full_compile_one(file: str) {

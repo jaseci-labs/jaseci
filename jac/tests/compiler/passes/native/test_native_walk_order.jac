@@ -43,7 +43,6 @@ glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures"),
 def compile_ir_text(fixture: str, walk_order: str | None) -> str {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         skip_native_engine=True,
@@ -109,7 +108,7 @@ test "imported obj-field chain IR is walk-order independent" {
 test "imported obj-field chain executes correctly" {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False, force_codespace='native', force_target_program=True
+        force_codespace='native', force_target_program=True
     );
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, "xmodfield_entry.jac"), options=opts
@@ -127,7 +126,6 @@ test "imported obj-field chain executes correctly" {
 test "an unlowerable field erases loudly: the declaration seams, every touch refuses" {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         skip_native_engine=True

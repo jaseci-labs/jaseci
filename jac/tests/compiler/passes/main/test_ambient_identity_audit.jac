@@ -67,7 +67,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { run_pass }
 import from jaclang.compiler.type_system.types { ClassType, FunctionType, UnionType }
 
-glob NO_TC = CompileOptions(type_check=False, default_codespace='server');
+glob NO_TC = CompileOptions(default_codespace='server');
 
 def fingerprint(t: object, base_dir: str, depth: int = 0) -> str {
     if depth > 5 {

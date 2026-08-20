@@ -30,7 +30,6 @@ def _compile_ir(entry_path: str, gc_mode: str, enforce: list) -> str {
             file_path=entry_path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 na_gc_mode=gc_mode,
                 nogc_enforce_modules=enforce
             )

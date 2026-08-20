@@ -38,7 +38,6 @@ def compile_native(
 ) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode=(gc_mode if gc_mode is not None else "cycles")

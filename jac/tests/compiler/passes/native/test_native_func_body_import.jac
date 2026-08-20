@@ -158,7 +158,7 @@ test "nested imports are harvested only from native-context elements" {
     # server, so its body-scoped import is server-context.
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "clib_ctx_gated_lib.jac"),
-        options=CompileOptions(type_check=False, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
     placements = [
         stmt.code_context for stmt in ModuleCodegenPass.iter_context_stmts(ir)

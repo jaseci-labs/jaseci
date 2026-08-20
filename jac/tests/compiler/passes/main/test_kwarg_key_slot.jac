@@ -36,7 +36,7 @@ def compile_server(fixture: str) -> uni.Module {
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, fixture),
         options=CompileOptions(
-            type_check=False, no_ir_cache=True, force_codespace='server'
+            no_ir_cache=True, force_codespace='server'
         )
     );
     assert ir is not None , f"no module for {fixture}";

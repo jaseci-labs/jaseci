@@ -58,7 +58,6 @@ def _linked_unit -> tuple {
             file_path=path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -320,7 +319,6 @@ test "an internal module's demoted method cannot dangle through a consumer" {
             file_path=path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

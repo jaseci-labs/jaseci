@@ -64,7 +64,6 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_mkind_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
             no_cgen=True,
             force_codespace="native",
             force_target_program=True
