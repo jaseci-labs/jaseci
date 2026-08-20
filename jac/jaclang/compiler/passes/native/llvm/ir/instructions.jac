@@ -333,46 +333,6 @@ class SwitchInstr(PredictableInstr, Terminator) {
     }
 
     def descr(self: SwitchInstr, buf: any) -> object {
-        cases = [
-            "{0} {1}, label {2}".format(
-                case.type, case.get_reference(), blk.get_reference()
-            ) for (case, blk) in self.cases
-        ];
-        buf.append(
-            "switch {0} {1}, label {2} [{3}]  {4}\n".format(
-                self.value.type,
-                self.value.get_reference(),
-                self.default_bb.get_reference(),
-                ' '.join(cases),
-                self._stringify_metadata(leading_comma=True)
-            )
-        );
-    }
-}
-
-class SwitchInstr(PredictableInstr, Terminator) {
-    def init(
-        self: SwitchInstr, parent: any, opname: any, val: any, default_bb: any
-    ) -> object {
-        super.init(parent, opname, [val]);
-        self.default_bb = default_bb;
-        self.cases = [];
-    }
-
-    @property
-    def value(self: SwitchInstr) -> object {
-        return self.operands[0];
-    }
-
-    def add_case(self: SwitchInstr, val: any, block: any) -> object {
-        assert isinstance(block, Block);
-        if not isinstance(val, Constant) {
-            val = Constant(self.value.type, val);
-        }
-        self.cases.append((val, block));
-    }
-
-    def descr(self: SwitchInstr, buf: any) -> object {
         cases = [];
         for cs in self.cases {
             cases.append(
