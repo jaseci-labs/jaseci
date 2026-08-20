@@ -59,6 +59,7 @@ import from jaclang.jac0core.unitree {
     LambdaExpr,
     ListCompr,
     ListVal,
+    Literal,
     MatchArch,
     MatchAs,
     MatchCase,
@@ -716,6 +717,7 @@ obj TypeEvaluator {
     def _type_guard_form_of(ty: TypeBase) -> str | None;
     def _unwrap_type_guard_return(ty: TypeBase) -> TypeBase;
     def _extract_callable_info(condition: Expr) -> str | None;
+    def _extract_literal_operand_type(operand: Expr) -> TypeBase | None;
     def _extract_hasattr_info(condition: Expr) -> tuple[str, str] | None;
     def _type_has_attribute(t: TypeBase, attr_name: str) -> bool;
     def _filter_union_for_hasattr(

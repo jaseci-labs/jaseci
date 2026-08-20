@@ -4316,20 +4316,16 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
         and len(condition.rights) == 1
     ) {
         left_key = self.create_key_for_reference(condition.left);
-        right_expr = condition.rights[0];
-        if left_key is not None
-            and isinstance(right_expr, (String, Int, Float, Bool)) {
-            literal_type = self.get_type_of_expression(right_expr);
-            op_name = condition.ops[0].name;
-            if op_name == Tok.EE {
+        op_name = condition.ops[0].name;
+        if left_key is not None and op_name in (Tok.EE, Tok.NE) {
+            literal_type = self._extract_literal_operand_type(condition.rights[0]);
+            if literal_type is not None {
                 return ConditionInfo(
-                    kind=NarrowingKind.LITERAL_EQ,
-                    key=left_key,
-                    narrow_type=literal_type
-                );
-            } elif op_name == Tok.NE {
-                return ConditionInfo(
-                    kind=NarrowingKind.LITERAL_NE,
+                    kind=(
+                        NarrowingKind.LITERAL_EQ
+                            if op_name == Tok.EE
+                            else NarrowingKind.LITERAL_NE
+                    ),
                     key=left_key,
                     narrow_type=literal_type
                 );
@@ -5197,6 +5193,52 @@ impl TypeEvaluator._extract_callable_info(condition: Expr) -> str | None {
         return None;
     }
     return self.create_key_for_reference(condition.params[0]);
+}
+
+impl TypeEvaluator._extract_literal_operand_type(operand: Expr) -> TypeBase | None {
+    """Return the type an `==`/`!=` operand contributes as a literal, else None.
+
+    One literal value has many spellings. `Literal` is the shared base of the
+    atomic ones (`5`, `1.5`, `True`, a `String`), but a string literal never
+    reaches an expression as a bare `String`: the parser wraps every one of
+    them -- a lone `"node"` just as much as an implicit concatenation -- in a
+    `MultiString`, and parentheses add an `AtomUnit` on top of any of them.
+    Matching a hand-listed set of node classes therefore drops the narrowing
+    for whichever spellings the list forgets, silently and with no diagnostic.
+
+    So each spelling is recognized by what it is rather than by how it is
+    written: an atomic literal by its `Literal` base, and anything else by the
+    evaluated type being a `Literal[...]`, which is how a `MultiString` of
+    all-literal parts already evaluates (an f-string with an interpolation
+    evaluates to plain `str` and is correctly left alone).
+
+    `Null` is excluded because `x == None` is classified as None-narrowing
+    before reaching here, and `Ellipsis`/`BuiltinType` because they denote a
+    type rather than a value to narrow to. A reference operand (`x == y`) is
+    excluded even when its declared type is a literal, so that classifying a
+    condition never walks back into narrowing the operand being classified.
+    """;
+    if self.create_key_for_reference(operand) is not None {
+        return None;
+    }
+    if isinstance(operand, AtomUnit) {
+        wrapped = operand.value;
+        if isinstance(wrapped, Expr) {
+            return self._extract_literal_operand_type(wrapped);
+        }
+        return None;
+    }
+    if isinstance(operand, Literal) {
+        if isinstance(operand, (Null, Ellipsis, BuiltinType)) {
+            return None;
+        }
+        return self.get_type_of_expression(operand);
+    }
+    operand_type = self.get_type_of_expression(operand);
+    if isinstance(operand_type, ClassType) and operand_type.is_literal_type() {
+        return operand_type;
+    }
+    return None;
 }
 
 impl TypeEvaluator._extract_hasattr_info(condition: Expr) -> tuple[str, str] | None {

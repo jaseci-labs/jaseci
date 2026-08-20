@@ -2174,6 +2174,20 @@ test "expr_narrowing" {
         + "\n".join([err.pretty_print() for err in program.errors_had]);
 }
 
+"""Bug #7261: `x == "literal"` narrows x, like the int/float/bool forms do."""
+test "literal_eq_narrowing" {
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_literal_eq_narrowing.jac"),
+        options=NO_TC
+    );
+    run_pass(TypeCheckPass, mod, program);
+    assert len(program.errors_had) == 0 , f"Expected no type errors, but got {len(
+        program.errors_had
+    )}: "
+        + "\n".join([err.pretty_print() for err in program.errors_had]);
+}
+
 test "reassign_in_branch" {
     program = JacProgram();
     mod = program.compile(
