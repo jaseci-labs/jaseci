@@ -637,7 +637,7 @@ test "concurrent callers do not pile onto a HALF_OPEN probe" {
             round_trips["n"] = round_trips["n"] + 1;
         }
         probe_started.set();
-        probe_may_finish.wait(5.0);
+        probe_may_finish.`wait(5.0);
         raise ClientConnectionError(detail="connection refused");
     }
     sv_http.post_stream_aware_sync = fake;
@@ -656,7 +656,7 @@ test "concurrent callers do not pile onto a HALF_OPEN probe" {
         sv_client.register(mod, "http://demo.invalid");
         prober = threading.Thread(target=call);
         prober.start();
-        assert probe_started.wait(5.0) , "probe never reached the transport";
+        assert probe_started.`wait(5.0) , "probe never reached the transport";
 
         others = [threading.Thread(target=call) for _ in range(8)];
         for t in others {
