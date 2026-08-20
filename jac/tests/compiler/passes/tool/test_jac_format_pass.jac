@@ -10,8 +10,11 @@ import from difflib { unified_diff }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.helpers { add_line_numbers }
+import from jaclang.jac0core.helpers { add_line_numbers, pascal_to_snake }
+import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.doc_ir_gen_pass { DocIRGenPass }
+import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "tool", "fixtures"
      );
@@ -1143,5 +1146,154 @@ test "long match-or pattern breaks one alternative per line" {
     prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
     assert formatted == prog2.mod.main.gen.jac , (
         f"match-or wrapping is not idempotent:\n{formatted}"
+    );
+}
+
+def _uni_node_kinds -> dict[str, type] {
+    kinds: dict[str, type] = {};
+    for name in dir(uni) {
+        attr = getattr(uni, name);
+        if isinstance(attr, type)
+            and issubclass(attr, uni.UniNode)
+            and (attr is not uni.UniNode) {
+            kinds[name] = attr;
+        }
+    }
+    return kinds;
+}
+
+def _abstract_kinds(kinds: dict[str, type]) -> set[str] {
+    # A kind is a base only - never parsed into the tree - when some other
+    # node kind inherits from it.
+    bases: set[str] = set();
+    for cls in kinds.values() {
+        for b in cls.__bases__ {
+            if getattr(b, "__name__", "") in kinds {
+                bases.add(b.__name__);
+            }
+        }
+    }
+    return bases;
+}
+
+def _overrides_handler(cls: type, snake: str) -> bool {
+    # `UniPass` declares the whole generated visitor surface, so presence is not
+    # enough - the pass has to replace the inherited default to count.
+    for verb in ["enter", "exit"] {
+        name = f"{verb}_{snake}";
+        if getattr(cls, name, None) is not getattr(UniPass, name, None) {
+            return True;
+        }
+    }
+    return False;
+}
+
+test "awaiting clause survives formatting" {
+    # Regression for #7916: `DocIRGenPass` had no `awaiting` handler, so the
+    # clause rendered as the empty string and `jac fmt` deleted it from disk.
+    source = (
+        'def run -> None {\n'
+        '    try {\n'
+        '        print("body");\n'
+        '    } awaiting {\n'
+        '        print("waiting");\n'
+        '    } except Exception {\n'
+        '        print("failed");\n'
+        '    }\n'
+        '}\n'
+    );
+    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
+    assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
+    formatted = prog.mod.main.gen.jac;
+    assert "awaiting {" in formatted , (
+        f"formatter dropped the awaiting clause:\n{formatted}"
+    );
+    assert 'print("waiting");' in formatted , (
+        f"formatter dropped the awaiting body:\n{formatted}"
+    );
+    assert "}  except" not in formatted , (
+        f"empty render left a double space before except:\n{formatted}"
+    );
+    assert formatted == source , (
+        "already-formatted awaiting source must round-trip unchanged:\n"
+        + "\n".join(unified_diff(source.splitlines(), formatted.splitlines()))
+    );
+    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
+    assert formatted == prog2.mod.main.gen.jac , (
+        f"awaiting formatting is not idempotent:\n{formatted}"
+    );
+}
+
+test "awaiting clause survives formatting inside a jsx slot" {
+    source = (
+        'def:pub Panel -> JsxElement {\n'
+        '    return <div>{try {\n'
+        '        <p>ready</p>\n'
+        '    } awaiting {\n'
+        '        <p>loading</p>\n'
+        '    } except Exception {\n'
+        '        <p>failed</p>\n'
+        '    }}</div>;\n'
+        '}\n'
+    );
+    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
+    assert not prog.errors_had , f"formatter errors: {prog.errors_had}";
+    formatted = prog.mod.main.gen.jac;
+    assert "awaiting {" in formatted , (
+        f"formatter dropped the awaiting clause in a jsx slot:\n{formatted}"
+    );
+    assert "<p>loading</p>" in formatted , (
+        f"formatter dropped the awaiting fallback markup:\n{formatted}"
+    );
+    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
+    assert formatted == prog2.mod.main.gen.jac , (
+        f"jsx awaiting formatting is not idempotent:\n{formatted}"
+    );
+}
+
+test "every normalized node kind also renders to doc IR" {
+    # The gap behind #7916 is silent by construction: a node kind `NormalizePass`
+    # puts into the kid list but `DocIRGenPass` has no rule for renders as
+    # nothing, so `jac fmt` writes the file back with that source removed. Pair
+    # the two passes so the next kind added to the language cannot repeat it.
+    kinds = _uni_node_kinds();
+    abstract = _abstract_kinds(kinds);
+    gaps: list[str] = [
+        name
+        for name in sorted(kinds)
+        if (name not in abstract)
+            and _overrides_handler(NormalizePass, pascal_to_snake(name))
+            and (not _overrides_handler(DocIRGenPass, pascal_to_snake(name)))
+    ];
+    assert not gaps , (
+        "these node kinds are normalized into the formatted kid list but have no "
+        f"DocIRGenPass handler, so jac fmt deletes them: {gaps}"
+    );
+}
+
+test "doc IR generation leaves no node unrendered" {
+    # `DocIRGenPass.default_exit` is the losslessness floor behind the pairing
+    # above: even an unhandled kind renders from its kids rather than vanishing.
+    # Assert the floor actually holds across the formatter's own fixtures.
+    unrendered: dict[str, int] = {};
+    for name in sorted(os.listdir(FIXTURES)) {
+        if not name.endswith(".jac") {
+            continue;
+        }
+        prog = JacProgram.jac_file_formatter(os.path.join(FIXTURES, name));
+        stack: list = [prog.mod.main];
+        while stack {
+            nd = stack.pop();
+            if nd.gen._doc_ir is None {
+                key = type(nd).__name__;
+                unrendered[key] = unrendered.get(key, 0) + 1;
+            }
+            for k in nd.kid {
+                stack.append(k);
+            }
+        }
+    }
+    assert not unrendered , (
+        f"nodes left with no doc IR, their source is dropped on format: {unrendered}"
     );
 }
