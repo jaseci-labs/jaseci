@@ -22,6 +22,8 @@ glob DEFAULT_TIMEOUT: float = 30.0,
 
 glob _POOLS: any = weakref.WeakKeyDictionary(),
      _TLS_CONTEXT: dict[str, any] = {},
+     _FRAMING_HEADERS: set[str] = {'content-length', 'transfer-encoding'},
+     _POOL_ATTR: str = '_jac_client_pool',
      _IDEMPOTENT_METHODS: set[str] = {
          'DELETE',
          'GET',
@@ -56,9 +58,9 @@ def _close_writer(writer: any) {
 
 def _has_buffered_bytes(reader: any) -> bool {
     try {
-        return len(getattr(reader, '_buffer', b'')) > 0;
+        return len(reader._buffer) > 0;
     } except Exception {
-        return False;
+        return True;
     }
 }
 
@@ -84,6 +86,26 @@ obj ConnectionPool {
         return sum([len(bucket) for bucket in self._idle.values()]);
     }
 
+    def _sweep {
+        now = time.monotonic();
+        for (origin, bucket) in list(self._idle.items()) {
+            live = [];
+            for idle in bucket {
+                (_reader, writer, expires_at) = idle;
+                if now >= expires_at {
+                    _close_writer(writer);
+                } else {
+                    live.append(idle);
+                }
+            }
+            if live {
+                self._idle[origin] = live;
+            } else {
+                del self._idle[origin];
+            }
+        }
+    }
+
     def acquire(origin: str) -> (tuple[any, any] | None) {
         bucket = self._idle.get(origin) or [];
         while bucket {
@@ -94,18 +116,26 @@ obj ConnectionPool {
             }
             return (reader, writer);
         }
+        if origin in self._idle and not self._idle[origin] {
+            del self._idle[origin];
+        }
         return None;
     }
 
     def release(origin: str, reader: any, writer: any) {
-        bucket = self._idle.setdefault(origin, []);
-        if _is_unusable(reader, writer)
-            or len(bucket) >= self.max_idle_per_host
+        if _is_unusable(reader, writer) {
+            _close_writer(writer);
+            return;
+        }
+        self._sweep();
+        bucket = self._idle.get(origin) or [];
+        if len(bucket) >= self.max_idle_per_host
             or self.idle_count() >= self.max_idle_total {
             _close_writer(writer);
             return;
         }
         bucket.append((reader, writer, time.monotonic() + self.idle_timeout));
+        self._idle[origin] = bucket;
     }
 
     def close_all {
@@ -118,12 +148,37 @@ obj ConnectionPool {
     }
 }
 
+def _loop_pool(loop: any) -> (ConnectionPool | None) {
+    return getattr(loop, _POOL_ATTR, None) or _POOLS.get(loop);
+}
+
+def _bind_loop_pool(loop: any, pool: ConnectionPool) {
+    try {
+        setattr(loop, _POOL_ATTR, pool);
+    } except (AttributeError, TypeError) {
+        _POOLS[loop] = pool;
+    }
+}
+
+def _unbind_loop_pool(loop: any) -> (ConnectionPool | None) {
+    pool = getattr(loop, _POOL_ATTR, None);
+    if pool is not None {
+        try {
+            delattr(loop, _POOL_ATTR);
+        } except (AttributeError, TypeError) {
+            ;
+        }
+        return pool;
+    }
+    return _POOLS.pop(loop, None);
+}
+
 def connection_pool -> ConnectionPool {
     loop = asyncio.get_running_loop();
-    pool = _POOLS.get(loop);
+    pool = _loop_pool(loop);
     if pool is None {
         pool = ConnectionPool();
-        _POOLS[loop] = pool;
+        _bind_loop_pool(loop, pool);
     }
     return pool;
 }
@@ -134,7 +189,7 @@ def close_connection_pool {
     } except RuntimeError {
         return;
     }
-    pool = _POOLS.pop(loop, None);
+    pool = _unbind_loop_pool(loop);
     if pool is not None {
         pool.close_all();
     }
@@ -381,8 +436,13 @@ def _prepare_payload(
     header_list: list[tuple[str, str]] = [];
     seen: set[str] = set();
     for (k, v) in (headers or {}).items() {
-        header_list.append((str(k), str(v)));
-        seen.add(str(k).lower());
+        name = str(k);
+        lowered = name.lower();
+        if lowered in _FRAMING_HEADERS {
+            continue;
+        }
+        header_list.append((name, str(v)));
+        seen.add(lowered);
     }
     if json_body is not None {
         body = dumps(json_body, `default=_client_json_default).encode('utf-8');

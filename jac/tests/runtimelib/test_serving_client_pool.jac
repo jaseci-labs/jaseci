@@ -4,11 +4,38 @@ Every proxied gateway call goes through `arequest`, so a client that opens a
 fresh socket per request puts a TCP (and TLS) handshake in front of every hop."""
 
 import asyncio;
+import gc;
+import weakref;
 import from jaclang.runtimelib.serving.client {
     ClientConnectionError,
+    ConnectionPool,
+    _has_buffered_bytes,
     arequest,
     close_connection_pool,
     connection_pool
+}
+
+
+"""A reader stand-in that exercises the pool without a socket behind it."""
+obj _FakeReader {
+    has _buffer: bytes = b"";
+
+    def at_eof -> bool {
+        return False;
+    }
+}
+
+"""A writer stand-in that records only whether it has been closed."""
+obj _FakeWriter {
+    has closing: bool = False;
+
+    def is_closing -> bool {
+        return self.closing;
+    }
+
+    def close {
+        self.closing = True;
+    }
 }
 
 
@@ -22,10 +49,11 @@ glob _RESPONSES: dict[str, bytes] = {
      };
 
 
-async def _read_request(reader: any) -> (str | None) {
+async def _read_request(reader: any) -> tuple[(str | None), list[str]] {
+    names: list[str] = [];
     line: bytes = await reader.readline();
     if not line or line.strip() == b"" {
-        return None;
+        return (None, names);
     }
     parts = line.decode("latin-1").strip().split(" ");
     length: int = 0;
@@ -35,14 +63,16 @@ async def _read_request(reader: any) -> (str | None) {
             break;
         }
         (name, _, value) = raw.decode("latin-1").strip().partition(":");
-        if name.strip().lower() == "content-length" {
+        lowered = name.strip().lower();
+        names.append(lowered);
+        if lowered == "content-length" {
             length = int(value.strip());
         }
     }
     if length {
         await reader.readexactly(length);
     }
-    return parts[1] if len(parts) > 1 else "/";
+    return (parts[1] if len(parts) > 1 else "/", names);
 }
 
 
@@ -51,6 +81,7 @@ obj _ProbeUpstream {
     has connections: int = 0,
         port: int = 0,
         drop_next: bool = False,
+        header_names: list[list[str]] = [],
         _server: any = None,
         _writers: list[any] = [];
 
@@ -89,10 +120,11 @@ obj _ProbeUpstream {
         self._writers.append(writer);
         try {
             while True {
-                path = await _read_request(reader);
+                (path, names) = await _read_request(reader);
                 if path is None {
                     break;
                 }
+                self.header_names.append(names);
                 if self.drop_next {
                     self.drop_next = False;
                     writer.transport.abort();
@@ -291,4 +323,81 @@ test "a post is not replayed when its pooled connection dies" {
     result = _with_upstream(work);
     assert result["failed"];
     assert result["connections"] == 1;
+}
+
+
+test "a caller supplied content length does not reach the upstream" {
+    async def work(upstream: any) -> dict {
+        response = await arequest(
+            "POST",
+            f"{upstream.base()}/hello",
+            headers={"Content-Length": "9999", "Transfer-Encoding": "chunked"},
+            json_body={"n": 1}
+        );
+        return {"text": response.text(), "headers": upstream.header_names};
+    }
+    result = _with_upstream(work);
+    assert result["text"] == "hello";
+    sent = result["headers"][0];
+    assert sent.count("content-length") == 1;
+    assert "transfer-encoding" not in sent;
+}
+
+
+test "the buffered byte check reads an attribute asyncio still has" {
+    async def work -> bool {
+        reader_cls: any = asyncio.StreamReader;
+        return hasattr(reader_cls(), "_buffer");
+    }
+    assert _run(work());
+}
+
+
+test "a reader that cannot answer is treated as dirty" {
+    assert _has_buffered_bytes(object());
+}
+
+
+test "an expired connection is swept from an origin nobody asks for again" {
+    pool = ConnectionPool(idle_timeout=0.0);
+    pool.release("http://a:80", _FakeReader(), _FakeWriter());
+    assert pool.idle_count() == 1;
+    pool.release("http://b:80", _FakeReader(), _FakeWriter());
+    assert "http://a:80" not in pool._idle;
+    assert pool.idle_count() == 1;
+}
+
+
+test "a rejected connection leaves no bucket behind" {
+    pool = ConnectionPool();
+    pool.release("http://a:80", _FakeReader(), _FakeWriter(closing=True));
+    assert pool._idle == {};
+    assert pool.acquire("http://b:80") is None;
+    assert pool._idle == {};
+}
+
+
+test "a loop with pooled connections is still collectable" {
+    async def work(upstream: any) -> any {
+        await arequest("GET", f"{upstream.base()}/hello");
+        assert connection_pool().idle_count() == 1;
+        return None;
+    }
+    async def body -> any {
+        upstream = _ProbeUpstream();
+        await upstream.start();
+        try {
+            return await work(upstream);
+        } finally {
+            await upstream.stop();
+        }
+    }
+    loop = asyncio.new_event_loop();
+    loop.run_until_complete(body());
+    ref = weakref.ref(loop);
+    loop.close();
+    del loop;
+    gc.collect();
+    gc.collect();
+    assert ref() is None;
 }
