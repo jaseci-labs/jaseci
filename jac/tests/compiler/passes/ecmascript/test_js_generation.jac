@@ -3124,6 +3124,40 @@ test "supported client statements do not trip the completeness guard (#7922)" {
     }
 }
 
+test "E5018 names the rewrite that makes the pattern lower (#8375)" {
+    # `match` itself lowers to the client -- only certain pattern shapes do
+    # not, so the diagnostic must name the per-construct rewrite.
+    jac_code = (
+        "def t_match(v: any) -> str {\n"
+        "    match v {\n"
+        "        case [x] | (x, ): return str(x);\n"
+        "        case _: return \"other\";\n"
+        "    }\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        prog = JacProgram();
+        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        run_pass(EsastGenPass, ir, prog);
+        pats = [
+            e
+            for e in prog.errors_had
+            if 'E5018' in e.pretty_print()
+        ];
+        assert len(pats) == 1 , (
+            "Expected exactly one E5018, got " + str([str(e) for e in prog.errors_had])
+        );
+        rendered = pats[0].pretty_print();
+        assert "own 'case'" in rendered , (
+            "E5018 must name the split-into-cases rewrite; got " + rendered
+        );
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
 test "branch-first assignment binds function-wide, not per block (#7882)" {
     # RC-3: the ES backend declared `let` at the assignment site in whatever
     # block scope was current, so `if {result=..} else {result=..} return
