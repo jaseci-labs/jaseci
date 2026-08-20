@@ -384,9 +384,7 @@ def _output_json(settings: dict[str, dict[str, dict[str, object]]]) {
     console.print(json.dumps(output, indent=2, `default=str));
 }
 
-def _output_toml(
-    settings: dict[str, dict[str, dict[str, object]]], show_all: bool
-) {
+def _output_toml(settings: dict[str, dict[str, dict[str, object]]], show_all: bool) {
     import from jaclang.project.config { toml_value }
     lines: list[str] = [];
 

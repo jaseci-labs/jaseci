@@ -576,15 +576,14 @@ impl nacompile(
 
     _target_ovr = options.native_target or "";
     _llvm_target = (
-        llvm.Target.from_triple(_target_ovr) if _target_ovr
-        else llvm.Target.from_default_triple()
+        llvm.Target.from_triple(_target_ovr)
+            if _target_ovr
+            else llvm.Target.from_default_triple()
     );
     assert isinstance(_llvm_target, llvm.Target);
 
     if shared {
-        _tm = _llvm_target.create_target_machine(
-            opt=2, reloc="pic", codemodel="small"
-        );
+        _tm = _llvm_target.create_target_machine(opt=2, reloc="pic", codemodel="small");
     } else {
         _tm = _llvm_target.create_target_machine(opt=2, codemodel="large");
     }
