@@ -2167,6 +2167,9 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
 
             if isinstance(node_.parent, (TupleVal, ListVal)) {
                 unpack_container = node_.parent;
+                while isinstance(unpack_container.parent, (TupleVal, ListVal)) {
+                    unpack_container = unpack_container.parent;
+                }
                 unpack_assignment = unpack_container.parent;
                 if (
                     isinstance(unpack_assignment, Assignment)
@@ -2207,16 +2210,38 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
                         collection_type, unpack_assignment
                     );
                     if elem_type is not None {
-                        idx = -1;
-                        for (vi, v) in enumerate(unpack_container.values) {
-                            if v is node_ {
-                                idx = vi;
+                        unpack_path: list[int] = [];
+                        path_cur: UniNode = node_;
+                        path_parent = path_cur.parent;
+                        path_ok = True;
+                        while path_parent is not None {
+                            if not isinstance(path_parent, (TupleVal, ListVal)) {
+                                path_ok = False;
                                 break;
                             }
+                            found = -1;
+                            for (vi, v) in enumerate(path_parent.values) {
+                                if v is path_cur {
+                                    found = vi;
+                                    break;
+                                }
+                            }
+                            if found < 0 {
+                                path_ok = False;
+                                break;
+                            }
+                            unpack_path.insert(0, found);
+                            if path_parent is unpack_container {
+                                break;
+                            }
+                            path_cur = path_parent;
+                            path_parent = path_cur.parent;
                         }
-                        if idx >= 0 {
+                        if path_ok and unpack_path {
                             if elem
-                                := self._extract_tuple_element_type(elem_type, idx) {
+                                := self._extract_tuple_element_type_path(
+                                    elem_type, unpack_path
+                                ) {
                                 return elem;
                             }
                         }

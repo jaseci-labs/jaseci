@@ -558,9 +558,11 @@ obj CodeIntelligence {
 
     def _doc_of(owner: uni.UniNode) -> str {
         try {
-            doc = owner?.doc;
-            if doc is not None and doc?.value {
-                return str(doc.value).strip().strip('"');
+            if isinstance(owner, uni.AstDocNode) {
+                doc = owner.doc;
+                if doc is not None and doc.value {
+                    return str(doc.value).strip().strip('"');
+                }
             }
         } except Exception as e {
             _ = e;
