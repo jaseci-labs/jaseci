@@ -59,8 +59,17 @@ def _sqlstate_of(e: Exception) -> str {
 }
 
 
-def _advisory_locks(store: any) -> int {
-    rows = store.rows("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'", {});
+def _advisory_locks(store: any, extra: str = '') -> int {
+    # pg_locks is cluster-wide and this suite shares its cluster with every
+    # other pg suite, so the count has to be scoped to this database or a
+    # neighbour's election answers for ours.
+    rows = store.rows(
+        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'"
+        ' AND database = ('
+        'SELECT oid FROM pg_database WHERE datname = current_database())'
+            + extra,
+        {}
+    );
     return int(rows[0][0]);
 }
 
@@ -139,8 +148,8 @@ test "replicas booting together against a fresh database all survive" {
 obj _LockProbeStore(PgStore) {
     has advisory_locks_held: int = -1;
 
-    def _apply_schema_ddl -> None {
-        self.advisory_locks_held = _advisory_locks(self);
+    def _apply_schema_ddl {
+        self.advisory_locks_held = _advisory_locks(self, ' AND pid = pg_backend_pid()');
         super._apply_schema_ddl();
     }
 }
@@ -178,7 +187,7 @@ obj _CatalogRaceStore(PgStore) {
         faults_left: int = 1,
         ddl_attempts: int = 0;
 
-    def _apply_schema_ddl -> None {
+    def _apply_schema_ddl {
         self.ddl_attempts += 1;
         if self.faults_left > 0 {
             self.faults_left -= 1;

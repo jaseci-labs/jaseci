@@ -51,13 +51,11 @@ def scale_db_url -> (str | None) {
 }
 
 
-"""Where the resolved url came from, for a message an operator can act on."""
 def _url_source -> str {
     return ('JAC_DB_URL' if os.environ.get('JAC_DB_URL') else '[scale.database] url');
 }
 
 
-"""Name a store's database without leaking the password from its url."""
 def _store_target(store: any) -> str {
     try {
         info = store.conninfo;
@@ -69,17 +67,8 @@ def _store_target(store: any) -> str {
 }
 
 
-"""Record why the shared store is unavailable, and keep it retryable.
-
-The reason is what every caller renders, so it has to name the stage that
-failed rather than collapse to "no database". Nothing is committed under
-the holder key: a store that failed once must be attempted again, or a
-single bad moment at boot outlives the outage that caused it.
-"""
 def _fail(reason: str) {
     if _holder.get('failure') == reason {
-        # Retryable means re-attempted, which means re-reported; say the same
-        # thing twice at warning and a polled health probe becomes the log.
         logger.debug(f"scale shared store still unavailable: {reason}");
     } else {
         logger.warning(f"scale shared store unavailable: {reason}");
@@ -90,7 +79,6 @@ def _fail(reason: str) {
 }
 
 
-"""Why the last shared_store() attempt failed, or None if it did not."""
 def shared_store_failure -> (str | None) {
     got = _holder.get('failure');
     return str(got) if got else None;
@@ -142,8 +130,7 @@ def shared_store -> (any | None) {
                 _fail(NO_DATABASE_RESOLVED);
                 return None;
             }
-            # Connect before touching the schema, so a server that is not
-            # there is never reported as a schema problem and vice versa.
+
             stage = 'connect';
             store.rows('SELECT 1', {});
             stage = 'schema';
@@ -168,7 +155,6 @@ def shared_store -> (any | None) {
 }
 
 
-"""Turn the stage that failed into a sentence that points at the fix."""
 def _failure_reason(stage: str, source: str, store: any, e: Exception) -> str {
     cause = f"{type(e).__name__}: {e}";
     if stage == 'provision' {

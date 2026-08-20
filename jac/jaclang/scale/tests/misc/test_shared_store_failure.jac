@@ -19,7 +19,7 @@ import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 glob _DEAD_URL = 'postgresql://jac:jac@127.0.0.1:1/jac';
 
 
-def _arm(url: str) -> None {
+def _arm(url: str) {
     # A fresh holder every time: these tests are about what the holder
     # remembers, so a leftover entry would answer for the code under test.
     pg_mod._holder.clear();
@@ -31,7 +31,7 @@ def _arm(url: str) -> None {
 }
 
 
-def _disarm -> None {
+def _disarm {
     os.environ.pop('JAC_DB_URL', None);
     pg_mod._holder.clear();
 }
@@ -70,14 +70,14 @@ obj _SchemaFailingStore {
         return [];
     }
 
-    def ensure_schema_once(promotions: dict) -> None {
+    def ensure_schema_once(promotions: dict) {
         raise RuntimeError(
             'duplicate key value violates unique constraint'
             ' "pg_type_typname_nsp_index"'
         );
     }
 
-    def close -> None { }
+    def close { }
 }
 
 

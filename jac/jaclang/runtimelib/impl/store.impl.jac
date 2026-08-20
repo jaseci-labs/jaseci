@@ -255,14 +255,6 @@ glob _SCHEMA_LOCK_TAG = 'jac:ensure_schema',
      _CONCURRENT_CREATE_STATES = ('23505', '42P07', '42710');
 
 
-"""The one advisory key every jac process elects the schema creator on.
-
-Deliberately derived from a constant and nothing else. Advisory locks
-are already scoped to the database, and folding in anything a peer might
-spell differently (a unix socket vs a host, `localhost` vs `127.0.0.1`)
-would hand two replicas of the same database two different keys, which
-is the same as having no election at all.
-"""
 def _schema_lock_key -> int {
     import hashlib;
     digest = hashlib.sha256(_SCHEMA_LOCK_TAG.encode('utf-8')).digest()[:8];
@@ -431,9 +423,6 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         }
         held = self._acquire_schema_lock(fp);
         try {
-            # Double-checked under the cross-process election, the same shape
-            # ensure_schema_once already has in-process: the elected creator
-            # may have finished the whole schema while this session waited.
             if self._schema_stamp() == fp {
                 self._load_known_types();
                 return;
@@ -509,19 +498,6 @@ impl PgStore.reset_data -> None {
 }
 
 
-"""Elect one schema creator per database, through Postgres itself.
-
-`_schema_gate` is a lock in this process's memory, so it excludes this
-process's threads and nothing else; replicas booting together are
-separate processes. The election has to live where all of them can see
-it, which is the server. Advisory locks are scoped to the database and
-to the session, so a fixed key is enough and a crashed holder releases
-it on disconnect.
-
-The wait is bounded and the stamp is re-read between attempts, so a
-loser wakes as soon as the winner stamps rather than at the timeout.
-Returns whether this session ended up holding the lock.
-"""
 impl PgStore._acquire_schema_lock(fingerprint: str) -> bool {
     import time;
     deadline = time.monotonic() + _SCHEMA_LOCK_WAIT_SECONDS;
@@ -535,9 +511,6 @@ impl PgStore._acquire_schema_lock(fingerprint: str) -> bool {
                 return True;
             }
         } except PgWireError as e {
-            # No election available (an old server, a pooler that refuses
-            # session state, a permission wall). The tolerant DDL path below
-            # is what covers uncoordinated creators anyway.
             logger.debug(f"schema election unavailable ({_sqlstate(e)}): {e}");
             return False;
         }
@@ -562,21 +535,11 @@ impl PgStore._release_schema_lock -> None {
     try {
         self._run('SELECT pg_advisory_unlock(:k)', {'k': _schema_lock_key()});
     } except Exception as e {
-        # A reconnect mid-DDL already dropped the lock with the session.
         logger.debug(f"schema election release failed: {e}");
     }
 }
 
 
-"""Apply the schema DDL, tolerating a creator outside the election.
-
-`CREATE ... IF NOT EXISTS` is not concurrency-atomic: two sessions both
-pass the existence probe and then race the catalog's unique indexes, and
-the loser gets 23505 (or 42P07 / 42710 for the object flavors that
-report it that way). The advisory lock elects one creator among jac
-processes; this is the backstop for everything else that may be pointed
-at the same schema.
-"""
 impl PgStore._apply_schema_ddl_resilient -> None {
     try {
         self._apply_schema_ddl();
@@ -592,7 +555,7 @@ impl PgStore._apply_schema_ddl_resilient -> None {
         if self._schema_stamp() == self._schema_fingerprint() {
             return;
         }
-        # The winner's objects now exist, so the replay skips them.
+
         self._apply_schema_ddl();
     }
 }

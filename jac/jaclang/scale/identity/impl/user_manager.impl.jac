@@ -30,9 +30,6 @@ impl JacScaleUserManager.postinit -> None {
     }
     store = shared_store();
     if store is None {
-        # Whatever actually went wrong, verbatim. Claiming a missing url when
-        # one resolved and the connection failed sends the operator to the
-        # wrong knob, which is how #8166 stayed a mystery in pod logs.
         raise RuntimeError(
             'identity storage requires a reachable Postgres database: '
             f"{shared_store_failure() or NO_DATABASE_RESOLVED}. Refusing to "
