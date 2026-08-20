@@ -17,6 +17,14 @@ Three of them had no owner and no lifecycle:
     never cleared on the runtime paths, so they grew with every module the
     process ever checked.
 
+Two more things this pins. The hub kept one module under several path
+spellings and `find_module` missed the entry it held when the caller
+spelled the path differently, which is what turned the first retainer
+from one extra tree into one per importer. And `clear_type_system`, the
+documented release for expression types, could not release anything: it
+walked the sub-node table under the abstract `Expr` key, which is never a
+key there.
+
 These tests pin the released state. They are object-count tests, not RSS
 tests: each one names the structure, the thing it must not hold, and the
 seam that releases it.
