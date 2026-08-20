@@ -270,3 +270,15 @@ test "get_scale_config raises on a different project_dir instead of silently reu
         shutil.rmtree(dir_b, ignore_errors=True);
     }
 }
+
+
+test "get_monitoring_config derives the namespace when monitoring.namespace is empty" {
+    # The sanitizer branch only runs on an explicit falsy namespace, and it
+    # raised NameError until the helper was declared (#8057).
+    cfg = JacScaleConfig();
+    cfg._config = {
+        "kubernetes": {"namespace": "jac-shop-prod"},
+        "monitoring": {"namespace": ""}
+    };
+    assert cfg.get_monitoring_config()["namespace"] == "jac_shop_prod";
+}
