@@ -638,6 +638,34 @@ test "codespace stamps invalidate stale module codegen" {
     );
 }
 
+test "a client-pulled module that will not lower fails loudly (#8375)" {
+    import from jaclang.runtimelib.client_bundle {
+        ClientBundleError,
+        _ensure_js_generated
+    }
+    prog = JacProgram();
+    prog.compile(os.path.join(FIXTURE_DIR, "infer_unlowerable_app.jac"), no_cgen=False);
+    util = hub_module(prog, "infer_unlowerable_util.jac");
+    assert util is not None , "imported module missing from hub";
+    raised = '';
+    try {
+        _ensure_js_generated(util, prog);
+    } except ClientBundleError as e {
+        raised = str(e);
+    }
+    assert 'E5018' in raised , (
+        "an ES lowering failure in a pulled module must fail the bundle rather "
+        f"than demote it silently; got: {raised}"
+    );
+    assert "own 'case'" in raised , (
+        f"the failure must carry the actionable E5018 help; got: {raised}"
+    );
+    assert stamp_of(util, "scale_by") == 'client' , (
+        "one unlowerable element must not re-place the module's whole pulled "
+        "surface on the server"
+    );
+}
+
 test "client call to endpoint with function-typed param warns W6005" {
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_rpc_callable.jac"), no_cgen=False);

@@ -188,7 +188,9 @@ impl check(
         }
     }
     prog = JacProgram();
-    (all_files, had_path_errors) = _iter_jac_files(paths, ignore_list);
+    (all_files, had_path_errors) = _iter_jac_files(
+        paths, ignore_list, include_annex=False
+    );
     total_to_check = len(all_files);
     for (idx, jac_file_path) in enumerate(all_files, 1) {
         process_file_result(jac_file_path, idx, total_to_check);
@@ -1336,16 +1338,19 @@ impl grammar(output: str = "", strict: bool = False) -> int {
 }
 
 def _iter_jac_files(
-    paths: list, ignore_list: (list | None) = None
+    paths: list, ignore_list: (list | None) = None, include_annex: bool = True
 ) -> tuple[list[str], bool] {
+    import os;
     ignore_list = ignore_list or [];
     result: list[str] = [];
+    explicit: set[str] = set();
     had_errors = False;
     for path in paths {
         path_obj = Path(path);
         if path.endswith('.jac') {
             if not _should_ignore(path, ignore_list) {
                 result.append(path);
+                explicit.add(os.path.realpath(path));
             }
         } elif path_obj.is_dir() {
             for jac_file in path_obj.`glob('**/*.jac') {
@@ -1361,7 +1366,32 @@ def _iter_jac_files(
             had_errors = True;
         }
     }
+    if not include_annex {
+        result = _drop_covered_annexes(result, explicit);
+    }
     return (result, had_errors);
+}
+
+def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
+    import os;
+    import from jaclang.jac0core.bccache { discover_base_file }
+    import from jaclang.jac0core.ext_registry { is_annex }
+    modules = {
+        os.path.realpath(f)
+        for f in files
+        if not is_annex(f)
+    };
+    kept: list[str] = [];
+    for f in files {
+        if is_annex(f) and (os.path.realpath(f) not in explicit) {
+            base = discover_base_file(f);
+            if (base is not None) and (os.path.realpath(base) in modules) {
+                continue;
+            }
+        }
+        kept.append(f);
+    }
+    return kept;
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {

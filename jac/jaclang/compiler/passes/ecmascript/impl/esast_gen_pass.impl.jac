@@ -3334,7 +3334,11 @@ impl EsastGenPass._lower_match_pattern(
             }
             if b {
                 self.emit(
-                    E5018, node_override=sub, construct='binding in an or-pattern'
+                    E5018,
+                    node_override=sub,
+                    construct='binding in an or-pattern',
+                    fix="Give each '|' alternative its own 'case', so the binding "
+                    "appears once per branch."
                 );
                 return (None, no_binds, False);
             }
@@ -3598,7 +3602,12 @@ impl EsastGenPass._lower_match_pattern(
             if isinstance(pat.name, uni.AstSymbolNode)
             else None;
         if cls_name is None {
-            self.emit(E5018, node_override=pat, construct='dotted class pattern');
+            self.emit(
+                E5018,
+                node_override=pat,
+                construct='dotted class pattern',
+                fix="Import the archetype directly and match on its bare name."
+            );
             return (None, no_binds, False);
         }
         arch_conds: list[es.Expression] = [
@@ -3618,7 +3627,9 @@ impl EsastGenPass._lower_match_pattern(
                 self.emit(
                     E5018,
                     node_override=pat,
-                    construct='positional class pattern with unresolvable field order'
+                    construct='positional class pattern with unresolvable field order',
+                    fix="Match the fields by keyword, 'Cls(field=pattern)', instead "
+                    "of by position."
                 );
                 return (None, no_binds, False);
             }
@@ -3630,7 +3641,11 @@ impl EsastGenPass._lower_match_pattern(
             fname = kv.key.sym_name if isinstance(kv.key, uni.AstSymbolNode) else None;
             if fname is None {
                 self.emit(
-                    E5018, node_override=kv, construct='computed class-pattern field'
+                    E5018,
+                    node_override=kv,
+                    construct='computed class-pattern field',
+                    fix="Name the field with a plain identifier instead of a "
+                    "computed key."
                 );
                 return (None, no_binds, False);
             }
@@ -3658,7 +3673,12 @@ impl EsastGenPass._lower_match_pattern(
         }
         return (arch_cond, arch_binds, True);
     }
-    self.emit(E5018, node_override=pat, construct=pat.__class__.__name__);
+    self.emit(
+        E5018,
+        node_override=pat,
+        construct=pat.__class__.__name__,
+        fix="Rewrite it with literal, capture, sequence, mapping, or class patterns."
+    );
     return (None, no_binds, False);
 }
 
