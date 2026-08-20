@@ -5,6 +5,7 @@ native machine code, and produce correct results when executed via ctypes.
 """
 
 import ctypes;
+import from _ctypes { CFuncPtr }
 import io;
 import os;
 import subprocess;
@@ -36,7 +37,9 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> CFuncPtr {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -56,7 +59,9 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> Callable[..., any] {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar

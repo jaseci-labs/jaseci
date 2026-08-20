@@ -479,6 +479,14 @@ impl TypeEvaluator.match_args_to_params(
 ) -> MatchArgsToParamsResult {
     arg_params: dict[Expr | KWPair, Parameter | None] = {};
     argument_errors = False;
+    if func_type.is_gradual_callable_form() {
+        for arg_node in arg_nodes {
+            arg_params[arg_node] = None;
+        }
+        return MatchArgsToParamsResult(
+            arg_params=arg_params, argument_errors=False
+        );
+    }
     params_to_match = func_type.parameters.copy();
     if is_unbound_call {
         if (
