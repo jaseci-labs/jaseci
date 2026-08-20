@@ -112,7 +112,7 @@ impl ReadWriteLock.postinit -> None {
 impl ReadWriteLock.acquire_read -> None {
     with self._cond {
         while self._writer {
-            self._cond.wait();
+            self._cond.`wait();
         }
         self._readers += 1;
     }
@@ -238,7 +238,7 @@ The declaration file functions as a **command catalog** -- study this example ca
     help="Run a Jac program",
     args=[
         Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
-        Arg.create("cache", typ=bool, default=True, help="Enable compilation cache"),
+        Arg.create("cache", typ=bool, `default=True, help="Enable compilation cache"),
     ],
     examples=[
         ("jac run hello.jac", "Run a simple program"),

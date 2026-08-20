@@ -487,7 +487,7 @@ def pass_reachable(rel: str) -> tuple {
 
 """Waived seams, keyed the way `_seal_demotions` keys them, minus the module."""
 def _waived_names -> set {
-    return {entry.split("::")[-1] for entry in _CLOSURE_SEAM_WAIVERS};
+    return {`entry.split("::")[-1] for `entry in _CLOSURE_SEAM_WAIVERS};
 }
 
 """One root's findings: (reachable waivers beyond the argued set, stale argued)."""

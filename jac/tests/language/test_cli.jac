@@ -432,7 +432,7 @@ test "jac test err" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     sys.stderr = captured_output;
-    analysis.test(fixture_path("baddy.jac"));
+    analysis.`test(fixture_path("baddy.jac"));
     sys.stdout = sys.__stdout__;
     sys.stderr = sys.__stderr__;
     stdout_value = captured_output.getvalue();
@@ -518,7 +518,7 @@ test "run test" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.test(fixture_path("run_test.jac"), maxfail=2);
+        analysis.`test(fixture_path("run_test.jac"), maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -540,7 +540,7 @@ test "run test native codespace file" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.test(fixture_path("native_run_test.jac"), maxfail=2);
+        analysis.`test(fixture_path("native_run_test.jac"), maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -565,7 +565,7 @@ test "run test native broken import surfaces error" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        rc = analysis.test(fixture_path("native_broken_import_test.jac"));
+        rc = analysis.`test(fixture_path("native_broken_import_test.jac"));
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -700,7 +700,7 @@ test "run specific test only" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.test(
+        analysis.`test(
             fixture_path("jactest_main.jac"), test_name="from 2 to 10", verbose=True
         );
         out = captured.getvalue();

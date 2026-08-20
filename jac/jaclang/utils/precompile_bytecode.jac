@@ -816,7 +816,7 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
         if (
             len(body) == 3
             and body[0].endswith(":")
-            and abort_re.match(body[1]) is not None
+            and abort_re.`match(body[1]) is not None
             and body[2] == "unreachable"
         ) {
             stub_name = matched.group(1) or matched.group(2);
@@ -852,7 +852,7 @@ def purge_native_ir_cache(root_src: str, deps: (list[str] | None) = None) -> int
     for cache_dir in dirs {
         for stem in sorted(set(stems)) {
             for suffix in ("ir_cache", "ir_meta") {
-                for stale in _glob.glob(
+                for stale in _glob.`glob(
                     os.path.join(cache_dir, f"{stem}.*.{suffix}")
                 ) {
                     try {
@@ -1153,8 +1153,8 @@ def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
         f"    native   {_parity_window(n_toks, at, 8)}",
         f"    bytecode {_parity_window(p_toks, at, 8)}"
     ];
-    for entry in shown {
-        out.append(f"    {entry}");
+    for `entry in shown {
+        out.append(f"    {`entry}");
     }
     if total > len(shown) {
         out.append(f"    ... and {total - len(shown)} more");
@@ -1490,12 +1490,12 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
     import jaclang.jac0core.unitree as uni;
     out: list[str] = [];
     for nd in mod._in_mod_nodes {
-        entry = "";
+        `entry = "";
         if isinstance(nd, uni.AstSymbolNode) {
             try {
-                entry = f"{type(nd).__name__}:{nd.sym_name}";
+                `entry = f"{type(nd).__name__}:{nd.sym_name}";
             } except Exception as sym_exc {
-                entry = f"{type(nd).__name__}:<{type(sym_exc).__name__}>";
+                `entry = f"{type(nd).__name__}:<{type(sym_exc).__name__}>";
             }
         }
         if "body" in nd.__dict__ {
@@ -1503,7 +1503,7 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
             body_shape = f"list:{len(nd_body)}"
                 if isinstance(nd_body, (list, tuple))
                 else ("none" if nd_body is None else f"node:{type(nd_body).__name__}");
-            entry = f"{entry or type(nd).__name__}|body={body_shape}";
+            `entry = f"{`entry or type(nd).__name__}|body={body_shape}";
         }
         if isinstance(nd, uni.NameAtom) {
             nd_spec = nd.__dict__.get("name_spec");
@@ -1514,10 +1514,10 @@ def _sym_name_fingerprint(mod: any) -> list[str] {
                         if nd_spec is None
                         else f"{type(nd_spec).__name__}:{getattr(nd_spec, 'value', '')}"
                 );
-            entry = f"{entry or type(nd).__name__}|spec={spec_shape}";
+            `entry = f"{`entry or type(nd).__name__}|spec={spec_shape}";
         }
-        if entry {
-            out.append(entry);
+        if `entry {
+            out.append(`entry);
         }
     }
     return out;
@@ -2212,9 +2212,9 @@ def seal_jobs(requested: (int | None) = None) -> int {
     if requested is not None {
         return max(1, int(requested));
     }
-    override = seal_jobs_override();
-    if override is not None {
-        return override;
+    `override = seal_jobs_override();
+    if `override is not None {
+        return `override;
     }
     avail = seal_mem_available_gib();
     if avail <= 0.0 {
@@ -2720,18 +2720,18 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
     entry_path = resolve_entry(config, str(pkg_path));
     kind = resolve_project_kind(config, entry_path);
 
-    entry: dict[str, str] = {};
+    `entry: dict[str, str] = {};
     if entry_path and Path(entry_path).is_file() {
         rel = Path(entry_path).resolve().relative_to(pkg_path.resolve()).as_posix();
         stem = ext_registry.base_stem(os.path.basename(entry_path));
-        entry = {"module": f"{pkg_name}.{stem}", "path": rel};
+        `entry = {"module": f"{pkg_name}.{stem}", "path": rel};
     }
 
     caps: list[str] = [];
     if kind in ["service", "service-mesh", "web-app", "desktop", "mobile"] {
         caps.append("has-server");
     }
-    if entry {
+    if `entry {
         caps.append("has-entry");
     }
     if (pkg_path / CLIENT_DIST_REL).is_dir()
@@ -2741,11 +2741,11 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
     if (pkg_path / NATIVE_DIR_REL).is_dir() {
         caps.append("has-native");
     }
-    if kind in ["py-package", "js-package"] or not entry {
+    if kind in ["py-package", "js-package"] or not `entry {
         caps.append("attachable");
     }
 
-    meta = {"kind": kind, "capabilities": caps, "entry": entry};
+    meta = {"kind": kind, "capabilities": caps, "entry": `entry};
     native_dir = pkg_path / NATIVE_DIR_REL;
     if native_dir.is_dir() {
         triples = sorted(
@@ -2899,17 +2899,17 @@ def seal_finalize(
     for jir in sorted(out_dir.rglob("*.jir")) {
         rel_jir = jir.relative_to(out_dir).as_posix();
         (source_rel, fullname, is_pkg) = jir_to_module(pkg_name, rel_jir);
-        entry = {
+        `entry = {
             "module": fullname,
             "jir": rel_jir,
             "package": is_pkg,
             "sha256": hashlib.sha256(jir.read_bytes()).hexdigest()
         };
         if rel_jir.startswith("jac0core/") {
-            entry["bootstrap"] = True;
+            `entry["bootstrap"] = True;
             n_boot += 1;
         }
-        manifest_modules[source_rel] = entry;
+        manifest_modules[source_rel] = `entry;
     }
     console.print(f"  Manifest modules: {len(manifest_modules)} ({n_boot} bootstrap)");
 
@@ -3042,14 +3042,14 @@ def main {
         console.print(
             "        (tightest dev loop; the canaries still run on rebuilds)."
         );
-        sys.exit(1);
+        sys.`exit(1);
     }
 
     source_dir = args[0];
     package_dir = find_package_dir(source_dir);
     if package_dir is None {
         console.error(f"Could not find a Python package in {source_dir}");
-        sys.exit(1);
+        sys.`exit(1);
     }
 
     pkg_name = Path(package_dir).name;
@@ -3062,7 +3062,7 @@ def main {
             "project config; sealing without it would compile every module "
             "including client code. Stage a sanitized jac.toml first."
         );
-        sys.exit(1);
+        sys.`exit(1);
     }
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
     precompiled_dir = Path(package_dir) / "_precompiled";
@@ -3094,7 +3094,7 @@ def main {
 
     if not jac_files and not exclude_jac0core {
         console.print("  No .jac files to precompile.");
-        sys.exit(0);
+        sys.`exit(0);
     }
 
     out_dir = precompiled_dir / pyver;
