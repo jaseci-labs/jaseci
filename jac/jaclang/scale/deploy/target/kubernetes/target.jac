@@ -481,6 +481,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         with console.status(f"Rolling out fleet: 0/{total} services ready...") as st {
             while elapsed < timeout {
                 ready = 0;
+                last_read_error = "";
                 stalls: dict[str, str] = {};
                 for name in names {
                     try {

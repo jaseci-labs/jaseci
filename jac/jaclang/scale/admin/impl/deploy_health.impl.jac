@@ -29,8 +29,6 @@ def _s(v: any) -> str {
 
 def _rollout_status(dep: dict) -> dict {
     rollout = read_rollout_status(dep);
-    # A dashboard read has no previous poll to inherit a mark from, so it reports
-    # the condition as it stands and carries the caveat the deploy gate resolves.
     if rollout.stall() {
         return {
             "status": "stuck",

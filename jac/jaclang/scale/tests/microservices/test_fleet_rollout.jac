@@ -616,3 +616,23 @@ test "a deployment the API server refuses to serve is named in the timeout" {
         f"not all read as the same bare timeout: {err}"
     );
 }
+
+test "a read that fails once and then recovers is not blamed for the timeout" {
+    target = _fleet_target();
+    (apps, core) = _rollout_apis(_dep());
+    # One transient failure, then a fleet that reads clean but never gets ready:
+    # the timeout belongs to the un-ready fleet, not to the read that recovered.
+    reads: list = [Exception("(500) Reason: Internal Server Error")];
+    reads.extend([_dep()] * 64);
+    apps.read_namespaced_deployment.side_effect = reads;
+
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 30);
+
+    assert err is not None and "timed out" in str(err) , (
+        f"a fleet that never becomes ready still times out: {err}"
+    );
+    assert "Last deployment read failed" not in str(err) , (
+        "a read failure the next poll recovered from must not point the reader "
+        f"at the API server: {err}"
+    );
+}
