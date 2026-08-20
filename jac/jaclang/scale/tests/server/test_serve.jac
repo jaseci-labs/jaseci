@@ -3,8 +3,6 @@ import contextlib;
 import gc;
 import glob;
 import json;
-import re;
-import select;
 import socket;
 import subprocess;
 import from jaclang.scale.runtime.context.util { jac_executable }
@@ -1984,7 +1982,7 @@ test "port constants - values are correct" {
     assert ERRNO_ADDR_IN_USE_WINDOWS == 10048 , "ERRNO_ADDR_IN_USE_WINDOWS should be 10048";
 }
 
-test "server startup - port fallback integration" {
+test "server startup - a second server refuses an already-taken explicit port" {
     port1 = get_free_port();
     sp1: subprocess.Popen | None = None;
     sp2: subprocess.Popen | None = None;
@@ -1997,7 +1995,14 @@ test "server startup - port fallback integration" {
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
 
-        cmd = [jac_executable(), "start", sv_test_file.name, "--port", str(port1)];
+        cmd = [
+            jac_executable(),
+            "start",
+            sv_test_file.name,
+            "--port",
+            str(port1),
+            "--no-client"
+        ];
 
         sp2 = subprocess.Popen(
             cmd,
@@ -2007,38 +2012,17 @@ test "server startup - port fallback integration" {
             cwd=str(sv_fixtures_dir)
         );
 
-        actual_port = port1;
-        max_wait = 60;
-        start_time = time.time();
+        (output, _unused) = sp2.communicate(timeout=120);
 
-        while time.time() - start_time < max_wait {
-            if sp2.stdout and select.select([sp2.stdout], [], [], 0.5)[0] {
-                line = sp2.stdout.readline();
-                if line and "using port" in line {
-                    port_match = re.search(r'using port (\d+)', line);
-                    if port_match {
-                        actual_port = int(port_match.group(1));
-                    }
-                }
-            }
-
-            for test_port in range(port1 + 1, port1 + 5) {
-                try {
-                    resp = requests.get(
-                        f"http://localhost:{test_port}/healthz", timeout=1
-                    );
-                    if resp.status_code == 200 {
-                        actual_port = test_port;
-                        break;
-                    }
-                } except Exception { }
-            }
-            if actual_port > port1 {
-                break;
-            }
-        }
-
-        assert actual_port > port1 , f"Second server should use port > {port1}, got {actual_port}";
+        assert sp2.returncode != 0 , (
+            "a second server asked for a port the first one holds must exit "
+            f"non-zero rather than relocating, got {sp2.returncode}"
+        );
+        assert str(port1) in output , (
+            f"the failure must name the port that was asked for, got: {output[-300:]!r}"
+        );
+        survivor = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
+        assert survivor.status_code == 200 , "the first server must be undisturbed";
     } finally {
         if sp2 {
             sp2.terminate();
