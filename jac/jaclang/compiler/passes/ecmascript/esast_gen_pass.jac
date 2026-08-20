@@ -209,6 +209,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
         _unlowered_reported: set = set(),
+        _unbound_reported: set[str] = set(),
         _osp_var_arch_cache: (dict | None) = None,
         _primitive_emitters: (dict[str, object] | None) = None,
         _builtin_emitter: (object | None) = None,

@@ -1852,6 +1852,7 @@ impl EsastGenPass._bind_client_value_refs(nd: uni.Module) -> list[es.Statement] 
             forwarders.append(self._build_server_forwarder(top, func_name, ref_name));
             continue;
         }
+        self._unbound_reported.add(ref_name.sym_name);
         self.emit(E5086, node_override=ref_name, name=ref_name.sym_name);
     }
     return forwarders;
@@ -7454,20 +7455,25 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
     names = nd.get_all_sub_nodes(typ=uni.Name);
     reported: set[str] = set();
     for free in frees {
-        if free.name in reported {
+        if (free.name in reported) or (free.name in self._unbound_reported) {
             continue;
         }
         origin: (uni.Name | None) = None;
+        imported = False;
         for cand in names {
             if (cand.value != free.name) or (cand.sym is None) {
                 continue;
+            }
+            if cand.sym.decl.find_parent_of_type(uni.Import) is not None {
+                imported = True;
+                break;
             }
             origin = cand;
             if cand.loc.first_line == free.line {
                 break;
             }
         }
-        if origin is None {
+        if imported or (origin is None) {
             continue;
         }
         reported.add(free.name);
