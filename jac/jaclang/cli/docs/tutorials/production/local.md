@@ -97,10 +97,18 @@ curl -X POST http://localhost:8000/walker/add_task \
 jac start --port 3000
 ```
 
-If the specified port is already in use, the server automatically finds and uses the next available port:
+A port you pass is a contract. If it is already in use the server does not move to
+another one, because whatever sits in front of it (a proxy, a port mapping, a health
+check) is still addressing the port you asked for. It fails and names the port:
 
 ```
-Port 3000 is in use, using port 3001 instead
+✖ Error: Port 3000 is already in use
+```
+
+Leave `--port` off and the default behaves as before, relocating with a notice:
+
+```
+Port 8000 is in use, using port 8001 instead
 ```
 
 ### Development Mode (HMR)

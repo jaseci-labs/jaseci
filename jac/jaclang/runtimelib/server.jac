@@ -32,7 +32,7 @@ import from jaclang.runtimelib.serving.middleware {
     custom_headers_middleware
 }
 import from jaclang.runtimelib.serving.openapi { register_docs_endpoints }
-import from jaclang.runtimelib.serving.server { ServingServer }
+import from jaclang.runtimelib.serving.server { PORT_RETRY_LIMIT, ServingServer }
 import from jaclang.runtimelib.static_files { find_static_candidate, is_asset_request }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
