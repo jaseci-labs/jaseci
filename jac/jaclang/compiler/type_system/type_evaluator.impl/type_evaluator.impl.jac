@@ -5454,19 +5454,32 @@ impl TypeEvaluator._is_type_alias_annotation(
         return False;
     }
 
+    if self._type_alias_tag_ident(tag_expr) != "TypeAlias" {
+        return False;
+    }
     is_special_form = (
         isinstance(annotation_type, ClassType)
         and annotation_type.shared == self.prefetch.callable_class.shared
     );
+    return is_special_form or isinstance(annotation_type, UnknownType);
+}
 
-    if is_special_form and isinstance(tag_expr, Name) {
-        return tag_expr.value == "TypeAlias";
+impl TypeEvaluator._type_alias_tag_ident(tag_expr: Expr) -> (str | None) {
+    if isinstance(tag_expr, AtomTrailer) and tag_expr.is_attr {
+        right = tag_expr.right;
+        return right.value if isinstance(right, Name) else None;
     }
-
-    if (isinstance(annotation_type, UnknownType) and isinstance(tag_expr, Name)) {
-        return tag_expr.value == "TypeAlias";
+    if isinstance(tag_expr, Name) {
+        sym = tag_expr.sym;
+        if sym is not None and isinstance(sym.decl, Name) {
+            mod_item = sym.decl.find_parent_of_type(ModuleItem);
+            if mod_item is not None and isinstance(mod_item.name, Name) {
+                return mod_item.name.value;
+            }
+        }
+        return tag_expr.value;
     }
-    return False;
+    return None;
 }
 
 impl TypeEvaluator._brand_distinct_alias(

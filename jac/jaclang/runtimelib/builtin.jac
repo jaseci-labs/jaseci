@@ -81,7 +81,7 @@ def testfail(reason: str = "") -> NoReturn;
 def testraises(*excs: type, `match: (str | None) = None) -> RaisesContext;
 
 obj RaisesContext {
-    has excs: tuple,
+    has excs: tuple[type, ...],
         pattern: (str | None) = None,
         value: (BaseException | None) = None;
 

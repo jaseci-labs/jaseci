@@ -734,6 +734,7 @@ obj TypeEvaluator {
     def _filter_union_to_callables(union_type: TypeBase) -> TypeBase;
     def _is_ellipsis_only_body(body: list[CodeBlockStmt]) -> bool;
     def _is_type_alias_annotation(annotation_type: TypeBase, tag_expr: Expr) -> bool;
+    def _type_alias_tag_ident(tag_expr: Expr) -> (str | None);
     def _resolve_type_alias_rhs(value: Expr) -> TypeBase;
     def _brand_distinct_alias(node_: TypeAlias, resolved: TypeBase) -> TypeBase;
     def _distinct_brand_mismatch(src_type: TypeBase, dest_type: TypeBase) -> bool;

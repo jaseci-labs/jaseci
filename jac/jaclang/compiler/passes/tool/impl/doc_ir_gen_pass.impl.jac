@@ -15,12 +15,14 @@ impl DocIRGenPass.exit_jsx_slot(nd: uni.JsxSlot) -> None {
 }
 
 impl DocIRGenPass.exit_jsx_text(nd: uni.JsxText) -> None {
-    source_tok = nd.kid[0] if nd.kid else None;
+    first_kid = nd.kid[0] if nd.kid else None;
+    source_tok = first_kid if isinstance(first_kid, uni.Token) else None;
     nd.gen.doc_ir = doc.Text(nd.get_normalized_text(), source_token=source_tok);
 }
 
 impl DocIRGenPass.exit_jsx_comment(nd: uni.JsxComment) -> None {
-    source_tok = nd.kid[0] if nd.kid else None;
+    first_kid = nd.kid[0] if nd.kid else None;
+    source_tok = first_kid if isinstance(first_kid, uni.Token) else None;
     raw = nd.value.value if isinstance(nd.value, uni.Token) else str(nd.value);
     nd.gen.doc_ir = doc.Text(raw, source_token=source_tok);
 }
@@ -130,14 +132,10 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
             nd.gen.doc_ir = self.group(self.concat([kid.gen.doc_ir for kid in nd.kid]));
             return;
         }
-        name_node = next(
-            (
-                kid
-                for kid in nd.kid
-                if isinstance(kid, uni.JsxElementName)
-            ),
-            None
-        );
+        name_kids = [
+            kid for kid in nd.kid if isinstance(kid, uni.JsxElementName)
+        ];
+        name_node = name_kids[0] if name_kids else None;
         attr_docs = [attr.gen.doc_ir for attr in nd.attributes];
         parts: list[doc.DocType] = [start_token.gen.doc_ir];
         if name_node {
@@ -175,9 +173,8 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
         if (not is_self_closing and nd.children) {
             child_parts = self.jsx_mixed_child_parts(nd.children);
             inline_child_types = (uni.JsxText, uni.JsxExpression, uni.JsxComment);
-            all_inline_children = (
-                nd.children
-                and all(isinstance(child, inline_child_types) for child in nd.children)
+            all_inline_children = bool(nd.children) and all(
+                isinstance(child, inline_child_types) for child in nd.children
             );
 
             if all_inline_children {
@@ -232,16 +229,16 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
     }
     opening_doc = nd.kid[0].gen.doc_ir;
     closing_doc = nd.kid[-1].gen.doc_ir if (len(nd.kid) > 1) else self.concat([]);
-    child_parts = self.jsx_mixed_child_parts(nd.children);
+    children: Sequence[uni.UniNode] = nd.children if nd.children else [];
+    child_parts = self.jsx_mixed_child_parts(children);
     inline_child_types = (uni.JsxText, uni.JsxExpression);
-    all_inline_children = (
-        nd.children
-        and all(isinstance(child, inline_child_types) for child in nd.children)
+    all_inline_children = bool(children) and all(
+        isinstance(child, inline_child_types) for child in children
     );
     parts = [opening_doc];
 
     if all_inline_children {
-        inline_doc = self.concat([child.gen.doc_ir for child in nd.children]);
+        inline_doc = self.concat([child.gen.doc_ir for child in children]);
         parts.append(
             self.group(
                 self.concat(
@@ -319,23 +316,13 @@ impl DocIRGenPass.exit_int(nd: uni.Int) -> None {
 
 impl DocIRGenPass.exit_name(nd: uni.Name) -> None {
     name_text = f"`{nd.value}" if nd.is_kwesc else nd.value;
-    by_kid = next(
-        (
-            k
-            for k in nd.kid
-            if isinstance(k, uni.Token) and k.name == Tok.KW_BY
-        ),
-        None
-    );
+    by_kids = [
+        k for k in nd.kid if (isinstance(k, uni.Token) and (k.name == Tok.KW_BY))
+    ];
+    by_kid = by_kids[0] if by_kids else None;
     if by_kid is not None {
-        semi_kid = next(
-            (
-                k
-                for k in nd.kid
-                if isinstance(k, uni.Semi)
-            ),
-            None
-        );
+        semi_kids = [k for k in nd.kid if isinstance(k, uni.Semi)];
+        semi_kid = semi_kids[0] if semi_kids else None;
         parts: list[doc.DocType] = [
             by_kid.gen.doc_ir,
             self.space(),
@@ -652,7 +639,10 @@ impl DocIRGenPass.exit_switch_case(nd: uni.SwitchCase) -> None {
     nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
 }
 
-impl DocIRGenPass._assign_case_block_doc_ir(nd: uni.UniNode, case_cls: type) -> None {
+impl DocIRGenPass._assign_case_block_doc_ir(
+    nd: (uni.SwitchStmt | uni.MatchStmt),
+    case_cls: type[(uni.SwitchCase | uni.MatchCase)]
+) -> None {
     parts: list[doc.DocType] = [];
     case_parts: list[doc.DocType] = [self.hard_line()];
     for i in nd.kid {

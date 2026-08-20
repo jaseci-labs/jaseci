@@ -24,7 +24,6 @@ glob DEFAULT_PREFIX: str = "/__jac",
 
 class _EventHub(Protocol) {
     def subscribe(self: _EventHub) -> (queue.Queue[(str | None)] | None);
-
     def unsubscribe(self: _EventHub, q: queue.Queue[(str | None)]) -> None;
 }
 
@@ -116,7 +115,7 @@ class _PendingAuth {
         self._prune();
         matched: (str | None) = None;
         for known in list(self.states.keys()) {
-            if hmac.compare_digest(known, nonce) {
+            if hmac.compare_digest(known.encode("utf-8"), nonce.encode("utf-8")) {
                 matched = known;
                 break;
             }
@@ -233,7 +232,7 @@ def make_handler(
         }
 
         def _host_allowed(self: _BrokerHandler) -> bool {
-            raw: (str | None) = self.headers.get("Host");
+            raw = str(self.headers.get("Host") or "");
             if not raw {
                 return True;
             }
@@ -254,7 +253,7 @@ def make_handler(
         }
 
         def _origin_allowed(self: _BrokerHandler) -> bool {
-            origin: (str | None) = self.headers.get("Origin");
+            origin = str(self.headers.get("Origin") or "");
             if origin {
                 try {
                     host = urlparse(origin).hostname;
@@ -391,6 +390,7 @@ def make_handler(
                     self.send_error(404);
                     return;
                 }
+                call = dispatch;
                 try {
                     n = int(self.headers.get("Content-Length", 0) or 0);
                 } except (TypeError, ValueError) {
@@ -403,11 +403,13 @@ def make_handler(
                 }
                 raw = self.rfile.read(n) if n > 0 else b"";
                 req_body = raw.decode("utf-8") if raw else "[]";
-                self._raw_json(dispatch(req_body));
+                self._raw_json(call(req_body));
                 return;
             }
-            if sv_bridge is not None
-                and (route.startswith("/walker/") or route.startswith("/function/")) {
+            is_sv_route = route.startswith("/walker/")
+                or route.startswith("/function/");
+            if sv_bridge is not None and is_sv_route {
+                bridge = sv_bridge;
                 try {
                     n = int(self.headers.get("Content-Length", 0) or 0);
                 } except (TypeError, ValueError) {
@@ -420,7 +422,7 @@ def make_handler(
                 raw = self.rfile.read(n) if n > 0 else b"";
                 auth = str(self.headers.get("Authorization", "") or "");
                 token = auth[7:] if auth.startswith("Bearer ") else "";
-                (status, sv_body, ctype) = sv_bridge("POST", route, raw, token);
+                (status, sv_body, ctype) = bridge("POST", route, raw, token);
                 self._raw_response(sv_body, status, ctype);
                 return;
             }

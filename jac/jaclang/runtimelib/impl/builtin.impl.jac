@@ -232,7 +232,7 @@ impl testraises(*excs: type, `match: (str | None) = None) -> RaisesContext {
             raise TypeError(f"testraises() expects exception types, got {exc!r}");
         }
     }
-    return RaisesContext(excs=excs, pattern=`match);
+    return RaisesContext(excs=tuple(excs), pattern=`match);
 }
 
 impl RaisesContext.__enter__ -> RaisesContext {
@@ -263,7 +263,9 @@ impl restspec(**specs: any) -> Callable {
     import logging;
     import from jaclang { JacRuntimeInterface as Jac }
     import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
-    SpecsCls = Jac.get_api_server_class().RestSpecs;
+    import type from jaclang.runtimelib.server { JacAPIServer }
+    ServerCls: type[JacAPIServer] = Jac.get_api_server_class();
+    SpecsCls = ServerCls.RestSpecs;
 
     protocol = specs.get('protocol');
     if protocol is not None and not isinstance(protocol, APIProtocol) {
@@ -293,7 +295,7 @@ impl restspec(**specs: any) -> Callable {
     def decorator(cls: type) -> type {
         spec = SpecsCls(**specs);
         _validate_restspec_target(spec, cls);
-        cls.restspec = spec;
+        setattr(cls, "restspec", spec);
         return cls;
     }
     return decorator;
@@ -348,7 +350,7 @@ impl schedule(**kwargs: any) -> Callable {
     }
     spec = ScheduleSpec(trigger=trigger, **kwargs);
     def decorator(target: type) -> type {
-        target.schedule_spec = spec;
+        setattr(target, "schedule_spec", spec);
         return target;
     }
     return decorator;

@@ -1,6 +1,6 @@
 """Card components for stats and content."""
 
-def:pub Card(children: any, className: str = "") -> JsxElement {
+def:pub Card(children: any = None, className: str = "") -> JsxElement {
     <div className={"bg-surface border border-line rounded-lg shadow-sm " + className}>
         {children}
     </div>
@@ -13,7 +13,7 @@ def:pub CardHeader(title: str, action: any = None) -> JsxElement {
     </div>
 }
 
-def:pub CardBody(children: any, className: str = "p-4") -> JsxElement {
+def:pub CardBody(children: any = None, className: str = "p-4") -> JsxElement {
     <div className={className}>{children}</div>
 }
 
