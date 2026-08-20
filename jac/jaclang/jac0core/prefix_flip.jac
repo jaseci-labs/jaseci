@@ -508,6 +508,10 @@ def take_prefix_handoff(mod: any) -> tuple[any] {
 
 def _handoff(mod: any, executed: tuple[str], err_start: int = -1, err_end: int = -1) {
     _prefix_handoff.clear();
+    if len(tuple(executed)) == 0 {
+        err_start = -1;
+        err_end = -1;
+    }
     _prefix_handoff.append((id(mod), tuple(executed), err_start, err_end, ));
 }
 
