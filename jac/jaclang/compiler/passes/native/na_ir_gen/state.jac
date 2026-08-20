@@ -243,4 +243,6 @@ obj NaIRGenState(ModuleCodegenPass) {
         _loop_rebind_memo: dict[tuple, bool] = {};
 
     has builder: ir.IRBuilder { getter; }
+
+    def postinit -> None;
 }
