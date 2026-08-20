@@ -211,7 +211,7 @@ impl EsastGenPass._in_identifier_slot(nd: uni.UniNode) -> bool {
         return (parent.alias is nd) or any(part is nd for part in (parent.path or []));
     }
     if isinstance(parent, uni.JsxNormalAttribute) {
-        return parent.name is nd;
+        return (parent.name is nd) and (parent.value is not nd);
     }
     if isinstance(parent, uni.JsxElementName) {
         return any(part is nd for part in (parent.parts or []));

@@ -106,6 +106,23 @@ def assert_setter_binding(js: str, backend_name: str) {
     );
 }
 
+"""Pin the other half of the same failure: a state read in shorthand position.
+
+JSX attribute shorthand parses one Name into both the attribute's name and its
+value. Treating that node as a name-only slot skipped the state read rewrite,
+so the value emitted as a bare identifier the module never binds.
+"""
+def assert_shorthand_read(js: str, backend_name: str) {
+    assert '"flag": __jacS_flag.val' in js , (
+        f"[{backend_name}] a shorthand JSX attribute must lower its value as "
+        f"a state read:\n{js}"
+    );
+    assert re.search(r"\{\s*[\"']?flag[\"']?\s*:\s*flag\s*\}", js) is None , (
+        f"[{backend_name}] the shorthand value must not stay a bare "
+        f"identifier:\n{js}"
+    );
+}
+
 test "react backend lowers has state to read-your-writes store cells" {
     js = compile_with_backend("state_semantics_component.jac", ReactBackend());
     assert_store_contract(js, "react");
@@ -124,4 +141,14 @@ test "react binds the state setter as a first-class value" {
 test "preact binds the state setter as a first-class value" {
     js = compile_with_backend("state_setter_value_ref.jac", PreactBackend());
     assert_setter_binding(js, "preact");
+}
+
+test "react lowers a shorthand jsx attribute as a state read" {
+    js = compile_with_backend("state_shorthand_attr.jac", ReactBackend());
+    assert_shorthand_read(js, "react");
+}
+
+test "preact lowers a shorthand jsx attribute as a state read" {
+    js = compile_with_backend("state_shorthand_attr.jac", PreactBackend());
+    assert_shorthand_read(js, "preact");
 }
