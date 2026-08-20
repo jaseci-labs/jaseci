@@ -199,10 +199,22 @@ impl collect_member_syms(
         return [];
     }
 
-    def descend(s: UniScopeNode) -> list[Symbol] {
-        if (here := s.lookup_all(name, deep=False)) {
-            return here;
+    def is_overload_sym(sym: Symbol) -> bool {
+        decl = sym.decl.name_of if sym.decl else None;
+        if not isinstance(decl, (Ability, ImplDef)) {
+            return False;
         }
+        for dec in decl.decorators or [] {
+            tail = dec.right if isinstance(dec, AtomTrailer) else dec;
+            if isinstance(tail, Name) and tail.value == "overload" {
+                return True;
+            }
+        }
+        return False;
+    }
+
+    def descend(s: UniScopeNode) -> list[Symbol] {
+        gathered: list[Symbol] = list(s.lookup_all(name, deep=False) or []);
         for kid in s.kid_scope {
             if UniScopeNode.is_python_scoping(kid) {
                 continue;
@@ -212,12 +224,23 @@ impl collect_member_syms(
             }
             branches = live_branches(kid) if isinstance(kid, IfStmt) else [kid];
             for branch in branches {
-                if (found := descend(branch)) {
+                found = descend(branch);
+                if not found {
+                    continue;
+                }
+                if not gathered {
                     return found;
+                }
+                if is_overload_sym(gathered[0]) {
+                    for extra in found {
+                        if is_overload_sym(extra) {
+                            gathered.append(extra);
+                        }
+                    }
                 }
             }
         }
-        return [];
+        return gathered;
     }
 
     if not deep {

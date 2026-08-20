@@ -423,6 +423,7 @@ obj TypeEvaluator {
         mod: Module, name: str, visited: set[int] | None = None
     ) -> Symbol | None;
 
+    def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
     def _is_class_scoped_type_param(node_: TypeParam) -> bool;
     def _collect_typevars_from_base(

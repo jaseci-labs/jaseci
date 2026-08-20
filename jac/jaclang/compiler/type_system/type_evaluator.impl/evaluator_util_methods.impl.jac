@@ -433,6 +433,29 @@ impl TypeEvaluator._convert_to_instance(jtype: TypeBase) -> TypeBase {
     return convert_to_instance(jtype);
 }
 
+impl TypeEvaluator._metaclass_of(cls_type: ClassType) -> (ClassType | None) {
+    for cls in cls_type.shared.mro {
+        arch = cls.shared.symbol_table;
+        if not isinstance(arch, Archetype) {
+            continue;
+        }
+        for kid in arch.kid {
+            if (
+                isinstance(kid, KWPair)
+                and kid.key is not None
+                and kid.key.sym_name == "metaclass"
+            ) {
+                meta_type = self.get_type_of_expression(kid.value);
+                if isinstance(meta_type, ClassType)
+                    and meta_type.shared is not cls_type.shared {
+                    return meta_type;
+                }
+            }
+        }
+    }
+    return None;
+}
+
 impl TypeEvaluator._edge_endpoint_type(
     edge_type: ClassType, edge_dir: EdgeDir
 ) -> TypeBase | None {

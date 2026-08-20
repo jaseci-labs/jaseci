@@ -812,7 +812,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                         and lookup_type.is_instantiable_class()
                         and self.prefetch is not None
                         and self.prefetch.type_class is not None {
-                        meta_inst = self._convert_to_instance(self.prefetch.type_class);
+                        meta_cls = self._metaclass_of(lookup_type)
+                            or self.prefetch.type_class;
+                        meta_inst = self._convert_to_instance(meta_cls);
                         if isinstance(meta_inst, ClassType) {
                             if meta_member
                                 := self._lookup_object_member(
