@@ -31,18 +31,9 @@ obj ProcessGateway(Gateway) {
     }
 
     def _resolve_base_path -> Path {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        import from jaclang.project.config { find_project_root }
+        import from jaclang.project.config { resolve_base_path }
 
-        base_path_dir = Path(bp_dir)
-            if (bp_dir := Jac.get_context().base_path_dir or Jac.get_base_path_dir())
-            else Path.cwd();
-        project_root_result = find_project_root(base_path_dir);
-        if project_root_result {
-            (base_path, _) = project_root_result;
-            return base_path;
-        }
-        return base_path_dir;
+        return resolve_base_path();
     }
 
     def serve {
