@@ -188,8 +188,8 @@ def prefix_entry -> tuple[any] {
                 "frontend exports no parse_and_run_prefix"
             );
         } else {
-            import from jaclang.jac0core.parser.frontend { _native_parse }
-            if _native_parse() is None {
+            import from jaclang.jac0core.native_brands { native_parser }
+            if native_parser("prefix_flip:predicate") is None {
                 found = (None, "image-unsealed", "no native parser artifact bound");
             } else {
                 found = (fn, "", "");

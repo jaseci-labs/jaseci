@@ -318,7 +318,7 @@ obj SemanticTokensLegend {
 }
 
 obj FileOperationPattern {
-    has glob: str = "";
+    has `glob: str = "";
 }
 
 obj FileOperationFilter {

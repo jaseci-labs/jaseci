@@ -56,9 +56,9 @@ impl NaIRGenPass._emit_clib_c_trampoline(
         self.llvm_module, c_fn_ty.pointee, name=f"{jac_fn.name}.__clibcb.{n}"
     );
     tramp.linkage = "internal";
-    entry = tramp.append_basic_block("entry");
+    `entry = tramp.append_basic_block("entry");
     saved_builder = self._builder;
-    self._builder = ir.IRBuilder(entry);
+    self._builder = ir.IRBuilder(`entry);
     jac_params = jac_fn.function_type.args;
     call_args: list[ir.Value] = [];
     for (i, arg) in enumerate(tramp.args) {

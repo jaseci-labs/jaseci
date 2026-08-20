@@ -2,11 +2,10 @@ import base64;
 import os;
 import tarfile;
 import time;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import requests;
 import urllib3;
-import from dotenv { dotenv_values }
+import from jaclang.scale.config.project_env { read_project_env }
 import from jaclang.scale._optdeps.kubernetes {
     client,
     config,
@@ -45,17 +44,6 @@ def check_pods_restarted(
     _rs_hashes: (set | None) = None,
     _skip_config_load: bool = False
 ) -> bool;
-
-def parse_cpu_quantity(quantity: str) -> float;
-
-def parse_memory_quantity(quantity: str) -> float;
-
-def validate_resource_limits(
-    cpu_request: (str | None),
-    cpu_limit: (str | None),
-    memory_request: (str | None),
-    memory_limit: (str | None)
-) -> None;
 
 def load_env_variables(code_folder: str) -> list;
 

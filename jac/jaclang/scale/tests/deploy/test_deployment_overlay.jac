@@ -60,13 +60,13 @@ test "build_behavior with no overlay returns the hardcoded default" {
 }
 
 test "build_behavior with an empty overlay dict is a no-op" {
-    default = Autoscaler._build_behavior(
+    `default = Autoscaler._build_behavior(
         AutoscalerSpec(scale_target_name="x", namespace="ns")
     );
     overlaid = Autoscaler._build_behavior(
         AutoscalerSpec(scale_target_name="x", namespace="ns", behavior_overlay={})
     );
-    assert overlaid == default;
+    assert overlaid == `default;
 }
 
 test "build_behavior overlay replaces scaleDown policy shape, leaves scaleUp default" {
@@ -354,8 +354,8 @@ test "embedder-supplied config gets schema defaults (client entry included)" {
 
 test "gateway entrypoint serves the shipped bundle and never rebuilds it" {
     b = _builder({"svc_a": {}});
-    entry = b._pod_entrypoint();
-    script = "".join(entry["args"]);
+    `entry = b._pod_entrypoint();
+    script = "".join(`entry["args"]);
     assert "jac build" not in script;
     assert "exec jac scale gateway" in script;
 }

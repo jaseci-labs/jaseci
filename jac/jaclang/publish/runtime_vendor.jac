@@ -126,7 +126,7 @@ def scan_jaclang_imports(py_src: str) -> set[str] {
         for child in py_ast.iter_child_nodes(nd) {
             tc = in_tc;
             if isinstance(child, py_ast.If)
-                and ("TYPE_CHECKING" in py_ast.unparse(child.test)) {
+                and ("TYPE_CHECKING" in py_ast.unparse(child.`test)) {
                 tc = True;
             }
             if (not tc) and isinstance(child, py_ast.Import) {
