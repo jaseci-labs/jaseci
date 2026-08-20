@@ -70,6 +70,21 @@ class P2ConformanceGateTests(unittest.TestCase):
             self.assertGreater(summary.get("total", 0), 0, stem)
             self.assertEqual(summary.get("failed", -1), 0, summary)
 
+    def test_libtest_modules_record_jac_differential_results(self) -> None:
+        manifest = json.loads(_MANIFEST.read_text(encoding="utf-8"))
+        jac_results = manifest.get("jac_differential_results")
+        if not jac_results:
+            self.skipTest("manifest has no jac_differential_results yet")
+        for row in manifest.get("modules", []):
+            if row.get("gate_type") != "libtest":
+                continue
+            stem = row["stem"]
+            self.assertIn(
+                stem, jac_results, f"missing jac_differential_results for {stem}"
+            )
+            summary = jac_results[stem]
+            self.assertEqual(summary.get("failed", -1), 0, summary)
+
 
 def run_conformance_gate() -> tuple[bool, str]:
     """Run the conformance gate unittest module; return (passed, detail)."""

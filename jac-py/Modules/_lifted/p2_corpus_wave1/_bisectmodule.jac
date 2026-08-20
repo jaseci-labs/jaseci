@@ -1,6 +1,3 @@
-# c2jac: 1 best-effort site lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L142 [W4201] cast to `size_t` elided — representation-changing conversion (truncation/narrowing/discard) not applied
-
 glob ptrdiff_t = int;
 glob size_t = int;
 glob ssize_t = int;
@@ -47,7 +44,7 @@ obj unaryfunc {
 }
 @__jac_value__
 obj richcmpfunc {
-    def call() -> PyObj {
+    def call() -> int {
         ;
     }
 }
@@ -64,11 +61,6 @@ obj PySequenceMethods {
 }
 
 @__jac_value__
-obj PyObject {
-    has ob_type: PyTypeObject = PyTypeObject();
-}
-
-@__jac_value__
 obj PyTypeObject {
     has tp_name: str = str();
     has tp_as_sequence: PySequenceMethods = PySequenceMethods();
@@ -82,6 +74,13 @@ obj PyListObject {
     has ob_item: object = object();
 }
 
+@__jac_value__
+obj PyObject {
+    has ob_type: PyTypeObject = PyTypeObject();
+}
+
+glob PyObj = PyObject;
+
 
 glob PyExc_ValueError: PyObj = PyObj();
 glob PyExc_TypeError: PyObj = PyObj();
@@ -91,7 +90,7 @@ glob Py_False: PyObj = PyObj();
 glob Py_NotImplemented: PyObj = PyObj();
 
 def get_sq_item(s: PyObj) -> ssizeargfunc {
-    tp: PyTypeObject = s.ob_type;
+    tp: PyTypeObject = s.ob_base.ob_type;
     m: PySequenceMethods = tp.tp_as_sequence;
     if (m and m.sq_item) {
         return m.sq_item;
@@ -131,7 +130,7 @@ def internal_bisect_right(
     tp: PyTypeObject = item.ob_type;
     compare: richcmpfunc = tp.tp_richcompare;
     while (lo < hi) {
-        mid = (lo + hi) / 2;
+        mid = (size_t(lo) + hi) // 2;
         litem = sq_item(`list, mid);
         if (litem == 0) {
             Py_LeaveRecursiveCall();

@@ -1,12 +1,3 @@
-import from _bisectmodule {
-    PyListObject,
-    PyObject,
-    PySequenceMethods,
-    PyTypeObject,
-    richcmpfunc,
-    ssizeargfunc,
-    unaryfunc
-}
 glob ptrdiff_t = int;
 glob size_t = int;
 glob ssize_t = int;
@@ -44,6 +35,52 @@ glob int_fast64_t = int;
 glob uint_fast64_t = int;
 glob Py_ssize_t = int;
 glob Py_hash_t = int;
+
+@__jac_value__
+obj unaryfunc {
+    def call() -> PyObj {
+        ;
+    }
+}
+@__jac_value__
+obj richcmpfunc {
+    def call() -> int {
+        ;
+    }
+}
+@__jac_value__
+obj ssizeargfunc {
+    def call() -> PyObj {
+        ;
+    }
+}
+
+@__jac_value__
+obj PySequenceMethods {
+    has sq_item: ssizeargfunc = ssizeargfunc();
+}
+
+@__jac_value__
+obj PyTypeObject {
+    has tp_name: str = str();
+    has tp_as_sequence: PySequenceMethods = PySequenceMethods();
+    has tp_richcompare: richcmpfunc = richcmpfunc();
+}
+
+@__jac_value__
+obj PyListObject {
+    has ob_base: PyObject = PyObject();
+    has ob_size: int = 0;
+    has ob_item: object = object();
+}
+
+@__jac_value__
+obj PyObject {
+    has ob_type: PyTypeObject = PyTypeObject();
+}
+
+glob PyObj = PyObject;
+
 
 glob PyExc_IndexError: PyObj = PyObj();
 glob PyExc_RuntimeError: PyObj = PyObj();

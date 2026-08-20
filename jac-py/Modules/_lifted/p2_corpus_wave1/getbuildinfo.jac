@@ -1,41 +1,54 @@
-# c2jac: 2 best-effort sites lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
+def _uchar(c: int) -> int {
+    return c & 0xFF;
+}
 
 def c_strcmp(a: str, b: str) -> int {
     while (
-        (ord(a[0]) if a else 0) and ((ord(a[0]) if a else 0) == (ord(b[0]) if b else 0))
+        _uchar(ord(a[0]) if a else 0)
+        and (_uchar(ord(a[0]) if a else 0) == _uchar(ord(b[0]) if b else 0))
     ) {
         a = a[1:];
         b = b[1:];
     }
 
-    return ((ord(a[0]) if a else 0) - (ord(b[0]) if b else 0));
+    return _uchar(ord(a[0]) if a else 0) - _uchar(ord(b[0]) if b else 0);
 }
 
-def c_strcpy(dst: str, src: str) -> None {
+def c_strcpy(dst: list[int], src: str) -> None {
     i: int = 0;
-    while (src[i] != 0) {
-        dst[i] = src[i];
+    while ((ord(src[i]) if i < len(src) else 0) != 0) {
+        dst[i] = ord(src[i]);
         i += 1;
     }
 
     dst[i] = 0;
 }
 
-def c_strcat(dst: str, src: str) -> None {
+def c_strcat(dst: list[int], src: str) -> None {
     i: int = 0;
-    while (dst[i] != 0) {
+    while (i < len(dst) and dst[i] != 0) {
         i += 1;
     }
 
     j: int = 0;
-    while (src[j] != 0) {
-        dst[(i + j)] = src[j];
+    while ((ord(src[j]) if j < len(src) else 0) != 0) {
+        dst[(i + j)] = ord(src[j]);
         j += 1;
     }
 
     dst[(i + j)] = 0;
+}
+
+
+def _buf_to_str(buf: list[int]) -> str {
+    s: str = "";
+    i: int = 0;
+    while (i < len(buf) and buf[i] != 0) {
+        s = s + chr(buf[i]);
+        i += 1;
+    }
+
+    return s;
 }
 
 
@@ -46,19 +59,19 @@ def Py_GetBuildInfo() -> str {
     ;
 
     if initialized {
-        return buildinfo;
+        return _buf_to_str(buildinfo);
     }
 
     initialized = 1;
     revision: str = _Py_gitversion();
     gitid: str = _Py_gitidentifier();
-    if (gitid[0] == 0) {
+    if ((ord(gitid[0]) if gitid else 0) == 0) {
         gitid = "main";
     }
 
     buildinfo[0] = 0;
     c_strcpy(buildinfo, gitid);
-    if (revision[0] != 0) {
+    if ((ord(revision[0]) if revision else 0) != 0) {
         c_strcat(buildinfo, ":");
         c_strcat(buildinfo, revision);
     }
@@ -67,7 +80,7 @@ def Py_GetBuildInfo() -> str {
     c_strcat(buildinfo, "Jan 01 1970");
     c_strcat(buildinfo, ", ");
     c_strcat(buildinfo, "00:00:00");
-    return buildinfo;
+    return _buf_to_str(buildinfo);
 }
 
 def _Py_gitversion() -> str {
@@ -78,7 +91,10 @@ def _Py_gitidentifier() -> str {
     gittag: str = str();
     gitid: str = str();
     gittag = "";
-    if ((gittag[0] != 0) and (c_strcmp(gittag, "undefined") != 0)) {
+    if (
+        ((ord(gittag[0]) if gittag else 0) != 0)
+        and (c_strcmp(gittag, "undefined") != 0)
+    ) {
         gitid = gittag;
     } else {
         gitid = "";

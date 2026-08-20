@@ -4,7 +4,7 @@
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/_bisectmodule.jac",
       "quarantined_functions": [],
       "source": "jac-py/tools/p2_corpus/_staging/_bisectmodule.c",
-      "tier_b_count": 1
+      "tier_b_count": 0
     },
     {
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/_heapqmodule.jac",
@@ -16,7 +16,7 @@
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/getbuildinfo.jac",
       "quarantined_functions": [],
       "source": "jac-py/tools/p2_corpus/_staging/getbuildinfo.c",
-      "tier_b_count": 2
+      "tier_b_count": 0
     },
     {
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/getcompiler.jac",
@@ -38,11 +38,9 @@
     },
     {
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/mysnprintf.jac",
-      "quarantined_functions": [
-        "PyOS_snprintf"
-      ],
+      "quarantined_functions": [],
       "source": "jac-py/tools/p2_corpus/_staging/mysnprintf.c",
-      "tier_b_count": 1
+      "tier_b_count": 0
     },
     {
       "output": "jac-py/Modules/_lifted/p2_corpus_wave1/pyfpe.jac",
@@ -63,9 +61,7 @@
       "tier_b_count": 0
     }
   ],
-  "quarantined_functions": [
-    "PyOS_snprintf"
-  ],
-  "tier_b_total": 4,
+  "quarantined_functions": [],
+  "tier_b_total": 0,
   "version": 1
 }

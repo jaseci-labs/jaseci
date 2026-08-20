@@ -1,6 +1,4 @@
-# c2jac: 2 best-effort sites lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
+# c2jac: Tier-B clean (no best-effort fidelity sites).
 
 def c_strcmp(a: str, b: str) -> int {
     while (
@@ -10,7 +8,7 @@ def c_strcmp(a: str, b: str) -> int {
         b = b[1:];
     }
 
-    return ((ord(a[0]) if a else 0) - (ord(b[0]) if b else 0));
+    return (((ord(a[0]) if a else 0) & 255) - ((ord(b[0]) if b else 0) & 255));
 }
 
 def c_strcpy(dst: str, src: str) -> None {

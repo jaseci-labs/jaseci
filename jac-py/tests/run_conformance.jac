@@ -1,6 +1,7 @@
 """T6 P2 conformance harness skeleton (PLAN.md §6.6).
 
 Runs embedded pure-Python Lib/test-style snippets on the host CPython interpreter,
+optionally runs staged ``Modules/*.jac`` differential legs via ``libtest_runner``,
 records pass/fail, and writes ``conformance_manifest.json``. Lifted C module ports
 without a stdlib equivalent are documented as oracle- or deferred-gated only.
 
@@ -11,11 +12,11 @@ manifest ratchet.
 
 import json;
 import os;
-import shutil;
-import subprocess;
-import sys;
 import from tests.support { JAC_ROOT }
-import from .libtest_snippets { LIBTEST_SNIPPETS, LibtestSnippet }
+import from tests.jacpy.libtest_runner {
+    run_libtest_host_for_gate,
+    run_libtest_jac_differential_for_gate
+}
 
 
 glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
@@ -122,80 +123,33 @@ glob P2_MODULE_GATES: list[P2ModuleGate] = [
 ];
 
 
-def host_python() -> str {
-    for name in ["python3.14", "python3", "python"] {
-        found = shutil.which(name);
-        if found {
-            return found;
-        }
-    }
-    return sys.executable;
-}
-
-
-def run_host_snippet(code: str, timeout: float = 15.0) -> tuple[bool, str] {
-    proc = subprocess.run(
-        [host_python(), "-c", code],
-        capture_output=True,
-        text=True,
-        timeout=timeout
-    );
-    if proc.returncode != 0 {
-        detail = (proc.stderr or proc.stdout or "").strip();
-        return (False, detail or f"exit {proc.returncode}");
-    }
-    return (True, (proc.stdout or "").strip());
-}
-
-
-def _snippet_by_name(name: str) -> LibtestSnippet | None {
-    for snip in LIBTEST_SNIPPETS {
-        if snip.name == name {
-            return snip;
-        }
-    }
-    return None;
-}
-
-
 def run_libtest_snippets() -> dict {
     results: dict = {};
     for gate in P2_MODULE_GATES {
         if gate.gate_type != "libtest" {
             continue;
         }
-        passed = 0;
-        failed = 0;
-        cases: list = [];
-        for snip_name in gate.libtest_snippets {
-            snip = _snippet_by_name(snip_name);
-            assert snip is not None , f"missing libtest snippet {snip_name}";
-            (ok, detail) = run_host_snippet(snip.code);
-            cases.append(
-                {
-                    "name": snip.name,
-                    "passed": ok,
-                    "detail": detail if not ok else "ok",
-                }
-            );
-            if ok {
-                passed += 1;
-            } else {
-                failed += 1;
-            }
-        }
-        results[gate.stem] = {
-            "passed": passed,
-            "failed": failed,
-            "total": passed + failed,
-            "cases": cases,
-        };
+        results[gate.stem] = run_libtest_host_for_gate(gate.libtest_snippets);
     }
     return results;
 }
 
 
-def build_manifest(libtest_results: dict) -> dict {
+def run_jac_differential_snippets() -> dict {
+    results: dict = {};
+    for gate in P2_MODULE_GATES {
+        if gate.gate_type != "libtest" {
+            continue;
+        }
+        results[gate.stem] = run_libtest_jac_differential_for_gate(
+            gate.libtest_snippets
+        );
+    }
+    return results;
+}
+
+
+def build_manifest(libtest_results: dict, jac_differential_results: dict) -> dict {
     modules: list = [];
     for gate in P2_MODULE_GATES {
         row = {
@@ -209,6 +163,9 @@ def build_manifest(libtest_results: dict) -> dict {
         if gate.stem in libtest_results {
             row["libtest"] = libtest_results[gate.stem];
         }
+        if gate.stem in jac_differential_results {
+            row["jac_differential"] = jac_differential_results[gate.stem];
+        }
         modules.append(row);
     }
     return {
@@ -218,13 +175,15 @@ def build_manifest(libtest_results: dict) -> dict {
         "module_count": P2_MODULE_COUNT,
         "modules": modules,
         "libtest_results": libtest_results,
+        "jac_differential_results": jac_differential_results,
     };
 }
 
 
 def write_manifest(path: str = MANIFEST_PATH) -> dict {
     libtest_results = run_libtest_snippets();
-    manifest = build_manifest(libtest_results);
+    jac_differential_results = run_jac_differential_snippets();
+    manifest = build_manifest(libtest_results, jac_differential_results);
     with open(path, "w") as f {
         json.dump(manifest, f, indent=2);
         f.write("\n");
@@ -259,10 +218,23 @@ def assert_libtest_zero_failures(manifest: dict) -> None {
 }
 
 
+def assert_jac_differential_zero_failures(manifest: dict) -> None {
+    jac_results = manifest.get("jac_differential_results") as dict | None;
+    if jac_results is None {
+        return;
+    }
+    for (stem, row) in jac_results.items() {
+        detail = row as dict;
+        assert (detail["failed"] as int) == 0 , f"{stem} jac differential: {detail}";
+    }
+}
+
+
 with entry {
     manifest = write_manifest();
     assert_all_modules_gated(manifest);
     assert_libtest_zero_failures(manifest);
+    assert_jac_differential_zero_failures(manifest);
     print(f"wrote {MANIFEST_PATH} ({P2_MODULE_COUNT} modules gated)");
 }
 
@@ -282,11 +254,22 @@ test "P2 conformance: host libtest snippets pass on CPython" {
 }
 
 
+test "P2 conformance: jac differential staged modules pass when enabled" {
+    results = run_jac_differential_snippets();
+    for (stem, row) in results.items() {
+        detail = row as dict;
+        assert (detail["failed"] as int) == 0 , f"{stem}: {detail}";
+    }
+}
+
+
 test "P2 conformance: manifest ratchet — all modules gated" {
     manifest = write_manifest();
     assert_all_modules_gated(manifest);
     assert_libtest_zero_failures(manifest);
+    assert_jac_differential_zero_failures(manifest);
     on_disk = load_manifest();
     assert_all_modules_gated(on_disk);
     assert_libtest_zero_failures(on_disk);
+    assert_jac_differential_zero_failures(on_disk);
 }

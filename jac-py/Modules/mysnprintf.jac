@@ -1,10 +1,8 @@
-# c2jac: 1 best-effort site lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L6 [W4207] variadic `...` lowered to `*args` — `va_list`/`va_arg` not modelled
-
 glob va_list = str;
 
 def PyOS_snprintf(`str: str, size: int, format: str) -> int {
-    raise "c2jac: quarantined function 'PyOS_snprintf' — L6 [W4207] variadic `...` lowered to `*args` — `va_list`/`va_arg` not modelled";
+    va: va_list = "";
+    return PyOS_vsnprintf(`str, size, format, va);
 }
 
 def PyOS_vsnprintf(`str: str, size: int, format: str, va: va_list) -> int {

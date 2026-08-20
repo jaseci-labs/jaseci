@@ -1,16 +1,17 @@
-# c2jac: 2 best-effort sites lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
-#   L6 [W4201] cast to `char` elided — representation-changing conversion (truncation/narrowing/discard) not applied
+def _uchar(c: int) -> int {
+    return c & 0xFF;
+}
 
 def c_strcmp(a: str, b: str) -> int {
     while (
-        (ord(a[0]) if a else 0) and ((ord(a[0]) if a else 0) == (ord(b[0]) if b else 0))
+        _uchar(ord(a[0]) if a else 0)
+        and (_uchar(ord(a[0]) if a else 0) == _uchar(ord(b[0]) if b else 0))
     ) {
         a = a[1:];
         b = b[1:];
     }
 
-    return ((ord(a[0]) if a else 0) - (ord(b[0]) if b else 0));
+    return _uchar(ord(a[0]) if a else 0) - _uchar(ord(b[0]) if b else 0);
 }
 
 def c_strcpy(dst: list[int], src: str) -> None {

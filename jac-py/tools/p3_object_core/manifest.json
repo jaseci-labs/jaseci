@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "name": "p3_object_core_layer0",
+  "description": "P3 object-core Layer-0 replay baselines (PLAN.md §7 P3.1 exit). Counts are self-contained assertEqual pairs replayed via layer0_replay.jac — not full test-file pass rates.",
+  "reference_root": "reference/cpython",
+  "layer0_files": [
+    {
+      "stem": "test_int",
+      "path": "Lib/test/test_int.py",
+      "baseline": { "passed": 119, "failed": 0, "errored": 0 }
+    },
+    {
+      "stem": "test_bool",
+      "path": "Lib/test/test_bool.py",
+      "baseline": { "passed": 50, "failed": 0, "errored": 0 }
+    },
+    {
+      "stem": "test_str",
+      "path": "Lib/test/test_str.py",
+      "baseline": { "passed": 345, "failed": 0, "errored": 0 }
+    },
+    {
+      "stem": "test_dict",
+      "path": "Lib/test/test_dict.py",
+      "baseline": { "passed": 20, "failed": 0, "errored": 0 }
+    },
+    {
+      "stem": "test_list",
+      "path": "Lib/test/test_list.py",
+      "baseline": { "passed": 9, "failed": 0, "errored": 0 }
+    },
+    {
+      "stem": "test_tuple",
+      "path": "Lib/test/test_tuple.py",
+      "baseline": { "passed": 9, "failed": 0, "errored": 0 }
+    }
+  ],
+  "layer1_files": [
+    {
+      "stem": "test_set",
+      "path": "Lib/test/test_set.py",
+      "baseline": { "passed": 4, "failed": 0, "errored": 0, "skipped": 9 },
+      "gate": "P3.1b",
+      "status": "pending"
+    }
+  ],
+  "c2jac_objects_wave": [
+    {
+      "stem": "boolobject",
+      "cpython_path": "Objects/boolobject.c",
+      "lift_output": "jac-py/Objects/_lifted/boolobject.jac",
+      "gate": "P3.1c",
+      "status": "not_staged"
+    },
+    {
+      "stem": "sliceobject",
+      "cpython_path": "Objects/sliceobject.c",
+      "lift_output": "jac-py/Objects/_lifted/sliceobject.jac",
+      "gate": "P3.1c",
+      "status": "not_staged"
+    }
+  ]
+}

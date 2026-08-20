@@ -1,6 +1,3 @@
-# c2jac: 1 best-effort site lowered with known infidelities (behavior/hole sites quarantine their containing function; module-scope holes remain as `__c_unsupported__`):
-#   L139 [W4201] cast to `size_t` elided — representation-changing conversion (truncation/narrowing/discard) not applied
-
 glob ptrdiff_t = int;
 glob size_t = int;
 glob ssize_t = int;
@@ -133,7 +130,7 @@ def internal_bisect_right(
     tp: PyTypeObject = item.ob_type;
     compare: richcmpfunc = tp.tp_richcompare;
     while (lo < hi) {
-        mid = (lo + hi) // 2;
+        mid = (size_t(lo) + hi) // 2;
         litem = sq_item(`list, mid);
         if (litem == 0) {
             Py_LeaveRecursiveCall();

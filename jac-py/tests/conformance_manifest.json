@@ -72,6 +72,24 @@
             "detail": "ok"
           }
         ]
+      },
+      "jac_differential": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 1,
+        "total": 2,
+        "cases": [
+          {
+            "name": "bisect_precomputed",
+            "status": "pass",
+            "detail": "ok"
+          },
+          {
+            "name": "bisect_insort",
+            "status": "skip",
+            "detail": "no jac differential entry"
+          }
+        ]
       }
     },
     {
@@ -102,6 +120,24 @@
             "detail": "ok"
           }
         ]
+      },
+      "jac_differential": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 1,
+        "total": 2,
+        "cases": [
+          {
+            "name": "heapq_push_pop",
+            "status": "pass",
+            "detail": "ok"
+          },
+          {
+            "name": "heapq_heapify",
+            "status": "skip",
+            "detail": "no jac differential entry"
+          }
+        ]
       }
     },
     {
@@ -123,6 +159,19 @@
           {
             "name": "platform_basic",
             "passed": true,
+            "detail": "ok"
+          }
+        ]
+      },
+      "jac_differential": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "total": 1,
+        "cases": [
+          {
+            "name": "platform_basic",
+            "status": "pass",
             "detail": "ok"
           }
         ]
@@ -202,6 +251,57 @@
         {
           "name": "platform_basic",
           "passed": true,
+          "detail": "ok"
+        }
+      ]
+    }
+  },
+  "jac_differential_results": {
+    "_bisectmodule": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 1,
+      "total": 2,
+      "cases": [
+        {
+          "name": "bisect_precomputed",
+          "status": "pass",
+          "detail": "ok"
+        },
+        {
+          "name": "bisect_insort",
+          "status": "skip",
+          "detail": "no jac differential entry"
+        }
+      ]
+    },
+    "_heapqmodule": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 1,
+      "total": 2,
+      "cases": [
+        {
+          "name": "heapq_push_pop",
+          "status": "pass",
+          "detail": "ok"
+        },
+        {
+          "name": "heapq_heapify",
+          "status": "skip",
+          "detail": "no jac differential entry"
+        }
+      ]
+    },
+    "getplatform": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "total": 1,
+      "cases": [
+        {
+          "name": "platform_basic",
+          "status": "pass",
           "detail": "ok"
         }
       ]

@@ -622,7 +622,7 @@ jobs:
         run: jac test jac-py/tests/test_p1_corpus_density.jac
 
       - name: T8 acceptance validation unit tests
-        run: python3 -m unittest jac-py/tools/test_t8_accept.py
+        run: python3 -m unittest jac-py/tools/test_t8_accept.py jac-py/tools/test_t8_driver.py
 
       - name: P2 c2jac corpus lift + Tier-B density gate
         run: python3 -m unittest jac-py/tools/test_p2_corpus_gate.py
@@ -644,6 +644,12 @@ jobs:
 
       - name: P2 corpus density ratchet (committed lift output)
         run: jac test jac-py/tests/test_p2_corpus_density.jac
+
+      - name: P3 object core manifest gate (P3.1a)
+        run: jac test jac-py/tests/test_p3_object_core_gate.jac
+
+      - name: P3 Layer-0 corpus replay ratchet (P3.1a)
+        run: jac test jac-py/jacpython/layer0_replay.jac
 
   test-solid-and-desktop:
     needs: [changes, build-jac]
