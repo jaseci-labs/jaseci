@@ -1267,3 +1267,67 @@ test "augmented reactive assignments do not double-apply the lhs" {
         "double-application bug detected in:\n" + js
     );
 }
+
+"""Diagnostic code strings carried by a list of alerts."""
+def _codes_of(alerts: list) -> list[str] {
+    return [
+        a.code.code
+        for a in alerts
+        if a.code is not None
+    ];
+}
+
+"""Compile a fixture through client codegen, tolerating errors.
+
+Unlike compile_to_esast this keeps going when the module does not compile:
+the free-identifier audit is a hard failure, so its fixture is expected to
+leave an error behind.
+"""
+def compile_fixture_reporting(filename: str) -> JacProgram {
+    prog = JacProgram();
+    prog.compile(file_path=fixture_path(filename), type_check=True);
+    return prog;
+}
+
+test "an emitted module may not reference a name it never binds" {
+    # The general property behind #8072 and #8224: every identifier the client
+    # bundle emits must resolve to a module-scope declaration, an import, a
+    # parameter, or the browser's ambient surface. Anything else is a
+    # ReferenceError that ships green, so codegen refuses it by name.
+    prog = compile_fixture_reporting("free_identifier_unbound.jac");
+    errs = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E5101"
+    ];
+    assert len(errs) >= 1 , (
+        "an unbound identifier in the emitted module must be an error, got "
+        f"{_codes_of(prog.errors_had)}"
+    );
+    assert "missingHelper" in str(errs[0]) , (
+        f"E5101 must name the unbound identifier; got {errs[0]!s}"
+    );
+}
+
+test "the audit leaves ordinary client modules alone" {
+    # Ambient browser globals, runtime imports and the framework's own required
+    # globals are bindings the module legitimately does not declare.
+    prog = compile_fixture_reporting("state_setter_value_ref.jac");
+    assert "E5101" not in _codes_of(prog.errors_had) , (
+        "the audit must not fire on a module whose names are all bound: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+}
+
+test "a client state setter used as a value is bound by codegen" {
+    # #8224: `has theme` names both `theme` and `setTheme`; handing the setter
+    # to a constructor is the ordinary hook shape and must emit a real binding.
+    es_ast = compile_to_esast(fixture_path("state_setter_value_ref.jac"));
+    js = es_to_js(es_ast);
+    assert "const setTheme = " in js , (
+        f"the emitted module must declare setTheme; got:\n{js}"
+    );
+    assert "setTheme: setTheme" in js , (
+        f"the setter reference must stay an ordinary reference; got:\n{js}"
+    );
+}
