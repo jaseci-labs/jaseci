@@ -4,8 +4,8 @@ import csv;
 import io;
 
 def hash_bytes(data: bytes) -> str {
-    b64 = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=");
-    return f"sha256={b64.decode('ascii')}";
+    b64 = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode("ascii");
+    return f"sha256={b64.rstrip('=')}";
 }
 
 impl record_entry_from_bytes(path: str, data: bytes) -> RecordEntry {
