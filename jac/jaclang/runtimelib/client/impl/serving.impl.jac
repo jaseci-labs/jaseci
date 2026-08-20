@@ -3,7 +3,7 @@ import from jaclang.project.config { get_config }
 impl JacClient.render_page(
     introspector: ModuleIntrospector,
     function_name: str,
-    args: dict[(str, Any)],
+    args: dict[(str, any)],
     username: str
 ) -> dict[str, any] {
     introspector.load();
@@ -106,7 +106,7 @@ impl JacClient.get_client_js(introspector: ModuleIntrospector) -> str {
 
     is_pwa = dist_dir.exists() and (dist_dir / 'manifest.json').exists();
     if is_pwa {
-        for client_js in dist_dir.glob('client.*.js') {
+        for client_js in dist_dir.`glob('client.*.js') {
             return client_js.read_text(encoding='utf-8');
         }
     }

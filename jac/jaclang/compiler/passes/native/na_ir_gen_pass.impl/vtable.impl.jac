@@ -633,7 +633,7 @@ impl NaIRGenPass._emit_isa_fn -> ir.Function {
     _cls = fn.args[0];
     _tgt = fn.args[1];
 
-    entry = fn.append_basic_block("entry");
+    `entry = fn.append_basic_block("entry");
     scan = fn.append_basic_block("scan");
     row = fn.append_basic_block("row");
     anc_bb = fn.append_basic_block("anc");
@@ -641,7 +641,7 @@ impl NaIRGenPass._emit_isa_fn -> ir.Function {
     yes = fn.append_basic_block("yes");
     no = fn.append_basic_block("no");
 
-    be = ir.IRBuilder(entry);
+    be = ir.IRBuilder(`entry);
     idx = be.alloca(i64, name="i");
     be.store(ir.Constant(i64, 0), idx);
 
@@ -822,13 +822,13 @@ impl NaIRGenPass._emit_isa_seq_fn -> ir.Function {
     _cls = fn.args[0];
     _seq = fn.args[1];
 
-    entry = fn.append_basic_block("entry");
+    `entry = fn.append_basic_block("entry");
     head = fn.append_basic_block("head");
     body = fn.append_basic_block("body");
     yes = fn.append_basic_block("yes");
     no = fn.append_basic_block("no");
 
-    be = ir.IRBuilder(entry);
+    be = ir.IRBuilder(`entry);
     idx = be.alloca(i64, name="i");
     be.store(ir.Constant(i64, 0), idx);
     _null = be.icmp_unsigned("==", _seq, ir.Constant(seq_ty, None), name="isaseq.null");

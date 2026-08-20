@@ -1497,8 +1497,8 @@ impl NormalizePass.enter_jsx_comment(nd: uni.JsxComment) -> None {
 impl NormalizePass.enter_match_stmt(nd: uni.MatchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_MATCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);
@@ -1520,8 +1520,8 @@ impl NormalizePass.enter_match_case(nd: uni.MatchCase) -> None {
 impl NormalizePass.enter_switch_stmt(nd: uni.SwitchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_SWITCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);
@@ -1654,78 +1654,4 @@ impl NormalizePass.enter_token(nd: uni.Token) -> None { }
 
 impl NormalizePass.enter_string(nd: uni.String) -> None {
     nd.value = f"{nd.value}";
-}
-
-
-impl NormalizePass.enter_ct_block(nd: uni.CtBlock) -> None {
-    nd.set_kids(
-        nodes=[
-            nd.gen_token(Tok.KW_COMPTIME),
-            nd.gen_token(Tok.LBRACE),
-            nd.expr,
-            nd.gen_token(Tok.RBRACE)
-        ]
-    );
-}
-
-impl NormalizePass.enter_ct_splice(nd: uni.CtSplice) -> None {
-    nd.set_kids(
-        nodes=[nd.gen_token(Tok.DOLLAR_LBRACE), nd.expr, nd.gen_token(Tok.RBRACE)]
-    );
-}
-
-impl NormalizePass.enter_ct_name(nd: uni.CtName) -> None {
-    new_kid: list[uni.UniNode] = [];
-    for part in nd.parts {
-        new_kid.append(part);
-    }
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_ct_if(nd: uni.CtIf) -> None {
-    new_kid: list[uni.UniNode] = [
-        nd.gen_token(Tok.KW_COMPTIME),
-        nd.gen_token(Tok.KW_IF),
-        nd.condition,
-        nd.gen_token(Tok.LBRACE),
-
-    ];
-    for item in nd.body {
-        new_kid.append(item);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    if nd.else_body is not None {
-        new_kid.append(nd.else_body);
-    }
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_ct_else(nd: uni.CtElse) -> None {
-    new_kid: list[uni.UniNode] = [
-        nd.gen_token(Tok.KW_ELSE),
-        nd.gen_token(Tok.LBRACE),
-
-    ];
-    for item in nd.body {
-        new_kid.append(item);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_ct_for(nd: uni.CtFor) -> None {
-    new_kid: list[uni.UniNode] = [
-        nd.gen_token(Tok.KW_COMPTIME),
-        nd.gen_token(Tok.KW_FOR),
-        nd.target,
-        nd.gen_token(Tok.KW_IN),
-        nd.iter,
-        nd.gen_token(Tok.LBRACE),
-
-    ];
-    for item in nd.body {
-        new_kid.append(item);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    nd.set_kids(nodes=new_kid);
 }

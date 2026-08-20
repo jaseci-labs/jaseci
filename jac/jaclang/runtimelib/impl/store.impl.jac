@@ -282,7 +282,7 @@ def _owner_alive(pid: (int | None)) -> bool {
 }
 
 
-impl PgStore._connect -> Any {
+impl PgStore._connect -> any {
     import from jaclang.vendor.pgload { connect as pg_connect }
     info = self.conninfo;
     return pg_connect(
@@ -297,7 +297,7 @@ impl PgStore._connect -> Any {
 }
 
 
-impl PgStore._main -> Any {
+impl PgStore._main -> any {
     if self._conn is None {
         self._conn = self._connect();
     }
@@ -305,7 +305,7 @@ impl PgStore._main -> Any {
 }
 
 
-impl PgStore._side -> Any {
+impl PgStore._side -> any {
     self._ensure_ready();
     if self._side_conn is None {
         self._side_conn = self._connect();
@@ -331,7 +331,7 @@ def _conn_dead(e: Exception) -> bool {
 impl PgStore._run(sql: str, params: dict) -> list {
     self._ensure_ready();
     with self._lock {
-        conn: Any = None;
+        conn: any = None;
         try {
             conn = self._main();
         } except Exception as e {
@@ -365,7 +365,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
                         {'C': '08006', 'M': 'connection lost mid-transaction; retry'}
                     ) from e;
                 }
-                conn2: Any = self._main();
+                conn2: any = self._main();
                 return conn2.run(sql, **params) or [];
             }
             if self._in_txn {
@@ -756,7 +756,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
             params[f"src{i}"] = str(row.src) if row.src else None;
             params[f"dst{i}"] = str(row.dst) if row.dst else None;
             params[f"undirected{i}"] = row.undirected;
-            params[f"props{i}"] = json.dumps(row.props, default=_jsonable);
+            params[f"props{i}"] = json.dumps(row.props, `default=_jsonable);
             params[f"fv{i}"] = SCHEMA_VERSION;
         }
         self._run(
@@ -894,7 +894,7 @@ impl PgStore.kv_put(key: str, value: str) -> None {
 
 impl PgStore.kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None {
     with self._lock {
-        conn: Any = self._side();
+        conn: any = self._side();
         conn.run(
             """
             INSERT INTO kv_state (key, value, expires_at, updated_at)
@@ -943,7 +943,7 @@ impl PgStore.quarantine(
 impl PgStore.notify(channel: str, payload: str) -> None {
     with self._lock {
         ident = _channel_ident(channel);
-        conn: Any = self._side();
+        conn: any = self._side();
         conn.run(
             'SELECT pg_notify(:c, :p)',
             c=ident,
@@ -953,17 +953,17 @@ impl PgStore.notify(channel: str, payload: str) -> None {
 }
 
 
-impl PgStore.listen(channel: str, callback: Any) -> None {
+impl PgStore.listen(channel: str, callback: any) -> None {
     with self._lock {
         ident = _channel_ident(channel);
         self._listeners.append(
             ChannelListener(channel=channel, ident=ident, callback=callback)
         );
-        conn: Any = self._side();
+        conn: any = self._side();
         conn.run(f"LISTEN {_quote_channel(ident)}");
         if self._listen_thread is None {
             self._listen_stop = threading.Event();
-            t: Any = threading.Thread(
+            t: any = threading.Thread(
                 target=self._listen_loop, daemon=True, name='jac-pg-listen'
             );
             self._listen_thread = t;
@@ -974,7 +974,7 @@ impl PgStore.listen(channel: str, callback: Any) -> None {
 
 
 impl PgStore.unlisten(channel: str) -> None {
-    parked: Any = None;
+    parked: any = None;
     with self._lock {
         ident = _channel_ident(channel);
         kept = [
@@ -987,7 +987,7 @@ impl PgStore.unlisten(channel: str) -> None {
         }
         self._listeners = kept;
         shared = any((lst.ident == ident) for lst in kept);
-        conn: Any = self._side_conn;
+        conn: any = self._side_conn;
         if conn is not None and not shared {
             try {
                 conn.run(f"UNLISTEN {_quote_channel(ident)}");
@@ -1003,7 +1003,7 @@ impl PgStore.unlisten(channel: str) -> None {
 }
 
 
-impl PgStore._stop_listen_thread -> Any {
+impl PgStore._stop_listen_thread -> any {
     if self._listen_stop is not None {
         self._listen_stop.set();
     }
@@ -1013,7 +1013,7 @@ impl PgStore._stop_listen_thread -> Any {
 }
 
 
-impl PgStore._join_listen_thread(parked: Any) -> None {
+impl PgStore._join_listen_thread(parked: any) -> None {
     if parked is None or parked is threading.current_thread() {
         return;
     }
@@ -1026,16 +1026,16 @@ impl PgStore._join_listen_thread(parked: Any) -> None {
 
 impl PgStore._listen_loop -> None {
     import select;
-    stop: Any = self._listen_stop;
+    stop: any = self._listen_stop;
     if stop is None {
         return;
     }
     while not stop.is_set() {
         pending: list = [];
-        sock: Any = None;
+        sock: any = None;
         try {
             with self._lock {
-                conn: Any = self._side_conn;
+                conn: any = self._side_conn;
                 if conn is None {
                     break;
                 }
@@ -1048,7 +1048,7 @@ impl PgStore._listen_loop -> None {
             }
             if not pending {
                 if sock is None {
-                    stop.wait(_LISTEN_POLL_SECONDS);
+                    stop.`wait(_LISTEN_POLL_SECONDS);
                     continue;
                 }
                 readable = select.select([sock], [], [], _LISTEN_POLL_SECONDS)[0];
@@ -1059,7 +1059,7 @@ impl PgStore._listen_loop -> None {
                     continue;
                 }
                 with self._lock {
-                    conn2: Any = self._side_conn;
+                    conn2: any = self._side_conn;
                     if conn2 is None {
                         break;
                     }
@@ -1073,7 +1073,7 @@ impl PgStore._listen_loop -> None {
             }
         } except Exception as e {
             logger.debug(f"listen loop hiccup: {e}");
-            stop.wait(_LISTEN_POLL_SECONDS);
+            stop.`wait(_LISTEN_POLL_SECONDS);
         }
     }
 }
@@ -1188,7 +1188,7 @@ impl PgStore._property_graph_ddl -> None {
 
 
 impl PgStore.close -> None {
-    parked: Any = None;
+    parked: any = None;
     with self._lock {
         parked = self._stop_listen_thread();
         self._listeners = [];

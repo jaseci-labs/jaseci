@@ -19,7 +19,6 @@ import os;
 import re;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from typing { Any }
 import from uuid { UUID }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
@@ -35,14 +34,14 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures"),
 
 obj _BootProbe {
     has calls: list[str] = [],
-        _orig: Any = None;
+        _orig: any = None;
 
     def install {
         self._orig = PgRuntime.ensure;
         calls = self.calls;
         orig = self._orig;
 
-        def _probe(rt: Any) -> Any {
+        def _probe(rt: any) -> any {
             calls.append(str(rt.database));
             return orig(rt);
         }
@@ -214,7 +213,7 @@ test "first-use schema DDL runs once per database, even from many threads" {
     ready = threading.Barrier(racers);
 
     def race {
-        ready.wait(10);
+        ready.`wait(10);
         store.ensure_schema_once({});
     }
     threads = [

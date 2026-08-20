@@ -172,7 +172,7 @@ impl RcFactsPass._borrow_arg_callee_ok(bx: UnaryExpr) -> bool {
 }
 
 impl RcFactsPass._asn_makes_region_handle(nd: Assignment) -> bool {
-    import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+    import from jaclang.compiler.expr_keys { is_builtin_region_name }
     if isinstance(nd.value, FuncCall) and is_builtin_region_name(nd.value.target) {
         return True;
     }
@@ -252,7 +252,7 @@ impl RcFactsPass._stamp_last_use(ir_in: Module) -> None {
             self._collect_last_use(mc, mc.body, out);
         }
     }
-    ir_in.gen.rc_last_use = out;
+    ir_in.rc_last_use = out;
 }
 
 impl RcFactsPass._collect_last_use(
@@ -275,14 +275,15 @@ impl RcFactsPass._collect_last_use(
             sym_last[id(sym)] = (idx, nm.sym_name);
         }
     }
-    for (_, entry) in sym_last.items() {
-        (idx, name) = entry;
-        key = id(body[idx]);
+    for `entry in sym_last.values() {
+        _idx: int = `entry[0];
+        _name: str = `entry[1];
+        key = id(body[_idx]);
         if key not in out {
             out[key] = [];
         }
-        if name not in out[key] {
-            out[key].append(name);
+        if _name not in out[key] {
+            out[key].append(_name);
         }
     }
 }
@@ -327,7 +328,7 @@ impl RcFactsPass._stamp_move_in(ir_in: Module) -> None {
         }
         out.add(id(use));
     }
-    ir_in.gen.rc_move_in = out;
+    ir_in.rc_move_in = out;
 }
 
 impl RcFactsPass._stamp_anon_regions(ir_in: Module) -> None {
@@ -335,7 +336,7 @@ impl RcFactsPass._stamp_anon_regions(ir_in: Module) -> None {
     close_map: dict[int, int] = {};
     locals_map: dict[int, list[str]] = {};
     gidx = 0;
-    blocks: list = [];
+    blocks: list[Sequence[UniNode]] = [];
     for ab in ir_in.get_all_sub_nodes(Ability) {
         if isinstance(ab.signature, FuncSignature)
             and isinstance(ab.body, (list, tuple)) {
@@ -356,9 +357,9 @@ impl RcFactsPass._stamp_anon_regions(ir_in: Module) -> None {
             gidx += 1;
         }
     }
-    ir_in.gen.anon_region_open = open_map;
-    ir_in.gen.anon_region_close = close_map;
-    ir_in.gen.anon_region_locals = locals_map;
+    ir_in.anon_region_open = open_map;
+    ir_in.anon_region_close = close_map;
+    ir_in.anon_region_locals = locals_map;
 }
 
 impl RcFactsPass._arch_of_call(expr: (UniNode | None)) -> (Archetype | None) {
@@ -445,12 +446,14 @@ impl RcFactsPass._anon_extent_poisoned(
     return False;
 }
 
-impl RcFactsPass._scan_anon_region_block(body: Sequence[UniNode]) -> list[tuple] {
+impl RcFactsPass._scan_anon_region_block(
+    body: Sequence[UniNode]
+) -> list[tuple[int, int, list[str]]] {
     stmt_idx: dict[int, int] = {};
     for (i, s) in enumerate(body) {
         stmt_idx[id(s)] = i;
     }
-    members: dict[int, tuple] = {};
+    members: dict[int, tuple[Symbol, int, str]] = {};
     order: list[int] = [];
     bad: set[int] = set();
     for (i, s) in enumerate(body) {
@@ -575,8 +578,8 @@ impl RcFactsPass._scan_anon_region_block(body: Sequence[UniNode]) -> list[tuple]
         }
         groups[lb].append(sid);
     }
-    out: list[tuple] = [];
-    used_ranges: list[tuple] = [];
+    out: list[tuple[int, int, list[str]]] = [];
+    used_ranges: list[tuple[int, int]] = [];
     for (lb, sids) in groups.items() {
         if any([(s in bad) for s in sids]) {
             continue;
@@ -584,8 +587,18 @@ impl RcFactsPass._scan_anon_region_block(body: Sequence[UniNode]) -> list[tuple]
         if not any([(s in spawned) for s in sids]) {
             continue;
         }
-        open_idx = min([members[s][1] for s in sids]);
-        close_idx = max([last_idx[s] for s in sids]);
+        open_idx = -1;
+        close_idx = -1;
+        for s in sids {
+            _oi: int = members[s][1];
+            _ci: int = last_idx[s];
+            if open_idx < 0 or _oi < open_idx {
+                open_idx = _oi;
+            }
+            if _ci > close_idx {
+                close_idx = _ci;
+            }
+        }
         if close_idx <= open_idx {
             continue;
         }
@@ -776,17 +789,6 @@ impl RcFactsPass._move_candidate_source(nd: Assignment) -> (Name | None) {
     return val;
 }
 
-impl RcFactsPass._live_transfer(nd: UniCFGNode, out_set: set[SymId]) -> set[SymId] {
-    new_in = set(self._node_use.get(id(nd), set()));
-    dfn = self._node_def.get(id(nd), set());
-    for x in out_set {
-        if x not in dfn {
-            new_in.add(x);
-        }
-    }
-    return new_in;
-}
-
 impl RcFactsPass._solve_liveness(
     cfg_nodes: list[UniCFGNode], tracked: set[SymId]
 ) -> dict[int, set[SymId]] {
@@ -812,5 +814,5 @@ impl RcFactsPass._solve_liveness(
         self._node_use[id(n)] = use;
         self._node_def[id(n)] = dfn;
     }
-    return solve_backward(cfg_nodes, self._live_transfer);
+    return solve_backward_gen_kill(cfg_nodes, self._node_use, self._node_def);
 }

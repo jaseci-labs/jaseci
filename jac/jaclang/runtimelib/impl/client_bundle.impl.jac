@@ -66,7 +66,7 @@ impl _prebuilt_bundle(module: ModuleType, source_path: Path) -> (ClientBundle | 
     if dist is None {
         return None;
     }
-    candidates = sorted(dist.glob('client.*.js'));
+    candidates = sorted(dist.`glob('client.*.js'));
     if not candidates {
         return None;
     }
@@ -136,7 +136,7 @@ impl ClientBundleBuilder._extract_client_exports(
 impl ClientBundleBuilder._extract_client_globals(
     manifest: (ClientManifest | None), module: ModuleType
 ) -> dict[str, any] {
-    client_globals_map: dict[(str, Any)] = {};
+    client_globals_map: dict[(str, any)] = {};
     if manifest {
         for name in manifest.globals {
             if (name in manifest.globals_values) {

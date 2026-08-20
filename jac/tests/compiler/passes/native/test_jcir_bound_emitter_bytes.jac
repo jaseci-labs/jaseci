@@ -9,11 +9,11 @@ The #8288 M1 crossing census measured why. `pass_serve._bind_one`
 resolves the artifact, `dlopen`s it, calls `__jac_shared_init`, checks
 that every advertised export resolves by `dlsym`, and probes
 `jac_str_new` for liveness -- and then retains the engine and **no
-function pointer**. `_require_native_pass_tier` runs from
-`BaseTransform.postinit`, raises when the image claims a module the
-binder could not bind, and on the success path falls straight through
-to the pass's bytecode body. So `JcirGenPass(...).ir_bytes()` executes
-Python on both sides of the comparison below.
+function pointer**. `require_native_pass_tier` runs from the rim's
+construction seam, raises when the image claims a module the binder
+could not bind, and on the success path falls straight through to the
+pass's bytecode body. So `JcirGenPass(...).ir_bytes()` executes Python
+on both sides of the comparison below.
 
 What the file therefore proves, and what is worth proving:
 
@@ -49,7 +49,6 @@ import os;
 import shutil;
 import tempfile;
 import types;
-import pytest;
 import jaclang;
 import jaclang.jac0core.parser.frontend as frontend;
 import jaclang.jac0core.sealed as sealed;
@@ -59,7 +58,7 @@ import from pathlib { Path }
 import from jaclang.jac0core.codegen_shim { transcribe }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
-import from jaclang.jac0core.passes.transform {
+import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES
 }
@@ -117,7 +116,7 @@ def native_true_image -> bool {
 """Build the jcir artifact once for the whole file; (tmpdir, artifacts)."""
 def _built -> tuple {
     if native_true_image() {
-        pytest.skip(
+        testskip(
             "this runtime already serves jcir from its own native seal, so "
             "both sides of the comparison would be the sealed lane"
         );
@@ -142,13 +141,13 @@ def _built -> tuple {
 
 def _artifact_resolver(tmp: str, arts: dict) -> any {
     def _resolve(fullname: str) -> (tuple | None) {
-        entry = arts.get(fullname);
-        if entry is None {
+        `entry = arts.get(fullname);
+        if `entry is None {
             return None;
         }
-        lib_path = os.path.join(tmp, entry["lib"]);
+        lib_path = os.path.join(tmp, `entry["lib"]);
         layout = json.loads(
-            Path(os.path.join(tmp, entry["layout"])).read_text(encoding="utf-8")
+            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
         );
         return (lib_path, layout, );
     }
@@ -310,7 +309,7 @@ test "container bytes are the same with the artifact bound and without" {
 
 test "the bound emission still runs the Python body, and says so" {
     # The self-clearing half of this file's honesty. The binder retains an
-    # engine and no function pointer, so `_require_native_pass_tier` falls
+    # engine and no function pointer, so `require_native_pass_tier` falls
     # through to the bytecode body and an internal visitor of that body is
     # observable from here. On the day the artifact genuinely serves the
     # pass, this observation stops holding -- and the two tests above have

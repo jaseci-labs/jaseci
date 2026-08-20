@@ -1036,7 +1036,7 @@ impl JacBuiltin.safe_subscript(`obj: any, key: any) -> any {
     }
 }
 
-impl JacGraph.root -> Root {
+impl JacGraph.`root -> Root {
     return JacRuntime.get_context().get_root();
 }
 
@@ -1367,9 +1367,9 @@ impl JacServe.create_server(
 impl JacServe.render_page(
     introspector: ModuleIntrospector,
     function_name: str,
-    args: dict[(str, Any)],
+    args: dict[(str, any)],
     username: str
-) -> dict[(str, Any)] {
+) -> dict[(str, any)] {
     import from jaclang.runtimelib.client.serving { JacClient }
     return JacClient.render_page(introspector, function_name, args, username);
 }
@@ -1732,11 +1732,11 @@ impl JacContext.thread_wait(future: any) -> None {
     return future.result();
 }
 
-impl JacConfig.on_config_loaded(config: dict[(str, Any)]) -> None {
+impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {
     ;
 }
 
-impl JacConfig.validate_config(config: dict[(str, Any)]) -> list[str] {
+impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
     return [];
 }
 

@@ -6,7 +6,7 @@ import from logging { getLogger }
 import from pickle { dumps }
 import from threading { Lock }
 import from types { UnionType }
-import from typing { Any, ClassVar, TypeAlias, TypeVar }
+import from typing { ClassVar, TypeAlias, TypeVar }
 import from uuid { UUID, uuid4 }
 import from jaclang.jac0core.constant { EdgeDir }
 glob logger = getLogger(__name__),
@@ -59,20 +59,20 @@ obj PermissionDenied {
         required: AccessLevel,
         actual: AccessLevel;
 
-    def to_dict -> dict[(str, Any)];
+    def to_dict -> dict[(str, any)];
     def message -> str;
 }
 
 obj AnchorReport {
     has id: str,
-        context: dict[(str, Any)];
+        context: dict[(str, any)];
 }
 
 
 obj Anchor {
     has archetype: Archetype,
         id: UUID = field(default_factory=uuid4),
-        root: (UUID | None) = None,
+        `root: (UUID | None) = None,
         access: Permission = field(default_factory=Permission),
         persistent: bool = False,
         hash: int = 0;
@@ -81,8 +81,8 @@ obj Anchor {
     def make_stub -> TANCH;
     def populate -> None;
     def __getattr__(name: str) -> object;
-    def __getstate__ -> dict[(str, Any)];
-    def __setstate__(state: dict[(str, Any)]) -> None;
+    def __getstate__ -> dict[(str, any)];
+    def __setstate__(state: dict[(str, any)]) -> None;
     def __repr__ -> str;
     def `report -> AnchorReport;
     def __hash__ -> int;
@@ -207,7 +207,7 @@ obj Root(NodeArchetype) {
 
 obj ObjectSpatialFunction {
     has name: str,
-        func: Callable[([any, any], Any)],
+        func: Callable[([any, any], any)],
         trigger_override: any = _NO_TRIGGER;
 
     @cached_property
