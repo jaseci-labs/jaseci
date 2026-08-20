@@ -12,7 +12,7 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-def _atomic_write_text(path: any, text: str) {
+def _atomic_write_text(path: Path, text: str) {
     import os;
     tmp = path.with_name(path.name + '.tmp');
     tmp.write_text(text, encoding='utf-8');
@@ -249,7 +249,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
-        path_obj = Path(import_path).resolve();
+        path_obj = Path(str(import_path)).resolve();
         if target_name == "react-native" {
             path_obj = self._native_variant(path_obj);
         }
@@ -622,6 +622,9 @@ impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
 
 impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> None {
     scanner = self._route_scanner;
+    if scanner is None {
+        return;
+    }
     routes = scanner._routes;
     layouts = scanner.get_layouts();
     lines: list[str] = [];
@@ -704,7 +707,7 @@ impl JacClientCompiler.init(
     self.import_processor = ImportProcessor();
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
-    self._route_scanner = None;
+    self._route_scanner: (RouteScanner | None) = None;
     self.na_wasm_modules = set();
 }
 
