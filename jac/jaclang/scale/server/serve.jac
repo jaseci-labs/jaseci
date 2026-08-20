@@ -228,6 +228,8 @@ obj JacAPIServerScheduler {
 }
 
 obj JacAPIServerStatic {
+    has _asset_table: list[AssetRoot] | None = None;
+
     def asset_base_path -> Path;
     def _get_asset_table -> list[AssetRoot];
     def serve_static_file(file_path: str) -> Response;
@@ -251,6 +253,5 @@ obj JacAPIServer(JacAPIServerCore, JacAPIServerAuth, JacAPIServerEndpoints, JacA
         _metrics: MetricsCollector | None = None,
         _ws_manager: WebSocketConnectionManager | None = None,
         _broker: EventStreamBroker | None = None,
-        _emailer: Emailer | None = None,
-        _asset_table: list[AssetRoot] | None = None;
+        _emailer: Emailer | None = None;
 }
