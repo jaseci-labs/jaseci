@@ -13,11 +13,11 @@ obj:pub Box {
         setTheme: (Callable[[str], None] | None) = None;
 }
 
-def:pub useThing() -> Box {
+def:pub useThing -> Box {
     has theme: str = "dark";
     return Box(theme=theme, setTheme=setTheme);
 }
 
-def:pub app() -> JsxElement {
+def:pub app -> JsxElement {
     return <div>{useThing().theme}</div>;
 }
