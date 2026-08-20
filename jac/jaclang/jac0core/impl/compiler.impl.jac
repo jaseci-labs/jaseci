@@ -740,7 +740,7 @@ impl JacCompiler.parse_str(
         }
         if not codespace {
             import from jaclang.jac0core.placement_pins {
-                config_module_pin as _mod_pin
+                effective_module_pin as _mod_pin
             }
             _pinned_space = _mod_pin(file_path);
             if _pinned_space in ('client', 'native') {
@@ -1181,6 +1181,7 @@ impl JacCompiler.compile(
         na_coverage_record(
             _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
         );
+        import from jaclang.jac0core.placement_pins { _mark_demoted_native }
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
         _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
@@ -1188,6 +1189,18 @@ impl JacCompiler.compile(
             _wrap_prog.invalidate_module(_resolved);
         } except Exception {
             ;
+        }
+        try {
+            import from jaclang.jac0core.placement_solver { invalidate_importers_es }
+            for _stale_mod in invalidate_importers_es(_wrap_prog, _resolved) {
+                _drop_demoted_native_bindings(_stale_mod, _resolved);
+            }
+        } except Exception as _reset_exc {
+            import logging as _reset_log;
+            _reset_log.getLogger(__name__).warning(
+                f"native demotion of {_resolved} could not reset its importers "
+                f"({_reset_exc}); stale client bindings may persist until a rebuild."
+            );
         }
         try {
             import from jaclang.cli.console { console as _note_console }

@@ -23,7 +23,7 @@ def native_scan_memo_clear {
 }
 
 def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
-    import from jaclang.jac0core.compiler { _is_demoted_native }
+    import from jaclang.jac0core.placement_pins { _is_demoted_native }
     import from jaclang.jac0core.helpers { read_file_with_encoding }
     import from jaclang.jac0core.program { JacProgram }
     if _is_demoted_native(os.path.realpath(path)) {
@@ -126,10 +126,8 @@ def native_default_path_ok(path: str) -> bool {
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
-    import from jaclang.jac0core.compiler {
-        _is_demoted_native,
-        native_pipeline_available
-    }
+    import from jaclang.jac0core.compiler { native_pipeline_available }
+    import from jaclang.jac0core.placement_pins { _is_demoted_native }
 
     try {
         import from jaclang.project.config { get_config }
@@ -850,6 +848,41 @@ def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
     }
 }
 
+def invalidate_importers_es(prog: any, mod_path: str) -> list[uni.Module] {
+    cleared: list[uni.Module] = [];
+    hub = prog?.mod?.hub;
+    if not isinstance(hub, dict) {
+        return cleared;
+    }
+    key = os.path.realpath(mod_path);
+    for m in list(hub.values()) {
+        if (
+            not isinstance(m, uni.Module)
+            or m.loc is None
+            or os.path.realpath(m.loc.mod_path) == key
+        ) {
+            continue;
+        }
+        for imp in m.get_all_sub_nodes(uni.Import) {
+            if imp.from_loc is None {
+                continue;
+            }
+            try {
+                target = imp.from_loc.resolve_relative_path();
+            } except Exception {
+                continue;
+            }
+            if isinstance(target, str) and os.path.realpath(target) == key {
+                m.gen.js = '';
+                m.gen.es_ast = None;
+                cleared.append(m);
+                break;
+            }
+        }
+    }
+    return cleared;
+}
+
 def demote_client_pulled_elements(
     module: uni.Module, prog: any, err_mark: int, warn_mark: int
 ) -> bool {
@@ -896,30 +929,7 @@ def demote_client_pulled_elements(
     del prog.warnings_had[warn_mark:];
     module.gen.js = '';
     module.gen.es_ast = None;
-    key = os.path.abspath(mod_path);
-    hub = prog?.mod?.hub;
-    if isinstance(hub, dict) {
-        for m in list(hub.values()) {
-            if not isinstance(m, uni.Module) or m is module {
-                continue;
-            }
-            for stmt in m.body {
-                if (
-                    isinstance(stmt, uni.Import)
-                    and stmt.code_context == CodeContext.CLIENT
-                    and stmt.from_loc is not None
-                ) {
-                    resolved = stmt.from_loc.resolve_relative_path();
-                    if (
-                        isinstance(resolved, str) and os.path.abspath(resolved) == key
-                    ) {
-                        m.gen.js = '';
-                        m.gen.es_ast = None;
-                    }
-                }
-            }
-        }
-    }
+    invalidate_importers_es(prog, mod_path);
     try {
         import sys;
         import from jaclang.cli.console { console }
