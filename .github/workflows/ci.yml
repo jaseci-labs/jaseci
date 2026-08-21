@@ -622,6 +622,9 @@ jobs:
       - name: P3 object core manifest gate (P3.1a/P3.1b)
         run: jac test jac-py/tests/test_p3_object_core_gate.jac
 
+      - name: P3 standalone SipHash secret bootstrap
+        run: jac test jac-py/jacpython/test_pyhash_secret.jac
+
       - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac
 

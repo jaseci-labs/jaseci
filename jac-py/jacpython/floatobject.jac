@@ -86,7 +86,7 @@ def float_repr(v: PyFloat) -> PyObj {
 
 # CPython ``float_hash`` — ``_Py_HashDouble`` (+ pointer hash for NaN).
 def float_hash_obj(v: PyFloat) -> PyObj {
-    return PyInt(t="int", val=int(float_hash_value(v)));
+    return PyInt(t="int", val=int(float_hash_value(v.val, id(v))));
 }
 
 # P3.2c — float core helpers (hash entry + EQ lane).

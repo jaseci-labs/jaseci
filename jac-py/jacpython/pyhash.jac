@@ -1,33 +1,17 @@
 # P3.2a — CPython hash algorithms (``Py_HashBuffer`` / ``_Py_HashDouble``).
 #
-# SipHash13 + float reduction are pure Jac. SipHash keys come from the embedding
-# interpreter's ``_Py_HashSecret`` (process-local, matches host ``hash(str)``).
-import from objects { PyFloat, }
-
-::py::
-import ctypes
-
-
-class _SipHashKeys(ctypes.Structure):
-    _fields_ = [("k0", ctypes.c_uint64), ("k1", ctypes.c_uint64)]
-
-
-class _HashSecretUnion(ctypes.Union):
-    _fields_ = [("uc", ctypes.c_ubyte * 24), ("siphash", _SipHashKeys)]
-
-
-def _jac_siphash_keys() -> tuple[int, int]:
-    secret = _HashSecretUnion.in_dll(ctypes.CDLL(None), "_Py_HashSecret")
-    return (int(secret.siphash.k0), int(secret.siphash.k1))
-::py::
-
+# SipHash13 + float reduction are pure Jac. SipHash keys are process-local:
+# honor ``PYTHONHASHSEED`` (CPython LCG / zero / random) via ``os.urandom``,
+# without reading the embedding interpreter's ``_Py_HashSecret``.
+#
+# Leaf module: no ``objects`` import (keeps secret probes free of OSP/ceval).
+import os;
 
 glob _U64: int = 0xFFFFFFFFFFFFFFFF,
      _PyHASH_MODULUS: int = 2305843009213693951,
      _PyHASH_BITS: int = 61,
      _PyHASH_INF: int = 314159,
-     _SIPHASH_K0: int = (_jac_siphash_keys()[0] as int),
-     _SIPHASH_K1: int = (_jac_siphash_keys()[1] as int);
+     _MAX_HASH_SEED: int = 4294967295;
 
 
 def _u64(x: int) -> int {
@@ -81,6 +65,66 @@ def _le64_from_tail(data: list[int], off: int, rem: int) -> int {
     }
     return _u64(x);
 }
+
+# CPython ``lcg_urandom`` (``Python/bootstrap_hash.c``) — fill ``size`` bytes.
+def _lcg_urandom(seed: int, size: int) -> list[int] {
+    x = seed & 0xFFFFFFFF;
+    out: list[int] = [];
+    i = 0;
+    while i < size {
+        x = (x * 214013 + 2531011) & 0xFFFFFFFF;
+        out.append((x >> 16) & 0xFF);
+        i = i + 1;
+    }
+    return out;
+}
+
+# SipHash keys from a numeric ``PYTHONHASHSEED`` (0 → all-zero secret).
+def hash_secret_keys_from_seed(seed: int) -> tuple[int, int] {
+    if seed == 0 {
+        return (0, 0);
+    }
+    uc = _lcg_urandom(seed, 24);
+    return (_le64_from_bytes(uc, 0), _le64_from_bytes(uc, 8));
+}
+
+def _hash_secret_keys_random -> tuple[int, int] {
+    raw = os.urandom(24);
+    uc: list[int] = [];
+    for b in raw {
+        uc.append(b);
+    }
+    return (_le64_from_bytes(uc, 0), _le64_from_bytes(uc, 8));
+}
+
+# Mirror ``config_init_hash_seed`` + ``_Py_HashRandomization_Init``.
+def _jac_siphash_keys -> tuple[int, int] {
+    seed_text = os.environ.get("PYTHONHASHSEED");
+    if seed_text is None or seed_text == "random" {
+        return _hash_secret_keys_random();
+    }
+    try {
+        seed = int(seed_text);
+    } except ValueError {
+        raise ValueError(
+            "PYTHONHASHSEED must be \"random\" "
+            + "or an integer in range [0; 4294967295]"
+        );
+    }
+    if seed < 0 or seed > _MAX_HASH_SEED {
+        raise ValueError(
+            "PYTHONHASHSEED must be \"random\" "
+            + "or an integer in range [0; 4294967295]"
+        );
+    }
+    return hash_secret_keys_from_seed(seed);
+}
+
+# Single bootstrap call — random mode must not draw two independent secrets.
+glob _SIPHASH_KEYS: tuple[int, int] = _jac_siphash_keys(),
+     _SIPHASH_K0: int = (_SIPHASH_KEYS[0] as int),
+     _SIPHASH_K1: int = (_SIPHASH_KEYS[1] as int);
+
 
 def _siphash13(k0: int, k1: int, data: list[int]) -> int {
     src_sz = len(data);
@@ -261,9 +305,9 @@ def bytes_hash_data(data: list[int]) -> int {
     return _hash_buffer(data);
 }
 
-def float_hash_value(v: PyFloat) -> int {
-    if v.val != v.val {
-        return _hash_pointer(id(v));
+def float_hash_value(val: float, obj_id: int) -> int {
+    if val != val {
+        return _hash_pointer(obj_id);
     }
-    return _hash_double(v.val);
+    return _hash_double(val);
 }
