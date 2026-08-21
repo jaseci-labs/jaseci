@@ -2174,7 +2174,7 @@ test "expr_narrowing" {
         + "\n".join([err.pretty_print() for err in program.errors_had]);
 }
 
-"""Bug #7261: `x == "literal"` narrows x, like the int/float/bool forms do."""
+"""`x == "literal"` narrows x, like the int, float and bool forms do."""
 test "literal_eq_narrowing" {
     program = JacProgram();
     mod = program.compile(
@@ -2188,7 +2188,7 @@ test "literal_eq_narrowing" {
         + "\n".join([err.pretty_print() for err in program.errors_had]);
 }
 
-"""Bug #7261 follow-up: `x != "literal"` rules out a value, not a class."""
+"""`x != "literal"` rules out one value, never the whole class."""
 test "literal_ne_does_not_over_narrow" {
     program = JacProgram();
     mod = program.compile(

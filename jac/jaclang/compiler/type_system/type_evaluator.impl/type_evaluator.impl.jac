@@ -4902,16 +4902,7 @@ impl TypeEvaluator._exclusion_drops_member(
     member: TypeBase, to_exclude: TypeBase
 ) -> bool {
     """Whether excluding `to_exclude` removes `member` outright.
-
-    Excluding a bare class removes every member of that class: ruling out
-    `NoneType` leaves nothing of `NoneType` behind. Excluding a *literal* is
-    weaker, because a literal is one value rather than a whole class. `x !=
-    "node"` rules out the single string `"node"`, and every other string
-    remains, so it may only remove a member that is that same literal and
-    must leave a bare-class member alone. Matching on the class alone would
-    read the two as one, because `clone_with_literal` shares its `shared`
-    with the class it refines and so reports the same `canonical_key`, and
-    `str | None` would narrow to `None` on the true branch over a live `str`.
+    A literal drops only that same literal; a bare class drops every member.
     """;
     if not (isinstance(member, ClassType) and isinstance(to_exclude, ClassType)) {
         return member is to_exclude;
@@ -4930,19 +4921,7 @@ impl TypeEvaluator._exclusion_drops_member(
 
 impl TypeEvaluator._literal_comparison_excludes(compared: TypeBase | None) -> bool {
     """Whether a literal comparison may subtract `compared` on its other edge.
-
-    Each of `==` and `!=` has one sound edge and one conditional one. Matching
-    proves the class, so the edge that narrows *to* the compared type always
-    holds: `v == 5` gives `int` on its true edge, and `v != 5` gives it on the
-    false edge. The opposite edge subtracts instead, and subtraction is only
-    justified for a value the type can name: ruling out `"node"` leaves every
-    other `str` standing, so it may only remove a `Literal["node"]` member.
-
-    `5`, `1.5` and `True` evaluate to their bare class rather than a literal
-    -- and `float` can never be otherwise, having no literal form -- so the
-    compared type there says "an int", not "the value 5". Subtracting it would
-    delete the class over a live value, which is why that edge is switched off
-    rather than narrowed.
+    Only a type that names a value may be subtracted, never a bare class.
     """;
     return isinstance(compared, ClassType) and compared.is_literal_type();
 }
@@ -5232,26 +5211,7 @@ impl TypeEvaluator._extract_callable_info(condition: Expr) -> str | None {
 
 impl TypeEvaluator._extract_literal_operand_type(operand: Expr) -> TypeBase | None {
     """Return the type an `==`/`!=` operand contributes as a literal, else None.
-
-    One literal value has many spellings. `Literal` is the shared base of the
-    atomic ones (`5`, `1.5`, `True`, a `String`), but a string literal never
-    reaches an expression as a bare `String`: the parser wraps every one of
-    them -- a lone `"node"` just as much as an implicit concatenation -- in a
-    `MultiString`, and parentheses add an `AtomUnit` on top of any of them.
-    Matching a hand-listed set of node classes therefore drops the narrowing
-    for whichever spellings the list forgets, silently and with no diagnostic.
-
-    So each spelling is recognized by what it is rather than by how it is
-    written: an atomic literal by its `Literal` base, and anything else by the
-    evaluated type being a `Literal[...]`, which is how a `MultiString` of
-    all-literal parts already evaluates (an f-string with an interpolation
-    evaluates to plain `str` and is correctly left alone).
-
-    `Null` is excluded because `x == None` is classified as None-narrowing
-    before reaching here, and `Ellipsis`/`BuiltinType` because they denote a
-    type rather than a value to narrow to. A reference operand (`x == y`) is
-    excluded even when its declared type is a literal, so that classifying a
-    condition never walks back into narrowing the operand being classified.
+    Recognized by the `Literal` base or by evaluating to a `Literal[...]`.
     """;
     if self.create_key_for_reference(operand) is not None {
         return None;
