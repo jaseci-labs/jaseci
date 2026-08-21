@@ -107,6 +107,21 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.MATMUL_EQ: Tok.DECOR_OP
      };
 
+def _has_gradual_type_args(t: TypeBase) -> bool {
+    if not isinstance(t, ClassType) {
+        return False;
+    }
+    for a in (t.private.type_args or []) {
+        if isinstance(a, (AnyType, UnknownType)) {
+            return True;
+        }
+        if isinstance(a, ClassType) and a.is_any_instance() {
+            return True;
+        }
+    }
+    return False;
+}
+
 def _is_int_like(t: ClassType) -> bool {
     return t.is_builtin("int")
         or (t.is_builtin() and t.shared.class_name in INT_LIKE_WIDTHS);
@@ -363,6 +378,10 @@ def get_type_of_binary_operation(
         if result is None {
             if expr.op.name == Tok.BW_OR {
                 return UnionType(types=[left_type, right_type]);
+            }
+            if _has_gradual_type_args(left_type)
+                or _has_gradual_type_args(right_type) {
+                return UnknownType();
             }
             evaluator.emit_diag(E1055, expr, method=magic);
             return UnknownType();

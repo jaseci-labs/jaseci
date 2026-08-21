@@ -438,7 +438,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                 elem_type = self.get_type_of_expression(expr.out_expr);
                 if isinstance(set_inst, ClassType)
                     and not isinstance(elem_type, UnknownType) {
-                    set_inst.private.type_args = [elem_type];
+                    set_inst.private.type_args = [
+                        self._widen_literal_for_declaration(elem_type)
+                    ];
                 }
                 return set_inst;
             }
@@ -453,7 +455,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                     else UnknownType();
                 if isinstance(gen_inst, ClassType)
                     and not isinstance(elem_type, UnknownType) {
-                    gen_inst.private.type_args = [elem_type, none_inst, none_inst];
+                    gen_inst.private.type_args = [
+                        self._widen_literal_for_declaration(elem_type),
+                        none_inst,
+                        none_inst
+                    ];
                 }
                 return gen_inst;
             }
@@ -477,7 +483,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                         ) {
                         list_inst.private.type_args = [expected_elem_lc];
                     } elif not isinstance(elem_type, UnknownType) {
-                        list_inst.private.type_args = [elem_type];
+                        list_inst.private.type_args = [
+                            self._widen_literal_for_declaration(elem_type)
+                        ];
                     }
                 }
                 return list_inst;

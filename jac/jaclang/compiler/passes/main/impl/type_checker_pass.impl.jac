@@ -402,8 +402,13 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
 
             if (
                 target.sym.decl.name_of is not target
-                and isinstance(target.sym.decl.name_of.parent, Assignment)
-                and target.sym.decl.name_of.parent.type_tag is None
+                and (
+                    (
+                        isinstance(target.sym.decl.name_of.parent, Assignment)
+                        and target.sym.decl.name_of.parent.type_tag is None
+                    )
+                    or isinstance(target.sym.decl.name_of.parent, InForStmt)
+                )
             ) {
                 is_unannotated_reassign = True;
 
