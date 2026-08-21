@@ -400,14 +400,14 @@ def _default_compact(messages: list, keep_recent: int, model: BaseLLM) -> list {
 
 
 impl BaseLLM._get_ctx_window(call_params: dict) -> int {
-    override = int(
+    `override = int(
         call_params.get("ctx_window")
             or self.ctx_window
             or get_byllm_config().get_compaction_config().get("ctx_window", 0)
             or 0
     );
-    if override > 0 {
-        return override;
+    if `override > 0 {
+        return `override;
     }
     return _litellm_ctx_window(self.model_name);
 }

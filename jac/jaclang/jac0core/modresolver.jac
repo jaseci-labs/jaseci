@@ -5,7 +5,8 @@ import from pathlib { Path }
 import from jaclang.jac0core.ext_registry { MODULE_SUFFIXES, language_of }
 
 glob _project_root_cache: dict = {},
-     _import_base_stack: list = [];
+     _import_base_stack: list = [],
+     COMPILER_PACKAGE: str = 'jaclang';
 
 def push_import_base(base_dir: str) {
     _import_base_stack.append(base_dir);
@@ -123,6 +124,28 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
         return ((candidate + '.js'), 'js');
     }
     return None;
+}
+
+def _self_tree_candidate(
+    base_dir: str, actual_parts: list[str]
+) -> (tuple[(str, str)] | None) {
+    if actual_parts[0] == COMPILER_PACKAGE {
+        return None;
+    }
+    cur = os.path.abspath(base_dir);
+    while True {
+        parent = os.path.dirname(cur);
+        if parent == cur {
+            return None;
+        }
+        if os.path.basename(cur) == actual_parts[0] {
+            res = _candidate_from(parent, actual_parts);
+            if res {
+                return res;
+            }
+        }
+        cur = parent;
+    }
 }
 
 def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
@@ -297,6 +320,10 @@ def resolve_module(
         }
         actual_parts = parts[level:];
         res = _candidate_from(base_dir, actual_parts);
+        if res {
+            return res;
+        }
+        res = _self_tree_candidate(base_dir, actual_parts);
         if res {
             return res;
         }
@@ -661,9 +688,9 @@ def resolve_client_npm_declarations(spec: str, base_path: str) -> (str | None) {
                 }
             }
         }
-        entry = resolve_client_npm_package(spec, base_path);
-        if entry {
-            sibling = sibling_declaration_file(entry);
+        `entry = resolve_client_npm_package(spec, base_path);
+        if `entry {
+            sibling = sibling_declaration_file(`entry);
             if sibling {
                 return sibling;
             }
@@ -763,12 +790,12 @@ def _npm_package_entry(pkg_dir: str, data: dict) -> (str | None) {
         }
     }
     entries.append(os.path.join(pkg_dir, 'index'));
-    for entry in entries {
-        resolved = _npm_file_with_ext(entry);
+    for `entry in entries {
+        resolved = _npm_file_with_ext(`entry);
         if resolved {
             return resolved;
         }
-        nested = _npm_file_with_ext(os.path.join(entry, 'index'));
+        nested = _npm_file_with_ext(os.path.join(`entry, 'index'));
         if nested {
             return nested;
         }

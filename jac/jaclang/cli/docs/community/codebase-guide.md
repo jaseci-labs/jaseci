@@ -33,7 +33,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Fix a compiler bug | `jac/jaclang/compiler/passes/main/` (Python target) |
 | Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
 | Fix type checking | `jac/jaclang/compiler/type_system/` + `passes/main/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen_pass.impl/` |
+| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen/` |
 | Work on JS compilation | `jac/jaclang/compiler/passes/ecmascript/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtimelib/` |
@@ -129,7 +129,7 @@ See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entranc
 
 ### `compiler/passes/native/` -- Native Compilation
 
-The native backend generates LLVM IR via `llvmlite`. The main pass (`na_ir_gen_pass.jac`) delegates to implementation files in `na_ir_gen_pass.impl/`, each handling a different part of the language:
+The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
 
 | File | What it covers |
 |------|---------------|

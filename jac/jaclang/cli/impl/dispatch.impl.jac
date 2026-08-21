@@ -25,7 +25,7 @@ def _exit_on_malformed_jac_toml(exc: any) {
     console.error(
         f"jac.toml is malformed: {exc.original}", hint=f"File: {exc.file_path}"
     );
-    sys.exit(2);
+    sys.`exit(2);
 }
 
 impl split_remainder_argv(
@@ -163,7 +163,7 @@ def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
         if dict_key not in args_dict {
             continue;
         }
-        if args_dict[dict_key] != arg.default {
+        if args_dict[dict_key] != arg.`default {
             continue;
         }
         raw = config._raw_data.get(section, {});
