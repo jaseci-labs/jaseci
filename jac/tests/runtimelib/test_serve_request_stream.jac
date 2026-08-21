@@ -162,6 +162,26 @@ test "a chunked body that outgrows the cap is refused mid-stream" {
 }
 
 
+test "a body that stops short of its declared length is a client error" {
+    app = _build_app();
+    server = ServingServer(app=app, host="127.0.0.1", port=0);
+    stop = server.serve_background();
+    try {
+        sock = socket.create_connection(("127.0.0.1", server.bound_port), timeout=10);
+        try {
+            sock.sendall(_post(b"z" * 4096)[:-2048]);
+            sock.shutdown(socket.SHUT_WR);
+            reply = _read_response(sock);
+        } finally {
+            sock.close();
+        }
+    } finally {
+        stop();
+    }
+    assert "400 Bad Request" in reply , reply;
+}
+
+
 test "keep-alive survives back-to-back requests that carry bodies" {
     app = _build_app();
     server = ServingServer(app=app, host="127.0.0.1", port=0);

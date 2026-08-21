@@ -9,7 +9,13 @@ for the bytes up front.
 
 import asyncio;
 import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { Headers, Request, Response, URL }
+import from jaclang.runtimelib.serving.datatypes {
+    Headers,
+    HTTPError,
+    Request,
+    Response,
+    URL
+}
 import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
 import from jaclang.runtimelib.serving.server { ServingServer }
 import from jaclang.scale.runtime.gateway.service_registry {
@@ -54,10 +60,11 @@ def _register(reg: ServiceRegistry, name: str, prefix: str, url: str) {
 }
 
 
-async def _parts -> any {
+async def _parts(request: Request) -> any {
     for _ in range(_PARTS) {
         yield _PART;
     }
+    request.stream = None;
 }
 
 
@@ -66,13 +73,20 @@ def _streaming_request(path: str, declare_length: bool) -> Request {
     if declare_length {
         raw.append(("Content-Length", str(len(_PART) * _PARTS)));
     }
-    return Request(
+    request = Request(
         method="POST",
         url=URL(path=path),
         headers=Headers(raw=raw),
-        stream=_parts(),
         client_host="10.0.0.7"
     );
+    request.stream = _parts(request);
+    return request;
+}
+
+
+async def _truncated -> any {
+    yield _PART;
+    raise HTTPError(status_code=400, detail="Bad Request");
 }
 
 
@@ -140,6 +154,31 @@ test "forward_to chunk-frames a body whose length the client never declared" {
         }
     }
     assert _run(scenario()) == str(len(_PART) * _PARTS);
+}
+
+
+test "a body that fails part way is not reported as an upstream failure" {
+    async def scenario -> int {
+        (stop, base) = _spawn_upstream(200);
+        try {
+            reg = ServiceRegistry();
+            _register(reg, "orders", "/api/orders", base);
+            gw = MicroserviceGateway(registry=reg);
+            request = _streaming_request("/api/orders/walker/sink", True);
+            request.stream = _truncated();
+            try {
+                await gw.forward_to(
+                    request, reg.entries["orders"], f"{base}/walker/sink"
+                );
+            } except HTTPError as he {
+                return he.status_code;
+            }
+            return 0;
+        } finally {
+            stop();
+        }
+    }
+    assert _run(scenario()) == 400;
 }
 
 

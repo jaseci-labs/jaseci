@@ -50,6 +50,15 @@ def _declared_body_length(headers: Headers) -> (int | None) {
 }
 
 
+async def _read_exact(reader: asyncio.StreamReader, count: int) -> bytes {
+    try {
+        return await reader.readexactly(count);
+    } except asyncio.IncompleteReadError {
+        raise HTTPError(status_code=400, detail='Bad Request');
+    }
+}
+
+
 async def _stream_request_body(
     reader: asyncio.StreamReader, request: Request, length: int, limit: int
 ) -> any {
@@ -79,14 +88,14 @@ async def _stream_request_body(
             if total > limit {
                 raise HTTPError(status_code=413, detail='Payload Too Large');
             }
-            chunk: bytes = await reader.readexactly(size);
-            await reader.readexactly(2);
+            chunk: bytes = await _read_exact(reader, size);
+            await _read_exact(reader, 2);
             yield chunk;
         }
     } else {
         remaining = length;
         while remaining > 0 {
-            block: bytes = await reader.readexactly(min(BODY_CHUNK_BYTES, remaining));
+            block: bytes = await _read_exact(reader, min(BODY_CHUNK_BYTES, remaining));
             remaining -= len(block);
             yield block;
         }
