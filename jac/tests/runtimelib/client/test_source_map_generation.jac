@@ -28,7 +28,9 @@ module (with its `gen.es_ast`) is exactly what map generation must rely on."""
 def _compile_then_clear_hub(module_path: any) -> any {
     import from jaclang { JacRuntime as Jac }
     result = _orig_compile_module(module_path);
-    Jac.program.mod.hub.clear();
+    prog = Jac.program;
+    assert prog is not None;
+    prog.mod.hub.clear();
     return result;
 }
 

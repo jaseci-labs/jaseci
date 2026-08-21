@@ -845,7 +845,7 @@ test "resolve_rn_port_or_next_available skips reserved ports" {
         return;
     }
     s.bind(("127.0.0.1", 0));
-    base_port = s.getsockname()[1];
+    base_port: int = s.getsockname()[1];
     s.close();
 
     chosen = resolve_port_or_next_available(
