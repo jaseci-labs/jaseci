@@ -48,7 +48,6 @@ def compile_and_check(fixture_name: str) -> JacProgram {
         os.path.join(CHECKER_FIXTURES, fixture_name),
         options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 
@@ -332,7 +331,6 @@ test "gap 46 impl file standalone scope resolution" {
         os.path.join(CHECKER_FIXTURES, "checker_gap_impl_scope.impl.jac"),
         options=CompileOptions(resolve_annex_parent=True, default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
 
     # Expected: exactly 3 real type errors in the impl file:
     #   1. return 42 in bad_return -> str (int not assignable to str)
@@ -418,7 +416,6 @@ test "gap 48 type checker self check" {
         JAC_ROOT, "jaclang", "compiler", "passes", "main", "type_checker_pass.jac"
     );
     mod = program.compile(tc_path);
-    run_pass(TypeCheckPass, mod, program);
 
     # The type checker checking itself. The primary issue was that self.prog,
     # self.ir_in, self.evaluator (set in BaseTransform.__init__ via impl files)

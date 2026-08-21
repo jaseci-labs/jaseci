@@ -139,7 +139,6 @@ def compile_and_check(fixture_name: str) -> JacProgram {
         os.path.join(CHECKER_FIXTURES, fixture_name),
         options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 
@@ -1280,7 +1279,6 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
         options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
 
     assert program.errors_had == [] , (
         "Bug #CYCLE-TAINT-1: a symbol-resolution cycle whose types settle "
@@ -1331,7 +1329,6 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
         os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
         options=CompileOptions(default_codespace='server')
     );
-    run_pass(TypeCheckPass, mod, program);
 
     oops_errors = [
         e

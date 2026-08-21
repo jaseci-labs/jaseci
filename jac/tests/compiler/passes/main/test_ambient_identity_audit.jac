@@ -122,7 +122,6 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
     }
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    run_pass(TypeCheckPass, mod, program);
     evaluator = program.get_type_evaluator();
     result = ProbeResult();
     for name in probe_syms {
