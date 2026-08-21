@@ -390,10 +390,20 @@ def:pub Counter() -> JsxElement {
 
 ### How It Works
 
-| Jac Syntax | React Equivalent |
-|------------|------------------|
-| `has count: int = 0` | `const [count, setCount] = useState(0)` |
-| `count = count + 1` | `setCount(count + 1)` |
+On the React-family backends each state field lowers to a per-field store cell whose reads are synchronous and whose writes notify rendering through `useSyncExternalStore`; on Solid it lowers to a signal. Both implement the same contract.
+
+| Jac Syntax | Lowered (react/preact) |
+|------------|------------------------|
+| `has count: int = 0` | `const __jacS_count = useJacState(0)` |
+| `count` (read) | `__jacS_count.val` |
+| `count = count + 1` | `__jacS_count.set(__jacS_count.val + 1)` |
+
+### The State Contract
+
+1. **Reads always return the most recent write** - in the same ability, in helper methods, in lambdas and deferred callbacks, and after `await`s. `x = v; if x { ... }` branches on `v`.
+2. **Rendering is reactive and batched** - the *render* is what's deferred, never the value. Writing the identical value (`Object.is`) skips the re-render, like `useState`.
+3. **`can with [deps] entry` re-runs when a dep's value changes** between committed renders.
+4. **Assigning a state field in the component body is a compile error (`E0082`)** - body statements run on every render, so an immediate write there would re-render forever. Write from abilities, event handlers, or methods.
 
 ### Complex State
 
@@ -875,7 +885,7 @@ Import from `@jac/runtime`:
 | `useLocation()` | object | Current location: `location.pathname`, `location.search` |
 | `Link` | component | Navigation: `<Link to="/path">Text</Link>` |
 | `Outlet` | component | Render child routes in layouts |
-| `AuthGuard` | component | Protect routes: `<AuthGuard redirect="/login">` |
+| `AuthGuard` | component | Protect routes: `<AuthGuard redirect="/login">`; renders its children, or the matched child route when given none |
 
 ---
 
@@ -1001,7 +1011,11 @@ client_secret = "your-google-client-secret"
 
 ### AuthGuard for Protected Routes
 
-Use `AuthGuard` to protect routes in file-based routing:
+`AuthGuard(redirect: str = "/login", children: any = None)` redirects
+unauthenticated visitors to `redirect`. Given children it renders them; given
+none it renders `<Outlet />`, i.e. the matched child route.
+
+In file-based routing, a group layout protects everything under it:
 
 ```jac
 import from "@jac/runtime" { AuthGuard, Outlet }
@@ -1012,6 +1026,23 @@ def:pub AuthShell() -> JsxLayout {
         <Outlet />
     </AuthGuard>
 }
+```
+
+In manual routing, use it as a pathless parent route to protect a group:
+
+<!-- jac-skip -->
+```jac
+<Route element={<AuthGuard redirect="/login" />}>
+    <Route path="/dashboard" element={<Dashboard />} />
+</Route>
+```
+
+...or wrap a single page:
+
+<!-- jac-skip -->
+```jac
+<Route path="/dashboard"
+       element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />
 ```
 
 ---
@@ -1538,6 +1569,49 @@ og_title = "My App"
 og_description = "App description"
 og_image = "/assets/og-image.png"
 ```
+
+#### Head Scripts
+
+Add `<script>` tags to the generated `<head>` with the `scripts` key, for
+analytics snippets, third-party SDKs, and anything that must be available before
+the app bundle boots:
+
+```toml
+[[client.app_meta_data.scripts]]
+src = "https://js.stripe.com/v3"
+defer = true
+
+[[client.app_meta_data.scripts]]
+src = "https://cdn.example.com/lib.js"
+onerror = "loadLocalFallback()"
+
+[[client.app_meta_data.scripts]]
+content = """
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+"""
+```
+
+Each entry takes either `src` or an inline `content` body, and `src` wins if
+both are given. The inline array `scripts = [{ src = "...", defer = true }]` and
+a bare string `scripts = ["https://..."]` are equivalent shorthands.
+
+Every other key becomes an attribute, so `type`, `crossorigin`, `integrity`,
+`nonce`, `data-*`, event handlers, and any attribute the platform adds later all
+work without special-casing:
+
+| Rule | Example |
+|------|---------|
+| Underscores fold to hyphens. | `data_site_id = "abc"` renders `data-site-id="abc"` |
+| `true` renders a bare flag, `false` omits the attribute. | `defer = true` renders `defer` |
+| Any other value renders escaped, including `0` and `""`. | `tabindex = 0` renders `tabindex="0"` |
+
+Keys that do not fold to a well-formed lowercase attribute name are dropped, so
+a stray space or quote cannot forge extra attributes, and a literal `</script>`
+in an inline body is escaped so it cannot close the tag early.
+
+Scripts are emitted after the title, meta, and link tags, in `jac build` output,
+`jac start`, and `jac start --dev` alike.
 
 ### API Base URL
 
@@ -2472,17 +2546,12 @@ If `MainContent` throws an error, only that boundary's fallback is shown, while 
 
 ## Memory & Persistence
 
-### Memory Hierarchy
+### The Session
 
-| Tier | Type | Implementation |
-|------|------|----------------|
-| L1 | Volatile | VolatileMemory (in-process) |
-| L2 | Cache | LocalCacheMemory (TTL-based) |
-| L3 | Persistent | SqliteMemory (default) |
-
-### TieredMemory
-
-Automatic read-through caching and write-through persistence:
+Each unit of work runs against a `Session`: an in-memory view of the graph
+backed by the project's Postgres store (embedded locally, external via
+`JAC_DB_URL`). Reads materialize anchors into the session; writes commit in
+one serializable transaction at the end of the unit of work.
 
 ```jac
 # Objects are automatically persisted

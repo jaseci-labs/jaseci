@@ -142,10 +142,10 @@ def ptr_realloc_elidable(decl_type: c_ast.Node) -> bool {
     if chain.kind != TypeKind.PTR {
         return False;
     }
-    if is_char_ptr(chain.node) {
+    if is_char_ptr(chain.c_node) {
         return False;
     }
-    inner = ptr_inner_typedecl(chain.node);
+    inner = ptr_inner_typedecl(chain.c_node);
     if inner is None {
         return False;
     }
@@ -367,7 +367,7 @@ def is_char_array_string_decl(nd: c_ast.Decl) -> bool {
     if chain.kind != TypeKind.SCALAR {
         return False;
     }
-    names = chain.node.type?.names or [];
+    names = chain.c_node.type?.names or [];
     if not names or names[-1] != "char" {
         return False;
     }
@@ -394,17 +394,18 @@ def _walk_string_table_refs(
 
 def collect_string_table_names(ext: list) -> set[str] {
     candidates: set[str] = set();
-    for entry in ext {
-        if isinstance(entry, c_ast.Decl) and is_char_array_string_decl(entry) {
-            candidates.add(entry.name);
+    for ext_item in ext {
+        if isinstance(ext_item, c_ast.Decl)
+        and is_char_array_string_decl(ext_item) {
+            candidates.add(ext_item.name);
         }
     }
     if not candidates {
         return set();
     }
     found: set[str] = set();
-    for entry in ext {
-        _walk_string_table_refs(entry, candidates, found);
+    for ext_item in ext {
+        _walk_string_table_refs(ext_item, candidates, found);
     }
     return found;
 }

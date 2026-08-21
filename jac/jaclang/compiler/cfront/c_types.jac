@@ -13,7 +13,7 @@ enum TypeKind { ARRAY = "array", PTR = "ptr", NONE = "none", SCALAR = "scalar" }
 
 obj TypeChain {
     has kind: TypeKind,
-        node: c_ast.Node | None;
+        c_node: c_ast.Node | None;
 }
 
 glob C_BUILTIN_TYPES: set[str] = {
@@ -127,10 +127,10 @@ def walk_to_typedecl(decl_type: c_ast.Node) -> TypeChain {
     t = decl_type;
     while not isinstance(t, c_ast.TypeDecl) {
         if isinstance(t, c_ast.ArrayDecl) {
-            return TypeChain(kind=TypeKind.ARRAY, node=t);
+            return TypeChain(kind=TypeKind.ARRAY, c_node=t);
         }
         if isinstance(t, c_ast.PtrDecl) {
-            return TypeChain(kind=TypeKind.PTR, node=t);
+            return TypeChain(kind=TypeKind.PTR, c_node=t);
         }
         if isinstance(t, c_ast.FuncDecl) {
             t = t.type;
@@ -138,10 +138,10 @@ def walk_to_typedecl(decl_type: c_ast.Node) -> TypeChain {
         }
         t = t?.type;
         if t is None {
-            return TypeChain(kind=TypeKind.NONE, node=None);
+            return TypeChain(kind=TypeKind.NONE, c_node=None);
         }
     }
-    return TypeChain(kind=TypeKind.SCALAR, node=t);
+    return TypeChain(kind=TypeKind.SCALAR, c_node=t);
 }
 
 def ptr_inner_typedecl(ptr_decl: c_ast.Node) -> c_ast.Node | None {
@@ -207,7 +207,7 @@ def fn_ptr_typedecl(decl_type: c_ast.Node) -> c_ast.Node | None {
     if chain.kind != TypeKind.PTR {
         return None;
     }
-    inner = chain.node.type;
+    inner = chain.c_node.type;
     if isinstance(inner, c_ast.FuncDecl) {
         return inner;
     }
@@ -237,18 +237,18 @@ def _resolve_decl(decl_type: c_ast.Node, resolve_user: bool) -> str {
         return "list";
     }
     if chain.kind == TypeKind.PTR {
-        return ptr_typename(chain.node);
+        return ptr_typename(chain.c_node);
     }
     if chain.kind == TypeKind.NONE {
         return "int";
     }
     if resolve_user {
-        user = user_type_name(chain.node.type);
+        user = user_type_name(chain.c_node.type);
         if user is not None {
             return user;
         }
     }
-    names = chain.node.type?.names or ["int"];
+    names = chain.c_node.type?.names or ["int"];
     return jac_prim(names).value;
 }
 

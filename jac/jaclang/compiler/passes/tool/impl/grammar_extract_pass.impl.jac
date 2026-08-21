@@ -275,6 +275,22 @@ impl GrammarExtractPass._returns_none(nd: uni.ImplDef) -> bool {
     if spec.return_type is None {
         return False;
     }
+    rt: uni.UniNode = spec.return_type;
+    while True {
+        if isinstance(rt, uni.CfgExpr) {
+            rt = rt.expr;
+            continue;
+        }
+        if isinstance(rt, uni.AtomUnit) and rt.value is not None {
+            rt = rt.value;
+            continue;
+        }
+        break;
+    }
+
+    if isinstance(rt, uni.Name) and rt.value == "int" {
+        return True;
+    }
     stack: list = [spec.return_type];
     while len(stack) > 0 {
         cur = stack.pop();
@@ -553,7 +569,7 @@ impl GrammarExtractPass._stage_fold_token_sets(rules: list) -> list {
         return rules;
     }
     raw.sort();
-    candidates: list = [(entry[1], entry[2]) for entry in raw];
+    candidates: list = [(`entry[1], `entry[2]) for `entry in raw];
     result: list = [];
     for rule in rules {
         result.append(
@@ -800,9 +816,9 @@ impl GrammarExtractPass.compute_first_set(expr: GExpr) -> tuple {
     }
     if isinstance(expr, GRef) {
         if expr.name != self._current_rule {
-            entry = self._rule_firsts.get(expr.name);
-            if entry is not None {
-                return (set(entry[0]), entry[1]);
+            `entry = self._rule_firsts.get(expr.name);
+            if `entry is not None {
+                return (set(`entry[0]), `entry[1]);
             }
         }
         return (set(), False);
@@ -854,10 +870,10 @@ impl GrammarExtractPass.all_paths_start_with(expr: GExpr, tok_set: set) -> bool 
     }
     if isinstance(expr, GRef) {
         if expr.name != self._current_rule {
-            entry = self._rule_firsts.get(expr.name);
-            if entry is not None {
-                first: set = entry[0];
-                nullable: bool = entry[1];
+            `entry = self._rule_firsts.get(expr.name);
+            if `entry is not None {
+                first: set = `entry[0];
+                nullable: bool = `entry[1];
                 return len(first) > 0 and not nullable and first.issubset(tok_set);
             }
         }
@@ -1067,6 +1083,7 @@ impl GrammarExtractPass.interpret_stmts(stmts: list) -> GExpr | None {
     parts: list = [];
     alt_branches: list = [];
     alt_exhaustive = False;
+    alt_all_try_parse = True;
     i = 0;
     while i < len(stmts) {
         stmt = stmts[i];
@@ -1079,6 +1096,7 @@ impl GrammarExtractPass.interpret_stmts(stmts: list) -> GExpr | None {
                     alt_branches.append(branch);
                 }
                 alt_exhaustive = self._chain_is_exhaustive(stmt);
+                alt_all_try_parse = False;
                 i += 1;
                 continue;
             }
@@ -1091,6 +1109,7 @@ impl GrammarExtractPass.interpret_stmts(stmts: list) -> GExpr | None {
                     alt_branches.append(body_expr);
                 }
                 alt_exhaustive = False;
+                alt_all_try_parse = False;
                 i += 1;
                 continue;
             }
@@ -1149,9 +1168,9 @@ impl GrammarExtractPass.interpret_stmts(stmts: list) -> GExpr | None {
                         if isinstance(tp_rhs, uni.CfgExpr) {
                             tp_rhs = tp_rhs.expr;
                         }
-                        if isinstance(tp_rhs, uni.Null) {
+                        if is_nil_expr(tp_rhs) {
                             for op in tp_cond.ops {
-                                if op?.value and op.value == "is not" {
+                                if op?.value and op.value in ("is not", "!=") {
                                     is_not_none = True;
                                 }
                             }
@@ -1208,7 +1227,7 @@ impl GrammarExtractPass.interpret_stmts(stmts: list) -> GExpr | None {
             if len(alt_branches) == 1
             else GAlt(choices=alt_branches);
 
-        if alt_exhaustive {
+        if alt_exhaustive or alt_all_try_parse {
             parts.append(flushed);
         } else {
             parts.append(GOpt(inner=flushed));
@@ -1257,11 +1276,11 @@ impl GrammarExtractPass.is_negated_check(cond: uni.Expr) -> bool {
             if isinstance(cond.operand, uni.FuncCall) {
                 method = self.get_self_method(cond.operand.target);
                 if method is not None {
-                    sem = METHOD_TABLE.get(method);
-                    if sem is not None
+                    `sem = METHOD_TABLE.get(method);
+                    if `sem is not None
                         and (
-                            sem.kind.startswith("lookahead")
-                            or sem.kind == "consume_opt"
+                            `sem.kind.startswith("lookahead")
+                            or `sem.kind == "consume_opt"
                         ) {
                         return True;
                     }
@@ -1336,8 +1355,7 @@ impl GrammarExtractPass.interpret_stmt(stmt: uni.UniNode) -> GExpr | None {
                         else_node = else_node.expr;
                     }
 
-                    if isinstance(val_node, uni.Null)
-                        or isinstance(else_node, uni.Null) {
+                    if is_nil_expr(val_node) or is_nil_expr(else_node) {
                         return GOpt(inner=ternary_parts[0]);
                     }
                     return ternary_parts[0];
@@ -1385,10 +1403,10 @@ impl GrammarExtractPass.interpret_stmt(stmt: uni.UniNode) -> GExpr | None {
 impl GrammarExtractPass.interpret_call(call: uni.FuncCall) -> GExpr | None {
     method = self.get_self_method(call.target);
     if method is not None {
-        sem = METHOD_TABLE.get(method);
-        if sem is not None {
-            if sem.kind == "consume" {
-                if sem.token_args {
+        `sem = METHOD_TABLE.get(method);
+        if `sem is not None {
+            if `sem.kind == "consume" {
+                if `sem.token_args {
                     tokens = self.get_token_args(call);
                     if len(tokens) > 0 {
                         return self._tok_set_expr(tokens);
@@ -1397,10 +1415,10 @@ impl GrammarExtractPass.interpret_call(call: uni.FuncCall) -> GExpr | None {
                 }
                 return None;
             }
-            if sem.kind == "consume_name" {
+            if `sem.kind == "consume_name" {
                 return GAlt(choices=[GTok(name="NAME"), GTok(name="KWESC_NAME")]);
             }
-            if sem.kind == "consume_opt" {
+            if `sem.kind == "consume_opt" {
                 tokens = self.get_token_args(call);
                 if len(tokens) > 0 {
                     return GOpt(inner=self._tok_set_expr(tokens));
@@ -1408,7 +1426,7 @@ impl GrammarExtractPass.interpret_call(call: uni.FuncCall) -> GExpr | None {
                 return None;
             }
 
-            if sem.kind == "ignore" {
+            if `sem.kind == "ignore" {
                 for param in call.params {
                     inner_call = self.get_call_from_expr(param);
                     if inner_call is not None {
@@ -1424,6 +1442,18 @@ impl GrammarExtractPass.interpret_call(call: uni.FuncCall) -> GExpr | None {
 
         if method.startswith("parse_") {
             return GRef(name=method[6:]);
+        }
+
+        if method.startswith("_") {
+            for param in call.params {
+                inner_call = self.get_call_from_expr(param);
+                if inner_call is not None {
+                    result = self.interpret_call(inner_call);
+                    if result is not None {
+                        return result;
+                    }
+                }
+            }
         }
         return None;
     }
@@ -1642,9 +1672,18 @@ impl GrammarExtractPass.collect_dispatch_chain(stmt: uni.IfStmt) -> list {
                             )
                             and not (
                                 isinstance(s, uni.Assignment)
-                                and isinstance(
-                                    s.value,
-                                    (uni.Bool, uni.Int, uni.Float, uni.String, uni.Null)
+                                and (
+                                    isinstance(
+                                        s.value,
+                                        (
+                                            uni.Bool,
+                                            uni.Int,
+                                            uni.Float,
+                                            uni.String,
+                                            uni.Null
+                                        )
+                                    )
+                                    or is_nil_expr(s.value)
                                 )
                             ) {
                             is_guard = False;
@@ -1916,13 +1955,19 @@ impl GrammarExtractPass.find_break_none_check(stmts: list) -> tuple | None {
         return None;
     }
     cond = second.condition;
+    if isinstance(cond, uni.CfgExpr) {
+        cond = cond.expr;
+    }
     if not isinstance(cond, uni.CompareExpr) {
         return None;
     }
     is_none_check = False;
+    nil_rhs = (
+        cond.rights is not None and len(cond.rights) > 0 and is_nil_expr(cond.rights[0])
+    );
     if cond.ops is not None and len(cond.ops) > 0 {
         for op in cond.ops {
-            if op.value == "is" {
+            if op.value == "is" or (op.value == "==" and nil_rhs) {
                 is_none_check = True;
             }
         }
@@ -1971,8 +2016,8 @@ impl GrammarExtractPass._resolve_tokens(
     }
 
     if call is not None {
-        sem = METHOD_TABLE.get(method);
-        if sem is not None and sem.token_args {
+        `sem = METHOD_TABLE.get(method);
+        if `sem is not None and `sem.token_args {
             return self.get_token_args(call);
         }
     }
@@ -1988,16 +2033,16 @@ impl GrammarExtractPass._merge_or_conditions(exprs: list) -> ConditionResult | N
         if isinstance(val, uni.FuncCall) {
             m = self.get_self_method(val.target);
             if m is not None {
-                sem = METHOD_TABLE.get(m);
-                if sem is not None
+                `sem = METHOD_TABLE.get(m);
+                if `sem is not None
                     and (
-                        sem.kind.startswith("lookahead") or sem.kind == "consume_opt"
+                        `sem.kind.startswith("lookahead") or `sem.kind == "consume_opt"
                     ) {
                     tks = self._resolve_tokens(m, val);
                     all_toks.extend(tks);
                     if found_method is None {
                         found_method = m;
-                        found_kind = sem.kind;
+                        found_kind = `sem.kind;
                     }
                     continue;
                 }
@@ -2033,11 +2078,11 @@ impl GrammarExtractPass.interpret_condition(cond: uni.Expr) -> ConditionResult |
     if isinstance(cond, uni.FuncCall) {
         method = self.get_self_method(cond.target);
         if method is not None {
-            sem = METHOD_TABLE.get(method);
-            if sem is not None
-                and (sem.kind.startswith("lookahead") or sem.kind == "consume_opt") {
+            `sem = METHOD_TABLE.get(method);
+            if `sem is not None
+                and (`sem.kind.startswith("lookahead") or `sem.kind == "consume_opt") {
                 tokens = self._resolve_tokens(method, cond);
-                return ConditionResult(method=method, kind=sem.kind, tokens=tokens);
+                return ConditionResult(method=method, kind=`sem.kind, tokens=tokens);
             }
         }
         return None;
@@ -2347,7 +2392,7 @@ impl GrammarExtractPass._walk_strict(rule_name: str, nd: uni.UniNode) -> None {
         method = self.get_self_method(nd.target);
         if method is not None {
             line = nd.loc.first_line;
-            sem = METHOD_TABLE.get(method);
+            `sem = METHOD_TABLE.get(method);
             if method == "advance" {
                 self.diagnostics.append(
                     {
@@ -2357,7 +2402,7 @@ impl GrammarExtractPass._walk_strict(rule_name: str, nd: uni.UniNode) -> None {
                         "msg": "token consumed via bare advance(); invisible to the grammar"
                     }
                 );
-            } elif sem is not None and sem.token_args {
+            } elif `sem is not None and `sem.token_args {
                 if len(self.get_token_args(nd)) == 0 {
                     self.diagnostics.append(
                         {
@@ -2368,7 +2413,7 @@ impl GrammarExtractPass._walk_strict(rule_name: str, nd: uni.UniNode) -> None {
                         }
                     );
                 }
-            } elif sem is None
+            } elif `sem is None
                 and not method.startswith("parse_")
                 and not method.startswith("_") {
                 self.diagnostics.append(

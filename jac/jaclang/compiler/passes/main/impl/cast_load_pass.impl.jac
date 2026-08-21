@@ -56,25 +56,6 @@ impl CastBuildPass._build_const_alias_map -> dict[str, str] {
     return aliases;
 }
 
-impl CastBuildPass._build_const_alias_map -> dict[str, str] {
-    aliases: dict[str, str] = {};
-    enums: list[c_ast.Node] = [];
-    self._collect_enum_nodes(self.ir_in.ast, enums);
-    for en in enums {
-        func_coll = self.enum_verdicts.func_collisions.get(id(en), set());
-        if not func_coll {
-            continue;
-        }
-        nm_map = self.enum_verdicts.name_map.get(id(en), {});
-        for nm in func_coll {
-            if nm in nm_map {
-                aliases[nm] = f"_enum_{nm}";
-            }
-        }
-    }
-    return aliases;
-}
-
 impl CastBuildPass._collect_enum_nodes(nd: c_ast.Node, out: list) -> None {
     if isinstance(nd, c_ast.Enum) {
         out.append(nd);
@@ -301,14 +282,14 @@ impl CastBuildPass._scope_bind(assign: uni.Assignment) -> uni.UniNode {
 
 impl CastBuildPass._collect_module_globals(ext: list) -> set[str] {
     out: set[str] = set();
-    for entry in ext {
-        if not isinstance(entry, c_ast.Decl) or entry.name is None {
+    for ext_item in ext {
+        if not isinstance(ext_item, c_ast.Decl) or ext_item.name is None {
             continue;
         }
-        if isinstance(entry.type, c_ast.FuncDecl) {
+        if isinstance(ext_item.type, c_ast.FuncDecl) {
             continue;
         }
-        out.add(entry.name);
+        out.add(ext_item.name);
     }
     return out;
 }
@@ -323,8 +304,8 @@ impl CastBuildPass.proc_file_ast(nd: c_ast.Node) -> uni.Module {
     ext = nd?.ext or [];
     self._module_globals = self._collect_module_globals(ext);
     self._string_tables = collect_string_table_names(ext);
-    for entry in ext {
-        res = self.convert(entry, stmt=True);
+    for ext_item in ext {
+        res = self.convert(ext_item, stmt=True);
         if isinstance(res, list) {
             for r in res {
                 if isinstance(r, uni.ElementStmt) {
@@ -526,14 +507,16 @@ impl CastBuildPass._lift_prefix_stmt(
             inner = items[0] if len(items) == 1 else inner;
         }
         if isinstance(inner, c_ast.Goto) and inner.name == lbl_name {
-            test = self.conv_expr(it.cond);
-            if not isinstance(test, uni.Expr) {
+            condition = self.conv_expr(it.cond);
+            if not isinstance(condition, uni.Expr) {
                 return None;
             }
             raise_stmt = self._goto_raise(inner);
             body: list[uni.CodeBlockStmt] = [raise_stmt];
-            kid: list[uni.UniNode] = [test, raise_stmt];
-            return [uni.IfStmt(condition=test, body=body, else_body=None, kid=kid)];
+            kid: list[uni.UniNode] = [condition, raise_stmt];
+            return [
+                uni.IfStmt(condition=condition, body=body, else_body=None, kid=kid)
+            ];
         }
     }
     local_gotos: list = [];
@@ -857,11 +840,11 @@ impl CastBuildPass.proc_binary_op(nd: c_ast.Node) -> object {
         }
         return self._surrogate_expr(nd);
     }
-    entry = C_OP_TOK.get(nd.op);
-    if entry is None {
+    op_entry = C_OP_TOK.get(nd.op);
+    if op_entry is None {
         return self._surrogate_expr(nd);
     }
-    (kind, tok, text) = entry;
+    (kind, tok, text) = op_entry;
 
     is_int = (
         self._expr_prim(nd.left) == JacPrim.INT
@@ -1027,9 +1010,9 @@ impl CastBuildPass.proc_func_call(nd: c_ast.Node) -> object {
         return self._surrogate_expr(nd);
     }
     params: list[uni.Expr] = [];
-    args = nd?.args;
+    args: any = getattr(nd, "args", None);
     if args is not None {
-        for a in args.exprs {
+        for a in getattr(args, "exprs", []) {
             pv = self.conv_expr(a);
             if isinstance(pv, uni.Expr) {
                 params.append(pv);
@@ -1057,7 +1040,7 @@ impl CastBuildPass._malloc_array(nd: c_ast.Node) -> object | None {
     if tname is None {
         return None;
     }
-    default = self._elem_default(nd, tname);
+    default_value = self._elem_default(nd, tname);
     factors: list = [];
     flatten_mult(nd.args.exprs[0], factors);
     others = [
@@ -1069,7 +1052,7 @@ impl CastBuildPass._malloc_array(nd: c_ast.Node) -> object | None {
     if not isinstance(count, uni.Expr) {
         return None;
     }
-    return self._range_compr(nd, default, count);
+    return self._range_compr(nd, default_value, count);
 }
 
 impl CastBuildPass._range_compr(
@@ -1161,8 +1144,8 @@ impl CastBuildPass._block(c_node: c_ast.Node) -> list[uni.CodeBlockStmt] {
 }
 
 impl CastBuildPass.proc_if(nd: c_ast.Node) -> object {
-    test = self.conv_expr(nd.cond);
-    if not isinstance(test, uni.Expr) {
+    condition = self.conv_expr(nd.cond);
+    if not isinstance(condition, uni.Expr) {
         return self._surrogate_stmt(nd);
     }
     body = self._block(nd.iftrue);
@@ -1183,20 +1166,22 @@ impl CastBuildPass.proc_if(nd: c_ast.Node) -> object {
             }
         }
     }
-    kid: list[uni.UniNode] = [test, *body];
+    kid: list[uni.UniNode] = [condition, *body];
     if else_body {
         kid.append(else_body);
     }
-    return uni.IfStmt(condition=test, body=body, else_body=else_body, kid=kid);
+    return uni.IfStmt(condition=condition, body=body, else_body=else_body, kid=kid);
 }
 
 impl CastBuildPass.proc_while(nd: c_ast.Node) -> object {
-    test = self.conv_expr(nd.cond);
-    if not isinstance(test, uni.Expr) {
+    condition = self.conv_expr(nd.cond);
+    if not isinstance(condition, uni.Expr) {
         return self._surrogate_stmt(nd);
     }
     body = self._block(nd.stmt);
-    return uni.WhileStmt(condition=test, body=body, else_body=None, kid=[test, *body]);
+    return uni.WhileStmt(
+        condition=condition, body=body, else_body=None, kid=[condition, *body]
+    );
 }
 
 impl CastBuildPass._inc_dec_stmt(nd: c_ast.Node) -> uni.Assignment | None {
@@ -1538,13 +1523,15 @@ impl CastBuildPass.proc_switch(nd: c_ast.Node) -> object {
     chain: uni.IfStmt | None = None;
     for grp in reversed(groups) {
         (vals, stmts) = grp;
-        test = self._switch_test(nd, nd.cond, vals);
+        condition = self._switch_test(nd, nd.cond, vals);
         body = self._switch_branch_body(nd, stmts);
-        kid: list[uni.UniNode] = [test, *body];
+        kid: list[uni.UniNode] = [condition, *body];
         if tail_else {
             kid.append(tail_else);
         }
-        ifs = uni.IfStmt(condition=test, body=body, else_body=tail_else, kid=kid);
+        ifs = uni.IfStmt(
+            condition=condition, body=body, else_body=tail_else, kid=kid
+        );
         chain = ifs;
         tail_else = uni.ElseIf(
             condition=ifs.condition, body=ifs.body, else_body=ifs.else_body, kid=ifs.kid
@@ -1599,17 +1586,17 @@ impl CastBuildPass.proc_empty_statement(nd: c_ast.Node) -> uni.Semi {
 }
 
 impl CastBuildPass.proc_ternary_op(nd: c_ast.Node) -> object {
-    test = self.conv_expr(nd.cond);
+    condition = self.conv_expr(nd.cond);
     body = self.conv_expr(nd.iftrue);
     orelse = self.conv_expr(nd.iffalse);
     if not (
-        isinstance(test, uni.Expr)
+        isinstance(condition, uni.Expr)
         and isinstance(body, uni.Expr)
         and isinstance(orelse, uni.Expr)
     ) {
         return self._surrogate_expr(nd);
     }
-    cond_cfg = uni.CfgExpr(expr=test, kid=[test]);
+    cond_cfg = uni.CfgExpr(expr=condition, kid=[condition]);
     val_cfg = uni.CfgExpr(expr=body, kid=[body]);
     else_cfg = uni.CfgExpr(expr=orelse, kid=[orelse]);
     return uni.IfElseExpr(
@@ -1630,7 +1617,7 @@ impl CastBuildPass._scalar_prim(type_node: c_ast.Node) -> JacPrim | None {
 
 impl CastBuildPass._record_scalar_type(name: str, type_node: c_ast.Node) -> None {
     chain = walk_to_typedecl(type_node);
-    if chain.kind == TypeKind.PTR and is_char_ptr(chain.node) {
+    if chain.kind == TypeKind.PTR and is_char_ptr(chain.c_node) {
         self._var_types[name] = JacPrim.STR;
         return;
     }
@@ -1825,9 +1812,9 @@ impl CastBuildPass._str_advance_assign(
 }
 
 impl CastBuildPass.proc_unary_op(nd: c_ast.Node) -> object {
-    entry = C_UNARY_TOK.get(nd.op);
-    if entry is not None {
-        (tok, text) = entry;
+    unary_entry = C_UNARY_TOK.get(nd.op);
+    if unary_entry is not None {
+        (tok, text) = unary_entry;
         operand = self.conv_expr(nd.expr);
         if not isinstance(operand, uni.Expr) {
             return self._surrogate_expr(nd);
@@ -2113,13 +2100,13 @@ impl CastBuildPass._struct_field(mem: c_ast.Node) -> uni.ArchHas | None {
     ann = self._name(mem, tname);
     type_tag = uni.SubTag[uni.Expr](tag=ann, kid=[ann]);
 
-    default = self._elem_default(mem, tname);
+    default_value = self._elem_default(mem, tname);
     hv = uni.HasVar(
         name=name_node,
         type_tag=type_tag,
-        value=default,
+        value=default_value,
         defer=False,
-        kid=[name_node, type_tag, default]
+        kid=[name_node, type_tag, default_value]
     );
     has_kw = self._op_tok(mem, Tok.KW_HAS, "has");
     semi = self._op_tok(mem, Tok.SEMI, ";");
@@ -2540,8 +2527,8 @@ impl CastBuildPass._decl_array(nd: c_ast.Node) -> object {
                 left=lst, op=star, right=dim_expr, kid=[lst, star, dim_expr]
             );
         } elif isinstance(dim_expr, uni.Expr) {
-            default = self._elem_default(nd, elem_name);
-            value = self._range_compr(nd, default, dim_expr);
+            default_value = self._elem_default(nd, elem_name);
+            value = self._range_compr(nd, default_value, dim_expr);
         }
     }
     kid: list[uni.UniNode] = [target, annot];
@@ -2596,7 +2583,7 @@ impl CastBuildPass._kw_pair(
 impl CastBuildPass._needs_typed_init(c_type: c_ast.Node) -> bool {
     chain = walk_to_typedecl(c_type);
     if chain.kind == TypeKind.ARRAY {
-        return self._needs_typed_init(chain.node.type);
+        return self._needs_typed_init(chain.c_node.type);
     }
     if chain.kind != TypeKind.SCALAR {
         return False;
@@ -2624,10 +2611,10 @@ impl CastBuildPass._typed_init(
     }
     chain = walk_to_typedecl(c_type);
     if chain.kind == TypeKind.ARRAY {
-        if not self._needs_typed_init(chain.node.type) {
+        if not self._needs_typed_init(chain.c_node.type) {
             return None;
         }
-        return self._array_init_from_list(c_init, chain.node.type, chain.node);
+        return self._array_init_from_list(c_init, chain.c_node.type, chain.c_node);
     }
     if chain.kind == TypeKind.SCALAR {
         tname = elem_typename(c_type);
@@ -2669,11 +2656,11 @@ impl CastBuildPass._array_init_from_list(
         }
         if dim_val is not None and dim_val > 0 {
             tname = elem_typename(elem_type);
-            default = self._elem_default(c_init, tname);
+            default_value = self._elem_default(c_init, tname);
             slots: list[uni.Expr] = [];
             i = 0;
             while i < dim_val {
-                slots.append(default);
+                slots.append(default_value);
                 i += 1;
             }
             for (idx, expr) in sparse {

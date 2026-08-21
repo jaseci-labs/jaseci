@@ -239,8 +239,7 @@ test "nacompile --target wasm32 writes a valid module via the CLI" {
 test "linked module instantiates and runs under node" {
     node_bin = shutil.which("node");
     if not node_bin {
-        import pytest;
-        pytest.skip("node not available");
+        testskip("node not available");
     }
     mod = WasmLinker.link(emit_wasm_object(FIXTURE), [], 256);
     d = tempfile.mkdtemp();

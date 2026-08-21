@@ -1,3 +1,5 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl Task.postinit -> None {
     self.task_id = Task._task_id;
     self.cancel_token = threading.Event();
@@ -117,6 +119,29 @@ impl JacLangServer.type_check_file(
 
         import from jaclang.jac0core.compile_options { CompileOptions }
         main_doc = self.workspace.get_text_document(uris.from_fs_path(main_path));
+
+        import from jaclang.jac0core.parser.frontend { parse_diags, _replay_diags }
+        import from jaclang.jac0core.parser.lexer { Lexer as _Lexer }
+        import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
+        import from jaclang.jac0core.unitree { Source as _Src }
+        (_syn_had, _pd, _ld) = parse_diags(main_doc.source, main_path);
+        if _pd or _ld {
+            _dsrc = _Src(main_doc.source, mod_path=main_path);
+            _replay_diags(_ld, _Lexer, self, _dsrc);
+            _replay_diags(_pd, _SyntaxParser, self, _dsrc);
+            _syn_errors = list(self.errors_had);
+            _syn_warnings = list(self.warnings_had);
+            self.publish_diagnostics(
+                uris.from_fs_path(main_path),
+                utils.gen_diagnostics(main_path, _syn_errors, _syn_warnings)
+            );
+            for f in files_to_check {
+                self._clear_alerts_for_file(f);
+            }
+        }
+        if cancel_token and cancel_token.is_set() {
+            return False;
+        }
         build = self.compile(
             file_path=main_path,
             use_str=main_doc.source,
@@ -152,7 +177,7 @@ impl JacLangServer.dispatcher -> None {
         start_time = time.time();
         self.debug("Dispatcher waiting for work...");
 
-        self._work_event.wait();
+        self._work_event.`wait();
 
         task: Task | None = None;
         should_exit = False;
@@ -528,9 +553,9 @@ impl JacLangServer._npm_item_location(
     if dts {
         return at_file(dts, utils.find_dts_decl_range(dts, item_name));
     }
-    entry = resolve_client_npm_package(spec, src_path);
-    if entry {
-        return at_file(entry, None);
+    `entry = resolve_client_npm_package(spec, src_path);
+    if `entry {
+        return at_file(`entry, None);
     }
     return None;
 }
@@ -573,7 +598,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
             node_info += f"\n{doc}";
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
-            node_info += f"\n{sym_node.signature.unparse()}";
+            node_info += f"\n{unparse_node(sym_node.signature)}";
         }
         try {
             top: (uni.UniNode | None) = sym_node;
@@ -717,7 +742,7 @@ impl JacLangServer.get_completion_items_of(
         items.append(
             lspt.CompletionItem(
                 label=item.label,
-                kind=item.kind,
+                kind=lspt.CompletionItemKind(item.kind.value),
                 label_details=detail,
                 documentation=documentation,
             )
@@ -833,7 +858,7 @@ impl JacLangServer.wait_till_idle_sync(file_uri: str) -> None {
     self._do_type_check(file_uri);
 
     while True {
-        self._idle_event.wait();
+        self._idle_event.`wait();
         with self._state_lock.read_lock() {
             has_pending_work = bool(
                 self.pipe or self.dirty_files or self._debounce_timer

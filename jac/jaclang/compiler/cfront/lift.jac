@@ -1,6 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.main.cast_load_pass { CastBuildPass, CLiftSite }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 
 obj LiftResult {
     has module: uni.Module,
@@ -31,8 +32,10 @@ def lift_c_str(c_src: str, filename: str, lenient_c: bool = True) -> LiftResult 
         prog=JacProgram(),
         lenient_c=lenient_c
     );
+    module = pass_.ir_out;
+    assert isinstance(module, uni.Module);
     return LiftResult(
-        module=pass_.ir_out,
+        module=module,
         diags=pass_.c_diags(),
         sites=pass_.c_sites(),
         quarantined_functions=pass_.quarantined_functions(),
@@ -42,7 +45,7 @@ def lift_c_str(c_src: str, filename: str, lenient_c: bool = True) -> LiftResult 
 
 def transpile_c_str(c_src: str, filename: str, lenient_c: bool = True) -> str {
     res = lift_c_str(c_src, filename, lenient_c=lenient_c);
-    return res.module.unparse(requires_format=True);
+    return unparse_module(res.module, requires_format=True);
 }
 
 def lift_c_file(
@@ -95,5 +98,5 @@ def render_c2jac_report(diags: list[tuple[str, str, int]]) -> str {
 
 def render_lifted_jac(res: LiftResult) -> str {
     header = render_c2jac_report(res.diags);
-    return header + res.module.unparse(requires_format=True);
+    return header + unparse_module(res.module, requires_format=True);
 }

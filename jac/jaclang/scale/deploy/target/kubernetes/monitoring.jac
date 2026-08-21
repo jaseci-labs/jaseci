@@ -30,8 +30,8 @@ obj MonitoringDeployer {
     def _deploy_prometheus(
         app_name: str,
         namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
+        apps_v1: any,
+        core_v1: any,
         provider: ClusterProvider,
         scrape_target_service: str = ""
     ) {
@@ -272,7 +272,7 @@ obj MonitoringDeployer {
                         'containers': [
                             {
                                 'name': 'prometheus',
-                                'image': 'prom/prometheus:latest',
+                                'image': 'prom/prometheus:v3.14.0',
                                 'securityContext': {
                                     'runAsNonRoot': True,
                                     'runAsUser': 65534,
@@ -678,7 +678,7 @@ obj MonitoringDeployer {
         }
     }
 
-    def _deploy_grafana(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def _deploy_grafana(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         grafana_name = f"{app_name}-grafana";
         prometheus_name = f"{app_name}-prometheus";
         grafana_secret_name = f"{grafana_name}-secret";
@@ -1226,7 +1226,7 @@ obj MonitoringDeployer {
                         'containers': [
                             {
                                 'name': 'grafana',
-                                'image': 'grafana/grafana:latest',
+                                'image': 'grafana/grafana:13.2.0',
                                 'securityContext': {
                                     'runAsNonRoot': True,
                                     'runAsUser': 472,
@@ -1335,7 +1335,7 @@ obj MonitoringDeployer {
         }
     }
 
-    def _deploy_tempo(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def _deploy_tempo(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         tempo_name = f"{app_name}-tempo";
         tempo_sa_name = f"{tempo_name}-sa";
 
@@ -1539,7 +1539,7 @@ obj MonitoringDeployer {
         }
     }
 
-    def _deploy_loki(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def _deploy_loki(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         loki_name = f"{app_name}-loki";
         loki_sa_name = f"{loki_name}-sa";
 
@@ -1722,7 +1722,7 @@ obj MonitoringDeployer {
         }
     }
 
-    def _deploy_alloy(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def _deploy_alloy(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         loki_name = f"{app_name}-loki";
         alloy_name = f"{app_name}-alloy";
         alloy_sa_name = f"{alloy_name}-sa";
@@ -2110,22 +2110,20 @@ obj MonitoringDeployer {
     def deploy(
         app_name: str,
         namespace: str,
-        apps_v1: Any,
-        core_v1: Any,
+        apps_v1: any,
+        core_v1: any,
         provider: ClusterProvider,
         scrape_target_service: str = ""
-    ) -> None {
-        if not self.k8s_config.monitoring_enabled {
-            return;
+    ) {
+        if self.k8s_config.monitoring_enabled {
+            if self.k8s_config.k8s_metrics_enabled {
+                self._deploy_kube_state_metrics(app_name, namespace, apps_v1, core_v1);
+                self._deploy_node_exporter(app_name, namespace, apps_v1, core_v1);
+            }
+            self._deploy_prometheus(
+                app_name, namespace, apps_v1, core_v1, provider, scrape_target_service
+            );
         }
-
-        if self.k8s_config.k8s_metrics_enabled {
-            self._deploy_kube_state_metrics(app_name, namespace, apps_v1, core_v1);
-            self._deploy_node_exporter(app_name, namespace, apps_v1, core_v1);
-        }
-        self._deploy_prometheus(
-            app_name, namespace, apps_v1, core_v1, provider, scrape_target_service
-        );
         if self.k8s_config.tracing_enabled {
             self._deploy_tempo(app_name, namespace, apps_v1, core_v1);
         }
@@ -2136,10 +2134,14 @@ obj MonitoringDeployer {
         if self.k8s_config.loki_enabled or self.k8s_config.tracing_enabled {
             self._deploy_alloy(app_name, namespace, apps_v1, core_v1);
         }
-        self._deploy_grafana(app_name, namespace, apps_v1, core_v1);
+        if self.k8s_config.monitoring_enabled
+            or self.k8s_config.loki_enabled
+            or self.k8s_config.tracing_enabled {
+            self._deploy_grafana(app_name, namespace, apps_v1, core_v1);
+        }
     }
 
-    def destroy(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def destroy(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         prometheus_name = f"{app_name}-prometheus";
         grafana_name = f"{app_name}-grafana";
         ksm_name = f"{app_name}-kube-state-metrics";

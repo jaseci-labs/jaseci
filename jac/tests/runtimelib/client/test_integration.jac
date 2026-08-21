@@ -16,6 +16,7 @@ import json;
 import os;
 import shutil;
 import subprocess;
+import sys;
 import sysconfig;
 import tempfile;
 import from pathlib { Path }
@@ -1165,7 +1166,7 @@ test "client SDK commands map to host plugin commands" {
     assert len(sdk_pairs) > 0 , "no _invoke() calls found in desktop_api.jac";
     # Map host plugin name -> handled commands, parsed from each plugin source.
     host = {};
-    for pf in sorted((plugin_dir / "built_in").glob("*_plugin.jac")) {
+    for pf in sorted((plugin_dir / "built_in").`glob("*_plugin.jac")) {
         text = pf.read_text();
         nm = re.search(r'name="(jac\.[a-z]+)"', text);
         if nm is None {
@@ -1296,7 +1297,8 @@ test "plugin bridge source contains expected elements" {
 
 """plugin_bridge.jac compiles with webview + libpython (link test)."""
 test "plugin bridge links with full native stack" {
-    soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
+    soname = sysconfig.get_config_var("INSTSONAME")
+        or f"libpython{sys.version_info.major}.{sys.version_info.minor}.so.1.0";
     webview_dir = _native_dir() / "webview";
     # The host inlines the bridge code (same pattern as _generate_host_source)
     src = (

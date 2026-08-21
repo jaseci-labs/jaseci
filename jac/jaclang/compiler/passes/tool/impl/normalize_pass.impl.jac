@@ -44,7 +44,9 @@ impl NormalizePass.enter_type_alias(nd: uni.TypeAlias) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    new_kid.append(nd.gen_token(Tok.EQ));
+    new_kid.append(
+        nd.gen_token(Tok.WALRUS_EQ) if nd.is_distinct else nd.gen_token(Tok.EQ)
+    );
     new_kid.append(nd.value);
     new_kid.append(nd.gen_token(Tok.SEMI));
     nd.set_kids(nodes=new_kid);
@@ -257,11 +259,12 @@ impl NormalizePass.enter_archetype(nd: uni.Archetype) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    if nd.base_classes {
+    inherit: list = list(nd.base_classes) + list(nd.keywords);
+    if inherit {
         new_kid.append(nd.gen_token(Tok.LPAREN));
-        for idx in range(len(nd.base_classes)) {
-            new_kid.append(nd.base_classes[idx]);
-            if idx < len(nd.base_classes) - 1 {
+        for idx in range(len(inherit)) {
+            new_kid.append(inherit[idx]);
+            if idx < len(inherit) - 1 {
                 new_kid.append(nd.gen_token(Tok.COMMA));
             }
         }
@@ -1529,8 +1532,8 @@ impl NormalizePass.enter_jsx_comment(nd: uni.JsxComment) -> None {
 impl NormalizePass.enter_match_stmt(nd: uni.MatchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_MATCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);
@@ -1552,8 +1555,8 @@ impl NormalizePass.enter_match_case(nd: uni.MatchCase) -> None {
 impl NormalizePass.enter_switch_stmt(nd: uni.SwitchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_SWITCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);

@@ -198,9 +198,17 @@ def _create_body(
         existing = find_project_root(cwd);
         if existing and not force {
             (project_root, toml_path) = existing;
-            console.error(f"Already in a Jac project: {toml_path}");
-            console.print("Use --force to reinitialize.", style="muted");
-            return 1;
+
+            if Path(project_root).resolve() == cwd.resolve() {
+                console.error(f"Already in a Jac project: {toml_path}");
+                console.print("Use --force to reinitialize.", style="muted");
+                return 1;
+            }
+            console.warning(
+                f"Creating a nested project inside {project_root}; the "
+                "nearest jac.toml wins for files under this directory.",
+                emoji=False
+            );
         }
     }
     project_path.mkdir(parents=True, exist_ok=True);
@@ -546,7 +554,7 @@ impl install(
     extras: list = [],
     no_save: bool = False,
     git: str = "",
-    npm: bool = False,
+    npm: bool | None = None,
     shadcn: bool = False,
     verbose: bool = False,
     force_reinstall: bool = False,
@@ -892,6 +900,10 @@ impl install(
     plugin_failed = False;
     for provider in get_provider_registry().all() {
         if provider.name == "python" {
+            continue;
+        }
+        if provider.name == "npm" and npm is False {
+            console.print("\n  Skipping npm dependencies (--no-npm)", style="muted");
             continue;
         }
         provider_deps = plan.for_ecosystem(provider.name);
@@ -1350,7 +1362,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
         } else {
             jac_toml_path = template_dir / "jac.toml";
             if jac_toml_path.exists() {
-                import from jaclang.jac0core.helpers { read_toml_with_encoding }
+                import from jaclang.jac0core.tomlio { read_toml_with_encoding }
                 jac_config = read_toml_with_encoding(str(jac_toml_path));
                 name = jac_config.get("jacpack", {}).get("name", template_dir.name);
             } else {
@@ -1684,7 +1696,7 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
         }
         return dist if dist.is_dir() else None;
     }
-    if dist.is_dir() and any(dist.glob('client.*.js')) {
+    if dist.is_dir() and any(dist.`glob('client.*.js')) {
         console.print(
             "  ⚠ bun unavailable; baking the existing client dist as-is",
             style="warning"
@@ -1916,7 +1928,7 @@ def _vendor_jab_deps(config: any, img: Path) -> bool {
     }
     write_vendor_manifest(img, specs, python_tag=python_tag());
 
-    wheels = sorted(wd.glob("*.whl"));
+    wheels = sorted(wd.`glob("*.whl"));
     total = sum([w.stat().st_size for w in wheels]);
     console.print(
         f"  ✔ Vendored {len(wheels)} wheel(s) ({total:,} bytes); "

@@ -6,13 +6,14 @@ import json;
 import random;
 import time;
 
-import from typing { Callable, Generator }
+import from typing { Generator }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm._optdeps.litellm { litellm, _disable_debugging }
 import from jaclang.byllm._optdeps.openai { openai, OpenAI, AsyncOpenAI }
 import from jaclang.project.capabilities { require_optional }
 import from jaclang.byllm.exceptions {
     AuthenticationError,
+    FinishToolError,
     OutputConversionError,
     RateLimitError,
     ModelNotFoundError,
@@ -57,6 +58,10 @@ with entry {
         os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True";
     }
 }
+
+glob _TOOL_DELTA_MIN_CHARS = 48,
+     _TOOL_DELTA_MIN_INTERVAL_S = 0.15,
+     _TOOL_DELTA_MAX_PER_CALL = 200;
 
 glob DEFAULT_BASE_URL = "http://localhost:4000",
      MODEL_MOCK = "mockllm";

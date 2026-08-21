@@ -1,12 +1,17 @@
 import os;
 import pathlib;
-import from dotenv { load_dotenv }
 import from jaclang.cli.console { console }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.config.project_env { load_project_env }
 import from jaclang.scale.observability.factory { UtilityFactory }
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.config.app_config { AppConfig }
-import from jaclang.scale.runtime.routing { format_route_lines, resolve_routes }
+import from jaclang.scale.runtime.routing {
+    ensure_main_service,
+    format_route_lines,
+    resolve_routes,
+    resolve_service_files
+}
 
 
 obj KubernetesRealizer {
@@ -26,10 +31,14 @@ obj KubernetesRealizer {
         if target == "kubernetes" {
             routes: dict[str, str] = resolve_routes(self.ms_config);
             if routes {
+                service_files = resolve_service_files(self.ms_config, routes);
+                ensure_main_service(routes, service_files, os.path.basename(filename));
                 raw_cfg = get_scale_config().load();
                 raw_ms = raw_cfg.setdefault("microservices", {});
                 raw_ms["routes"] = routes;
+                raw_ms["service_files"] = service_files;
                 self.ms_config["routes"] = routes;
+                self.ms_config["service_files"] = service_files;
                 plural = "s" if len(routes) != 1 else "";
                 console.print(
                     f"Deploying {len(routes)} service{plural} behind a gateway.",
@@ -50,8 +59,7 @@ obj KubernetesRealizer {
             raise FileNotFoundError(f"File not found: '{filename}'");
         }
         code_folder = os.path.dirname(filename) or '.';
-        dotenv_path = os.path.join(code_folder, '.env');
-        load_dotenv(dotenv_path);
+        load_project_env(code_folder);
         scale_config = get_scale_config();
         logger = UtilityFactory.create_logger('standard');
 
@@ -129,6 +137,8 @@ obj KubernetesRealizer {
             console.print(
                 f"Deployment complete! Service available at: {result.service_url}"
             );
+        } elif result.access_hint {
+            console.print(f"Deployment complete! {result.access_hint}");
         }
         return 0;
     }

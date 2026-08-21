@@ -1,6 +1,6 @@
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.helpers { read_toml_with_encoding }
+import from jaclang.jac0core.tomlio { read_toml_with_encoding }
 
 glob CONFIG_GROUPS = [
          "project",
@@ -376,7 +376,7 @@ def _output_json(settings: dict) {
             };
         }
     }
-    console.print(json.dumps(output, indent=2, default=str));
+    console.print(json.dumps(output, indent=2, `default=str));
 }
 
 def _output_toml(settings: dict, show_all: bool) {

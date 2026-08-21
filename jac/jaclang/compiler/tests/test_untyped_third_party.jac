@@ -85,7 +85,7 @@ def _check(src: str, search_dir: str) -> JacProgram {
     # Snapshot loaded modules so any test package imported for introspection
     # can be evicted afterwards: a lingering sys.modules entry makes
     # find_spec short-circuit to a now-deleted temp path and misclassifies a
-    # later same-named module (order-dependent flake under xdist).
+    # later same-named module (order-dependent flake across workers).
     modules_before = set(sys.modules.keys());
     try {
         prog = JacProgram();

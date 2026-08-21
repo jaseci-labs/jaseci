@@ -128,9 +128,8 @@ glob _CONVERT_OVERRIDE: dict[str, str] = {
          ">>=": Tok.RSHIFT_EQ
      };
 
-obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
+obj CastBuildPass(Transform) {
     has ir_in: uni.CModuleAst,
-        prog: JacProgram,
         cancel_token: Event | None = None,
         lenient_c: bool = False,
         orig_src: uni.Source postinit,
@@ -138,7 +137,6 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         _list_bound: set[str] postinit,
         _ptr_params: set[str] postinit,
         _enum_member_owner: dict[str, str] postinit,
-        _enum_const_aliases: dict[str, str] postinit,
         _enum_const_aliases: dict[str, str] postinit,
         _var_types: dict[str, JacPrim] postinit,
         _var_unsigned: set[str] postinit,
@@ -156,7 +154,6 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
 
     def postinit -> None;
     def _build_member_owner_map -> dict[str, str];
-    def _build_const_alias_map -> dict[str, str];
     def _build_const_alias_map -> dict[str, str];
     def _collect_enum_nodes(nd: c_ast.Node, out: list) -> None;
     def transform(ir_in: uni.CModuleAst) -> uni.Module;

@@ -40,7 +40,7 @@ def stable_type_id(name: str) -> int {
     return C_FIRST_USER_TYPEID + (stable_osp_tag(name) % 0x3FFFFFFD);
 }
 
-obj CGenPass(Transform[uni.Module, uni.Module]) {
+obj CGenPass(Transform) {
     has type_ids: dict[str, int] = {},
         method_owners: dict[str, dict[str, str]] = {},
         method_defs: dict[str, dict[str, uni.Ability]] = {},

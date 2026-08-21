@@ -457,7 +457,8 @@ test "dev section parsing" {
     assert cfg.dev.jaclang_source == "jac";
     assert cfg.dev.test_jobs == "4";
 
-    # A bare integer test_jobs is coerced to str so it flows into pytest's `-n`.
+    # A bare integer test_jobs is coerced to str so it flows into the runner's
+    # worker count.
     config_mod._config = None;
     as_int = JacConfig.from_toml_str("\n[dev]\ntest_jobs = 0\n");
     assert as_int.dev.test_jobs == "0";
@@ -516,10 +517,10 @@ test "parse full config" {
     assert cfg.build.typecheck is True;
 
     # Test config
-    assert cfg.test.directory == "tests";
-    assert cfg.test.verbose is True;
-    assert cfg.test.fail_fast is True;
-    assert cfg.test.max_failures == 5;
+    assert cfg.`test.directory == "tests";
+    assert cfg.`test.verbose is True;
+    assert cfg.`test.fail_fast is True;
+    assert cfg.`test.max_failures == 5;
 
     # Serve config
     assert cfg.serve.port == 9000;
@@ -559,7 +560,7 @@ test "profile inheritance" {
     cfg = JacConfig.from_toml_str(toml_str);
     cfg.apply_profile("staging");
     assert cfg.serve.port == 9000;
-    assert cfg.test.verbose is True;
+    assert cfg.`test.verbose is True;
 }
 
 test "apply nonexistent profile" {
@@ -1313,8 +1314,8 @@ test "overlay priority order" {
         local_toml.write_text("[test]\nverbose = false\n");
         cfg = JacConfig.load(jac_toml);
         cfg.apply_profile_overlay("prod");
-        assert cfg.test.fail_fast is True;
-        assert cfg.test.verbose is False;
+        assert cfg.`test.fail_fast is True;
+        assert cfg.`test.verbose is False;
     }
 }
 
@@ -1904,5 +1905,45 @@ test "discover flags configs found in an ancestor directory" {
         assert cfg_nested.discovered_from_ancestor , (
             "config discovered by climbing out of cwd must be flagged"
         );
+    }
+}
+
+# ===========================================================================
+# TestLegacyPluginsTable
+# ===========================================================================
+test "legacy plugins table warns on load" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        (temp_project / "jac.toml").write_text(
+            "[project]\nname = \"demo\"\n\n"
+            "[plugins.scale.websocket]\nmax_message_bytes = 1\n"
+        );
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            cfg = JacConfig.load(temp_project / "jac.toml");
+        }
+        err = buf.getvalue();
+        assert "[plugins]" in err , f"expected legacy-plugins warning, got: {err!r}";
+        assert "scale" in err , err;
+        assert cfg.get_plugin_config("scale") == {} , (
+            "legacy [plugins.scale] must not be treated as [scale]"
+        );
+    }
+}
+
+test "no legacy warning without a plugins table" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            JacConfig.load(temp_project / "jac.toml");
+        }
+        assert "[plugins]" not in buf.getvalue() , buf.getvalue();
     }
 }

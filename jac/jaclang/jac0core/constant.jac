@@ -112,11 +112,19 @@ enum CodeContext {
     }
 }
 
-enum EdgeDir { IN = 1, OUT = 2, ANY = 3 }
+enum EdgeDir: int { IN = 1, OUT = 2, ANY = 3 }
+
+enum ParamKind: int { POSONLY = 0, NORMAL = 1, VARARG = 2, KWONLY = 3, KWARG = 4 }
 
 enum ExprCtx { LOAD = 'load', STORE = 'store', DEL = 'del' }
 
-enum OwnershipKind { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
+enum OwnershipKind: int { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     ),
+     NATIVE_ERASED_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"}),
+     NATIVE_ERASED_ANNOTATIONS: frozenset = frozenset({"ClassVar"});
 
 glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
          {
@@ -750,7 +758,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'WALRUS_EQ': ':=',
          'WS': ' '
      },
-     DELIM_MAP = {
+     DELIM_MAP: dict[Tokens, str] = {
          Tokens.COMMA: ',',
          Tokens.EQ: '=',
          Tokens.DECOR_OP: '@',

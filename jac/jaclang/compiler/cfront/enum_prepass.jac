@@ -40,9 +40,9 @@ def _collect_tu_func_names(file_ast: c_ast.Node) -> set[str] {
     if ext is None {
         return names;
     }
-    for entry in ext {
-        if isinstance(entry, c_ast.FuncDef) {
-            decl = entry.decl;
+    for ext_item in ext {
+        if isinstance(ext_item, c_ast.FuncDef) {
+            decl = ext_item.decl;
             nm = decl.name if decl is not None else None;
             if nm {
                 names.add(nm);
@@ -58,9 +58,9 @@ def _collect_tu_decl_names(file_ast: c_ast.Node) -> set[str] {
     if ext is None {
         return names;
     }
-    for entry in ext {
-        if isinstance(entry, c_ast.Decl) or isinstance(entry, c_ast.Typedef) {
-            nm = entry.name;
+    for ext_item in ext {
+        if isinstance(ext_item, c_ast.Decl) or isinstance(ext_item, c_ast.Typedef) {
+            nm = ext_item.name;
             if nm {
                 names.add(nm);
             }

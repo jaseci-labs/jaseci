@@ -15,7 +15,7 @@ silently mis-bound value.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
@@ -54,6 +54,15 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     return prog;
 }
 
+"""Like `compile_na_inline`, but also hand back the compiled module so a
+granular demotion (epic #8201) is observable through the native layout."""
+def compile_na_inline_ir(label: str, code: str) -> tuple {
+    path = os.path.join(FIXTURES, f"_closure_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
+    return (prog, ir, );
+}
+
 """Return True if the program emitted at least one alert with the given code."""
 def has_error_code(prog: JacProgram, code: str) -> bool {
     for alrt in prog.errors_had {
@@ -87,7 +96,7 @@ test "closure: rebound capture writes through to the enclosing frame" {
 
 test "closure: RC pointer capture (str) reads without double release" {
     (eng, _) = compile_native("closures.jac");
-    f = get_func(eng, "str_capture", ctypes.c_int64, ctypes.c_char_p);
+    f = native_str_func(eng, "str_capture", ctypes.c_int64, ctypes.c_char_p);
     assert f(b"abcd") == 8;
 }
 
@@ -149,7 +158,7 @@ test "closure escape: capturing lambda escapes as a value" {
 }
 
 test "closure escape: capture borrowed from an outer frame stays rejected" {
-    prog = compile_na_inline(
+    (prog, ir) = compile_na_inline_ir(
         "transitive_escape",
         "def outer(y: int) -> Callable[[], int] {\n"
         "    def mid -> Callable[[], int] {\n"
@@ -159,14 +168,19 @@ test "closure escape: capture borrowed from an outer frame stays rejected" {
         "    return mid();\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5092") , (
-        f"expected E5092 for a closure escaping with an outer-frame capture, "
-        f"got: {[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        f"the outer-frame capture refusal is owned by outer(), which must "
+        f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "outer" not in ir.gen.native_layout.functions , (
+        "a closure escaping with an outer-frame capture must demote its "
+        "function out of the native layout, never lower wrongly"
     );
 }
 
 test "closure escape: calling a closure through an any-typed value stays rejected" {
-    prog = compile_na_inline(
+    (prog, ir) = compile_na_inline_ir(
         "any_closure_call",
         "def outer(y: int) -> int {\n"
         "    def inner(x: int) -> int { return x * y; }\n"
@@ -174,9 +188,14 @@ test "closure escape: calling a closure through an any-typed value stays rejecte
         "    return f(3);\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5092") , (
-        f"expected E5092 for an any-typed closure call site, got: "
-        f"{[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        f"the any-typed closure call refusal is owned by outer(), which must "
+        f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "outer" not in ir.gen.native_layout.functions , (
+        "an any-typed closure call site must demote its function out of the "
+        "native layout, never lower wrongly"
     );
 }
 

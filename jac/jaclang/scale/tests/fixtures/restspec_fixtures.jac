@@ -282,7 +282,7 @@ obj TreeNode {
 }
 
 def _tree_depth(n: TreeNode) -> int {
-    return 1 + max([_tree_depth(c) for c in n.children], default=0);
+    return 1 + max([_tree_depth(c) for c in n.children], `default=0);
 }
 
 def _tree_count(n: TreeNode) -> int {
@@ -355,4 +355,12 @@ def:pub raw_json -> dict {
 @restspec(method=HTTPMethod.GET, path="/raw/enveloped")
 def:pub still_enveloped -> str {
     return "wrapped";
+}
+
+
+"""Function with a custom path and NO method= (#8000 f3): must default to
+POST and register a live route instead of an unroutable "" method."""
+@restspec(path="/custom/no-method-func")
+def no_method_func -> dict {
+    return {"message": "no_method_func executed"};
 }

@@ -57,7 +57,7 @@ def get_shared_type_facts(
     modules: list[uni.Module], prog: JacProgram | None = None
 ) -> TypeFacts;
 
-obj TypeFactsPass(Transform[uni.Module, uni.Module]) {
+obj TypeFactsPass(Transform) {
     has facts: TypeFacts = TypeFacts();
 
     def transform(ir_in: uni.Module) -> uni.Module;

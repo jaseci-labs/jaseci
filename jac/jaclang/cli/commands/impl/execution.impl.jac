@@ -3,7 +3,7 @@ import os;
 import sys;
 import types;
 import from pathlib { Path }
-import from jaclang.cli.console { console }
+import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
 
@@ -274,6 +274,7 @@ impl run(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
+    use_line_buffered_output();
     if debug_mode {
         if not filename {
             console.error("jac run --debug needs a file.");
@@ -407,7 +408,7 @@ impl run(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.helpers { dump_traceback }
+                import from jaclang.jac0core.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -445,6 +446,7 @@ impl enter(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
+    use_line_buffered_output();
     if len(sys.argv) > 1 and sys.argv[1] == "enter" {
         console.print(
             "note: 'jac enter' is deprecated; use jac run <file> --entry <name>",
@@ -479,7 +481,7 @@ impl enter(
                 isinstance(archetype, WalkerArchetype)
                 and Jac.check_read_access(mach.entry_node)
             ) {
-                Jac.spawn(mach.entry_node.archetype, archetype);
+                Jac.`spawn(mach.entry_node.archetype, archetype);
             }
         }
     }
@@ -529,12 +531,14 @@ impl start(
     target: str = "kubernetes",
     enable_tls: bool = False,
     dry_run: bool = False,
-    show_yaml: bool = False
+    show_yaml: bool = False,
+    takeover: bool = False
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
 
+    use_line_buffered_output();
     set_effective_default_codespace('server');
 
     import from jaclang.runtimelib.client.cli { run_client_start }
@@ -546,7 +550,9 @@ impl start(
     }
 
     import from jaclang.scale.plugin { scale_start }
-    scale_rc = scale_start(filename, scale, target, enable_tls, dry_run, show_yaml);
+    scale_rc = scale_start(
+        filename, scale, target, enable_tls, dry_run, show_yaml, port=port
+    );
     if scale_rc is not None {
         return scale_rc;
     }
@@ -567,6 +573,19 @@ impl start(
     }
 
     _discover_config_from_file(filename);
+    if takeover {
+        import os;
+        import from jaclang.runtimelib.session { takeover_project }
+        tk_base = Jac.get_base_path_dir() or (os.path.split(filename)[0] or './');
+        tk_target = Jac.get_full_target_path() or filename;
+        evicted = takeover_project(tk_base, tk_target);
+        if evicted {
+            console.info(
+                f"takeover: evicted {evicted} session(s) holding this"
+                " project's database"
+            );
+        }
+    }
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
 
@@ -585,13 +604,17 @@ impl start(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
         mach.close();
         return 1;
     }
+
+    try {
+        mach.mem.unit_exit();
+    } except Exception { }
 
     if dev and not no_client {
         vite_port = port;
@@ -607,14 +630,15 @@ impl start(
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
             return 1;
         } finally {
-            if server?.server and server.server {
-                server.server.server_close();
+            svr = server?.server;
+            if svr and hasattr(svr, 'server_close') {
+                svr.server_close();
             }
         }
         mach.close();
@@ -711,12 +735,12 @@ impl start(
         }
         for started_vite in vite_holder {
             started_vite.terminate();
-            started_vite.wait(timeout=5);
+            started_vite.`wait(timeout=5);
         }
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.helpers { dump_traceback }
+        import from jaclang.jac0core.traceback_render { dump_traceback }
         console.error(f"Server error: {e}");
         console.error(dump_traceback(e));
         if hot_reloader {
@@ -919,7 +943,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { debugger as db }
+    import from jaclang.jac0core.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"
@@ -992,11 +1016,11 @@ def _node_tools_in(bin_dir: object) -> list {
     if bin_dir is None or not bin_dir.exists() {
         return [];
     }
-    for entry in bin_dir.iterdir() {
-        if entry.is_dir() {
+    for `entry in bin_dir.iterdir() {
+        if `entry.is_dir() {
             continue;
         }
-        base = entry.name;
+        base = `entry.name;
         for suffix in [".cmd", ".ps1", ".exe", ".bat"] {
             if base.endswith(suffix) {
                 base = base[:-len(suffix)];

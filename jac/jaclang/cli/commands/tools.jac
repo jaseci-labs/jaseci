@@ -9,7 +9,7 @@ glob registry = get_registry();
     args=[
         Arg.create("tool", kind=ArgKind.POSITIONAL, help="Name of the AST tool to run"),
         Arg.create(
-            "args", kind=ArgKind.REMAINDER, default=[], help="Arguments for the tool"
+            "args", kind=ArgKind.REMAINDER, `default=[], help="Arguments for the tool"
         ),
 
     ],
@@ -28,29 +28,35 @@ def tool(tool: str, args: list = []) -> int;
     help="Generate graph visualization (DOT format)",
     args=[
         Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
-        Arg.create("session", default="", help="Session identifier", short="s"),
-        Arg.create("initial", default="", help="Initial node ID", short="i"),
-        Arg.create("depth", typ=int, default=-1, help="Max traversal depth", short="d"),
+        Arg.create("session", `default="", help="Session identifier", short="s"),
+        Arg.create("initial", `default="", help="Initial node ID", short="i"),
         Arg.create(
-            "traverse", typ=bool, default=False, help="Enable traversal mode", short="t"
+            "depth", typ=int, `default=-1, help="Max traversal depth", short="d"
+        ),
+        Arg.create(
+            "traverse",
+            typ=bool,
+            `default=False,
+            help="Enable traversal mode",
+            short="t"
         ),
         Arg.create(
             "connection",
             kind=ArgKind.MULTI_OPTION,
-            default=[],
+            `default=[],
             help="Connection filters",
             short="c"
         ),
         Arg.create(
-            "bfs", typ=bool, default=False, help="Use breadth-first search", short="b"
+            "bfs", typ=bool, `default=False, help="Use breadth-first search", short="b"
         ),
-        Arg.create("edge_limit", typ=int, default=512, help="Max edges", short="e"),
-        Arg.create("node_limit", typ=int, default=512, help="Max nodes", short="n"),
-        Arg.create("saveto", default="", help="Output file path", short="o"),
+        Arg.create("edge_limit", typ=int, `default=512, help="Max edges", short="e"),
+        Arg.create("node_limit", typ=int, `default=512, help="Max nodes", short="n"),
+        Arg.create("saveto", `default="", help="Output file path", short="o"),
         Arg.create(
-            "to_screen", typ=bool, default=False, help="Print to stdout", short="p"
+            "to_screen", typ=bool, `default=False, help="Print to stdout", short="p"
         ),
-        Arg.create("format", default="dot", help="Output format", short="f"),
+        Arg.create("format", `default="dot", help="Output format", short="f"),
 
     ],
     examples=[
@@ -102,14 +108,14 @@ def ninja -> int;
         Arg.create(
             "shell",
             typ=str,
-            default="bash",
+            `default="bash",
             help="Shell to generate completions for (bash, zsh, fish)",
             short="s"
         ),
         Arg.create(
             "install",
             typ=bool,
-            default=False,
+            `default=False,
             help="Install completions to shell config file (~/.bashrc, ~/.zshrc, etc.)",
             short="i"
         ),
@@ -129,29 +135,6 @@ def ninja -> int;
 def completions(shell: str = "bash", install: bool = False) -> int;
 
 @registry.command(
-    name="gen-jir-registry",
-    hidden=True,
-    help="Regenerate jir_registry.jac from unitree node classes",
-    args=[
-        Arg.create(
-            "verify",
-            typ=bool,
-            default=False,
-            help="Check that jir_registry.jac is up to date; exit 1 if not",
-            short="v"
-        ),
-
-    ],
-    examples=[
-        ("jac gen-jir-registry", "Regenerate jir_registry.jac"),
-        ("jac gen-jir-registry --verify", "Check registry is up to date (for CI)"),
-
-    ],
-    group="tools"
-)
-def gen_jir_registry(verify: bool = False) -> int;
-
-@registry.command(
     name="gen-uni-dispatch",
     hidden=True,
     help="Regenerate static enter_node/exit_node dispatch for UniPass subclasses",
@@ -159,7 +142,7 @@ def gen_jir_registry(verify: bool = False) -> int;
         Arg.create(
             "verify",
             typ=bool,
-            default=False,
+            `default=False,
             help="Check that dispatch annexes are up to date; exit 1 if not",
             short="v"
         ),
@@ -182,7 +165,7 @@ def gen_uni_dispatch(verify: bool = False) -> int;
         Arg.create(
             "verify",
             typ=bool,
-            default=False,
+            `default=False,
             help="Check that manifest.impl.jac route table is up to date; exit 1 if not",
             short="v"
         ),

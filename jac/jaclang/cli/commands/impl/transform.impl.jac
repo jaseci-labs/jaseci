@@ -6,16 +6,20 @@ import from jaclang.cli.commands.cli_helpers { flatten_append }
 impl py2jac(filename: str) -> int {
     import jaclang.jac0core.unitree as uni;
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+    import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.helpers { read_file_with_encoding }
     if filename.endswith('.py') {
         file_source = read_file_with_encoding(filename);
-        code = PyastBuildPass(
-            ir_in=uni.PythonModuleAst(
-                ast3.parse(file_source), orig_src=uni.Source(file_source, filename)
-            ),
-            prog=JacProgram()
-        ).ir_out.unparse(
+        code = unparse_module(
+            run_pass(
+                PyastBuildPass,
+                uni.PythonModuleAst(
+                    ast3.parse(file_source), orig_src=uni.Source(file_source, filename)
+                ),
+                JacProgram()
+            ).ir_out,
             requires_format=False
         );
         prog = JacProgram.jac_str_formatter(
@@ -209,7 +213,7 @@ impl cbindgen(
         return 1;
     }
     try {
-        (na_str, report) = generate_bindings(
+        (na_str, binding_report) = generate_bindings(
             filename,
             lib,
             include_dirs=flatten_append(incdir),
@@ -237,21 +241,21 @@ impl cbindgen(
             return 1;
         }
         console.print(
-            f"[cbindgen] wrote {report.functions} function binding(s) and "
-            f"{report.constants} constant(s) to {output}"
+            f"[cbindgen] wrote {binding_report.functions} function binding(s) and "
+            f"{binding_report.constants} constant(s) to {output}"
         );
     } else {
         console.print(na_str, markup=False, highlight=False);
     }
-    if report.functions == 0 and report.constants == 0 {
+    if binding_report.functions == 0 and binding_report.constants == 0 {
         console.warning(
             "[cbindgen] nothing was bound — check -I include paths, --allow/--block "
             "filters, or that the header declares extern functions, enums, or "
             "integer #define constants"
         );
-    } elif report.variadic {
+    } elif binding_report.variadic {
         console.warning(
-            f"[cbindgen] {report.variadic} variadic binding(s) emit `*rest`: "
+            f"[cbindgen] {binding_report.variadic} variadic binding(s) emit `*rest`: "
             f"va_list/va_arg semantics are not modelled — verify each call site"
         );
     }

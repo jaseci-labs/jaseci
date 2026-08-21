@@ -196,9 +196,7 @@ def dispatch(payload_json: str) -> str {
     } except Exception {
         body = {"ok": False, "error": {"message": resp.text}};
     }
-    return json.dumps(
-        {"status": resp.status_code, "ok": resp.is_success, "body": body}
-    );
+    return json.dumps({"status": resp.status_code, "ok": resp.ok, "body": body});
 }
 
 
@@ -239,7 +237,7 @@ def dispatch_sync(payload_json: str, timeout_s: float = 0.0) -> str {
     );
     th.start();
 
-    done.wait(timeout_s);
+    done.`wait(timeout_s);
     if box["v"] is not None {
         return box["v"] as str;
     }

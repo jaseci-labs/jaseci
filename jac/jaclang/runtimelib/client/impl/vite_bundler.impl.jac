@@ -19,15 +19,15 @@ def _build_vite_command(build_dir: Path, args: list[str]) -> list[str] {
     }
 
     bun = _require_bun();
-    entry = resolve_node_tool_entry(build_dir, 'vite');
-    if entry is None {
+    `entry = resolve_node_tool_entry(build_dir, 'vite');
+    if `entry is None {
         raise ClientBundleError(
             f"Vite is not installed under {build_dir / 'node_modules'}. "
             "Dependencies are installed before every build, so an absent "
             "vite means that install did not complete."
         ) from None;
     }
-    return [bun, str(entry)] + args;
+    return [bun, str(`entry)] + args;
 }
 
 impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
@@ -172,6 +172,26 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
     return tsconfig_path;
 }
 
+impl client_deps_stale(build_dir: Path) -> bool {
+    import hashlib;
+    node_modules = build_dir / 'node_modules';
+    if not node_modules.exists() {
+        return True;
+    }
+    manifest = build_dir / 'configs' / 'package.json';
+    if not manifest.exists() {
+        return False;
+    }
+
+    marker = node_modules / '.jac-deps-hash';
+    current = hashlib.sha256(manifest.read_bytes()).hexdigest();
+    if not marker.exists() {
+        return True;
+    }
+    return marker.read_text(encoding='utf-8').strip() != current;
+}
+
+
 impl ViteBundler.install_packages(
     self: ViteBundler,
     install_dir: Optional[Path] = None,
@@ -193,7 +213,7 @@ impl ViteBundler.install_packages(
                 shutil.rmtree(node_modules);
             }
         }
-        if node_modules.exists() {
+        if node_modules.exists() and not client_deps_stale(build_dir) {
             return;
         }
     }
@@ -203,7 +223,7 @@ impl ViteBundler.install_packages(
         self.create_package_json();
     }
     build_package_json = build_dir / 'package.json';
-    if configs_package_json.exists() and not build_package_json.exists() {
+    if configs_package_json.exists() {
         shutil.copy2(configs_package_json, build_package_json);
     }
     configs_npmrc = build_dir / 'configs' / '.npmrc';
@@ -234,6 +254,13 @@ impl ViteBundler.install_packages(
             raise ClientBundleError("Failed to install dependencies") from None;
         }
         console.print(f"\n  ✔ Dependencies installed ({elapsed:.1f}s)");
+        if configs_package_json.exists() and (build_dir / 'node_modules').exists() {
+            import hashlib;
+            (build_dir / 'node_modules' / '.jac-deps-hash').write_text(
+                hashlib.sha256(configs_package_json.read_bytes()).hexdigest(),
+                encoding='utf-8'
+            );
+        }
     } finally {
         if build_package_json.exists() {
             build_package_json.unlink();
@@ -1061,7 +1088,7 @@ impl ViteBundler.find_css(self: ViteBundler) -> Optional[Path] {
 }
 
 impl ViteBundler.find_bundle(self: ViteBundler) -> Optional[Path] {
-    for file in self.output_dir.glob('client.*.js') {
+    for file in self.output_dir.`glob('client.*.js') {
         return file;
     }
     return None;
@@ -1324,6 +1351,17 @@ impl ViteBundler.start_dev_server(
     return process;
 }
 
+def _dev_head_scripts -> str {
+    import from jaclang.project.config { get_config }
+    import from jaclang.runtimelib.client.serving { HeaderBuilder }
+
+    config = get_config();
+    client_cfg = config.get_plugin_config('client') if config else None;
+    meta_data = client_cfg.get('app_meta_data', {}) if client_cfg else {};
+    tags = HeaderBuilder(meta_data, 'dev').build_scripts();
+    return ''.join(f'    {tag}\n' for tag in tags);
+}
+
 impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> None {
     index_html = build_dir / 'index.html';
     index_content = '''<!DOCTYPE html>
@@ -1385,6 +1423,9 @@ impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> N
   </body>
 </html>
 ''';
+    if head_scripts := _dev_head_scripts() {
+        index_content = index_content.replace('  </head>', f'{head_scripts}  </head>');
+    }
     index_html.write_text(index_content, encoding='utf-8');
 }
 
@@ -1562,7 +1603,7 @@ impl ViteBundler._start_vite_with_output_capture(
     );
     output_thread.start();
 
-    is_ready = ready_event.wait(timeout=VITE_READY_TIMEOUT_SECONDS);
+    is_ready = ready_event.`wait(timeout=VITE_READY_TIMEOUT_SECONDS);
     if is_ready {
         port_file = build_dir / '.dev-port';
         for _ in range(40) {

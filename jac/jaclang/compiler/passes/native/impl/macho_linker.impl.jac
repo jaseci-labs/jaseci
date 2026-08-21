@@ -74,11 +74,14 @@ glob X86_64_RELOC_UNSIGNED = 0,
 
 glob BIND_OPCODE_DONE = 0x00,
      BIND_OPCODE_SET_DYLIB_ORDINAL_IMM = 0x10,
+     BIND_OPCODE_SET_DYLIB_SPECIAL_IMM = 0x30,
      BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM = 0x40,
      BIND_OPCODE_SET_TYPE_IMM = 0x50,
      BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB = 0x70,
      BIND_OPCODE_DO_BIND = 0x90,
-     BIND_TYPE_POINTER = 1;
+     BIND_TYPE_POINTER = 1,
+     BIND_SPECIAL_FLAT_LOOKUP_IMM = 0x0E,
+     PROCESS_LOOKUP_LIB = "@process";
 
 glob REBASE_OPCODE_DONE = 0x00,
      REBASE_OPCODE_SET_TYPE_IMM = 0x10,
@@ -309,6 +312,36 @@ def _arm64_apply_reloc(
         return True;
     }
     return False;
+}
+
+
+def _macho_reloc_refusal(rel: MachOReloc, sym_name: str, why: str) -> str {
+    who = f" for symbol {sym_name}" if sym_name else "";
+    return (
+        f"Mach-O link refused: relocation type {rel.rtype} "
+        f"(extern={rel.extern}, length={rel.length}, pcrel={rel.pcrel}) at "
+        f"{rel.target_sec}+0x{rel.address:x}{who} was not applied -- {why}. "
+        "A relocation this linker drops leaves the instruction pointing at "
+        "whatever else landed nearby, which is not a link error at build time "
+        "and is a wrong artifact at run time (#8313). Teach the linker this "
+        "relocation rather than emitting the artifact without it."
+    );
+}
+
+
+def _unsigned_inline_addend(
+    rel: MachOReloc, patch_buf: bytearray, patch_off: int, sections: list[MachOSection]
+) -> int {
+    if rel.length != 3 or patch_off + 8 > len(patch_buf) {
+        return 0;
+    }
+    inline_val = struct.unpack_from("<Q", patch_buf, patch_off)[0];
+    if rel.extern == 1 {
+        return inline_val;
+    }
+    tsi = rel.symbolnum - 1;
+    old_base = sections[tsi].addr if (tsi >= 0 and tsi < len(sections)) else 0;
+    return inline_val - old_base;
 }
 
 
@@ -603,10 +636,14 @@ impl MachOLinker._consolidate(
         if key in existing {
             ti = existing[key];
             tgt = self.sections[ti];
-            aligned = _align(len(tgt.data), max(ms.align, 1));
+
+            cur_logical = tgt.size if tgt.size > len(tgt.data) else len(tgt.data);
+            aligned = _align(cur_logical, max(ms.align, 1));
             new_data = bytearray(tgt.data);
-            new_data.extend(b"\x00" * (aligned - len(tgt.data)));
-            data_off = len(new_data);
+            if len(ms.data) > 0 {
+                new_data.extend(b"\x00" * (aligned - len(new_data)));
+            }
+            data_off = aligned;
             new_data.extend(ms.data);
             tgt.data = bytes(new_data);
             ms_logical = ms.size if ms.size > len(ms.data) else len(ms.data);
@@ -657,6 +694,17 @@ impl MachOLinker._consolidate(
             sym_remap[si] = ni;
         } else {
             keep_val = sym.n_value if (sym.n_type & N_TYPE_MASK) == 0x02 else 0;
+            if (sym.n_type & N_TYPE_MASK) == N_UNDF
+                and (sym.n_type & N_EXT) != 0
+                and sym.n_value > 0
+                and sym.name {
+                (_c_sz, _c_al) = self._commons.get(sym.name, (0, 0));
+                _sym_al = (sym.n_desc >> 8) & 0x0F;
+                self._commons[sym.name] = (
+                    sym.n_value if sym.n_value > _c_sz else _c_sz,
+                    _sym_al if _sym_al > _c_al else _c_al
+                );
+            }
             ni = len(self.symbols);
             self.symbols.append(
                 MachOSymbol(
@@ -693,6 +741,75 @@ impl MachOLinker._consolidate(
                 addend=r.addend
             )
         );
+    }
+}
+
+
+impl MachOLinker._allocate_commons -> None {
+    if not self._commons {
+        return;
+    }
+    already: set[str] = set();
+    for s in self.symbols {
+        if (s.n_type & N_TYPE_MASK) == N_SECT and s.name {
+            already.add(s.name);
+        }
+    }
+
+    target = -1;
+    for (i, sec) in enumerate(self.sections) {
+        if sec.segname == "__DATA" and sec.name == "__data" {
+            target = i;
+            break;
+        }
+    }
+    if target < 0 {
+        target = len(self.sections);
+        self.sections.append(
+            MachOSection(
+                name="__data",
+                segname="__DATA",
+                addr=0,
+                size=0,
+                data=b"",
+                align=3,
+                flags=0,
+                reserved1=0,
+                reserved2=0
+            )
+        );
+    }
+    sec = self.sections[target];
+    blob = bytearray(sec.data);
+
+    for name in sorted(self._commons.keys()) {
+        if name in already {
+            continue;
+        }
+        (size, align_log2) = self._commons[name];
+        align = 1 << align_log2 if align_log2 > 0 else 1;
+        if align < 1 {
+            align = 1;
+        }
+        start = _align(len(blob), align);
+        blob.extend(b"\x00" * (start - len(blob)));
+        off = len(blob);
+        blob.extend(b"\x00" * size);
+        self.symbols.append(
+            MachOSymbol(
+                name=name,
+                n_type=N_SECT | N_EXT,
+                n_sect=target + 1,
+                n_desc=0,
+                n_value=sec.addr + off
+            )
+        );
+        already.add(name);
+    }
+    sec.data = bytes(blob);
+    sec.size = len(blob);
+    if sec.align < 3 {
+        sec.align = 3;
     }
 }
 
@@ -745,12 +862,14 @@ impl MachOLinker.build_executable -> bytes {
     data_sections: dict[str, tuple[int, int]] = {};
 
     sec_placement: dict[int, tuple[str, int]] = {};
+    dropped_secs: set[str] = set();
 
     for (sec_idx, sec) in enumerate(self.sections) {
         if sec.name.startswith("__debug")
             or sec.name.startswith("__apple")
             or sec.name == "__compact_unwind"
             or sec.name == "__eh_frame" {
+            dropped_secs.add(f"{sec.segname}:{sec.name}");
             continue;
         }
         is_text = sec.segname == "__TEXT"
@@ -771,6 +890,8 @@ impl MachOLinker.build_executable -> bytes {
             off = _append_to_blob(data_data, sec.data, sec.align, sec.size);
             data_sections[sec_key] = (off, sec.size);
             sec_placement[sec_idx] = ("data", off);
+        } else {
+            dropped_secs.add(sec_key);
         }
     }
 
@@ -785,6 +906,7 @@ impl MachOLinker.build_executable -> bytes {
     };
     local_sym_map: dict[str, tuple[str, int]] = {};
     sym_idx_map: dict[int, tuple[str, int]] = {};
+    extern_defined_names: set[str] = set();
 
     for (sym_idx, sym) in enumerate(self.symbols) {
         sym_type_field = sym.n_type & N_TYPE_MASK;
@@ -987,10 +1109,15 @@ impl MachOLinker.build_executable -> bytes {
 
         _lookup = sym_name[1:] if sym_name.startswith("_") else sym_name;
         _lib = self.symbol_lib_map.get(_lookup);
-        ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
-
-        bind_data.append(0x20);
-        bind_data.extend(_encode_uleb128(ordinal));
+        if _lib == PROCESS_LOOKUP_LIB {
+            bind_data.append(
+                BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
+            );
+        } else {
+            ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
+            bind_data.append(0x20);
+            bind_data.extend(_encode_uleb128(ordinal));
+        }
 
         bind_data.append(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
         bind_data.extend(sym_name.encode("utf-8") + b"\x00");
@@ -1207,17 +1334,26 @@ impl MachOLinker.build_executable -> bytes {
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
-            } elif sym_name in extern_stub_addr {
-                sym_addr = extern_stub_addr[sym_name];
             } else {
-                place = local_sym_map.get(sym_name);
-                if place is not None {
-                    (seg, seg_off) = place;
-                    sym_addr = _resolve_seg_vaddr(
-                        seg, seg_off, text_sec_vaddr, const_sec_vaddr, data_sec_vaddr
-                    );
-                } elif sym_name in got_addr_map {
-                    sym_addr = got_addr_map[sym_name];
+                place = sym_idx_map.get(rel.symbolnum);
+                if place is None and sym_name in extern_stub_addr {
+                    sym_addr = extern_stub_addr[sym_name];
+                } else {
+                    if place is None {
+                        place = local_sym_map.get(sym_name);
+                    }
+                    if place is not None {
+                        (seg, seg_off) = place;
+                        sym_addr = _resolve_seg_vaddr(
+                            seg,
+                            seg_off,
+                            text_sec_vaddr,
+                            const_sec_vaddr,
+                            data_sec_vaddr
+                        );
+                    } elif sym_name in got_addr_map {
+                        sym_addr = got_addr_map[sym_name];
+                    }
                 }
             }
         } elif rel.extern == 0 {
@@ -1245,17 +1381,40 @@ impl MachOLinker.build_executable -> bytes {
             data_sec_vaddr
         );
         if site is None {
-            continue;
+            if rel.target_sec in dropped_secs {
+                continue;
+            }
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel,
+                    sym_name,
+                    "its patch site is in a section this link never placed"
+                )
+            );
         }
         (patch_buf, patch_off, patch_vaddr) = site;
 
+        eff_addend = rel.addend;
+        if (is_arm64 and rel.rtype == ARM64_RELOC_UNSIGNED)
+            or (not is_arm64 and rel.rtype == X86_64_RELOC_UNSIGNED) {
+            eff_addend += _unsigned_inline_addend(
+                rel, patch_buf, patch_off, self.sections
+            );
+        }
         if is_arm64 {
-            _arm64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+            applied = _arm64_apply_reloc(
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
-            _x86_64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+            applied = _x86_64_apply_reloc(
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
+            );
+        }
+        if not applied {
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel, sym_name, "this linker does not implement its type"
+                )
             );
         }
     }
@@ -1629,11 +1788,13 @@ impl MachOLinker.build_shared_object -> bytes {
     rodata_sections: dict[str, tuple[int, int]] = {};
     data_sections: dict[str, tuple[int, int]] = {};
     sec_placement: dict[int, tuple[str, int]] = {};
+    dropped_secs: set[str] = set();
     for (sec_idx, sec) in enumerate(self.sections) {
         if sec.name.startswith("__debug")
             or sec.name.startswith("__apple")
             or sec.name == "__compact_unwind"
             or sec.name == "__eh_frame" {
+            dropped_secs.add(f"{sec.segname}:{sec.name}");
             continue;
         }
         is_text = sec.segname == "__TEXT"
@@ -1653,6 +1814,8 @@ impl MachOLinker.build_shared_object -> bytes {
             off = _append_to_blob(data_data, sec.data, sec.align, sec.size);
             data_sections[sec_key] = (off, sec.size);
             sec_placement[sec_idx] = ("data", off);
+        } else {
+            dropped_secs.add(sec_key);
         }
     }
 
@@ -1667,6 +1830,7 @@ impl MachOLinker.build_shared_object -> bytes {
     };
     local_sym_map: dict[str, tuple[str, int]] = {};
     sym_idx_map: dict[int, tuple[str, int]] = {};
+    extern_defined_names: set[str] = set();
     for (sym_idx, sym) in enumerate(self.symbols) {
         sym_type_field = sym.n_type & N_TYPE_MASK;
         is_extern = (sym.n_type & N_EXT) != 0;
@@ -1686,7 +1850,13 @@ impl MachOLinker.build_shared_object -> bytes {
             if placement is not None {
                 _seg_off = placement[1] + sym.n_value - self.sections[sec_index].addr;
                 if sym.name {
-                    local_sym_map[sym.name] = (placement[0], _seg_off);
+                    if is_extern {
+                        local_sym_map[sym.name] = (placement[0], _seg_off);
+                        extern_defined_names.add(sym.name);
+                    } elif sym.name not in extern_defined_names
+                        and sym.name not in local_sym_map {
+                        local_sym_map[sym.name] = (placement[0], _seg_off);
+                    }
                 }
                 sym_idx_map[sym_idx] = (placement[0], _seg_off);
             }
@@ -1875,9 +2045,15 @@ impl MachOLinker.build_shared_object -> bytes {
         got_offset = i * 8;
         _lookup = sym_name[1:] if sym_name.startswith("_") else sym_name;
         _lib = self.symbol_lib_map.get(_lookup);
-        ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
-        bind_data.append(0x20);
-        bind_data.extend(_encode_uleb128(ordinal));
+        if _lib == PROCESS_LOOKUP_LIB or _lib is None {
+            bind_data.append(
+                BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
+            );
+        } else {
+            ordinal = lib_ordinals.get(_lib, 1);
+            bind_data.append(0x20);
+            bind_data.extend(_encode_uleb128(ordinal));
+        }
         bind_data.append(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
         bind_data.extend(sym_name.encode("utf-8") + b"\x00");
         bind_data.append(BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER);
@@ -2087,17 +2263,26 @@ impl MachOLinker.build_shared_object -> bytes {
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
-            } elif sym_name in extern_stub_addr {
-                sym_addr = extern_stub_addr[sym_name];
             } else {
-                place = local_sym_map.get(sym_name);
-                if place is not None {
-                    (seg, seg_off) = place;
-                    sym_addr = _resolve_seg_vaddr(
-                        seg, seg_off, text_sec_vaddr, const_sec_vaddr, data_sec_vaddr
-                    );
-                } elif sym_name in got_addr_map {
-                    sym_addr = got_addr_map[sym_name];
+                place = sym_idx_map.get(rel.symbolnum);
+                if place is None and sym_name in extern_stub_addr {
+                    sym_addr = extern_stub_addr[sym_name];
+                } else {
+                    if place is None {
+                        place = local_sym_map.get(sym_name);
+                    }
+                    if place is not None {
+                        (seg, seg_off) = place;
+                        sym_addr = _resolve_seg_vaddr(
+                            seg,
+                            seg_off,
+                            text_sec_vaddr,
+                            const_sec_vaddr,
+                            data_sec_vaddr
+                        );
+                    } elif sym_name in got_addr_map {
+                        sym_addr = got_addr_map[sym_name];
+                    }
                 }
             }
         } elif rel.extern == 0 {
@@ -2124,16 +2309,39 @@ impl MachOLinker.build_shared_object -> bytes {
             data_sec_vaddr
         );
         if site is None {
-            continue;
+            if rel.target_sec in dropped_secs {
+                continue;
+            }
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel,
+                    sym_name,
+                    "its patch site is in a section this link never placed"
+                )
+            );
         }
         (patch_buf, patch_off, patch_vaddr) = site;
+        eff_addend = rel.addend;
+        if (is_arm64 and rel.rtype == ARM64_RELOC_UNSIGNED)
+            or (not is_arm64 and rel.rtype == X86_64_RELOC_UNSIGNED) {
+            eff_addend += _unsigned_inline_addend(
+                rel, patch_buf, patch_off, self.sections
+            );
+        }
         if is_arm64 {
-            _arm64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+            applied = _arm64_apply_reloc(
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
-            _x86_64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+            applied = _x86_64_apply_reloc(
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
+            );
+        }
+        if not applied {
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel, sym_name, "this linker does not implement its type"
+                )
             );
         }
     }
@@ -2537,6 +2745,7 @@ impl MachOLinker.link(
         }
     }
     if archive_members {
+        linker._allocate_commons();
         linker._resolve_crossrefs();
     }
     exe_bytes = linker.build_shared_object() if shared else linker.build_executable();

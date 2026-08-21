@@ -50,7 +50,7 @@ obj ExpressionStatement(Node) {
 }
 
 obj BlockStatement(Node) {
-    has body: List[Statement] = [],
+    has body: list[Statement] = [],
         `type: TypingLiteral['BlockStatement'] = 'BlockStatement';
 }
 
@@ -249,6 +249,12 @@ obj NewExpression(Node) {
 obj AwaitExpression(Node) {
     has argument: (Expression | None) = None,
         `type: TypingLiteral['AwaitExpression'] = 'AwaitExpression';
+}
+
+obj YieldExpression(Node) {
+    has argument: (Expression | None) = None,
+        delegate: bool = False,
+        `type: TypingLiteral['YieldExpression'] = 'YieldExpression';
 }
 
 obj TemplateLiteral(Node) {
@@ -466,6 +472,7 @@ glob Statement = ExpressionStatement
          | CallExpression
          | NewExpression
          | AwaitExpression
+         | YieldExpression
          | TemplateLiteral
          | JsxElement
          | JsxFragment

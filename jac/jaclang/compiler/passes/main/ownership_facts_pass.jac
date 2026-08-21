@@ -27,7 +27,7 @@ def get_ownership_facts(
     type_scope: dict[str, str] = {}
 ) -> OwnershipFacts;
 
-obj OwnershipFactsPass(Transform[uni.Module, uni.Module]) {
+obj OwnershipFactsPass(Transform) {
     has tf: TypeFacts = TypeFacts(),
         type_scope: dict[str, str] = {},
         local_types: dict[str, str] = {},
