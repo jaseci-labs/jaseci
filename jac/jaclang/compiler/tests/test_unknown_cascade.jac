@@ -82,7 +82,11 @@ test "control: augmented assign rejects a result the target cannot hold" {
     assert any("E1001" in e or "float" in e for e in errors) , errors;
 }
 
-test "control: ops on Any stay strict at typed seams" {
+test "control: bare-container flows stay gradual at typed seams" {
+    # A bare `list` means list[any] (the 7961 semantics), so a value popped
+    # out of one flows through arithmetic and into a typed slot without a
+    # diagnostic -- the same as any other `any`. This control pins that the
+    # cascade-suppression tests above do not quietly re-tighten it.
     src = "def probe -> int {\n"
     "    items: list = [1, 2, 3];\n"
     "    u = items.pop();\n"
@@ -91,7 +95,7 @@ test "control: ops on Any stay strict at typed seams" {
     "    return bad;\n"
     "}\n";
     errors = check_src(src);
-    assert any("E1001" in e or "Unknown" in e for e in errors) , errors;
+    assert errors == [] , errors;
 }
 
 test "control: resolved-type overload mismatch is still reported" {
