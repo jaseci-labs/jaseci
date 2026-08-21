@@ -11,7 +11,13 @@ import from objects { PyObj, PyCode, PyInt, PyError, is_error, }
 import from host_oracle { host_compile_marshal }
 import from product_compile { compile_source }
 import from pyc_first { unmarshal, exec_code, to_host }
-import from opcode_meta { OP_LOAD_LOCALS }
+import from opcode_meta {
+    OP_LOAD_LOCALS,
+    OP_BINARY_SLICE,
+    OP_STORE_SLICE,
+    OP_BUILD_SLICE,
+    OP_POP_JUMP_IF_NONE
+}
 
 ::py::
 def _vm_host_exec(setup_src, body_src, mode="exec"):
@@ -895,4 +901,117 @@ test "vm: IS_OP matches True singleton pattern" {
         "exec",
         "result",
     );
+}
+
+# vm-opcode: OP_CALL_FUNCTION_EX
+test "vm: CALL_FUNCTION_EX applies *args and **kwargs" {
+    setup = "";
+    body = "def f(*a, **k):\n    return (a, k)\ndef g(t, d):\n    return f(*t, **d)\nresult = g((1,), {'x': 2})\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_UNPACK_EX
+test "vm: UNPACK_EX star-unpacks sequence" {
+    setup = "";
+    body = "a, *b, c = [1, 2, 3, 4]\nresult = a + c + len(b)\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_LIST_EXTEND
+test "vm: LIST_EXTEND builds starred unpack middle" {
+    setup = "";
+    body = "a, *b, c = [1, 2, 3, 4]\nresult = a + c + len(b)\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_BUILD_STRING
+test "vm: BUILD_STRING joins f-string parts" {
+    setup = "";
+    body = "x = 1\ny = 2\nresult = f'{x}-{y}'\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_FORMAT_SIMPLE
+test "vm: FORMAT_SIMPLE formats f-string value" {
+    setup = "";
+    body = "x = 1\nresult = f'x={x}'\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_FORMAT_WITH_SPEC
+test "vm: FORMAT_WITH_SPEC applies format spec" {
+    setup = "";
+    body = "x = 1.5\nresult = f'{x:.2f}'\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_CONVERT_VALUE
+test "vm: CONVERT_VALUE applies !r conversion" {
+    setup = "";
+    body = "x = 'a'\nresult = f'{x!r}'\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_CONTAINS_OP
+test "vm: CONTAINS_OP membership test" {
+    setup = "seq = [1, 2, 3]\n";
+    body = "result = 2 in seq\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_SET_UPDATE
+test "vm: SET_UPDATE merges starred set" {
+    setup = "s = {3, 4}\n";
+    body = "result = {1, 2, *s}\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_STORE_GLOBAL
+test "vm: STORE_GLOBAL writes function global" {
+    setup = "x = 0\n";
+    body = "def f():\n    global x\n    x = 7\n    return x\nresult = f()\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_DELETE_GLOBAL
+test "vm: DELETE_GLOBAL deletes function global" {
+    setup = "x = 0\n";
+    body = "def f():\n    global x\n    x = 1\n    del x\n    return 0\nresult = f()\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode-compiler: OP_BINARY_SLICE
+test "vm: BINARY_SLICE emitted for non-constant slice load" {
+    body = "a = 1\nb = 3\nseq = [1, 2, 3, 4]\nresult = seq[a:b]\n";
+    co = compile_source(body, "<binary-slice>", "exec", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    assert code_has_opcode(co as PyCode, OP_BINARY_SLICE);
+}
+
+# vm-opcode-compiler: OP_STORE_SLICE
+test "vm: STORE_SLICE emitted for non-constant slice store" {
+    body = "a = 1\nb = 3\nseq = [1, 2, 3, 4]\nseq[a:b] = [8, 9]\nresult = seq\n";
+    co = compile_source(body, "<store-slice>", "exec", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    assert code_has_opcode(co as PyCode, OP_STORE_SLICE);
+}
+
+# vm-opcode-compiler: OP_BUILD_SLICE
+test "vm: BUILD_SLICE emitted for stepped non-constant slice" {
+    body = "a = 1\nb = 3\nc = 1\nseq = [1, 2, 3, 4]\nresult = seq[a:b:c]\n";
+    co = compile_source(body, "<build-slice>", "exec", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    assert code_has_opcode(co as PyCode, OP_BUILD_SLICE);
+}
+
+# vm-opcode-compiler: OP_POP_JUMP_IF_NONE
+test "vm: POP_JUMP_IF_NONE emitted for is not None test" {
+    body = "def f(x):\n    if x is not None:\n        return 1\n    return 0\nresult = f(1)\n";
+    co = compile_source(body, "<pj-none>", "exec", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    assert code_has_opcode(co as PyCode, OP_POP_JUMP_IF_NONE);
 }

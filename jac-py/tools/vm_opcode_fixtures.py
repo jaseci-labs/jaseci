@@ -151,13 +151,33 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "FORMAT_SIMPLE",
     "FORMAT_WITH_SPEC",
     "CONVERT_VALUE",
+    # Already emitted by native codegen; keep registry in sync.
+    "CONTAINS_OP",
+    "SET_UPDATE",
+    "STORE_GLOBAL",
+    "DELETE_GLOBAL",
+    "BINARY_SLICE",
+    "STORE_SLICE",
+    "BUILD_SLICE",
+    "POP_JUMP_IF_NONE",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
 # codegen still emits it. VM coverage for that opcode uses native PyCode.
 # LOAD_LOCALS is emitted for closure class bodies; Jac VM class-body execution
 # is not yet host-parity for that bytecode shape.
-COMPILER_ONLY_OPCODES: frozenset[str] = frozenset({"JUMP_FORWARD", "LOAD_LOCALS"})
+# Slice / None-jump opcodes: CPython 3.14 folds many forms away; jacpython
+# still emits the fused opcodes for non-constant bounds / `is not None` tests.
+COMPILER_ONLY_OPCODES: frozenset[str] = frozenset(
+    {
+        "JUMP_FORWARD",
+        "LOAD_LOCALS",
+        "BINARY_SLICE",
+        "STORE_SLICE",
+        "BUILD_SLICE",
+        "POP_JUMP_IF_NONE",
+    }
+)
 
 # Minimal sources; disassembly (module + nested code) must contain the tagged opcode.
 FIXTURES: tuple[VmFixture, ...] = (
@@ -638,6 +658,26 @@ FIXTURES: tuple[VmFixture, ...] = (
         "CONVERT_VALUE",
         "x = 'a'\nresult = f'{x!r}'\n",
     ),
+    VmFixture(
+        "CONTAINS_OP",
+        "result = 2 in seq\n",
+        setup="seq = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "SET_UPDATE",
+        "result = {1, 2, *s}\n",
+        setup="s = {3, 4}\n",
+    ),
+    VmFixture(
+        "STORE_GLOBAL",
+        "def f():\n    global x\n    x = 7\n    return x\nresult = f()\n",
+        setup="x = 0\n",
+    ),
+    VmFixture(
+        "DELETE_GLOBAL",
+        "def f():\n    global x\n    x = 1\n    del x\n    return 0\nresult = f()\n",
+        setup="x = 0\n",
+    ),
 )
 
 # Native-codegen fixtures (not expected in CPython disassembly).
@@ -648,6 +688,26 @@ COMPILER_FIXTURES: tuple[VmFixture, ...] = (
     VmFixture(
         "LOAD_LOCALS",
         "class C:\n    def m(self):\n        return 1\n\nresult = C().m()\n",
+    ),
+    VmFixture(
+        "BINARY_SLICE",
+        "a = 1\nb = 3\nseq = [1, 2, 3, 4]\nresult = seq[a:b]\n",
+    ),
+    VmFixture(
+        "STORE_SLICE",
+        "a = 1\nb = 3\nseq = [1, 2, 3, 4]\nseq[a:b] = [8, 9]\nresult = seq\n",
+    ),
+    VmFixture(
+        "BUILD_SLICE",
+        "a = 1\nb = 3\nc = 1\nseq = [1, 2, 3, 4]\nresult = seq[a:b:c]\n",
+    ),
+    VmFixture(
+        "POP_JUMP_IF_NONE",
+        "def f(x):\n"
+        "    if x is not None:\n"
+        "        return 1\n"
+        "    return 0\n"
+        "result = f(1)\n",
     ),
 )
 
@@ -711,10 +771,7 @@ def _python_version(python: Path) -> str:
         [
             str(python),
             "-c",
-            "import sys; "
-            "print(f'{sys.version_info.major}."
-            f"{sys.version_info.minor}."
-            f"{sys.version_info.micro}')",
+            "import sys; print('%d.%d.%d' % sys.version_info[:3])",
         ],
         capture_output=True,
         text=True,
