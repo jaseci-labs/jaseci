@@ -1636,7 +1636,7 @@ impl NaIRGenBuiltins._float_repr_fn -> ir.Function {
     return fn;
 }
 
-impl NaIRGenPass._emit_any_str(jacval: ir.Value) -> ir.Value {
+impl NaIRGenBuiltins._emit_any_str(jacval: ir.Value) -> ir.Value {
     b = self.builder;
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
