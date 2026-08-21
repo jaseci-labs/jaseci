@@ -261,7 +261,7 @@ impl NativeDesktopTarget.dev(
 
     try {
         if binary_proc is not None {
-            binary_proc.wait();
+            binary_proc.`wait();
         }
     } except KeyboardInterrupt {
         console.print("\n  Interrupted.", style="muted");

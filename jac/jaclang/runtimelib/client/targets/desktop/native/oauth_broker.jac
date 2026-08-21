@@ -7,7 +7,6 @@ import queue;
 import secrets;
 import time;
 import webbrowser;
-import from collections.abc { Callable }
 import from urllib.parse { parse_qs, quote, urlparse }
 import from jaclang.runtimelib.streaming { drain_sse }
 import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
