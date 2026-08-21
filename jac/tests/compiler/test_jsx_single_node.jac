@@ -33,8 +33,9 @@ test "a paired tag produces exactly one element node" {
         + "}\n";
     (mod, _errs) = _compile(src);
     elems = mod.get_all_sub_nodes(JsxElement);
-    assert len(elems) == 1 ,
-        f"one source element produced {len(elems)} JsxElement nodes";
+    assert len(elems) == 1 , f"one source element produced {len(
+        elems
+    )} JsxElement nodes";
 }
 
 test "a required children prop is satisfied by a body" {

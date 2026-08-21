@@ -203,14 +203,6 @@ def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
     return out;
 }
 
-# Print the errors that explain a unit's missing bytecode. For a
-# jaclang-internal path, get_bytecode delivers the diagnostics to the
-# compiler's internal program and then clears them wholesale in its
-# unit-eviction finally -- but not before stashing the module-scoped details
-# via note_compiler_source_failure. That stash is the one channel that
-# survives, so it is read first; the live errors_had scan covers the
-# non-internal case. Without this, a census failure prints as a bare SKIP
-# with its cause discarded.
 def _emit_unit_diagnostics(jac_path: str, programs: list) {
     import from jaclang.jac0core.compiler { compiler_source_failure_details }
     stashed = compiler_source_failure_details(jac_path);
@@ -864,6 +856,7 @@ glob _GATE_CENSUS_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.import_binding_scope",
          "jac0core/passes/uni_pass.jac::UniPass.recalculate_parents",
          "jac0core/passes/uni_pass.jac::UniPass.traverse",
+
      );
 
 glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
@@ -3057,10 +3050,7 @@ def seal_native_pool(
                 f"  Seal phase 2/2: {len(phase_b)} root(s), {jobs} worker "
                 "process(es) in flight"
             );
-            # The pool bounds worker-process fan-out (the old semaphore), and
-            # fail-fast is future cancellation by the supervisor thread (the
-            # old shared latch): pending roots are skipped, in-flight roots
-            # run to completion. No state is shared with the workers.
+
             pool = ThreadPoolExecutor(max_workers=max(1, jobs));
             try {
                 handles: list[any] = [];
@@ -3762,9 +3752,7 @@ def main {
             )
         );
     }
-    # A module that fails to compile is a census finding, and this exit code
-    # is what CI's precompile step gates on. mkpayload is indifferent: it
-    # judges completion by RESULT_NAME (written above), never the exit code.
+
     precompile_exit(1 if failed else 0);
 }
 
