@@ -23,19 +23,25 @@ runs:
       run: |
         chmod +x "$GITHUB_WORKSPACE/jac/zig-out/bin/jac"
         echo "$GITHUB_WORKSPACE/jac/zig-out/bin" >> "$GITHUB_PATH"
-        # One runtime cache for the whole job, outside $HOME: test steps that
-        # re-home themselves (HOME="$(mktemp -d)") keep the warm cache below.
-        echo "XDG_CACHE_HOME=$RUNNER_TEMP/jac-xdg" >> "$GITHUB_ENV"
+
+    # Host kit only: one runtime cache for the whole job, outside $HOME, so
+    # test steps that re-home themselves (HOME="$(mktemp -d)") keep the warm
+    # reroute compile below instead of redoing it inside the first worker of
+    # every parallel pool. Named .cache because tests assert the global cache
+    # sits in a platform-style cache directory. Sealed-kit consumers keep the
+    # default $HOME layout: their first use is a payload unpack, not a compile,
+    # and the native suite's memory envelope was measured under that layout.
+    - name: Pin the runtime cache for the reroute
+      if: inputs.name == 'jac-host'
+      shell: bash
+      run: echo "XDG_CACHE_HOME=$RUNNER_TEMP/.cache" >> "$GITHUB_ENV"
 
     # First use either unpacks the payload (sealed kit, seconds) or compiles
     # this checkout's compiler through the reroute (host kit, ~200 modules,
-    # about a minute). Pay it once here, serially, instead of inside the first
-    # worker of every parallel test pool. `jac --version` is not enough: it
-    # touches a tenth of the modules a real compile does.
+    # about a minute). Pay it once here, serially. `jac --version` is not
+    # enough: it touches a tenth of the modules a real compile does.
     - name: Warm the runtime cache
       shell: bash
-      env:
-        XDG_CACHE_HOME: ${{ runner.temp }}/jac-xdg
       run: |
         set -euo pipefail
         WORK="$(mktemp -d)"
