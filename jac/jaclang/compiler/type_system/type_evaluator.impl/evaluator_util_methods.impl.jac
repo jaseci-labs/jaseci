@@ -359,7 +359,9 @@ impl TypeEvaluator._get_type_for_member_lookup(object_type: ClassType) -> ClassT
     return object_type;
 }
 
-impl TypeEvaluator.get_type_of_member(member: any, class_type: ClassType) -> TypeBase {
+impl TypeEvaluator.get_type_of_member(
+    member: ClassMember, class_type: ClassType
+) -> TypeBase {
     raw_type = self.get_type_of_symbol(member.symbol);
     if isinstance(raw_type, FunctionType) {
         params = raw_type.parameters or [];
@@ -1867,8 +1869,8 @@ impl TypeEvaluator._collect_return_types(
         if isinstance(stmt, MatchStmt) {
             if stmt.cases {
                 all_return = True;
-                for case in stmt.cases {
-                    mc: MatchCase = case;
+                for `case in stmt.cases {
+                    mc: MatchCase = `case;
                     if not self._collect_return_types(list(mc.body), out) {
                         all_return = False;
                     }
@@ -1884,8 +1886,8 @@ impl TypeEvaluator._collect_return_types(
             if stmt.cases {
                 has_default = False;
                 all_return = True;
-                for case in stmt.cases {
-                    sc: SwitchCase = case;
+                for `case in stmt.cases {
+                    sc: SwitchCase = `case;
                     if sc.pattern is None {
                         has_default = True;
                     }

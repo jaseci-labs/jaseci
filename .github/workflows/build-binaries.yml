@@ -24,9 +24,10 @@ on:
       only:
         # Diagnostic lane: build ONE leg instead of the whole matrix, so a
         # single red platform can be iterated on without burning three other
-        # runners per attempt (macos-seal-probe.yml is the caller). Empty (the
-        # default) keeps the channel's full leg list -- no release path ever
-        # sets this, so a release can never ship a partial matrix by mistake.
+        # runners per attempt. Empty (the default) keeps the channel's full
+        # leg list. `plan` rejects a non-empty filter whenever `tag` is set,
+        # so a release can never ship a partial matrix by mistake -- that
+        # guard is what lets workflow_dispatch expose this too.
         description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list."
         required: false
         default: ""
@@ -47,6 +48,21 @@ on:
         # duplicate release. Empty = build the artifact only, attach nothing.
         description: "Canonical release tag to upload assets to (e.g. v0.30.1). Empty = artifact only."
         required: false
+        type: string
+      # `channel` and `only` mirror the workflow_call inputs so a one-leg
+      # diagnostic build is a dispatch away. This replaces macos-seal-probe.yml,
+      # a wrapper whose whole body was a workflow_call with only=macos-aarch64
+      # and which was never run once.
+      channel:
+        description: "release: cold + glibc-pinned; dev: cached + host-native."
+        required: false
+        default: release
+        type: choice
+        options: [release, dev]
+      only:
+        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list. Rejected when `tag` is set."
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -76,8 +92,8 @@ jobs:
   # floor for versioned releases, and on the dev channel it was the
   # critical path (~24 min/merge on the slow Intel runners) for a
   # rolling prerelease Intel users don't consume. Versioned releases
-  # still ship macos-x86_64: inputs.channel is empty on release/dispatch
-  # events, so those keep the full list.
+  # still ship macos-x86_64: inputs.channel is empty on the release event and
+  # defaults to `release` on dispatch, so those keep the full list.
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -88,6 +104,7 @@ jobs:
         env:
           CHANNEL: ${{ inputs.channel }}
           ONLY: ${{ inputs.only }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           LEGS='[
@@ -98,6 +115,14 @@ jobs:
           ]'
           if [ "$CHANNEL" = "dev" ]; then
             LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
+          fi
+          # `only` is a diagnostic lane, never a release path: uploading a
+          # filtered matrix to a real tag would publish a release missing
+          # assets for the legs it dropped. workflow_call never pairs them;
+          # this guard is what makes the dispatch input safe to expose.
+          if [ -n "${ONLY:-}" ] && [ -n "${TAG:-}" ]; then
+            echo "::error::platform filter '$ONLY' cannot be combined with tag '$TAG': a filtered matrix would publish a release missing assets."
+            exit 1
           fi
           if [ -n "${ONLY:-}" ]; then
             LEGS="$(jq -c --arg only "$ONLY" \

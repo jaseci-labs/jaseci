@@ -463,7 +463,7 @@ obj TypeEvaluator {
     def get_type_of_magic_method_call(
         obj_type: TypeBase,
         method_name: str,
-        arg_nodes: list[Expr],
+        arg_nodes: (Sequence[Expr | KWPair] | None),
         node_for_error: Expr | None = None
     ) -> TypeBase | None;
 
@@ -485,7 +485,7 @@ obj TypeEvaluator {
 
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
-    def get_type_of_member(member: any, class_type: ClassType) -> TypeBase;
+    def get_type_of_member(member: ClassMember, class_type: ClassType) -> TypeBase;
     def declaring_class_of(symbol: Symbol, base_type: ClassType) -> (ClassType | None);
     def specialize_member_type(
         member_type: TypeBase,
@@ -568,7 +568,7 @@ obj TypeEvaluator {
     ) -> TypeBase | None;
 
     def match_args_to_params(
-        arg_nodes: list[Expr | KWPair],
+        arg_nodes: (Sequence[Expr | KWPair] | None),
         node_for_error: Expr | None,
         func_type: FunctionType,
         checking_overload: bool = False,
@@ -614,7 +614,7 @@ obj TypeEvaluator {
 
     def _strip_implicit_self_cls(method: FunctionType) -> FunctionType;
     def _get_method_with_overloads(
-        method_member: any, caller_type: ClassType
+        method_member: ClassMember, caller_type: ClassType
     ) -> TypeBase;
 
     def assign_type_to_type_var(
@@ -630,7 +630,7 @@ obj TypeEvaluator {
     ) -> FunctionType | None;
 
     def _find_overload_by_arg_count(
-        method_type: TypeBase, arg_count: int, overload_symbols: list
+        method_type: TypeBase, arg_count: int, overload_symbols: list[Symbol]
     ) -> FunctionType | None;
 
     def _substitute_type_vars(

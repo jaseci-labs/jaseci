@@ -720,8 +720,8 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
         es.name = element_display_name(stmt);
         es.pinned = '';
         if ps.mod_path {
-            import from jaclang.jac0core.placement_pins { config_pin_for }
-            es.pinned = config_pin_for(ps.mod_path, es.name);
+            import from jaclang.jac0core.placement_pins { effective_pin_for }
+            es.pinned = effective_pin_for(ps.mod_path, es.name);
         }
         es.is_pub = _is_pub_element(stmt);
         es.reqs = _element_reqs(stmt);

@@ -508,7 +508,7 @@ impl LanguageServer._read_message(stream: any) -> Optional[dict] {
         if not line_str {
             break;
         }
-        m = RE_CONTENT_LENGTH.match(line_str);
+        m = RE_CONTENT_LENGTH.`match(line_str);
         if m {
             content_length = int(m.group(1));
         }

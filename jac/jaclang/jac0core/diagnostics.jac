@@ -115,6 +115,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
      ),
+     E0014 = _err(
+         "E0014",
+         Category.SYNTAX,
+         "'{name}' is not a keyword -- remove the backtick",
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+     ),
      E0020 = _err(
          "E0020",
          Category.SYNTAX,
@@ -1240,9 +1246,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Empty parentheses can be removed [remove-empty-parens]"
      ),
-     W3006 = _warn(
-         "W3006", Category.LINT, "Unnecessary keyword escape on '{name}' [remove-kwesc]"
-     ),
      W3007 = _warn(
          "W3007",
          Category.LINT,
@@ -1384,7 +1387,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "combine-glob": "W3003",
          "init-to-can": "W3004",
          "remove-empty-parens": "W3005",
-         "remove-kwesc": "W3006",
          "hasattr-to-null-ok": "W3007",
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
@@ -1465,7 +1467,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5018",
          Category.CODEGEN,
          "match pattern {construct} is not supported by client codegen",
-         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         help="`match` itself lowers to the client; only this pattern shape does not. {fix}",
          blocks_codegen=True
      ),
      W5013 = _warn(
@@ -1694,6 +1696,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code imports '{name}' from native module '{module}', but '{name}' is not a function",
          help="A client import of a native module is the cl->na edge: every name is bound to a lazily instantiated wasm export via `__na_bind`. A wasm module exports only functions, so a type, a variable, or an enum has no export to bind to -- '{name}' would come back as a plain async callable, and the page fails the first time it is constructed or read with a TypeError. This holds even where '{name}' is only used as an annotation, because the binding is emitted either way. Import the native functions that operate on '{name}' and keep the declaration itself in a client or shared module.",
+         blocks_codegen=True
+     ),
+     E5101 = _err(
+         "E5101",
+         Category.CODEGEN,
+         "Client codegen emitted '{name}', which the module never binds",
+         help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
          blocks_codegen=True
      ),
      E5089 = _err(
