@@ -14,7 +14,7 @@ obj SemTokManager {
             list[tuple[(lspt.Position, int, int, uni.AstSymbolNode)]] postinit;
 
     def postinit -> None;
-    def collect_resolved_nodes(ir: uni.Module) -> list;
+    def collect_resolved_nodes(ir: uni.Module) -> list[uni.NameAtom];
     def gen_sem_tokens(ir: uni.Module) -> list[int];
     def gen_sem_tok_node(
         ir: uni.Module

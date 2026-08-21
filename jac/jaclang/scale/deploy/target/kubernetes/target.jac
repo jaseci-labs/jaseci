@@ -607,11 +607,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return detail;
     }
 
-    def _deploy_observability(app_name: str) -> None {
+    def _observability_requested -> bool {
         logs_cfg = self._read_microservices_logs_config();
         tracing_cfg = self._read_microservices_tracing_config();
-        if not logs_cfg.get("enabled", False)
-            and not tracing_cfg.get("enabled", False) {
+        return bool(self.k8s_config.monitoring_enabled)
+            or bool(logs_cfg.get("enabled", False))
+            or bool(tracing_cfg.get("enabled", False));
+    }
+
+    def _deploy_observability(app_name: str) -> None {
+        if not self._observability_requested() {
             return;
         }
 
@@ -726,8 +731,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def _build_observability_config -> KubernetesConfig {
         overrides: dict[str, any] = dict(self.k8s_config.to_dict());
-        overrides["monitoring_enabled"] = True;
-
         overrides["loki_enabled"] = self._read_microservices_logs_config().get(
             "enabled", False
         );
@@ -792,7 +795,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             env_list=list(self._deploy_context.env_list),
             init_containers=self._deploy_context.init_containers
         );
-        present = {entry.get("name") for entry in ctx.env_list};
+        present = {`entry.get("name") for `entry in ctx.env_list};
         for (env_name, env_value) in self.env.items() {
             if env_name not in present {
                 ctx.env_list.append({"name": env_name, "value": str(env_value)});
