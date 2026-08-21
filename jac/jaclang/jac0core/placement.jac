@@ -521,8 +521,8 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
-def _comptime_only_import(imp: uni.Import) -> bool {
-    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+def _erased_only_import(imp: uni.Import) -> bool {
+    import from jaclang.jac0core.codeinfo { native_erased_import_names }
     if imp.from_loc is None or imp.is_absorb {
         return False;
     }
@@ -533,7 +533,7 @@ def _comptime_only_import(imp: uni.Import) -> bool {
         }
         names.append(item.name.value);
     }
-    return native_comptime_import_names(imp.from_loc.dot_path_str, names);
+    return native_erased_import_names(imp.from_loc.dot_path_str, names);
 }
 
 def scan_native_blockers(
@@ -614,7 +614,7 @@ def scan_native_blockers(
         if imp.is_virtual_jac or imp.has_string_path {
             return ("virtual/string-path import", deps);
         }
-        if _comptime_only_import(imp) {
+        if _erased_only_import(imp) {
             continue;
         }
         targets: list[tuple[str, (str | None), bool, bool]] = [];
@@ -720,8 +720,8 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
         es.name = element_display_name(stmt);
         es.pinned = '';
         if ps.mod_path {
-            import from jaclang.jac0core.placement_pins { config_pin_for }
-            es.pinned = config_pin_for(ps.mod_path, es.name);
+            import from jaclang.jac0core.placement_pins { effective_pin_for }
+            es.pinned = effective_pin_for(ps.mod_path, es.name);
         }
         es.is_pub = _is_pub_element(stmt);
         es.reqs = _element_reqs(stmt);

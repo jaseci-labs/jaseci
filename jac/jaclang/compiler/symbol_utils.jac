@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from pathlib { Path }
 import from jaclang.jac0core.unitree {
     Ability,
@@ -56,8 +55,8 @@ enum CallKind {
     INTRINSIC = "intrinsic"
 }
 
-def comptime_import_binds(nd: UniNode, name: str) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IMPORTS }
+def erased_import_binds(nd: UniNode, name: str) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_IMPORTS }
     mod = nd.find_parent_of_type(Module);
     if mod is None {
         return False;
@@ -66,7 +65,7 @@ def comptime_import_binds(nd: UniNode, name: str) -> bool {
         if imp.from_loc is None or imp.is_absorb {
             continue;
         }
-        allowed = NATIVE_COMPTIME_IMPORTS.get(imp.from_loc.dot_path_str.lstrip('.'));
+        allowed = NATIVE_ERASED_IMPORTS.get(imp.from_loc.dot_path_str.lstrip('.'));
         if allowed is None or name not in allowed {
             continue;
         }
@@ -83,11 +82,10 @@ def comptime_import_binds(nd: UniNode, name: str) -> bool {
     return False;
 }
 
-def comptime_identity_call_arg(nd: FuncCall) -> (Expr | None) {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IDENTITY_CALLS }
+def erased_identity_call_arg(nd: FuncCall) -> (Expr | None) {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_IDENTITY_CALLS }
     tgt = nd.target;
-    if not isinstance(tgt, Name)
-        or tgt.sym_name not in NATIVE_COMPTIME_IDENTITY_CALLS {
+    if not isinstance(tgt, Name) or tgt.sym_name not in NATIVE_ERASED_IDENTITY_CALLS {
         return None;
     }
     params = nd.params or [];
@@ -96,26 +94,26 @@ def comptime_identity_call_arg(nd: FuncCall) -> (Expr | None) {
         or not isinstance(params[1], Expr) {
         return None;
     }
-    if not comptime_import_binds(nd, tgt.sym_name) {
+    if not erased_import_binds(nd, tgt.sym_name) {
         return None;
     }
     return params[1];
 }
 
-def is_comptime_field_marker(nd: FuncCall) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_FIELD_MARKERS }
+def is_erased_field_marker(nd: FuncCall) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_FIELD_MARKERS }
     owner = nd.parent;
     if not isinstance(owner, HasVar) or owner.value is not nd {
         return False;
     }
     tgt = nd.target;
-    if not isinstance(tgt, Name) or tgt.sym_name not in NATIVE_COMPTIME_FIELD_MARKERS {
+    if not isinstance(tgt, Name) or tgt.sym_name not in NATIVE_ERASED_FIELD_MARKERS {
         return False;
     }
-    return comptime_import_binds(nd, tgt.sym_name);
+    return erased_import_binds(nd, tgt.sym_name);
 }
 
-def comptime_field_marker_default(nd: FuncCall) -> (Expr | None) {
+def erased_field_marker_default(nd: FuncCall) -> (Expr | None) {
     for arg in (nd.params or []) {
         if not isinstance(arg, KWPair) or not isinstance(arg.key, Name) {
             continue;
@@ -375,9 +373,17 @@ def _already_reported(reporter: any, diag: any, nd: UniNode) -> bool {
     return False;
 }
 
+def note_unbound_client_name(reporter: any, name: str) {
+    seen = reporter?._unbound_reported;
+    if seen is not None {
+        seen.add(name);
+    }
+}
+
 def report_dead_client_import(reporter: any, nd: Import, item: ModuleItem) -> None {
     name = item.name.sym_name if isinstance(item.name, Name) else str(item.name.value);
     module_name = nd.from_loc.dot_path_str if nd.from_loc is not None else '';
+    note_unbound_client_name(reporter, name);
     if _already_reported(reporter, E5082, item) {
         return;
     }
@@ -496,15 +502,15 @@ def _report_client_bare_import_uses(reporter: any, mod: Module, stmt: UniNode) {
         }
         (item, imp) = hit;
         module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
+        item_name = item.name.sym_name
+            if isinstance(item.name, Name)
+            else str(item.name.value);
+        note_unbound_client_name(reporter, item_name);
+        note_unbound_client_name(reporter, nm.sym_name);
         already = _already_reported(reporter, E5084, item);
         if not already {
             reporter.emit(
-                E5084,
-                node_override=item,
-                name=item.name.sym_name
-                    if isinstance(item.name, Name)
-                    else str(item.name.value),
-                module=module_name
+                E5084, node_override=item, name=item_name, module=module_name
             );
         }
     }

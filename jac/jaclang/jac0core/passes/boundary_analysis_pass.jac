@@ -8,8 +8,6 @@ import from jaclang.jac0core.unitree {
     BinaryExpr,
     Bool,
     BuiltinType,
-    CtFor,
-    CtIf,
     DictVal,
     Enum,
     Float,
@@ -79,14 +77,6 @@ class BoundaryAnalysisPass(UniPass) {
     def _register_na_client_import(self: BoundaryAnalysisPass, nd: Import) -> None;
     def _register_client_bridged_import(
         self: BoundaryAnalysisPass, nd: Import
-    ) -> None;
-
-    def _collect_abilities(
-        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Ability)]
-    ) -> None;
-
-    def _collect_pub_walkers(
-        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Archetype)]
     ) -> None;
 
     def _extract_walker_has_fields(
