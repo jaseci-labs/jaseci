@@ -710,9 +710,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
             and _canon_src[_nd] not in manifest.native_transitive_sources
         ) {
             manifest.native_transitive_sources.append(_canon_src[_nd]);
-            manifest.native_transitive_keys.append(
-                _src_keys.get(_canon_src[_nd], "")
-            );
+            manifest.native_transitive_keys.append(_src_keys.get(_canon_src[_nd], ""));
         }
     }
 
