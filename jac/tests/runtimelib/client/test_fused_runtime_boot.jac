@@ -40,11 +40,14 @@ test "na host boots the fused runtime (no display)" {
         # The fused runtime library is staged beside the host so its
         # `import from fused.bringup` resolves, exactly as the desktop builder does.
         _stage_fused_runtime(out_dir);
-        (out_dir / "host.jac").write_text(host_src);
+        host = out_dir / "host.jac";
+        host.write_text(host_src);
         binary = out_dir / "engineboot";
+        # Compile from the runner's cwd, not the temp dir: the [dev] reroute is
+        # chosen by the nearest jac.toml from the cwd, and the host must be built
+        # by the same compiler whose fused library was just staged beside it.
         comp = subprocess.run(
-            [jac, "nacompile", "host.jac", "-o", "engineboot"],
-            cwd=tmp,
+            [jac, "nacompile", str(host), "-o", str(binary)],
             capture_output=True,
             text=True,
             timeout=300
