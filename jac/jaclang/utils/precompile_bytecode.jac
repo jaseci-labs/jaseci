@@ -213,10 +213,12 @@ def precompile_unit(
     compiler = Jac.get_compiler();
 
     program = JacProgram();
+    options = CompileOptions(type_check=False);
+    if hasattr(options, 'graphmend') {
+        options.graphmend = False;
+    }
     code = compiler.get_bytecode(
-        full_target=jac_path,
-        target_program=program,
-        options=CompileOptions(type_check=False, graphmend=False)
+        full_target=jac_path, target_program=program, options=options
     );
     compiler.internal_program.release_compile_closure();
     program.release_compile_closure();
