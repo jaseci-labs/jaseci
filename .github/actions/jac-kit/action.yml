@@ -1,8 +1,11 @@
 name: Get jac kit
 description: >
-  Download the build-kit artifact into the checkout (binary, typeshed stubs,
-  vendored musl/wasm runtimes land at their in-tree paths) and put jac on
-  PATH. upload-artifact strips the executable bit; restore it.
+  Download a kit artifact into the checkout (binary, typeshed stubs, vendored
+  musl/wasm runtimes land at their in-tree paths), put jac on PATH, and warm
+  its runtime cache. `jac-kit` is the sealed binary built from this checkout
+  (build-kit); `jac-host` is the newest main binary plus this checkout's
+  floors (host-kit), run through the [dev] reroute. upload-artifact strips the
+  executable bit; restore it.
 inputs:
   name:
     description: Kit artifact name
@@ -20,3 +23,23 @@ runs:
       run: |
         chmod +x "$GITHUB_WORKSPACE/jac/zig-out/bin/jac"
         echo "$GITHUB_WORKSPACE/jac/zig-out/bin" >> "$GITHUB_PATH"
+        # One runtime cache for the whole job, outside $HOME: test steps that
+        # re-home themselves (HOME="$(mktemp -d)") keep the warm cache below.
+        echo "XDG_CACHE_HOME=$RUNNER_TEMP/jac-xdg" >> "$GITHUB_ENV"
+
+    # First use either unpacks the payload (sealed kit, seconds) or compiles
+    # this checkout's compiler through the reroute (host kit, ~200 modules,
+    # about a minute). Pay it once here, serially, instead of inside the first
+    # worker of every parallel test pool. `jac --version` is not enough: it
+    # touches a tenth of the modules a real compile does.
+    - name: Warm the runtime cache
+      shell: bash
+      env:
+        XDG_CACHE_HOME: ${{ runner.temp }}/jac-xdg
+      run: |
+        set -euo pipefail
+        WORK="$(mktemp -d)"
+        printf 'with entry { print(6*7); }\n' > "$WORK/warm.jac"
+        out="$(jac run "$WORK/warm.jac" 2>&1)" || { echo "$out"; exit 1; }
+        echo "$out" | tail -3
+        echo "$out" | grep -q 42
