@@ -4901,9 +4901,6 @@ impl TypeEvaluator._union_narrowed_types(types_list: list) -> TypeBase {
 impl TypeEvaluator._exclusion_drops_member(
     member: TypeBase, to_exclude: TypeBase
 ) -> bool {
-    """Whether excluding `to_exclude` removes `member` outright.
-    A literal drops only that same literal; a bare class drops every member.
-    """;
     if not (isinstance(member, ClassType) and isinstance(to_exclude, ClassType)) {
         return member is to_exclude;
     }
@@ -4920,9 +4917,6 @@ impl TypeEvaluator._exclusion_drops_member(
 }
 
 impl TypeEvaluator._literal_comparison_excludes(compared: TypeBase | None) -> bool {
-    """Whether a literal comparison may subtract `compared` on its other edge.
-    Only a type that names a value may be subtracted, never a bare class.
-    """;
     return isinstance(compared, ClassType) and compared.is_literal_type();
 }
 
@@ -5210,9 +5204,6 @@ impl TypeEvaluator._extract_callable_info(condition: Expr) -> str | None {
 }
 
 impl TypeEvaluator._extract_literal_operand_type(operand: Expr) -> TypeBase | None {
-    """Return the type an `==`/`!=` operand contributes as a literal, else None.
-    Recognized by the `Literal` base or by evaluating to a `Literal[...]`.
-    """;
     if self.create_key_for_reference(operand) is not None {
         return None;
     }
