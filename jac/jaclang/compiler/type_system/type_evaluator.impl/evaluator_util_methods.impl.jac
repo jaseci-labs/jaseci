@@ -359,7 +359,9 @@ impl TypeEvaluator._get_type_for_member_lookup(object_type: ClassType) -> ClassT
     return object_type;
 }
 
-impl TypeEvaluator.get_type_of_member(member: any, class_type: ClassType) -> TypeBase {
+impl TypeEvaluator.get_type_of_member(
+    member: ClassMember, class_type: ClassType
+) -> TypeBase {
     raw_type = self.get_type_of_symbol(member.symbol);
     if isinstance(raw_type, FunctionType) {
         params = raw_type.parameters or [];
