@@ -1,7 +1,7 @@
 import asyncio;
 import contextvars;
 import json;
-import from collections.abc { AsyncGenerator, Callable, Generator }
+import from collections.abc { AsyncGenerator, Generator }
 import from inspect { isgenerator }
 
 
