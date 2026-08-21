@@ -7,46 +7,42 @@ import from _bisectmodule {
     ssizeargfunc,
     unaryfunc
 }
-glob ptrdiff_t = int;
-glob size_t = int;
-glob ssize_t = int;
-glob intptr_t = int;
-glob uintptr_t = int;
 
-glob int8_t = int;
-glob uint8_t = int;
-glob int16_t = int;
-glob uint16_t = int;
-glob int32_t = int;
-glob uint32_t = int;
-glob int64_t = int;
-glob uint64_t = int;
-
-glob intmax_t = int;
-glob uintmax_t = int;
-
-glob int_least8_t = int;
-glob uint_least8_t = int;
-glob int_least16_t = int;
-glob uint_least16_t = int;
-glob int_least32_t = int;
-glob uint_least32_t = int;
-glob int_least64_t = int;
-glob uint_least64_t = int;
-
-glob int_fast8_t = int;
-glob uint_fast8_t = int;
-glob int_fast16_t = int;
-glob uint_fast16_t = int;
-glob int_fast32_t = int;
-glob uint_fast32_t = int;
-glob int_fast64_t = int;
-glob uint_fast64_t = int;
-glob Py_ssize_t = int;
-glob Py_hash_t = int;
-
-glob PyExc_IndexError: PyObj = PyObj();
-glob PyExc_RuntimeError: PyObj = PyObj();
+glob ptrdiff_t = int,
+     size_t = int,
+     ssize_t = int,
+     intptr_t = int,
+     uintptr_t = int,
+     int8_t = int,
+     uint8_t = int,
+     int16_t = int,
+     uint16_t = int,
+     int32_t = int,
+     uint32_t = int,
+     int64_t = int,
+     uint64_t = int,
+     intmax_t = int,
+     uintmax_t = int,
+     int_least8_t = int,
+     uint_least8_t = int,
+     int_least16_t = int,
+     uint_least16_t = int,
+     int_least32_t = int,
+     uint_least32_t = int,
+     int_least64_t = int,
+     uint_least64_t = int,
+     int_fast8_t = int,
+     uint_fast8_t = int,
+     int_fast16_t = int,
+     uint_fast16_t = int,
+     int_fast32_t = int,
+     uint_fast32_t = int,
+     int_fast64_t = int,
+     uint_fast64_t = int,
+     Py_ssize_t = int,
+     Py_hash_t = int,
+     PyExc_IndexError: PyObj = PyObj(),
+     PyExc_RuntimeError: PyObj = PyObj();
 
 def siftdown(heap: PyListObject, startpos: int, pos: int) -> int {
     newitem: PyObj = PyObj();

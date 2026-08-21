@@ -881,7 +881,7 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_COPY {
-        return 1 + (oparg-1);
+        return 1 + (oparg - 1);
     }
     if op == OP_COPY_FREE_VARS {
         return 0;
@@ -1070,10 +1070,10 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_LIST_APPEND {
-        return 2 + (oparg-1);
+        return 2 + (oparg - 1);
     }
     if op == OP_LIST_EXTEND {
-        return 2 + (oparg-1);
+        return 2 + (oparg - 1);
     }
     if op == OP_LOAD_ATTR {
         return 1;
@@ -1289,13 +1289,13 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_SET_ADD {
-        return 2 + (oparg-1);
+        return 2 + (oparg - 1);
     }
     if op == OP_SET_FUNCTION_ATTRIBUTE {
         return 2;
     }
     if op == OP_SET_UPDATE {
-        return 2 + (oparg-1);
+        return 2 + (oparg - 1);
     }
     if op == OP_STORE_ATTR {
         return 2;
@@ -1343,7 +1343,7 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 3;
     }
     if op == OP_SWAP {
-        return 2 + (oparg-2);
+        return 2 + (oparg - 2);
     }
     if op == OP_TO_BOOL {
         return 1;
@@ -1599,7 +1599,7 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_COPY {
-        return 2 + (oparg-1);
+        return 2 + (oparg - 1);
     }
     if op == OP_COPY_FREE_VARS {
         return 0;
@@ -1788,13 +1788,13 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_LIST_APPEND {
-        return 1 + (oparg-1);
+        return 1 + (oparg - 1);
     }
     if op == OP_LIST_EXTEND {
-        return 1 + (oparg-1);
+        return 1 + (oparg - 1);
     }
     if op == OP_LOAD_ATTR {
-        return 1 + (oparg&1);
+        return 1 + (oparg & 1);
     }
     if op == OP_LOAD_ATTR_CLASS {
         return 1 + (oparg & 1);
@@ -2007,13 +2007,13 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_SET_ADD {
-        return 1 + (oparg-1);
+        return 1 + (oparg - 1);
     }
     if op == OP_SET_FUNCTION_ATTRIBUTE {
         return 1;
     }
     if op == OP_SET_UPDATE {
-        return 1 + (oparg-1);
+        return 1 + (oparg - 1);
     }
     if op == OP_STORE_ATTR {
         return 0;
@@ -2061,7 +2061,7 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_SWAP {
-        return 2 + (oparg-2);
+        return 2 + (oparg - 2);
     }
     if op == OP_TO_BOOL {
         return 1;
@@ -2141,9 +2141,7 @@ def stack_effect(op: int, oparg: int, jump: int) -> int | None {
 }
 
 def is_block_push_opcode(op: int) -> bool {
-    if op == OP_SETUP_FINALLY
-        or op == OP_SETUP_WITH
-        or op == OP_SETUP_CLEANUP {
+    if op == OP_SETUP_FINALLY or op == OP_SETUP_WITH or op == OP_SETUP_CLEANUP {
         return True;
     }
     return False;
@@ -2192,9 +2190,7 @@ def is_unconditional_jump_opcode(op: int) -> bool {
 }
 
 def is_scope_exit_opcode(op: int) -> bool {
-    if op == OP_RETURN_VALUE
-        or op == OP_RAISE_VARARGS
-        or op == OP_RERAISE {
+    if op == OP_RETURN_VALUE or op == OP_RAISE_VARARGS or op == OP_RERAISE {
         return True;
     }
     return False;

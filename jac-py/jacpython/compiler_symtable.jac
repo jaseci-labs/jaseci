@@ -876,10 +876,7 @@ def sym_visit_pattern(b: sym_builder, p: pattern) -> bool {
         return True;
     }
     return b.fail(
-        "NotImplementedError",
-        "unsupported match pattern",
-        p.lineno,
-        p.col_offset
+        "NotImplementedError", "unsupported match pattern", p.lineno, p.col_offset
     );
 }
 
@@ -984,7 +981,7 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     }
     if isinstance(s, Assert) {
         a = s as Assert;
-        if not sym_visit_load_expr(b, a.test) {
+        if not sym_visit_load_expr(b, a.`test) {
             return False;
         }
         if a.msg is not None {
@@ -1053,14 +1050,14 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             orelse = afo.orelse;
         } elif isinstance(s, While) {
             wh = s as While;
-            if not sym_visit_load_expr(b, wh.test) {
+            if not sym_visit_load_expr(b, wh.`test) {
                 return False;
             }
             body = wh.body;
             orelse = wh.orelse;
         } elif isinstance(s, If) {
             iff = s as If;
-            if not sym_visit_load_expr(b, iff.test) {
+            if not sym_visit_load_expr(b, iff.`test) {
                 return False;
             }
             body = iff.body;
@@ -1683,6 +1680,7 @@ def _host_sym_normalize(source, mode="exec"):
 ::py::
 
 
+
 def _sym_oracle_equal_py(native: any, expected: any) -> bool {
     return _sym_oracle_equal(native, expected) as bool;
 }
@@ -1696,6 +1694,7 @@ def _sym_oracle_equal(native, expected):
     ej = json.dumps(expected, sort_keys=True, default=str)
     return nj == ej
 ::py::
+
 
 
 def host_sym_normalize(source: str, mode: str = "exec") -> dict[str, any] {
@@ -2122,10 +2121,10 @@ test "compiler_symtable: closure free var matches oracle" {
 test "compiler_symtable: recursive function self-call matches oracle" {
     src = (
         "def fact(n):\n"
-            + " if n <= 1:\n"
-            + "  return 1\n"
-            + " return n * fact(n - 1)\n\n"
-            + "result = fact(5)\n"
+        + " if n <= 1:\n"
+        + "  return 1\n"
+        + " return n * fact(n - 1)\n\n"
+        + "result = fact(5)\n"
     );
     m = parse_file(src, "<t>");
     assert m is not None;
@@ -2150,10 +2149,10 @@ test "compiler_symtable: lambda assign matches oracle" {
 test "compiler_symtable: closure capture parsed matches oracle" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     m = parse_file(src, "<t>");
     assert m is not None;
@@ -2167,11 +2166,11 @@ test "compiler_symtable: closure capture parsed matches oracle" {
 test "compiler_symtable: decorator parsed matches oracle" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     m = parse_file(src, "<t>");
     assert m is not None;

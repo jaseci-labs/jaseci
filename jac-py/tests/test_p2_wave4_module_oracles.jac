@@ -8,16 +8,12 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      MODULES: str = os.path.join(REPO_ROOT, "jac-py", "Modules");
 
 
-def _staged_oracle(c_name: str, driver: str, jac_entry: str) -> None {
+def _staged_oracle(c_name: str, driver: str, jac_entry: str) {
     base = os.path.splitext(c_name)[0];
     c_path = os.path.join(MODULES, c_name);
     jac_path = os.path.join(MODULES, f"{base}.jac");
     assert_staged_jac_matches_c(
-        c_path,
-        jac_path,
-        driver,
-        jac_entry,
-        include_dirs=[MODULES]
+        c_path, jac_path, driver, jac_entry, include_dirs=[MODULES]
     );
 }
 
@@ -31,9 +27,7 @@ test "jac-py pystricmp: cc vs staged jac agree on ABC vs abc" {
         "    printf(\"%d\\n\", PyOS_mystricmp(\"ABC\", \"abc\"));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(PyOS_mystricmp(\"ABC\", \"abc\"));\n"
-        "}\n"
+        "with entry {\n" "    print(PyOS_mystricmp(\"ABC\", \"abc\"));\n" "}\n"
     );
 }
 
@@ -47,9 +41,7 @@ test "jac-py pyctype_space: cc vs staged jac agree on isspace(32)" {
         "    printf(\"%d\\n\", pyctype_isspace(32));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(pyctype_isspace(32));\n"
-        "}\n"
+        "with entry {\n" "    print(pyctype_isspace(32));\n" "}\n"
     );
 }
 
@@ -63,9 +55,7 @@ test "jac-py pyctype_alpha: cc vs staged jac agree on isalpha(65)" {
         "    printf(\"%d\\n\", pyctype_isalpha(65));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(pyctype_isalpha(65));\n"
-        "}\n"
+        "with entry {\n" "    print(pyctype_isalpha(65));\n" "}\n"
     );
 }
 
@@ -79,8 +69,6 @@ test "jac-py math_factorial_small: cc vs staged jac agree on fact(5)" {
         "    printf(\"%lu\\n\", math_factorial_small(5));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(math_factorial_small(5));\n"
-        "}\n"
+        "with entry {\n" "    print(math_factorial_small(5));\n" "}\n"
     );
 }

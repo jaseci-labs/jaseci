@@ -15,13 +15,19 @@
 # Test harness only: host_oracle is used solely to produce the expected PyCode.
 
 import from objects {
-    PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError, py_none
+    PyObj,
+    PyCode,
+    PyInt,
+    PyBool,
+    expect_int,
+    expect_str,
+    is_error,
+    PyError,
+    py_none
 }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
-import from pyc_first {
-    unmarshal, exec_code, gen_send, py_subscript, PyGenerator
-}
+import from pyc_first { unmarshal, exec_code, gen_send, py_subscript, PyGenerator }
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -179,6 +185,7 @@ test "layer9: compare assign then statement executes both" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=2),
         "z": PyInt(t="int", val=3),
+
     };
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
@@ -280,10 +287,10 @@ test "layer9: if return in function compiles" {
 test "layer9: recursive fact(n) matches oracle" {
     src = (
         "def fact(n):\n"
-            + "    if n <= 1:\n"
-            + "        return 1\n"
-            + "    return n * fact(n - 1)\n\n"
-            + "result = fact(5)\n"
+        + "    if n <= 1:\n"
+        + "        return 1\n"
+        + "    return n * fact(n - 1)\n\n"
+        + "result = fact(5)\n"
     );
     assert_matches_oracle(src);
 }
@@ -291,10 +298,10 @@ test "layer9: recursive fact(n) matches oracle" {
 test "layer9: recursive fact(n) executes in ceval" {
     src = (
         "def fact(n):\n"
-            + "    if n <= 1:\n"
-            + "        return 1\n"
-            + "    return n * fact(n - 1)\n\n"
-            + "result = fact(5)\n"
+        + "    if n <= 1:\n"
+        + "        return 1\n"
+        + "    return n * fact(n - 1)\n\n"
+        + "result = fact(5)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -347,10 +354,10 @@ test "layer9: inline lambda call executes in ceval" {
 test "layer9: nested closure capture matches oracle" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     assert_matches_oracle(src);
 }
@@ -358,10 +365,10 @@ test "layer9: nested closure capture matches oracle" {
 test "layer9: nested closure capture executes in ceval" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -373,10 +380,10 @@ test "layer9: nested closure capture executes in ceval" {
 test "layer9: nested inner PyCode has freevars and cellvars metadata" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     co = product_exec(src);
     assert not is_error(co);
@@ -526,11 +533,11 @@ test "layer9: varargs kwonly default executes in ceval" {
 test "layer9: decorator matches oracle" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -551,11 +558,11 @@ test "layer9: decorator matches oracle" {
 test "layer9: decorator executes in ceval" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -567,14 +574,14 @@ test "layer9: decorator executes in ceval" {
 test "layer9: multiple decorators executes in ceval" {
     src = (
         "def d1(fn):\n"
-            + "    return fn\n\n"
-            + "def d2(fn):\n"
-            + "    return fn\n\n"
-            + "@d1\n"
-            + "@d2\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "def d2(fn):\n"
+        + "    return fn\n\n"
+        + "@d1\n"
+        + "@d2\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -646,16 +653,53 @@ test "layer9: band5 empty class executes in ceval" {
 
 # CPython 3.14.6 co_code for `class C: def m(self): return 1` body (with __classdict__).
 glob BAND5_CLASS_C_CO_CODE: list[int] = [
-    97, 0, 128, 0, 93, 0, 116, 1, 82, 0, 116, 2, 94, 1, 116, 3, 22, 0, 111, 0,
-    82, 1, 23, 0, 116, 4, 82, 2, 116, 5, 86, 0, 116, 6, 82, 3, 35, 0,
-];
+         97,
+         0,
+         128,
+         0,
+         93,
+         0,
+         116,
+         1,
+         82,
+         0,
+         116,
+         2,
+         94,
+         1,
+         116,
+         3,
+         22,
+         0,
+         111,
+         0,
+         82,
+         1,
+         23,
+         0,
+         116,
+         4,
+         82,
+         2,
+         116,
+         5,
+         86,
+         0,
+         116,
+         6,
+         82,
+         3,
+         35,
+         0,
+
+     ];
 
 test "layer9: band5 class method matches oracle" {
     src = (
         "class C:\n"
-            + "    def m(self):\n"
-            + "        return 1\n\n"
-            + "result = C().m()\n"
+        + "    def m(self):\n"
+        + "        return 1\n\n"
+        + "result = C().m()\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -675,9 +719,9 @@ test "layer9: band5 class method matches oracle" {
 test "layer9: band5 class method executes in ceval" {
     src = (
         "class C:\n"
-            + "    def m(self):\n"
-            + "        return 1\n\n"
-            + "result = C().m()\n"
+        + "    def m(self):\n"
+        + "        return 1\n\n"
+        + "result = C().m()\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -689,10 +733,10 @@ test "layer9: band5 class method executes in ceval" {
 test "layer9: band5 class inheritance matches oracle" {
     src = (
         "class Base:\n"
-            + "    x = 1\n"
-            + "class C(Base):\n"
-            + "    pass\n"
-            + "result = C().x\n"
+        + "    x = 1\n"
+        + "class C(Base):\n"
+        + "    pass\n"
+        + "result = C().x\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -710,10 +754,10 @@ test "layer9: band5 class inheritance matches oracle" {
 test "layer9: band5 class inheritance executes in ceval" {
     src = (
         "class Base:\n"
-            + "    x = 1\n"
-            + "class C(Base):\n"
-            + "    pass\n"
-            + "result = C().x\n"
+        + "    x = 1\n"
+        + "class C(Base):\n"
+        + "    pass\n"
+        + "result = C().x\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -725,9 +769,9 @@ test "layer9: band5 class inheritance executes in ceval" {
 test "layer9: band5 nested class matches oracle" {
     src = (
         "class Outer:\n"
-            + "    class Inner:\n"
-            + "        x = 1\n"
-            + "result = Outer.Inner.x\n"
+        + "    class Inner:\n"
+        + "        x = 1\n"
+        + "result = Outer.Inner.x\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -749,9 +793,9 @@ test "layer9: band5 nested class matches oracle" {
 test "layer9: band5 nested class executes in ceval" {
     src = (
         "class Outer:\n"
-            + "    class Inner:\n"
-            + "        x = 1\n"
-            + "result = Outer.Inner.x\n"
+        + "    class Inner:\n"
+        + "        x = 1\n"
+        + "result = Outer.Inner.x\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -764,10 +808,7 @@ test "layer9: band5 nested class executes in ceval" {
 
 test "layer9: band6 try except typed matches oracle" {
     src = (
-        "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = 99\n"
+        "try:\n" + "    1 // 0\n" + "except ZeroDivisionError:\n" + "    result = 99\n"
     );
     actual = product_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -782,10 +823,7 @@ test "layer9: band6 try except typed matches oracle" {
 
 test "layer9: band6 try except typed executes in ceval" {
     src = (
-        "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = 99\n"
+        "try:\n" + "    1 // 0\n" + "except ZeroDivisionError:\n" + "    result = 99\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -823,9 +861,9 @@ test "layer9: band6 raise raises ValueError in ceval" {
 test "layer9: band6 try except re-raise matches oracle" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    raise\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise\n"
     );
     actual = product_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -841,9 +879,9 @@ test "layer9: band6 try except re-raise matches oracle" {
 test "layer9: band6 try except re-raise propagates in ceval" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    raise\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -859,9 +897,9 @@ test "layer9: band6 try except re-raise propagates in ceval" {
 test "layer9: band6 try except as matches oracle" {
     src = (
         "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError as e:\n"
-            + "    result = str(e)\n"
+        + "    1 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
     );
     actual = product_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -877,9 +915,9 @@ test "layer9: band6 try except as matches oracle" {
 test "layer9: band6 try except as executes in ceval" {
     src = (
         "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError as e:\n"
-            + "    result = str(e)\n"
+        + "    1 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -893,11 +931,11 @@ test "layer9: band6 try except as executes in ceval" {
 test "layer9: band6 try finally matches oracle" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    count = 1\n"
-            + "finally:\n"
-            + "    count = count + 10\n"
-            + "result = count\n"
+        + "try:\n"
+        + "    count = 1\n"
+        + "finally:\n"
+        + "    count = count + 10\n"
+        + "result = count\n"
     );
     actual = product_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -913,11 +951,11 @@ test "layer9: band6 try finally matches oracle" {
 test "layer9: band6 try finally executes in ceval" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    count = 1\n"
-            + "finally:\n"
-            + "    count = count + 10\n"
-            + "result = count\n"
+        + "try:\n"
+        + "    count = 1\n"
+        + "finally:\n"
+        + "    count = count + 10\n"
+        + "result = count\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -929,13 +967,13 @@ test "layer9: band6 try finally executes in ceval" {
 test "layer9: band6 try finally runs on exception path in ceval" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    try:\n"
-            + "        1 // 0\n"
-            + "    finally:\n"
-            + "        count = count + 10\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = count\n"
+        + "try:\n"
+        + "    try:\n"
+        + "        1 // 0\n"
+        + "    finally:\n"
+        + "        count = count + 10\n"
+        + "except ZeroDivisionError:\n"
+        + "    result = count\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -949,12 +987,12 @@ test "layer9: band6 try finally runs on exception path in ceval" {
 test "layer9: band6 with matches oracle" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "with CM() as x:\n"
-            + "    result = x\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "with CM() as x:\n"
+        + "    result = x\n"
     );
     actual = product_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -970,12 +1008,12 @@ test "layer9: band6 with matches oracle" {
 test "layer9: band6 with executes in ceval" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "with CM() as x:\n"
-            + "    result = x\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "with CM() as x:\n"
+        + "    result = x\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1037,10 +1075,10 @@ test "layer9: band6 assert failure raises AssertionError in ceval" {
 test "layer9: band7 generator yield matches oracle" {
     src = (
         "def gen():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "g = gen()\n"
-            + "result = next(g) + next(g)\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "g = gen()\n"
+        + "result = next(g) + next(g)\n"
     );
     assert_matches_oracle(src);
 }
@@ -1048,10 +1086,10 @@ test "layer9: band7 generator yield matches oracle" {
 test "layer9: band7 generator yield executes in ceval" {
     src = (
         "def gen():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "g = gen()\n"
-            + "result = next(g) + next(g)\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "g = gen()\n"
+        + "result = next(g) + next(g)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1065,11 +1103,11 @@ test "layer9: band7 generator yield executes in ceval" {
 test "layer9: band7 yield from matches oracle" {
     src = (
         "def outer():\n"
-            + "    yield from inner()\n"
-            + "def inner():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "result = list(outer())\n"
+        + "    yield from inner()\n"
+        + "def inner():\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "result = list(outer())\n"
     );
     assert_matches_oracle(src);
 }
@@ -1077,11 +1115,11 @@ test "layer9: band7 yield from matches oracle" {
 test "layer9: band7 yield from executes in ceval" {
     src = (
         "def outer():\n"
-            + "    yield from inner()\n"
-            + "def inner():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "result = list(outer())\n"
+        + "    yield from inner()\n"
+        + "def inner():\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "result = list(outer())\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1104,9 +1142,9 @@ test "layer9: band7 async def matches oracle" {
 test "layer9: band7 await matches oracle" {
     src = (
         "async def f():\n"
-            + "    return await g()\n"
-            + "async def g():\n"
-            + "    return 1\n"
+        + "    return await g()\n"
+        + "async def g():\n"
+        + "    return 1\n"
     );
     assert_matches_oracle(src);
 }
@@ -1114,10 +1152,10 @@ test "layer9: band7 await matches oracle" {
 test "layer9: band7 await executes in ceval" {
     src = (
         "async def f():\n"
-            + "    return await g()\n"
-            + "async def g():\n"
-            + "    return 1\n"
-            + "c = f()\n"
+        + "    return await g()\n"
+        + "async def g():\n"
+        + "    return 1\n"
+        + "c = f()\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1137,19 +1175,19 @@ test "layer9: band7 await executes in ceval" {
 test "layer9: band7 async for matches oracle" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f():\n"
-            + "    total = 0\n"
-            + "    async for x in AI():\n"
-            + "        total = total + x\n"
-            + "    return total\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f():\n"
+        + "    total = 0\n"
+        + "    async for x in AI():\n"
+        + "        total = total + x\n"
+        + "    return total\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1165,20 +1203,20 @@ test "layer9: band7 async for matches oracle" {
 test "layer9: band7 async for executes in ceval" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f():\n"
-            + "    total = 0\n"
-            + "    async for x in AI():\n"
-            + "        total = total + x\n"
-            + "    return total\n"
-            + "c = f()\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f():\n"
+        + "    total = 0\n"
+        + "    async for x in AI():\n"
+        + "        total = total + x\n"
+        + "    return total\n"
+        + "c = f()\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1198,15 +1236,15 @@ test "layer9: band7 async for executes in ceval" {
 test "layer9: band7 async with matches oracle" {
     src = (
         "class CM:\n"
-            + "    async def __aenter__(self):\n"
-            + "        return 42\n"
-            + "    async def __aexit__(self, *a):\n"
-            + "        pass\n"
-            + "\n"
-            + "async def f():\n"
-            + "    async with CM() as x:\n"
-            + "        result = x\n"
-            + "    return result\n"
+        + "    async def __aenter__(self):\n"
+        + "        return 42\n"
+        + "    async def __aexit__(self, *a):\n"
+        + "        pass\n"
+        + "\n"
+        + "async def f():\n"
+        + "    async with CM() as x:\n"
+        + "        result = x\n"
+        + "    return result\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1222,16 +1260,16 @@ test "layer9: band7 async with matches oracle" {
 test "layer9: band7 async with executes in ceval" {
     src = (
         "class CM:\n"
-            + "    async def __aenter__(self):\n"
-            + "        return 42\n"
-            + "    async def __aexit__(self, *a):\n"
-            + "        pass\n"
-            + "\n"
-            + "async def f():\n"
-            + "    async with CM() as x:\n"
-            + "        result = x\n"
-            + "    return result\n"
-            + "c = f()\n"
+        + "    async def __aenter__(self):\n"
+        + "        return 42\n"
+        + "    async def __aexit__(self, *a):\n"
+        + "        pass\n"
+        + "\n"
+        + "async def f():\n"
+        + "    async with CM() as x:\n"
+        + "        result = x\n"
+        + "    return result\n"
+        + "c = f()\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1251,11 +1289,11 @@ test "layer9: band7 async with executes in ceval" {
 test "layer9: band8 match literal matches oracle" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1270,11 +1308,11 @@ test "layer9: band8 match literal matches oracle" {
 test "layer9: band8 match guard matches oracle" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 if x > 0:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
+        + "    match x:\n"
+        + "        case 1 if x > 0:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1289,11 +1327,11 @@ test "layer9: band8 match guard matches oracle" {
 test "layer9: band8 match sequence matches oracle" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, b]:\n"
-            + "            return a + b\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [a, b]:\n"
+        + "            return a + b\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1315,13 +1353,13 @@ test "layer9: band8 match sequence executes in ceval" {
     assert not is_error(setup_out);
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, b]:\n"
-            + "            return a + b\n"
-            + "        case _:\n"
-            + "            return 0\n"
-            + "\n"
-            + "result = f(make())\n"
+        + "    match x:\n"
+        + "        case [a, b]:\n"
+        + "            return a + b\n"
+        + "        case _:\n"
+        + "            return 0\n"
+        + "\n"
+        + "result = f(make())\n"
     );
     co = product_exec(src);
     out = exec_code(co as PyCode, [], ns);
@@ -1332,11 +1370,11 @@ test "layer9: band8 match sequence executes in ceval" {
 test "layer9: band8 match-or literal matches oracle" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 | 2 | 3:\n"
-            + "            return 'a'\n"
-            + "        case _:\n"
-            + "            return 'b'\n"
+        + "    match x:\n"
+        + "        case 1 | 2 | 3:\n"
+        + "            return 'a'\n"
+        + "        case _:\n"
+        + "            return 'b'\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1351,11 +1389,11 @@ test "layer9: band8 match-or literal matches oracle" {
 test "layer9: band8 match-or guard matches oracle" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 | 2 if x > 0:\n"
-            + "            return 'a'\n"
-            + "        case _:\n"
-            + "            return 'b'\n"
+        + "    match x:\n"
+        + "        case 1 | 2 if x > 0:\n"
+        + "            return 'a'\n"
+        + "        case _:\n"
+        + "            return 'b'\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1370,15 +1408,15 @@ test "layer9: band8 match-or guard matches oracle" {
 test "layer9: band8 match-or executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 | 2 | 3:\n"
-            + "            return 'a'\n"
-            + "        case _:\n"
-            + "            return 'b'\n"
-            + "\n"
-            + "r1 = f(2)\n"
-            + "r2 = f(3)\n"
-            + "r3 = f(9)\n"
+        + "    match x:\n"
+        + "        case 1 | 2 | 3:\n"
+        + "            return 'a'\n"
+        + "        case _:\n"
+        + "            return 'b'\n"
+        + "\n"
+        + "r1 = f(2)\n"
+        + "r2 = f(3)\n"
+        + "r3 = f(9)\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1485,10 +1523,10 @@ test "layer9: eval mode still byte-exact (regression)" {
 test "layer9: class private attr product PyCode matches oracle" {
     src = (
         "class C:\n"
-            + "    __x = 1\n"
-            + "    def m(self):\n"
-            + "        return self.__x\n"
-            + "result = C().m()\n"
+        + "    __x = 1\n"
+        + "    def m(self):\n"
+        + "        return self.__x\n"
+        + "result = C().m()\n"
     );
     actual = product_exec(src);
     assert not is_error(actual);
@@ -1511,10 +1549,10 @@ test "layer9: class private attr product PyCode matches oracle" {
 test "layer9: class private attr executes in ceval" {
     src = (
         "class C:\n"
-            + "    __x = 1\n"
-            + "    def m(self):\n"
-            + "        return self.__x\n"
-            + "result = C().m()\n"
+        + "    __x = 1\n"
+        + "    def m(self):\n"
+        + "        return self.__x\n"
+        + "result = C().m()\n"
     );
     co = product_exec(src);
     ns: dict[str, PyObj] = {};

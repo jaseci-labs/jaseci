@@ -42,18 +42,24 @@ def _jac_loc(path: str) -> int {
 
 test "P2 corpus: committed lift tier_b_total does not exceed baseline" {
     manifest = _load_json(MANIFEST_PATH);
-    aggregate_path = os.path.join(REPO_ROOT, manifest["lift_output"], "project.c2jac.report.json");
+    aggregate_path = os.path.join(
+        REPO_ROOT, manifest["lift_output"], "project.c2jac.report.json"
+    );
     baseline = _load_json(BASELINE_PATH);
     current = _load_json(aggregate_path);
     assert len(current["files"] as list) >= 10 , current;
     assert (current["tier_b_total"] as int) <= (baseline["tier_b_total"] as int) , (
-        f"Tier-B regressed: {current['tier_b_total']} > baseline {baseline['tier_b_total']}"
+        f"Tier-B regressed: {current['tier_b_total']} > baseline {baseline[
+            'tier_b_total'
+        ]}"
     );
 }
 
 test "P2 corpus: committed lift Tier-B density stays below 15%" {
     manifest = _load_json(MANIFEST_PATH);
-    aggregate_path = os.path.join(REPO_ROOT, manifest["lift_output"], "project.c2jac.report.json");
+    aggregate_path = os.path.join(
+        REPO_ROOT, manifest["lift_output"], "project.c2jac.report.json"
+    );
     current = _load_json(aggregate_path);
     tier_b_total = current["tier_b_total"] as int;
     total_loc = 0;

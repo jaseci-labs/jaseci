@@ -16,19 +16,26 @@ def parses(src: str) -> str {
 
 with entry {
     sys.setrecursionlimit(200000);
-    fh = open("/tmp/claude-1000/-home-jac-repos-jac-python/31393663-4893-4c74-b635-99e40a17186c/scratchpad/stdlib_stmts.json", "r");
+    fh = open(
+        "/tmp/claude-1000/-home-jac-repos-jac-python/31393663-4893-4c74-b635-99e40a17186c/scratchpad/stdlib_stmts.json",
+        "r"
+    );
     data = json.load(fh);
     fh.close();
     ok = 0;
     fail = 0;
-    by_type: dict[str, int] = {};
-    examples: dict[str, str] = {};
-    exc_tally: dict[str, int] = {};
+}
+
+glob by_type: dict[str, int] = {},
+     examples: dict[str, str] = {},
+     exc_tally: dict[str, int] = {};
+
+with entry {
     for nm in data.keys() {
-        for entry in data[nm] {
-            ntype = entry[0];
-            lineno = entry[1];
-            seg = entry[2];
+        for `entry in data[nm] {
+            ntype = `entry[0];
+            lineno = `entry[1];
+            seg = `entry[2];
             r = parses(seg + "\n");
             if r == "OK" {
                 ok = ok + 1;
@@ -37,7 +44,11 @@ with entry {
                 key = ntype;
                 if key not in by_type {
                     by_type[key] = 0;
-                    examples[key] = nm + ":" + str(lineno) + " | " + seg.split("\n")[0][:70];
+                    examples[key] = nm
+                        + ":"
+                        + str(lineno)
+                        + " | "
+                        + seg.split("\n")[0][:70];
                 }
                 by_type[key] = by_type[key] + 1;
                 if r.startswith("EXC:") {

@@ -18,17 +18,11 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      "    printf(\"%d\\n\", RotatingTree_RandomBits(3));\n"
      "    return 0;\n"
      "}\n",
-     _ENTRY: str = "with entry {\n"
-     "    print(RotatingTree_RandomBits(3));\n"
-     "}\n";
+     _ENTRY: str = "with entry {\n" "    print(RotatingTree_RandomBits(3));\n" "}\n";
 
 
 test "jac-py rotatingtree: cc vs staged jac agree on RotatingTree_RandomBits(3)" {
     assert_staged_jac_matches_c(
-        ROTATINGTREE_C,
-        ROTATINGTREE_JAC,
-        _DRIVER,
-        _ENTRY,
-        include_dirs=[MODULES]
+        ROTATINGTREE_C, ROTATINGTREE_JAC, _DRIVER, _ENTRY, include_dirs=[MODULES]
     );
 }

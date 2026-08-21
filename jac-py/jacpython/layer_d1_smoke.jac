@@ -128,10 +128,7 @@ test "d1: try/except divide" {
 test "d1: list comprehension squares" {
     # `x * x` references the loop var twice: the first reference consumes the
     # STORE_FAST_LOAD_FAST borrow, the second emits LOAD_FAST_BORROW.
-    src = (
-        "sq = [x * x for x in range(10)]\n"
-        + "result = sum(sq)\n"
-    );
+    src = "sq = [x * x for x in range(10)]\n" + "result = sum(sq)\n";
     ns = run_module(src);
     assert expect_int(ns["result"]) == 285;
 }
@@ -149,10 +146,7 @@ test "d1: dict/set comprehension multi-ref" {
 # ---------------- string methods (hello-world class) ----------------
 
 test "d1: hello world string ops" {
-    src = (
-        "msg = 'hello, ' + 'world'\n"
-        + "result = msg.upper()\n"
-    );
+    src = "msg = 'hello, ' + 'world'\n" + "result = msg.upper()\n";
     ns = run_module(src);
     assert expect_str(ns["result"]) == "HELLO, WORLD";
 }

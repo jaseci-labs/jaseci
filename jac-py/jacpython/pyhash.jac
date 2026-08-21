@@ -2,9 +2,7 @@
 #
 # String hashing uses SipHash13 with the embedding interpreter's ``_Py_HashSecret``
 # (process-local, matches host ``hash(str)``). Float hashing is fully algorithmic.
-import from objects {
-    PyFloat,
-}
+import from objects { PyFloat, }
 
 ::py::
 import ctypes
@@ -170,6 +168,7 @@ def _py_float_hash_value(ptr: int, val: float) -> int:
         return _hash_pointer(ptr)
     return _hash_double(val)
 ::py::
+
 
 
 def str_hash_text(s: str) -> int {

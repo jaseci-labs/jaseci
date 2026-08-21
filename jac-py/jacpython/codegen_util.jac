@@ -1105,4 +1105,3 @@ def class_effective_keywords(cd: ClassDef) -> list[keyword] {
     }
     return kws;
 }
-

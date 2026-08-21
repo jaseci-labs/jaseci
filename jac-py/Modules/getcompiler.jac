@@ -1,3 +1,3 @@
-def Py_GetCompiler() -> str {
+def Py_GetCompiler -> str {
     return "[C]";
 }

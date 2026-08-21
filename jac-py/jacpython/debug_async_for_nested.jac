@@ -14,19 +14,19 @@ import from pycode_diff { pycode_diff, dis_diff_first }
 test "debug async for nested cfg" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f():\n"
-            + "    total = 0\n"
-            + "    async for x in AI():\n"
-            + "        total = total + x\n"
-            + "    return total\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f():\n"
+        + "    total = 0\n"
+        + "    async for x in AI():\n"
+        + "        total = total + x\n"
+        + "    return total\n"
     );
     m = parse_file(src, "<f>");
     assert m is not None;

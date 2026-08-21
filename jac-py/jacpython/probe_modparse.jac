@@ -29,7 +29,10 @@ def probe_parse(path: str) -> str {
         return "VAL_EXC:" + str(e)[:50];
     }
     if vr.diag is not None {
-        return "VAL[" + compiler_diag_kind(vr.diag) + "]:" + compiler_diag_message(vr.diag)[:50];
+        return "VAL["
+            + compiler_diag_kind(vr.diag)
+            + "]:"
+            + compiler_diag_message(vr.diag)[:50];
     }
     try {
         sr = build_module_symtable(body);
@@ -37,14 +40,21 @@ def probe_parse(path: str) -> str {
         return "SYM_EXC:" + str(e)[:50];
     }
     if sr.diag is not None {
-        return "SYM[" + compiler_diag_kind(sr.diag) + "]:" + compiler_diag_message(sr.diag)[:50];
+        return "SYM["
+            + compiler_diag_kind(sr.diag)
+            + "]:"
+            + compiler_diag_message(sr.diag)[:50];
     }
     return "OK";
 }
 
 with entry {
     sys.setrecursionlimit(200000);
-    stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14";
+}
+
+glob stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14";
+
+with entry {
     names = sorted(os.listdir(stddir));
     ok = 0;
     total = 0;

@@ -2,16 +2,8 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/tupleobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/tupleobject_core.jac``).
-import from objects {
-    PyObj,
-    PyTuple,
-    PyBool,
-    PyInt,
-    is_error,
-}
-import from hash_dispatch {
-    hash_element,
-}
+import from objects { PyObj, PyTuple, PyBool, PyInt, is_error, }
+import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_RichCompare,
     PyObject_RichCompareBool,
@@ -73,7 +65,8 @@ def tuple_hash(v: PyTuple) -> PyObj {
             return lane_obj;
         }
         lane = (lane_obj as PyInt).val;
-        acc = (acc + ((lane & _PyTuple_MASK) * _PyTuple_HASH_XXPRIME_2)) & _PyTuple_MASK;
+        acc = (acc + ((lane & _PyTuple_MASK) * _PyTuple_HASH_XXPRIME_2))
+            & _PyTuple_MASK;
         acc = _tuple_xxrotate(acc);
         acc = (acc * _PyTuple_HASH_XXPRIME_1) & _PyTuple_MASK;
         i = i + 1;

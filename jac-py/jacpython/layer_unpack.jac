@@ -55,17 +55,49 @@ def run_module(source: str) -> dict[str, PyObj] {
 
 # ---------------- byte-exact: tuple/list assignment targets ----------------
 
-test "unpack: two-name literal swap" { assert_matches_oracle("a, b = b, a + b\n"); }
-test "unpack: two-const literal" { assert_matches_oracle("a, b = 1, 2\n"); }
-test "unpack: three-name literal" { assert_matches_oracle("a, b, c = x, y, z\n"); }
-test "unpack: four-name literal build+unpack" { assert_matches_oracle("a, b, c, d = e, f, g, h\n"); }
-test "unpack: one-tuple literal" { assert_matches_oracle("(a,) = (b,)\n"); }
-test "unpack: call rhs unpack_sequence" { assert_matches_oracle("a, b = f()\n"); }
-test "unpack: star tail" { assert_matches_oracle("first, *rest = it\n"); }
-test "unpack: star head" { assert_matches_oracle("*a, b = it\n"); }
-test "unpack: star middle" { assert_matches_oracle("a, *b, c = it\n"); }
-test "unpack: nested targets" { assert_matches_oracle("(a, (b, c)) = x\n"); }
-test "unpack: list target" { assert_matches_oracle("[a, b] = y\n"); }
+test "unpack: two-name literal swap" {
+    assert_matches_oracle("a, b = b, a + b\n");
+}
+
+test "unpack: two-const literal" {
+    assert_matches_oracle("a, b = 1, 2\n");
+}
+
+test "unpack: three-name literal" {
+    assert_matches_oracle("a, b, c = x, y, z\n");
+}
+
+test "unpack: four-name literal build+unpack" {
+    assert_matches_oracle("a, b, c, d = e, f, g, h\n");
+}
+
+test "unpack: one-tuple literal" {
+    assert_matches_oracle("(a,) = (b,)\n");
+}
+
+test "unpack: call rhs unpack_sequence" {
+    assert_matches_oracle("a, b = f()\n");
+}
+
+test "unpack: star tail" {
+    assert_matches_oracle("first, *rest = it\n");
+}
+
+test "unpack: star head" {
+    assert_matches_oracle("*a, b = it\n");
+}
+
+test "unpack: star middle" {
+    assert_matches_oracle("a, *b, c = it\n");
+}
+
+test "unpack: nested targets" {
+    assert_matches_oracle("(a, (b, c)) = x\n");
+}
+
+test "unpack: list target" {
+    assert_matches_oracle("[a, b] = y\n");
+}
 
 # ---------------- byte-exact: non-constant tuple/list displays ----------------
 # All-constant displays fold to a const, but CPython leaves a ghost first-element
@@ -73,10 +105,21 @@ test "unpack: list target" { assert_matches_oracle("[a, b] = y\n"); }
 # reproducing that const-pool artifact is deferred, so all-const folds are
 # verified by execution below rather than byte-exact PyCode parity.
 
-test "display: name tuple build" { assert_matches_oracle("x = (a, b)\n"); }
-test "display: singleton tuple" { assert_matches_oracle("x = (a,)\n"); }
-test "display: name list" { assert_matches_oracle("x = [a, b]\n"); }
-test "display: empty list" { assert_matches_oracle("x = []\n"); }
+test "display: name tuple build" {
+    assert_matches_oracle("x = (a, b)\n");
+}
+
+test "display: singleton tuple" {
+    assert_matches_oracle("x = (a,)\n");
+}
+
+test "display: name list" {
+    assert_matches_oracle("x = [a, b]\n");
+}
+
+test "display: empty list" {
+    assert_matches_oracle("x = []\n");
+}
 
 test "exec: empty tuple/list" {
     ns = run_module("t = ()\nxs = []\nr = len(t) + len(xs)\n");
@@ -110,7 +153,9 @@ test "exec: iterative fib via swap" {
 }
 
 test "exec: star unpack values" {
-    ns = run_module("first, *rest, last = [1, 2, 3, 4, 5]\nr = first + last\nm = rest[1]\n");
+    ns = run_module(
+        "first, *rest, last = [1, 2, 3, 4, 5]\nr = first + last\nm = rest[1]\n"
+    );
     assert expect_int(ns["r"]) == 6;
     assert expect_int(ns["m"]) == 3;
 }
@@ -122,14 +167,37 @@ test "exec: nested unpack" {
 
 # ---------------- byte-exact: set/dict/starred displays ----------------
 
-test "display: set build" { assert_matches_oracle("x = {a, b, c}\n"); }
-test "display: dict build" { assert_matches_oracle("x = {a: b, c: d}\n"); }
-test "display: starred list" { assert_matches_oracle("x = [*a, b]\n"); }
-test "display: starred tuple" { assert_matches_oracle("x = (*a, b)\n"); }
-test "display: set update" { assert_matches_oracle("x = {*a, b}\n"); }
-test "display: dict merge starred" { assert_matches_oracle("x = {**a, 'k': v}\n"); }
-test "display: dict merge double" { assert_matches_oracle("x = {**a, **b}\n"); }
-test "display: dict merge mixed" { assert_matches_oracle("x = {'j': w, **a, 'k': v}\n"); }
+test "display: set build" {
+    assert_matches_oracle("x = {a, b, c}\n");
+}
+
+test "display: dict build" {
+    assert_matches_oracle("x = {a: b, c: d}\n");
+}
+
+test "display: starred list" {
+    assert_matches_oracle("x = [*a, b]\n");
+}
+
+test "display: starred tuple" {
+    assert_matches_oracle("x = (*a, b)\n");
+}
+
+test "display: set update" {
+    assert_matches_oracle("x = {*a, b}\n");
+}
+
+test "display: dict merge starred" {
+    assert_matches_oracle("x = {**a, 'k': v}\n");
+}
+
+test "display: dict merge double" {
+    assert_matches_oracle("x = {**a, **b}\n");
+}
+
+test "display: dict merge mixed" {
+    assert_matches_oracle("x = {'j': w, **a, 'k': v}\n");
+}
 
 # ---------------- execution: set/dict/starred displays ----------------
 
@@ -164,11 +232,15 @@ test "exec: dict merge starred value" {
 }
 
 test "exec: dict merge double value" {
-    ns = run_module("a = {'x': 1}\nb = {'y': 2}\nm = {**a, **b}\nr = m['x'] + m['y']\n");
+    ns = run_module(
+        "a = {'x': 1}\nb = {'y': 2}\nm = {**a, **b}\nr = m['x'] + m['y']\n"
+    );
     assert expect_int(ns["r"]) == 3;
 }
 
 test "exec: dict merge mixed override value" {
-    ns = run_module("w = 1\na = {'k': 5}\nv = 9\nm = {'j': w, **a, 'k': v}\nr = m['j'] + m['k']\n");
+    ns = run_module(
+        "w = 1\na = {'k': 5}\nv = 9\nm = {'j': w, **a, 'k': v}\nr = m['j'] + m['k']\n"
+    );
     assert expect_int(ns["r"]) == 10;
 }

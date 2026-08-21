@@ -197,8 +197,8 @@ def run -> int {
     # THE KILLER: mutate the Leaf instance's own dict at runtime so "act" now
     # hits the INSTANCE dict (add 1000) instead of walking to Mid, then
     # re-dispatch from the SAME call site. 5 + 1000 = 1005, not 15.
-    override: PyObj = PyAddMethod(t="add", delta=1000);
-    leaf_inst.attrs["act"] = override;
+    `override: PyObj = PyAddMethod(t="add", delta=1000);
+    leaf_inst.attrs["act"] = `override;
     again = dispatch(leaf_inst, names[0]);
     if again != 1005 {
         return -200;

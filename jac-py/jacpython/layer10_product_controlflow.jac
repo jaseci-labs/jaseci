@@ -204,13 +204,13 @@ test "layer10: dict comprehension multi-ref value with filter matches oracle" {
 test "layer10: band8 match literal int nested f matches oracle co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(1)\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(1)\n"
     );
     actual = product_exec(src, "<f>");
     assert not is_error(actual);
@@ -231,13 +231,13 @@ test "layer10: band8 match literal int nested f matches oracle co_code" {
 test "layer10: band8 match literal int executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(2)\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(2)\n"
     );
     co = product_exec(src, "<f>");
     assert not is_error(co);
@@ -269,10 +269,10 @@ def assert_nested_oracle(src: str) {
 def match_arm_src(body_case: str) -> str {
     return (
         "def f(x):\n"
-            + "    match x:\n"
-            + body_case
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + body_case
+        + "        case _:\n"
+        + "            return 0\n"
     );
 }
 
@@ -285,11 +285,15 @@ test "layer10: band8 match class positional literal matches oracle co_code" {
 }
 
 test "layer10: band8 match class positional captures matches oracle co_code" {
-    assert_nested_oracle(match_arm_src("        case Point(a, b):\n            return a + b\n"));
+    assert_nested_oracle(
+        match_arm_src("        case Point(a, b):\n            return a + b\n")
+    );
 }
 
 test "layer10: band8 match class keyword capture matches oracle co_code" {
-    assert_nested_oracle(match_arm_src("        case C(0, y=v):\n            return v + 1\n"));
+    assert_nested_oracle(
+        match_arm_src("        case C(0, y=v):\n            return v + 1\n")
+    );
 }
 
 test "layer10: band8 match class positional+keyword matches oracle co_code" {

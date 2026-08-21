@@ -5,7 +5,17 @@
 #
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError, py_none }
+import from objects {
+    PyObj,
+    PyCode,
+    PyInt,
+    PyBool,
+    expect_int,
+    expect_str,
+    is_error,
+    PyError,
+    py_none
+}
 import from ast_nodes {
     expr,
     stmt,
@@ -40,9 +50,7 @@ import from compiler_validate { validate_module_body }
 import from compiler_symtable { build_module_symtable }
 import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 import from host_oracle { host_compile_marshal }
-import from pyc_first {
-    unmarshal, exec_code, gen_send, py_subscript, PyGenerator
-}
+import from pyc_first { unmarshal, exec_code, gen_send, py_subscript, PyGenerator }
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -515,11 +523,11 @@ test "compiler_slice: (x<y<z) and q matches oracle PyCode" {
 test "compiler_slice: is / is not / in / not in value context match oracle PyCode" {
     src = (
         "r1 = a is b\n"
-            + "r2 = a is not b\n"
-            + "r3 = a in xs\n"
-            + "r4 = a not in xs\n"
-            + "r5 = a is None\n"
-            + "r6 = a is not None\n"
+        + "r2 = a is not b\n"
+        + "r3 = a in xs\n"
+        + "r4 = a not in xs\n"
+        + "r5 = a is None\n"
+        + "r6 = a is not None\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -684,10 +692,10 @@ test "compiler_slice: non-constant slice subscript matches oracle PyCode" {
 test "compiler_slice: global store / delete match oracle nested co_code" {
     src = (
         "def f():\n"
-            + "    global x\n"
-            + "    x = 1\n"
-            + "    del x\n"
-            + "    return x\n"
+        + "    global x\n"
+        + "    x = 1\n"
+        + "    del x\n"
+        + "    return x\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -702,12 +710,12 @@ test "compiler_slice: global store / delete match oracle nested co_code" {
 test "compiler_slice: nonlocal store matches oracle nested co_code" {
     src = (
         "def o():\n"
-            + "    y = 1\n"
-            + "    def i():\n"
-            + "        nonlocal y\n"
-            + "        y = 2\n"
-            + "        return y\n"
-            + "    return i\n"
+        + "    y = 1\n"
+        + "    def i():\n"
+        + "        nonlocal y\n"
+        + "        y = 2\n"
+        + "        return y\n"
+        + "    return i\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1073,10 +1081,10 @@ test "compiler_slice: band4 def f(x) return x+1 call executes in ceval" {
 test "compiler_slice: band4 recursive fact parsed matches oracle nested co_code" {
     src = (
         "def fact(n):\n"
-            + "    if n <= 1:\n"
-            + "        return 1\n"
-            + "    return n * fact(n - 1)\n\n"
-            + "result = fact(5)\n"
+        + "    if n <= 1:\n"
+        + "        return 1\n"
+        + "    return n * fact(n - 1)\n\n"
+        + "result = fact(5)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1095,10 +1103,10 @@ test "compiler_slice: band4 recursive fact parsed matches oracle nested co_code"
 test "compiler_slice: band4 recursive fact parsed executes in ceval" {
     src = (
         "def fact(n):\n"
-            + "    if n <= 1:\n"
-            + "        return 1\n"
-            + "    return n * fact(n - 1)\n\n"
-            + "result = fact(5)\n"
+        + "    if n <= 1:\n"
+        + "        return 1\n"
+        + "    return n * fact(n - 1)\n\n"
+        + "result = fact(5)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1148,10 +1156,10 @@ test "compiler_slice: band4 inline lambda call parsed executes in ceval" {
 test "compiler_slice: band4 closure parsed matches oracle nested inner co_code" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1173,10 +1181,10 @@ test "compiler_slice: band4 closure parsed matches oracle nested inner co_code" 
 test "compiler_slice: band4 closure parsed executes in ceval" {
     src = (
         "def outer(x):\n"
-            + "    def inner():\n"
-            + "        return x\n"
-            + "    return inner()\n\n"
-            + "result = outer(42)\n"
+        + "    def inner():\n"
+        + "        return x\n"
+        + "    return inner()\n\n"
+        + "result = outer(42)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1345,11 +1353,11 @@ test "compiler_slice: band4 varargs kwonly default parsed executes in ceval" {
 test "compiler_slice: band4 decorator parse attaches decorator_list" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     m = parse_file(src, "<f>");
     assert m is not None;
@@ -1362,11 +1370,11 @@ test "compiler_slice: band4 decorator parse attaches decorator_list" {
 test "compiler_slice: band4 decorator parsed matches oracle co_code" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1385,11 +1393,11 @@ test "compiler_slice: band4 decorator parsed matches oracle co_code" {
 test "compiler_slice: band4 decorator parsed executes in ceval" {
     src = (
         "def deco(fn):\n"
-            + "    return fn\n\n"
-            + "@deco\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "@deco\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1401,14 +1409,14 @@ test "compiler_slice: band4 decorator parsed executes in ceval" {
 test "compiler_slice: band4 multiple decorators parsed executes in ceval" {
     src = (
         "def d1(fn):\n"
-            + "    return fn\n\n"
-            + "def d2(fn):\n"
-            + "    return fn\n\n"
-            + "@d1\n"
-            + "@d2\n"
-            + "def f(x):\n"
-            + "    return x + 1\n\n"
-            + "result = f(2)\n"
+        + "    return fn\n\n"
+        + "def d2(fn):\n"
+        + "    return fn\n\n"
+        + "@d1\n"
+        + "@d2\n"
+        + "def f(x):\n"
+        + "    return x + 1\n\n"
+        + "result = f(2)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1445,16 +1453,53 @@ test "compiler_slice: band5 empty class parsed executes in ceval" {
 
 # CPython 3.14.6 co_code for `class C: def m(self): return 1` body (with __classdict__).
 glob BAND5_CLASS_C_CO_CODE: list[int] = [
-    97, 0, 128, 0, 93, 0, 116, 1, 82, 0, 116, 2, 94, 1, 116, 3, 22, 0, 111, 0,
-    82, 1, 23, 0, 116, 4, 82, 2, 116, 5, 86, 0, 116, 6, 82, 3, 35, 0,
-];
+         97,
+         0,
+         128,
+         0,
+         93,
+         0,
+         116,
+         1,
+         82,
+         0,
+         116,
+         2,
+         94,
+         1,
+         116,
+         3,
+         22,
+         0,
+         111,
+         0,
+         82,
+         1,
+         23,
+         0,
+         116,
+         4,
+         82,
+         2,
+         116,
+         5,
+         86,
+         0,
+         116,
+         6,
+         82,
+         3,
+         35,
+         0,
+
+     ];
 
 test "compiler_slice: band5 class method parsed matches oracle co_code" {
     src = (
         "class C:\n"
-            + "    def m(self):\n"
-            + "        return 1\n\n"
-            + "result = C().m()\n"
+        + "    def m(self):\n"
+        + "        return 1\n\n"
+        + "result = C().m()\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1477,9 +1522,9 @@ test "compiler_slice: band5 class method parsed matches oracle co_code" {
 test "compiler_slice: band5 class method parsed executes in ceval" {
     src = (
         "class C:\n"
-            + "    def m(self):\n"
-            + "        return 1\n\n"
-            + "result = C().m()\n"
+        + "    def m(self):\n"
+        + "        return 1\n\n"
+        + "result = C().m()\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1547,10 +1592,10 @@ test "compiler_slice: from operator import add executes in ceval" {
 test "compiler_slice: band5 class private attr parsed matches oracle co_code" {
     src = (
         "class C:\n"
-            + "    __x = 1\n"
-            + "    def m(self):\n"
-            + "        return self.__x\n"
-            + "result = C().m()\n"
+        + "    __x = 1\n"
+        + "    def m(self):\n"
+        + "        return self.__x\n"
+        + "result = C().m()\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1571,10 +1616,10 @@ test "compiler_slice: band5 class private attr parsed matches oracle co_code" {
 test "compiler_slice: band5 class private attr parsed executes in ceval" {
     src = (
         "class C:\n"
-            + "    __x = 1\n"
-            + "    def m(self):\n"
-            + "        return self.__x\n"
-            + "result = C().m()\n"
+        + "    __x = 1\n"
+        + "    def m(self):\n"
+        + "        return self.__x\n"
+        + "result = C().m()\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1588,10 +1633,10 @@ test "compiler_slice: band5 class private attr parsed executes in ceval" {
 test "compiler_slice: band5 class inheritance parsed matches oracle co_code" {
     src = (
         "class Base:\n"
-            + "    x = 1\n"
-            + "class C(Base):\n"
-            + "    pass\n"
-            + "result = C().x\n"
+        + "    x = 1\n"
+        + "class C(Base):\n"
+        + "    pass\n"
+        + "result = C().x\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1607,10 +1652,10 @@ test "compiler_slice: band5 class inheritance parsed matches oracle co_code" {
 test "compiler_slice: band5 class inheritance parsed executes in ceval" {
     src = (
         "class Base:\n"
-            + "    x = 1\n"
-            + "class C(Base):\n"
-            + "    pass\n"
-            + "result = C().x\n"
+        + "    x = 1\n"
+        + "class C(Base):\n"
+        + "    pass\n"
+        + "result = C().x\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1622,9 +1667,9 @@ test "compiler_slice: band5 class inheritance parsed executes in ceval" {
 test "compiler_slice: band5 nested class parsed matches oracle co_code" {
     src = (
         "class Outer:\n"
-            + "    class Inner:\n"
-            + "        x = 1\n"
-            + "result = Outer.Inner.x\n"
+        + "    class Inner:\n"
+        + "        x = 1\n"
+        + "result = Outer.Inner.x\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1644,9 +1689,9 @@ test "compiler_slice: band5 nested class parsed matches oracle co_code" {
 test "compiler_slice: band5 nested class parsed executes in ceval" {
     src = (
         "class Outer:\n"
-            + "    class Inner:\n"
-            + "        x = 1\n"
-            + "result = Outer.Inner.x\n"
+        + "    class Inner:\n"
+        + "        x = 1\n"
+        + "result = Outer.Inner.x\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1659,10 +1704,7 @@ test "compiler_slice: band5 nested class parsed executes in ceval" {
 
 test "compiler_slice: band6 try except typed parsed matches oracle co_code" {
     src = (
-        "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = 99\n"
+        "try:\n" + "    1 // 0\n" + "except ZeroDivisionError:\n" + "    result = 99\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1675,10 +1717,7 @@ test "compiler_slice: band6 try except typed parsed matches oracle co_code" {
 
 test "compiler_slice: band6 try except typed parsed executes in ceval" {
     src = (
-        "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = 99\n"
+        "try:\n" + "    1 // 0\n" + "except ZeroDivisionError:\n" + "    result = 99\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1688,12 +1727,7 @@ test "compiler_slice: band6 try except typed parsed executes in ceval" {
 }
 
 test "compiler_slice: band6 bare except parsed matches oracle co_code" {
-    src = (
-        "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except:\n"
-            + "    result = 7\n"
-    );
+    src = "try:\n" + "    raise ValueError('x')\n" + "except:\n" + "    result = 7\n";
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
     assert isinstance(expected, PyCode);
@@ -1704,12 +1738,7 @@ test "compiler_slice: band6 bare except parsed matches oracle co_code" {
 }
 
 test "compiler_slice: band6 bare except parsed executes in ceval" {
-    src = (
-        "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except:\n"
-            + "    result = 7\n"
-    );
+    src = "try:\n" + "    raise ValueError('x')\n" + "except:\n" + "    result = 7\n";
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
     out = exec_code(co, [], ns);
@@ -1720,11 +1749,11 @@ test "compiler_slice: band6 bare except parsed executes in ceval" {
 test "compiler_slice: band6 typed-then-bare except parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    raise KeyError('k')\n"
-            + "except ValueError:\n"
-            + "    result = 1\n"
-            + "except:\n"
-            + "    result = 2\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except:\n"
+        + "    result = 2\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1738,11 +1767,11 @@ test "compiler_slice: band6 typed-then-bare except parsed matches oracle co_code
 test "compiler_slice: band6 typed-then-bare except parsed executes in ceval" {
     src = (
         "try:\n"
-            + "    raise KeyError('k')\n"
-            + "except ValueError:\n"
-            + "    result = 1\n"
-            + "except:\n"
-            + "    result = 2\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except:\n"
+        + "    result = 2\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1752,12 +1781,7 @@ test "compiler_slice: band6 typed-then-bare except parsed executes in ceval" {
 }
 
 test "compiler_slice: band6 bare except no-exception parsed matches oracle co_code" {
-    src = (
-        "try:\n"
-            + "    result = 5\n"
-            + "except:\n"
-            + "    result = 9\n"
-    );
+    src = "try:\n" + "    result = 5\n" + "except:\n" + "    result = 9\n";
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
     assert isinstance(expected, PyCode);
@@ -1768,12 +1792,7 @@ test "compiler_slice: band6 bare except no-exception parsed matches oracle co_co
 }
 
 test "compiler_slice: band6 bare except no-exception executes in ceval" {
-    src = (
-        "try:\n"
-            + "    result = 5\n"
-            + "except:\n"
-            + "    result = 9\n"
-    );
+    src = "try:\n" + "    result = 5\n" + "except:\n" + "    result = 9\n";
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
     out = exec_code(co, [], ns);
@@ -1784,11 +1803,11 @@ test "compiler_slice: band6 bare except no-exception executes in ceval" {
 test "compiler_slice: band6 try except else parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 3\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1802,11 +1821,11 @@ test "compiler_slice: band6 try except else parsed matches oracle co_code" {
 test "compiler_slice: band6 try except else no-exception runs else in ceval" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 3\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1818,11 +1837,11 @@ test "compiler_slice: band6 try except else no-exception runs else in ceval" {
 test "compiler_slice: band6 try except else exception skips else matches oracle co_code" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 3\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 3\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1836,11 +1855,11 @@ test "compiler_slice: band6 try except else exception skips else matches oracle 
 test "compiler_slice: band6 try except else exception skips else in ceval" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 3\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 3\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1876,9 +1895,9 @@ test "compiler_slice: band6 raise parsed raises ValueError in ceval" {
 test "compiler_slice: band6 try except re-raise parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    raise\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1892,9 +1911,9 @@ test "compiler_slice: band6 try except re-raise parsed matches oracle co_code" {
 test "compiler_slice: band6 try except re-raise parsed propagates in ceval" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    raise\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1931,9 +1950,9 @@ test "compiler_slice: band6 raise from parsed raises KeyError in ceval" {
 test "compiler_slice: band6 try except as parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError as e:\n"
-            + "    result = str(e)\n"
+        + "    1 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1947,9 +1966,9 @@ test "compiler_slice: band6 try except as parsed matches oracle co_code" {
 test "compiler_slice: band6 try except as parsed executes in ceval" {
     src = (
         "try:\n"
-            + "    1 // 0\n"
-            + "except ZeroDivisionError as e:\n"
-            + "    result = str(e)\n"
+        + "    1 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1963,11 +1982,11 @@ test "compiler_slice: band6 try except as parsed executes in ceval" {
 test "compiler_slice: band6 try finally parsed matches oracle co_code" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    count = 1\n"
-            + "finally:\n"
-            + "    count = count + 10\n"
-            + "result = count\n"
+        + "try:\n"
+        + "    count = 1\n"
+        + "finally:\n"
+        + "    count = count + 10\n"
+        + "result = count\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -1981,11 +2000,11 @@ test "compiler_slice: band6 try finally parsed matches oracle co_code" {
 test "compiler_slice: band6 try finally parsed executes in ceval" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    count = 1\n"
-            + "finally:\n"
-            + "    count = count + 10\n"
-            + "result = count\n"
+        + "try:\n"
+        + "    count = 1\n"
+        + "finally:\n"
+        + "    count = count + 10\n"
+        + "result = count\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -1997,13 +2016,13 @@ test "compiler_slice: band6 try finally parsed executes in ceval" {
 test "compiler_slice: band6 try finally runs on exception path in ceval" {
     src = (
         "count = 0\n"
-            + "try:\n"
-            + "    try:\n"
-            + "        1 // 0\n"
-            + "    finally:\n"
-            + "        count = count + 10\n"
-            + "except ZeroDivisionError:\n"
-            + "    result = count\n"
+        + "try:\n"
+        + "    try:\n"
+        + "        1 // 0\n"
+        + "    finally:\n"
+        + "        count = count + 10\n"
+        + "except ZeroDivisionError:\n"
+        + "    result = count\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2017,11 +2036,11 @@ test "compiler_slice: band6 try finally runs on exception path in ceval" {
 test "compiler_slice: band6 try except finally normal parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2035,11 +2054,11 @@ test "compiler_slice: band6 try except finally normal parsed matches oracle co_c
 test "compiler_slice: band6 try except finally normal executes in ceval" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2051,11 +2070,11 @@ test "compiler_slice: band6 try except finally normal executes in ceval" {
 test "compiler_slice: band6 try except finally caught parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2069,11 +2088,11 @@ test "compiler_slice: band6 try except finally caught parsed matches oracle co_c
 test "compiler_slice: band6 try except finally caught executes in ceval" {
     src = (
         "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2085,11 +2104,11 @@ test "compiler_slice: band6 try except finally caught executes in ceval" {
 test "compiler_slice: band6 try except finally uncaught parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    raise KeyError('k')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    marker = 9\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2103,11 +2122,11 @@ test "compiler_slice: band6 try except finally uncaught parsed matches oracle co
 test "compiler_slice: band6 try except finally uncaught propagates but runs finally in ceval" {
     src = (
         "try:\n"
-            + "    raise KeyError('k')\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "finally:\n"
-            + "    marker = 9\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2119,13 +2138,13 @@ test "compiler_slice: band6 try except finally uncaught propagates but runs fina
 test "compiler_slice: band6 try except else finally parsed matches oracle co_code" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 5\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2139,13 +2158,13 @@ test "compiler_slice: band6 try except else finally parsed matches oracle co_cod
 test "compiler_slice: band6 try except else finally executes in ceval" {
     src = (
         "try:\n"
-            + "    result = 1\n"
-            + "except ValueError:\n"
-            + "    result = 2\n"
-            + "else:\n"
-            + "    result = 5\n"
-            + "finally:\n"
-            + "    result = 3\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 3\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2159,12 +2178,12 @@ test "compiler_slice: band6 try except else finally executes in ceval" {
 test "compiler_slice: band6 with parsed matches oracle co_code" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "with CM() as x:\n"
-            + "    result = x\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "with CM() as x:\n"
+        + "    result = x\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2178,12 +2197,12 @@ test "compiler_slice: band6 with parsed matches oracle co_code" {
 test "compiler_slice: band6 with parsed executes in ceval" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "with CM() as x:\n"
-            + "    result = x\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "with CM() as x:\n"
+        + "    result = x\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2195,13 +2214,13 @@ test "compiler_slice: band6 with parsed executes in ceval" {
 test "compiler_slice: band6 with no-as parsed matches oracle co_code" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "result = 0\n"
-            + "with CM():\n"
-            + "    result = 99\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "result = 0\n"
+        + "with CM():\n"
+        + "    result = 99\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2215,13 +2234,13 @@ test "compiler_slice: band6 with no-as parsed matches oracle co_code" {
 test "compiler_slice: band6 with no-as parsed executes in ceval" {
     src = (
         "class CM:\n"
-            + "    def __enter__(self):\n"
-            + "        return 42\n"
-            + "    def __exit__(self, *a):\n"
-            + "        pass\n"
-            + "result = 0\n"
-            + "with CM():\n"
-            + "    result = 99\n"
+        + "    def __enter__(self):\n"
+        + "        return 42\n"
+        + "    def __exit__(self, *a):\n"
+        + "        pass\n"
+        + "result = 0\n"
+        + "with CM():\n"
+        + "    result = 99\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2233,14 +2252,14 @@ test "compiler_slice: band6 with no-as parsed executes in ceval" {
 test "compiler_slice: band6 with two items parsed matches oracle co_code" {
     src = (
         "class CM:\n"
-            + "    def __init__(self, v):\n"
-            + "        self.v = v\n"
-            + "    def __enter__(self):\n"
-            + "        return self.v\n"
-            + "    def __exit__(self, *a):\n"
-            + "        return False\n"
-            + "with CM(1) as x, CM(2) as y:\n"
-            + "    result = x + y\n"
+        + "    def __init__(self, v):\n"
+        + "        self.v = v\n"
+        + "    def __enter__(self):\n"
+        + "        return self.v\n"
+        + "    def __exit__(self, *a):\n"
+        + "        return False\n"
+        + "with CM(1) as x, CM(2) as y:\n"
+        + "    result = x + y\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2254,14 +2273,14 @@ test "compiler_slice: band6 with two items parsed matches oracle co_code" {
 test "compiler_slice: band6 with two items parsed executes in ceval" {
     src = (
         "class CM:\n"
-            + "    def __init__(self, v):\n"
-            + "        self.v = v\n"
-            + "    def __enter__(self):\n"
-            + "        return self.v\n"
-            + "    def __exit__(self, *a):\n"
-            + "        return False\n"
-            + "with CM(1) as x, CM(2) as y:\n"
-            + "    result = x + y\n"
+        + "    def __init__(self, v):\n"
+        + "        self.v = v\n"
+        + "    def __enter__(self):\n"
+        + "        return self.v\n"
+        + "    def __exit__(self, *a):\n"
+        + "        return False\n"
+        + "with CM(1) as x, CM(2) as y:\n"
+        + "    result = x + y\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2273,14 +2292,14 @@ test "compiler_slice: band6 with two items parsed executes in ceval" {
 test "compiler_slice: band6 with mixed no-as parsed matches oracle co_code" {
     src = (
         "class CM:\n"
-            + "    def __init__(self, v):\n"
-            + "        self.v = v\n"
-            + "    def __enter__(self):\n"
-            + "        return self.v\n"
-            + "    def __exit__(self, *a):\n"
-            + "        return False\n"
-            + "with CM(1), CM(2) as y:\n"
-            + "    result = y\n"
+        + "    def __init__(self, v):\n"
+        + "        self.v = v\n"
+        + "    def __enter__(self):\n"
+        + "        return self.v\n"
+        + "    def __exit__(self, *a):\n"
+        + "        return False\n"
+        + "with CM(1), CM(2) as y:\n"
+        + "    result = y\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2294,14 +2313,14 @@ test "compiler_slice: band6 with mixed no-as parsed matches oracle co_code" {
 test "compiler_slice: band6 with mixed no-as parsed executes in ceval" {
     src = (
         "class CM:\n"
-            + "    def __init__(self, v):\n"
-            + "        self.v = v\n"
-            + "    def __enter__(self):\n"
-            + "        return self.v\n"
-            + "    def __exit__(self, *a):\n"
-            + "        return False\n"
-            + "with CM(1), CM(2) as y:\n"
-            + "    result = y\n"
+        + "    def __init__(self, v):\n"
+        + "        self.v = v\n"
+        + "    def __enter__(self):\n"
+        + "        return self.v\n"
+        + "    def __exit__(self, *a):\n"
+        + "        return False\n"
+        + "with CM(1), CM(2) as y:\n"
+        + "    result = y\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2359,10 +2378,10 @@ test "compiler_slice: band6 assert failure parsed raises AssertionError in ceval
 test "compiler_slice: band7 generator yield parsed matches oracle nested gen co_code" {
     src = (
         "def gen():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "g = gen()\n"
-            + "result = next(g) + next(g)\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "g = gen()\n"
+        + "result = next(g) + next(g)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2379,10 +2398,10 @@ test "compiler_slice: band7 generator yield parsed matches oracle nested gen co_
 test "compiler_slice: band7 generator yield parsed executes in ceval" {
     src = (
         "def gen():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "g = gen()\n"
-            + "result = next(g) + next(g)\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "g = gen()\n"
+        + "result = next(g) + next(g)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2396,11 +2415,11 @@ test "compiler_slice: band7 generator yield parsed executes in ceval" {
 test "compiler_slice: band7 yield from parsed matches oracle nested co_code" {
     src = (
         "def outer():\n"
-            + "    yield from inner()\n"
-            + "def inner():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "result = list(outer())\n"
+        + "    yield from inner()\n"
+        + "def inner():\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "result = list(outer())\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2423,11 +2442,11 @@ test "compiler_slice: band7 yield from parsed matches oracle nested co_code" {
 test "compiler_slice: band7 yield from parsed executes in ceval" {
     src = (
         "def outer():\n"
-            + "    yield from inner()\n"
-            + "def inner():\n"
-            + "    yield 1\n"
-            + "    yield 2\n"
-            + "result = list(outer())\n"
+        + "    yield from inner()\n"
+        + "def inner():\n"
+        + "    yield 1\n"
+        + "    yield 2\n"
+        + "result = list(outer())\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2459,9 +2478,9 @@ test "compiler_slice: band7 async def parsed matches oracle nested co_code" {
 test "compiler_slice: band7 await parsed matches oracle nested co_code" {
     src = (
         "async def f():\n"
-            + "    return await g()\n"
-            + "async def g():\n"
-            + "    return 1\n"
+        + "    return await g()\n"
+        + "async def g():\n"
+        + "    return 1\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2484,10 +2503,10 @@ test "compiler_slice: band7 await parsed matches oracle nested co_code" {
 test "compiler_slice: band7 await parsed executes in ceval" {
     src = (
         "async def f():\n"
-            + "    return await g()\n"
-            + "async def g():\n"
-            + "    return 1\n"
-            + "c = f()\n"
+        + "    return await g()\n"
+        + "async def g():\n"
+        + "    return 1\n"
+        + "c = f()\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2507,19 +2526,19 @@ test "compiler_slice: band7 await parsed executes in ceval" {
 test "compiler_slice: band7 async for parsed matches oracle nested co_code" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f():\n"
-            + "    total = 0\n"
-            + "    async for x in AI():\n"
-            + "        total = total + x\n"
-            + "    return total\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f():\n"
+        + "    total = 0\n"
+        + "    async for x in AI():\n"
+        + "        total = total + x\n"
+        + "    return total\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2536,20 +2555,20 @@ test "compiler_slice: band7 async for parsed matches oracle nested co_code" {
 test "compiler_slice: band7 async for parsed executes in ceval" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f():\n"
-            + "    total = 0\n"
-            + "    async for x in AI():\n"
-            + "        total = total + x\n"
-            + "    return total\n"
-            + "c = f()\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f():\n"
+        + "    total = 0\n"
+        + "    async for x in AI():\n"
+        + "        total = total + x\n"
+        + "    return total\n"
+        + "c = f()\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2583,17 +2602,17 @@ test "compiler_slice: band7 async list comprehension parsed matches oracle neste
 test "compiler_slice: band7 async list comprehension parsed executes in ceval" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f(ait):\n"
-            + "    return [x async for x in ait]\n"
-            + "c = f(AI())\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f(ait):\n"
+        + "    return [x async for x in ait]\n"
+        + "c = f(AI())\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2629,17 +2648,17 @@ test "compiler_slice: band7 async set comprehension parsed matches oracle nested
 test "compiler_slice: band7 async set comprehension executes in ceval" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f(ait):\n"
-            + "    return {x async for x in ait}\n"
-            + "c = f(AI())\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f(ait):\n"
+        + "    return {x async for x in ait}\n"
+        + "c = f(AI())\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2677,17 +2696,17 @@ test "compiler_slice: band7 async dict comprehension parsed matches oracle neste
 test "compiler_slice: band7 async dict comprehension executes in ceval" {
     src = (
         "class AI:\n"
-            + "    def __aiter__(self):\n"
-            + "        return self\n"
-            + "    async def __anext__(self):\n"
-            + "        if getattr(self, 'done', False):\n"
-            + "            raise StopAsyncIteration\n"
-            + "        self.done = True\n"
-            + "        return 42\n"
-            + "\n"
-            + "async def f(ait):\n"
-            + "    return {x: x async for x in ait}\n"
-            + "c = f(AI())\n"
+        + "    def __aiter__(self):\n"
+        + "        return self\n"
+        + "    async def __anext__(self):\n"
+        + "        if getattr(self, 'done', False):\n"
+        + "            raise StopAsyncIteration\n"
+        + "        self.done = True\n"
+        + "        return 42\n"
+        + "\n"
+        + "async def f(ait):\n"
+        + "    return {x: x async for x in ait}\n"
+        + "c = f(AI())\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2714,15 +2733,15 @@ test "compiler_slice: band7 async dict comprehension executes in ceval" {
 test "compiler_slice: band7 async with parsed matches oracle nested co_code" {
     src = (
         "class CM:\n"
-            + "    async def __aenter__(self):\n"
-            + "        return 42\n"
-            + "    async def __aexit__(self, *a):\n"
-            + "        pass\n"
-            + "\n"
-            + "async def f():\n"
-            + "    async with CM() as x:\n"
-            + "        result = x\n"
-            + "    return result\n"
+        + "    async def __aenter__(self):\n"
+        + "        return 42\n"
+        + "    async def __aexit__(self, *a):\n"
+        + "        pass\n"
+        + "\n"
+        + "async def f():\n"
+        + "    async with CM() as x:\n"
+        + "        result = x\n"
+        + "    return result\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2739,16 +2758,16 @@ test "compiler_slice: band7 async with parsed matches oracle nested co_code" {
 test "compiler_slice: band7 async with parsed executes in ceval" {
     src = (
         "class CM:\n"
-            + "    async def __aenter__(self):\n"
-            + "        return 42\n"
-            + "    async def __aexit__(self, *a):\n"
-            + "        pass\n"
-            + "\n"
-            + "async def f():\n"
-            + "    async with CM() as x:\n"
-            + "        result = x\n"
-            + "    return result\n"
-            + "c = f()\n"
+        + "    async def __aenter__(self):\n"
+        + "        return 42\n"
+        + "    async def __aexit__(self, *a):\n"
+        + "        pass\n"
+        + "\n"
+        + "async def f():\n"
+        + "    async with CM() as x:\n"
+        + "        result = x\n"
+        + "    return result\n"
+        + "c = f()\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2786,11 +2805,11 @@ test "compiler_slice: band7 async generator minimal parsed matches oracle nested
 test "compiler_slice: band7 async generator parsed matches oracle nested co_code" {
     src = (
         "async def something():\n"
-            + "    return 7\n"
-            + "async def ag():\n"
-            + "    yield 1\n"
-            + "    x = await something()\n"
-            + "    yield x\n"
+        + "    return 7\n"
+        + "async def ag():\n"
+        + "    yield 1\n"
+        + "    x = await something()\n"
+        + "    yield x\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<ag>");
@@ -2812,13 +2831,13 @@ test "compiler_slice: band7 async generator parsed matches oracle nested co_code
 test "compiler_slice: band8 match literal int parsed matches oracle nested f co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(1)\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(1)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2836,13 +2855,13 @@ test "compiler_slice: band8 match literal int parsed matches oracle nested f co_
 test "compiler_slice: band8 match literal int parsed executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(1)\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(1)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2854,13 +2873,13 @@ test "compiler_slice: band8 match literal int parsed executes in ceval" {
 test "compiler_slice: band8 match literal int wildcard executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(2)\n"
+        + "    match x:\n"
+        + "        case 1:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(2)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2874,13 +2893,13 @@ test "compiler_slice: band8 match literal int wildcard executes in ceval" {
 test "compiler_slice: band8 match guard parsed matches oracle nested f co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 if x > 0:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(1)\n"
+        + "    match x:\n"
+        + "        case 1 if x > 0:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(1)\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2896,13 +2915,13 @@ test "compiler_slice: band8 match guard parsed matches oracle nested f co_code" 
 test "compiler_slice: band8 match guard executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case 1 if x > 0:\n"
-            + "            return 'one'\n"
-            + "        case _:\n"
-            + "            return 'other'\n"
-            + "\n"
-            + "result = f(1)\n"
+        + "    match x:\n"
+        + "        case 1 if x > 0:\n"
+        + "            return 'one'\n"
+        + "        case _:\n"
+        + "            return 'other'\n"
+        + "\n"
+        + "result = f(1)\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -2916,11 +2935,11 @@ test "compiler_slice: band8 match guard executes in ceval" {
 test "compiler_slice: band8 match sequence parsed matches oracle nested f co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, b]:\n"
-            + "            return a + b\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [a, b]:\n"
+        + "            return a + b\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     actual = compile_parsed_exec(src);
     expected = oracle_exec(src, "<f>");
@@ -2943,13 +2962,13 @@ test "compiler_slice: band8 match sequence executes in ceval" {
     assert not is_error(setup_out);
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, b]:\n"
-            + "            return a + b\n"
-            + "        case _:\n"
-            + "            return 0\n"
-            + "\n"
-            + "result = f(make())\n"
+        + "    match x:\n"
+        + "        case [a, b]:\n"
+        + "            return a + b\n"
+        + "        case _:\n"
+        + "            return 0\n"
+        + "\n"
+        + "result = f(make())\n"
     );
     co = compile_parsed_exec(src);
     out = exec_code(co, [], ns);
@@ -2976,11 +2995,11 @@ def _star_assert_fn_matches(src: str) {
 test "compiler_slice: band8 star seq [a, *rest] matches oracle co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *rest]:\n"
-            + "            return a + rest\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [a, *rest]:\n"
+        + "            return a + rest\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     _star_assert_fn_matches(src);
 }
@@ -2988,11 +3007,11 @@ test "compiler_slice: band8 star seq [a, *rest] matches oracle co_code" {
 test "compiler_slice: band8 star seq [*rest] matches oracle co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [*rest]:\n"
-            + "            return rest + rest\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [*rest]:\n"
+        + "            return rest + rest\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     _star_assert_fn_matches(src);
 }
@@ -3000,11 +3019,11 @@ test "compiler_slice: band8 star seq [*rest] matches oracle co_code" {
 test "compiler_slice: band8 star seq [a, *mid, b] matches oracle co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *mid, b]:\n"
-            + "            return a + b\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [a, *mid, b]:\n"
+        + "            return a + b\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     _star_assert_fn_matches(src);
 }
@@ -3012,11 +3031,11 @@ test "compiler_slice: band8 star seq [a, *mid, b] matches oracle co_code" {
 test "compiler_slice: band8 star seq [a, *_] matches oracle co_code" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *_]:\n"
-            + "            return a + a\n"
-            + "        case _:\n"
-            + "            return 0\n"
+        + "    match x:\n"
+        + "        case [a, *_]:\n"
+        + "            return a + a\n"
+        + "        case _:\n"
+        + "            return 0\n"
     );
     _star_assert_fn_matches(src);
 }
@@ -3024,13 +3043,13 @@ test "compiler_slice: band8 star seq [a, *_] matches oracle co_code" {
 test "compiler_slice: band8 star seq [a, *rest] executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *rest]:\n"
-            + "            return a * 100 + rest[0] * 10 + rest[1]\n"
-            + "        case _:\n"
-            + "            return -1\n"
-            + "\n"
-            + "result = f([1, 2, 3])\n"
+        + "    match x:\n"
+        + "        case [a, *rest]:\n"
+        + "            return a * 100 + rest[0] * 10 + rest[1]\n"
+        + "        case _:\n"
+        + "            return -1\n"
+        + "\n"
+        + "result = f([1, 2, 3])\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -3042,11 +3061,11 @@ test "compiler_slice: band8 star seq [a, *rest] executes in ceval" {
 test "compiler_slice: band8 star seq [*rest] executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [*rest]:\n"
-            + "            return rest[0] * 100 + rest[1] * 10 + rest[2]\n"
-            + "\n"
-            + "result = f([1, 2, 3])\n"
+        + "    match x:\n"
+        + "        case [*rest]:\n"
+        + "            return rest[0] * 100 + rest[1] * 10 + rest[2]\n"
+        + "\n"
+        + "result = f([1, 2, 3])\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -3058,13 +3077,13 @@ test "compiler_slice: band8 star seq [*rest] executes in ceval" {
 test "compiler_slice: band8 star seq [a, *mid, b] executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *mid, b]:\n"
-            + "            return a * 1000 + mid[0] * 100 + mid[1] * 10 + b\n"
-            + "        case _:\n"
-            + "            return -1\n"
-            + "\n"
-            + "result = f([1, 2, 3, 4])\n"
+        + "    match x:\n"
+        + "        case [a, *mid, b]:\n"
+        + "            return a * 1000 + mid[0] * 100 + mid[1] * 10 + b\n"
+        + "        case _:\n"
+        + "            return -1\n"
+        + "\n"
+        + "result = f([1, 2, 3, 4])\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -3076,13 +3095,13 @@ test "compiler_slice: band8 star seq [a, *mid, b] executes in ceval" {
 test "compiler_slice: band8 star seq [a, *_] executes in ceval" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *_]:\n"
-            + "            return a\n"
-            + "        case _:\n"
-            + "            return -1\n"
-            + "\n"
-            + "result = f([7, 2, 3])\n"
+        + "    match x:\n"
+        + "        case [a, *_]:\n"
+        + "            return a\n"
+        + "        case _:\n"
+        + "            return -1\n"
+        + "\n"
+        + "result = f([7, 2, 3])\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};
@@ -3094,13 +3113,13 @@ test "compiler_slice: band8 star seq [a, *_] executes in ceval" {
 test "compiler_slice: band8 star seq no-match falls through to default" {
     src = (
         "def f(x):\n"
-            + "    match x:\n"
-            + "        case [a, *rest]:\n"
-            + "            return a\n"
-            + "        case _:\n"
-            + "            return -1\n"
-            + "\n"
-            + "result = f([])\n"
+        + "    match x:\n"
+        + "        case [a, *rest]:\n"
+        + "            return a\n"
+        + "        case _:\n"
+        + "            return -1\n"
+        + "\n"
+        + "result = f([])\n"
     );
     co = compile_parsed_exec(src);
     ns: dict[str, PyObj] = {};

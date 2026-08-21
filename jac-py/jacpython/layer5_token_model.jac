@@ -111,18 +111,20 @@ test "token model: location and token objects" {
     assert same_tok_loc(loc, tok_loc_span(1, 1, 0, 3));
     assert not same_tok_loc(loc, tok_loc_span(1, 1, 1, 3));
 
-    tok = tok_token(tok_type=PLUS, spelling="+", lineno=1, col_offset=0, end_lineno=1, end_col_offset=1);
+    tok = tok_token(
+        tok_type=PLUS,
+        spelling="+",
+        lineno=1,
+        col_offset=0,
+        end_lineno=1,
+        end_col_offset=1
+    );
     assert tok.tok_type == PLUS;
     assert tok.spelling == "+";
     assert token_loc(tok).col_offset == 0;
     assert token_loc(tok).end_col_offset == 1;
 
-    diag = mk_diag(
-        "SyntaxError",
-        "invalid syntax",
-        loc,
-        "<test>"
-    );
+    diag = mk_diag("SyntaxError", "invalid syntax", loc, "<test>");
     assert diag.kind == "SyntaxError";
     assert diag.filename == "<test>";
     assert same_tok_loc(diag.loc, loc);

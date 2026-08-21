@@ -16,7 +16,7 @@ import from tests.jacpy.libtest_runner {
 import from tests.jacpy.libtest_snippets { LIBTEST_SNIPPETS, LibtestSnippet }
 
 
-def assert_host_matches_cpython(host_case: LibtestSnippet) -> None {
+def assert_host_matches_cpython(host_case: LibtestSnippet) {
     (ok, detail) = run_libtest_host(host_case);
     assert ok , f"{host_case.module_stem}/{host_case.name}: {detail}";
 }

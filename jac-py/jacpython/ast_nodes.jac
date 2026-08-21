@@ -12,8 +12,8 @@ obj ast_node {}
 obj mod(ast_node) {}
 
 obj Module(mod) {
-    has body: list[stmt];
-    has type_ignores: list[type_ignore];
+    has body: list[stmt],
+        type_ignores: list[type_ignore];
 }
 
 obj Interactive(mod) {
@@ -25,554 +25,554 @@ obj Expression(mod) {
 }
 
 obj FunctionType(mod) {
-    has argtypes: list[expr];
-    has returns: expr;
+    has argtypes: list[expr],
+        returns: expr;
 }
 
 # --- stmt ---
 obj stmt(ast_node) {}
 
 obj FunctionDef(stmt) {
-    has name: str;
-    has args: arguments;
-    has body: list[stmt];
-    has decorator_list: list[expr];
-    has returns: expr | None;
-    has type_comment: str | None;
-    has type_params: list[type_param];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has name: str,
+        args: arguments,
+        body: list[stmt],
+        decorator_list: list[expr],
+        returns: expr | None,
+        type_comment: str | None,
+        type_params: list[type_param],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj AsyncFunctionDef(stmt) {
-    has name: str;
-    has args: arguments;
-    has body: list[stmt];
-    has decorator_list: list[expr];
-    has returns: expr | None;
-    has type_comment: str | None;
-    has type_params: list[type_param];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has name: str,
+        args: arguments,
+        body: list[stmt],
+        decorator_list: list[expr],
+        returns: expr | None,
+        type_comment: str | None,
+        type_params: list[type_param],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj ClassDef(stmt) {
-    has name: str;
-    has bases: list[expr];
-    has keywords: list[keyword];
-    has body: list[stmt];
-    has decorator_list: list[expr];
-    has type_params: list[type_param];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has name: str,
+        bases: list[expr],
+        keywords: list[keyword],
+        body: list[stmt],
+        decorator_list: list[expr],
+        type_params: list[type_param],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Return(stmt) {
-    has value: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Delete(stmt) {
-    has targets: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has targets: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Assign(stmt) {
-    has targets: list[expr];
-    has value: expr;
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has targets: list[expr],
+        value: expr,
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj TypeAlias(stmt) {
-    has name: expr;
-    has type_params: list[type_param];
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has name: expr,
+        type_params: list[type_param],
+        value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj AugAssign(stmt) {
-    has target: expr;
-    has op: operator;
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has target: expr,
+        op: operator,
+        value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj AnnAssign(stmt) {
-    has target: expr;
-    has annotation: expr;
-    has value: expr | None;
-    has simple: int;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has target: expr,
+        annotation: expr,
+        value: expr | None,
+        simple: int,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj For(stmt) {
-    has target: expr;
-    has iter: expr;
-    has body: list[stmt];
-    has orelse: list[stmt];
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has target: expr,
+        iter: expr,
+        body: list[stmt],
+        orelse: list[stmt],
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj AsyncFor(stmt) {
-    has target: expr;
-    has iter: expr;
-    has body: list[stmt];
-    has orelse: list[stmt];
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has target: expr,
+        iter: expr,
+        body: list[stmt],
+        orelse: list[stmt],
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj While(stmt) {
-    has test: expr;
-    has body: list[stmt];
-    has orelse: list[stmt];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has `test: expr,
+        body: list[stmt],
+        orelse: list[stmt],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj If(stmt) {
-    has test: expr;
-    has body: list[stmt];
-    has orelse: list[stmt];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has `test: expr,
+        body: list[stmt],
+        orelse: list[stmt],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj With(stmt) {
-    has items: list[withitem];
-    has body: list[stmt];
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has items: list[withitem],
+        body: list[stmt],
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj AsyncWith(stmt) {
-    has items: list[withitem];
-    has body: list[stmt];
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has items: list[withitem],
+        body: list[stmt],
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Match(stmt) {
-    has subject: expr;
-    has cases: list[match_case];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has subject: expr,
+        cases: list[match_case],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Raise(stmt) {
-    has exc: expr | None;
-    has cause: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has exc: expr | None,
+        cause: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Try(stmt) {
-    has body: list[stmt];
-    has handlers: list[excepthandler];
-    has orelse: list[stmt];
-    has finalbody: list[stmt];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has body: list[stmt],
+        handlers: list[excepthandler],
+        orelse: list[stmt],
+        finalbody: list[stmt],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj TryStar(stmt) {
-    has body: list[stmt];
-    has handlers: list[excepthandler];
-    has orelse: list[stmt];
-    has finalbody: list[stmt];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has body: list[stmt],
+        handlers: list[excepthandler],
+        orelse: list[stmt],
+        finalbody: list[stmt],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Assert(stmt) {
-    has test: expr;
-    has msg: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has `test: expr,
+        msg: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Import(stmt) {
-    has names: list[alias];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has names: list[alias],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj ImportFrom(stmt) {
-    has module: str | None;
-    has names: list[alias];
-    has level: int | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has module: str | None,
+        names: list[alias],
+        level: int | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Global(stmt) {
-    has names: list[str];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has names: list[str],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Nonlocal(stmt) {
-    has names: list[str];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has names: list[str],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Expr(stmt) {
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Pass(stmt) {
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Break(stmt) {
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Continue(stmt) {
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- expr ---
 obj expr(ast_node) {}
 
 obj BoolOp(expr) {
-    has op: boolop;
-    has values: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has op: boolop,
+        values: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj NamedExpr(expr) {
-    has target: expr;
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has target: expr,
+        value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj BinOp(expr) {
-    has left: expr;
-    has op: operator;
-    has right: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has left: expr,
+        op: operator,
+        right: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj UnaryOp(expr) {
-    has op: unaryop;
-    has operand: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has op: unaryop,
+        operand: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Lambda(expr) {
-    has args: arguments;
-    has body: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has args: arguments,
+        body: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj IfExp(expr) {
-    has test: expr;
-    has body: expr;
-    has orelse: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has `test: expr,
+        body: expr,
+        orelse: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Dict(expr) {
-    has keys: list[expr | None];
-    has values: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has keys: list[expr | None],
+        values: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Set(expr) {
-    has elts: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elts: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj ListComp(expr) {
-    has elt: expr;
-    has generators: list[comprehension];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elt: expr,
+        generators: list[comprehension],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj SetComp(expr) {
-    has elt: expr;
-    has generators: list[comprehension];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elt: expr,
+        generators: list[comprehension],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj DictComp(expr) {
-    has key: expr;
-    has value: expr;
-    has generators: list[comprehension];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has key: expr,
+        value: expr,
+        generators: list[comprehension],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj GeneratorExp(expr) {
-    has elt: expr;
-    has generators: list[comprehension];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elt: expr,
+        generators: list[comprehension],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Await(expr) {
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Yield(expr) {
-    has value: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj YieldFrom(expr) {
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Compare(expr) {
-    has left: expr;
-    has ops: list[cmpop];
-    has comparators: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has left: expr,
+        ops: list[cmpop],
+        comparators: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Call(expr) {
-    has func: expr;
-    has args: list[expr];
-    has keywords: list[keyword];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has func: expr,
+        args: list[expr],
+        keywords: list[keyword],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj FormattedValue(expr) {
-    has value: expr;
-    has conversion: int;
-    has format_spec: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        conversion: int,
+        format_spec: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Interpolation(expr) {
-    has value: expr;
-    has str: PyObj;
-    has conversion: int;
-    has format_spec: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        str: PyObj,
+        conversion: int,
+        format_spec: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj JoinedStr(expr) {
-    has values: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has values: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj TemplateStr(expr) {
-    has values: list[expr];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has values: list[expr],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Constant(expr) {
-    has value: PyObj;
-    has kind: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: PyObj,
+        kind: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Attribute(expr) {
-    has value: expr;
-    has attr: str;
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        attr: str,
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Subscript(expr) {
-    has value: expr;
-    has slice: expr;
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        slice: expr,
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Starred(expr) {
-    has value: expr;
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has value: expr,
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Name(expr) {
-    has id: str;
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has id: str,
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj List(expr) {
-    has elts: list[expr];
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elts: list[expr],
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Tuple(expr) {
-    has elts: list[expr];
-    has ctx: expr_context;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has elts: list[expr],
+        ctx: expr_context,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 obj Slice(expr) {
-    has lower: expr | None;
-    has upper: expr | None;
-    has step: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has lower: expr | None,
+        upper: expr | None,
+        step: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- expr_context ---
@@ -656,188 +656,188 @@ obj NotIn(cmpop) {}
 
 # --- comprehension (product) ---
 obj comprehension(ast_node) {
-    has target: expr;
-    has iter: expr;
-    has ifs: list[expr];
-    has is_async: int;
+    has target: expr,
+        iter: expr,
+        ifs: list[expr],
+        is_async: int;
 }
 
 # --- excepthandler ---
 obj excepthandler(ast_node) {}
 
 obj ExceptHandler(excepthandler) {
-    has type: expr | None;
-    has name: str | None;
-    has body: list[stmt];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has type: expr | None,
+        name: str | None,
+        body: list[stmt],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- arguments (product) ---
 obj arguments(ast_node) {
-    has posonlyargs: list[arg];
-    has args: list[arg];
-    has vararg: arg | None;
-    has kwonlyargs: list[arg];
-    has kw_defaults: list[expr | None];
-    has kwarg: arg | None;
-    has defaults: list[expr];
+    has posonlyargs: list[arg],
+        args: list[arg],
+        vararg: arg | None,
+        kwonlyargs: list[arg],
+        kw_defaults: list[expr | None],
+        kwarg: arg | None,
+        defaults: list[expr];
 }
 
 # --- arg (product) ---
 obj arg(ast_node) {
-    has arg: str;
-    has annotation: expr | None;
-    has type_comment: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has arg: str,
+        annotation: expr | None,
+        type_comment: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- keyword (product) ---
 obj keyword(ast_node) {
-    has arg: str | None;
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has arg: str | None,
+        value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- alias (product) ---
 obj alias(ast_node) {
-    has name: str;
-    has asname: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int | None;
-    has end_col_offset: int | None;
+    has name: str,
+        asname: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int | None,
+        end_col_offset: int | None;
 }
 
 # --- withitem (product) ---
 obj withitem(ast_node) {
-    has context_expr: expr;
-    has optional_vars: expr | None;
+    has context_expr: expr,
+        optional_vars: expr | None;
 }
 
 # --- match_case (product) ---
 obj match_case(ast_node) {
-    has pattern: pattern;
-    has guard: expr | None;
-    has body: list[stmt];
+    has pattern: pattern,
+        guard: expr | None,
+        body: list[stmt];
 }
 
 # --- pattern ---
 obj pattern(ast_node) {}
 
 obj MatchValue(pattern) {
-    has value: expr;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has value: expr,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchSingleton(pattern) {
-    has value: PyObj;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has value: PyObj,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchSequence(pattern) {
-    has patterns: list[pattern];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has patterns: list[pattern],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchMapping(pattern) {
-    has keys: list[expr];
-    has patterns: list[pattern];
-    has rest: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has keys: list[expr],
+        patterns: list[pattern],
+        rest: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchClass(pattern) {
-    has cls: expr;
-    has patterns: list[pattern];
-    has kwd_attrs: list[str];
-    has kwd_patterns: list[pattern];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has cls: expr,
+        patterns: list[pattern],
+        kwd_attrs: list[str],
+        kwd_patterns: list[pattern],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchStar(pattern) {
-    has name: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has name: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchAs(pattern) {
-    has pattern: pattern | None;
-    has name: str | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has pattern: pattern | None,
+        name: str | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj MatchOr(pattern) {
-    has patterns: list[pattern];
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has patterns: list[pattern],
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 # --- type_ignore ---
 obj type_ignore(ast_node) {}
 
 obj TypeIgnore(type_ignore) {
-    has lineno: int;
-    has tag: str;
+    has lineno: int,
+        tag: str;
 }
 
 # --- type_param ---
 obj type_param(ast_node) {}
 
 obj TypeVar(type_param) {
-    has name: str;
-    has bound: expr | None;
-    has default_value: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has name: str,
+        bound: expr | None,
+        default_value: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj ParamSpec(type_param) {
-    has name: str;
-    has default_value: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has name: str,
+        default_value: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }
 
 obj TypeVarTuple(type_param) {
-    has name: str;
-    has default_value: expr | None;
-    has lineno: int;
-    has col_offset: int;
-    has end_lineno: int;
-    has end_col_offset: int;
+    has name: str,
+        default_value: expr | None,
+        lineno: int,
+        col_offset: int,
+        end_lineno: int,
+        end_col_offset: int;
 }

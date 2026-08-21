@@ -2,23 +2,8 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/bytesobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/bytesobject_core.jac``).
-import from objects {
-    PyObj,
-    PyBytes,
-    PyInt,
-    PyStr,
-    PyBool,
-    is_error,
-    py_error,
-}
-import from abstract_protocol {
-    Py_LT,
-    Py_LE,
-    Py_EQ,
-    Py_NE,
-    Py_GT,
-    Py_GE,
-}
+import from objects { PyObj, PyBytes, PyInt, PyStr, PyBool, is_error, py_error, }
+import from abstract_protocol { Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
 
 ::py::
 def _cpython_bytes_hash(data: list) -> int:
@@ -28,6 +13,8 @@ def _cpython_bytes_hash(data: list) -> int:
         return 0
     return hash(bytes(data))
 ::py::
+
+
 
 def _compare_ints(a: int, b: int, op: int) -> PyObj {
     if op == Py_LT {

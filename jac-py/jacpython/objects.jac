@@ -770,13 +770,13 @@ obj PyCode(PyObj) {
     def tp_hashkey -> str {
         result = (
             "code:"
-                + self.name
-                + ":"
-                + self.qualname
-                + ":"
-                + str(self.firstlineno)
-                + ":"
-                + str(len(self.co_code))
+            + self.name
+            + ":"
+            + self.qualname
+            + ":"
+            + str(self.firstlineno)
+            + ":"
+            + str(len(self.co_code))
         );
         ci = 0;
         while ci < len(self.co_code) {
@@ -1221,8 +1221,8 @@ obj PyException(PyObj) {
             return py_none();
         }
         if name == "__context__"
-        or name == "__traceback__"
-        or name == "__suppress_context__" {
+            or name == "__traceback__"
+            or name == "__suppress_context__" {
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -1240,8 +1240,8 @@ obj PyNotImplementedSentinel(PyObj) {
 }
 
 glob PY_NOT_IMPLEMENTED: PyNotImplementedSentinel = PyNotImplementedSentinel(
-    t="notimplemented"
-);
+         t="notimplemented"
+     );
 
 obj PyIter(PyObj) {
     has items: list[PyObj],
@@ -1317,11 +1317,7 @@ def _repr_hex2(n: int) -> str {
 
 def _repr_unicode_escape(cp: int) -> str {
     if cp < 256 {
-        return (
-            "\\x"
-            + _repr_hex2((cp >> 4) & 15)
-            + _repr_hex2(cp & 15)
-        );
+        return ("\\x" + _repr_hex2((cp >> 4) & 15) + _repr_hex2(cp & 15));
     }
     if cp <= 0xFFFF {
         out = "\\u";

@@ -20,9 +20,7 @@
 
 import marshal;
 
-import from marshal_reader {
-    unmarshal,
-}
+import from marshal_reader { unmarshal, }
 
 import from ceval {
     PyClass,
@@ -777,9 +775,8 @@ test "pyc-first: real CPython 3.14 marshal -> jacpython ceval" {
     source_globals = exec_module(source_co);
     assert expect_int(source_globals["answer"]) == 7;
     assert expect_str(source_globals["word"]) == "ab";
-    assert expect_int(
-        py_subscript(source_globals["numbers"], PyInt(t="int", val=1))
-    ) == 5;
+    assert expect_int(py_subscript(source_globals["numbers"], PyInt(t="int", val=1)))
+        == 5;
 
     function_source = "def add(a, b):\n    return a + b\nresult = add(2, 3)\n";
     function_co = unmarshal(host_compile_marshal(function_source));
@@ -855,11 +852,7 @@ test "pyc-first: true divide, xor, unary neg/invert on non-constant int operands
 
 test "pyc-first: UNPACK_SEQUENCE, DELETE_SUBSCR, MAP_ADD, DICT_UPDATE opcodes" {
     # Sequence unpacking from tuple, list, and string.
-    un = run_source(
-        "ta, tb = (10, 20)\n"
-        "la, lb, lc = [1, 2, 3]\n"
-        "s1, s2 = 'hi'\n"
-    );
+    un = run_source("ta, tb = (10, 20)\n" "la, lb, lc = [1, 2, 3]\n" "s1, s2 = 'hi'\n");
     assert expect_int(un["ta"]) == 10;
     assert expect_int(un["tb"]) == 20;
     assert expect_int(un["la"]) == 1;
@@ -967,10 +960,7 @@ test "pyc-first: PyInt tp_richcompare handles float/bool right operand" {
 
     # int vs bool (bool is an int subclass -- compare by numeric value).
     bools = run_source(
-        "eqt = 1 == True\n"
-        "eqf0 = 0 == False\n"
-        "gtb = 2 > True\n"
-        "ltb = 0 < True\n"
+        "eqt = 1 == True\n" "eqf0 = 0 == False\n" "gtb = 2 > True\n" "ltb = 0 < True\n"
     );
     assert expect_bool(bools["eqt"]) == True;
     assert expect_bool(bools["eqf0"]) == True;
@@ -979,10 +969,7 @@ test "pyc-first: PyInt tp_richcompare handles float/bool right operand" {
 
     # int vs NaN on the right: only != is True.
     nans = run_source(
-        "n = float('nan')\n"
-        "eqn = 1 == n\n"
-        "nen = 1 != n\n"
-        "ltn = 1 < n\n"
+        "n = float('nan')\n" "eqn = 1 == n\n" "nen = 1 != n\n" "ltn = 1 < n\n"
     );
     assert expect_bool(nans["eqn"]) == False;
     assert expect_bool(nans["nen"]) == True;
@@ -1019,8 +1006,7 @@ test "pyc-first: value-keyed dicts via the hash-key protocol (H2)" {
 
     # int-keyed dict comprehension -- previously fell back to an opaque host map.
     comp = run_source(
-        "sq = {n: n * n for n in range(4)}\n"
-        "s0 = sq[0]\ns3 = sq[3]\nn = len(sq)\n"
+        "sq = {n: n * n for n in range(4)}\n" "s0 = sq[0]\ns3 = sq[3]\nn = len(sq)\n"
     );
     assert expect_int(comp["s0"]) == 0;
     assert expect_int(comp["s3"]) == 9;
@@ -1028,23 +1014,23 @@ test "pyc-first: value-keyed dicts via the hash-key protocol (H2)" {
 
     # del with a non-str key; float/int collapse means del d[2.0] removes key 2.
     deld = run_source(
-        "d = {1: 'a', 2: 'b', 3: 'c'}\ndel d[2.0]\n"
-        "has2 = 2 in d\nkept = d[3]\n"
+        "d = {1: 'a', 2: 'b', 3: 'c'}\ndel d[2.0]\n" "has2 = 2 in d\nkept = d[3]\n"
     );
     assert expect_bool(deld["has2"]) == False;
     assert expect_str(deld["kept"]) == "c";
 
     # str "1" and int 1 are distinct keys (prefix disambiguation), no collision.
     mix = run_source(
-        "d = {'1': 'str-one', 1: 'int-one'}\n"
-        "s = d['1']\ni = d[1]\nn = len(d)\n"
+        "d = {'1': 'str-one', 1: 'int-one'}\n" "s = d['1']\ni = d[1]\nn = len(d)\n"
     );
     assert expect_str(mix["s"]) == "str-one";
     assert expect_str(mix["i"]) == "int-one";
     assert expect_int(mix["n"]) == 2;
 
     # A missing non-str key raises KeyError, not a silent wrong value.
-    miss = run_source("d = {1: 'a'}\nout = 0\ntry:\n    d[9]\nexcept KeyError:\n    out = 1\n");
+    miss = run_source(
+        "d = {1: 'a'}\nout = 0\ntry:\n    d[9]\nexcept KeyError:\n    out = 1\n"
+    );
     assert expect_int(miss["out"]) == 1;
 
     # An unhashable key (list) is a TypeError at the slot, not a mis-key.
@@ -1057,8 +1043,7 @@ test "pyc-first: value-keyed dicts via the hash-key protocol (H2)" {
 test "pyc-first: native sets via the hash-key protocol (H3)" {
     # Membership + numeric collapse: 2.0 and True find the same slots as 2 / 1.
     mem = run_source(
-        "s = {1, 2, 3}\n"
-        "a = 2.0 in s\nb = True in s\nc = 4 in s\nn = len(s)\n"
+        "s = {1, 2, 3}\n" "a = 2.0 in s\nb = True in s\nc = 4 in s\nn = len(s)\n"
     );
     assert expect_bool(mem["a"]) == True;
     assert expect_bool(mem["b"]) == True;
@@ -1347,9 +1332,7 @@ test "pyc-first: object identity -- is / id (Track I)" {
     assert expect_bool(ident["nn"]) == False;
 
     # Aliasing: an object is identical to itself, distinct from an equal literal.
-    alias = run_source(
-        "a = [1, 2]\nb = a\nsame = a is b\nc = [1, 2]\ndiff = a is c\n"
-    );
+    alias = run_source("a = [1, 2]\nb = a\nsame = a is b\nc = [1, 2]\ndiff = a is c\n");
     assert expect_bool(alias["same"]) == True;
     assert expect_bool(alias["diff"]) == False;
 

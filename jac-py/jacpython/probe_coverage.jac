@@ -35,7 +35,10 @@ def probe_one(path: str) -> str {
         return "VALIDATE_EXC: " + str(e)[:80];
     }
     if vr.diag is not None {
-        return "VALIDATE[" + compiler_diag_kind(vr.diag) + "]: " + compiler_diag_message(vr.diag)[:80];
+        return "VALIDATE["
+            + compiler_diag_kind(vr.diag)
+            + "]: "
+            + compiler_diag_message(vr.diag)[:80];
     }
     try {
         sr = build_module_symtable(body);
@@ -43,7 +46,10 @@ def probe_one(path: str) -> str {
         return "SYMTAB_EXC: " + str(e)[:80];
     }
     if sr.diag is not None {
-        return "SYMTAB[" + compiler_diag_kind(sr.diag) + "]: " + compiler_diag_message(sr.diag)[:80];
+        return "SYMTAB["
+            + compiler_diag_kind(sr.diag)
+            + "]: "
+            + compiler_diag_message(sr.diag)[:80];
     }
     try {
         u = compile_exec(body, path, "<module>", 1, sr.top);
@@ -51,7 +57,10 @@ def probe_one(path: str) -> str {
         return "CODEGEN_EXC: " + str(e)[:100];
     }
     if u.diag is not None {
-        return "CODEGEN[" + compiler_diag_kind(u.diag) + "]: " + compiler_diag_message(u.diag)[:100];
+        return "CODEGEN["
+            + compiler_diag_kind(u.diag)
+            + "]: "
+            + compiler_diag_message(u.diag)[:100];
     }
     try {
         co = assemble(verify_cfg(u));
@@ -75,12 +84,17 @@ def probe_one(path: str) -> str {
     return "OK";
 }
 
+glob stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14";
+
 with entry {
-    stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14";
     names = sorted(os.listdir(stddir));
     ok = 0;
     total = 0;
-    tally: dict[str, int] = {};
+}
+
+glob tally: dict[str, int] = {};
+
+with entry {
     for nm in names {
         if not nm.endswith(".py") {
             continue;

@@ -3,14 +3,7 @@
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/abstract_protocol.c``
 # (lift: ``jac-py/Objects/_lifted/abstract_protocol.jac``). Runtime uses Jac
 # virtual slots on ``PyObj`` instead of C ``tp_*`` function pointers.
-import from objects {
-    PyObj,
-    PyBool,
-    PyInt,
-    is_error,
-    py_error,
-    PY_NOT_IMPLEMENTED,
-}
+import from objects { PyObj, PyBool, PyInt, is_error, py_error, PY_NOT_IMPLEMENTED, }
 
 glob _Py_SwappedOp: list[int] = [4, 5, 2, 3, 0, 1];
 
@@ -137,8 +130,7 @@ def PyObject_GetIter(o: PyObj) -> PyObj {
     }
     if not PyIter_Check(res) {
         return py_error(
-            "TypeError",
-            "iter() returned non-iterator of type '" + res.t + "'"
+            "TypeError", "iter() returned non-iterator of type '" + res.t + "'"
         );
     }
     return res;

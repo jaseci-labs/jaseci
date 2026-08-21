@@ -36,7 +36,7 @@ def oracle_code(source: str, filename: str, mode: str, optimize: int) -> PyObj {
     return unmarshal(data);
 }
 
-def assert_oracle_self_equal(source: str, mode: str) -> None {
+def assert_oracle_self_equal(source: str, mode: str) {
     a = oracle_code(source, "<layer4>", mode, 0);
     b = oracle_code(source, "<layer4>", mode, 0);
     assert isinstance(a, PyCode);

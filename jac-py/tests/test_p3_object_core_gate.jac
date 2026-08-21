@@ -51,7 +51,7 @@ def _wave_spec(manifest: dict, stem: str) -> dict {
 
 def _report_path(lift_output: str) -> str {
     if lift_output.endswith(".jac") {
-        return lift_output[: -4] + ".c2jac.report.json";
+        return lift_output[:-4] + ".c2jac.report.json";
     }
     return lift_output + ".c2jac.report.json";
 }
@@ -143,7 +143,8 @@ test "P3 boolobject lift: TRAP-doc quarantined_functions (P3.1c)" {
     spec = _wave_spec(manifest, "boolobject");
     report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
     sidecar = _load_json(report_path);
-    assert (sidecar["quarantined_functions"] as list) == ["bool_repr", "bool_vectorcall"];
+    assert (sidecar["quarantined_functions"] as list)
+        == ["bool_repr", "bool_vectorcall"];
 }
 
 
@@ -311,17 +312,13 @@ test "P3 manifest: runtime_probe wired for every lift stem (M11)" {
 }
 
 
-def _run_runtime_gate() -> tuple[int, str] {
+def _run_runtime_gate -> tuple[int, str] {
     py = os.path.join(REPO_ROOT, ".venv", "bin", "python");
     if not os.path.isfile(py) {
         py = sys.executable;
     }
     proc = subprocess.run(
-        [py, RUNTIME_GATE],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        check=False
+        [py, RUNTIME_GATE], capture_output=True, text=True, cwd=REPO_ROOT, check=False
     );
     detail = (proc.stderr or proc.stdout or "runtime_gate failed").strip();
     return (proc.returncode, detail);

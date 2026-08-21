@@ -31,6 +31,7 @@ def _p2_wrap_snippet(source: str) -> str:
 ::py::
 
 
+
 obj P2LibtestPlatformFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return PyStr(t="str", val=Py_GetPlatform());
@@ -50,16 +51,16 @@ obj P2LibtestMachineFn(PyObj) {
     }
 }
 
-def p2_libtest_reset() -> None {
+def p2_libtest_reset {
     clear_shim_modules();
     platform_attrs: dict[str, PyObj] = {
         "platform": P2LibtestPlatformFn(t="function"),
         "system": P2LibtestSystemFn(t="function"),
         "machine": P2LibtestMachineFn(t="function"),
+
     };
     register_shim_module(
-        "platform",
-        PyModule(t="module", name="platform", attrs=platform_attrs)
+        "platform", PyModule(t="module", name="platform", attrs=platform_attrs)
     );
 }
 
@@ -71,9 +72,7 @@ def p2_libtest_run_snippet(source: str) -> tuple[bool, str] {
     if is_error(co) {
         return (False, "compile failed");
     }
-    globals: dict[str, PyObj] = {
-        "__name__": PyStr(t="str", val="__main__"),
-    };
+    globals: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__"),};
     outcome = exec_code(co, [], globals);
     if is_error(outcome) {
         exc = (outcome as PyError).exception;
@@ -100,10 +99,7 @@ def p2_libtest_expect_ok(source: str, expect_stdout: str = "ok") -> tuple[bool, 
         return (False, detail);
     }
     if detail != expect_stdout {
-        return (
-            False,
-            f"expected stdout {expect_stdout!r}, got {detail!r}"
-        );
+        return (False, f"expected stdout {expect_stdout!r}, got {detail!r}");
     }
     return (True, detail);
 }

@@ -2,14 +2,7 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/listobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/listobject_core.jac``).
-import from objects {
-    PyObj,
-    PyList,
-    PyBool,
-    PyStr,
-    is_error,
-    expect_str,
-}
+import from objects { PyObj, PyList, PyBool, PyStr, is_error, expect_str, }
 import from abstract_protocol {
     _object_is_true,
     Py_EQ,

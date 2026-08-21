@@ -32,100 +32,101 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
 
 
 obj P2ModuleGate {
-    has stem: str;
-    has gate_type: str;
-    has status: str;
-    has oracle_tests: list[str];
-    has libtest_snippets: list[str];
-    has notes: str;
+    has stem: str,
+        gate_type: str,
+        status: str,
+        oracle_tests: list[str],
+        libtest_snippets: list[str],
+        notes: str;
 }
 
 
 glob P2_MODULE_GATES: list[P2ModuleGate] = [
-    P2ModuleGate(
-        stem="mysnprintf",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="No Python stdlib equivalent; cc vs staged jac oracle (PyOS_vsnprintf)."
-    ),
-    P2ModuleGate(
-        stem="pystrcmp",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="No Python stdlib equivalent; cc vs lifted jac oracle."
-    ),
-    P2ModuleGate(
-        stem="rotatingtree",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_rotatingtree_oracle.jac"],
-        libtest_snippets=[],
-        notes="No Python stdlib equivalent; cc vs lifted jac oracle."
-    ),
-    P2ModuleGate(
-        stem="getbuildinfo",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="Build-info internals; cc vs staged jac oracle (hand-edited empty-string semantics)."
-    ),
-    P2ModuleGate(
-        stem="_bisectmodule",
-        gate_type="libtest",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=["bisect_precomputed", "bisect_insort"],
-        notes="Algorithm parity via bisect stdlib; C port oracle-gated separately."
-    ),
-    P2ModuleGate(
-        stem="_heapqmodule",
-        gate_type="libtest",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=["heapq_push_pop", "heapq_heapify"],
-        notes="Algorithm parity via heapq stdlib; C port oracle-gated separately."
-    ),
-    P2ModuleGate(
-        stem="getplatform",
-        gate_type="libtest",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=["platform_basic"],
-        notes="Partial Lib/test via platform module; Py_GetPlatform oracle-gated separately."
-    ),
-    P2ModuleGate(
-        stem="getcompiler",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="No Python stdlib equivalent; cc vs lifted jac oracle."
-    ),
-    P2ModuleGate(
-        stem="getcopyright",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="No Python stdlib equivalent; cc vs lifted jac oracle."
-    ),
-    P2ModuleGate(
-        stem="pyfpe",
-        gate_type="oracle",
-        status="gated",
-        oracle_tests=["test_p2_module_oracles.jac"],
-        libtest_snippets=[],
-        notes="Legacy FPE hook; cc vs lifted jac oracle."
-    ),
-];
+         P2ModuleGate(
+             stem="mysnprintf",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="No Python stdlib equivalent; cc vs staged jac oracle (PyOS_vsnprintf)."
+         ),
+         P2ModuleGate(
+             stem="pystrcmp",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="No Python stdlib equivalent; cc vs lifted jac oracle."
+         ),
+         P2ModuleGate(
+             stem="rotatingtree",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_rotatingtree_oracle.jac"],
+             libtest_snippets=[],
+             notes="No Python stdlib equivalent; cc vs lifted jac oracle."
+         ),
+         P2ModuleGate(
+             stem="getbuildinfo",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="Build-info internals; cc vs staged jac oracle (hand-edited empty-string semantics)."
+         ),
+         P2ModuleGate(
+             stem="_bisectmodule",
+             gate_type="libtest",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=["bisect_precomputed", "bisect_insort"],
+             notes="Algorithm parity via bisect stdlib; C port oracle-gated separately."
+         ),
+         P2ModuleGate(
+             stem="_heapqmodule",
+             gate_type="libtest",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=["heapq_push_pop", "heapq_heapify"],
+             notes="Algorithm parity via heapq stdlib; C port oracle-gated separately."
+         ),
+         P2ModuleGate(
+             stem="getplatform",
+             gate_type="libtest",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=["platform_basic"],
+             notes="Partial Lib/test via platform module; Py_GetPlatform oracle-gated separately."
+         ),
+         P2ModuleGate(
+             stem="getcompiler",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="No Python stdlib equivalent; cc vs lifted jac oracle."
+         ),
+         P2ModuleGate(
+             stem="getcopyright",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="No Python stdlib equivalent; cc vs lifted jac oracle."
+         ),
+         P2ModuleGate(
+             stem="pyfpe",
+             gate_type="oracle",
+             status="gated",
+             oracle_tests=["test_p2_module_oracles.jac"],
+             libtest_snippets=[],
+             notes="Legacy FPE hook; cc vs lifted jac oracle."
+         ),
+
+     ];
 
 
-def run_libtest_snippets() -> dict {
+def run_libtest_snippets -> dict {
     results: dict = {};
     for gate in P2_MODULE_GATES {
         if gate.gate_type != "libtest" {
@@ -137,7 +138,7 @@ def run_libtest_snippets() -> dict {
 }
 
 
-def run_jac_differential_snippets() -> dict {
+def run_jac_differential_snippets -> dict {
     results: dict = {};
     for gate in P2_MODULE_GATES {
         if gate.gate_type != "libtest" {
@@ -151,24 +152,20 @@ def run_jac_differential_snippets() -> dict {
 }
 
 
-def run_jacpython_snippets() -> dict {
+def run_jacpython_snippets -> dict {
     results: dict = {};
     for gate in P2_MODULE_GATES {
         if gate.gate_type != "libtest" {
             continue;
         }
-        results[gate.stem] = run_libtest_jacpython_for_gate(
-            gate.libtest_snippets
-        );
+        results[gate.stem] = run_libtest_jacpython_for_gate(gate.libtest_snippets);
     }
     return results;
 }
 
 
 def build_manifest(
-    libtest_results: dict,
-    jac_differential_results: dict,
-    jacpython_results: dict
+    libtest_results: dict, jac_differential_results: dict, jacpython_results: dict
 ) -> dict {
     modules: list = [];
     for gate in P2_MODULE_GATES {
@@ -179,6 +176,7 @@ def build_manifest(
             "oracle_tests": gate.oracle_tests,
             "libtest_snippets": gate.libtest_snippets,
             "notes": gate.notes,
+
         };
         if gate.stem in libtest_results {
             row["libtest"] = libtest_results[gate.stem];
@@ -200,6 +198,7 @@ def build_manifest(
         "libtest_results": libtest_results,
         "jac_differential_results": jac_differential_results,
         "jacpython_results": jacpython_results,
+
     };
 }
 
@@ -209,9 +208,7 @@ def write_manifest(path: str = MANIFEST_PATH) -> dict {
     jac_differential_results = run_jac_differential_snippets();
     jacpython_results = run_jacpython_snippets();
     manifest = build_manifest(
-        libtest_results,
-        jac_differential_results,
-        jacpython_results
+        libtest_results, jac_differential_results, jacpython_results
     );
     with open(path, "w") as f {
         json.dump(manifest, f, indent=2);
@@ -228,7 +225,7 @@ def load_manifest(path: str = MANIFEST_PATH) -> dict {
 }
 
 
-def assert_all_modules_gated(manifest: dict) -> None {
+def assert_all_modules_gated(manifest: dict) {
     modules = manifest["modules"] as list;
     assert len(modules) == P2_MODULE_COUNT , len(modules);
     for row in modules {
@@ -238,7 +235,7 @@ def assert_all_modules_gated(manifest: dict) -> None {
 }
 
 
-def assert_libtest_zero_failures(manifest: dict) -> None {
+def assert_libtest_zero_failures(manifest: dict) {
     libtest_results = manifest["libtest_results"] as dict;
     for (stem, row) in libtest_results.items() {
         detail = row as dict;
@@ -268,10 +265,8 @@ def assert_jacpython_zero_failures(manifest: dict) -> None {
         detail = row as dict;
         assert (detail["failed"] as int) == 0 , f"{stem} jacpython: {detail}";
         if stem in JACPYTHON_CAPABLE_LIBTEST {
-            assert (detail["passed"] as int) >= 1 ,
-                f"{stem} jacpython: expected passed >= 1, got {detail}";
-            assert (detail["skipped"] as int) == 0 ,
-                f"{stem} jacpython: expected no skips, got {detail}";
+            assert (detail["passed"] as int) >= 1 , f"{stem} jacpython: expected passed >= 1, got {detail}";
+            assert (detail["skipped"] as int) == 0 , f"{stem} jacpython: expected no skips, got {detail}";
         }
     }
 }

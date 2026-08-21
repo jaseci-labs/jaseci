@@ -11,7 +11,7 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      MODULES: str = os.path.join(REPO_ROOT, "jac-py", "Modules");
 
 
-def _load_manifest() -> dict {
+def _load_manifest -> dict {
     with open(MANIFEST) as f {
         return json.load(f);
     }

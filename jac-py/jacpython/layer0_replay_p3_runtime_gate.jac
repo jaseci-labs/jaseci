@@ -5,17 +5,14 @@
 # so pyc_first regression tests are not collected through the harness import graph.
 import json;
 import os;
-import from layer0_replay_harness {
-    ReplayResult,
-    layer1_replay_source,
-}
+import from layer0_replay_harness { ReplayResult, layer1_replay_source, }
 
 glob P3_MANIFEST_PATH: str = os.path.join(
          "jac-py", "tools", "p3_object_core", "manifest.json"
      );
 
 
-def _p3_load_manifest() -> dict {
+def _p3_load_manifest -> dict {
     with open(P3_MANIFEST_PATH) as f {
         return json.load(f);
     }
@@ -29,28 +26,35 @@ def _p3_read_probe(rel_path: str) -> str {
 }
 
 
-def _p3_assert_runtime_baseline(
-    stem: str, result: ReplayResult, baseline: dict
-) -> None {
-    assert result.passed == (baseline["passed"] as int),
-        stem + " passed=" + str(result.passed)
-        + " baseline=" + str(baseline["passed"])
-        + " failures=" + str(result.failures);
-    assert result.failed == (baseline["failed"] as int),
-        stem + " failed=" + str(result.failed)
-        + " failures=" + str(result.failures);
-    assert result.errored == (baseline["errored"] as int),
-        stem + " errored=" + str(result.errored)
-        + " errors=" + str(result.errors);
+def _p3_assert_runtime_baseline(stem: str, result: ReplayResult, baseline: dict) {
+    assert result.passed == (baseline["passed"] as int) , stem
+        + " passed="
+        + str(result.passed)
+        + " baseline="
+        + str(baseline["passed"])
+        + " failures="
+        + str(result.failures);
+    assert result.failed == (baseline["failed"] as int) , stem
+        + " failed="
+        + str(result.failed)
+        + " failures="
+        + str(result.failures);
+    assert result.errored == (baseline["errored"] as int) , stem
+        + " errored="
+        + str(result.errored)
+        + " errors="
+        + str(result.errors);
     if "skipped" in baseline {
-        assert result.skipped == (baseline["skipped"] as int),
-            stem + " skipped=" + str(result.skipped)
-            + " baseline=" + str(baseline["skipped"]);
+        assert result.skipped == (baseline["skipped"] as int) , stem
+            + " skipped="
+            + str(result.skipped)
+            + " baseline="
+            + str(baseline["skipped"]);
     }
 }
 
 
-def _p3_run_runtime_probes(manifest: dict) -> None {
+def _p3_run_runtime_probes(manifest: dict) {
     for spec in manifest["c2jac_objects_wave"] as list {
         if not ("runtime_probe" in spec) {
             continue;

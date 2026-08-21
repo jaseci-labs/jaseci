@@ -16,74 +16,75 @@ import from objects {
 
 # Direct parent links from CPython ``Lib/test/exception_hierarchy.txt``.
 glob _EXC_PARENT: dict[str, str] = {
-    "BaseExceptionGroup": "BaseException",
-    "GeneratorExit": "BaseException",
-    "KeyboardInterrupt": "BaseException",
-    "SystemExit": "BaseException",
-    "Exception": "BaseException",
-    "ArithmeticError": "Exception",
-    "FloatingPointError": "ArithmeticError",
-    "OverflowError": "ArithmeticError",
-    "ZeroDivisionError": "ArithmeticError",
-    "AssertionError": "Exception",
-    "AttributeError": "Exception",
-    "BufferError": "Exception",
-    "EOFError": "Exception",
-    "ExceptionGroup": "Exception",
-    "ImportError": "Exception",
-    "ModuleNotFoundError": "ImportError",
-    "LookupError": "Exception",
-    "IndexError": "LookupError",
-    "KeyError": "LookupError",
-    "MemoryError": "Exception",
-    "NameError": "Exception",
-    "UnboundLocalError": "NameError",
-    "OSError": "Exception",
-    "BlockingIOError": "OSError",
-    "ChildProcessError": "OSError",
-    "ConnectionError": "OSError",
-    "BrokenPipeError": "ConnectionError",
-    "ConnectionAbortedError": "ConnectionError",
-    "ConnectionRefusedError": "ConnectionError",
-    "ConnectionResetError": "ConnectionError",
-    "FileExistsError": "OSError",
-    "FileNotFoundError": "OSError",
-    "InterruptedError": "OSError",
-    "IsADirectoryError": "OSError",
-    "NotADirectoryError": "OSError",
-    "PermissionError": "OSError",
-    "ProcessLookupError": "OSError",
-    "TimeoutError": "OSError",
-    "ReferenceError": "Exception",
-    "RuntimeError": "Exception",
-    "NotImplementedError": "RuntimeError",
-    "PythonFinalizationError": "RuntimeError",
-    "RecursionError": "RuntimeError",
-    "StopAsyncIteration": "Exception",
-    "StopIteration": "Exception",
-    "SyntaxError": "Exception",
-    "IndentationError": "SyntaxError",
-    "TabError": "IndentationError",
-    "SystemError": "Exception",
-    "TypeError": "Exception",
-    "ValueError": "Exception",
-    "UnicodeError": "ValueError",
-    "UnicodeDecodeError": "UnicodeError",
-    "UnicodeEncodeError": "UnicodeError",
-    "UnicodeTranslateError": "UnicodeError",
-    "Warning": "Exception",
-    "BytesWarning": "Warning",
-    "DeprecationWarning": "Warning",
-    "EncodingWarning": "Warning",
-    "FutureWarning": "Warning",
-    "ImportWarning": "Warning",
-    "PendingDeprecationWarning": "Warning",
-    "ResourceWarning": "Warning",
-    "RuntimeWarning": "Warning",
-    "SyntaxWarning": "Warning",
-    "UnicodeWarning": "Warning",
-    "UserWarning": "Warning",
-};
+         "BaseExceptionGroup": "BaseException",
+         "GeneratorExit": "BaseException",
+         "KeyboardInterrupt": "BaseException",
+         "SystemExit": "BaseException",
+         "Exception": "BaseException",
+         "ArithmeticError": "Exception",
+         "FloatingPointError": "ArithmeticError",
+         "OverflowError": "ArithmeticError",
+         "ZeroDivisionError": "ArithmeticError",
+         "AssertionError": "Exception",
+         "AttributeError": "Exception",
+         "BufferError": "Exception",
+         "EOFError": "Exception",
+         "ExceptionGroup": "Exception",
+         "ImportError": "Exception",
+         "ModuleNotFoundError": "ImportError",
+         "LookupError": "Exception",
+         "IndexError": "LookupError",
+         "KeyError": "LookupError",
+         "MemoryError": "Exception",
+         "NameError": "Exception",
+         "UnboundLocalError": "NameError",
+         "OSError": "Exception",
+         "BlockingIOError": "OSError",
+         "ChildProcessError": "OSError",
+         "ConnectionError": "OSError",
+         "BrokenPipeError": "ConnectionError",
+         "ConnectionAbortedError": "ConnectionError",
+         "ConnectionRefusedError": "ConnectionError",
+         "ConnectionResetError": "ConnectionError",
+         "FileExistsError": "OSError",
+         "FileNotFoundError": "OSError",
+         "InterruptedError": "OSError",
+         "IsADirectoryError": "OSError",
+         "NotADirectoryError": "OSError",
+         "PermissionError": "OSError",
+         "ProcessLookupError": "OSError",
+         "TimeoutError": "OSError",
+         "ReferenceError": "Exception",
+         "RuntimeError": "Exception",
+         "NotImplementedError": "RuntimeError",
+         "PythonFinalizationError": "RuntimeError",
+         "RecursionError": "RuntimeError",
+         "StopAsyncIteration": "Exception",
+         "StopIteration": "Exception",
+         "SyntaxError": "Exception",
+         "IndentationError": "SyntaxError",
+         "TabError": "IndentationError",
+         "SystemError": "Exception",
+         "TypeError": "Exception",
+         "ValueError": "Exception",
+         "UnicodeError": "ValueError",
+         "UnicodeDecodeError": "UnicodeError",
+         "UnicodeEncodeError": "UnicodeError",
+         "UnicodeTranslateError": "UnicodeError",
+         "Warning": "Exception",
+         "BytesWarning": "Warning",
+         "DeprecationWarning": "Warning",
+         "EncodingWarning": "Warning",
+         "FutureWarning": "Warning",
+         "ImportWarning": "Warning",
+         "PendingDeprecationWarning": "Warning",
+         "ResourceWarning": "Warning",
+         "RuntimeWarning": "Warning",
+         "SyntaxWarning": "Warning",
+         "UnicodeWarning": "Warning",
+         "UserWarning": "Warning",
+
+     };
 
 
 def _exc_is_subclass(exc_name: str, base_name: str) -> bool {
@@ -107,8 +108,9 @@ def exc_name_matches(err_name: str, target_name: str) -> bool {
         return True;
     }
     if target_name == "Exception" {
-        if err_name == "GeneratorExit" or err_name == "KeyboardInterrupt"
-        or err_name == "SystemExit" {
+        if err_name == "GeneratorExit"
+            or err_name == "KeyboardInterrupt"
+            or err_name == "SystemExit" {
             return False;
         }
         return True;
@@ -170,10 +172,7 @@ def baseexception_repr(exc: PyException, repr_fn: any) -> PyStr {
         return PyStr(t="str", val=name + "()");
     }
     if len(exc.args) == 1 {
-        return PyStr(
-            t="str",
-            val=name + "(" + _repr_obj(exc.args[0], repr_fn) + ")",
-        );
+        return PyStr(t="str", val=name + "(" + _repr_obj(exc.args[0], repr_fn) + ")",);
     }
     parts: list[str] = [];
     for item in exc.args {
@@ -194,9 +193,7 @@ def py_err_given_exception_matches(err: PyException, exc: PyObj) -> bool {
         return False;
     }
     if exc.t == "exception_type" {
-        return exc_name_matches(
-            err.type_name, (exc as PyExceptionType).name
-        );
+        return exc_name_matches(err.type_name, (exc as PyExceptionType).name);
     }
     return False;
 }

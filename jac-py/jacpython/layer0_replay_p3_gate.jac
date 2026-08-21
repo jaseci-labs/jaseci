@@ -19,7 +19,7 @@ glob P3_MANIFEST_PATH: str = os.path.join(
      P3_REF_ROOT: str = os.path.join("reference", "cpython");
 
 
-def _p3_load_manifest() -> dict {
+def _p3_load_manifest -> dict {
     with open(P3_MANIFEST_PATH) as f {
         return json.load(f);
     }
@@ -31,26 +31,32 @@ def _p3_read_corpus(rel_path: str) -> str {
     }
 }
 
-def _p3_assert_replay_baseline(
-    stem: str, result: ReplayResult, baseline: dict
-) -> None {
-    assert result.passed == (baseline["passed"] as int),
-        stem + " passed=" + str(result.passed)
-        + " baseline=" + str(baseline["passed"]);
-    assert result.failed == (baseline["failed"] as int),
-        stem + " failed=" + str(result.failed)
-        + " failures=" + str(result.failures);
-    assert result.errored == (baseline["errored"] as int),
-        stem + " errored=" + str(result.errored)
-        + " errors=" + str(result.errors);
+def _p3_assert_replay_baseline(stem: str, result: ReplayResult, baseline: dict) {
+    assert result.passed == (baseline["passed"] as int) , stem
+        + " passed="
+        + str(result.passed)
+        + " baseline="
+        + str(baseline["passed"]);
+    assert result.failed == (baseline["failed"] as int) , stem
+        + " failed="
+        + str(result.failed)
+        + " failures="
+        + str(result.failures);
+    assert result.errored == (baseline["errored"] as int) , stem
+        + " errored="
+        + str(result.errored)
+        + " errors="
+        + str(result.errors);
     if "skipped" in baseline {
-        assert result.skipped == (baseline["skipped"] as int),
-            stem + " skipped=" + str(result.skipped)
-            + " baseline=" + str(baseline["skipped"]);
+        assert result.skipped == (baseline["skipped"] as int) , stem
+            + " skipped="
+            + str(result.skipped)
+            + " baseline="
+            + str(baseline["skipped"]);
     }
 }
 
-def _p3_run_layer0(manifest: dict) -> None {
+def _p3_run_layer0(manifest: dict) {
     for spec in manifest["layer0_files"] as list {
         stem: str = spec["stem"] as str;
         src = _p3_read_corpus(spec["path"] as str);
@@ -59,7 +65,7 @@ def _p3_run_layer0(manifest: dict) -> None {
     }
 }
 
-def _p3_run_layer1(manifest: dict) -> None {
+def _p3_run_layer1(manifest: dict) {
     for spec in manifest["layer1_files"] as list {
         stem: str = spec["stem"] as str;
         src = _p3_read_corpus(spec["path"] as str);

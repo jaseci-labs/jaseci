@@ -1,3 +1,3 @@
-def Py_GetPlatform() -> str {
+def Py_GetPlatform -> str {
     return "linux";
 }

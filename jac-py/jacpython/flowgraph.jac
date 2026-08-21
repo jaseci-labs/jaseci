@@ -362,7 +362,8 @@ def walk_block_maxdepth(
             return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
         }
         depth = new_depth;
-        if is_scope_exit_opcode(ins.opcode) or is_unconditional_jump_opcode(ins.opcode) {
+        if is_scope_exit_opcode(ins.opcode)
+            or is_unconditional_jump_opcode(ins.opcode) {
             break;
         }
         ii = ii + 1;
@@ -813,10 +814,7 @@ def block_exits_scope(b: basicblock) -> bool {
 
 def copy_cinstr(ins: cinstr) -> cinstr {
     return cinstr(
-        opcode=ins.opcode,
-        oparg=ins.oparg,
-        loc=ins.loc,
-        target_block=ins.target_block
+        opcode=ins.opcode, oparg=ins.oparg, loc=ins.loc, target_block=ins.target_block
     );
 }
 
@@ -887,8 +885,12 @@ def mark_reachable(u: unverified_cfg) -> list[int] {
         rb = 0;
         while rb < 3 {
             bid = reg.handler_block;
-            if rb == 1 { bid = reg.start_block; }
-            if rb == 2 { bid = reg.end_block; }
+            if rb == 1 {
+                bid = reg.start_block;
+            }
+            if rb == 2 {
+                bid = reg.end_block;
+            }
             if bid >= 0 {
                 rp = layout_pos(pos, bid);
                 if rp >= 0 and reachable[rp] == 0 {
@@ -1006,11 +1008,11 @@ def insert_superinstructions(u: unverified_cfg) {
 # escapes (stored back as a local, left on the stack across the local's death, or
 # still live at block end) stays owned. Faithful port of CPython 3.14.6; both
 # sentinels NOT_LOCAL and DUMMY_INSTR are -1 there, so we mirror that.
-glob LF_NOT_LOCAL: int = -1;
-glob LF_DUMMY_INSTR: int = -1;
-glob LF_SUPPORT_KILLED: int = 1;
-glob LF_STORED_AS_LOCAL: int = 2;
-glob LF_REF_UNCONSUMED: int = 4;
+glob LF_NOT_LOCAL: int = -1,
+     LF_DUMMY_INSTR: int = -1,
+     LF_SUPPORT_KILLED: int = 1,
+     LF_STORED_AS_LOCAL: int = 2,
+     LF_REF_UNCONSUMED: int = 4;
 
 # Abstract operand stack of references. instr[k] = index of the instruction that
 # produced ref k (or DUMMY_INSTR for a value inherited from a predecessor block);

@@ -23,19 +23,28 @@ def probe_src(src: str, path: str) -> str {
     sys.stdout.flush();
     vr = validate_module_body(body);
     if vr.diag is not None {
-        return "VALIDATE[" + compiler_diag_kind(vr.diag) + "]: " + compiler_diag_message(vr.diag)[:80];
+        return "VALIDATE["
+            + compiler_diag_kind(vr.diag)
+            + "]: "
+            + compiler_diag_message(vr.diag)[:80];
     }
     print("  symtab...");
     sys.stdout.flush();
     sr = build_module_symtable(body);
     if sr.diag is not None {
-        return "SYMTAB[" + compiler_diag_kind(sr.diag) + "]: " + compiler_diag_message(sr.diag)[:80];
+        return "SYMTAB["
+            + compiler_diag_kind(sr.diag)
+            + "]: "
+            + compiler_diag_message(sr.diag)[:80];
     }
     print("  codegen...");
     sys.stdout.flush();
     u = compile_exec(body, path, "<module>", 1, sr.top);
     if u.diag is not None {
-        return "CODEGEN[" + compiler_diag_kind(u.diag) + "]: " + compiler_diag_message(u.diag)[:100];
+        return "CODEGEN["
+            + compiler_diag_kind(u.diag)
+            + "]: "
+            + compiler_diag_message(u.diag)[:100];
     }
     print("  assemble...");
     sys.stdout.flush();
@@ -57,7 +66,11 @@ def probe_src(src: str, path: str) -> str {
 
 with entry {
     sys.setrecursionlimit(200000);
-    path = sys.argv[1];
+}
+
+glob path = sys.argv[1];
+
+with entry {
     fh = open(path, "r");
     src = fh.read();
     fh.close();

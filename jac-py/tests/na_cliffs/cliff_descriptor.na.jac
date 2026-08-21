@@ -242,8 +242,8 @@ def run_pd -> list[int] {
     # Give "scaled" (a NON-data name) an instance-dict entry -> instance now wins.
     # "temp" (a DATA name) already has an instance-dict entry (999) yet the data
     # descriptor STILL wins. Same resolve site, opposite rulings.
-    override: PDObj = PDInt(t="int", val=777);
-    inst.attrs["scaled"] = override;
+    `override: PDObj = PDInt(t="int", val=777);
+    inst.attrs["scaled"] = `override;
     killer_scaled = resolve_int(inst, names[1]);  # 777 (instance beats non-data)
     killer_temp = resolve_int(inst, names[0]);  # 105 (data descr beats dict)
 

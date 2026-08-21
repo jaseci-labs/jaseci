@@ -13,7 +13,16 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, PyStr, py_none, PyNoneType, PySlice, PyCode, PyTuple }
+import from objects {
+    PyObj,
+    PyInt,
+    PyStr,
+    py_none,
+    PyNoneType,
+    PySlice,
+    PyCode,
+    PyTuple
+}
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_GENERATOR,
@@ -301,7 +310,50 @@ import from compiler_symtable {
 import from compiler_diagnostics { lowering_diagnostic }
 import from flowgraph { verify_cfg, optimize_swap_range }
 import from assembler { assemble }
-import from codegen_util { fold_default_values, args_have_kw_defaults, function_argcounts, function_code_flags, ast_node_name, nloc, function_def_loc, async_function_def_loc, binop_id, inplace_binop_id, expr_loc, fold_slice_const, unary_opcode, ast_cmp_kind, cmpop_oparg, cmpop_filter_oparg, try_fold_binop, call_func_loc, call_effective_args, call_effective_keywords, top_loc, stmt_loc, seq_target_elts, is_seq_literal, display_has_starred, display_all_constant, display_const_items, starred_target_index, exec_tail_emits_code, comp_name_bound, comp_bound_names_from_target, comp_leftmost_leaf, comp_dict_map_loc, try_handler_span, body_is_try_finally_only, match_pattern_loc, match_pattern_unwrap_or, match_pattern_wildcard, loop_body_has_break, import_bind_name, class_effective_bases, class_effective_keywords }
+import from codegen_util {
+    fold_default_values,
+    args_have_kw_defaults,
+    function_argcounts,
+    function_code_flags,
+    ast_node_name,
+    nloc,
+    function_def_loc,
+    async_function_def_loc,
+    binop_id,
+    inplace_binop_id,
+    expr_loc,
+    fold_slice_const,
+    unary_opcode,
+    ast_cmp_kind,
+    cmpop_oparg,
+    cmpop_filter_oparg,
+    try_fold_binop,
+    call_func_loc,
+    call_effective_args,
+    call_effective_keywords,
+    top_loc,
+    stmt_loc,
+    seq_target_elts,
+    is_seq_literal,
+    display_has_starred,
+    display_all_constant,
+    display_const_items,
+    starred_target_index,
+    exec_tail_emits_code,
+    comp_name_bound,
+    comp_bound_names_from_target,
+    comp_leftmost_leaf,
+    comp_dict_map_loc,
+    try_handler_span,
+    body_is_try_finally_only,
+    match_pattern_loc,
+    match_pattern_unwrap_or,
+    match_pattern_wildcard,
+    loop_body_has_break,
+    import_bind_name,
+    class_effective_bases,
+    class_effective_keywords
+}
 
 # Record the first codegen diagnostic on the builder's unit.
 def codegen_fail(g: cfg_builder, kind: str, message: str) {
@@ -603,12 +655,12 @@ def emit_await_send_except_regions(
     after_resume_stack_depth: int = 2,
     after_resume_preserve_lasti: bool = True
 ) {
-    protect = g.generator_protect_start;
-    if protect < 0 {
+    `protect = g.generator_protect_start;
+    if `protect < 0 {
         return;
     }
     if pep479_start >= 0 {
-        protect = pep479_start;
+        `protect = pep479_start;
     }
     pep479_end_blk = cleanup_jump_blk.id;
     if pep479_end >= 0 {
@@ -616,7 +668,7 @@ def emit_await_send_except_regions(
     }
     g.u.except_regions.append(
         except_region(
-            start_block=protect,
+            start_block=`protect,
             end_block=als.yield_blk.id,
             handler_block=-1,
             stack_depth=2,
@@ -726,11 +778,11 @@ def emit_anext_send_except_regions(
             preserve_lasti=False
         )
     );
-    protect = g.generator_protect_start;
-    if protect >= 0 {
+    `protect = g.generator_protect_start;
+    if `protect >= 0 {
         g.u.except_regions.append(
             except_region(
-                start_block=protect,
+                start_block=`protect,
                 end_block=als.loop_hdr.id,
                 handler_block=-1,
                 stack_depth=2,
@@ -765,9 +817,7 @@ def emit_anext_send_loop_footer(
 
 
 # Compile default expressions in the enclosing scope; leaves defaults tuple on stack.
-def emit_function_defaults(
-    g: cfg_builder, defaults: list[expr], tloc: cloc
-) -> bool {
+def emit_function_defaults(g: cfg_builder, defaults: list[expr], tloc: cloc) -> bool {
     if len(defaults) == 0 {
         return True;
     }
@@ -792,9 +842,7 @@ def emit_function_defaults(
 
 
 # Compile kw-only default expressions; leaves kwdefaults dict on stack.
-def emit_function_kwdefaults(
-    g: cfg_builder, args: arguments, tloc: cloc
-) -> bool {
+def emit_function_kwdefaults(g: cfg_builder, args: arguments, tloc: cloc) -> bool {
     pair_count = 0;
     ki = 0;
     while ki < len(args.kwonlyargs) {
@@ -910,7 +958,6 @@ def unit_fail(u: unverified_cfg, kind: str, message: str) {
         u.diag = lowering_diagnostic(kind=kind, message=message);
     }
 }
-
 
 
 def emit_name_load(
@@ -1059,13 +1106,6 @@ def name_load_opcode(g: cfg_builder, name: str) -> int {
 }
 
 
-
-
-
-
-
-
-
 # Emit the subscript key (index or constant slice) onto the stack.
 # register_small_int: CPython keeps small-index literals in co_consts for
 # BINARY_OP[] loads but not for STORE_SUBSCR stores (byte-exact parity).
@@ -1152,9 +1192,6 @@ def visit_subscript_index(
     }
     visit_expr(g, key);
 }
-
-
-
 
 
 # Emit the single comparison opcode for one cmpop link. Identity/membership ops
@@ -1285,9 +1322,7 @@ def emit_folded_int(g: cfg_builder, v: int, lc: cloc) {
 # Register literal int operands in co_consts without emitting (CPython dead
 # small-int slot + out-of-range LOAD_CONST operands). Used by Constant visit
 # and by peephole-folded BinOp so folded exprs keep the same const pool.
-def register_int_literal_const(
-    g: cfg_builder, e: expr, register_int_const: bool
-) {
+def register_int_literal_const(g: cfg_builder, e: expr, register_int_const: bool) {
     if not register_int_const {
         return;
     }
@@ -1400,9 +1435,7 @@ def visit_expr(
     if isinstance(e, Name) {
         n = e as Name;
         emit_name_load(
-            g,
-            n.id,
-            nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset)
+            g, n.id, nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset)
         );
         return None;
     }
@@ -1461,10 +1494,10 @@ def visit_expr(
         # top-level `x = a if c else b` compiles correctly but is not byte-exact.
         ie = e as IfExp;
         ieloc = nloc(ie.lineno, ie.end_lineno, ie.col_offset, ie.end_col_offset);
-        test_loc = expr_loc(ie.test);
+        test_loc = expr_loc(ie.`test);
         else_blk = g.new_block();
         join_blk = g.new_block();
-        kind = visit_test_expr(g, ie.test, test_loc, True);
+        kind = visit_test_expr(g, ie.`test, test_loc, True);
         if codegen_busy(g) {
             return None;
         }
@@ -1487,9 +1520,7 @@ def visit_expr(
         floc = call_func_loc(ca.func);
         if isinstance(ca.func, Name) {
             nf = ca.func as Name;
-            nloc_fn = nloc(
-                nf.lineno, nf.end_lineno, nf.col_offset, nf.end_col_offset
-            );
+            nloc_fn = nloc(nf.lineno, nf.end_lineno, nf.col_offset, nf.end_col_offset);
             needs_null = emit_name_load(g, nf.id, nloc_fn, True);
             if needs_null {
                 g.emit_op(OP_PUSH_NULL, 0, floc);
@@ -1598,9 +1629,7 @@ def visit_expr(
         if codegen_busy(g) {
             return None;
         }
-        emit_send_delegation_loop(
-            g, OP_GET_YIELD_FROM_ITER, 0, 2, yloc
-        );
+        emit_send_delegation_loop(g, OP_GET_YIELD_FROM_ITER, 0, 2, yloc);
         return None;
     }
     if isinstance(e, Await) {
@@ -1781,8 +1810,6 @@ def visit_expr(
 }
 
 
-
-
 # Push keyword-argument values, then the names tuple (bottom -> top: vals…, names).
 def emit_call_keyword_values(
     g: cfg_builder,
@@ -1895,7 +1922,6 @@ def compile_eval(
 # that emits no instructions (Pass) returns its own location so the epilogue
 # still lands on the statement's span (matches CPython's location fixup).
 
-
 # Store value already on the stack into an assignment target (name / attribute /
 # subscript). CPython stack layout before STORE_ATTR / STORE_SUBSCR: value below
 # owner (and index for subscript), with owner/index on TOS.
@@ -1948,10 +1974,6 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
     );
     return stmt_cont(loc=expr_loc(t));
 }
-
-
-
-
 
 
 # Build a list on the stack from a display element list containing starred
@@ -2177,12 +2199,14 @@ def comp_target_slots(g: cfg_builder, target: expr) -> list[int] | None {
 }
 
 
-
 # True when the comprehension's first evaluated body expression begins with the
 # single loop variable -- the case CPython fuses into STORE_FAST_LOAD_FAST.
 def comp_lead_is_loopvar(
-    g: cfg_builder, gen: comprehension, body_first: expr,
-    bound_names: list[str], slots: list[int]
+    g: cfg_builder,
+    gen: comprehension,
+    body_first: expr,
+    bound_names: list[str],
+    slots: list[int]
 ) -> bool {
     if len(slots) != 1 {
         return False;
@@ -2622,7 +2646,7 @@ def visit_list_comp_async(
     elt_loc = expr_loc(lc.elt);
     handler_group = g.u.comp_handler_group;
     g.u.comp_handler_group = handler_group + 1;
-    protect = g.generator_protect_start;
+    `protect = g.generator_protect_start;
 
     swap_depth = 2;
     if len(slots) == 2 {
@@ -2657,8 +2681,7 @@ def visit_list_comp_async(
     g.use(store_blk);
     g.u.comp_depth = g.u.comp_depth + 1;
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, lc.elt, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, lc.elt, bound_names, slots)
     );
     if codegen_busy(g) {
         g.u.comp_depth = g.u.comp_depth - 1;
@@ -2747,10 +2770,10 @@ def visit_list_comp_async(
         )
     );
     g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
-    if protect >= 0 {
+    if `protect >= 0 {
         g.u.except_regions.append(
             except_region(
-                start_block=protect,
+                start_block=`protect,
                 end_block=comp_body.id,
                 handler_block=-1,
                 stack_depth=2,
@@ -2775,7 +2798,7 @@ def visit_set_comp_async(
     elt_loc = expr_loc(sc.elt);
     handler_group = g.u.comp_handler_group;
     g.u.comp_handler_group = handler_group + 1;
-    protect = g.generator_protect_start;
+    `protect = g.generator_protect_start;
 
     swap_depth = 2;
     if len(slots) == 2 {
@@ -2806,8 +2829,7 @@ def visit_set_comp_async(
     g.use(store_blk);
     g.u.comp_depth = g.u.comp_depth + 1;
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, sc.elt, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, sc.elt, bound_names, slots)
     );
     if codegen_busy(g) {
         g.u.comp_depth = g.u.comp_depth - 1;
@@ -2885,10 +2907,10 @@ def visit_set_comp_async(
         )
     );
     g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
-    if protect >= 0 {
+    if `protect >= 0 {
         g.u.except_regions.append(
             except_region(
-                start_block=protect,
+                start_block=`protect,
                 end_block=comp_body.id,
                 handler_block=-1,
                 stack_depth=2,
@@ -2913,7 +2935,7 @@ def visit_dict_comp_async(
     map_loc = comp_dict_map_loc(dc);
     handler_group = g.u.comp_handler_group;
     g.u.comp_handler_group = handler_group + 1;
-    protect = g.generator_protect_start;
+    `protect = g.generator_protect_start;
 
     swap_depth = 2;
     if len(slots) == 2 {
@@ -2944,8 +2966,7 @@ def visit_dict_comp_async(
     g.use(store_blk);
     g.u.comp_depth = g.u.comp_depth + 1;
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, dc.key, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, dc.key, bound_names, slots)
     );
     if codegen_busy(g) {
         g.u.comp_depth = g.u.comp_depth - 1;
@@ -3023,10 +3044,10 @@ def visit_dict_comp_async(
         )
     );
     g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
-    if protect >= 0 {
+    if `protect >= 0 {
         g.u.except_regions.append(
             except_region(
-                start_block=protect,
+                start_block=`protect,
                 end_block=comp_body.id,
                 handler_block=-1,
                 stack_depth=2,
@@ -3053,7 +3074,9 @@ def visit_list_comp(g: cfg_builder, lc: ListComp) {
     if gen.is_async == 1 {
         if len(lc.generators) != 1 {
             codegen_fail(
-                g, "NotImplementedError", "async list comprehension with multiple generators"
+                g,
+                "NotImplementedError",
+                "async list comprehension with multiple generators"
             );
             return;
         }
@@ -3083,8 +3106,7 @@ def visit_list_comp(g: cfg_builder, lc: ListComp) {
         second_fast = slots[1];
     }
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, lc.elt, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, lc.elt, bound_names, slots)
     );
     if codegen_busy(g) {
         return;
@@ -3156,7 +3178,9 @@ def visit_set_comp(g: cfg_builder, sc: SetComp) {
     if gen.is_async == 1 {
         if len(sc.generators) != 1 {
             codegen_fail(
-                g, "NotImplementedError", "async set comprehension with multiple generators"
+                g,
+                "NotImplementedError",
+                "async set comprehension with multiple generators"
             );
             return;
         }
@@ -3186,8 +3210,7 @@ def visit_set_comp(g: cfg_builder, sc: SetComp) {
         second_fast = slots[1];
     }
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, sc.elt, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, sc.elt, bound_names, slots)
     );
     if codegen_busy(g) {
         return;
@@ -3253,7 +3276,9 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
     if gen.is_async == 1 {
         if len(dc.generators) != 1 {
             codegen_fail(
-                g, "NotImplementedError", "async dict comprehension with multiple generators"
+                g,
+                "NotImplementedError",
+                "async dict comprehension with multiple generators"
             );
             return;
         }
@@ -3282,8 +3307,7 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
         second_fast = slots[1];
     }
     comp_emit_bind_target(
-        g, gen.target, slots,
-        comp_lead_is_loopvar(g, gen, dc.key, bound_names, slots)
+        g, gen.target, slots, comp_lead_is_loopvar(g, gen, dc.key, bound_names, slots)
     );
     if codegen_busy(g) {
         return;
@@ -3469,9 +3493,7 @@ def visit_try_finally(
         if tail_end_blk is not None {
             g.use(tail_end_blk);
         }
-        return stmt_cont(
-            loc=tloc, next_si=len(tail), terminated=tail_terminated
-        );
+        return stmt_cont(loc=tloc, next_si=len(tail), terminated=tail_terminated);
     }
     return stmt_cont(loc=tloc, terminated=True);
 }
@@ -3546,7 +3568,8 @@ def visit_try_except_finally(
     tloc = stmt_loc(t);
     if len(t.handlers) != 1 {
         codegen_fail(
-            g, "NotImplementedError",
+            g,
+            "NotImplementedError",
             "try/except/finally: only a single handler is supported"
         );
         return stmt_cont(loc=tloc);
@@ -3554,7 +3577,8 @@ def visit_try_except_finally(
     h0 = t.handlers[0];
     if h0.name is not None {
         codegen_fail(
-            g, "NotImplementedError",
+            g,
+            "NotImplementedError",
             "try/except/finally: except-as binding not supported"
         );
         return stmt_cont(loc=tloc);
@@ -3653,8 +3677,14 @@ def visit_try_except_finally(
     # already placed above; otherwise it is laid out here (after the handlers)
     # with the leading NOP CPython emits on that path.
     emit_finally_inline_block(
-        g, t.finalbody, fin_inline, not normal_reaches_fin,
-        more_code_follows, tail, tail_idx, tloc
+        g,
+        t.finalbody,
+        fin_inline,
+        not normal_reaches_fin,
+        more_code_follows,
+        tail,
+        tail_idx,
+        tloc
     );
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
@@ -3765,9 +3795,7 @@ def visit_try(
                 g, t, more_code_follows, tail, tail_idx, tail_join
             );
         }
-        return visit_try_finally(
-            g, t, more_code_follows, tail, tail_idx, tail_join
-        );
+        return visit_try_finally(g, t, more_code_follows, tail, tail_idx, tail_join);
     }
     if t.handlers is None or len(t.handlers) == 0 {
         codegen_fail(g, "NotImplementedError", "try without except");
@@ -3793,9 +3821,7 @@ def visit_try(
     g.use(after_try_epilogue);
     normal_terminated = body_cont.terminated;
     if t.orelse is not None and len(t.orelse) > 0 and not body_cont.terminated {
-        else_cont = visit_stmts(
-            g, t.orelse, 0, try_follows, tail, tail_idx, tail_join
-        );
+        else_cont = visit_stmts(g, t.orelse, 0, try_follows, tail, tail_idx, tail_join);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
@@ -4246,9 +4272,7 @@ def visit_async_with(
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
-    enter_als = emit_await_send_loop_header(
-        g, OP_GET_AWAITABLE, 1, 3, cloc
-    );
+    enter_als = emit_await_send_loop_header(g, OP_GET_AWAITABLE, 1, 3, cloc);
     bind_blk = g.new_block();
     g.use(bind_blk);
     if item.optional_vars is None {
@@ -4277,9 +4301,7 @@ def visit_async_with(
     g.emit_op(OP_LOAD_CONST, none_idx, wloc);
     g.emit_op(OP_LOAD_CONST, none_idx, wloc);
     g.emit_op(OP_CALL, 3, wloc);
-    exit_als = emit_await_send_loop_header(
-        g, OP_GET_AWAITABLE, 2, 3, wloc
-    );
+    exit_als = emit_await_send_loop_header(g, OP_GET_AWAITABLE, 2, 3, wloc);
     g.emit_op(OP_POP_TOP, 0, wloc);
     if with_follows {
         tail_more = False;
@@ -4317,16 +4339,7 @@ def visit_async_with(
     );
     (exit_ct, exit_cj) = emit_await_send_loop_footer(g, exit_als, wloc);
     emit_await_send_except_regions(
-        g,
-        exit_als,
-        exit_ct,
-        exit_cj,
-        3,
-        -1,
-        protect_end.id,
-        enter_cj.id,
-        2,
-        True
+        g, exit_als, exit_ct, exit_cj, 3, -1, protect_end.id, enter_cj.id, 2, True
     );
     g.u.except_regions.append(
         except_region(
@@ -4444,8 +4457,8 @@ def visit_async_with(
 # Lower assert (test + optional message).
 def visit_assert_stmt(g: cfg_builder, a: Assert) -> stmt_cont {
     aloc = nloc(a.lineno, a.end_lineno, a.col_offset, a.end_col_offset);
-    test_loc = expr_loc(a.test);
-    visit_test_expr(g, a.test, test_loc);
+    test_loc = expr_loc(a.`test);
+    visit_test_expr(g, a.`test, test_loc);
     if codegen_busy(g) {
         return stmt_cont(loc=aloc);
     }
@@ -4527,14 +4540,12 @@ def emit_tail_and_finish(
 }
 
 obj match_pat_ctx {
-    has stores: list[str];
-    has on_top: int;
-    has cleanup_blocks: list[basicblock];
-    has max_cleanup: int;
-    has allow_irrefutable: bool;
+    has stores: list[str],
+        on_top: int,
+        cleanup_blocks: list[basicblock],
+        max_cleanup: int,
+        allow_irrefutable: bool;
 }
-
-
 
 
 def match_subject_use_load_fast(g: cfg_builder, m: Match) -> bool {
@@ -4584,8 +4595,8 @@ def match_emit_subject(g: cfg_builder, m: Match) {
 }
 
 obj match_case_start {
-    has ctx: match_pat_ctx;
-    has next_arm: basicblock;
+    has ctx: match_pat_ctx,
+        next_arm: basicblock;
 }
 
 # Exact maximum fail-pop depth for a pattern entered with `on_top` extra stack
@@ -4759,11 +4770,7 @@ def match_ensure_cleanup_blocks(g: cfg_builder, ctx: match_pat_ctx, n: int) {
 }
 
 def match_jump_to_fail(
-    g: cfg_builder,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    jump_op: int,
-    loc: cloc
+    g: cfg_builder, ctx: match_pat_ctx, next_arm: basicblock, jump_op: int, loc: cloc
 ) {
     pops = ctx.on_top + len(ctx.stores);
     if pops > ctx.max_cleanup {
@@ -4807,11 +4814,7 @@ def match_pattern_helper_store_name(
     si = 0;
     while si < len(ctx.stores) {
         if ctx.stores[si] == name {
-            codegen_fail(
-                g,
-                "SyntaxError",
-                "multiple assignments to name in pattern"
-            );
+            codegen_fail(g, "SyntaxError", "multiple assignments to name in pattern");
             return False;
         }
         si = si + 1;
@@ -4835,11 +4838,7 @@ def match_emit_case_stores(g: cfg_builder, ctx: match_pat_ctx, loc: cloc) {
 }
 
 def emit_match_pattern_sub(
-    g: cfg_builder,
-    p: pattern,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    ploc: cloc
+    g: cfg_builder, p: pattern, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     allow = ctx.allow_irrefutable;
     ctx.allow_irrefutable = True;
@@ -4849,11 +4848,7 @@ def emit_match_pattern_sub(
 }
 
 def emit_match_pattern_value(
-    g: cfg_builder,
-    mv: MatchValue,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    ploc: cloc
+    g: cfg_builder, mv: MatchValue, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     visit_expr(g, mv.value);
     if codegen_busy(g) {
@@ -4884,11 +4879,7 @@ def emit_match_pattern_singleton(
 }
 
 def emit_match_pattern_as(
-    g: cfg_builder,
-    ma: MatchAs,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    ploc: cloc
+    g: cfg_builder, ma: MatchAs, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     if ma.pattern is None {
         if not ctx.allow_irrefutable {
@@ -4958,7 +4949,9 @@ def match_emit_sequence_capture_stores(
     }
 }
 
-def match_star_capture_name(patterns: list[pattern], idx: int, star_idx: int) -> str | None {
+def match_star_capture_name(
+    patterns: list[pattern], idx: int, star_idx: int
+) -> str | None {
     if idx == star_idx {
         return (patterns[idx] as MatchStar).name;
     }
@@ -5071,7 +5064,11 @@ def emit_match_sequence_subscr(
 }
 
 def emit_match_pattern_sequence(
-    g: cfg_builder, ms: MatchSequence, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
+    g: cfg_builder,
+    ms: MatchSequence,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
 ) -> bool {
     patterns = ms.patterns;
     size = len(patterns);
@@ -5084,9 +5081,7 @@ def emit_match_pattern_sequence(
         if isinstance(pat, MatchStar) {
             if star >= 0 {
                 codegen_fail(
-                    g,
-                    "SyntaxError",
-                    "multiple starred names in sequence pattern"
+                    g, "SyntaxError", "multiple starred names in sequence pattern"
                 );
                 return False;
             }
@@ -5202,11 +5197,17 @@ def emit_match_pattern_class(
 ) -> bool {
     cls_patterns: list[pattern] = mc.patterns if mc.patterns is not None else [];
     kwd_attrs: list[str] = mc.kwd_attrs if mc.kwd_attrs is not None else [];
-    kwd_patterns: list[pattern] = mc.kwd_patterns if mc.kwd_patterns is not None else [];
+    kwd_patterns: list[pattern] = mc.kwd_patterns
+        if mc.kwd_patterns is not None
+        else [];
     nargs = len(cls_patterns);
     nattrs = len(kwd_attrs);
     if nattrs != len(kwd_patterns) {
-        codegen_fail(g, "SyntaxError", "kwd_attrs / kwd_patterns length mismatch in class pattern");
+        codegen_fail(
+            g,
+            "SyntaxError",
+            "kwd_attrs / kwd_patterns length mismatch in class pattern"
+        );
         return False;
     }
     ai = 0;
@@ -5215,7 +5216,9 @@ def emit_match_pattern_class(
         while aj < nattrs {
             if kwd_attrs[ai] == kwd_attrs[aj] {
                 codegen_fail(
-                    g, "SyntaxError", "attribute name repeated in class pattern: " + kwd_attrs[ai]
+                    g,
+                    "SyntaxError",
+                    "attribute name repeated in class pattern: " + kwd_attrs[ai]
                 );
                 return False;
             }
@@ -5260,13 +5263,19 @@ def emit_match_pattern_class(
 # against a key tuple, then sub-patterns on the values; **rest binds remaining
 # items via the CPython dict-copy/delete idiom.
 def emit_match_pattern_mapping(
-    g: cfg_builder, mm: MatchMapping, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
+    g: cfg_builder,
+    mm: MatchMapping,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
 ) -> bool {
     keys: list[expr] = mm.keys if mm.keys is not None else [];
     patterns: list[pattern] = mm.patterns if mm.patterns is not None else [];
     size = len(keys);
     if size != len(patterns) {
-        codegen_fail(g, "SyntaxError", "keys / patterns length mismatch in mapping pattern");
+        codegen_fail(
+            g, "SyntaxError", "keys / patterns length mismatch in mapping pattern"
+        );
         return False;
     }
     ctx.on_top = ctx.on_top + 1;
@@ -5298,7 +5307,9 @@ def emit_match_pattern_mapping(
             si = 0;
             while si < len(seen) {
                 if seen[si].tp_hashkey() == hk {
-                    codegen_fail(g, "SyntaxError", "mapping pattern checks duplicate key");
+                    codegen_fail(
+                        g, "SyntaxError", "mapping pattern checks duplicate key"
+                    );
                     return False;
                 }
                 si = si + 1;
@@ -5308,7 +5319,9 @@ def emit_match_pattern_mapping(
             all_const = False;
         } else {
             codegen_fail(
-                g, "SyntaxError", "mapping pattern keys may only match literals and attribute lookups"
+                g,
+                "SyntaxError",
+                "mapping pattern keys may only match literals and attribute lookups"
             );
             return False;
         }
@@ -5377,11 +5390,7 @@ def emit_match_pattern_mapping(
 # alternatives (name permutation across arms) need a sequence/display subject to
 # oracle-verify and are gated off until that slice lands.
 def emit_match_pattern_or(
-    g: cfg_builder,
-    mo: MatchOr,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    ploc: cloc
+    g: cfg_builder, mo: MatchOr, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     end = g.new_deferred_block();
     end.exit_inline_ok = True;
@@ -5428,11 +5437,7 @@ def emit_match_pattern_or(
 }
 
 def emit_match_pattern(
-    g: cfg_builder,
-    p: pattern,
-    ctx: match_pat_ctx,
-    next_arm: basicblock,
-    ploc: cloc
+    g: cfg_builder, p: pattern, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
 ) -> bool {
     if isinstance(p, MatchOr) {
         mo = p as MatchOr;
@@ -5445,7 +5450,9 @@ def emit_match_pattern(
         return emit_match_pattern_value(g, p as MatchValue, ctx, next_arm, ploc);
     }
     if isinstance(p, MatchSingleton) {
-        return emit_match_pattern_singleton(g, p as MatchSingleton, ctx, next_arm, ploc);
+        return emit_match_pattern_singleton(
+            g, p as MatchSingleton, ctx, next_arm, ploc
+        );
     }
     if isinstance(p, MatchAs) {
         return emit_match_pattern_as(g, p as MatchAs, ctx, next_arm, ploc);
@@ -5542,9 +5549,7 @@ def visit_match(
         if ci != loop_end - 1 {
             g.emit_op(OP_POP_TOP, 0, ploc);
         }
-        body_cont = visit_stmts(
-            g, arm.body, 0, body_follows, tail, tail_idx, join_blk
-        );
+        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk);
         if codegen_busy(g) {
             return stmt_cont(loc=mloc);
         }
@@ -5572,9 +5577,7 @@ def visit_match(
             }
             g.emit_jump(OP_POP_JUMP_IF_FALSE, match_end.id, gloc);
         }
-        body_cont = visit_stmts(
-            g, arm.body, 0, body_follows, tail, tail_idx, join_blk
-        );
+        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk);
         if codegen_busy(g) {
             return stmt_cont(loc=mloc);
         }
@@ -5608,9 +5611,9 @@ def visit_match(
 # POP_JUMP_IF_FALSE. IS_NONE / IS_NOT_NONE leave the bare operand on the stack;
 # the caller must consume it with POP_JUMP_IF_NOT_NONE / POP_JUMP_IF_NONE (the
 # CPython `x is None` jump peephole), via emit_branch_if_test_false.
-glob TEST_NORMAL: int = 0;
-glob TEST_IS_NONE: int = 1;
-glob TEST_IS_NOT_NONE: int = 2;
+glob TEST_NORMAL: int = 0,
+     TEST_IS_NONE: int = 1,
+     TEST_IS_NOT_NONE: int = 2;
 
 def visit_test_expr(
     g: cfg_builder, e: expr, test_loc: cloc, allow_none_peephole: bool = False
@@ -5660,9 +5663,7 @@ def visit_test_expr(
 # the None-identity kinds this is the CPython jump peephole:
 #   `x is None`     -> POP_JUMP_IF_NOT_NONE  (branch away when x is NOT None)
 #   `x is not None` -> POP_JUMP_IF_NONE      (branch away when x IS None)
-def emit_branch_if_test_false(
-    g: cfg_builder, kind: int, target_id: int, loc: cloc
-) {
+def emit_branch_if_test_false(g: cfg_builder, kind: int, target_id: int, loc: cloc) {
     if kind == TEST_IS_NONE {
         g.emit_jump(OP_POP_JUMP_IF_NOT_NONE, target_id, loc);
         return;
@@ -5683,8 +5684,8 @@ def visit_if(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
-    test_loc = expr_loc(i.test);
-    kind = visit_test_expr(g, i.test, test_loc, True);
+    test_loc = expr_loc(i.`test);
+    kind = visit_test_expr(g, i.`test, test_loc, True);
     if codegen_busy(g) {
         return stmt_cont(loc=iloc);
     }
@@ -5841,10 +5842,10 @@ def visit_while(
     g: cfg_builder, w: While, more_code_follows: bool, tail: list[stmt], tail_idx: int
 ) -> stmt_cont {
     wloc = nloc(w.lineno, w.end_lineno, w.col_offset, w.end_col_offset);
-    test_loc = expr_loc(w.test);
+    test_loc = expr_loc(w.`test);
     head = g.new_block();
     g.use(head);
-    kind = visit_test_expr(g, w.test, test_loc, True);
+    kind = visit_test_expr(g, w.`test, test_loc, True);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
@@ -6066,7 +6067,11 @@ def visit_for(
 }
 
 def visit_async_for(
-    g: cfg_builder, af: AsyncFor, more_code_follows: bool, tail: list[stmt], tail_idx: int
+    g: cfg_builder,
+    af: AsyncFor,
+    more_code_follows: bool,
+    tail: list[stmt],
+    tail_idx: int
 ) -> stmt_cont {
     floc = nloc(af.lineno, af.end_lineno, af.col_offset, af.end_col_offset);
     iter_loc = expr_loc(af.iter);
@@ -6155,9 +6160,7 @@ def visit_async_for(
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
         return stmt_cont(
-            loc=tail_cont.loc,
-            next_si=len(tail),
-            terminated=tail_cont.terminated
+            loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
         );
     }
     needs_break_stub = has_break;
@@ -6597,7 +6600,9 @@ def visit_stmt(
         if t is None {
             t = [];
         }
-        return visit_async_with(g, s as AsyncWith, more_code_follows, t, tail_idx, tail_join);
+        return visit_async_with(
+            g, s as AsyncWith, more_code_follows, t, tail_idx, tail_join
+        );
     }
     if isinstance(s, Match) {
         t = tail;
@@ -6647,7 +6652,6 @@ def visit_return_stmt(
     g.emit_op(OP_LOAD_CONST, none_idx, rloc);
     g.emit_op(OP_RETURN_VALUE, 0, rloc);
 }
-
 
 
 def sym_class_qualname(
@@ -6823,10 +6827,7 @@ def compile_class_cfg(
 ) -> unverified_cfg {
     class_qname = sym_class_qualname(cd, sym_cls, enclosing_private);
     u = unverified_cfg(
-        filename=filename,
-        name=cd.name,
-        qualname=class_qname,
-        firstlineno=cd.lineno
+        filename=filename, name=cd.name, qualname=class_qname, firstlineno=cd.lineno
     );
     if sym_cls.nested {
         u.flags = CO_NESTED;
@@ -6841,9 +6842,7 @@ def compile_class_cfg(
     bi = 0;
     while bi < len(cd.body) {
         s = cd.body[bi];
-        cont = visit_stmt(
-            g, s, exec_tail_emits_code(cd.body, bi + 1), cd.body, bi + 1
-        );
+        cont = visit_stmt(g, s, exec_tail_emits_code(cd.body, bi + 1), cd.body, bi + 1);
         last = cont.loc;
         if codegen_busy(g) {
             return u;
@@ -6981,9 +6980,7 @@ def visit_lambda(g: cfg_builder, lam: Lambda) {
         codegen_fail(g, "SystemError", "lambda without symtable");
         return;
     }
-    sym_fn = sym_function_child_at(
-        g.sym_top, "lambda", lam.lineno, lam.col_offset
-    );
+    sym_fn = sym_function_child_at(g.sym_top, "lambda", lam.lineno, lam.col_offset);
     if sym_fn is None {
         codegen_fail(g, "SystemError", "missing symtable for lambda");
         return;
@@ -7009,10 +7006,7 @@ def compile_lambda_cfg(
 ) -> unverified_cfg {
     (argcount, posonly, kwonly) = function_argcounts(lam.args);
     u = unverified_cfg(
-        filename=filename,
-        name="<lambda>",
-        qualname="<lambda>",
-        firstlineno=lam.lineno
+        filename=filename, name="<lambda>", qualname="<lambda>", firstlineno=lam.lineno
     );
     u.argcount = argcount;
     u.posonlyargcount = posonly;
@@ -7042,12 +7036,7 @@ def compile_fn_cfg(
     private: str | None = None
 ) -> unverified_cfg {
     (argcount, posonly, kwonly) = function_argcounts(args);
-    u = unverified_cfg(
-        filename=filename,
-        name=name,
-        qualname=name,
-        firstlineno=lineno
-    );
+    u = unverified_cfg(filename=filename, name=name, qualname=name, firstlineno=lineno);
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
@@ -7069,9 +7058,7 @@ def compile_fn_cfg(
     bi = 0;
     while bi < len(body) {
         s = body[bi];
-        cont = visit_stmt(
-            g, s, exec_tail_emits_code(body, bi + 1), body, bi + 1
-        );
+        cont = visit_stmt(g, s, exec_tail_emits_code(body, bi + 1), body, bi + 1);
         last = cont.loc;
         if cont.terminated {
             terminated = True;

@@ -11,18 +11,14 @@ import from opcode_meta {
     OP_BINARY_OP,
     NB_ADD,
 }
-import from compiler_ir {
-    unverified_cfg,
-    basicblock,
-    mk_instr,
-    mk_jump,
-    loc,
-}
+import from compiler_ir { unverified_cfg, basicblock, mk_instr, mk_jump, loc, }
 import from flowgraph { verify_cfg }
 import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 
 def mk_unit(blocks: list[basicblock]) -> unverified_cfg {
-    u = unverified_cfg(filename="<fg>", name="<module>", qualname="<module>", firstlineno=1);
+    u = unverified_cfg(
+        filename="<fg>", name="<module>", qualname="<module>", firstlineno=1
+    );
     u.blocks = blocks;
     u.next_block_id = len(blocks);
     u.add_const(PyInt(t="int", val=1));
@@ -67,8 +63,7 @@ test "flowgraph: inconsistent join depth rejected" {
 test "flowgraph: invalid jump target rejected" {
     load = mk_instr(OP_LOAD_CONST, 0, loc(1, 1, 0, 1));
     b0 = basicblock(
-        id=0,
-        instrs=[load, mk_jump(OP_POP_JUMP_IF_FALSE, 99, loc(1, 1, 0, 1))]
+        id=0, instrs=[load, mk_jump(OP_POP_JUMP_IF_FALSE, 99, loc(1, 1, 0, 1))]
     );
     b1 = basicblock(id=1, instrs=[mk_instr(OP_RETURN_VALUE, 0, loc(1, 1, 0, 1))]);
     cfg = verify_cfg(mk_unit([b0, b1]));
@@ -92,6 +87,7 @@ test "flowgraph: instructions after terminator rejected" {
             mk_instr(OP_LOAD_CONST, 0, loc(1, 1, 0, 1)),
             mk_instr(OP_RETURN_VALUE, 0, loc(1, 1, 0, 1)),
             mk_instr(OP_POP_TOP, 0, loc(1, 1, 0, 1)),
+
         ]
     );
     cfg = verify_cfg(mk_unit([b0]));
@@ -108,6 +104,7 @@ test "flowgraph: valid straight-line stacksize" {
             mk_instr(OP_LOAD_CONST, 0, loc(1, 1, 0, 1)),
             mk_instr(OP_BINARY_OP, NB_ADD, loc(1, 1, 0, 1)),
             mk_instr(OP_RETURN_VALUE, 0, loc(1, 1, 0, 1)),
+
         ]
     );
     cfg = verify_cfg(mk_unit([b0]));

@@ -199,8 +199,8 @@ def d_run -> list[int] {
 
     # Killer: mutate the instance dict so "act" now hits the instance dict, then
     # redispatch from the same call site.
-    override: DObj = DAddMethod(t="add", delta=1000);
-    leaf_inst.attrs["act"] = override;
+    `override: DObj = DAddMethod(t="add", delta=1000);
+    leaf_inst.attrs["act"] = `override;
     again = d_dispatch(leaf_inst, names[0]);
     return [total, again];
 }
@@ -836,8 +836,8 @@ def desc_run_pd -> list[int] {
     }
 
     # THE KILLER: one mutation, two opposite precedence outcomes.
-    override: DescObj = DescInt(t="int", val=777);
-    inst.attrs["scaled"] = override;
+    `override: DescObj = DescInt(t="int", val=777);
+    inst.attrs["scaled"] = `override;
     killer_scaled = desc_resolve_int(inst, names[1]);
     killer_temp = desc_resolve_int(inst, names[0]);
 

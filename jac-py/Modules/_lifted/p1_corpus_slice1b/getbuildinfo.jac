@@ -11,7 +11,7 @@ def c_strcmp(a: str, b: str) -> int {
     return (((ord(a[0]) if a else 0) & 255) - ((ord(b[0]) if b else 0) & 255));
 }
 
-def c_strcpy(dst: str, src: str) -> None {
+def c_strcpy(dst: str, src: str) {
     i: int = 0;
     while (src[i] != 0) {
         dst[i] = src[i];
@@ -21,7 +21,7 @@ def c_strcpy(dst: str, src: str) -> None {
     dst[i] = 0;
 }
 
-def c_strcat(dst: str, src: str) -> None {
+def c_strcat(dst: str, src: str) {
     i: int = 0;
     while (dst[i] != 0) {
         i += 1;
@@ -37,10 +37,10 @@ def c_strcat(dst: str, src: str) -> None {
 }
 
 
-glob initialized: int = 0;
-glob buildinfo: list[int] = [0] * 128;
+glob initialized: int = 0,
+     buildinfo: list[int] = [0] * 128;
 
-def Py_GetBuildInfo() -> str {
+def Py_GetBuildInfo -> str {
     ;
 
     if initialized {
@@ -68,11 +68,11 @@ def Py_GetBuildInfo() -> str {
     return buildinfo;
 }
 
-def _Py_gitversion() -> str {
+def _Py_gitversion -> str {
     return "";
 }
 
-def _Py_gitidentifier() -> str {
+def _Py_gitidentifier -> str {
     gittag: str = str();
     gitid: str = str();
     gittag = "";

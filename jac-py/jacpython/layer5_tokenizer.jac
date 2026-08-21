@@ -41,7 +41,7 @@ def tokens_equal(actual: list[tok_token | tok_diag], expected: list[dict]) -> bo
     return ai == len(actual) and ei == len(expected);
 }
 
-def assert_tokenize_matches(source: str) -> None {
+def assert_tokenize_matches(source: str) {
     actual = tokenize_all(source, "<tok-test>", False);
     expected = host_c_tokenize(source);
     assert tokens_equal(actual, expected);

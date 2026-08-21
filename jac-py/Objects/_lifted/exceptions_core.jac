@@ -1,140 +1,145 @@
-glob ptrdiff_t = int;
-glob size_t = int;
-glob ssize_t = int;
-glob intptr_t = int;
-glob uintptr_t = int;
-
-glob int8_t = int;
-glob uint8_t = int;
-glob int16_t = int;
-glob uint16_t = int;
-glob int32_t = int;
-glob uint32_t = int;
-glob int64_t = int;
-glob uint64_t = int;
-
-glob intmax_t = int;
-glob uintmax_t = int;
-
-glob int_least8_t = int;
-glob uint_least8_t = int;
-glob int_least16_t = int;
-glob uint_least16_t = int;
-glob int_least32_t = int;
-glob uint_least32_t = int;
-glob int_least64_t = int;
-glob uint_least64_t = int;
-
-glob int_fast8_t = int;
-glob uint_fast8_t = int;
-glob int_fast16_t = int;
-glob uint_fast16_t = int;
-glob int_fast32_t = int;
-glob uint_fast32_t = int;
-glob int_fast64_t = int;
-glob uint_fast64_t = int;
-glob Py_ssize_t = int;
-glob Py_hash_t = int;
+glob ptrdiff_t = int,
+     size_t = int,
+     ssize_t = int,
+     intptr_t = int,
+     uintptr_t = int,
+     int8_t = int,
+     uint8_t = int,
+     int16_t = int,
+     uint16_t = int,
+     int32_t = int,
+     uint32_t = int,
+     int64_t = int,
+     uint64_t = int,
+     intmax_t = int,
+     uintmax_t = int,
+     int_least8_t = int,
+     uint_least8_t = int,
+     int_least16_t = int,
+     uint_least16_t = int,
+     int_least32_t = int,
+     uint_least32_t = int,
+     int_least64_t = int,
+     uint_least64_t = int,
+     int_fast8_t = int,
+     uint_fast8_t = int,
+     int_fast16_t = int,
+     uint_fast16_t = int,
+     int_fast32_t = int,
+     uint_fast32_t = int,
+     int_fast64_t = int,
+     uint_fast64_t = int,
+     Py_ssize_t = int,
+     Py_hash_t = int;
 
 @__jac_value__
 obj PyVarObject {
-    has ob_base: PyObject = PyObject();
-    has ob_size: int = 0;
+    has ob_base: PyObject = PyObject(),
+        ob_size: int = 0;
 }
 
-glob digit = int;
-glob stwodigits = int;
-glob sdigit = int;
-glob _Pyuintptr_t = int;
-glob Py_uhash_t = int;
+glob digit = int,
+     stwodigits = int,
+     sdigit = int,
+     _Pyuintptr_t = int,
+     Py_uhash_t = int;
 
 
 @__jac_value__
 obj lenfunc {
-    def call() -> int {
+    def call -> int {
         ;
     }
 }
+
 @__jac_value__
 obj unaryfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj binaryfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj inquiry {
-    def call() -> int {
+    def call -> int {
         ;
     }
 }
+
 @__jac_value__
 obj vectorcallfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj hashfunc {
-    def call() -> int {
+    def call -> int {
         ;
     }
 }
+
 @__jac_value__
 obj richcmpfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj getiterfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj iternextfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
+
 @__jac_value__
 obj ssizeargfunc {
-    def call() -> PyObj {
+    def call -> PyObj {
         ;
     }
 }
 
 @__jac_value__
 obj PySequenceMethods {
-    has sq_length: lenfunc = lenfunc();
-    has sq_item: ssizeargfunc = ssizeargfunc();
-    has sq_contains: inquiry = inquiry();
+    has sq_length: lenfunc = lenfunc(),
+        sq_item: ssizeargfunc = ssizeargfunc(),
+        sq_contains: inquiry = inquiry();
 }
 
 @__jac_value__
 obj PyNumberMethods {
-    has nb_add: binaryfunc = binaryfunc();
-    has nb_subtract: binaryfunc = binaryfunc();
-    has nb_multiply: binaryfunc = binaryfunc();
-    has nb_remainder: binaryfunc = binaryfunc();
-    has nb_divmod: binaryfunc = binaryfunc();
-    has nb_power: binaryfunc = binaryfunc();
-    has nb_negative: binaryfunc = binaryfunc();
-    has nb_positive: binaryfunc = binaryfunc();
-    has nb_absolute: binaryfunc = binaryfunc();
-    has nb_bool: inquiry = inquiry();
-    has nb_invert: unaryfunc = unaryfunc();
-    has nb_lshift: binaryfunc = binaryfunc();
-    has nb_rshift: binaryfunc = binaryfunc();
-    has nb_and: binaryfunc = binaryfunc();
-    has nb_xor: binaryfunc = binaryfunc();
-    has nb_or: binaryfunc = binaryfunc();
+    has nb_add: binaryfunc = binaryfunc(),
+        nb_subtract: binaryfunc = binaryfunc(),
+        nb_multiply: binaryfunc = binaryfunc(),
+        nb_remainder: binaryfunc = binaryfunc(),
+        nb_divmod: binaryfunc = binaryfunc(),
+        nb_power: binaryfunc = binaryfunc(),
+        nb_negative: binaryfunc = binaryfunc(),
+        nb_positive: binaryfunc = binaryfunc(),
+        nb_absolute: binaryfunc = binaryfunc(),
+        nb_bool: inquiry = inquiry(),
+        nb_invert: unaryfunc = unaryfunc(),
+        nb_lshift: binaryfunc = binaryfunc(),
+        nb_rshift: binaryfunc = binaryfunc(),
+        nb_and: binaryfunc = binaryfunc(),
+        nb_xor: binaryfunc = binaryfunc(),
+        nb_or: binaryfunc = binaryfunc();
 }
 
 @__jac_value__
@@ -144,35 +149,35 @@ obj PyObject {
 
 @__jac_value__
 obj PyTypeObject {
-    has ob_base: PyObject = PyObject();
-    has ob_size: int = 0;
-    has tp_name: str = str();
-    has tp_basicsize: int = 0;
-    has tp_itemsize: int = 0;
-    has tp_dealloc: object = object();
-    has tp_repr: unaryfunc = unaryfunc();
-    has tp_as_number: PyNumberMethods = PyNumberMethods();
-    has tp_as_sequence: PySequenceMethods = PySequenceMethods();
-    has tp_hash: hashfunc = hashfunc();
-    has tp_richcompare: richcmpfunc = richcmpfunc();
-    has tp_iter: getiterfunc = getiterfunc();
-    has tp_iternext: iternextfunc = iternextfunc();
-    has tp_flags: int = 0;
-    has tp_doc: str = str();
-    has tp_base: PyTypeObject = PyTypeObject();
-    has tp_vectorcall: vectorcallfunc = vectorcallfunc();
+    has ob_base: PyObject = PyObject(),
+        ob_size: int = 0,
+        tp_name: str = str(),
+        tp_basicsize: int = 0,
+        tp_itemsize: int = 0,
+        tp_dealloc: object = object(),
+        tp_repr: unaryfunc = unaryfunc(),
+        tp_as_number: PyNumberMethods = PyNumberMethods(),
+        tp_as_sequence: PySequenceMethods = PySequenceMethods(),
+        tp_hash: hashfunc = hashfunc(),
+        tp_richcompare: richcmpfunc = richcmpfunc(),
+        tp_iter: getiterfunc = getiterfunc(),
+        tp_iternext: iternextfunc = iternextfunc(),
+        tp_flags: int = 0,
+        tp_doc: str = str(),
+        tp_base: PyTypeObject = PyTypeObject(),
+        tp_vectorcall: vectorcallfunc = vectorcallfunc();
 }
 
 @__jac_value__
 obj _PyLongValue {
-    has lv_tag: int = 0;
-    has ob_digit: list = list();
+    has lv_tag: int = 0,
+        ob_digit: list = list();
 }
 
 @__jac_value__
 obj PyLongObject {
-    has ob_base: PyObject = PyObject();
-    has long_value: _PyLongValue = _PyLongValue();
+    has ob_base: PyObject = PyObject(),
+        long_value: _PyLongValue = _PyLongValue();
 }
 
 
@@ -180,22 +185,22 @@ glob Py_UCS1 = int;
 
 @__jac_value__
 obj PyBaseExceptionObject {
-    has ob_base: PyObject = PyObject();
-    has dict: PyObj = PyObj();
-    has args: PyObj = PyObj();
-    has notes: PyObj = PyObj();
-    has traceback: PyObj = PyObj();
-    has context: PyObj = PyObj();
-    has cause: PyObj = PyObj();
-    has suppress_context: int = 0;
+    has ob_base: PyObject = PyObject(),
+        dict: PyObj = PyObj(),
+        args: PyObj = PyObj(),
+        notes: PyObj = PyObj(),
+        traceback: PyObj = PyObj(),
+        context: PyObj = PyObj(),
+        cause: PyObj = PyObj(),
+        suppress_context: int = 0;
 }
 
 
 @__jac_value__
 obj PyTupleObject {
-    has ob_base: PyObject = PyObject();
-    has ob_size: int = 0;
-    has ob_item: list = list();
+    has ob_base: PyObject = PyObject(),
+        ob_size: int = 0,
+        ob_item: list = list();
 }
 
 
@@ -252,7 +257,7 @@ def PyException_GetArgs(`self: PyObj) -> PyObj {
     return exc.args;
 }
 
-def PyException_SetArgs(`self: PyObj, args: PyObj) -> None {
+def PyException_SetArgs(`self: PyObj, args: PyObj) {
     exc: PyBaseExceptionObject = PyBaseExceptionObject_CAST(`self);
     ;
     Py_XSETREF(exc.args, args);

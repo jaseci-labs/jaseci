@@ -2,13 +2,14 @@ import from compiler_slice { compile_parsed_exec, oracle_exec }
 import from objects { PyCode }
 import from opcode_meta { opcode_name }
 
+glob src = (
+         "try:\n"
+         + "    raise ValueError('x')\n"
+         + "except ValueError:\n"
+         + "    raise\n"
+     );
+
 with entry {
-    src = (
-        "try:\n"
-            + "    raise ValueError('x')\n"
-            + "except ValueError:\n"
-            + "    raise\n"
-    );
     actual = compile_parsed_exec(src);
     exp = oracle_exec(src, "<f>") as PyCode;
     ci = 0;

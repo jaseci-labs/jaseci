@@ -29,9 +29,7 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      P1_INCLUDES: str = os.path.join(
          REPO_ROOT, "jac-py", "tools", "p1_corpus", "includes"
      ),
-     JACPORT: str = os.path.join(
-         JAC_ROOT, "jaclang", "compiler", "cfront", "porting"
-     ),
+     JACPORT: str = os.path.join(JAC_ROOT, "jaclang", "compiler", "cfront", "porting"),
      PY_STUBS: str = os.path.join(P1_INCLUDES, "py_runtime_stubs.c"),
      PY_ORACLE_INCLUDES: list[str] = [P1_INCLUDES, JACPORT],
      _MOCK_INT_LIST_C: str = (
@@ -109,32 +107,23 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      );
 
 
-def _oracle(c_name: str, driver: str, jac_entry: str) -> None {
+def _oracle(c_name: str, driver: str, jac_entry: str) {
     c_path = os.path.join(MODULES, c_name);
-    assert_lift_matches_c(
-        c_path,
-        driver,
-        jac_entry,
-        include_dirs=[MODULES]
-    );
+    assert_lift_matches_c(c_path, driver, jac_entry, include_dirs=[MODULES]);
 }
 
 
-def _staged_oracle(c_name: str, driver: str, jac_entry: str) -> None {
+def _staged_oracle(c_name: str, driver: str, jac_entry: str) {
     base = os.path.splitext(c_name)[0];
     c_path = os.path.join(MODULES, c_name);
     jac_path = os.path.join(MODULES, f"{base}.jac");
     assert_staged_jac_matches_c(
-        c_path,
-        jac_path,
-        driver,
-        jac_entry,
-        include_dirs=[MODULES]
+        c_path, jac_path, driver, jac_entry, include_dirs=[MODULES]
     );
 }
 
 
-def _staged_oracle_with_py_stubs(c_name: str, driver: str, jac_entry: str) -> None {
+def _staged_oracle_with_py_stubs(c_name: str, driver: str, jac_entry: str) {
     base = os.path.splitext(c_name)[0];
     c_path = os.path.join(MODULES, c_name);
     jac_path = os.path.join(MODULES, f"{base}.jac");
@@ -158,9 +147,7 @@ test "jac-py pystrcmp: cc vs lifted jac agree on PyOS_mystricmp" {
         "    printf(\"%d\\n\", PyOS_mystricmp(\"Ab\", \"aB\"));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(PyOS_mystricmp(\"Ab\", \"aB\"));\n"
-        "}\n"
+        "with entry {\n" "    print(PyOS_mystricmp(\"Ab\", \"aB\"));\n" "}\n"
     );
 }
 
@@ -174,9 +161,7 @@ test "jac-py getplatform: cc vs lifted jac agree on Py_GetPlatform length" {
         "    printf(\"%d\\n\", (int)strlen(Py_GetPlatform()));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(len(Py_GetPlatform()));\n"
-        "}\n"
+        "with entry {\n" "    print(len(Py_GetPlatform()));\n" "}\n"
     );
 }
 
@@ -189,9 +174,7 @@ test "jac-py getcompiler: cc vs lifted jac agree on Py_GetCompiler first byte" {
         "    printf(\"%d\\n\", (int)Py_GetCompiler()[0]);\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(ord(Py_GetCompiler()[0]));\n"
-        "}\n"
+        "with entry {\n" "    print(ord(Py_GetCompiler()[0]));\n" "}\n"
     );
 }
 
@@ -205,9 +188,7 @@ test "jac-py getcopyright: cc vs lifted jac agree on Py_GetCopyright length" {
         "    printf(\"%d\\n\", (int)strlen(Py_GetCopyright()));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(len(Py_GetCopyright()));\n"
-        "}\n"
+        "with entry {\n" "    print(len(Py_GetCopyright()));\n" "}\n"
     );
 }
 
@@ -221,9 +202,7 @@ test "jac-py getbuildinfo: cc vs staged jac agree on Py_GetBuildInfo length" {
         "    printf(\"%d\\n\", (int)strlen(Py_GetBuildInfo()));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(len(Py_GetBuildInfo()));\n"
-        "}\n"
+        "with entry {\n" "    print(len(Py_GetBuildInfo()));\n" "}\n"
     );
 }
 
@@ -236,9 +215,7 @@ test "jac-py pyfpe: cc vs lifted jac agree on PyFPE_dummy" {
         "    printf(\"%d\\n\", (int)PyFPE_dummy(0));\n"
         "    return 0;\n"
         "}\n",
-        "with entry {\n"
-        "    print(int(PyFPE_dummy(None)));\n"
-        "}\n"
+        "with entry {\n" "    print(int(PyFPE_dummy(None)));\n" "}\n"
     );
 }
 
@@ -284,45 +261,43 @@ test "jac-py mysnprintf: cc vs staged jac agree on PyOS_vsnprintf size edge" {
 test "jac-py bisect: cc vs staged jac agree on bisect_right mock list" {
     _staged_oracle_with_py_stubs(
         "_bisectmodule.c",
-        "#include <stdio.h>\n"
-        "#include \"Python.h\"\n"
-        + _MOCK_INT_LIST_C
-        + "Py_ssize_t bisect_right(PyObject *list, PyObject *item, Py_ssize_t lo,\n"
-        + "                        Py_ssize_t hi, PyObject *key);\n"
-        + "int main(void) {\n"
-        + _MOCK_HEAP_C
-        + "    MockIntObject item4;\n"
-        + "    item4.ob_base.ob_type = &mock_int_type;\n"
-        + "    item4.val = 4;\n"
-        + "    printf(\"%ld\\n\", (long)bisect_right((PyObject *)&list,\n"
-        + "                                          (PyObject *)&item4, 0, -1, Py_None));\n"
-        + "    return 0;\n"
-        + "}\n",
+        "#include <stdio.h>\n" "#include \"Python.h\"\n"
+            + _MOCK_INT_LIST_C
+            + "Py_ssize_t bisect_right(PyObject *list, PyObject *item, Py_ssize_t lo,\n"
+            + "                        Py_ssize_t hi, PyObject *key);\n"
+            + "int main(void) {\n"
+            + _MOCK_HEAP_C
+            + "    MockIntObject item4;\n"
+            + "    item4.ob_base.ob_type = &mock_int_type;\n"
+            + "    item4.val = 4;\n"
+            + "    printf(\"%ld\\n\", (long)bisect_right((PyObject *)&list,\n"
+            + "                                          (PyObject *)&item4, 0, -1, Py_None));\n"
+            + "    return 0;\n"
+            + "}\n",
         _PY_MOCK_JAC
-        + "with entry {\n"
-        + "    lst = _mock_heap_list();\n"
-        + "    item4 = _make_int(4);\n"
-        + "    print(bisect_right(lst, item4, 0, -1, Py_None));\n"
-        + "}\n"
+            + "with entry {\n"
+            + "    lst = _mock_heap_list();\n"
+            + "    item4 = _make_int(4);\n"
+            + "    print(bisect_right(lst, item4, 0, -1, Py_None));\n"
+            + "}\n"
     );
 }
 
 test "jac-py heapq: cc vs staged jac agree on heap_siftdown mock heap" {
     _staged_oracle_with_py_stubs(
         "_heapqmodule.c",
-        "#include <stdio.h>\n"
-        "#include \"Python.h\"\n"
-        + _MOCK_INT_LIST_C
-        + "int heap_siftdown(PyObject *heap, Py_ssize_t startpos, Py_ssize_t pos);\n"
-        + "int main(void) {\n"
-        + _MOCK_HEAP_C
-        + "    printf(\"%d\\n\", heap_siftdown((PyObject *)&list, 0, 3));\n"
-        + "    return 0;\n"
-        + "}\n",
+        "#include <stdio.h>\n" "#include \"Python.h\"\n"
+            + _MOCK_INT_LIST_C
+            + "int heap_siftdown(PyObject *heap, Py_ssize_t startpos, Py_ssize_t pos);\n"
+            + "int main(void) {\n"
+            + _MOCK_HEAP_C
+            + "    printf(\"%d\\n\", heap_siftdown((PyObject *)&list, 0, 3));\n"
+            + "    return 0;\n"
+            + "}\n",
         _PY_MOCK_JAC
-        + "with entry {\n"
-        + "    lst = _mock_heap_list();\n"
-        + "    print(heap_siftdown(lst, 0, 3));\n"
-        + "}\n"
+            + "with entry {\n"
+            + "    lst = _mock_heap_list();\n"
+            + "    print(heap_siftdown(lst, 0, 3));\n"
+            + "}\n"
     );
 }

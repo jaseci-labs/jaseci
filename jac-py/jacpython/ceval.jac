@@ -360,9 +360,9 @@ def _jac_host_val_is_type(val):
     return isinstance(val, type)
 ::py::
 
-import from marshal_reader {
-    unmarshal,
-}
+
+
+import from marshal_reader { unmarshal, }
 
 # Bootstrap transport duplicate (pyc_first.jac keeps the canonical copy for re-export).
 def host_compile_marshal(source: str) -> list[int] {
@@ -376,9 +376,7 @@ def host_compile_marshal(source: str) -> list[int] {
 # heap/proxy types that OVERRIDE the call/attr slots (cross-module inheritance),
 # because those slots re-enter the interpreter or the host and so cannot live in
 # the acyclic leaf. See PLAN.md §4 (module-boundary constraint).
-import from hash_dispatch {
-    hash_element,
-}
+import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_GetIter,
     PyObject_HashNotImplemented,
@@ -388,48 +386,21 @@ import from abstract_protocol {
     Py_LE,
     Py_GE,
 }
-import from tupleobject {
-    tuple_hash,
-    tuple_richcompare,
-}
-import from longobject {
-    long_hash_obj,
-    int_repr,
-}
-import from setobject {
-    set_hash_obj,
-    set_richcompare,
-}
+import from tupleobject { tuple_hash, tuple_richcompare, }
+import from longobject { long_hash_obj, int_repr, }
+import from setobject { set_hash_obj, set_richcompare, }
 import from typeobject {
     type_repr,
     type_richcompare,
     type_richcompare_same,
     type_tp_name,
 }
-import from bytesobject {
-    bytes_hash_obj,
-    bytes_richcompare,
-    bytes_repr,
-}
-import from strobject {
-    str_repr,
-}
-import from floatobject {
-    float_repr,
-}
-import from listobject {
-    list_richcompare,
-    list_repr,
-}
-import from dictobject {
-    dict_richcompare,
-    dict_repr,
-}
-import from exceptions_core {
-    exc_name_matches,
-    baseexception_str,
-    baseexception_repr,
-}
+import from bytesobject { bytes_hash_obj, bytes_richcompare, bytes_repr, }
+import from strobject { str_repr, }
+import from floatobject { float_repr, }
+import from listobject { list_richcompare, list_repr, }
+import from dictobject { dict_richcompare, dict_repr, }
+import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
 import from objects {
     PyObj,
     PyInt,
@@ -626,11 +597,11 @@ obj PyModule(PyObj) {
 # Layer 2 shim registry: name -> PyModule. Checked before host import.
 glob shim_modules: dict[str, PyObj] = {};
 
-def register_shim_module(name: str, module: PyObj) -> None {
+def register_shim_module(name: str, module: PyObj) {
     shim_modules[name] = module;
 }
 
-def clear_shim_modules() -> None {
+def clear_shim_modules {
     shim_modules = {};
 }
 
@@ -652,33 +623,34 @@ def shim_module_get(name: str) -> PyObj {
 # the milestone that proves the interpreter is real: unittest exercises classes,
 # descriptors, exceptions, comprehensions, and the full language surface.
 
-glob sys3_modules: dict[str, PyObj] = {};
+glob sys3_modules: dict[str, PyObj] = {},
+     layer3_force_host: list[str] = ["enum"],
+     layer3_flag: list[bool] = [False];
+
 # Modules deliberately kept host-proxied even though pure-Python source exists,
 # because they rely on VM features not yet native (custom metaclasses: enum's
 # EnumType drives __prepare__/__new__/__iter__). Proxying a metaclass-heavy leaf
 # is the same pragmatic line drawn for C extensions -- it keeps the rest of the
 # closure (unittest's own code) running proxy-free. Revisit when metaclasses land.
-glob layer3_force_host: list[str] = ["enum"];
+
 # One-slot holder rather than a bare `glob layer3_active: bool` -- a scalar glob
 # rebound inside a function is scoped local and never persists (see PLAN/memory);
 # a list mutated in place does. Read via layer3_is_active() on the IMPORT_NAME path.
-glob layer3_flag: list[bool] = [False];
-
-def set_layer3_active(flag: bool) -> None {
+def set_layer3_active(flag: bool) {
     layer3_flag[0] = flag;
 }
 
-def layer3_is_active() -> bool {
+def layer3_is_active -> bool {
     return layer3_flag[0];
 }
 
-def clear_sys3_modules() -> None {
+def clear_sys3_modules {
     sys3_modules = {};
 }
 
 # Drop one key from the module cache (used to un-register a module whose in-VM
 # execution raised, so a retry re-runs it instead of seeing a half-built shell).
-def _sys3_forget(name: str) -> None {
+def _sys3_forget(name: str) {
     if name in sys3_modules {
         del sys3_modules[name];
     }
@@ -789,6 +761,7 @@ def import_native(absname: str) -> PyObj {
         "__package__": PyStr(t="str", val=pkg_name),
         "__file__": PyStr(t="str", val=origin),
         "__doc__": py_none(),
+
     };
     module = PyModule(t="module", name=absname, attrs=modglobals);
     # Register the (still-executing) module before running its body so a circular
@@ -911,7 +884,7 @@ def py_import_name(
             # submodule -- IMPORT_FROM resolves it off `mod`. Any other error is a
             # real failure importing the submodule and must propagate.
             if is_error(sub)
-            and (sub as PyError).exception.type_name != "ModuleNotFoundError" {
+                and (sub as PyError).exception.type_name != "ModuleNotFoundError" {
                 return sub;
             }
         }
@@ -1450,12 +1423,24 @@ obj PyPropertyCtor(PyObj) {
         fget: PyObj = py_none();
         fset: PyObj = py_none();
         fdel: PyObj = py_none();
-        if len(args) >= 1 { fget = args[0]; }
-        if len(args) >= 2 { fset = args[1]; }
-        if len(args) >= 3 { fdel = args[2]; }
-        if "fget" in kwargs { fget = kwargs["fget"]; }
-        if "fset" in kwargs { fset = kwargs["fset"]; }
-        if "fdel" in kwargs { fdel = kwargs["fdel"]; }
+        if len(args) >= 1 {
+            fget = args[0];
+        }
+        if len(args) >= 2 {
+            fset = args[1];
+        }
+        if len(args) >= 3 {
+            fdel = args[2];
+        }
+        if "fget" in kwargs {
+            fget = kwargs["fget"];
+        }
+        if "fset" in kwargs {
+            fset = kwargs["fset"];
+        }
+        if "fdel" in kwargs {
+            fdel = kwargs["fdel"];
+        }
         return PyProperty(
             t="property",
             fget=fget if not isinstance(fget, PyNoneType) else None,
@@ -1821,19 +1806,19 @@ def to_host(value: PyObj) -> any {
 
 def host_builtin(name: str) -> PyObj {
     if name == "Exception"
-    or name == "BaseException"
-    or name == "ValueError"
-    or name == "TypeError"
-    or name == "KeyError"
-    or name == "IndexError"
-    or name == "AttributeError"
-    or name == "NameError"
-    or name == "ZeroDivisionError"
-    or name == "ImportError"
-    or name == "StopIteration"
-    or name == "StopAsyncIteration"
-    or name == "GeneratorExit"
-    or name == "RuntimeError" {
+        or name == "BaseException"
+        or name == "ValueError"
+        or name == "TypeError"
+        or name == "KeyError"
+        or name == "IndexError"
+        or name == "AttributeError"
+        or name == "NameError"
+        or name == "ZeroDivisionError"
+        or name == "ImportError"
+        or name == "StopIteration"
+        or name == "StopAsyncIteration"
+        or name == "GeneratorExit"
+        or name == "RuntimeError" {
         return py_exception_type(name);
     }
     # next()/iter() are handled natively so a native generator or iterator is
@@ -1848,12 +1833,19 @@ def host_builtin(name: str) -> PyObj {
     # a lossy to_host copy. This is load-bearing for the import closure, where
     # decorators (functools.wraps, reprlib.recursive_repr) copy dunders via
     # getattr(fn, '__module__').
-    if name == "next" or name == "iter" or name == "id"
-    or name == "len" or name == "repr" or name == "hash"
-    or name == "isinstance" or name == "issubclass"
-    or name == "getattr" or name == "setattr" or name == "hasattr"
-    or name == "delattr"
-    or name == "globals" {
+    if name == "next"
+        or name == "iter"
+        or name == "id"
+        or name == "len"
+        or name == "repr"
+        or name == "hash"
+        or name == "isinstance"
+        or name == "issubclass"
+        or name == "getattr"
+        or name == "setattr"
+        or name == "hasattr"
+        or name == "delattr"
+        or name == "globals" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -2234,9 +2226,19 @@ def is_notimplemented(o: PyObj) -> bool {
 # NB_ binop kind -> dunder name ("" if the kind has no overload slot).
 def binop_dunder(kind: int) -> str {
     names = [
-        "__add__", "__and__", "__floordiv__", "__lshift__", "__matmul__",
-        "__mul__", "__mod__", "__or__", "__pow__", "__rshift__",
-        "__sub__", "__truediv__", "__xor__"
+        "__add__",
+        "__and__",
+        "__floordiv__",
+        "__lshift__",
+        "__matmul__",
+        "__mul__",
+        "__mod__",
+        "__or__",
+        "__pow__",
+        "__rshift__",
+        "__sub__",
+        "__truediv__",
+        "__xor__"
     ];
     if kind >= 0 and kind < len(names) {
         return names[kind];
@@ -2247,9 +2249,19 @@ def binop_dunder(kind: int) -> str {
 # Reflected counterpart (__radd__/__rmul__/...) for the same kind.
 def binop_rdunder(kind: int) -> str {
     names = [
-        "__radd__", "__rand__", "__rfloordiv__", "__rlshift__", "__rmatmul__",
-        "__rmul__", "__rmod__", "__ror__", "__rpow__", "__rrshift__",
-        "__rsub__", "__rtruediv__", "__rxor__"
+        "__radd__",
+        "__rand__",
+        "__rfloordiv__",
+        "__rlshift__",
+        "__rmatmul__",
+        "__rmul__",
+        "__rmod__",
+        "__ror__",
+        "__rpow__",
+        "__rrshift__",
+        "__rsub__",
+        "__rtruediv__",
+        "__rxor__"
     ];
     if kind >= 0 and kind < len(names) {
         return names[kind];
@@ -2573,14 +2585,14 @@ def append_to_list(target: PyObj, iterable: PyObj) {
 # 'abc'.upper() / {}.copy() / dict().keys() work before their native ports land.
 def _is_host_backed(t: str) -> bool {
     return t == "str"
-    or t == "bytes"
-    or t == "int"
-    or t == "bool"
-    or t == "float"
-    or t == "list"
-    or t == "tuple"
-    or t == "dict"
-    or t == "complex";
+        or t == "bytes"
+        or t == "int"
+        or t == "bool"
+        or t == "float"
+        or t == "list"
+        or t == "tuple"
+        or t == "dict"
+        or t == "complex";
 }
 
 def py_attr(value: PyObj, name: str) -> PyObj {
@@ -2588,8 +2600,9 @@ def py_attr(value: PyObj, name: str) -> PyObj {
     # A native dict's keys()/values()/items() are bound zero-arg constructors of
     # a live, set-like PyDictView (not host proxies), so view comparison / set
     # algebra can invoke element __eq__ and iteration carries the mutation guard.
-    if is_error(result) and isinstance(value, PyDict)
-    and (name == "keys" or name == "values" or name == "items") {
+    if is_error(result)
+        and isinstance(value, PyDict)
+        and (name == "keys" or name == "values" or name == "items") {
         return PyDictViewCtor(t="view_ctor", d=value as PyDict, mode=name);
     }
     # Native mutating/accessor dict methods, so a dict-subclass mutation lands in
@@ -2601,8 +2614,9 @@ def py_attr(value: PyObj, name: str) -> PyObj {
     if is_error(result) and isinstance(value, PyList) and is_list_method(name) {
         return PyListMethod(t="list_method", target=value as PyList, name=name);
     }
-    if is_error(result) and isinstance(value, PySet)
-    and is_set_method(name, (value as PySet).frozen) {
+    if is_error(result)
+        and isinstance(value, PySet)
+        and is_set_method(name, (value as PySet).frozen) {
         return PySetMethod(t="set_method", target=value as PySet, name=name);
     }
     if is_error(result) and _is_host_backed(value.t) {
@@ -2691,8 +2705,7 @@ def py_iter(value: PyObj) -> PyObj {
             }
             if not (res.t == "iter" or res.t == "generator" or res.t == "dictiter") {
                 return py_error(
-                    "TypeError",
-                    "iter() returned non-iterator of type '" + res.t + "'"
+                    "TypeError", "iter() returned non-iterator of type '" + res.t + "'"
                 );
             }
             return res;
@@ -2747,7 +2760,8 @@ def py_aiter_has_anext(value: PyObj) -> bool {
 
 # `async for`: call __aiter__ and verify the result exposes __anext__.
 def py_aiter(value: PyObj) -> PyObj {
-    if isinstance(value, PyUserObj) and user_has_dunder(value as PyUserObj, "__aiter__") {
+    if isinstance(value, PyUserObj)
+        and user_has_dunder(value as PyUserObj, "__aiter__") {
         result = call_user_dunder(value as PyUserObj, "__aiter__", []);
     } else {
         method = py_attr(value, "__aiter__");
@@ -2767,7 +2781,7 @@ def py_aiter(value: PyObj) -> PyObj {
         return py_error(
             "TypeError",
             "'async for' received an object from __aiter__ that does not implement __anext__: "
-            + type_label
+                + type_label
         );
     }
     return result;
@@ -2785,7 +2799,8 @@ def py_get_awaitable(value: PyObj) -> PyObj {
 # `async for` loop step: call __anext__ on the async iterator and wrap the result
 # as an awaitable for the following SEND loop.
 def py_anext(aiter: PyObj) -> PyObj {
-    if isinstance(aiter, PyUserObj) and user_has_dunder(aiter as PyUserObj, "__anext__") {
+    if isinstance(aiter, PyUserObj)
+        and user_has_dunder(aiter as PyUserObj, "__anext__") {
         result = call_user_dunder(aiter as PyUserObj, "__anext__", []);
     } else {
         method = py_attr(aiter, "__anext__");
@@ -2847,16 +2862,14 @@ def py_len(value: PyObj) -> PyObj {
         }
         return py_error(str(result[1]), str(result[2]));
     }
-    return py_error(
-        "TypeError", "object of type '" + value.t + "' has no len()"
-    );
+    return py_error("TypeError", "object of type '" + value.t + "' has no len()");
 }
 
 # CPython tp_flags bits (Include/object.h) used by MATCH_* opcodes.
-glob _TPFLAGS_SEQUENCE: int = 32;
-glob _TPFLAGS_MAPPING: int = 64;
-glob _TPFLAGS_MATCH_SELF: int = 4194304;
-glob _match_keys_dummy: PyObj = py_none();
+glob _TPFLAGS_SEQUENCE: int = 32,
+     _TPFLAGS_MAPPING: int = 64,
+     _TPFLAGS_MATCH_SELF: int = 4194304,
+     _match_keys_dummy: PyObj = py_none();
 
 def match_keys_dummy -> PyObj {
     if _match_keys_dummy.t == "none" {
@@ -2955,23 +2968,19 @@ def py_match_type_attr_optional(type_obj: PyObj, name: str) -> PyObj {
 }
 
 def py_match_class_attr(
-    subject: PyObj,
-    type_obj: PyObj,
-    name: PyObj,
-    seen: PySet
+    subject: PyObj, type_obj: PyObj, name: PyObj, seen: PySet
 ) -> PyObj {
     if not isinstance(name, PyStr) {
         return py_error(
-            "TypeError",
-            "__match_args__ elements must be strings (got " + name.t + ")",
+            "TypeError", "__match_args__ elements must be strings (got " + name.t + ")",
         );
     }
     if seen.set_contains(name) {
         return py_error(
             "TypeError",
             match_class_type_name(type_obj)
-            + "() got multiple sub-patterns for attribute "
-            + dict_key_repr(name),
+                + "() got multiple sub-patterns for attribute "
+                + dict_key_repr(name),
         );
     }
     seen.set_add(name);
@@ -3025,10 +3034,7 @@ def py_match_keys(map_obj: PyObj, keys: PyObj) -> PyObj {
 }
 
 def py_match_class(
-    subject: PyObj,
-    type_obj: PyObj,
-    nargs: int,
-    kw_names: PyObj
+    subject: PyObj, type_obj: PyObj, nargs: int, kw_names: PyObj
 ) -> PyObj {
     if not isinstance(type_obj, PyClass) and not isinstance(type_obj, PyHostProxy) {
         return py_error("TypeError", "called match pattern must be a class");
@@ -3062,9 +3068,9 @@ def py_match_class(
                 return py_error(
                     "TypeError",
                     match_class_type_name(type_obj)
-                    + ".__match_args__ must be a tuple (got "
-                    + got
-                    + ")",
+                        + ".__match_args__ must be a tuple (got "
+                        + got
+                        + ")",
                 );
             }
             match_args = match_args_obj as PyTuple;
@@ -3081,13 +3087,13 @@ def py_match_class(
             return py_error(
                 "TypeError",
                 match_class_type_name(type_obj)
-                + "() accepts "
-                + str(allowed)
-                + " positional sub-pattern"
-                + plural
-                + " ("
-                + str(nargs)
-                + " given)",
+                    + "() accepts "
+                    + str(allowed)
+                    + " positional sub-pattern"
+                    + plural
+                    + " ("
+                    + str(nargs)
+                    + " given)",
             );
         }
         if match_self {
@@ -3245,7 +3251,9 @@ def fast_value_check(
         }
         return py_error(
             "UnboundLocalError",
-            "cannot access local variable '" + vname + "' where it is not associated with a value",
+            "cannot access local variable '"
+                + vname
+                + "' where it is not associated with a value",
         );
     }
     return fast[arg];
@@ -3368,7 +3376,7 @@ def class_is_exception(cls: PyClass) -> bool {
                 return True;
             }
             if isinstance(base, PyHostProxy)
-            and bool(_jac_is_exception_type((base as PyHostProxy).val)) {
+                and bool(_jac_is_exception_type((base as PyHostProxy).val)) {
                 return True;
             }
         }
@@ -3415,9 +3423,7 @@ def py_raise_value(value: PyObj) -> PyObj {
             return PyError(
                 t="error",
                 exception=PyException(
-                    t="exception",
-                    type_name=str(_jac_host_class_name(raw)),
-                    message=""
+                    t="exception", type_name=str(_jac_host_class_name(raw)), message=""
                 )
             );
         }
@@ -3819,8 +3825,7 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
     if isinstance(ob, PyException) {
         if typ.t == "exception_type" {
             return exc_name_matches(
-                (ob as PyException).type_name,
-                (typ as PyExceptionType).name
+                (ob as PyException).type_name, (typ as PyExceptionType).name
             );
         }
         if isinstance(typ, PyHostProxy) {
@@ -3905,9 +3910,9 @@ def py_issubclass(cls: PyObj, typ: PyObj) -> bool {
         return False;
     }
     if isinstance(cls, PyHostProxy) and isinstance(typ, PyHostProxy) {
-        return bool(_jac_host_issubclass(
-            (cls as PyHostProxy).val, (typ as PyHostProxy).val
-        ));
+        return bool(
+            _jac_host_issubclass((cls as PyHostProxy).val, (typ as PyHostProxy).val)
+        );
     }
     return False;
 }
@@ -3950,8 +3955,7 @@ def compute_native_base(bases: list[PyObj]) -> str {
 # produced it (None = the default `type`), recorded so a later subclass can
 # re-derive and re-run the metaclass protocol.
 def make_pyclass_from_map(
-    class_name: str, bases: list[PyObj],
-    namespace: dict[str, PyObj], meta: any
+    class_name: str, bases: list[PyObj], namespace: dict[str, PyObj], meta: any
 ) -> PyClass {
     return PyClass(
         t="class",
@@ -3998,8 +4002,7 @@ def apply_set_name_hooks(cls: PyClass, ordered_names: list[str]) -> PyObj {
             if isinstance(value, PyUserObj)
                 and user_has_dunder(value as PyUserObj, "__set_name__") {
                 res = call_user_dunder(
-                    value as PyUserObj, "__set_name__",
-                    [cls, PyStr(t="str", val=name)]
+                    value as PyUserObj, "__set_name__", [cls, PyStr(t="str", val=name)]
                 );
                 if is_error(res) {
                     return res;
@@ -4149,8 +4152,11 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
 # class. Only a plain-dict namespace is supported; a custom mapping (enum's
 # _EnumDict) as a live body namespace is a later refinement.
 def build_class_via_metaclass(
-    metaclass: PyClass, class_name: str, bases: list[PyObj],
-    body: PyFunction, class_kwds: dict[str, PyObj]
+    metaclass: PyClass,
+    class_name: str,
+    bases: list[PyObj],
+    body: PyFunction,
+    class_kwds: dict[str, PyObj]
 ) -> PyObj {
     bases_tuple = PyTuple(t="tuple", items=bases);
     prepared: PyObj = py_none();
@@ -4186,7 +4192,9 @@ def build_class_via_metaclass(
             }
         }
         call_args: list[PyObj] = [
-            PyStr(t="str", val=class_name), bases_tuple, prepared
+            PyStr(t="str", val=class_name),
+            bases_tuple,
+            prepared
         ];
         return py_invoke(metaclass, call_args, class_kwds);
     }
@@ -4205,9 +4213,7 @@ def build_class_via_metaclass(
         return body_result2;
     }
     ns_dict = dict_from_str_map(namespace2);
-    call_args2: list[PyObj] = [
-        PyStr(t="str", val=class_name), bases_tuple, ns_dict
-    ];
+    call_args2: list[PyObj] = [PyStr(t="str", val=class_name), bases_tuple, ns_dict];
     return py_invoke(metaclass, call_args2, class_kwds);
 }
 
@@ -4269,17 +4275,13 @@ obj PyNativeBuiltin(PyObj) {
         }
         if self.name == "len" {
             if len(args) != 1 {
-                return py_error(
-                    "TypeError", "len() takes exactly one argument"
-                );
+                return py_error("TypeError", "len() takes exactly one argument");
             }
             return py_len(args[0]);
         }
         if self.name == "hash" {
             if len(args) != 1 {
-                return py_error(
-                    "TypeError", "hash() takes exactly one argument"
-                );
+                return py_error("TypeError", "hash() takes exactly one argument");
             }
             return py_hash(args[0]);
         }
@@ -4308,8 +4310,9 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "getattr expected at least 2 arguments");
             }
             attr = py_attr(args[0], expect_str(args[1]));
-            if is_error(attr) and len(args) >= 3
-            and (attr as PyError).exception.type_name == "AttributeError" {
+            if is_error(attr)
+                and len(args) >= 3
+                and (attr as PyError).exception.type_name == "AttributeError" {
                 return args[2];
             }
             return attr;
@@ -4557,14 +4560,14 @@ def coerce_set(arg: PyObj) -> PyObj {
 
 def is_set_method(name: str, frozen: bool) -> bool {
     shared = name == "copy"
-    or name == "union"
-    or name == "intersection"
-    or name == "difference"
-    or name == "symmetric_difference"
-    or name == "issubset"
-    or name == "issuperset"
-    or name == "isdisjoint"
-    or name == "__contains__";
+        or name == "union"
+        or name == "intersection"
+        or name == "difference"
+        or name == "symmetric_difference"
+        or name == "issubset"
+        or name == "issuperset"
+        or name == "isdisjoint"
+        or name == "__contains__";
     if shared {
         return True;
     }
@@ -4572,14 +4575,14 @@ def is_set_method(name: str, frozen: bool) -> bool {
         return False;
     }
     return name == "add"
-    or name == "discard"
-    or name == "remove"
-    or name == "pop"
-    or name == "clear"
-    or name == "update"
-    or name == "difference_update"
-    or name == "intersection_update"
-    or name == "symmetric_difference_update";
+        or name == "discard"
+        or name == "remove"
+        or name == "pop"
+        or name == "clear"
+        or name == "update"
+        or name == "difference_update"
+        or name == "intersection_update"
+        or name == "symmetric_difference_update";
 }
 
 obj PySetMethod(PyObj) {
@@ -4651,8 +4654,10 @@ obj PySetMethod(PyObj) {
             return PyBool(t="bool", val=True);
         }
         # --- *others set-algebra (non-mutating) ---
-        if n == "union" or n == "intersection" or n == "difference"
-        or n == "symmetric_difference" {
+        if n == "union"
+            or n == "intersection"
+            or n == "difference"
+            or n == "symmetric_difference" {
             kind = 7;
             if n == "intersection" {
                 kind = 1;
@@ -4675,8 +4680,10 @@ obj PySetMethod(PyObj) {
             return acc;
         }
         # --- *others mutating updates ---
-        if n == "update" or n == "difference_update"
-        or n == "intersection_update" or n == "symmetric_difference_update" {
+        if n == "update"
+            or n == "difference_update"
+            or n == "intersection_update"
+            or n == "symmetric_difference_update" {
             kind = 7;
             if n == "difference_update" {
                 kind = 10;
@@ -4709,9 +4716,15 @@ obj PySetMethod(PyObj) {
 # for any code that builds a list by `.append` (enum's EnumDict._member_names
 # tracking, most stdlib), not just comprehensions (which use LIST_APPEND).
 def is_list_method(name: str) -> bool {
-    return name == "append" or name == "extend" or name == "insert"
-        or name == "pop" or name == "remove" or name == "clear"
-        or name == "index" or name == "count" or name == "reverse"
+    return name == "append"
+        or name == "extend"
+        or name == "insert"
+        or name == "pop"
+        or name == "remove"
+        or name == "clear"
+        or name == "index"
+        or name == "count"
+        or name == "reverse"
         or name == "copy";
 }
 
@@ -4883,10 +4896,17 @@ def list_elem_eq(a: PyObj, b: PyObj) -> bool {
 # dict subclass instance (enum's EnumDict.setdefault/pop) hits the real storage
 # instead of a throwaway to_host copy.
 def is_dict_method(name: str) -> bool {
-    return name == "get" or name == "setdefault" or name == "pop"
-        or name == "popitem" or name == "update" or name == "clear"
-        or name == "copy" or name == "__contains__" or name == "__getitem__"
-        or name == "__setitem__" or name == "__delitem__";
+    return name == "get"
+        or name == "setdefault"
+        or name == "pop"
+        or name == "popitem"
+        or name == "update"
+        or name == "clear"
+        or name == "copy"
+        or name == "__contains__"
+        or name == "__getitem__"
+        or name == "__setitem__"
+        or name == "__delitem__";
 }
 
 obj PyDictMethod(PyObj) {
@@ -5494,7 +5514,8 @@ def frame_clear(frame: PyFrame) -> None {
     frame.stack = [];
     frame.locals = {};
     for obj in held {
-        if isinstance(obj, PyUserObj) and user_has_dunder(obj as PyUserObj, "__del__") {
+        if isinstance(obj, PyUserObj)
+            and user_has_dunder(obj as PyUserObj, "__del__") {
             _ = call_user_dunder(obj as PyUserObj, "__del__", []);
         }
     }
@@ -5556,13 +5577,14 @@ obj PyCopyFn(PyObj) {
 
 # The native `copy` module, seeded into a Layer-1 namespace so a test that does
 # copy.copy(gen) sees CPython's TypeError natively (the host proxy would drain).
-def build_copy_module() -> PyObj {
+def build_copy_module -> PyObj {
     return PyModule(
         t="module",
         name="copy",
         attrs={
             "copy": PyCopyFn(t="copy_fn", deep=False),
             "deepcopy": PyCopyFn(t="copy_fn", deep=True),
+
         },
     );
 }
@@ -5740,9 +5762,7 @@ def exec_code_frame(
             fast[index] = kwargs[key];
             assigned[index] = True;
         } elif has_varkw {
-            (fast[varkw_slot] as PyDict).dict_set(
-                PyStr(t="str", val=key), kwargs[key]
-            );
+            (fast[varkw_slot] as PyDict).dict_set(PyStr(t="str", val=key), kwargs[key]);
         } elif index >= 0 and index < co.posonlyargcount {
             return py_error("TypeError", "positional-only argument passed by name");
         } else {
@@ -6049,9 +6069,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                 del globals[gdel_name];
                 continue;
             }
-            gdeleted = py_error(
-                "NameError", "name '" + gdel_name + "' is not defined"
-            );
+            gdeleted = py_error("NameError", "name '" + gdel_name + "' is not defined");
             target = recover_exception(co, gdeleted, offset, stack);
             if target >= 0 {
                 ip = target;
@@ -6379,10 +6397,10 @@ def run_frame(frame: PyFrame) -> PyObj {
                 unpack_err = py_error(
                     "ValueError",
                     "not enough values to unpack (expected "
-                    + str(arg)
-                    + ", got "
-                    + str(len(unpacked))
-                    + ")",
+                        + str(arg)
+                        + ", got "
+                        + str(len(unpacked))
+                        + ")",
                 );
             } elif len(unpacked) > arg {
                 unpack_err = py_error(
@@ -6441,10 +6459,10 @@ def run_frame(frame: PyFrame) -> PyObj {
                 ex_err = py_error(
                     "ValueError",
                     "not enough values to unpack (expected at least "
-                    + str(before + after)
-                    + ", got "
-                    + str(m)
-                    + ")",
+                        + str(before + after)
+                        + ", got "
+                        + str(m)
+                        + ")",
                 );
                 target = recover_exception(co, ex_err, offset, stack);
                 if target >= 0 {
@@ -6490,16 +6508,12 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_MATCH_SEQUENCE {
             seq_subject = stack[len(stack) - 1];
-            stack.append(
-                PyBool(t="bool", val=py_type_has_sequence_flag(seq_subject))
-            );
+            stack.append(PyBool(t="bool", val=py_type_has_sequence_flag(seq_subject)));
             continue;
         }
         if op == OP_MATCH_MAPPING {
             map_subject = stack[len(stack) - 1];
-            stack.append(
-                PyBool(t="bool", val=py_type_has_mapping_flag(map_subject))
-            );
+            stack.append(PyBool(t="bool", val=py_type_has_mapping_flag(map_subject)));
             continue;
         }
         if op == OP_MATCH_KEYS {
@@ -6757,9 +6771,9 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_POP_JUMP_IF_FALSE
-        or op == OP_POP_JUMP_IF_TRUE
-        or op == OP_POP_JUMP_IF_NONE
-        or op == OP_POP_JUMP_IF_NOT_NONE {
+            or op == OP_POP_JUMP_IF_TRUE
+            or op == OP_POP_JUMP_IF_NONE
+            or op == OP_POP_JUMP_IF_NOT_NONE {
             condition = stack.pop();
             jump = False;
             if op == OP_POP_JUMP_IF_FALSE {
@@ -6988,9 +7002,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                 if isinstance(level_obj, PyInt) {
                     import_level = (level_obj as PyInt).val;
                 }
-                result = py_import_name(
-                    co.names[arg], fromlist, import_level, globals
-                );
+                result = py_import_name(co.names[arg], fromlist, import_level, globals);
             } else {
                 result = host_import(co.names[arg], fromlist);
             }
@@ -7050,8 +7062,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             fn = stack.pop();
             # globals() binds to THIS frame's namespace (a live view), which only
             # the ceval holds -- resolve it here rather than in PyNativeBuiltin.
-            if fn.t == "native_builtin"
-                and (fn as PyNativeBuiltin).name == "globals" {
+            if fn.t == "native_builtin" and (fn as PyNativeBuiltin).name == "globals" {
                 stack.append(PyGlobalsProxy(t="globals", ns=globals));
                 continue;
             }
@@ -7161,7 +7172,9 @@ def run_frame(frame: PyFrame) -> PyObj {
             if arg == 2 and isinstance(result, PyError) and raise_cause.t != "none" {
                 cause_err = py_raise_value(raise_cause);
                 if isinstance(cause_err, PyError) {
-                    (result as PyError).exception.cause = (cause_err as PyError).exception;
+                    (result as PyError).exception.cause = (
+                        cause_err as PyError
+                    ).exception;
                 }
             }
             target = recover_exception(co, result, offset, stack);

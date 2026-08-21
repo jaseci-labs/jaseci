@@ -46,6 +46,7 @@ def _vm_host_raises(setup_src, body_src):
 ::py::
 
 
+
 def host_result_key(setup: str, body: str, mode: str, key: str) -> any {
     ns = _vm_host_exec(setup, body, mode) as dict;
     return ns[key];
@@ -178,25 +179,21 @@ test "vm: CALL invokes callable" {
 # vm-opcode: OP_CALL_KW
 test "vm: CALL_KW invokes callable with keywords" {
     assert_vm_value_matches_host(
-        "def f(a, b=0):\n    return a + b\n",
-        "result = f(1, b=2)\n",
-        "exec",
-        "result",
+        "def f(a, b=0):\n    return a + b\n", "result = f(1, b=2)\n", "exec", "result",
     );
 }
 
 # vm-opcode: OP_MAKE_FUNCTION
 test "vm: MAKE_FUNCTION builds function object" {
-    assert_vm_value_matches_host("", "def f():\n    return 1\nresult = f()\n", "exec", "result");
+    assert_vm_value_matches_host(
+        "", "def f():\n    return 1\nresult = f()\n", "exec", "result"
+    );
 }
 
 # vm-opcode: OP_LOAD_BUILD_CLASS
 test "vm: LOAD_BUILD_CLASS builds class object" {
     assert_vm_value_matches_host(
-        "",
-        "class C:\n    pass\nresult = C.__name__\n",
-        "exec",
-        "result",
+        "", "class C:\n    pass\nresult = C.__name__\n", "exec", "result",
     );
 }
 
@@ -262,10 +259,7 @@ test "vm: SET_FUNCTION_ATTRIBUTE attaches closure to function" {
 
 test "vm: SET_FUNCTION_ATTRIBUTE attaches defaults to function" {
     assert_vm_value_matches_host(
-        "",
-        "def f(x, y=10):\n    return x + y\nresult = f(2)\n",
-        "exec",
-        "result",
+        "", "def f(x, y=10):\n    return x + y\nresult = f(2)\n", "exec", "result",
     );
 }
 

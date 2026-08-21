@@ -36,7 +36,10 @@ def probe_one(path: str) -> str {
         return "VALIDATE_EXC: " + str(e)[:80];
     }
     if vr.diag is not None {
-        return "VALIDATE[" + compiler_diag_kind(vr.diag) + "]: " + compiler_diag_message(vr.diag)[:80];
+        return "VALIDATE["
+            + compiler_diag_kind(vr.diag)
+            + "]: "
+            + compiler_diag_message(vr.diag)[:80];
     }
     try {
         sr = build_module_symtable(body);
@@ -44,7 +47,10 @@ def probe_one(path: str) -> str {
         return "SYMTAB_EXC: " + str(e)[:80];
     }
     if sr.diag is not None {
-        return "SYMTAB[" + compiler_diag_kind(sr.diag) + "]: " + compiler_diag_message(sr.diag)[:80];
+        return "SYMTAB["
+            + compiler_diag_kind(sr.diag)
+            + "]: "
+            + compiler_diag_message(sr.diag)[:80];
     }
     try {
         u = compile_exec(body, path, "<module>", 1, sr.top);
@@ -52,7 +58,10 @@ def probe_one(path: str) -> str {
         return "CODEGEN_EXC: " + str(e)[:100];
     }
     if u.diag is not None {
-        return "CODEGEN[" + compiler_diag_kind(u.diag) + "]: " + compiler_diag_message(u.diag)[:100];
+        return "CODEGEN["
+            + compiler_diag_kind(u.diag)
+            + "]: "
+            + compiler_diag_message(u.diag)[:100];
     }
     try {
         co = assemble(verify_cfg(u));
@@ -78,8 +87,12 @@ def probe_one(path: str) -> str {
 
 with entry {
     sys.setrecursionlimit(200000);
-    stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14";
-    args = sys.argv[1:];
+}
+
+glob stddir = "/home/jac/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14",
+     args = sys.argv[1:];
+
+with entry {
     names: list[str] = [];
     if len(args) == 0 {
         for nm in sorted(os.listdir(stddir)) {
@@ -90,9 +103,16 @@ with entry {
     } else {
         names = args;
     }
-    exclude: list[str] = [
-        "argparse.py", "codecs.py", "_pydecimal.py", "_compat_pickle.py"
-    ];
+}
+
+glob exclude: list[str] = [
+         "argparse.py",
+         "codecs.py",
+         "_pydecimal.py",
+         "_compat_pickle.py"
+     ];
+
+with entry {
     ok = 0;
     total = 0;
     for nm in names {

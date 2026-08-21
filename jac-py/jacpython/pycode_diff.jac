@@ -105,16 +105,16 @@ def compare_const(a: PyObj, b: PyObj, path: str) -> PyCodeDiff {
         return pycode_diff(a as PyCode, b as PyCode, path);
     }
     if a.t != b.t {
-        return diff_fail(
-            path,
-            "type mismatch: " + a.t + " vs " + b.t
-        );
+        return diff_fail(path, "type mismatch: " + a.t + " vs " + b.t);
     }
     if isinstance(a, PyInt) {
         if (a as PyInt).val != (b as PyInt).val {
             return diff_fail(
                 path,
-                "int mismatch: " + str((a as PyInt).val) + " vs " + str((b as PyInt).val)
+                "int mismatch: "
+                    + str((a as PyInt).val)
+                    + " vs "
+                    + str((b as PyInt).val)
             );
         }
         return diff_ok();
@@ -181,14 +181,15 @@ def compare_const(a: PyObj, b: PyObj, path: str) -> PyCodeDiff {
 
 def compare_str_list(a: list[str], b: list[str], path: str) -> PyCodeDiff {
     if len(a) != len(b) {
-        return diff_fail(path, "length mismatch: " + str(len(a)) + " vs " + str(len(b)));
+        return diff_fail(
+            path, "length mismatch: " + str(len(a)) + " vs " + str(len(b))
+        );
     }
     i = 0;
     while i < len(a) {
         if a[i] != b[i] {
             return diff_fail(
-                path + "[" + str(i) + "]",
-                "name mismatch: " + a[i] + " vs " + b[i]
+                path + "[" + str(i) + "]", "name mismatch: " + a[i] + " vs " + b[i]
             );
         }
         i = i + 1;
@@ -198,7 +199,9 @@ def compare_str_list(a: list[str], b: list[str], path: str) -> PyCodeDiff {
 
 def compare_int_list(a: list[int], b: list[int], path: str) -> PyCodeDiff {
     if len(a) != len(b) {
-        return diff_fail(path, "length mismatch: " + str(len(a)) + " vs " + str(len(b)));
+        return diff_fail(
+            path, "length mismatch: " + str(len(a)) + " vs " + str(len(b))
+        );
     }
     i = 0;
     while i < len(a) {
@@ -215,7 +218,9 @@ def compare_int_list(a: list[int], b: list[int], path: str) -> PyCodeDiff {
 
 def pycode_diff(expected: PyCode, actual: PyCode, path: str) -> PyCodeDiff {
     if expected.argcount != actual.argcount {
-        return diff_fail(path + ".argcount", str(expected.argcount) + " vs " + str(actual.argcount));
+        return diff_fail(
+            path + ".argcount", str(expected.argcount) + " vs " + str(actual.argcount)
+        );
     }
     if expected.posonlyargcount != actual.posonlyargcount {
         return diff_fail(
@@ -230,19 +235,28 @@ def pycode_diff(expected: PyCode, actual: PyCode, path: str) -> PyCodeDiff {
         );
     }
     if expected.stacksize != actual.stacksize {
-        return diff_fail(path + ".stacksize", str(expected.stacksize) + " vs " + str(actual.stacksize));
+        return diff_fail(
+            path + ".stacksize",
+            str(expected.stacksize) + " vs " + str(actual.stacksize)
+        );
     }
     if expected.flags != actual.flags {
-        return diff_fail(path + ".flags", str(expected.flags) + " vs " + str(actual.flags));
+        return diff_fail(
+            path + ".flags", str(expected.flags) + " vs " + str(actual.flags)
+        );
     }
     if expected.filename != actual.filename {
-        return diff_fail(path + ".filename", expected.filename + " vs " + actual.filename);
+        return diff_fail(
+            path + ".filename", expected.filename + " vs " + actual.filename
+        );
     }
     if expected.name != actual.name {
         return diff_fail(path + ".name", expected.name + " vs " + actual.name);
     }
     if expected.qualname != actual.qualname {
-        return diff_fail(path + ".qualname", expected.qualname + " vs " + actual.qualname);
+        return diff_fail(
+            path + ".qualname", expected.qualname + " vs " + actual.qualname
+        );
     }
     if expected.firstlineno != actual.firstlineno {
         return diff_fail(
@@ -274,14 +288,19 @@ def pycode_diff(expected: PyCode, actual: PyCode, path: str) -> PyCodeDiff {
     if not d.ok {
         return d;
     }
-    d = compare_int_list(expected.exceptiontable, actual.exceptiontable, path + ".exceptiontable");
+    d = compare_int_list(
+        expected.exceptiontable, actual.exceptiontable, path + ".exceptiontable"
+    );
     if not d.ok {
         return d;
     }
     if len(expected.consts) != len(actual.consts) {
         return diff_fail(
             path + ".consts",
-            "length mismatch: " + str(len(expected.consts)) + " vs " + str(len(actual.consts))
+            "length mismatch: "
+                + str(len(expected.consts))
+                + " vs "
+                + str(len(actual.consts))
         );
     }
     i = 0;

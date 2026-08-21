@@ -2,16 +2,8 @@
 #
 # Shortest round-trip repr: smallest ``%.*e`` precision that ``float()`` re-parses
 # to the same double, then CPython's fixed vs exponential ``'r'`` style.
-import from objects {
-    PyFloat,
-    PyInt,
-    PyObj,
-    PyStr,
-    _digit_val,
-}
-import from pyhash {
-    float_hash_value,
-}
+import from objects { PyFloat, PyInt, PyObj, PyStr, _digit_val, }
+import from pyhash { float_hash_value, }
 
 def _float_exp_suffix(s: str) -> int {
     i = 0;

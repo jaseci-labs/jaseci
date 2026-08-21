@@ -4,14 +4,7 @@
 # cut, keywords, soft keywords, invalid-rule gating, and error locations
 # using hand-written miniature rules (grammar2jac lands in P0.7).
 
-import from token_model {
-    ENDMARKER,
-    NAME,
-    NUMBER,
-    PLUS,
-    NT_OFFSET,
-    tok_diag,
-}
+import from token_model { ENDMARKER, NAME, NUMBER, PLUS, NT_OFFSET, tok_diag, }
 import from peg_runtime {
     PEG_KEYWORD_TYPE_BASE,
     peg_parser,
@@ -35,10 +28,10 @@ import from peg_runtime {
     peg_token,
 }
 
-glob RULE_TERM: int = NT_OFFSET;
-glob RULE_LR_EXPR: int = NT_OFFSET + 2;
-glob KW_AND: int = PEG_KEYWORD_TYPE_BASE + 1;
-glob KW_OR: int = PEG_KEYWORD_TYPE_BASE + 2;
+glob RULE_TERM: int = NT_OFFSET,
+     RULE_LR_EXPR: int = NT_OFFSET + 2,
+     KW_AND: int = PEG_KEYWORD_TYPE_BASE + 1,
+     KW_OR: int = PEG_KEYWORD_TYPE_BASE + 2;
 
 def _digit_val(c: str) -> int {
     digits = "0123456789";
@@ -169,12 +162,9 @@ def setup_keyword_parser(source: str) -> peg_parser {
     lists: list[list[peg_keyword_entry]] = [
         [],
         [],
-        [
-            peg_keyword_entry(spelling="or", tok_type=KW_OR),
-        ],
-        [
-            peg_keyword_entry(spelling="and", tok_type=KW_AND),
-        ],
+        [peg_keyword_entry(spelling="or", tok_type=KW_OR), ],
+        [peg_keyword_entry(spelling="and", tok_type=KW_AND), ],
+
     ];
     peg_set_keywords(p, lists);
     peg_set_soft_keywords(p, ["case"]);

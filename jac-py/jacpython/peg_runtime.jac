@@ -91,12 +91,7 @@ def peg_token_from_tok(tok: tok_token) -> peg_token {
 }
 
 def peg_token_loc(tok: peg_token) -> tok_loc {
-    return tok_loc_span(
-        tok.lineno,
-        tok.end_lineno,
-        tok.col_offset,
-        tok.end_col_offset
-    );
+    return tok_loc_span(tok.lineno, tok.end_lineno, tok.col_offset, tok.end_col_offset);
 }
 
 def _keyword_type_for(p: peg_parser, spelling: str) -> int {
@@ -127,20 +122,16 @@ def _is_soft_keyword(p: peg_parser, spelling: str) -> bool {
     return False;
 }
 
-def peg_parser_from_source(
-    source: str, filename: str, exec_input: bool
-) -> peg_parser {
+def peg_parser_from_source(source: str, filename: str, exec_input: bool) -> peg_parser {
     st = tokenizer_from_string(source, filename, exec_input);
     return peg_parser(tok=st, filename=filename);
 }
 
-def peg_set_keywords(
-    p: peg_parser, lists: list[list[peg_keyword_entry]]
-) -> None {
+def peg_set_keywords(p: peg_parser, lists: list[list[peg_keyword_entry]]) {
     p.keyword_lists = lists;
 }
 
-def peg_set_soft_keywords(p: peg_parser, words: list[str]) -> None {
+def peg_set_soft_keywords(p: peg_parser, words: list[str]) {
     p.soft_keywords = words;
 }
 
@@ -148,7 +139,7 @@ def peg_mark(p: peg_parser) -> int {
     return p.mark;
 }
 
-def peg_reset(p: peg_parser, mark: int) -> None {
+def peg_reset(p: peg_parser, mark: int) {
     p.mark = mark;
 }
 
@@ -269,11 +260,7 @@ def peg_expect_forced_token(
     if tok is not None {
         return tok;
     }
-    peg_raise_syntax_error_on_token(
-        p,
-        None,
-        f"expected '{expected}'"
-    );
+    peg_raise_syntax_error_on_token(p, None, f"expected '{expected}'");
     return None;
 }
 
@@ -281,9 +268,7 @@ def peg_expect_name(p: peg_parser) -> peg_token | None {
     return peg_expect_token(p, NAME);
 }
 
-def peg_expect_soft_keyword(
-    p: peg_parser, spelling: str
-) -> peg_token | None {
+def peg_expect_soft_keyword(p: peg_parser, spelling: str) -> peg_token | None {
     if peg_has_error(p) {
         return None;
     }
@@ -334,19 +319,9 @@ def peg_raise_syntax_error(p: peg_parser, on_next: bool, message: str) -> None {
         }
     }
     if tok is None {
-        p.error = mk_diag(
-            "SyntaxError",
-            message,
-            tok_no_loc(),
-            p.filename
-        );
+        p.error = mk_diag("SyntaxError", message, tok_no_loc(), p.filename);
     } else {
-        p.error = mk_diag(
-            "SyntaxError",
-            message,
-            peg_token_loc(tok),
-            p.filename
-        );
+        p.error = mk_diag("SyntaxError", message, peg_token_loc(tok), p.filename);
     }
     p.error_indicator = True;
 }
@@ -361,16 +336,11 @@ def peg_raise_syntax_error_on_token(
         peg_raise_syntax_error(p, False, message);
         return;
     }
-    p.error = mk_diag(
-        "SyntaxError",
-        message,
-        peg_token_loc(tok),
-        p.filename
-    );
+    p.error = mk_diag("SyntaxError", message, peg_token_loc(tok), p.filename);
     p.error_indicator = True;
 }
 
-def peg_reset_for_error_pass(p: peg_parser) -> None {
+def peg_reset_for_error_pass(p: peg_parser) {
     i = 0;
     while i < len(p.tokens) {
         p.tokens[i].memo_head = None;

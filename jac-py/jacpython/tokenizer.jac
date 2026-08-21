@@ -33,8 +33,8 @@ import from token_model {
     tok_no_loc,
 }
 
-glob TABSIZE: int = 8;
-glob MAXINDENT: int = 100;
+glob TABSIZE: int = 8,
+     MAXINDENT: int = 100;
 
 # ---------------- tokenizer state ----------------
 obj tok_state {
@@ -186,7 +186,7 @@ def _process_bol_indent(st: tok_state) -> int {
             return 1;
         }
     }
-  # EOF with only whitespace on this logical line.
+    # EOF with only whitespace on this logical line.
     if st.pos >= len(st.source) {
         st.at_bol = False;
         return 0;
@@ -346,7 +346,12 @@ def _read_number(st: tok_state) -> tok_token {
     if ch == "0" {
         _advance(st);
         nxt = _peek(st);
-        if nxt == "x" or nxt == "X" or nxt == "b" or nxt == "B" or nxt == "o" or nxt == "O" {
+        if nxt == "x"
+            or nxt == "X"
+            or nxt == "b"
+            or nxt == "B"
+            or nxt == "o"
+            or nxt == "O" {
             based = True;
             _advance(st);
             while st.pos < len(st.source) {
@@ -542,7 +547,8 @@ def _read_string(st: tok_state) -> tok_token | tok_diag {
     # the second quote is the CLOSING quote of an empty single-quoted string, not
     # part of a 2-char opener (Python has no 2-quote delimiter).
     if _peek(st) == quote
-        and st.pos + 1 < len(st.source) and st.source[st.pos + 1] == quote {
+        and st.pos + 1 < len(st.source)
+        and st.source[st.pos + 1] == quote {
         _advance(st);
         _advance(st);
         qlen = 3;
@@ -565,7 +571,9 @@ def _read_string(st: tok_state) -> tok_token | tok_diag {
                 return tok;
             }
             if ch == "\n" or ch == "\r" {
-                return _string_syntax_error(st, "EOL while scanning string literal", start_col);
+                return _string_syntax_error(
+                    st, "EOL while scanning string literal", start_col
+                );
             }
             if ch == "\\" {
                 # Backslash escapes the next char for TERMINATION scanning in raw
@@ -621,10 +629,8 @@ def _read_string(st: tok_state) -> tok_token | tok_diag {
     return _string_syntax_error(st, "EOL while scanning string literal", start_col);
 }
 
-def tokenizer_from_string(
-    source: str, filename: str, exec_input: bool
-) -> tok_state {
-  # Eval/single input: ensure a trailing newline like decode_str(single=1).
+def tokenizer_from_string(source: str, filename: str, exec_input: bool) -> tok_state {
+    # Eval/single input: ensure a trailing newline like decode_str(single=1).
     buf = source;
     if not exec_input {
         if len(buf) == 0 or buf[len(buf) - 1] != "\n" {
@@ -687,13 +693,13 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
         if ch == "#" {
             # Comment: consume to end of line (not the newline itself, which the
             # newline branch handles). Matches CPython's comment-then-NEWLINE.
-            while st.pos < len(st.source)
-                and _peek(st) != "\n" and _peek(st) != "\r" {
+            while st.pos < len(st.source) and _peek(st) != "\n" and _peek(st) != "\r" {
                 _advance(st);
             }
             continue;
         }
-        if ch == "\\" and st.pos + 1 < len(st.source)
+        if ch == "\\"
+            and st.pos + 1 < len(st.source)
             and (st.source[st.pos + 1] == "\n" or st.source[st.pos + 1] == "\r") {
             # Explicit line continuation: backslash-newline joins physical lines,
             # emitting no NEWLINE and doing no indentation processing.
@@ -806,7 +812,9 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
     );
 }
 
-def tokenize_all(source: str, filename: str, exec_input: bool) -> list[tok_token | tok_diag] {
+def tokenize_all(
+    source: str, filename: str, exec_input: bool
+) -> list[tok_token | tok_diag] {
     st = tokenizer_from_string(source, filename, exec_input);
     out: list[tok_token | tok_diag] = [];
     while True {

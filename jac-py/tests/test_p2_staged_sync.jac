@@ -32,18 +32,21 @@ test "P2 staged manifest lists ten wave-1 modules" {
     modules = manifest["modules"] as list;
     assert len(modules) == 10 , len(modules);
     stems = sorted([row["stem"] for row in modules]);
-    expected = sorted([
-        "_bisectmodule",
-        "_heapqmodule",
-        "getbuildinfo",
-        "getcompiler",
-        "getcopyright",
-        "getplatform",
-        "mysnprintf",
-        "pyfpe",
-        "pystrcmp",
-        "rotatingtree",
-    ]);
+    expected = sorted(
+        [
+            "_bisectmodule",
+            "_heapqmodule",
+            "getbuildinfo",
+            "getcompiler",
+            "getcopyright",
+            "getplatform",
+            "mysnprintf",
+            "pyfpe",
+            "pystrcmp",
+            "rotatingtree",
+
+        ]
+    );
     assert stems == expected , stems;
 }
 
@@ -67,8 +70,8 @@ test "P2 lift-staged modules match committed _lifted corpus" {
             if staged_text != lifted_text {
                 mismatches.append(
                     f"{stem}: staged {manifest['staged_dir']}/{stem}.jac "
-                    + f"!= {manifest['lifted_dir']}/{stem}.jac "
-                    + "(re-lift with lift_p2_corpus.py or copy staged oracle)"
+                        + f"!= {manifest['lifted_dir']}/{stem}.jac "
+                        + "(re-lift with lift_p2_corpus.py or copy staged oracle)"
                 );
             }
         } elif staging == "hand" {

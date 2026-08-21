@@ -5,15 +5,7 @@
 #
 # Runtime dicts use hashkey-backed ``dict[str, DictEntry]`` in ``objects.jac``.
 # Open-addressing helpers below are c2jac reference for a future native table.
-import from objects {
-    PyObj,
-    PyDict,
-    PyBool,
-    PyStr,
-    is_error,
-    py_error,
-    expect_str,
-}
+import from objects { PyObj, PyDict, PyBool, PyStr, is_error, py_error, expect_str, }
 import from abstract_protocol {
     PyObject_RichCompareBool,
     _object_is_true,
@@ -30,7 +22,7 @@ def dictkeys_get_index(indices: list[int], i: int) -> int {
     return indices[i];
 }
 
-def dictkeys_set_index(indices: list[int], i: int, ix: int) -> None {
+def dictkeys_set_index(indices: list[int], i: int, ix: int) {
     indices[i] = ix;
 }
 

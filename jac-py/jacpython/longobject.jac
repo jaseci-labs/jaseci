@@ -5,21 +5,8 @@
 #
 # Runtime ``ceval`` uses ``PyInt.val`` for bignum ops; ``long_hash_obj`` is wired.
 # Digit-vector helpers below are c2jac reference until Layer-1 replay needs them.
-import from objects {
-    PyObj,
-    PyInt,
-    PyStr,
-    PyBool,
-    is_error,
-}
-import from abstract_protocol {
-    Py_LT,
-    Py_LE,
-    Py_EQ,
-    Py_NE,
-    Py_GT,
-    Py_GE,
-}
+import from objects { PyObj, PyInt, PyStr, PyBool, is_error, }
+import from abstract_protocol { Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
 
 glob PyLong_SHIFT: int = 30,
      PyLong_MASK: int = 1073741823,
@@ -251,7 +238,8 @@ def long_sub(a: int, b: int) -> int {
 
 # ``long_compare`` — tri-state signed magnitude compare.
 def long_compare(a: int, b: int) -> int {
-    if _digit_count(a if a >= 0 else -a) <= 1 and _digit_count(b if b >= 0 else -b) <= 1 {
+    if _digit_count(a if a >= 0 else -a) <= 1
+        and _digit_count(b if b >= 0 else -b) <= 1 {
         if a < b {
             return -1;
         }
@@ -358,7 +346,8 @@ def long_hash(value: int) -> int {
     x = 0;
     i = len(digits) - 1;
     while i >= 0 {
-        x = ((x << PyLong_SHIFT) & _PyHASH_MODULUS) | (x >> (_PyHASH_BITS - PyLong_SHIFT));
+        x = ((x << PyLong_SHIFT) & _PyHASH_MODULUS)
+            | (x >> (_PyHASH_BITS - PyLong_SHIFT));
         x = x + digits[i];
         if x >= _PyHASH_MODULUS {
             x = x - _PyHASH_MODULUS;
@@ -380,4 +369,3 @@ def long_hash_obj(v: PyInt) -> PyObj {
 def int_repr(v: PyInt) -> PyObj {
     return PyStr(t="str", val=str(v.val));
 }
-
