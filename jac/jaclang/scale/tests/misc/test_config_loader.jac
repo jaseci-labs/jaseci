@@ -274,12 +274,6 @@ test "get_scale_config raises on a different project_dir instead of silently reu
 
 
 test "get_monitoring_config derives the namespace when monitoring.namespace is empty" {
-    # The sanitizer branch only runs on an explicit falsy namespace, and it
-    # raised NameError until the helper was declared (#8057). Load through
-    # get_scale_config so get_default_config's 'jaclang_scale' really is
-    # merged over jac.toml: that merge is what kept this branch unexecuted,
-    # and a defaults change that stops "" from reaching the sanitizer has to
-    # fail here.
     reset_scale_config();
     dir_mon = tempfile.mkdtemp(prefix="jac-cfg-mon-");
     try {
