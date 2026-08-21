@@ -1890,7 +1890,9 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if _alias_arch is not None and _alias_arch in self.struct_types {
         return self._codegen_instantiation(nd, type_name_override=_alias_arch);
     }
-    if func_name in self._native_skipped_methods {
+    if (
+        func_name in self._native_skipped_methods and func_name not in self.generic_fns
+    ) {
         self.emit(
             E5092,
             node_override=nd,

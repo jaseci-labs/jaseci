@@ -6,6 +6,10 @@ import os;
 
 obj NaIRGenGenerics(NaIRGenState) {
     def _mangled_of(t: any) -> (str | None);
+    def _syntactic_bind_type_params(
+        tag_node: (uni.UniNode | None), actual: any, tp_names: set, solution: dict
+    ) -> None;
+
     def _solve_generic_call(ability: uni.Ability, nd: uni.FuncCall) -> (dict | None);
     def _instantiate_generic(nd: uni.FuncCall, func_name: str) -> (ir.Function | None);
     def _stamp_mono_fn(

@@ -16,6 +16,49 @@ impl NaIRGenGenerics._mangled_of(t: any) -> (str | None) {
     return m;
 }
 
+impl NaIRGenGenerics._syntactic_bind_type_params(
+    tag_node: (uni.UniNode | None), actual: any, tp_names: set, solution: dict
+) -> None {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _SbCT }
+    } except ImportError {
+        return;
+    }
+    nd = tag_node;
+    while isinstance(nd, uni.AtomUnit) and nd.value is not None {
+        nd = nd.value;
+    }
+    if nd is None or actual is None {
+        return;
+    }
+    if isinstance(nd, uni.Name) {
+        if nd.value in tp_names and nd.value not in solution {
+            _a = actual;
+            if isinstance(_a, _SbCT)
+                and not _a.is_instance()
+                and _a.is_instantiable() {
+                _a = _a.clone_as_instance();
+            }
+            solution[nd.value] = _a;
+        }
+        return;
+    }
+    if (
+        isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.right, uni.IndexSlice)
+        and isinstance(actual, _SbCT)
+    ) {
+        _args = actual.private.type_args or [];
+        for (i, sl) in enumerate(nd.right.slices) {
+            if sl.start is not None and i < len(_args) {
+                self._syntactic_bind_type_params(
+                    sl.start, _args[i], tp_names, solution
+                );
+            }
+        }
+    }
+}
+
 impl NaIRGenGenerics._solve_generic_call(
     ability: uni.Ability, nd: uni.FuncCall
 ) -> (dict | None) {
@@ -106,6 +149,21 @@ impl NaIRGenGenerics._solve_generic_call(
             decl_t = p.type_tag.tag.type if p.type_tag?.tag else None;
         }
         unify(decl_t, chosen.type);
+        _tp_names = {
+            tp.name.value
+            for tp in (ability.type_params or [])
+            if tp?.name
+        };
+        if (
+            any(n not in solution for n in _tp_names)
+            and p?.type_tag
+            and p.type_tag is not None
+            and p.type_tag?.tag
+        ) {
+            self._syntactic_bind_type_params(
+                p.type_tag.tag, chosen.type, _tp_names, solution
+            );
+        }
     }
     for tp in (ability.type_params or []) {
         tp_name = tp.name.value if tp?.name and tp.name is not None else None;
