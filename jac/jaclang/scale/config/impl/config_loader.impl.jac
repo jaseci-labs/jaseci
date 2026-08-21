@@ -576,7 +576,9 @@ impl normalize_microservices_config(
     } else {
         try {
             import from jaclang.project.config { get_config }
-            resolved_client_entry: str = get_config().entry_point or 'main.jac';
+            cfg = get_config();
+            resolved_client_entry: str = (cfg.project.entry_point if cfg else '')
+                or 'main.jac';
         } except Exception {
             resolved_client_entry: str = 'main.jac';
         }

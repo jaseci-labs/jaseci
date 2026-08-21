@@ -161,7 +161,7 @@ impl Tool._required_params(params: dict) -> list {
     for (name, param) in sig.parameters.items() {
         if (
             name in params
-            and param.default is inspect.Parameter.empty
+            and param.`default is inspect.Parameter.empty
             and param.kind
                 in (
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,

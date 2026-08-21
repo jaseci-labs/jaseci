@@ -8,7 +8,7 @@ import from contextlib { suppress }
 glob logger: logging.Logger = logging.getLogger(__name__);
 import from enum { StrEnum }
 import from io { BytesIO }
-import from typing { Callable, TypeAlias, get_type_hints }
+import from typing { TypeAlias, get_type_hints }
 
 import from jaclang.byllm._optdeps.pillow { PILImageCls, open_image }
 import from jaclang.byllm._optdeps.litellm { LiteLLMMessage }

@@ -133,6 +133,8 @@ class TypeCheckPass(UniPass) {
     ) -> bool;
 
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
+    def _install_client_state_setters(self: TypeCheckPass) -> None;
+    def _client_state_field_owner(self: TypeCheckPass, nd: HasVar) -> (Ability | None);
     def enter_ability(self: TypeCheckPass, nd: Ability) -> None;
     def exit_ability(self: TypeCheckPass, nd: Ability) -> None;
     def enter_lambda_expr(self: TypeCheckPass, nd: LambdaExpr) -> None;

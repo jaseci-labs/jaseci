@@ -1,6 +1,5 @@
 import inspect;
 import logging;
-import from collections.abc { AsyncIterator, Iterator }
 import from json { dumps, loads }
 import from jaclang.runtimelib.serving.streams { close_stream_like }
 
@@ -36,11 +35,11 @@ async def _sse_frame_stream_inner(source: any) -> AsyncIterator[str] {
     try {
         if inspect.isasyncgen(source) or hasattr(source, '__aiter__') {
             async for item in source {
-                yield format_sse_event(dumps(item, default=_sse_json_default));
+                yield format_sse_event(dumps(item, `default=_sse_json_default));
             }
         } else {
             for item in source {
-                yield format_sse_event(dumps(item, default=_sse_json_default));
+                yield format_sse_event(dumps(item, `default=_sse_json_default));
             }
         }
         yield format_sse_event('{}', event='end');
@@ -49,7 +48,7 @@ async def _sse_frame_stream_inner(source: any) -> AsyncIterator[str] {
         yield format_sse_event(
             dumps(
                 {'error_type': type(e).__name__, 'message': str(e)},
-                default=_sse_json_default
+                `default=_sse_json_default
             ),
             event='error'
         );
