@@ -307,6 +307,534 @@ test "P3 listobject_core lift: tier_b ratchet and empty quarantine (P3.2a)" {
 }
 
 
+test "P3 methodobject_core lift: tier_b ratchet and empty quarantine (P3.2b)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "methodobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 descrobject_core lift: tier_b ratchet and empty quarantine (P3.2b)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "descrobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 floatobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "floatobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 complexobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "complexobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 rangeobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "rangeobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 enumobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "enumobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 cellobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "cellobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 funcobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "funcobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 iterobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "iterobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 classobject_core lift: tier_b ratchet and empty quarantine (P3.2c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "classobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 codeobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "codeobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 moduleobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "moduleobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 weakrefobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "weakrefobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 bytearrayobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "bytearrayobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 memoryobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "memoryobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 frameobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "frameobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 genobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "genobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 odictobject_core lift: tier_b ratchet and empty quarantine (P3.2d)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "odictobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 unionobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "unionobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 namespaceobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "namespaceobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 capsule_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "capsule_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 structseq_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "structseq_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 fileobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "fileobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 call_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "call_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 bytes_methods_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "bytes_methods_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 picklebufobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "picklebufobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 genericaliasobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "genericaliasobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 typevarobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "typevarobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 interpolationobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "interpolationobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 templateobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "templateobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 object_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "object_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 unicodectype_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "unicodectype_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 unicodeobject_core lift: tier_b ratchet and empty quarantine (P3.2e)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "unicodeobject_core");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
+    assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
+    assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
 test "P3 manifest: runtime_probe wired for every lift stem (M11)" {
     manifest = _load_json(MANIFEST_PATH);
     for spec in manifest["c2jac_objects_wave"] as list {
