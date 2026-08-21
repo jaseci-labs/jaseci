@@ -6,6 +6,7 @@ import queue as queue_lib;
 import from base64 { b64encode }
 import from concurrent.futures { ThreadPoolExecutor }
 import from json { dumps, loads }
+import from typing { AsyncIterator }
 import from urllib.parse { urlencode, urlsplit }
 import from jaclang.runtimelib.serving.datatypes { Headers }
 import from jaclang.runtimelib.serving.sse { parse_sse }
@@ -174,6 +175,15 @@ async def _open_stream(
 }
 
 async def _read_response_head(reader: any, timeout: float) -> tuple[int, str, Headers] {
+    while True {
+        (status, reason, headers) = await _read_one_head(reader, timeout);
+        if not (100 <= status < 200) or status == 101 {
+            return (status, reason, headers);
+        }
+    }
+}
+
+async def _read_one_head(reader: any, timeout: float) -> tuple[int, str, Headers] {
     try {
         status_line: bytes = await asyncio.wait_for(reader.readline(), timeout=timeout);
     } except asyncio.TimeoutError {
@@ -250,7 +260,7 @@ async def arequest(
     url: str,
     headers: (dict | None) = None,
     json_body: any = None,
-    data: any = None,
+    data: (bytes | str | AsyncIterator[bytes] | None) = None,
     timeout: float = DEFAULT_TIMEOUT,
     stream: bool = False,
     params: (dict | None) = None

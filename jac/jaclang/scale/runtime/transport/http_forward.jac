@@ -1,4 +1,5 @@
 import logging;
+import from typing { AsyncIterator }
 import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
 import from jaclang.runtimelib.serving.datatypes { Response, StreamingResponse }
 
@@ -72,7 +73,11 @@ impl ForwardResult.cleanup -> None {
 
 
 async def stream_forward(
-    method: str, url: str, headers: dict[str, str], body: any, timeout: int = 30
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    body: (bytes | AsyncIterator[bytes]),
+    timeout: int = 30
 ) -> ForwardResult | None {
     try {
         resp = await arequest(

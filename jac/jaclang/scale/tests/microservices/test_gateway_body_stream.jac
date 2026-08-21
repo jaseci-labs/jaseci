@@ -182,6 +182,29 @@ test "a body that fails part way is not reported as an upstream failure" {
 }
 
 
+test "an upload that asks for 100-continue still gets the real response" {
+    async def scenario -> dict {
+        (stop, base) = _spawn_upstream(200);
+        try {
+            reg = ServiceRegistry();
+            _register(reg, "orders", "/api/orders", base);
+            gw = MicroserviceGateway(registry=reg);
+            request = _streaming_request("/api/orders/walker/sink", True);
+            request.headers.append("Expect", "100-continue");
+            resp = await gw.forward_to(
+                request, reg.entries["orders"], f"{base}/walker/sink"
+            );
+            return {"status": resp.status_code, "seen": await _drain(resp)};
+        } finally {
+            stop();
+        }
+    }
+    result = _run(scenario());
+    assert result["status"] == 200 , result;
+    assert result["seen"] == str(len(_PART) * _PARTS) , result;
+}
+
+
 test "builtin passthrough still replays the body past a service that declines" {
     async def scenario -> dict {
         (stop_a, base_a) = _spawn_upstream(404);

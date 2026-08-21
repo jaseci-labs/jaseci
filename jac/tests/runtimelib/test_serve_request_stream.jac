@@ -268,6 +268,89 @@ test "a body that failed once stays failed and keeps the connection closed" {
 }
 
 
+test "a request that never finishes its declared body does not pin a connection" {
+    app = _build_app();
+    server = ServingServer(app=app, host="127.0.0.1", port=0, body_timeout=0.4);
+    stop = server.serve_background();
+    try {
+        sock = socket.create_connection(("127.0.0.1", server.bound_port), timeout=10);
+        try {
+            sock.sendall(
+                b"POST /sink HTTP/1.1\r\nHost: x\r\nContent-Length: 4096\r\n\r\n"
+            );
+            sock.sendall(b"z" * 8);
+            sock.settimeout(10);
+            leftover = b"";
+            while True {
+                part = sock.recv(65536);
+                if not part {
+                    break;
+                }
+                leftover += part;
+            }
+        } finally {
+            sock.close();
+        }
+    } finally {
+        stop();
+    }
+    assert b"500" not in leftover , leftover;
+}
+
+
+test "a body that failed cannot be forwarded as an empty one" {
+    async def failing -> any {
+        yield b"partial";
+        raise HTTPError(status_code=413, detail="Payload Too Large");
+    }
+
+    async def scenario -> dict {
+        request = Request(method="POST");
+        request.stream = failing();
+        try {
+            await request.load_body();
+        } except HTTPError {
+            ;
+        }
+        status = 0;
+        try {
+            request.body_source();
+        } except HTTPError as he {
+            status = he.status_code;
+        }
+        return {"status": status};
+    }
+    loop = asyncio.new_event_loop();
+    try {
+        result = loop.run_until_complete(scenario());
+    } finally {
+        loop.close();
+    }
+    assert result["status"] == 400 , "a failed body was handed out as a source";
+}
+
+
+test "json() materialises a streamed body instead of reporting nothing" {
+    async def parts -> any {
+        yield b'{"a":';
+        yield b" 1}";
+    }
+
+    async def scenario -> any {
+        request = Request(method="POST");
+        request.stream = parts();
+        return await request.json();
+    }
+    loop = asyncio.new_event_loop();
+    try {
+        parsed = loop.run_until_complete(scenario());
+    } finally {
+        loop.close();
+    }
+    assert parsed == {"a": 1} , parsed;
+}
+
+
 test "keep-alive survives back-to-back requests that carry bodies" {
     app = _build_app();
     server = ServingServer(app=app, host="127.0.0.1", port=0);

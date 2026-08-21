@@ -192,12 +192,12 @@ obj Request {
         query_params: QueryParams = QueryParams(),
         path_params: dict[(str, str)] = {},
         body: bytes = b'',
-        stream: any = None,
-        _body_failed: bool = False,
         state: State = State(),
         client_host: str = '',
         form_fields: dict[(str, list[str])] = {},
-        upload_files: dict[(str, list[UploadFile])] = {};
+        upload_files: dict[(str, list[UploadFile])] = {},
+        stream: any = None,
+        _body_failed: bool = False;
 
     async def load_body -> bytes {
         if self._body_failed {
@@ -220,6 +220,9 @@ obj Request {
     }
 
     def body_source -> any {
+        if self._body_failed {
+            raise HTTPError(status_code=400, detail='Bad Request');
+        }
         return self.stream if self.stream is not None else self.body;
     }
 
@@ -228,6 +231,7 @@ obj Request {
     }
 
     async def json -> any {
+        await self.load_body();
         return self.json_sync();
     }
 

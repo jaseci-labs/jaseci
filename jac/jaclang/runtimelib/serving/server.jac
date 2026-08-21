@@ -51,9 +51,13 @@ def _declared_body_length(headers: Headers) -> (int | None) {
 }
 
 
-async def _read_exact(reader: asyncio.StreamReader, count: int) -> bytes {
+async def _read_exact(
+    reader: asyncio.StreamReader, count: int, timeout: float
+) -> bytes {
     try {
-        return await reader.readexactly(count);
+        return await asyncio.wait_for(reader.readexactly(count), timeout=timeout);
+    } except asyncio.TimeoutError {
+        raise ClientDisconnected(detail='stalled mid-body');
     } except asyncio.IncompleteReadError {
         raise HTTPError(status_code=400, detail='Bad Request');
     } except ConnectionError as e {
@@ -62,11 +66,9 @@ async def _read_exact(reader: asyncio.StreamReader, count: int) -> bytes {
 }
 
 
-async def _read_body_line(reader: asyncio.StreamReader) -> bytes {
+async def _read_body_line(reader: asyncio.StreamReader, timeout: float) -> bytes {
     try {
-        return await asyncio.wait_for(
-            reader.readline(), timeout=HEADER_TIMEOUT_SECONDS
-        );
+        return await asyncio.wait_for(reader.readline(), timeout=timeout);
     } except asyncio.TimeoutError {
         raise ClientDisconnected(detail='stalled mid-body');
     } except ConnectionError as e {
@@ -76,12 +78,16 @@ async def _read_body_line(reader: asyncio.StreamReader) -> bytes {
 
 
 async def _stream_request_body(
-    reader: asyncio.StreamReader, request: Request, length: int, limit: int
+    reader: asyncio.StreamReader,
+    request: Request,
+    length: int,
+    limit: int,
+    timeout: float
 ) -> any {
     if length == CHUNKED_LENGTH {
         total = 0;
         while True {
-            size_line: bytes = await _read_body_line(reader);
+            size_line: bytes = await _read_body_line(reader, timeout);
             size_text = size_line.decode('latin-1').strip().split(';')[0];
             int_fn: any = int;
             try {
@@ -91,7 +97,7 @@ async def _stream_request_body(
             }
             if size == 0 {
                 while True {
-                    trailer: bytes = await _read_body_line(reader);
+                    trailer: bytes = await _read_body_line(reader, timeout);
                     if trailer in (b'\r\n', b'\n', b'') {
                         break;
                     }
@@ -102,14 +108,16 @@ async def _stream_request_body(
             if total > limit {
                 raise HTTPError(status_code=413, detail='Payload Too Large');
             }
-            chunk: bytes = await _read_exact(reader, size);
-            await _read_exact(reader, 2);
+            chunk: bytes = await _read_exact(reader, size, timeout);
+            await _read_exact(reader, 2, timeout);
             yield chunk;
         }
     } else {
         remaining = length;
         while remaining > 0 {
-            block: bytes = await _read_exact(reader, min(BODY_CHUNK_BYTES, remaining));
+            block: bytes = await _read_exact(
+                reader, min(BODY_CHUNK_BYTES, remaining), timeout
+            );
             remaining -= len(block);
             yield block;
         }
@@ -154,6 +162,7 @@ obj ServingServer {
         port: int = 8000,
         drain_timeout: float = 10.0,
         max_body_bytes: int = MAX_BODY_BYTES,
+        body_timeout: float = HEADER_TIMEOUT_SECONDS,
         ws_allowed_origins: list[str] = [],
         ws_max_message_bytes: int = 0,
         bound_port: int = 0,
@@ -434,7 +443,7 @@ obj ServingServer {
             );
             if declared != 0 {
                 request.stream = _stream_request_body(
-                    reader, request, declared, self.max_body_bytes
+                    reader, request, declared, self.max_body_bytes, self.body_timeout
                 );
             }
             return (request, http_version);
