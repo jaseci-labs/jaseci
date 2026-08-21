@@ -13,6 +13,14 @@ obj HTTPError(Exception) {
     }
 }
 
+obj ClientDisconnected(Exception) {
+    has detail: str = '';
+
+    def __str__ -> str {
+        return self.detail or 'client disconnected';
+    }
+}
+
 obj WebSocketDisconnect(Exception) {
     has code: int = 1000;
 
@@ -185,16 +193,25 @@ obj Request {
         path_params: dict[(str, str)] = {},
         body: bytes = b'',
         stream: any = None,
+        _body_failed: bool = False,
         state: State = State(),
         client_host: str = '',
         form_fields: dict[(str, list[str])] = {},
         upload_files: dict[(str, list[UploadFile])] = {};
 
     async def load_body -> bytes {
+        if self._body_failed {
+            raise HTTPError(status_code=400, detail='Bad Request');
+        }
         if self.stream is not None {
             chunks: list[bytes] = [];
-            async for chunk in self.stream {
-                chunks.append(chunk);
+            try {
+                async for chunk in self.stream {
+                    chunks.append(chunk);
+                }
+            } except Exception {
+                self._body_failed = True;
+                raise;
             }
             self.body = b''.join(chunks);
             self.stream = None;
@@ -204,6 +221,10 @@ obj Request {
 
     def body_source -> any {
         return self.stream if self.stream is not None else self.body;
+    }
+
+    def body_unread -> bool {
+        return self.stream is not None or self._body_failed;
     }
 
     async def json -> any {

@@ -11,6 +11,7 @@ import from jaclang.runtimelib.serving.coerce {
     filter_kwargs_for_callback
 }
 import from jaclang.runtimelib.serving.datatypes {
+    ClientDisconnected,
     HTTPError,
     JSONResponse,
     RedirectResponse,
@@ -205,7 +206,7 @@ obj ServingApp {
             return JSONResponse(
                 content={'detail': he.detail}, status_code=he.status_code
             );
-        } except (ConnectionError, asyncio.IncompleteReadError) {
+        } except ClientDisconnected {
             raise;
         } except Exception as exc {
             _logger.error(

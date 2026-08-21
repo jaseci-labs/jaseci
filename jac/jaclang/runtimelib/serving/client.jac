@@ -207,7 +207,22 @@ async def _read_response_head(reader: any, timeout: float) -> tuple[int, str, He
     return (status, reason, headers);
 }
 
-async def _pump_body(writer: any, body_stream: any, chunked: bool) {
+def _as_length(declared: (str | None)) -> (int | None) {
+    if declared is None {
+        return None;
+    }
+    try {
+        return int(declared);
+    } except ValueError {
+        return None;
+    }
+}
+
+
+async def _pump_body(
+    writer: any, body_stream: any, chunked: bool, declared: (int | None) = None
+) {
+    sent = 0;
     async for chunk in body_stream {
         if not chunk {
             continue;
@@ -217,10 +232,15 @@ async def _pump_body(writer: any, body_stream: any, chunked: bool) {
         } else {
             writer.write(chunk);
         }
+        sent += len(chunk);
         await writer.drain();
     }
     if chunked {
         writer.write(b'0\r\n\r\n');
+    } elif declared is not None and sent != declared {
+        raise ClientRequestSent(
+            detail=f"body was framed as {declared} bytes but {sent} were sent"
+        );
     }
 }
 
@@ -295,7 +315,9 @@ async def arequest(
             writer.write(blob + body);
         } else {
             writer.write(blob);
-            await _pump_body(writer, body_stream, chunked_upload);
+            await _pump_body(
+                writer, body_stream, chunked_upload, _as_length(declared_length)
+            );
         }
         await writer.drain();
         (status, reason, resp_headers) = await _read_response_head(reader, timeout);

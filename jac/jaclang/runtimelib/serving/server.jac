@@ -5,6 +5,7 @@ import threading;
 import from urllib.parse { unquote, urlsplit }
 import from jaclang.runtimelib.serving.app { ServingApp }
 import from jaclang.runtimelib.serving.datatypes {
+    ClientDisconnected,
     Headers,
     HTTPError,
     QueryParams,
@@ -55,6 +56,21 @@ async def _read_exact(reader: asyncio.StreamReader, count: int) -> bytes {
         return await reader.readexactly(count);
     } except asyncio.IncompleteReadError {
         raise HTTPError(status_code=400, detail='Bad Request');
+    } except ConnectionError as e {
+        raise ClientDisconnected(detail=str(e));
+    }
+}
+
+
+async def _read_body_line(reader: asyncio.StreamReader) -> bytes {
+    try {
+        return await asyncio.wait_for(
+            reader.readline(), timeout=HEADER_TIMEOUT_SECONDS
+        );
+    } except asyncio.TimeoutError {
+        raise ClientDisconnected(detail='stalled mid-body');
+    } except ConnectionError as e {
+        raise ClientDisconnected(detail=str(e));
     }
 }
 
@@ -65,9 +81,7 @@ async def _stream_request_body(
     if length == CHUNKED_LENGTH {
         total = 0;
         while True {
-            size_line: bytes = await asyncio.wait_for(
-                reader.readline(), timeout=HEADER_TIMEOUT_SECONDS
-            );
+            size_line: bytes = await _read_body_line(reader);
             size_text = size_line.decode('latin-1').strip().split(';')[0];
             int_fn: any = int;
             try {
@@ -77,7 +91,7 @@ async def _stream_request_body(
             }
             if size == 0 {
                 while True {
-                    trailer: bytes = await reader.readline();
+                    trailer: bytes = await _read_body_line(reader);
                     if trailer in (b'\r\n', b'\n', b'') {
                         break;
                     }
@@ -283,7 +297,12 @@ obj ServingServer {
         self._active.add(task);
         try {
             await self._connection_loop(reader, writer);
-        } except (ConnectionError, asyncio.IncompleteReadError, TimeoutError) {
+        } except (
+            ClientDisconnected,
+            ConnectionError,
+            asyncio.IncompleteReadError,
+            TimeoutError
+        ) {
             ;
         } except Exception {
             _logger.exception("connection handler failed");
@@ -397,6 +416,9 @@ obj ServingServer {
                 await self._bare_error(writer, 400, 'Bad Request');
                 return None;
             }
+            if declared == CHUNKED_LENGTH {
+                headers.remove('Content-Length');
+            }
             if declared > self.max_body_bytes {
                 await self._bare_error(writer, 413, 'Payload Too Large');
                 return None;
@@ -489,7 +511,7 @@ obj ServingServer {
     }
 
     def _should_keep_alive(request: Request, http_version: str) -> bool {
-        if request.stream is not None {
+        if request.body_unread() {
             return False;
         }
         connection = (request.headers.get('Connection') or '').lower();

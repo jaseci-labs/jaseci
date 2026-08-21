@@ -7,9 +7,10 @@ materialises on demand, which keeps pure forwarders at a constant footprint
 while ordinary endpoints still see request.body exactly as before.
 """
 
+import asyncio;
 import socket;
 import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { Request, Response }
+import from jaclang.runtimelib.serving.datatypes { HTTPError, Request, Response }
 import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
 import from jaclang.runtimelib.serving.server { ServingServer }
 
@@ -179,6 +180,91 @@ test "a body that stops short of its declared length is a client error" {
         stop();
     }
     assert "400 Bad Request" in reply , reply;
+}
+
+
+test "a chunked body drops the Content-Length that contradicts it" {
+    seen: dict[str, any] = {};
+
+    def echo_declared(request: Request) -> Response {
+        seen["declared"] = request.headers.get("Content-Length");
+        return Response(content=str(len(request.body)), media_type="text/plain");
+    }
+    app = ServingApp();
+    app.add_endpoint(
+        JEndPoint(method=HTTPMethod.POST, path="/sink", callback=echo_declared)
+    );
+    server = ServingServer(app=app, host="127.0.0.1", port=0);
+    stop = server.serve_background();
+    try {
+        blob = (
+            b"POST /sink HTTP/1.1\r\nHost: x\r\n"
+            + b"Content-Length: 8\r\nTransfer-Encoding: chunked\r\n\r\n"
+            + b"400\r\n"
+            + b"q" * 1024
+            + b"\r\n0\r\n\r\n"
+        );
+        reply = _exchange(server.bound_port, blob);
+    } finally {
+        stop();
+    }
+    assert "200 OK" in reply , reply;
+    assert reply.endswith("1024") , reply;
+    assert seen["declared"] is None , "a stale Content-Length reached the handler";
+}
+
+
+test "an endpoint that cannot reach a downstream still answers 500" {
+    def refuse(request: Request) -> Response {
+        raise ConnectionRefusedError("downstream is down");
+    }
+    app = ServingApp();
+    app.add_endpoint(JEndPoint(method=HTTPMethod.GET, path="/call", callback=refuse));
+    server = ServingServer(app=app, host="127.0.0.1", port=0);
+    stop = server.serve_background();
+    try {
+        blob = b"GET /call HTTP/1.1\r\nHost: x\r\n\r\n";
+        reply = _exchange(server.bound_port, blob);
+    } finally {
+        stop();
+    }
+    assert "500" in reply , reply;
+    assert "ConnectionRefusedError" in reply , reply;
+}
+
+
+test "a body that failed once stays failed and keeps the connection closed" {
+    async def failing -> any {
+        yield b"partial";
+        raise HTTPError(status_code=413, detail="Payload Too Large");
+    }
+
+    async def scenario -> dict {
+        request = Request(method="POST");
+        request.stream = failing();
+        first = "";
+        try {
+            await request.load_body();
+        } except HTTPError as he {
+            first = str(he.status_code);
+        }
+        second = "";
+        try {
+            await request.load_body();
+        } except HTTPError as he {
+            second = str(he.status_code);
+        }
+        return {"first": first, "second": second, "unread": request.body_unread()};
+    }
+    loop = asyncio.new_event_loop();
+    try {
+        result = loop.run_until_complete(scenario());
+    } finally {
+        loop.close();
+    }
+    assert result["first"] == "413" , result;
+    assert result["second"] != "" , "a second read silently returned an empty body";
+    assert result["unread"] , "a failed body was treated as fully read";
 }
 
 
