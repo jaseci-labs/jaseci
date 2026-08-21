@@ -3903,6 +3903,50 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
             }
             return None;
         }
+        if _base == "Callable" {
+            # Both spellings arrive here: Callable[([a, b], R)] puts one
+            # tuple in one slice; Callable[[a, b], R] puts the list and the
+            # return in two slices.
+            _fnslices = nd.right.slices;
+            _fnparams_nd: (uni.UniNode | None) = None;
+            _fnret_nd: (uni.UniNode | None) = None;
+            if len(_fnslices) == 2
+                and _fnslices[0].start is not None
+                and _fnslices[1].start is not None {
+                _fnparams_nd = _fnslices[0].start;
+                _fnret_nd = _fnslices[1].start;
+            } elif _fnslices and _fnslices[0].start is not None {
+                _fnargs = _fnslices[0].start;
+                if isinstance(_fnargs, uni.AtomUnit) and _fnargs.value is not None {
+                    _fnargs = _fnargs.value;
+                }
+                if isinstance(_fnargs, uni.TupleVal) and len(_fnargs.values) == 2 {
+                    _fnparams_nd = _fnargs.values[0];
+                    _fnret_nd = _fnargs.values[1];
+                }
+            }
+            if _fnparams_nd is not None and _fnret_nd is not None {
+                if isinstance(_fnparams_nd, uni.AtomUnit)
+                    and _fnparams_nd.value is not None {
+                    _fnparams_nd = _fnparams_nd.value;
+                }
+                _fnret = self._lower_untyped_annotation(_fnret_nd);
+                if _fnret is None {
+                    _fnret = ir.VoidType();
+                }
+                _fnparams: list[ir.Type] = [];
+                if isinstance(_fnparams_nd, uni.ListVal) {
+                    for _fp in _fnparams_nd.values {
+                        _fpl = self._lower_untyped_annotation(_fp);
+                        _fnparams.append(
+                            _fpl if _fpl is not None else ir.IntType(64)
+                        );
+                    }
+                    return ir.FunctionType(_fnret, _fnparams).as_pointer();
+                }
+            }
+            return None;
+        }
         if _base == "dict" {
             _dslices = nd.right.slices;
             if _dslices and _dslices[0].start is not None {
