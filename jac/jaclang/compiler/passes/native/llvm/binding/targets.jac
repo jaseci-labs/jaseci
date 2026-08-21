@@ -240,7 +240,7 @@ class Target(ffi.ObjectRef) {
         Create a Target instance for the given triple (a string).
         """
     @classmethod
-    def from_triple(cls: any, triple: any) -> object {
+    def from_triple(cls: any, triple: any) -> Target {
         with ffi.OutputString() as outerr {
             target = ffi.lib.LLVMPY_GetTargetFromTriple(triple.encode('utf8'), outerr);
             if not target {
@@ -298,7 +298,7 @@ class Target(ffi.ObjectRef) {
         printmc: any = False,
         jit: any = False,
         abiname: any = ''
-    ) -> object {
+    ) -> TargetMachine {
         assert (0 <= opt <= 3);
         assert (reloc in RELOC);
         assert (codemodel in CODEMODEL);
@@ -350,7 +350,7 @@ class TargetMachine(ffi.ObjectRef) {
         Represent the module as a code object, suitable for use with
         the platform's linker.  Returns a byte string.
         """
-    def emit_object(self: TargetMachine, module: any) -> object {
+    def emit_object(self: TargetMachine, module: any) -> bytes {
         return self._emit_to_memory(module, use_object=True);
     }
 
@@ -372,7 +372,7 @@ class TargetMachine(ffi.ObjectRef) {
         """
     def _emit_to_memory(
         self: TargetMachine, module: any, use_object: any = False
-    ) -> object {
+    ) -> bytes {
         with ffi.OutputString() as outerr {
             mb = ffi.lib.LLVMPY_TargetMachineEmitToMemory(
                 self, module, int(use_object), outerr
