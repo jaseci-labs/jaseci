@@ -4,7 +4,8 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceEntry
 }
 
-glob _rt_logger = logging.getLogger(__name__);
+glob _rt_logger = logging.getLogger(__name__),
+     _SPEC_PROBE_TIMEOUT_SECONDS: float = 1.0;
 
 
 def literal_prefix(template: str) -> str {
@@ -60,7 +61,9 @@ async def learn_service_routes(
     answers: dict[str, SpecFetch] = {};
 
     async def ask(name: str, service_entry: ServiceEntry) {
-        answers[name] = await fetch_service_spec(service_entry);
+        answers[name] = await fetch_service_spec(
+            service_entry, timeout=_SPEC_PROBE_TIMEOUT_SECONDS
+        );
     }
     await asyncio.gather(
         *[ask(name, service_entry) for (name, service_entry) in due],

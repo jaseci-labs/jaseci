@@ -1776,7 +1776,7 @@ test "a fleet that publishes no specs keeps walker discovery by probing" {
 }
 
 
-test "identity fallthrough POST is delivered at most once" {
+test "identity fallthrough POST is delivered exactly once" {
     hits_a: dict = {};
     hits_b: dict = {};
     (srv_a, port_a) = _start_backend(hits_a, {});
@@ -1793,8 +1793,8 @@ test "identity fallthrough POST is delivered at most once" {
             hits_a.get("POST /user/verify-identity", 0)
             + hits_b.get("POST /user/verify-identity", 0)
         );
-        assert total <= 1 , (
-            f"credential-bearing body must never fan out, reached {total} services"
+        assert total == 1 , (
+            f"credential-bearing body must reach exactly one service, reached {total}"
         );
     } finally {
         _stop_backend(srv_a);

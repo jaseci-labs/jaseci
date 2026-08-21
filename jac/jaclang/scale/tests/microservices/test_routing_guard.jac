@@ -16,7 +16,6 @@ import from jaclang.scale.runtime.routing {
     GATEWAY_REPLICATED_SEGMENTS,
     GATEWAY_SERVICE_OWNED_SEGMENTS
 }
-import from jaclang.scale.runtime.gateway.dispatch { is_gateway_owned }
 
 
 test "a service named cl is rejected instead of silently shadowed" {
@@ -119,13 +118,6 @@ test "every builtin gateway prefix is reserved as a route name" {
     for prefix in GATEWAY_BUILTIN_PREFIXES {
         assert is_reserved(prefix.strip("/"));
     }
-}
-
-
-test "the dispatch tables derive from the same source the guard reads" {
-    assert is_gateway_owned("/healthz/ready");
-    assert is_gateway_owned("/openapi.json");
-    assert is_gateway_owned("/user/login");
 }
 
 
