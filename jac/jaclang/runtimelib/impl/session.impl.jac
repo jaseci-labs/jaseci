@@ -266,7 +266,11 @@ impl Session.postinit -> None {
                 auto_schema=True
             );
             if lease.reset {
-                pgs.pending_reset = True;
+                if lease.runtime.is_running() {
+                    pgs.reset_data();
+                } else {
+                    pgs.pending_reset = True;
+                }
             }
             self.store = pgs;
         }
