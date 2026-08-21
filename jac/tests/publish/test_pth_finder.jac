@@ -185,7 +185,8 @@ test "a child jac inherits its parent's dev source when no stanza is in scope" {
         assert _override_result(None, None, inherited=parent_src) == parent_src , "an inherited JAC_DEV_SOURCE must reroute a child with no stanza in scope";
         assert _override_result(baked, None, inherited=parent_src) == parent_src , "the parent's source must beat the baked link";
         assert _override_result(baked, toml_src, inherited=parent_src) == toml_src , "the nearest jac.toml [dev] stanza must beat an inherited source";
-        assert _override_result(baked, None, no_dev_env=True, inherited=parent_src) == baked , "JAC_NO_DEV_SOURCE must suppress the inherited loop, not the baked link";
+        assert _override_result(baked, None, no_dev_env=True, inherited=parent_src)
+            == baked , "JAC_NO_DEV_SOURCE must suppress the inherited loop, not the baked link";
     } finally {
         shutil.rmtree(parent_src, ignore_errors=True);
         shutil.rmtree(baked, ignore_errors=True);
