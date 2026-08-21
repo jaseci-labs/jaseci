@@ -394,7 +394,7 @@ def _parse_value(token: str) -> object {
 def _parse_kwargs(argstr: str) -> dict {
     out: dict = {};
     for part in _split_top_level(argstr) {
-        m = re.match("\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*[:=]\\s*", part);
+        m = re.`match("\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*[:=]\\s*", part);
         if m is None {
             continue;
         }

@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
@@ -58,6 +57,7 @@ import from jaclang.jac0core.diagnostics {
     W2075,
     E1122,
     E1123,
+    E1125,
     E2018,
     E2027,
     E2055,
@@ -233,6 +233,15 @@ glob BUILTIN_NAMES: set[str] = {
          'Tuple': 'tuple',
          'Type': 'type'
      };
+
+def is_bootstrap_compiled_module(mod_path: str) -> bool {
+    return "/jaclang/jac0core/" in mod_path.replace("\\", "/");
+}
+
+def is_ambient_provider_module(mod_path: str) -> bool {
+    return (mod_path.endswith("builtin.jac") or mod_path.endswith("builtin.py"))
+        and "runtimelib" in mod_path;
+}
 
 obj StaticAnalysisPass(Transform) {
     has ir_in: Module,

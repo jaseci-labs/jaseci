@@ -79,6 +79,19 @@ def k8s_safe_name(svc_name: str) -> str {
 }
 
 
+def pdb_spec(
+    replica_floor: int, max_unavailable: int, min_available: (int | None) = None
+) -> dict[str, any] | None {
+    if min_available is not None {
+        return {"minAvailable": min_available};
+    }
+    if max_unavailable >= replica_floor {
+        return None;
+    }
+    return {"maxUnavailable": max_unavailable};
+}
+
+
 def _is_named_list(items: list) -> bool {
     if not items {
         return False;
@@ -540,9 +553,9 @@ obj ManifestBuilder {
                 return [];
             }
             out: list[dict[str, any]] = [];
-            for entry in raw {
-                if isinstance(entry, dict) {
-                    out.append(dict(entry));
+            for `entry in raw {
+                if isinstance(`entry, dict) {
+                    out.append(dict(`entry));
                 }
             }
             return out;
@@ -740,8 +753,8 @@ obj ManifestBuilder {
             env.append({"name": key, "value": self._peer_dns_url(peer_name)});
         }
 
-        for entry in self.deploy_context.env_list {
-            env.append(entry);
+        for `entry in self.deploy_context.env_list {
+            env.append(`entry);
         }
 
         extra: dict[str, any] = svc_cfg.get("env", {});
@@ -1057,13 +1070,42 @@ obj ManifestBuilder {
         };
     }
 
+    def _replica_floor(svc_name: str) -> int {
+        svc_cfg = self._service_config(svc_name);
+        hpa: dict[str, any] = dict(svc_cfg.get("hpa", {}));
+        if hpa.get("enabled", True) {
+            return int(hpa.get("min", 1));
+        }
+        return int(svc_cfg.get("replicas", 1));
+    }
+
     def _build_pdb_manifest(svc_name: str) -> dict[str, any] | None {
         cfg: dict[str, any] = self._service_config(svc_name).get("pdb", {});
         if not cfg.get("enabled", True) {
             return None;
         }
+        floor = self._replica_floor(svc_name);
+        raw_min = cfg.get("min_available", None);
+        spec = pdb_spec(
+            floor,
+            int(cfg.get("max_unavailable", 1)),
+            None if raw_min is None else int(raw_min)
+        );
+        if spec is None {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': "
+                    f"max_unavailable={int(cfg.get('max_unavailable', 1))} at a "
+                    f"replica floor of {floor} would permit evicting every "
+                    f"replica, so the budget would protect nothing. Raise "
+                    f"hpa.min, or set pdb.min_available to refuse voluntary "
+                    f"disruption instead."
+                );
+            }
+            return None;
+        }
         k8s_name = k8s_safe_name(svc_name);
-        max_u: int = int(cfg.get("max_unavailable", 1));
+        spec["selector"] = {"matchLabels": {"app": k8s_name}};
         return {
             "apiVersion": "policy/v1",
             "kind": "PodDisruptionBudget",
@@ -1072,10 +1114,7 @@ obj ManifestBuilder {
                 "namespace": self.k8s_config.namespace,
                 "labels": {"app": k8s_name, "managed": "jac-scale"}
             },
-            "spec": {
-                "maxUnavailable": max_u,
-                "selector": {"matchLabels": {"app": k8s_name}}
-            }
+            "spec": spec
         };
     }
 
@@ -1108,7 +1147,7 @@ obj ManifestBuilder {
     def _build_pod_spec(svc_name: str, image: str) -> dict[str, any] {
         drain_t: int = self._drain_timeout();
         svc_cfg = self._service_config(svc_name);
-        entry = self._pod_entrypoint();
+        `entry = self._pod_entrypoint();
 
         resolved_image: str = self.k8s_config.python_image;
         env_list = self._build_env(svc_name, svc_cfg);
@@ -1116,8 +1155,8 @@ obj ManifestBuilder {
         container: dict[str, any] = {
             "name": k8s_safe_name(svc_name),
             "image": resolved_image,
-            "command": entry["command"],
-            "args": entry["args"],
+            "command": `entry["command"],
+            "args": `entry["args"],
             "env": env_list,
             "ports": [{"containerPort": self.k8s_config.container_port}],
             "readinessProbe": self._build_readiness_probe(),
