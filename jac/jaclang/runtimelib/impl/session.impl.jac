@@ -266,7 +266,10 @@ impl Session.postinit -> None {
                 auto_schema=True
             );
             if lease.reset {
-                pgs.reset_data();
+                # Deferred: wiping the scratch database costs a full embedded
+                # postgres boot, so it waits for the first real store access.
+                # A session that never touches persistent state never pays it.
+                pgs.pending_reset = True;
             }
             self.store = pgs;
         }
