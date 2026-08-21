@@ -2205,10 +2205,6 @@ impl PyastBuildPass._fstring_constant_content(
     nd: py_ast.Constant, is_raw: bool
 ) -> str {
     if is_raw {
-        segment = self._get_source_segment(nd);
-        if segment is not None and segment == nd.value {
-            return segment;
-        }
         return nd.value;
     }
     segment = self._get_source_segment(nd);
@@ -2338,6 +2334,14 @@ impl PyastBuildPass._collect_used_identifiers(ast_root: py_ast.AST) -> set[str] 
                 bound = alias.asname or alias.name.split('.')[0];
                 used.add(bound);
             }
+        } elif isinstance(node, py_ast.ExceptHandler) and node.name {
+            used.add(node.name);
+        } elif isinstance(node, (py_ast.MatchAs, py_ast.MatchStar)) and node.name {
+            used.add(node.name);
+        } elif isinstance(node, py_ast.MatchMapping) and node.rest {
+            used.add(node.rest);
+        } elif isinstance(node, (py_ast.Global, py_ast.Nonlocal)) {
+            used.update(node.names);
         }
     }
     return used;

@@ -455,6 +455,64 @@ test "py2jac builtin shadowing is resolved through the alias" {
     );
 }
 
+"""Match captures and except targets must reserve the builtins alias.
+
+`case x as _jac_py2jac_builtins:` and `except E as _jac_py2jac_builtins:` bind
+their target without any py_ast.Name node, so the alias chooser must collect
+them from MatchAs/MatchStar/MatchMapping.rest/ExceptHandler directly -- a miss
+would inject an import that silently rebinds the capture inside its scope.
+"""
+test "py2jac alias avoids match and except bindings" {
+    match_source = (
+        "def make():\n"
+        "    return 1 + 2j\n\n"
+        "def grab(v):\n"
+        "    match v:\n"
+        "        case [_jac_py2jac_builtins]:\n"
+        "            return _jac_py2jac_builtins\n"
+    );
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(match_source),
+                orig_src=Source(match_source, "py2jac_alias_match.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
+    assert "as _jac_py2jac_builtins;" not in code , (
+        f"Must not collide with a match-captured name in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins2.complex(1, 2)" in code , (
+        f"Expected suffixed alias under match-capture collision in:\n{code}"
+    );
+
+    except_source = (
+        "def make():\n"
+        "    return 1 + 2j\n\n"
+        "def risky():\n"
+        "    try:\n"
+        "        pass\n"
+        "    except ValueError as _jac_py2jac_builtins:\n"
+        "        return None\n"
+    );
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(except_source),
+                orig_src=Source(except_source, "py2jac_alias_except.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
+    assert "as _jac_py2jac_builtins;" not in code , (
+        f"Must not collide with an except-bound name in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins2.complex(1, 2)" in code , (
+        f"Expected suffixed alias under except-binding collision in:\n{code}"
+    );
+}
+
 """NaN (unreachable from source literals) lowers to `<alias>.float('nan')`.
 
 Python source cannot spell a NaN literal, so the non-finite branch of
