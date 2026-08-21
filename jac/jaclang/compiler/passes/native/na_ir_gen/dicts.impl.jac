@@ -57,6 +57,9 @@ impl NaIRGenDicts._dict_val_spec(val_type: ir.Type) -> str {
         }
         return "ptr";
     }
+    if isinstance(val_type, ir.IntType) and val_type.width != 64 {
+        return f"i{val_type.width}";
+    }
     return "i64";
 }
 
