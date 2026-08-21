@@ -114,7 +114,7 @@ jobs:
           path: |
             jac/zig-out/bin/jac
             jac/jaclang/vendor/typeshed/stdlib
-          key: jac-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**', 'jac/build.zig', 'jac/launcher/**') }}
+          key: jac-bin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**', 'jac/build.zig', 'jac/launcher/**', 'jac/bootstrap/**') }}
           restore-keys: |
             jac-bin-${{ runner.os }}-${{ runner.arch }}-
 
