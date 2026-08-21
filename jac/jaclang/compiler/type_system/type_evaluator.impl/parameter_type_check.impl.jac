@@ -1060,7 +1060,9 @@ impl TypeEvaluator._collect_type_var_bindings(
         and isinstance(expr.target.target, Expr)
         and expr.target.target.type is not None {
         _recv_t = expr.target.target.type;
-        if isinstance(_recv_t, ClassType) {
+        if isinstance(_recv_t, ClassType)
+            and _recv_t._shared is not None
+            and _recv_t.shared.class_name != "object" {
             if not _recv_t.is_instance() and _recv_t.is_instantiable() {
                 _recv_t = _recv_t.clone_as_instance();
             }

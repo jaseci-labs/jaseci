@@ -17,7 +17,7 @@ impl NaIRGenGenerics._mangled_of(t: any) -> (str | None) {
 }
 
 impl NaIRGenGenerics._syntactic_bind_type_params(
-    tag_node: (uni.UniNode | None), actual: any, tp_names: set, solution: dict
+    tag_node: (uni.UniNode | None), actual: any, tp_names: list[str], solution: dict
 ) -> None {
     try {
         import from jaclang.compiler.type_system.types { ClassType as _SbCT }
@@ -136,6 +136,12 @@ impl NaIRGenGenerics._solve_generic_call(
             positional.append(a);
         }
     }
+    _tp_names: list[str] = [];
+    for tp in (ability.type_params or []) {
+        if tp?.name {
+            _tp_names.append(tp.name.value);
+        }
+    }
     for (i, p) in enumerate(params) {
         p_name = p.name.sym_name if p?.name and p.name is not None else None;
         chosen = positional[i]
@@ -149,16 +155,15 @@ impl NaIRGenGenerics._solve_generic_call(
             decl_t = p.type_tag.tag.type if p.type_tag?.tag else None;
         }
         unify(decl_t, chosen.type);
-        _tp_names = {
-            tp.name.value
-            for tp in (ability.type_params or [])
-            if tp?.name
-        };
+        _tp_unsolved = False;
+        for n in _tp_names {
+            if n not in solution {
+                _tp_unsolved = True;
+                break;
+            }
+        }
         if (
-            any(n not in solution for n in _tp_names)
-            and p?.type_tag
-            and p.type_tag is not None
-            and p.type_tag?.tag
+            _tp_unsolved and p?.type_tag and p.type_tag is not None and p.type_tag?.tag
         ) {
             self._syntactic_bind_type_params(
                 p.type_tag.tag, chosen.type, _tp_names, solution
