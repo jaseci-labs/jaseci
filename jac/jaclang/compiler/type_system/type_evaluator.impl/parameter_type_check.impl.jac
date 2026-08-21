@@ -712,7 +712,19 @@ impl TypeEvaluator.assign_type_to_type_var(
                 not self.assign_type(resolved_arg, existing)
                 and not self.assign_type(existing, resolved_arg)
             ) {
-                return False;
+                # Two literal solutions for one type var widen to their
+                # common base before the overload is rejected: suffix=".log"
+                # and prefix="x_" both solve AnyStr as str, not as two
+                # incompatible Literal pins.
+                _w_arg = self._widen_literal_for_declaration(resolved_arg);
+                _w_prev = self._widen_literal_for_declaration(existing);
+                if self.assign_type(_w_arg, _w_prev) {
+                    bindings[param_type.name] = _w_prev;
+                } elif self.assign_type(_w_prev, _w_arg) {
+                    bindings[param_type.name] = _w_arg;
+                } else {
+                    return False;
+                }
             }
         } else {
             bindings[param_type.name] = resolved_arg;
