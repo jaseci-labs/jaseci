@@ -333,53 +333,37 @@ whose top-level `with entry` runs on import are not pulled into test collection.
 
 #### [test.client]
 
-Client (`cl`) tests run under bun in a temp directory with no `node_modules`, so
-every bare import specifier has to be given something to resolve to. The runner
-resolves each spec through ordered tiers:
-
-1. **Mock** -- a module you supply, by convention or by explicit mapping.
-2. **Virtual** -- `@jac/*` resolves to the staged Jac client runtime.
-3. **Proxy** -- everything else falls back to a universal stub that absorbs any
-   call and returns nothing.
-
-Resolution is materialized as a generated `tsconfig.json` in the harness
-directory, which bun honours natively. The compiled JavaScript is never
-rewritten, so every import form -- including side-effect
-`import "pkg/theme.css"`, `export ... from "pkg"`, and a deferred
-`import("pkg")` -- resolves normally.
-
-**Supplying a mock.** Zero config is the happy path: drop a file into
-`tests/__mocks__/`, named for the spec it stands in for. Scoped packages nest as
-directories, the way jest lays them out:
-
-```
-tests/__mocks__/vscode.js
-tests/__mocks__/@scope/telemetry.jac
-```
-
-For a mock that lives elsewhere, map it explicitly. An entry here overrides
-anything found by the convention, and paths are relative to the `jac.toml` that
-declares them:
+Defaults for client (`cl`) tests:
 
 ```toml
+[test.client]
+on_stub = "note"                        # Report stubbed specs: note (default), warn, error
+
 [test.client.mocks]
-vscode = "tests/doubles/editor.js"
+vscode = "tests/doubles/editor.js"      # Explicit spec -> mock file mapping
 ```
 
-A JavaScript mock may be written like any other module: its own relative
-imports are followed and staged into the harness beside it, so a mock is free
-to keep helpers in a file or a subdirectory of its own.
+Client tests run under bun in a temp directory with no `node_modules`. `@jac/*`
+resolves to the staged Jac client runtime, a mocked spec resolves to your module,
+and every other bare specifier falls back to a universal Proxy stub that absorbs
+any call and returns nothing. All import forms resolve -- side-effect, re-export,
+and deferred `import()` alike.
 
-```
-tests/__mocks__/vscode.js          # imports ./support/window.js
-tests/__mocks__/support/window.js  # staged with it, automatically
-```
+**Supplying a mock.** Zero config is the happy path: drop a file into
+`tests/__mocks__/`, named for the spec it stands in for, with scoped packages
+nested as directories the way jest lays them out (`tests/__mocks__/vscode.js`,
+`tests/__mocks__/@scope/telemetry.jac`). A `[test.client.mocks]` entry overrides
+anything found by the convention, and its paths are relative to the `jac.toml`
+that declares them. A JavaScript mock's own relative imports are followed and
+staged into the harness beside it, so it may keep helpers in a file or
+subdirectory of its own.
 
 Mocks may be JavaScript or Jac. A `.jac` mock compiles through the ordinary
 client pipeline, so `:pub` is what makes a name importable. (A `.jac` mock that
-imports sibling Jac modules is not supported yet, and says so.) Because placement is
-inferred, a mock containing no client-only syntax lands in the server codespace
-and compiles to no JS -- the runner detects exactly that and asks for a pin:
+imports sibling Jac modules is not supported yet, and says so.) Because
+placement is inferred, a mock containing no client-only syntax lands in the
+server codespace and compiles to no JS -- the runner detects exactly that and
+asks for a pin:
 
 ```toml
 [placement.pins]
@@ -387,20 +371,11 @@ and compiles to no JS -- the runner detects exactly that and asks for a pin:
 ```
 
 **Reporting what got stubbed.** A spec that reaches the Proxy makes assertions
-against it vacuous, so the runner reports which ones did. `on_stub` sets how
-loudly:
-
-```toml
-[test.client]
-on_stub = "note"    # note (default) | warn | error
-```
-
-`error` turns an accidentally unmocked dependency into a failure rather than a
-test that passes without checking anything -- useful in CI for library authors.
-
-One case is always worth a mock rather than a stub: `export * from "pkg"` has
-to forward names the stub cannot know, so importing a name through it fails at
-load time. The report calls those specs out by name.
+against it vacuous, so the runner names the ones that did; `on_stub = "error"`
+turns an accidentally unmocked dependency into a failure rather than a test that
+passes without checking anything. One case is always worth a mock rather than a
+stub: `export * from "pkg"` has to forward names the stub cannot know, so
+importing a name through it fails at load time.
 
 ---
 
