@@ -22,7 +22,7 @@ measurement the base classes' typing was there to protect.
 
 Pinned here: the chain carries no type parameters, and the constructor
 lowers. The seams that remain on the unit are inventoried once, in
-`test_transform_diagnostics_census.jac`, which pins them two-way with
+`test_transform_diagnostics_baseline.jac`, which pins them two-way with
 the mechanism that clears each -- so a constructor that demoted again
 would fail there as an un-waived seam and fail here by name.
 
@@ -41,7 +41,7 @@ import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
@@ -57,11 +57,11 @@ glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes",
      _MEMO: list = [],
      _PROBE_MEMO: list = [];
 
-"""Seams the native census recorded inside transform.jac, keyed by method."""
+"""Seams the native coverage recorded inside transform.jac, keyed by method."""
 def _transform_seams -> dict[(str, str)] {
     if _jaclang_image() is not None {
         testskip(
-            "this runtime is a sealed jaclang image, so the census would "
+            "this runtime is a sealed jaclang image, so the coverage would "
             "read the image's trust boundary rather than this unit's own "
             "coupling"
         );
@@ -74,7 +74,7 @@ def _transform_seams -> dict[(str, str)] {
     }
     path = str(PASSES_DIR / "transform.jac");
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=path,
@@ -88,11 +88,11 @@ def _transform_seams -> dict[(str, str)] {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert ir is not None , "transform.jac produced no module";
-    rec = census.get(os.path.realpath(path));
-    assert rec is not None , "transform.jac never entered the native census";
+    rec = coverage.get(os.path.realpath(path));
+    assert rec is not None , "transform.jac never entered the native coverage";
     assert rec["outcome"] == "native" , (
         f"transform.jac did not stay native ({rec['outcome']}: {rec['detail']})"
     );
@@ -103,11 +103,11 @@ def _transform_seams -> dict[(str, str)] {
     }
     # The unit exports no LLVM IR and no layout of its own -- it is in no
     # closure, which is section 11.1's symptom rather than its disease --
-    # so the census record is the whole measurement. It is guarded against
+    # so the coverage record is the whole measurement. It is guarded against
     # vacuity from the other side: the seam set is pinned both ways below,
     # and an unreached compile would empty it and fail on the stale half.
     assert found , (
-        "the census recorded no seam at all for transform.jac, which on "
+        "the coverage recorded no seam at all for transform.jac, which on "
         "this unit means the compile was never reached rather than that it "
         "is clean"
     );
@@ -153,7 +153,7 @@ def _ctor_probe -> tuple {
         return _PROBE_MEMO[0];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=str(CTOR_PROBE),
@@ -167,9 +167,9 @@ def _ctor_probe -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(os.path.realpath(str(CTOR_PROBE)));
+    rec = coverage.get(os.path.realpath(str(CTOR_PROBE)));
     assert rec is not None and rec["outcome"] == "native" , (
         "the constructor probe never compiled as a native root, so nothing "
         "below is a measurement"
@@ -181,7 +181,7 @@ def _ctor_probe -> tuple {
     }
     closure = sorted(
         os.path.relpath(p, os.path.dirname(os.path.realpath(jaclang.__file__)))
-        for p in census
+        for p in coverage
     );
     result = (seams, closure, );
     _PROBE_MEMO.append(result);
@@ -243,47 +243,39 @@ test "constructing a pass in a native root lowers, with the base chain linked" {
 }
 
 
-"""The traversal seam cleared, and the waiver table says so.
+"""uni_pass carries no waivers at all, and the table's shape says so.
 
-This test used to pin the opposite: `UniPass.transform`, `UniPass.traverse`
-and `UniPass.__post_init__` as waived seams -- stores to `ir_out` and
-`cur_node`, slots inherited from `BaseTransform`, and a
-`super.__post_init__` call. The inherited-slot fix (#8320: `extended_mro`
-continuing truncated linearizations, keyed by declaring-module provenance)
-cleared all three, and the payout commit dropped their waivers. What
-remains waived on `uni_pass.jac` is a different family entirely: the two
-`type[T]`-generic statics.
-
-Pinned both ways so a regression names itself: the cleared three must stay
-out of the waiver table (a re-appearance means inherited-slot access broke
-again and the fused prefix is re-blocked), and the generic statics must
-stay in it until generic statics lower. The mechanism itself is measured in
-`test_inherited_slot_adoption.jac`.
+This test has pinned three successive states of the same file. First the
+traversal methods as waived seams (inherited-slot stores, cleared by
+#8320's linearization repair). Then the two `type[T]`-generic statics as
+the honest remainder. Now those are gone too -- not lowered, RETIRED:
+`get_all_sub_nodes` and `find_parent_of_type` were forwarding shims for
+the same-named `UniNode` methods, every caller lived outside the sealed
+closure and calls the node methods directly now, and a shim with no
+callers is not a seam worth waiving, it is dead code the seal was
+carrying. With them gone, `uni_pass.jac` contributes zero entries to
+`NATIVE_SEAL_DEMOTION_WAIVERS`, which is what this pins: any name from
+this module reappearing in the table means pass machinery demoted again,
+and the fused prefix is re-blocked by whatever did it.
 """
-test "the traversal seams stay cleared, and the generic statics stay named" {
+test "uni_pass contributes no waiver at all" {
     (seams, _closure) = _ctor_probe();
     _ = seams;
-    import from jaclang.utils.precompile_bytecode { _UNI_PASS_SEAM_WAIVERS }
-    for gone in (
-        "jac0core/passes/uni_pass.jac::UniPass.transform",
-        "jac0core/passes/uni_pass.jac::UniPass.traverse",
-        "jac0core/passes/uni_pass.jac::UniPass.__post_init__"
-    ) {
-        assert gone not in _UNI_PASS_SEAM_WAIVERS , (
-            f"{gone} is waived again. The inherited-slot fix cleared it; a "
-            "returning waiver means a natively constructed pass lost its "
-            "traversal again, which re-blocks the fused prefix -- fix the "
-            "slot access rather than re-waiving it"
-        );
+    import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_DEMOTION_WAIVERS }
+    offending: list[str] = [];
+    for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
+        for `entry in names {
+            if `entry.startswith("jac0core/passes/uni_pass.jac::")
+                and `entry not in offending {
+                offending.append(`entry);
+            }
+        }
     }
-    for kept in (
-        "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-        "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type"
-    ) {
-        assert kept in _UNI_PASS_SEAM_WAIVERS , (
-            f"{kept} is no longer waived. If generic statics lower now, "
-            "collect the payout and say so; if the waiver merely moved, it "
-            "has to be findable here"
-        );
-    }
+    assert not offending , (
+        f"uni_pass.jac is back in the waiver table: {sorted(offending)}. "
+        "The traversal seams cleared with #8320's slot repair and the "
+        "generic-static shims were retired outright; a returning entry "
+        "means pass machinery demotes again and the fused prefix is "
+        "re-blocked -- fix the lowering rather than re-waiving it"
+    );
 }

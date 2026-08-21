@@ -155,7 +155,7 @@ impl random_value_for_type(tp: any, *, _depth: int = 0, _max_depth: int = 10) ->
         kwargs: dict[str, any] = {};
         for f in dc_fields(tp) {
             if f.init {
-                if f.default is not MISSING or f.default_factory is not MISSING {
+                if f.`default is not MISSING or f.default_factory is not MISSING {
                     if random.random() < 0.35 {
                         continue;
                     }
@@ -229,7 +229,7 @@ impl random_value_for_type(tp: any, *, _depth: int = 0, _max_depth: int = 10) ->
                 ann = param.annotation
                     if param.annotation is not inspect._empty
                     else typing.Any;
-                if param.default is not inspect._empty and random.random() < 0.4 {
+                if param.`default is not inspect._empty and random.random() < 0.4 {
                     continue;
                 }
                 if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD) {

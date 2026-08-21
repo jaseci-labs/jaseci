@@ -1165,7 +1165,7 @@ test "start dev with client does initial compilation" {
             # Terminate the process
             process.terminate();
             try {
-                process.wait(timeout=5);
+                process.`wait(timeout=5);
             } except Exception {
                 process.kill();
             }
