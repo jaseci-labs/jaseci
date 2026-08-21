@@ -921,12 +921,14 @@ jobs:
       # with the B4/A3 closures (2.2-3.4 GiB per root, every root carrying the
       # pass spine) three workers on top of it die the way the swap step
       # above describes: the runner loses communication ~40 min in, no log.
-      # main's lighter closures finish in 27 min. Two workers is the B6
+      # main's lighter closures finish in 27 min. Two workers still died at
+      # the same point on this branch: the consolidated prefix artifact's
+      # closure is the heaviest root in the tree. One worker is the B6
       # capacity measurement for this lane (#8323) until the crossing
-      # reclaims its tree.
+      # reclaims its tree -- or the lane moves to a runner with the memory.
       - name: Precompile all packages
         env:
-          JAC_SEAL_JOBS: "2"
+          JAC_SEAL_JOBS: "1"
         run: jac run jac/jaclang/utils/precompile_bytecode.jac ./jac
 
       - name: Verify cold start with precompiled bytecode
