@@ -1315,6 +1315,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
         e.g. a copy with `spec.replicas` stripped so a strategic-merge PATCH
         leaves an externally-scaled field (KEDA's ScaledObject) alone, while a
         fresh `create` still gets the full manifest including that field.
+        HTTP activation relies on exactly this: KEDA owns `replicas` once a
+        Deployment scales via HTTP_ACTIVATION, and the strategic-merge PATCH
+        this omission produces is what keeps this apply from resetting the
+        live value KEDA set.
         """;
         name: str = manifest["metadata"]["name"];
         try {
