@@ -10,15 +10,24 @@ cannot ``import layer0_replay`` on collection (``ModuleNotFoundError``).
 Layer-0/1 corpus replay ratchets live in ``jac-py/jacpython/layer0_replay_p3_gate.jac``
 (``jac run`` via ``tools/p3_object_core/replay_gate.py``); this file validates manifest
 shape and P3.1c Objects/ lift gates (``boolobject`` lifted; ``sliceobject`` pending).
+
+Runtime parity probes (FIXME M11) run via ``tools/p3_object_core/runtime_gate.py`` on a
+clean ceval slate; this file validates manifest wiring and invokes that driver.
 """
 
 import json;
 import os;
+import subprocess;
+import sys;
 import from tests.support { JAC_ROOT }
 
 glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      MANIFEST_PATH: str = os.path.join(
          REPO_ROOT, "jac-py", "tools", "p3_object_core", "manifest.json"
+     ),
+     JACPYTHON_DIR: str = os.path.join(REPO_ROOT, "jac-py", "jacpython"),
+     RUNTIME_GATE: str = os.path.join(
+         REPO_ROOT, "jac-py", "tools", "p3_object_core", "runtime_gate.py"
      ),
      MAX_DENSITY: float = 0.15;
 
@@ -279,4 +288,50 @@ test "P3 listobject_core lift: tier_b ratchet and empty quarantine (P3.2a)" {
     density = (tier_b / _jac_loc(lift_path)) if _jac_loc(lift_path) else 0.0;
     assert density < MAX_DENSITY , f"density {density:.6f} >= {MAX_DENSITY}";
     assert (sidecar["quarantined_functions"] as list) == [];
+}
+
+
+test "P3 manifest: runtime_probe wired for every lift stem (M11)" {
+    manifest = _load_json(MANIFEST_PATH);
+    for spec in manifest["c2jac_objects_wave"] as list {
+        if (spec["status"] as str) != "lift" {
+            continue;
+        }
+        stem = spec["stem"] as str;
+        assert "runtime_probe" in spec , f"missing runtime_probe for {stem!r}";
+        probe = spec["runtime_probe"] as dict;
+        src = probe["source"] as str;
+        assert os.path.isfile(os.path.join(REPO_ROOT, src)) , src;
+        baseline = probe["baseline"] as dict;
+        assert (baseline["failed"] as int) == 0 , stem;
+        assert (baseline["passed"] as int) > 0 , stem;
+        mod = probe["jacpython_module"] as str;
+        assert os.path.isfile(os.path.join(JACPYTHON_DIR, mod)) , mod;
+    }
+}
+
+
+def _run_runtime_gate() -> tuple[int, str] {
+    py = os.path.join(REPO_ROOT, ".venv", "bin", "python");
+    if not os.path.isfile(py) {
+        py = sys.executable;
+    }
+    proc = subprocess.run(
+        [py, RUNTIME_GATE],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=False
+    );
+    detail = (proc.stderr or proc.stdout or "runtime_gate failed").strip();
+    return (proc.returncode, detail);
+}
+
+
+test "P3 runtime probes: jacpython Layer-1 replay matches manifest baselines (M11)" {
+    if not os.environ.get("JACPYTHON_CPYTHON") {
+        return;
+    }
+    (code, detail) = _run_runtime_gate();
+    assert code == 0 , detail;
 }

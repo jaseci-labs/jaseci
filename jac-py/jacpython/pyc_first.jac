@@ -1383,18 +1383,18 @@ test "pyc-first: hash() builtin + float.__hash__ collapse (H4)" {
 test "pyc-first: hash routing applies long sentinel and bool/int symmetry" {
     # ``hash((-1,))`` must not propagate raw ``-1`` lanes; ``True == 1`` must
     # match ``1 == True`` (bool is an int subclass on both sides).
-    sem = run_source(
+    probe = run_source(
         "neg1_lane = hash((-1,)) != -1\n"
         "str_stable = hash('a') == hash('a')\n"
         "float_stable = hash(1.5) == hash(1.5)\n"
         "true_eq = True == 1\n"
         "int_eq = 1 == True\n"
     );
-    assert expect_bool(sem["neg1_lane"]) == True;
-    assert expect_bool(sem["str_stable"]) == True;
-    assert expect_bool(sem["float_stable"]) == True;
-    assert expect_bool(sem["true_eq"]) == True;
-    assert expect_bool(sem["int_eq"]) == True;
+    assert expect_bool(probe["neg1_lane"]) == True;
+    assert expect_bool(probe["str_stable"]) == True;
+    assert expect_bool(probe["float_stable"]) == True;
+    assert expect_bool(probe["true_eq"]) == True;
+    assert expect_bool(probe["int_eq"]) == True;
 }
 
 test "pyc-first: cross-type ordering raises TypeError" {

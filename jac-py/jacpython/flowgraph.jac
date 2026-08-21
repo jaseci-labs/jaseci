@@ -392,10 +392,10 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
     }
     work: list[int] = [];
     maxdepth = 0;
-    entry = u.blocks[0];
+    entry_blk = u.blocks[0];
     pos = build_layout_pos(u);
 
-    if not stackdepth_push(startdepths, work, entry, 0) {
+    if not stackdepth_push(startdepths, work, entry_blk, 0) {
         return (
             0,
             stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")

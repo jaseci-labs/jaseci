@@ -19,7 +19,7 @@ import from pyc_first {
 }
 
 ::py::
-def _p2_wrap_snippet(source: str) -> str {
+def _p2_wrap_snippet(source: str) -> str:
     return (
         "_libtest_lines = []\n"
         "def print(*args, **kwargs):\n"

@@ -630,6 +630,11 @@ jobs:
         env:
           JACPYTHON_CPYTHON: /home/jac/.local/bin/python3.14
 
+      - name: P3 runtime parity probes (M11)
+        run: python jac-py/tools/p3_object_core/runtime_gate.py
+        env:
+          JACPYTHON_CPYTHON: /home/jac/.local/bin/python3.14
+
   # Compiler suite, one chunk per runner. Chunking is load-bearing: the
   # materializer crossing leaks its native parse tree per compile, so one long
   # run OOMs; fresh runners bound the accumulation and parallelize the suite.

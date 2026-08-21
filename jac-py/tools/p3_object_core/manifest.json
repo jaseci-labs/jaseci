@@ -1,66 +1,110 @@
 {
   "version": 1,
   "name": "p3_object_core_layer0",
-  "description": "P3 object-core Layer-0 replay baselines (PLAN.md §7 P3.1 exit). Counts are self-contained assertEqual pairs replayed via layer0_replay.jac — not full test-file pass rates.",
+  "description": "P3 object-core Layer-0 replay baselines (PLAN.md \u00a77 P3.1 exit). Counts are self-contained assertEqual pairs replayed via layer0_replay.jac \u2014 not full test-file pass rates.",
   "reference_root": "reference/cpython",
   "layer0_files": [
     {
       "stem": "test_int",
       "path": "Lib/test/test_int.py",
-      "baseline": { "passed": 119, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 119,
+        "failed": 0,
+        "errored": 0
+      }
     },
     {
       "stem": "test_bool",
       "path": "Lib/test/test_bool.py",
-      "baseline": { "passed": 50, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 50,
+        "failed": 0,
+        "errored": 0
+      }
     },
     {
       "stem": "test_str",
       "path": "Lib/test/test_str.py",
-      "baseline": { "passed": 345, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 345,
+        "failed": 0,
+        "errored": 0
+      }
     },
     {
       "stem": "test_dict",
       "path": "Lib/test/test_dict.py",
-      "baseline": { "passed": 20, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 20,
+        "failed": 0,
+        "errored": 0
+      }
     },
     {
       "stem": "test_list",
       "path": "Lib/test/test_list.py",
-      "baseline": { "passed": 9, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 9,
+        "failed": 0,
+        "errored": 0
+      }
     },
     {
       "stem": "test_tuple",
       "path": "Lib/test/test_tuple.py",
-      "baseline": { "passed": 9, "failed": 0, "errored": 0 }
+      "baseline": {
+        "passed": 9,
+        "failed": 0,
+        "errored": 0
+      }
     }
   ],
   "layer1_files": [
     {
       "stem": "test_set",
       "path": "Lib/test/test_set.py",
-      "baseline": { "passed": 5, "failed": 0, "errored": 0, "skipped": 9 },
+      "baseline": {
+        "passed": 5,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 9
+      },
       "gate": "P3.1b",
       "status": "gated"
     },
     {
       "stem": "test_generators",
       "path": "Lib/test/test_generators.py",
-      "baseline": { "passed": 14, "failed": 0, "errored": 0, "skipped": 8 },
+      "baseline": {
+        "passed": 14,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 8
+      },
       "gate": "P3.1b",
       "status": "gated"
     },
     {
       "stem": "test_list",
       "path": "Lib/test/test_list.py",
-      "baseline": { "passed": 7, "failed": 0, "errored": 0, "skipped": 6 },
+      "baseline": {
+        "passed": 7,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 6
+      },
       "gate": "P3.1b",
       "status": "gated"
     },
     {
       "stem": "test_tuple",
       "path": "Lib/test/test_tuple.py",
-      "baseline": { "passed": 2, "failed": 0, "errored": 0, "skipped": 5 },
+      "baseline": {
+        "passed": 2,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 5
+      },
       "gate": "P3.1b",
       "status": "gated"
     }
@@ -73,7 +117,17 @@
       "gate": "P3.1c",
       "status": "lift",
       "tier_b_baseline": 9,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/boolobject.py",
+        "baseline": {
+          "passed": 1,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "longobject.jac"
+      }
     },
     {
       "stem": "sliceobject",
@@ -89,7 +143,17 @@
       "gate": "P3.1e",
       "status": "lift",
       "tier_b_baseline": 1,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/abstract_protocol.py",
+        "baseline": {
+          "passed": 4,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "abstract_protocol.jac"
+      }
     },
     {
       "stem": "tupleobject_core",
@@ -98,7 +162,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 10,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/tupleobject_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "tupleobject.jac"
+      }
     },
     {
       "stem": "longobject_core",
@@ -107,7 +181,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 29,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/longobject_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "longobject.jac"
+      }
     },
     {
       "stem": "typeobject_core",
@@ -116,7 +200,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 1,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/typeobject_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "typeobject.jac"
+      }
     },
     {
       "stem": "exceptions_core",
@@ -125,7 +219,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 0,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/exceptions_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "exceptions_core.jac"
+      }
     },
     {
       "stem": "bytesobject_core",
@@ -134,7 +238,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 2,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/bytesobject_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "bytesobject.jac"
+      }
     },
     {
       "stem": "listobject_core",
@@ -143,7 +257,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 3,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/listobject_core.py",
+        "baseline": {
+          "passed": 2,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "listobject.jac"
+      }
     },
     {
       "stem": "dictobject_core",
@@ -152,7 +276,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 15,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/dictobject_core.py",
+        "baseline": {
+          "passed": 4,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "dictobject.jac"
+      }
     },
     {
       "stem": "setobject_core",
@@ -161,7 +295,17 @@
       "gate": "P3.2a",
       "status": "lift",
       "tier_b_baseline": 9,
-      "staging": "lift"
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/setobject_core.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "setobject.jac"
+      }
     }
   ]
 }

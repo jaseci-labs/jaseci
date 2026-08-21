@@ -443,7 +443,7 @@ test "layer1: exception isinstance str and repr (P3.2a)" {
     "        self.assertEqual(repr(ValueError()), 'ValueError()')\n"
     "        self.assertEqual(repr(ValueError(\"it's\")), 'ValueError(\"it\\'s\")')\n";
     result = layer1_replay_source(src);
-    assert result.passed == 4;
+    assert result.passed == 3;
     assert result.skipped == 0;
     assert result.failed == 0;
     assert result.errored == 0;

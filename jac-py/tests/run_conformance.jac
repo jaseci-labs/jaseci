@@ -232,8 +232,8 @@ def assert_all_modules_gated(manifest: dict) -> None {
     modules = manifest["modules"] as list;
     assert len(modules) == P2_MODULE_COUNT , len(modules);
     for row in modules {
-        entry = row as dict;
-        assert entry["status"] == "gated" , entry;
+        row_spec = row as dict;
+        assert row_spec["status"] == "gated" , row_spec;
     }
 }
 

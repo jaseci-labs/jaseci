@@ -924,9 +924,9 @@ obj PyDict(PyObj) {
     def dict_str_map -> dict[str, PyObj] {
         out: dict[str, PyObj] = {};
         for hk in self.items {
-            entry = self.items[hk];
-            if entry.key.t == "str" {
-                out[expect_str(entry.key)] = entry.value;
+            `entry = self.items[hk];
+            if `entry.key.t == "str" {
+                out[expect_str(`entry.key)] = `entry.value;
             }
         }
         return out;

@@ -1724,8 +1724,8 @@ def to_host(value: PyObj) -> any {
         case PyDict():
             result: dict[any, any] = {};
             for hk in value.items {
-                entry = value.items[hk];
-                result[to_host(entry.key)] = to_host(entry.value);
+                `entry = value.items[hk];
+                result[to_host(`entry.key)] = to_host(`entry.value);
             }
             return result;
 
@@ -1804,8 +1804,8 @@ def to_host(value: PyObj) -> any {
             # ...])`, not a bare list. Order follows the dict's insertion order.
             hd: dict[any, any] = {};
             for hk in value.d.items {
-                entry = value.d.items[hk];
-                hd[to_host(entry.key)] = to_host(entry.value);
+                `entry = value.d.items[hk];
+                hd[to_host(`entry.key)] = to_host(`entry.value);
             }
             if value.mode == "values" {
                 return hd.values();
@@ -3144,14 +3144,14 @@ def host_iter(value: PyHostProxy) -> PyObj {
 # confirmed the iterator is not stale, so the hashkey is still present.
 def dictiter_yield(di: PyDictIter) -> PyObj {
     hk = di.keys[di.index];
-    entry = di.d.items[hk];
+    `entry = di.d.items[hk];
     if di.mode == "values" {
-        return entry.value;
+        return `entry.value;
     }
     if di.mode == "items" {
-        return PyTuple(t="tuple", items=[entry.key, entry.value]);
+        return PyTuple(t="tuple", items=[`entry.key, `entry.value]);
     }
-    return entry.key;
+    return `entry.key;
 }
 
 def dictiter_error -> PyObj {
@@ -4906,12 +4906,12 @@ obj PyDictMethod(PyObj) {
             if d.dict_contains(args[0]) {
                 return d.mp_subscript(args[0]);
             }
-            default = args[1] if len(args) >= 2 else py_none();
-            r = d.mp_ass_subscript(args[0], default);
+            default_val = args[1] if len(args) >= 2 else py_none();
+            r = d.mp_ass_subscript(args[0], default_val);
             if is_error(r) {
                 return r;
             }
-            return default;
+            return default_val;
         }
         if n == "pop" {
             if d.dict_contains(args[0]) {
@@ -5105,13 +5105,13 @@ obj PyDictView(PyObj) {
 def dictview_elements(view: PyDictView) -> list[PyObj] {
     out: list[PyObj] = [];
     for hk in view.d.items {
-        entry = view.d.items[hk];
+        `entry = view.d.items[hk];
         if view.mode == "values" {
-            out.append(entry.value);
+            out.append(`entry.value);
         } elif view.mode == "items" {
-            out.append(PyTuple(t="tuple", items=[entry.key, entry.value]));
+            out.append(PyTuple(t="tuple", items=[`entry.key, `entry.value]));
         } else {
-            out.append(entry.key);
+            out.append(`entry.key);
         }
     }
     return out;
@@ -5575,8 +5575,8 @@ def gen_close(gen: PyGenerator) -> PyObj {
         frame_clear(gen.frame);
         return py_none();
     }
-    exit = PyException(t="exception", type_name="GeneratorExit", message="");
-    result = gen_throw(gen, exit);
+    gen_exit = PyException(t="exception", type_name="GeneratorExit", message="");
+    result = gen_throw(gen, gen_exit);
     gen.finished = True;
     frame_clear(gen.frame);
     if result.t == "genstop" {

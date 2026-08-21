@@ -171,16 +171,16 @@ def dict_repr(d: PyDict, repr_elem: any) -> PyObj {
     out = "{";
     first = True;
     for hk in d.items {
-        entry = d.items[hk];
+        `entry = d.items[hk];
         if not first {
             out = out + ", ";
         }
         first = False;
-        kpiece = repr_elem(entry.key);
+        kpiece = repr_elem(`entry.key);
         if is_error(kpiece) {
             return kpiece;
         }
-        vpiece = repr_elem(entry.value);
+        vpiece = repr_elem(`entry.value);
         if is_error(vpiece) {
             return vpiece;
         }

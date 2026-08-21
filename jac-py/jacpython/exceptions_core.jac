@@ -11,6 +11,7 @@ import from objects {
     PyBool,
     PyTuple,
     expect_str,
+    is_error,
 }
 
 # Direct parent links from CPython ``Lib/test/exception_hierarchy.txt``.

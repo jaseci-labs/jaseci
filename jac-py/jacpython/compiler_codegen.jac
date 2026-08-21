@@ -1856,8 +1856,8 @@ def compile_eval(
     u = unverified_cfg(
         filename=filename, name=name, qualname=name, firstlineno=firstlineno
     );
-    entry = u.add_block();
-    g = new_cfg_builder(u, entry);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk);
     g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
     cleanup = visit_expr(g, e, false_shortcircuit_returns=True);
     if codegen_busy(g) {
@@ -6834,8 +6834,8 @@ def compile_class_cfg(
     if class_body_has_function(cd) {
         u.cellvars = ["__classdict__"];
     }
-    entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_cls, cd.name);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_cls, cd.name);
     emit_class_body_prologue(g, cd, class_qname);
     last = loc(0, cd.lineno, 0, 0);
     bi = 0;
@@ -7019,8 +7019,8 @@ def compile_lambda_cfg(
     u.kwonlyargcount = kwonly;
     u.flags = function_code_flags(lam.args);
     u.varnames = fast_varnames_from_sym(sym_fn);
-    entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_fn, private);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_fn, private);
     emit_function_prologue(g, sym_fn, lam.lineno);
     bloc = expr_loc(lam.body);
     visit_expr(g, lam.body);
@@ -7061,8 +7061,8 @@ def compile_fn_cfg(
         u.flags = u.flags | CO_COROUTINE;
     }
     u.varnames = fast_varnames_from_sym(sym_fn);
-    entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_fn, private);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_fn, private);
     protect_start = emit_function_prologue(g, sym_fn, lineno, is_suspendable);
     last = loc(0, lineno, 0, 0);
     terminated = False;
@@ -7124,8 +7124,8 @@ def compile_exec(
     if sym_top is not None {
         u.varnames = fast_varnames_from_sym(sym_top);
     }
-    entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_top);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_top);
     g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
     last = loc(0, firstlineno, 0, 0);
     terminated = False;
