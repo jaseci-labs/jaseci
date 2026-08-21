@@ -286,8 +286,22 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     for (section, obj) in section_map.items() {
         if section in data {
             for (key, value) in data[section].items() {
-                if hasattr(obj, key) {
-                    setattr(obj, key, value);
+                attr = str(key);
+                if hasattr(obj, attr) {
+                    current = getattr(obj, attr);
+                    if isinstance(value, dict)
+                        and (current is not None)
+                        and (not isinstance(current, dict))
+                        and hasattr(current, "__dict__") {
+                        for (sub_key, sub_value) in value.items() {
+                            sub_attr = str(sub_key);
+                            if hasattr(current, sub_attr) {
+                                setattr(current, sub_attr, sub_value);
+                            }
+                        }
+                    } else {
+                        setattr(obj, attr, value);
+                    }
                 }
             }
         }

@@ -621,6 +621,28 @@ test "a profile leaves sibling keys of a typed child alone" {
     assert cfg.`test.client.mocks == {"vscode": "m/v.js"} , "mocks were dropped by the overlay";
 }
 
+test "a jac.<profile>.toml overlay merges into a typed child" {
+    # merge_from_toml_file is the other overlay path; it had the same flat
+    # setattr, so a profile FILE corrupted test.client even after the
+    # [environments.*] path was fixed.
+    config_mod._config = None;
+    with TemporaryDirectory() as td {
+        Path(td, "jac.toml").write_text(
+            '[project]\nname = "overlay-file"\n\n[test.client]\non_stub = "note"\n\n'
+                + '[test.client.mocks]\nvscode = "m/v.js"\n',
+            encoding="utf-8"
+        );
+        Path(td, "jac.ci.toml").write_text(
+            '[test.client]\non_stub = "error"\n', encoding="utf-8"
+        );
+        cfg = JacConfig.load(Path(td, "jac.toml"));
+        cfg.merge_from_toml_file(Path(td, "jac.ci.toml"));
+        assert not isinstance(cfg.`test.client, dict) , "the overlay left a raw dict";
+        assert cfg.`test.client.on_stub == "error";
+        assert cfg.`test.client.mocks == {"vscode": "m/v.js"} , "a sibling key was dropped";
+    }
+}
+
 test "apply nonexistent profile" {
     config_mod._config = None;
     toml_str = "\n[project]\nname = \"no-profile\"\n\n[serve]\nport = 8000\n";
