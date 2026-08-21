@@ -39,9 +39,7 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def native_str_func(
-    eng: any, name: str, restype: type | None, *argtypes: type
-) -> any {
+def native_str_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI JIT getter shared by native tests: a c_char_p
     # spelling means a Jac str (the by-value {root, data, len}
     # descriptor); LLVM decomposes the by-value param into three scalar

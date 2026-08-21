@@ -1413,11 +1413,6 @@ impl TypeCheckPass.enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
 }
 
 impl TypeCheckPass.exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
-    # Nothing else visits a bare statement condition since the
-    # stamp-everything inference pass retired, and downstream consumers
-    # read the stamp: the ES backend decides truthiness coercion from it,
-    # so an unstamped `if lst {` compiled to a bare JS `if (lst)` where an
-    # empty array is truthy.
     self.evaluator.get_type_of_expression(nd.condition);
 }
 

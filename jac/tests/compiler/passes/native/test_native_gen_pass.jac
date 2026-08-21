@@ -71,7 +71,7 @@ def get_sfunc(
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -2279,7 +2279,7 @@ test "py interop native calls python function" {
     assert eng is not None;
     # Register the Python function in the interop callback table
     py_func_table = ir.gen.interop_py_funcs;
-    py_func_table["py_double"] = lambda (x) { x * 2; };
+    py_func_table["py_double"] = lambda (x: int) { x * 2; };
     # Now call the native function
     f = get_func(eng, "native_add_one_to_doubled", ctypes.c_int64, ctypes.c_int64);
     assert f(5) == 11;  # py_double(5) = 10, + 1 = 11
@@ -3810,7 +3810,8 @@ test "elf linker rejects unhandled relocation (issue #6366 guard)" {
         }
     }
     assert target is not None , "no .text relocation found to corrupt";
-    target.rtype = 9999;
+    _corrupt: any = target;
+    _corrupt.rtype = 9999;
     raised = False;
     try {
         linker.build_executable();

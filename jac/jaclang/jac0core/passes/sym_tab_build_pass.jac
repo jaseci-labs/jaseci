@@ -125,7 +125,6 @@ class SymTabBuildPass(UniPass) {
     def _exit_import_absorb(self: SymTabBuildPass, nd: Import) -> None;
     def exit_import(self: SymTabBuildPass, nd: Import) -> None;
     def import_binding_scope(self: SymTabBuildPass, nd: AstSymbolNode) -> UniScopeNode;
-
     def exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> None;
     def exit_module_item(self: SymTabBuildPass, nd: ModuleItem) -> None;
     def enter_archetype(self: SymTabBuildPass, nd: Archetype) -> None;
