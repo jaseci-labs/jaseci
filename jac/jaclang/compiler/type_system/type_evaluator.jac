@@ -1,7 +1,6 @@
 import os;
 import from pathlib { Path }
 import from typing { cast }
-import from collections.abc { Sequence }
 import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
