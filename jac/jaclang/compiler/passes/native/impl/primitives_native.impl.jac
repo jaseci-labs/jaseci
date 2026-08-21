@@ -400,7 +400,10 @@ impl NativeComplexEmitter._make_complex(
 }
 
 impl NativeComplexEmitter.emit_conjugate(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     parts = self._load_parts(ctx, target);
     if parts is None {
@@ -412,55 +415,82 @@ impl NativeComplexEmitter.emit_conjugate(
 }
 
 impl NativeComplexEmitter.emit_op_add(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_sub(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_mul(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_truediv(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_pow(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_eq(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_ne(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_neg(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
 
 impl NativeComplexEmitter.emit_op_pos(
-    self: NativeComplexEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeComplexEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     return None;
 }
@@ -4233,56 +4263,80 @@ impl NativeFrozensetEmitter._get_set_emitter(
 }
 
 impl NativeFrozensetEmitter.emit_union(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_union(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_intersection(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_intersection(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_difference(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_difference(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_symmetric_difference(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_symmetric_difference(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_issubset(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_issubset(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_issuperset(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_issuperset(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_isdisjoint(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_isdisjoint(ctx, target, args) if se is not None else None;
 }
 
 impl NativeFrozensetEmitter.emit_copy(
-    self: NativeFrozensetEmitter, ctx: NativeEmitCtx, target: ir.Value, args: list[ir.Value]
+    self: NativeFrozensetEmitter,
+    ctx: NativeEmitCtx,
+    target: ir.Value,
+    args: list[ir.Value]
 ) -> (ir.Value | None) {
     se = self._get_set_emitter(ctx);
     return se.emit_copy(ctx, target, args) if se is not None else None;
