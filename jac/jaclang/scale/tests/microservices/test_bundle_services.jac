@@ -154,6 +154,61 @@ test "the resolver follows the routes the deploy emits pods for" {
 }
 
 
+test "the implicit main agrees with local microservice mode for a root entry point" {
+    import from jaclang.project.config { get_config }
+    import from jaclang.scale.runtime.routing { ensure_main_service }
+    toml = (
+        "[project]\nname = \"mini\"\nentry-point = \"app.jac\"\n\n"
+        "[scale.microservices.routes]\nsvc = \"/svc\"\n"
+    );
+    base = _app(toml, {"svc.jac": _PING, "app.jac": _PING});
+    routes: dict[str, str] = {"svc": "/svc"};
+    service_files: dict[str, str] = {"svc": "svc.jac"};
+    try {
+        get_config(start_path=base, force_discover=True);
+        ensure_main_service(routes, service_files);
+    } finally {
+        get_config(force_discover=True);
+    }
+    assert service_files["main"] == "app.jac" , service_files;
+    assert _resolve(base)["main"] == service_files["main"];
+}
+
+
+test "the pack validates the config the deploy resolved, not jac.toml" {
+    base = _app(_ROUTED_TOML, {"svc.jac": _PING, "main.jac": _PING});
+    caught = "";
+    try {
+        pack_jab(str(base), b"binary", ms_config={"routes": {"ghost": "/ghost"}});
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "'ghost'" in caught , caught;
+    assert "'svc'" not in caught , caught;
+}
+
+
+test "a stale jac.toml route never fails a pack the deploy does not route" {
+    base = _app(_ROUTED_TOML, {"main.jac": _PING});
+    assert "'svc'" in _pack_error(base);
+    caught = "";
+    try {
+        pack_jab(str(base), b"binary", ms_config={"routes": {}});
+    } except Exception as e {
+        caught = str(e);
+    }
+    assert "'svc'" not in caught , caught;
+}
+
+
+test "an unparseable jac.toml fails the pack instead of sealing blind" {
+    base = _app("[project\nname = \"broken\"\n", {"main.jac": _PING});
+    caught = _pack_error(base);
+    assert "jac.toml" in caught , caught;
+    assert "cannot be parsed" in caught , caught;
+}
+
+
 test "a missing implicit main module fails the pack naming the entry point" {
     base = _app(_ROUTED_TOML, {"svc.jac": _PING, "app.jac": _PING});
     caught = _pack_error(base);

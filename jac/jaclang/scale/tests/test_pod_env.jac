@@ -316,7 +316,7 @@ test "a service pod with no resolved file refuses to guess" {
         (rc, argv, err) = _entrypoint_run(project, {"JAC_SV_NAME": "svc"});
         assert rc == 1 , (rc, err);
         assert argv == "" , argv;
-        assert "no service file was resolved" in err , err;
+        assert "JAC_SV_FILE is not set" in err , err;
     }
 }
 
@@ -365,6 +365,46 @@ test "the pod env resolves the routes the deploy emits pods for" {
             e["name"]: e["value"] for e in specs["main"]["containers"][0]["env"]
         };
         assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
+    }
+}
+
+
+test "the pod env carries the bundle-validated path, not the declared string" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["lib/svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        declared: dict[str, any] = {"file": "./lib/svc.jac"};
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={
+                "routes": {"svc": "/svc"},
+                "services": {"svc": declared}
+            },
+            dry_run=True
+        );
+        env = {e["name"]: e["value"] for e in builder._build_env("svc", declared)};
+        assert env["JAC_SV_FILE"] == "lib/svc.jac" , env;
+    }
+}
+
+
+test "the injector seals against the config the deploy emits pods for" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"svc": "/svc"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        injector = builder._prepare_injector(app_cfg);
+        assert injector._ms_config == builder._ms_cfg() , injector._ms_config;
+        assert injector._ms_config["routes"] == {"svc": "/svc", "main": "/__main__"};
     }
 }
 

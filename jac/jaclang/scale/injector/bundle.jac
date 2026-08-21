@@ -162,15 +162,24 @@ def source_filter_for(base: Path) -> BundleSourceFilter {
 }
 
 
-def entry_module_rel(project_dir: str) -> (Path | None) {
+def _project_config(project_dir: str) -> any {
     import from jaclang.project.config { get_config_for_path }
 
     try {
-        config = get_config_for_path(Path(project_dir));
+        return get_config_for_path(Path(project_dir));
     } except Exception as exc {
-        logger.warning(f"entry-point check skipped, jac.toml unparseable: {exc}");
-        return None;
+        raise ValueError(
+            f"jac.toml under '{project_dir}' cannot be parsed ({exc}), so the "
+            "deploy cannot resolve the entry module or the service modules, "
+            "and every pod would fail on the same file at boot. Fix jac.toml "
+            "and re-deploy."
+        ) from exc;
     }
+}
+
+
+def entry_module_rel(project_dir: str) -> (Path | None) {
+    config = _project_config(project_dir);
     if config is None or not config.project.entry_point {
         return None;
     }
@@ -263,14 +272,7 @@ def bundle_source_files(base: Path) -> list[Path] {
 
 
 def _declared_ms_section(project_dir: str) -> dict[str, any] {
-    import from jaclang.project.config { get_config_for_path }
-
-    try {
-        config = get_config_for_path(Path(project_dir));
-    } except Exception as exc {
-        logger.warning(f"service-module check skipped, jac.toml unparseable: {exc}");
-        return {};
-    }
+    config = _project_config(project_dir);
     if config is None {
         return {};
     }
@@ -839,7 +841,12 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
 }
 
 
-def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes {
+def pack_jab(
+    project_dir: str,
+    seal_binary: bytes,
+    pod_arch: str = "",
+    ms_config: (dict[str, any] | None) = None
+) -> bytes {
     if not seal_binary {
         raise ValueError(
             "pack_jab requires a host-runnable jac binary to seal the app "
@@ -857,7 +864,10 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
     assert_entry_module_ships(base, excluded);
     sources = bundle_source_files(base);
     resolve_service_members(
-        base, [path.relative_to(base).as_posix() for path in sources], excluded
+        base,
+        [path.relative_to(base).as_posix() for path in sources],
+        excluded,
+        ms_config
     );
     if excluded.ignore_patterns {
         logger.info(
