@@ -143,6 +143,14 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "MATCH_MAPPING",
     "MATCH_KEYS",
     "MATCH_CLASS",
+    # Band 10 / star-call + f-string emissions (registry ahead of layer markers).
+    "CALL_FUNCTION_EX",
+    "UNPACK_EX",
+    "LIST_EXTEND",
+    "BUILD_STRING",
+    "FORMAT_SIMPLE",
+    "FORMAT_WITH_SPEC",
+    "CONVERT_VALUE",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
@@ -597,6 +605,38 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture(
         "IS_OP",
         "def f(x):\n    match x:\n        case True:\n            return 1\n        case _:\n            return 0\nresult = f(True)\n",
+    ),
+    VmFixture(
+        "CALL_FUNCTION_EX",
+        "def f(*a, **k):\n"
+        "    return (a, k)\n"
+        "def g(t, d):\n"
+        "    return f(*t, **d)\n"
+        "result = g((1,), {'x': 2})\n",
+    ),
+    VmFixture(
+        "UNPACK_EX",
+        "a, *b, c = [1, 2, 3, 4]\nresult = a + c + len(b)\n",
+    ),
+    VmFixture(
+        "LIST_EXTEND",
+        "a, *b, c = [1, 2, 3, 4]\nresult = a + c + len(b)\n",
+    ),
+    VmFixture(
+        "BUILD_STRING",
+        "x = 1\ny = 2\nresult = f'{x}-{y}'\n",
+    ),
+    VmFixture(
+        "FORMAT_SIMPLE",
+        "x = 1\nresult = f'x={x}'\n",
+    ),
+    VmFixture(
+        "FORMAT_WITH_SPEC",
+        "x = 1.5\nresult = f'{x:.2f}'\n",
+    ),
+    VmFixture(
+        "CONVERT_VALUE",
+        "x = 'a'\nresult = f'{x!r}'\n",
     ),
 )
 
