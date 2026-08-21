@@ -97,9 +97,10 @@ jobs:
   # Host kit: the newest main binary (restore-keys prefix; any sealed binary
   # serves as a host because the reroute bypasses its bundled jaclang) plus
   # the typeshed stubs and the musl/wasm floors vendored from THIS checkout's
-  # pins, and the libjacpyembed shim lifted from the host payload. Same paths
-  # as build-kit's artifact (plus that shim), so a consumer cannot tell the two
-  # apart except by the binary's provenance. Falls back to the rolling
+  # pins. Same paths as build-kit's artifact, so a consumer cannot tell the
+  # two apart except by the binary's provenance (the desktop build stages the
+  # fused runtime library from the rerouted checkout, so nothing is lifted
+  # out of the host payload). Falls back to the rolling
   # `dev` prerelease when the cache has nothing, so an eviction costs a
   # download, never a build.
   host-kit:
@@ -140,10 +141,10 @@ jobs:
       - name: Materialize typeshed + vendored runtimes
         working-directory: jac
         run: |
-          zig build -Dno-ninja fetch-typeshed --summary all
-          zig build -Dno-ninja vendor-musl --summary all
-          zig build -Dno-ninja vendor-musl-linux-aarch64 --summary all
-          zig build -Dno-ninja vendor-wasm-libc --summary all
+          zig build fetch-typeshed --summary all
+          zig build vendor-musl --summary all
+          zig build vendor-musl-linux-aarch64 --summary all
+          zig build vendor-wasm-libc --summary all
 
       # The host must boot on its own AND reroute to this checkout; the second
       # property is the one every consumer depends on, so prove it here.
@@ -159,18 +160,6 @@ jobs:
           echo "$out" | tail -3
           echo "$out" | grep -q "jaclang at $PWD/jac/jaclang/"
 
-      # The desktop build stages libjacpyembed from the checkout tree, where a
-      # zig build places it; the reroute does not fall back to the payload copy
-      # the way the LLVM shim lookup does. Lift it out of the payload the boot
-      # above unpacked (one rt dir on a fresh runner) so the host kit carries
-      # it at its in-tree path. Payload-baked like the binary itself.
-      - name: Stage libjacpyembed from the host payload
-        run: |
-          set -euo pipefail
-          src="$(ls "$HOME"/.cache/jac/rt/*/site/jaclang/runtimelib/client/targets/desktop/native/libjacpyembed.so)"
-          [ "$(printf '%s\n' "$src" | wc -l)" = 1 ] || { echo "::error::expected exactly one unpacked host payload, got:"; echo "$src"; exit 1; }
-          cp "$src" jac/jaclang/runtimelib/client/targets/desktop/native/libjacpyembed.so
-
       - name: Verify the kit is complete
         working-directory: jac
         run: |
@@ -178,8 +167,7 @@ jobs:
           for p in zig-out/bin/jac jaclang/vendor/typeshed/stdlib \
                    .pbs-build/linux-x86_64/musl/lib \
                    .pbs-build/linux-aarch64/musl/lib \
-                   .pbs-build/wasm32/libc \
-                   jaclang/runtimelib/client/targets/desktop/native/libjacpyembed.so; do
+                   .pbs-build/wasm32/libc; do
             [ -e "$p" ] || { echo "::error::host kit is missing $p"; exit 1; }
           done
 
@@ -193,7 +181,6 @@ jobs:
             jac/.pbs-build/linux-x86_64/musl/lib
             jac/.pbs-build/linux-aarch64/musl/lib
             jac/.pbs-build/wasm32/libc
-            jac/jaclang/runtimelib/client/targets/desktop/native/libjacpyembed.so
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: error
