@@ -96,3 +96,43 @@ def eq_non_literal(v: str | None, w: str) -> str {
     }
     return r;
 }
+
+# ============================================================================
+# `!=` narrows only where the members are literals themselves. Ruling out one
+# value cannot rule out a whole class, so these are the cases where it does
+# carry information: every remaining member is spelled out.
+# ============================================================================
+
+def ne_literal_union_to_none(v: Literal["a"] | None) -> None {
+    if v != "a" {
+        return v;
+    }
+    return None;
+}
+
+def ne_literal_union_keeps_sibling(v: Literal["a"] | Literal["b"] | None) -> str {
+    if v == "a" {
+        return v;
+    }
+    return "obj";
+}
+
+# ============================================================================
+# Each of `==` and `!=` has one edge that narrows by matching rather than by
+# subtracting, and that edge holds for every literal: reaching it proves the
+# comparison succeeded, so the compared class is what the value is.
+# ============================================================================
+
+def ne_int_else_branch(v: int | None) -> int {
+    if v != 5 {
+        return 0;
+    }
+    return v;
+}
+
+def ne_str_else_branch(v: str | None) -> str {
+    if v != "node" {
+        return "obj";
+    }
+    return v;
+}

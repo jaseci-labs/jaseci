@@ -4561,12 +4561,18 @@ impl TypeEvaluator._find_predicate_for(
 
             case NarrowingKind.LITERAL_EQ:
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=False
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=False,
+                    narrows_on_false=self._literal_comparison_excludes(info.narrow_type)
                 );
 
             case NarrowingKind.LITERAL_NE:
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=True
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=True,
+                    narrows_on_true=self._literal_comparison_excludes(info.narrow_type)
                 );
 
             case NarrowingKind.TRUTHINESS:
@@ -4892,36 +4898,71 @@ impl TypeEvaluator._union_narrowed_types(types_list: list) -> TypeBase {
     return UnionType(types=unique);
 }
 
+impl TypeEvaluator._exclusion_drops_member(
+    member: TypeBase, to_exclude: TypeBase
+) -> bool {
+    """Whether excluding `to_exclude` removes `member` outright.
+
+    Excluding a bare class removes every member of that class: ruling out
+    `NoneType` leaves nothing of `NoneType` behind. Excluding a *literal* is
+    weaker, because a literal is one value rather than a whole class. `x !=
+    "node"` rules out the single string `"node"`, and every other string
+    remains, so it may only remove a member that is that same literal and
+    must leave a bare-class member alone. Matching on the class alone would
+    read the two as one, because `clone_with_literal` shares its `shared`
+    with the class it refines and so reports the same `canonical_key`, and
+    `str | None` would narrow to `None` on the true branch over a live `str`.
+    """;
+    if not (isinstance(member, ClassType) and isinstance(to_exclude, ClassType)) {
+        return member is to_exclude;
+    }
+    if not member.shared.same_class(to_exclude.shared) {
+        return False;
+    }
+    if to_exclude.is_literal_type() {
+        return (
+            member.is_literal_type()
+            and member.get_literal_value() == to_exclude.get_literal_value()
+        );
+    }
+    return True;
+}
+
+impl TypeEvaluator._literal_comparison_excludes(compared: TypeBase | None) -> bool {
+    """Whether a literal comparison may subtract `compared` on its other edge.
+
+    Each of `==` and `!=` has one sound edge and one conditional one. Matching
+    proves the class, so the edge that narrows *to* the compared type always
+    holds: `v == 5` gives `int` on its true edge, and `v != 5` gives it on the
+    false edge. The opposite edge subtracts instead, and subtraction is only
+    justified for a value the type can name: ruling out `"node"` leaves every
+    other `str` standing, so it may only remove a `Literal["node"]` member.
+
+    `5`, `1.5` and `True` evaluate to their bare class rather than a literal
+    -- and `float` can never be otherwise, having no literal form -- so the
+    compared type there says "an int", not "the value 5". Subtracting it would
+    delete the class over a live value, which is why that edge is switched off
+    rather than narrowed.
+    """;
+    return isinstance(compared, ClassType) and compared.is_literal_type();
+}
+
 impl TypeEvaluator.exclude_type_from_union(
     original: TypeBase, to_exclude: TypeBase
 ) -> TypeBase {
     if isinstance(original, UnionType) and original.types {
-        exclude_shareds: set = set();
-        exclude_ids: set = set();
-        to_exclude_list: list[TypeBase] = [];
-        if isinstance(to_exclude, UnionType) and to_exclude.types {
-            to_exclude_list = to_exclude.types;
-        } else {
-            to_exclude_list = [to_exclude];
-        }
-        for excl_t in to_exclude_list {
-            if isinstance(excl_t, ClassType) {
-                exclude_shareds.add(excl_t.shared.canonical_key() or id(excl_t.shared));
-            } else {
-                exclude_ids.add(id(excl_t));
-            }
-        }
-        remaining: list[TypeBase] = [];
-        for t in original.types {
-            if isinstance(t, ClassType) {
-                if (t.shared.canonical_key() or id(t.shared)) in exclude_shareds {
-                    continue;
-                }
-            } elif id(t) in exclude_ids {
-                continue;
-            }
-            remaining.append(t);
-        }
+        to_exclude_list: list[TypeBase] = (
+            to_exclude.types
+                if isinstance(to_exclude, UnionType) and to_exclude.types
+                else [to_exclude]
+        );
+        remaining: list[TypeBase] = [
+            t
+            for t in original.types
+            if not any(
+                [self._exclusion_drops_member(t, excl_t) for excl_t in to_exclude_list]
+            )
+        ];
         if len(remaining) == 0 {
             return NeverType();
         } elif len(remaining) == 1 {
@@ -4931,13 +4972,7 @@ impl TypeEvaluator.exclude_type_from_union(
         }
     }
 
-    if isinstance(original, ClassType)
-        and isinstance(to_exclude, ClassType)
-        and original.shared.same_class(to_exclude.shared) {
-        return NeverType();
-    }
-
-    if original is to_exclude {
+    if self._exclusion_drops_member(original, to_exclude) {
         return NeverType();
     }
     return original;

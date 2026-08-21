@@ -707,6 +707,8 @@ obj TypeEvaluator {
         visited: set
     ) -> (TypeBase | None);
 
+    def _literal_comparison_excludes(compared: TypeBase | None) -> bool;
+    def _exclusion_drops_member(member: TypeBase, to_exclude: TypeBase) -> bool;
     def exclude_type_from_union(original: TypeBase, to_exclude: TypeBase) -> TypeBase;
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
