@@ -2222,7 +2222,9 @@ def _check_captured(
 test "jac check disable_error_code maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
         [fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
     );
@@ -2274,7 +2276,9 @@ test "jac check disable_error_code warns on unknown diagnostics" {
 test "jac check native-coverage flag maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
         [fixture_path("warnings_only.jac"), "--native-coverage"]
     );
