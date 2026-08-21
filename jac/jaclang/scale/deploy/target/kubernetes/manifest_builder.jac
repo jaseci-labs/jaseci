@@ -866,6 +866,7 @@ obj ManifestBuilder {
             },
             "spec": {
                 "replicas": replicas,
+                "revisionHistoryLimit": self.k8s_config.revision_history_limit,
                 "strategy": {
                     "type": "RollingUpdate",
                     "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}
