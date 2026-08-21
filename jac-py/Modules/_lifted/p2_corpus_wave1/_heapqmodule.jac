@@ -32,6 +32,12 @@ glob ptrdiff_t = int,
      Py_ssize_t = int,
      Py_hash_t = int;
 
+# Interpreter-oracle shim: ``@__jac_value__`` is a c2jac arch marker, not a
+# runtime name. Native lower may skip these objs; server codespace needs this.
+def __jac_value__(x: any) -> any {
+    return x;
+}
+
 @__jac_value__
 obj unaryfunc {
     def call -> PyObj {

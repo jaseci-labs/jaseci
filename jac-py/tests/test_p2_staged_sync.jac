@@ -94,3 +94,24 @@ test "P2 getplatform facade matches staged Modules oracle" {
         "jacpython/getplatform.jac must mirror Modules/getplatform.jac"
     );
 }
+
+test "P2 bisect/heapq facades are native (not Modules byte-copies, no host py blocks)" {
+    # Unlike getplatform, product facades are native list algorithms; Modules/
+    # stay C-API hand oracles for cc differentials (see p2_staged_manifest notes).
+    # Avoid embedding the py-block delimiter as a contiguous literal in this file.
+    py_block = ":" + ":py:" + ":";
+    for stem in ["_bisectmodule", "_heapqmodule"] {
+        staged = os.path.join(REPO_ROOT, "jac-py", "Modules", f"{stem}.jac");
+        facade = os.path.join(REPO_ROOT, "jac-py", "jacpython", f"{stem}.jac");
+        assert os.path.isfile(staged) , staged;
+        assert os.path.isfile(facade) , facade;
+        facade_text = _read_text(facade);
+        assert py_block not in facade_text , (
+            f"jacpython/{stem}.jac must not use host py-block delegation"
+        );
+        assert "_p2_" in facade_text , f"jacpython/{stem}.jac missing _p2_* surface";
+        assert facade_text != _read_text(staged) , (
+            f"jacpython/{stem}.jac must remain a native facade, not a Modules copy"
+        );
+    }
+}

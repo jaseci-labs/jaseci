@@ -37,12 +37,12 @@
     {
       "stem": "_bisectmodule",
       "staging": "hand",
-      "note": "Oracle hand-edits (PyObj stubs). After T8 tier-B burn-down on staged file, run sync_staged_to_lifted.py before re-measuring density."
+      "note": "Dual pipeline: Modules/_bisectmodule.jac is the C-API hand oracle (PyObj stubs) for cc differential tests; jacpython/_bisectmodule.jac is the native product facade (_p2_* list algorithms, no host py-block delegation). Not byte-identical. Staged file defines a no-op __jac_value__ so jac-run oracles survive native-lower fallback (decorator is a c2jac arch marker, not a runtime name). After T8 tier-B burn-down on staged oracle, run sync_staged_to_lifted.py before re-measuring density."
     },
     {
       "stem": "_heapqmodule",
       "staging": "hand",
-      "note": "Oracle hand-edits (PyObj stubs). After T8 tier-B burn-down on staged file, run sync_staged_to_lifted.py before re-measuring density."
+      "note": "Dual pipeline: Modules/_heapqmodule.jac is the C-API hand oracle (PyObj stubs) for cc differential tests; jacpython/_heapqmodule.jac is the native product facade (_p2_* list algorithms, no host py-block delegation). Not byte-identical. Staged file defines a no-op __jac_value__ so jac-run oracles survive native-lower fallback (decorator is a c2jac arch marker, not a runtime name). After T8 tier-B burn-down on staged oracle, run sync_staged_to_lifted.py before re-measuring density."
     },
     {
       "stem": "mysnprintf",

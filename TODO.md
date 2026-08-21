@@ -1,105 +1,114 @@
 ## Already moved (don’t re-do)
 
-Compare protocol (`NotImplemented`, cross-type `TypeError`, `True == 1`), hash `(-1,)`, Layer-1 probes, CI manifest drift, libtest stdout helper — those were the high-leverage Layer-1 honesty fixes.
+Compare protocol (`NotImplemented`, cross-type `TypeError`, `True == 1`), hash `(-1,)`, Layer-1 probes, CI manifest drift, libtest stdout helper - those were the high-leverage Layer-1 honesty fixes.
+
+**Also done on this branch:** native str/int/float `repr()` (ceval dispatch), P3 runtime parity probes (M11), `PySlice` + `PyComplex` imports in `marshal_reader.jac` (Layer-0 `test_int` 119 + `test_str` 345), getplatform libtest wiring, native str/float/bytes `hash()` in `pyhash.jac`, standalone SipHash secret (`PYTHONHASHSEED` / LCG / `os.urandom`, no ctypes), P2 wave-4 `pystricmp` lift sync + stronger gates, set subset/`isdisjoint` element-`==` (M9), bisect/heapq JacPython libtest shims, P5 `type_ready` wired into class construction, bulk Objects/ c2jac waves (P3.1c-P3.2e, 44 manifest stems), native ``PyRange`` deepen (len/contains/index/==/attrs), native ``PyByteArray`` deepen (slice/concat/mutate/bytes==), native str/bytes method surface (`PyStrMethod` / `PyBytesMethod` + deepened unicode/ctype/bytes_methods leaves), native gen `gi_running`/`gi_suspended`/`gi_frame` + close probes, native ``PyMemoryView`` + `memoryview()`, native `enumerate`/`reversed`, native `weakref` shim module, `PyIter` host-boundary drain, ``__slots__`` layout + member descriptors (`type_slots.jac` + `finalize_class_slots` / `PyMemberDescr` type-dict install), Band 5 ``__slots__`` codegen oracles, deepened odict/structseq leaf helpers.
 
 ---
 
-## Tier 1 — Do first (biggest correctness + unlocks more tests)
+## Tier 1 - Do first (biggest correctness + unlocks more tests)
 
-### 1. Native `repr()` for str / int / float (FIXME H3)
+### 1. ~~Native `repr()` for str / int / float (FIXME H3)~~ ✓
 
-**Why:** `repr()` is everywhere — errors, containers, dict keys, replay diffs. Today str/int/float still fall through to `host_convert` in `py_repr`, so standalone JacPython and differential tests can lie.
-
-**Effect:** One slice, touches one dispatch path, immediately improves every container repr and exception path you already ported natively.
-
-**Scope:** `str_repr`, `int_repr`, `float_repr` in the object modules + wire in `ceval.jac` before host fallback. Smaller than full hash port.
+**Done:** `str_repr`, `int_repr`, `float_repr` wired in `ceval.jac` before host fallback.
 
 ---
 
-### 2. Wire `getplatform` into the libtest shim (FIXME H4/H5)
+### 2. ~~Wire `getplatform` into the libtest shim (FIXME H4/H5)~~ ✓
 
-**Why:** Docs/comments say libtest is “staged-module backed,” but `p2_libtest_reset()` hardcodes `"linux"` / `"x86_64"`. Conformance can look green while JacPython never runs the staged port.
-
-**Effect:** Makes P2 libtest **honest** for a module you already have staged. Low LOC, high trust in CI.
-
-**Scope:** Load `Modules/getplatform.jac` (or call `Py_GetPlatform()`) from `layer_p2_libtest.jac`; align `can_run_jacpython_libtest` with what actually runs.
+**Done:** `platform.platform()` → `Py_GetPlatform()` from `jacpython/getplatform.jac`; `system`/`machine` shims query host CPython (outside getplatform port). `can_run_jacpython_libtest` documents facade vs staged oracle split.
 
 ---
 
-### 3. Investigate Layer-0 `test_int` ratchet (114 vs 119)
+### 3. ~~Investigate Layer-0 `test_int` ratchet (114 vs 119)~~ ✓
 
-**Why:** P3 corpus gate is the main anti-regression lock. A 5-count drop with 0 failures usually means **skipped or harvest drift**, not random breakage — but the gate will fail on push until resolved.
+**Root cause:** `marshal_reader.jac` called `PySlice(...)` in `read_slice()` without importing `PySlice`.
 
-**Effect:** Unblocks CI truth for the whole P3 track before adding more baselines.
-
-**Scope:** Likely manifest update or fix a replay/harvest regression from recent compare changes — quick diagnostic, not a new feature.
+**Fix:** add `PySlice` to `marshal_reader.jac` imports. Gate reports `test_int passed=119`.
 
 ---
 
-## Tier 2 — High value, more work (standalone JacPython)
+### 3b. ~~Layer-0 `test_str` complex-format ratchet (341 vs 345)~~ ✓
 
-### 4. Native str/float `hash()` (FIXME Critical #1, partial)
+**Root cause:** `read_complex()` built `PyComplex(...)` without importing `PyComplex`.
 
-**Why:** Still host-backed in `hash_dispatch.jac`. Layer-1 stability tests pass, but **`hash('a')`, `hash(1.5)`, mixed containers** diverge in standalone runs and any test that compares exact hash values.
-
-**Effect:** Closes the biggest remaining **semantic** gap for builtins; prerequisite for trusting set/frozenset/dict tests that depend on element hashes without host.
-
-**Scope:** Port `unicode_hash` + `_Py_HashDouble` (or a corpus extract + oracle). Bigger than repr, but the FIXME “recommended fix order #1” for a reason.
-
-**Not yet:** bytes SipHash — same class of problem, but you explicitly deferred secret parity; do str/float first since they unblock more tests with less crypto baggage.
+**Fix:** add `PyComplex` to `marshal_reader.jac` imports. Gate reports `test_str passed=345`; full P3 Layer-0/1 ratchet green.
 
 ---
 
-### 5. Runtime parity in `test_p3_object_core_gate` (FIXME M11)
+## Tier 2 - High value, more work (standalone JacPython)
 
-**Why:** Today the gate checks **lifted artifact density**, not whether `jacpython/*.jac` behavior matches CPython. You can lift clean code that never runs correctly.
+### 4. ~~Native str/float/bytes `hash()` (FIXME Critical #1)~~ ✓
 
-**Effect:** Turns P3 gates from “we have files” to “the runtime works” — compounding value on every future object slice.
-
-**Scope:** Per-stem smoke tests (hash/repr/compare) wired to manifest, similar to Layer-1 probes but automated in the gate.
+**Done:** SipHash13 + `_Py_HashDouble` ported to pure Jac in `pyhash.jac`. SipHash keys from process-local `PYTHONHASHSEED` bootstrap (LCG / zero / `os.urandom`). `bytes_hash_data` routes `bytesobject.jac` through the same machinery; Layer-1 bytes hash probe passes.
 
 ---
 
-## Tier 3 — Correctness hygiene (prevent silent wrong code)
+### 5. ~~Runtime parity in `test_p3_object_core_gate` (FIXME M11)~~ ✓
 
-### 6. P2 wave 4 — `pystricmp` NUL semantics + stronger gates (FIXME M1–M5)
-
-**Why:** Staged oracle uses `len(p1) > 0` instead of NUL termination; wave 4 gates are weaker than wave 2/3 (stem sets, boundary oracles).
-
-**Effect:** Stops **permanent staged/lifted drift** and catches wrong C semantics before it spreads.
-
-**Scope:** Small fix in `pystricmp.jac` + port two-test staged-sync pattern from wave 2. Good “one PR each” work.
+**Done:** `layer0_replay_p3_runtime_gate.jac` + manifest `runtime_probe` entries.
 
 ---
 
-### 7. Set subset compare with element `==` (FIXME M9)
+## Tier 3 - Correctness hygiene (prevent silent wrong code)
 
-**Why:** `_set_is_subset` uses hashkey membership only, not `PyObject_RichCompareBool`. Wrong for user objects with custom equality.
+### 6. ~~P2 wave 4 - `pystricmp` NUL semantics + stronger gates (FIXME M1-M5)~~ ✓
 
-**Effect:** Matters once user-class sets/frozensets show up in corpus; lower urgency until then.
-
----
-
-## Tier 4 — Explicitly later (your deferred list)
-
-| Item | Why wait |
-|------|----------|
-| **bytes host hash / SipHash** | Needs hash secret + bootstrap policy; do after str/float hash pattern exists |
-| **bisect/heapq JacPython** | Need module implementation + shim wiring first; manifest skips are correct today |
-| **Full Objects/ lift, heap types (P5)** | Multi-slice, not incremental trust wins |
+**Done:** `pystricmp` reclassified `lift` in wave-4 manifest; staged oracle byte-synced to lifted corpus (NUL-terminated loop). Wave-4 staged-sync gate now mirrors wave 2/3 (manifest enumeration + lift byte-match). Added boundary oracles: empty strings, prefix mismatch.
 
 ---
 
-## Practical “next 3 PRs” I’d recommend
+### 7. ~~Set subset compare with element `==` (FIXME M9)~~ ✓
 
-1. **Native str/int/float repr** — fast, broad blast radius  
-2. **getplatform libtest wiring + gate honesty** — CI trust, small diff  
-3. **Layer-0 `test_int` ratchet fix** — unblock green P3 gate, then add M11 runtime checks  
+**Done:** `_set_contains_elem` + `_obj_eq_bool` in `objects.jac`; `_pyset_richcompare_na`, `set_lookup`, `isdisjoint`, and `in`/`__contains__` route through element `==`. Regression in `pyc_first.jac` (identity-keyed `AlwaysEq` user objects).
 
-After that: **str/float native hash**, then **P3 runtime gate (M11)**, then **wave 4 hygiene**.
+---
 
-If you want one axis to optimize for:
+## Tier 4 - Explicitly later (your deferred list)
 
-- **User-visible correctness** → repr, then str/float hash  
-- **CI honesty** → getplatform, test_int ratchet, M11 gate  
-- **Port hygiene** → wave 4 NUL/stem gates  
+### 8. ~~bytes native hash / SipHash secret policy~~ ✓
+
+**Done:** `bytes_hash_data` in `pyhash.jac`; `bytesobject.jac` uses SipHash13 via shared process-local secret bootstrap (same seam as str hash). Removed host `::py::` delegate.
+
+---
+
+### 9. ~~bisect/heapq JacPython~~ ✓
+
+**Done:** `jacpython/_bisectmodule.jac` + `_heapqmodule.jac` facades; `layer_p2_libtest.jac` registers `bisect`/`heapq` stdlib shims; four libtest snippets marked `jacpython_capable`; conformance ratchet extended to `_bisectmodule` + `_heapqmodule`.
+
+---
+
+### 10. ~~Full Objects/ lift, heap types (P5)~~ ✓
+
+**Done:**
+
+- **P5 heap types:** `type_ready()` wired into `make_pyclass_from_map`; `PyClass.tp_flags` records READY state; `enum` removed from `layer3_force_host` force-proxy list.
+- **Bulk Objects/ c2jac waves:** curated corpus → `Objects/_lifted/` → `jacpython/*.jac` → probes for **44** `c2jac_objects_wave` stems (P3.1c-P3.2e). Includes prior cores (bool/slice/abstract/tuple/long/type/exceptions/bytes/list/dict/set) plus method/descr (P3.2b) and remaining Objects stems (float/complex/range/enum/cell/func/iter/class, code/module/weakref/bytearray/memory/frame/gen/odict, union/namespace/capsule/structseq/file/call/bytes_methods/picklebuf/genericalias/typevar/interpolation/template/object/unicodectype/unicode). Gate: `test_p3_object_core_gate.jac` lift ratchets + M11 runtime probes.
+
+**Still deferred (not Tier 4 bar):** deep algorithm ports beyond curated helpers (full unicode, timsort, real GC weakref, etc.).
+
+---
+
+## Next up (post-TODO)
+
+1. ~~**Deepen Objects cores**~~ ✓ - native range/bytearray/str-bytes methods; gen/frame attrs; memoryview; enumerate/reversed; weakref shim; PyIter drain; odict/structseq leaf helpers (see Tier 4 / Also done).
+2. ~~**Full `PyType_Ready` slot lifecycle**~~ ✓ - ``type_slots.jac`` + ``finalize_class_slots`` layout; ``PyMemberDescr`` type-dict install; instance ``__dict__`` omits slot members; Band 5 ``__slots__`` codegen oracles (`compiler_slice` / `layer9`).
+3. ~~**Standalone SipHash secret**~~ ✓ - `pyhash.jac` boots keys from `PYTHONHASHSEED` (CPython LCG / zero / `os.urandom`); no embedding `_Py_HashSecret` ctypes shim
+
+Post-TODO queue is clear of the three axes above. Further work is opportunistic deepen / Band 6+.
+
+### Parked (do not block Band 10)
+
+- **Band 10 `CALL_FUNCTION_EX`** - codegen + `compiler_slice` / `layer9` / VM fixtures landed
+  this session (`BAND10_SLICE_LEARNINGS.md`). Ship without waiting on the parser.
+- **Parser: trailing `**` after named kw** - native PEG drops `**d` in `g(a=1, **d)` /
+  `g(*a, b=1, **d)`. Workaround: `g(**d, a=1)`. **Upstream:**
+  [jaseci-labs/jac#8473](https://github.com/jaseci-labs/jac/issues/8473). Fix on a
+  **separate parser branch** only; do not mix into heapq / Band 10 / deepen PRs.
+
+### Suggested parallel workstreams (distinct file ownership)
+
+1. ~~**Finish heapq/bisect product path**~~ ✓ - native jacpython facades (`_p2_*`, no `::py::`); Modules stay C-API hand oracles; staged-sync + facade parity gates.
+2. **Parser #8473** - `parser.jac` / grammar2jac kwargs gather only.
+3. **P2 leaf deepen / next module** - e.g. `_stat` / `_opcode` jacpython facades + libtest (not heapq files).
+4. **Compiler deferral slice** - e.g. try/except/finally multi-handler or except-as-in-finally (`compiler_codegen` only; coordinate if Band 10 uncommitted).
