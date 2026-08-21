@@ -934,12 +934,34 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/codeinfo.jac::resolve_native_module",
 
      ),
+     _BRANCH_SEAM_WAIVERS: tuple[str, ...] = (
+         "jac0core/passes/transform.jac::Alert.pretty_print",
+         "jac0core/passes/transform.jac::Alert.as_log",
+         "jac0core/passes/transform.jac::DiagnosticPolicy.is_suppressed",
+         "jac0core/passes/transform.jac::DiagnosticPolicy._inline_suppressed",
+         "jac0core/passes/transform.jac::Transform.emit",
+         "jac0core/passes/transform.jac::Transform._is_suppressed",
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.is_type_alias_decl"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.is_type_param_decl"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.is_erased_type_decl"
+         ),
+
+     ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
          + _CODEINFO_SEAM_WAIVERS
+         + _BRANCH_SEAM_WAIVERS
      ),
      _MCP_PASSENGER_SEAM_WAIVERS: tuple[str, ...] = (
          (
