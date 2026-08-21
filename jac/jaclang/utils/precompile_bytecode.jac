@@ -203,6 +203,61 @@ def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
     return out;
 }
 
+# Print the errors that explain a unit's missing bytecode. For a
+# jaclang-internal path, get_bytecode delivers the diagnostics to the
+# compiler's internal program and then clears them wholesale in its
+# unit-eviction finally -- but not before stashing the module-scoped details
+# via note_compiler_source_failure. That stash is the one channel that
+# survives, so it is read first; the live errors_had scan covers the
+# non-internal case. Without this, a census failure prints as a bare SKIP
+# with its cause discarded.
+def _emit_unit_diagnostics(jac_path: str, programs: list) {
+    import from jaclang.jac0core.compiler { compiler_source_failure_details }
+    stashed = compiler_source_failure_details(jac_path);
+    if stashed {
+        stash_lines = stashed.splitlines();
+        for line in stash_lines[:40] {
+            console.error(line);
+        }
+        if len(stash_lines) > 40 {
+            console.error(f"  ... and {len(stash_lines) - 40} more line(s)");
+        }
+        return;
+    }
+    norm = os.path.normpath(jac_path);
+    stem = norm[:-4] if norm.endswith(".jac") else norm;
+    base = os.path.basename(stem) + ".";
+    lines: list[str] = [];
+    seen: set[str] = set();
+    for prog in programs {
+        for alert in prog.errors_had {
+            try {
+                alert_path = os.path.normpath(alert.loc.mod_path);
+            } except Exception {
+                continue;
+            }
+            if not (
+                alert_path == norm
+                or alert_path.startswith(stem + ".")
+                or os.path.basename(alert_path).startswith(base)
+            ) {
+                continue;
+            }
+            pretty = alert.pretty_print();
+            if pretty not in seen {
+                seen.add(pretty);
+                lines.append(pretty);
+            }
+        }
+    }
+    for line in lines[:10] {
+        console.error(line);
+    }
+    if len(lines) > 10 {
+        console.error(f"  ... and {len(lines) - 10} more error(s)");
+    }
+}
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False
 ) -> bytes | None {
@@ -213,6 +268,9 @@ def precompile_unit(
 
     program = JacProgram();
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
+    if code is None {
+        _emit_unit_diagnostics(jac_path, [program, compiler.internal_program]);
+    }
     compiler.internal_program.release_compile_closure();
     program.release_compile_closure();
     if code is None {
@@ -2372,27 +2430,11 @@ def _seal_exit_reason(code: int) -> str {
     }
 }
 
-def _seal_worker_run(
-    job: dict[str, str], gate: any, state: dict[str, bool]
-) -> dict[str, any] {
-    gate.acquire();
+def _seal_worker_run(job: dict[str, str]) -> dict[str, any] {
     try {
-        if state.get("failed") {
-            return {
-                "rel": str(job["rel"]),
-                "ok": False,
-                "skipped": True,
-                "artifacts": {},
-                "records": {},
-                "error": "",
-                "stdout": "",
-                "stderr": "",
-                "seconds": 0.0
-            };
-        }
-        result = _seal_worker_exec(job);
+        return _seal_worker_exec(job);
     } except Exception as exc {
-        result = {
+        return {
             "rel": str(job["rel"]),
             "ok": False,
             "skipped": False,
@@ -2406,17 +2448,21 @@ def _seal_worker_run(
             "stderr": "",
             "seconds": 0.0
         };
-    } finally {
-        gate.release();
     }
-    if not result["ok"] {
-        state["failed"] = True;
-    }
-    return result;
 }
 
-def _seal_dispatch(job: dict[str, str], gate: any, state: dict[str, bool]) -> any {
-    return flow _seal_worker_run(job, gate, state) ;
+def _seal_skipped_result(rel: str) -> dict[str, any] {
+    return {
+        "rel": rel,
+        "ok": False,
+        "skipped": True,
+        "artifacts": {},
+        "records": {},
+        "error": "",
+        "stdout": "",
+        "stderr": "",
+        "seconds": 0.0
+    };
 }
 
 def _seal_replay(result: dict[str, any]) {
@@ -2442,7 +2488,7 @@ def seal_native_pool(
     jobs: int
 ) -> (dict[str, dict[str, any]] | None) {
     import tempfile;
-    import threading;
+    import from concurrent.futures { ThreadPoolExecutor }
     import from jaclang.jac0core.jir { cache_mode }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
@@ -2457,8 +2503,7 @@ def seal_native_pool(
         pkg_path, precompiled_dir, waivers, canary_reused, identity
     );
     work_dir = tempfile.mkdtemp(prefix="jac-seal-pool-");
-    gate = threading.Semaphore(max(1, jobs));
-    state: dict[str, bool] = {"failed": False};
+    pool_failed = False;
     results: dict[str, dict[str, any]] = {};
     try {
         phase_a = [
@@ -2476,8 +2521,12 @@ def seal_native_pool(
                 f"  Seal phase 1/2: {rel} (the layout the materializer is "
                 "generated from)"
             );
+            if pool_failed {
+                results[rel] = _seal_skipped_result(rel);
+                continue;
+            }
             results[rel] = _seal_worker_run(
-                _seal_worker_job(spec, work_dir, rel, None), gate, state
+                _seal_worker_job(spec, work_dir, rel, None)
             );
             landed = results[rel];
             _seal_replay(landed);
@@ -2486,6 +2535,8 @@ def seal_native_pool(
             if landed["ok"] {
                 took = float(landed["seconds"]);
                 console.print(f"  Sealed {rel} in {took:.1f}s");
+            } else {
+                pool_failed = True;
             }
         }
         unitree_record = fresh_index.get(NATIVE_SEAL_UNITREE_ROOT);
@@ -2496,40 +2547,54 @@ def seal_native_pool(
                 unitree_layout = str(candidate);
             }
         }
-        if phase_b and not state["failed"] {
+        if phase_b and not pool_failed {
             console.print(
                 f"  Seal phase 2/2: {len(phase_b)} root(s), {jobs} worker "
                 "process(es) in flight"
             );
-            handles: list[any] = [];
-            for rel in phase_b {
-                handles.append(
-                    _seal_dispatch(
-                        _seal_worker_job(
-                            spec,
-                            work_dir,
-                            rel,
-                            unitree_layout
-                                if rel == NATIVE_SEAL_MATERIALIZE_ROOT
-                                else None
-                        ),
-                        gate,
-                        state
-                    )
-                );
-            }
-            for (rel, handle) in zip(phase_b, handles) {
-                landed = wait handle ;
-                results[rel] = landed;
-                _seal_replay(landed);
-                if landed.get("records") {
-                    fresh_index.update(landed["records"]);
-                    write_seal_index(precompiled_dir, triple, fresh_index);
+            # The pool bounds worker-process fan-out (the old semaphore), and
+            # fail-fast is future cancellation by the supervisor thread (the
+            # old shared latch): pending roots are skipped, in-flight roots
+            # run to completion. No state is shared with the workers.
+            pool = ThreadPoolExecutor(max_workers=max(1, jobs));
+            try {
+                handles: list[any] = [];
+                for rel in phase_b {
+                    handles.append(
+                        pool.submit(
+                            _seal_worker_run,
+                            _seal_worker_job(
+                                spec,
+                                work_dir,
+                                rel,
+                                unitree_layout
+                                    if rel == NATIVE_SEAL_MATERIALIZE_ROOT
+                                    else None
+                            )
+                        )
+                    );
                 }
-                if landed["ok"] {
-                    took = float(landed["seconds"]);
-                    console.print(f"  Sealed {rel} in {took:.1f}s");
+                for (rel, handle) in zip(phase_b, handles) {
+                    if pool_failed and handle.cancel() {
+                        results[rel] = _seal_skipped_result(rel);
+                        continue;
+                    }
+                    landed = handle.result();
+                    results[rel] = landed;
+                    _seal_replay(landed);
+                    if landed.get("records") {
+                        fresh_index.update(landed["records"]);
+                        write_seal_index(precompiled_dir, triple, fresh_index);
+                    }
+                    if landed["ok"] {
+                        took = float(landed["seconds"]);
+                        console.print(f"  Sealed {rel} in {took:.1f}s");
+                    } else {
+                        pool_failed = True;
+                    }
                 }
+            } finally {
+                pool.shutdown(`wait=True);
             }
         }
     } finally {
@@ -3192,7 +3257,10 @@ def main {
             )
         );
     }
-    precompile_exit(0);
+    # A module that fails to compile is a census finding, and this exit code
+    # is what CI's precompile step gates on. mkpayload is indifferent: it
+    # judges completion by RESULT_NAME (written above), never the exit code.
+    precompile_exit(1 if failed else 0);
 }
 
 with entry:__main__ {
