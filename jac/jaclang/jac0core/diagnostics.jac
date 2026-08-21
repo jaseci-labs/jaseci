@@ -21,23 +21,57 @@ obj DiagnosticInfo {
         blocks_codegen: bool = False;
 
     def format_message(**kwargs: object) -> str {
-        try {
-            return self.message_template.format(**kwargs);
-        } except KeyError as e {
-            return f"{self.message_template} (missing key: {e})";
+        filled = _fill_template(self.message_template, kwargs);
+        if filled is None {
+            return f"{self.message_template} (missing key)";
         }
+        return filled;
     }
 
     def format_help(**kwargs: object) -> (str | None) {
         if self.help_text is None {
             return None;
         }
-        try {
-            return self.help_text.format(**kwargs);
-        } except (KeyError, ValueError, IndexError) {
+        filled = _fill_template(self.help_text, kwargs);
+        if filled is None {
             return self.help_text;
         }
+        return filled;
     }
+}
+
+def _fill_template(template: str, kwargs: dict[str, object]) -> (str | None) {
+    esc_open = chr(1);
+    esc_close = chr(2);
+    out = template.replace("{{", esc_open).replace("}}", esc_close);
+    for (k, v) in kwargs.items() {
+        key = "{" + str(k) + "}";
+        out = out.replace(key, str(v));
+    }
+    scan = 0;
+    while True {
+        b_open = out.find("{", scan);
+        if b_open < 0 {
+            break;
+        }
+        b_close = out.find("}", b_open + 1);
+        if b_close < 0 {
+            break;
+        }
+        inner = out[b_open + 1:b_close];
+        is_name = len(inner) > 0;
+        for ch in inner {
+            if not (ch.isalnum() or ch == "_") {
+                is_name = False;
+                break;
+            }
+        }
+        if is_name {
+            return None;
+        }
+        scan = b_open + 1;
+    }
+    return out.replace(esc_open, "{").replace(esc_close, "}");
 }
 
 glob DIAGNOSTICS: dict[str, DiagnosticInfo] = {};
