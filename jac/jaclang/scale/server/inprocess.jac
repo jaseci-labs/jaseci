@@ -3,7 +3,7 @@ import sys;
 
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.jac0core.runtime { ExecutionContext }
+import type from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.jac0core.ext_registry { base_stem }
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.scale.server.serve { JacAPIServer }
