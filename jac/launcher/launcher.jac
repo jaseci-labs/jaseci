@@ -31,17 +31,17 @@ re-spawns it must come back through this binary -- worker mode is what makes
 multiprocessing re-spawns land on the right interpreter), install the lazy
 `.jac` finder, then hand off to the jaclang CLI, which reads `sys.argv`."""
 glob BOOT_SRC: str = (
-    "import sys, os\n"
-    + "_exe = os.environ.get('JAC_EXECUTABLE')\n"
-    + "if _exe:\n"
-    + "    sys.executable = _exe\n"
-    + "    sys._base_executable = _exe\n"
-    + "import _jac_finder as _jf\n"
-    + "_jf.apply_dev_source_override()\n"
-    + "_jf.install()\n"
-    + "from jaclang.jac0core.cli_boot import start_cli\n"
-    + "start_cli()\n"
-);
+         "import sys, os\n"
+         + "_exe = os.environ.get('JAC_EXECUTABLE')\n"
+         + "if _exe:\n"
+         + "    sys.executable = _exe\n"
+         + "    sys._base_executable = _exe\n"
+         + "import _jac_finder as _jf\n"
+         + "_jf.apply_dev_source_override()\n"
+         + "_jf.install()\n"
+         + "from jaclang.jac0core.cli_boot import start_cli\n"
+         + "start_cli()\n"
+     );
 
 """True if `a` (argv[1]) is a Python interpreter short flag.
 

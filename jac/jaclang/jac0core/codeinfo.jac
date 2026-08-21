@@ -571,7 +571,8 @@ obj InteropManifest {
             default_factory=`dict
         ),
         native_transitive_sources: list[str] = field(default_factory=`list);
-        native_source_paths: dict[str, str] = field(default_factory=`dict);
+
+    native_source_paths: dict[str, str] = field(default_factory=`dict);
 
     has native_imports: list[InteropBinding] { getter; }
     has native_exports: list[InteropBinding] { getter; }

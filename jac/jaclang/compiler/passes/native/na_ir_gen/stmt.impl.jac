@@ -1689,9 +1689,11 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         _env_key = self._codegen_expr(_env_slices[0].start);
                     }
                 }
-                _env_val_is_str = isinstance(value.type, ir.PointerType) or (
-                    self._str_desc_ty is not None and value.type == self._str_desc_ty
-                );
+                _env_val_is_str = isinstance(value.type, ir.PointerType)
+                    or (
+                        self._str_desc_ty is not None
+                        and value.type == self._str_desc_ty
+                    );
                 if _env_key is not None and _env_val_is_str {
                     _i8p_env = ir.IntType(8).as_pointer();
                     _setenv_fn = self._get_or_declare_extern(

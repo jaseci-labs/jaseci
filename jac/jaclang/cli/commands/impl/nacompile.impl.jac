@@ -213,7 +213,8 @@ impl nacompile(
     debug: bool = False,
     gc: str = "",
     assert_no_rc: bool = False,
-    enforce_nogc: bool = False
+    enforce_nogc: bool = False,
+    strict: bool = False
 ) -> int {
     import from jaclang.jac0core.ext_registry {
         is_jac,
@@ -419,6 +420,22 @@ impl nacompile(
     }
 
     llvm_ir_str = str(ir_module.gen.llvm_ir);
+    if strict {
+        import from jaclang.compiler.passes.native.na_compile_pass {
+            native_demoted_ir_symbols as _demoted_syms
+        }
+        _demoted = _demoted_syms(llvm_ir_str);
+        if _demoted {
+            console.error(
+                f"{len(
+                    _demoted
+                )} function(s) in the native closure were demoted to Python-only: "
+                    + ", ".join(_demoted),
+                hint="A self-contained binary cannot run a demoted function. Rerun with JAC_NA_DEBUG=1 to see why each one failed to lower."
+            );
+            return 1;
+        }
+    }
 
     if assert_no_rc {
         (_rc_syms, _rc_probes) = _scan_rc_machinery(llvm_ir_str);

@@ -1314,6 +1314,10 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac nacompile service.jac --gc none --assert-no-rc',
                     'Compile and prove the artifact contains no RC/collector machinery'
+                ),
+                (
+                    'jac nacompile launcher.jac --strict',
+                    'Compile and refuse any Python-only demotion in the native closure'
                 )
             ],
             args=[
@@ -1374,6 +1378,13 @@ def _command_routes -> list[CommandMeta] {
                     kind=ArgKind.FLAG,
                     `default=False,
                     help='Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns',
+                    short=''
+                ),
+                ArgMeta(
+                    name='strict',
+                    kind=ArgKind.FLAG,
+                    `default=False,
+                    help="Fail when any function in the program's native closure was demoted to Python-only (a demoted function cannot run in a self-contained binary); JAC_NA_DEBUG=1 prints why",
                     short=''
                 ),
 

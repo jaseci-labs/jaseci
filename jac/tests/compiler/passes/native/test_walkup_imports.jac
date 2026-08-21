@@ -12,7 +12,14 @@ import tempfile;
 glob FIXTURE: str = os.path.abspath(
          os.path.join(
              os.path.dirname(os.path.abspath(__file__)),
-             "..", "..", "..", "..", "jaclang", "compiler", "tests", "fixtures",
+             "..",
+             "..",
+             "..",
+             "..",
+             "jaclang",
+             "compiler",
+             "tests",
+             "fixtures",
              "prim_walkup_transitive.jac"
          )
      );

@@ -114,7 +114,7 @@ pub fn build(b: *std.Build) void {
     const pins_path = b.pathFromRoot(pins.PINS_PATH);
     const host_pbs_dir = b.pathFromRoot(b.fmt(".pbs-build/{s}", .{host_osarch}));
     const fetch_host = b.addRunArtifact(seed);
-    fetch_host.addArgs(&.{ "fetch-pbs", host_osarch, host_pbs_dir, pins_path });
+    fetch_host.addArgs(&.{ host_osarch, host_pbs_dir, pins_path });
     fetch_host.has_side_effects = true;
     const tool = JacTool{
         .b = b,
@@ -205,28 +205,26 @@ pub fn build(b: *std.Build) void {
     const pbs_python = b.fmt("{s}/python", .{pbs_dir});
     const fetch_target: *std.Build.Step = if (std.mem.eql(u8, osarch, host_osarch)) &fetch_host.step else blk: {
         const fetch = b.addRunArtifact(seed);
-        fetch.addArgs(&.{ "fetch-pbs", osarch, pbs_dir, pins_path });
+        fetch.addArgs(&.{ osarch, pbs_dir, pins_path });
         fetch.has_side_effects = true;
         break :blk &fetch.step;
     };
 
-    // --- launcher stub: `jac build --as native` over launcher/ ---------------
-    // The in-checkout compiler compiles the Jac launcher natively, with the
-    // whole-program gate on (a native lowering failure anywhere in the stub's
-    // closure is a hard error, never a silent demotion). Needs the LLVMPY_*
-    // shim placed in-tree and the target's C floor archives.
-    const build_stub = tool.run("jac", &.{ "build", "--as", "native" });
+    // --- launcher stub: the in-checkout compiler compiles launcher/ natively --
+    // `--strict` makes any native-seam demotion in the stub's closure a hard
+    // error: a function demoted to Python-only cannot run before CPython
+    // exists. (The whole-program type-check gate is not used here: it cannot
+    // see the bundled per-OS native floors the launcher imports.) Needs the
+    // LLVMPY_* shim placed in-tree and the target's C floor archives.
+    const build_stub = tool.run("jac", &.{ "nacompile", "--strict" });
     build_stub.addFileArg(b.path("launcher/launcher.jac"));
     build_stub.addArg("-o");
-    const stub_dir = build_stub.addOutputDirectoryArg("stub");
+    const stub = build_stub.addOutputFileArg("jac-stub");
     build_stub.setCwd(b.path("launcher"));
     build_stub.step.dependOn(fetch_target);
     if (jacllvm) |shim| build_stub.step.dependOn(shim.place);
     addTreeInputs(b, build_stub, "jaclang");
     build_stub.addFileInput(b.path("launcher/launcher.jac"));
-    build_stub.addFileInput(b.path("launcher/jac.toml"));
-    // `jac build --as native -o DIR` names the binary after the entry file.
-    const stub = stub_dir.path(b, "launcher");
     b.step("stub", "Build just the launcher stub (no payload)")
         .dependOn(&b.addInstallBinFile(stub, "jac").step);
 
@@ -287,7 +285,7 @@ pub fn build(b: *std.Build) void {
         // before the precompile and is refreshed after, so only changed modules
         // recompile. Content-keyed per module, so a stale dir can never change
         // the payload -- only how fast it builds. NOT a tracked input.
-        mk.addArg(b.fmt("--precompiled-cache={s}", .{b.pathFromRoot(".precompiled-cache")}));
+        mk.addArg(b.fmt("--precompiled-cache={s}", .{b.pathFromRoot(".precompiled-build")}));
         // Persistent compressed-frame cache for the payload's deps layer: the
         // level-19 zstd frame over the rarely-changing deps tree is reused when
         // its content is unchanged. Verified by decompress + compare on reuse,

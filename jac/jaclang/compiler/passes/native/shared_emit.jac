@@ -1,6 +1,4 @@
-def inject_shared_init(
-    llvm_ir_str: str, manifest: any
-) -> tuple[str, list[str]] {
+def inject_shared_init(llvm_ir_str: str, manifest: any) -> tuple[str, list[str]] {
     init_calls: list[str] = [];
     transitive_sources: list[str] = (
         list(manifest.native_transitive_sources) if manifest else []

@@ -2023,7 +2023,8 @@ def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
 
         console.print("  Appending app image onto the jac runtime", style="muted");
 
-        if not append_overlay(jac_bin, str(jab_path), str(out_bin)) or not out_bin.is_file() {
+        if not append_overlay(jac_bin, str(jab_path), str(out_bin))
+            or not out_bin.is_file() {
             console.error("Failed to append the app image onto the jac runtime.");
             return 1;
         }

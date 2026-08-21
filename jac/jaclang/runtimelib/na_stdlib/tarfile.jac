@@ -38,6 +38,7 @@ glob:pub REGTYPE: bytes = b"0",
      SOLARIS_XHDTYPE: bytes = b"X";
 
 glob _COPY_BUFSIZE: int = 65536,
+     _STREAM_CHUNK: int = 1048576,
      _MODE_NONE: int = -1;
 
 
@@ -474,15 +475,24 @@ obj:pub TarFile {
         members: list[TarInfo] = [],
         pax_headers: dict[str, str] = {},
         firstmember: (TarInfo | None) = None,
-        _loaded: bool = False;
+        _loaded: bool = False,
+        _src: (ZstdFile | None) = None,
+        _window: bytes = b"",
+        _window_start: int = 0,
+        _src_eof: bool = False;
 
     def init(
         data: bytes = b"",
         name: (str | None) = None,
         mode: str = "r",
-        stream: bool = False
+        stream: bool = False,
+        src: (ZstdFile | None) = None
     ) {
         self._data = data;
+        self._src = src;
+        self._window = b"";
+        self._window_start = 0;
+        self._src_eof = False;
         self.name = name;
         self.mode = mode;
         self.stream = stream;
@@ -502,15 +512,60 @@ obj:pub TarFile {
     }
 
     def _read_at(pos: int, n: int) -> bytes {
-        total: int = len(self._data);
-        if pos >= total {
-            return b"";
+        src = self._src;
+        if src is None {
+            total: int = len(self._data);
+            if pos >= total {
+                return b"";
+            }
+            end: int = pos + n;
+            if end > total {
+                end = total;
+            }
+            return self._data[pos:end];
         }
-        end: int = pos + n;
-        if end > total {
-            end = total;
+        if pos < self._window_start {
+            raise StreamError("seeking backwards is not allowed");
         }
-        return self._data[pos:end];
+        if pos > self._window_start {
+            ahead: int = pos - self._window_start;
+            if ahead >= len(self._window) {
+                beyond: int = ahead - len(self._window);
+                self._window = b"";
+                self._discard(beyond, src);
+            } else {
+                self._window = self._window[ahead:];
+            }
+            self._window_start = pos;
+        }
+        while len(self._window) < n and not self._src_eof {
+            want: int = n - len(self._window);
+            if want < _STREAM_CHUNK {
+                want = _STREAM_CHUNK;
+            }
+            chunk = src.read(want);
+            if len(chunk) == 0 {
+                self._src_eof = True;
+                break;
+            }
+            self._window = self._window + chunk;
+        }
+        avail: int = len(self._window);
+        end2: int = n if n < avail else avail;
+        return self._window[0:end2];
+    }
+
+    def _discard(count: int, src: ZstdFile) {
+        remaining: int = count;
+        while remaining > 0 and not self._src_eof {
+            want: int = remaining if remaining < _STREAM_CHUNK else _STREAM_CHUNK;
+            chunk = src.read(want);
+            if len(chunk) == 0 {
+                self._src_eof = True;
+                break;
+            }
+            remaining -= len(chunk);
+        }
     }
 
     def _read_header(at_start: bool, dircheck: bool) -> (TarInfo | None) {
@@ -995,19 +1050,15 @@ def _open_tar(
             "mode '" + mode + "' is not supported on the native pathway (read-only)"
         );
     }
-    data: bytes = b"";
     resolved_name: (str | None) = None;
     if fileobj is not None {
-        data = fileobj.read(-1);
         if name is not None {
             resolved_name = abspath(_as_str(name));
         }
-    } else {
-        nm: str = _as_str(name);
-        data = tar_read_file(nm);
-        resolved_name = abspath(nm);
+        return TarFile(name=resolved_name, mode="r", stream=stream, src=fileobj);
     }
-    return TarFile(data=data, name=resolved_name, mode="r", stream=stream);
+    nm: str = _as_str(name);
+    return TarFile(data=tar_read_file(nm), name=abspath(nm), mode="r", stream=stream);
 }
 
 

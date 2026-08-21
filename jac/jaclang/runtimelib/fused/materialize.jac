@@ -1,18 +1,3 @@
-"""Runtime materialization for the jac single binary.
-
-Everything between "the process started" and "CPython is about to be
-dlopened": find the trailer at the end of this executable, resolve the cache
-dir, and on first run verify + zstd-decompress + untar the payload into
-`<cache>/rt/<hash16>-<pathhash>/` (per-pid temp dir + atomic rename, `.ok`
-marker guarding against partial extracts). Subsequent runs short-circuit on
-the marker. The payload is TWO concatenated zstd frames whose decoded
-concatenation is one tar stream; `compression.zstd.ZstdFile` + `tarfile`
-(the bundled native stdlib) read it exactly as CPython would.
-
-Shared by the `jac` launcher stub and the desktop host (both through
-`_fused.embed`); the on-disk format itself lives in `_fused.trailer`.
-"""
-
 import hashlib;
 import os;
 import shutil;
@@ -33,13 +18,11 @@ import from .trailer {
 import from ._libc { read_at, getuid, listdir }
 import from .report { die, say }
 
-"""An appended `.jab` app overlay: `[off, off+length)` is the raw `.jab`."""
 obj Overlay {
     has off: int = 0,
         length: int = 0;
 }
 
-"""The trailer terminating the file region `[0, end)`, under `magic`."""
 def trailer_at(path: str, end: int, magic: bytes) -> Trailer | None {
     if end < TRAILER_LEN {
         return None;
@@ -47,7 +30,6 @@ def trailer_at(path: str, end: int, magic: bytes) -> Trailer | None {
     return parse_trailer(read_at(path, end - TRAILER_LEN, TRAILER_LEN), magic);
 }
 
-"""If the binary ends in an overlay trailer, the appended `.jab`'s span."""
 def:pub peek_overlay(exe_path: str, total: int) -> Overlay | None {
     t = trailer_at(exe_path, total, OVERLAY_MAGIC);
     if t is None {
@@ -61,7 +43,6 @@ def:pub peek_overlay(exe_path: str, total: int) -> Overlay | None {
     return Overlay(off=off, length=t.payload_len);
 }
 
-"""Report a trailing `.jab` overlay on `exe_path`, or None for a plain jac."""
 def:pub overlay_for_path(exe_path: str) -> Overlay | None {
     total = os.path.getsize(exe_path);
     if total < TRAILER_LEN {
@@ -70,7 +51,6 @@ def:pub overlay_for_path(exe_path: str) -> Overlay | None {
     return peek_overlay(exe_path, total);
 }
 
-"""True if `path` is a directory we can create files in."""
 def dir_writable(path: str) -> bool {
     os.makedirs(path, exist_ok=True);
     if not os.path.isdir(path) {
@@ -87,8 +67,6 @@ def dir_writable(path: str) -> bool {
     return True;
 }
 
-"""The global cache cache_dir, mirroring jaclang's cache_paths: `$XDG_CACHE_HOME`
--> `$HOME/.cache`, then `/jac`; a per-uid temp dir when that is unwritable."""
 def:pub cache_root -> str {
     base: str = os.environ.get("XDG_CACHE_HOME", "");
     if base == "" {
@@ -115,8 +93,6 @@ def:pub cache_root -> str {
     return fallback;
 }
 
-"""Resolve (and on first run, extract) the runtime tree for this binary;
-returns `<cache>/rt/<hash16>-<pathhash>`."""
 def:pub materialize(exe_path: str) -> str {
     total = os.path.getsize(exe_path);
     if total < TRAILER_LEN {
@@ -165,9 +141,6 @@ def:pub materialize(exe_path: str) -> str {
     return rt;
 }
 
-"""zstd-decompress + untar `zbuf` into `<rt>` via a per-pid temp dir and an
-atomic rename. The `.ok` marker is stamped inside the temp dir before the
-rename, so it can never appear on an incomplete tree."""
 def:pub extract_payload(zbuf: bytes, rt: str) {
     tmp = f"{rt}.tmp.{os.getpid()}";
     if os.path.isdir(tmp) {
@@ -191,9 +164,6 @@ def:pub extract_payload(zbuf: bytes, rt: str) {
     }
 }
 
-"""Best-effort GC of THIS binary's own older-version trees: a sibling
-`rt/<key>` is reclaimed only when its `<pathhash>` matches ours and its name
-differs from `keep_key`. Other binaries' trees are never touched."""
 def:pub gc_stale(cache_dir: str, keep_key: str) {
     rtdir = cache_dir + "/rt";
     mine = rt_key_pathhash(keep_key);

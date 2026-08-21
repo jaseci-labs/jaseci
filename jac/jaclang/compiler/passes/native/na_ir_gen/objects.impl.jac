@@ -2581,8 +2581,8 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
                         if _i < len(_fn_ty.args) {
                             _pv = (
                                 self._clib_fnptr_arg(_pv, _fn_ty.args[_i])
-                                if _is_clib
-                                else self._coerce_type(_pv, _fn_ty.args[_i])
+                                    if _is_clib
+                                    else self._coerce_type(_pv, _fn_ty.args[_i])
                             );
                         }
                         _cargs.append(_pv);

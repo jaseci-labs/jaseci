@@ -1,7 +1,7 @@
 """Lightweight lazy finder for .jac modules.
 
 Installed by the jac binary's launcher at startup (``import _jac_finder;
-_jac_finder.install()`` in launcher.zig BOOT_SRC). Costs ~0ms for non-Jac
+_jac_finder.install()`` in launcher/launcher.jac BOOT_SRC). Costs ~0ms for non-Jac
 Python. On first .jac import, triggers ``import jaclang`` to bootstrap the full
 compiler, then delegates to the real JacMetaImporter.
 """
@@ -46,7 +46,7 @@ def _baked_source_dir() -> str | None:
 
     ``zig build -Ddev`` / ``-Djaclang-dir=PATH`` ships a payload WITHOUT a
     bundled ``jaclang`` and writes the absolute compiler path into a
-    ``jac_linked_source`` file beside this module (see ``payload.zig``
+    ``jac_linked_source`` file beside this module (see ``jaclang.payload``
     ``mkPayload``). Reading it here makes such a binary reroute to live source
     from ANY directory, with no ``[dev]`` ``jac.toml`` stanza in scope. The file
     is one line of plain text; absent on a normal (self-contained) binary.
