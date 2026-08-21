@@ -265,7 +265,7 @@ class Target(ffi.ObjectRef) {
     }
 
     @property
-    def triple(self: Target) -> object {
+    def triple(self: Target) -> str {
         return self._triple;
     }
 
@@ -396,7 +396,7 @@ class TargetMachine(ffi.ObjectRef) {
     }
 
     @property
-    def triple(self: TargetMachine) -> object {
+    def triple(self: TargetMachine) -> str {
         with ffi.OutputString() as out {
             ffi.lib.LLVMPY_GetTargetMachineTriple(self, out);
             return str(out);
