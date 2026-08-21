@@ -979,6 +979,9 @@ impl KEDAAutoscaler._normalize_keda_status{
     if ready == desired and desired == current and desired > 0 {
         return build(AutoscalerState.ACTIVE.value);
     }
+    if not trigger_active {
+        return build(AutoscalerState.DEACTIVATING.value);
+    }
     if current > desired {
         return build(AutoscalerState.DEACTIVATING.value);
     }
