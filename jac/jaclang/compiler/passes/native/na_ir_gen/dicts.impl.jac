@@ -57,6 +57,13 @@ impl NaIRGenDicts._dict_val_spec(val_type: ir.Type) -> str {
         }
         return "ptr";
     }
+    if isinstance(val_type, ir.IntType) and val_type.width != 64 {
+        # An i1 (bool) or narrow-int value slot is not an i64 slot: the spec
+        # names the helper set AND the struct type, and a dict whose values
+        # are bools must not hand its 1-bit storage to the next dict in the
+        # unit whose values are ints or enum ordinals (#8463).
+        return f"i{val_type.width}";
+    }
     return "i64";
 }
 
