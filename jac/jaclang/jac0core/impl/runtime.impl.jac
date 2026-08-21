@@ -541,8 +541,54 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             )
         );
     }
-    if cls.__dict__.get('__annotations__', {}) {
-        dataclass(eq=False)(cls);
+    _own_anns = cls.__dict__.get('__annotations__', {});
+    if _own_anns {
+        try {
+            dataclass(eq=False)(cls);
+        } except TypeError {
+            # A field mixin gives a base defaulted has-vars while a
+            # subclass still declares required ones. Python's dataclass
+            # rejects a non-default field after a default one across that
+            # inheritance; the archetype constructor is keyword-friendly,
+            # so the violating required fields become keyword-only rather
+            # than the class failing to exist. Classes the plain wrap
+            # accepts never take this path, so positional construction of
+            # existing classes is untouched.
+            _seen_default = False;
+            for _base in reversed(cls.__mro__[1:]) {
+                for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
+                    if _bf.default is not dataclasses.MISSING
+                        or _bf.default_factory is not dataclasses.MISSING {
+                        _seen_default = True;
+                    }
+                }
+            }
+            for (_fname, _fann) in _own_anns.items() {
+                if "ClassVar" in str(_fann) or "InitVar" in str(_fann) {
+                    continue;
+                }
+                _own_val = cls.__dict__.get(_fname, dataclasses.MISSING);
+                _has_default = _own_val is not dataclasses.MISSING;
+                if _has_default
+                    and isinstance(_own_val, dataclasses.Field)
+                    and _own_val.default is dataclasses.MISSING
+                    and _own_val.default_factory is dataclasses.MISSING {
+                    _has_default = False;
+                }
+                if _has_default {
+                    _seen_default = True;
+                } elif _seen_default {
+                    if isinstance(_own_val, dataclasses.Field) {
+                        if _own_val.init {
+                            _own_val.kw_only = True;
+                        }
+                    } else {
+                        setattr(cls, _fname, dataclasses.field(kw_only=True));
+                    }
+                }
+            }
+            dataclass(eq=False)(cls);
+        }
     } else {
         dataclass(eq=False, init=False)(cls);
     }
