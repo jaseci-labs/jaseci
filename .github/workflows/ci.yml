@@ -212,19 +212,18 @@ jobs:
           use-cache: false
 
       # Explicit: a binary-cache hit skips zig build, so these gitignored
-      # trees must be materialized either way. -Dno-ninja skips the editor
-      # closure nothing here needs. The wasm floor is in this list for the
-      # same reason as the rest: a full build writes it as a side effect, a
+      # trees must be materialized either way. The wasm floor is in this list
+      # for the same reason as the rest: a full build writes it as a side effect, a
       # cache hit does not, so leaving it implicit made the kit's contents a
       # function of cache state -- present on a miss, missing on a hit, with
       # if-no-files-found blind to it because the other paths matched.
       - name: Materialize typeshed + vendored runtimes
         working-directory: jac
         run: |
-          zig build -Dno-ninja fetch-typeshed --summary all
-          zig build -Dno-ninja vendor-musl --summary all
-          zig build -Dno-ninja vendor-musl-linux-aarch64 --summary all
-          zig build -Dno-ninja vendor-wasm-libc --summary all
+          zig build fetch-typeshed --summary all
+          zig build vendor-musl --summary all
+          zig build vendor-musl-linux-aarch64 --summary all
+          zig build vendor-wasm-libc --summary all
 
       - name: Hermeticity + smoke (no system Python)
         working-directory: jac
@@ -316,8 +315,8 @@ jobs:
       - name: Materialize typeshed + wasm libc floor
         working-directory: jac
         run: |
-          zig build -Dno-ninja fetch-typeshed --summary all
-          zig build -Dno-ninja vendor-wasm-libc --summary all
+          zig build fetch-typeshed --summary all
+          zig build vendor-wasm-libc --summary all
 
       - name: Verify the kit is complete
         working-directory: jac
@@ -1091,7 +1090,7 @@ jobs:
           use-cache: false
       - name: Launcher unit tests (zig build test)
         working-directory: jac
-        run: zig build -Dno-ninja test --summary all
+        run: zig build test --summary all
 
   test-cef-build:
     needs: [changes, host-kit]

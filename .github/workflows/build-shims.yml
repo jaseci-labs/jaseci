@@ -116,12 +116,12 @@ jobs:
       - name: Fetch LLVM
         if: steps.asset.outputs.exists != 'true' && steps.llvm-cache.outputs.cache-hit != 'true'
         working-directory: jac
-        run: zig build -Dno-ninja fetch-llvm $DTARGET --summary all
+        run: zig build fetch-llvm $DTARGET --summary all
 
       - name: Build the shim
         if: steps.asset.outputs.exists != 'true'
         working-directory: jac
-        run: zig build -Dno-ninja jacllvm $DTARGET --summary all
+        run: zig build jacllvm $DTARGET --summary all
 
       # Hold the artifact to the same floors build-binaries enforces on release
       # binaries, BEFORE it is published -- a floor regression must fail here,
