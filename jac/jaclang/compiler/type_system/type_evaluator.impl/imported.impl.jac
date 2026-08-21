@@ -149,6 +149,16 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
         binding.type = UnknownType(is_diagnosed=True);
         return binding.type;
     }
+    # `import from 'pkg' { * as ns }` with no resolvable module: the
+    # namespace of an external package. A bare Unknown here re-diagnosed at
+    # every member access; the namespace is foreign `any`, exactly like the
+    # package's individually imported members degrade via
+    # _emit_untyped_external.
+    if item_name == "*" {
+        binding.type = AnyType(is_foreign=True);
+        binding._sym_category = SymbolType.VAR;
+        return binding.type;
+    }
     return UnknownType();
 }
 

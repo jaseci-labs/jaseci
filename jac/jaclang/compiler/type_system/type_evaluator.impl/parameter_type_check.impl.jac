@@ -406,6 +406,16 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
     if (isinstance(caller_type, ClassType) and caller_type.is_instantiable_class()) {
         matched_method: FunctionType | None = None;
 
+        # Constructing an extern struct declared inside a clib import fills a
+        # C ABI layout: a fn-ptr field is declared int and legitimately takes
+        # a jac callback (the backend builds the trampoline), and 0 is a null
+        # pointer. Same principle as the gradual extern function signatures.
+        ctor_arch = caller_type.shared.symbol_table;
+        if isinstance(ctor_arch, Archetype)
+            and ctor_arch.find_parent_of_type(Import) is not None {
+            return caller_type.clone_as_instance();
+        }
+
         if caller_type.is_namedtuple() {
             self._validate_constructor_method(
                 expr, self._create_namedtuple_new_method(caller_type)

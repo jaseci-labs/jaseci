@@ -490,6 +490,38 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                                 left_type = declared;
                             }
                         }
+                    } elif isinstance(target.right, Name) {
+                        # A dynamic attribute (no symbol -- resolved through
+                        # __getattr__): when the base class declares its own
+                        # __setattr__, that setter's value parameter governs
+                        # the write, per Python semantics. Without this the
+                        # write was checked against the __getattr__ READ type
+                        # (e.g. assigning a function to a _HostObject slot on
+                        # globalThis was refused).
+                        setter_base = self.evaluator.get_type_of_expression(
+                            target.target
+                        );
+                        if isinstance(setter_base, ClassType)
+                            and setter_base.is_class_instance() {
+                            if setter_member
+                                := self.evaluator._lookup_class_member(
+                                    setter_base, "__setattr__"
+                                ) {
+                                if setter_member.class_type.shared.class_name
+                                    != "object" {
+                                    setter_ty = self.evaluator.get_type_of_symbol(
+                                        setter_member.symbol
+                                    );
+                                    if isinstance(setter_ty, FunctionType)
+                                        and setter_ty.parameters {
+                                        setter_val = setter_ty.parameters[-1];
+                                        if setter_val.param_type is not None {
+                                            left_type = setter_val.param_type;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -572,9 +604,25 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                     self.evaluator.is_none_type(left_type)
                     or (isinstance(target, Name) and target.value == "_")
                 );
+            # The optional-dependency idiom rebinds an imported module name to
+            # a stand-in when the import fails (the shape every _optdeps shim
+            # is built on, and what test_optional_import_binding pins). The
+            # symbol's declared type is the module, so plain assignability can
+            # never accept the fallback -- exempt exactly that: a Name whose
+            # definitions include an import, being rebound off a ModuleType.
+            is_module_fallback_rebind = (
+                isinstance(target, Name)
+                and target.sym is not None
+                and isinstance(left_type, ModuleType)
+                and any(
+                    d.name_of.find_parent_of_type(Import) is not None
+                    for d in target.sym.defn
+                )
+            );
             if (
                 nd.aug_op is None
                 and not is_evolving_reassign
+                and not is_module_fallback_rebind
                 and not self.evaluator.assign_type(
                     right_type, left_type, strict=self.evaluator._is_strict_site(nd)
                 )
@@ -1192,6 +1240,14 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
         self._check_walker_reports_shape(nd, declared_type);
 
         if nd.value is not None and nd.type is not None {
+            # Fields of an extern struct inside a clib import describe a C
+            # ABI layout, not jac values: `add_ref: Callable[[int], int] = 0`
+            # is a null function pointer. exit_import already exempts clib
+            # declarations wholesale; their has-var defaults follow the same
+            # rule.
+            if nd.find_parent_of_type(Import) is not None {
+                return;
+            }
             right_type = self.evaluator.get_type_of_expression(
                 nd.value, expected_type=nd.type
             );

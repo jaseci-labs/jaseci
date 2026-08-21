@@ -57,6 +57,8 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.type_system.types {
     AnyType,
     ClassType,
+    FunctionType,
+    ModuleType,
     TypeBase,
     TypeVarType,
     UnionType,

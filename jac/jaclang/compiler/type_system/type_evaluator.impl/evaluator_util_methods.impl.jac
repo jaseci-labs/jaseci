@@ -18,6 +18,14 @@ impl TypeEvaluator._try_resolve_forward_ref(expr: String) -> TypeBase | None {
 
     resolved = self.get_type_of_symbol(symbol);
     if isinstance(resolved, UnknownType) {
+        # A recursive alias (JsonType = ... | Sequence["JsonType"]) re-enters
+        # its own resolution here and comes back incomplete. The name still
+        # resolved to a symbol, so this IS a forward reference -- returning
+        # None would let the caller literal-ize the string into an
+        # unsatisfiable Literal["JsonType"] that nothing can ever match.
+        if resolved.is_incomplete {
+            return resolved;
+        }
         return None;
     }
     return resolved;
