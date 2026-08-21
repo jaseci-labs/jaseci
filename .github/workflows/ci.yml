@@ -814,19 +814,16 @@ jobs:
   # torch and FAILS if any of them skips.
   test-graphmend-torch:
     name: GraphMend Graph Counts
-    # Deliberately NOT gated on build-jac, for the reason jac-check and
-    # contribution-checks are not: a gate that a failing sibling job turns into
-    # a skip is the same silent green this lane exists to remove, one level up.
-    # Observed on run 31918166404, where an unrelated seal failure in build-jac
-    # skipped every job that needed it.
-    needs: changes
+    # Gated on host-kit only because the dev lane now IS the host kit through
+    # the reroute (#8469 retired setup-jac-dev), the same gate jac-check and
+    # contribution-checks take. host-kit downloads a prebuilt main binary
+    # rather than building one, so it does not reintroduce the failure mode
+    # that kept this lane off build-jac: run 31918166404, where an unrelated
+    # seal failure skipped every job that needed it.
+    needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.graphmend == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
-      # Dev lane: the suites drive JacProgram in-process, so this runs THIS
-      # checkout's compiler, which is what the graph-count claim is about.
-      # nightly's canary covers the same suites on the sealed artifact.
-      JAC_NO_DEV_SOURCE: ""
       # PINNED, not floored. The assertion is an exact graph count, so a Dynamo
       # change upstream would redden PRs that never touched GraphMend, and a
       # gate that reddens for unrelated reasons gets switched off. The nightly
@@ -840,11 +837,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Also redirects XDG_CACHE_HOME into the workspace, which is where the
-      # runtime site the torch install targets then lives; every later step in
-      # this job inherits it, so install and run agree on one site.
-      - name: Set up jac (dev lane)
-        uses: ./.github/actions/setup-jac-dev
+      # Dev lane: the suites drive JacProgram in-process, so this runs THIS
+      # checkout's compiler, which is what the graph-count claim is about;
+      # nightly's canary covers the same suites on the sealed artifact. The
+      # host kit also pins XDG_CACHE_HOME, which is where the runtime site the
+      # torch install targets lives, so install and run agree on one site.
+      - uses: ./.github/actions/jac-kit
+        with:
+          name: jac-host
 
       # Restore/save split with the SAVE GATED TO MAIN, matching every other
       # big read-mostly cache here. The wheel set is ~250 MB and its key only
