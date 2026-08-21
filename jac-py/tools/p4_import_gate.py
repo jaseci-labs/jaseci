@@ -8,6 +8,8 @@ Static checks:
 Transitional bootstrap policy (retire at P4 exit / PLAN.md P0.13):
   Modules that MAY use host compile/marshal until native front end lands:
     layer0_replay.jac, layer2_unittest.jac, layer3_import.jac, pyc_first.jac
+  Product ceval module (PLAN.md §4 decomposition; ::py:: host bridge, not host_oracle):
+    ceval.jac — callable/heap/proxy types + exec_code_frame; imports Objects leaf
   Test oracle bridge (test harness only, never product path):
     host_oracle.jac, layer4_compile.jac
 
@@ -34,6 +36,7 @@ ALLOWED_HOST_ORACLE_IMPORTERS = {
     "layer2_unittest.jac",
     "layer3_import.jac",
     "pyc_first.jac",  # bootstrap duplicate bridge; retire at P4 exit
+    "ceval.jac",  # product ceval (PLAN §4); ::py:: host bridge like pyc_first
     "host_oracle.jac",
 }
 

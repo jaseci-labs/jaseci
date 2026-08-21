@@ -81,3 +81,13 @@ test "P2 lift-staged modules match committed _lifted corpus" {
 
     assert not mismatches , "\n".join(mismatches);
 }
+
+test "P2 getplatform facade matches staged Modules oracle" {
+    staged = os.path.join(REPO_ROOT, "jac-py", "Modules", "getplatform.jac");
+    facade = os.path.join(REPO_ROOT, "jac-py", "jacpython", "getplatform.jac");
+    assert os.path.isfile(staged) , staged;
+    assert os.path.isfile(facade) , facade;
+    assert _read_text(staged) == _read_text(facade) , (
+        "jacpython/getplatform.jac must mirror Modules/getplatform.jac"
+    );
+}

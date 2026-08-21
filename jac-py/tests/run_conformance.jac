@@ -15,7 +15,8 @@ import os;
 import from tests.support { JAC_ROOT }
 import from tests.jacpy.libtest_runner {
     run_libtest_host_for_gate,
-    run_libtest_jac_differential_for_gate
+    run_libtest_jac_differential_for_gate,
+    run_libtest_jacpython_for_gate
 }
 
 
@@ -26,7 +27,8 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
      P2_CORPUS_MANIFEST: str = os.path.join(
          REPO_ROOT, "jac-py", "tools", "p2_corpus", "manifest.json"
      ),
-     P2_MODULE_COUNT: int = 10;
+     P2_MODULE_COUNT: int = 10,
+     JACPYTHON_CAPABLE_LIBTEST: list[str] = ["getplatform"];
 
 
 obj P2ModuleGate {
@@ -149,7 +151,25 @@ def run_jac_differential_snippets() -> dict {
 }
 
 
-def build_manifest(libtest_results: dict, jac_differential_results: dict) -> dict {
+def run_jacpython_snippets() -> dict {
+    results: dict = {};
+    for gate in P2_MODULE_GATES {
+        if gate.gate_type != "libtest" {
+            continue;
+        }
+        results[gate.stem] = run_libtest_jacpython_for_gate(
+            gate.libtest_snippets
+        );
+    }
+    return results;
+}
+
+
+def build_manifest(
+    libtest_results: dict,
+    jac_differential_results: dict,
+    jacpython_results: dict
+) -> dict {
     modules: list = [];
     for gate in P2_MODULE_GATES {
         row = {
@@ -166,6 +186,9 @@ def build_manifest(libtest_results: dict, jac_differential_results: dict) -> dic
         if gate.stem in jac_differential_results {
             row["jac_differential"] = jac_differential_results[gate.stem];
         }
+        if gate.stem in jacpython_results {
+            row["jacpython"] = jacpython_results[gate.stem];
+        }
         modules.append(row);
     }
     return {
@@ -176,6 +199,7 @@ def build_manifest(libtest_results: dict, jac_differential_results: dict) -> dic
         "modules": modules,
         "libtest_results": libtest_results,
         "jac_differential_results": jac_differential_results,
+        "jacpython_results": jacpython_results,
     };
 }
 
@@ -183,7 +207,12 @@ def build_manifest(libtest_results: dict, jac_differential_results: dict) -> dic
 def write_manifest(path: str = MANIFEST_PATH) -> dict {
     libtest_results = run_libtest_snippets();
     jac_differential_results = run_jac_differential_snippets();
-    manifest = build_manifest(libtest_results, jac_differential_results);
+    jacpython_results = run_jacpython_snippets();
+    manifest = build_manifest(
+        libtest_results,
+        jac_differential_results,
+        jacpython_results
+    );
     with open(path, "w") as f {
         json.dump(manifest, f, indent=2);
         f.write("\n");
@@ -230,11 +259,30 @@ def assert_jac_differential_zero_failures(manifest: dict) -> None {
 }
 
 
+def assert_jacpython_zero_failures(manifest: dict) -> None {
+    jac_results = manifest.get("jacpython_results") as dict | None;
+    if jac_results is None {
+        return;
+    }
+    for (stem, row) in jac_results.items() {
+        detail = row as dict;
+        assert (detail["failed"] as int) == 0 , f"{stem} jacpython: {detail}";
+        if stem in JACPYTHON_CAPABLE_LIBTEST {
+            assert (detail["passed"] as int) >= 1 ,
+                f"{stem} jacpython: expected passed >= 1, got {detail}";
+            assert (detail["skipped"] as int) == 0 ,
+                f"{stem} jacpython: expected no skips, got {detail}";
+        }
+    }
+}
+
+
 with entry {
     manifest = write_manifest();
     assert_all_modules_gated(manifest);
     assert_libtest_zero_failures(manifest);
     assert_jac_differential_zero_failures(manifest);
+    assert_jacpython_zero_failures(manifest);
     print(f"wrote {MANIFEST_PATH} ({P2_MODULE_COUNT} modules gated)");
 }
 
@@ -263,13 +311,24 @@ test "P2 conformance: jac differential staged modules pass when enabled" {
 }
 
 
+test "P2 conformance: jacpython libtest shims pass when enabled" {
+    results = run_jacpython_snippets();
+    for (stem, row) in results.items() {
+        detail = row as dict;
+        assert (detail["failed"] as int) == 0 , f"{stem}: {detail}";
+    }
+}
+
+
 test "P2 conformance: manifest ratchet — all modules gated" {
     manifest = write_manifest();
     assert_all_modules_gated(manifest);
     assert_libtest_zero_failures(manifest);
     assert_jac_differential_zero_failures(manifest);
+    assert_jacpython_zero_failures(manifest);
     on_disk = load_manifest();
     assert_all_modules_gated(on_disk);
     assert_libtest_zero_failures(on_disk);
     assert_jac_differential_zero_failures(on_disk);
+    assert_jacpython_zero_failures(on_disk);
 }

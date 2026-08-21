@@ -549,6 +549,9 @@ jobs:
       - name: P4 import boundary gate
         run: python3 jac-py/tools/p4_import_gate.py
 
+      - name: P3 import cycle gate
+        run: python3 jac-py/tools/p3_import_cycle_gate.py
+
       - name: P0.4 token model regeneration gate
         run: python3 jac-py/tools/tokens2jac.py --check
 
@@ -584,6 +587,12 @@ jobs:
 
       - name: grammar2jac Phase 1 tests
         run: python3 -m unittest jac-py/tools/test_grammar2jac.py
+
+      - name: clinic2jac check
+        run: python3 jac-py/tools/clinic2jac.py --check
+
+      - name: clinic2jac P3.1d tests
+        run: python3 -m unittest jac-py/tools/test_clinic2jac.py
 
       - name: opcode_meta2jac check
         run: python3 jac-py/tools/opcode_meta2jac.py --check
@@ -636,6 +645,9 @@ jobs:
       - name: P2 conformance harness (T6 skeleton)
         run: jac test jac-py/tests/run_conformance.jac
 
+      - name: P2 conformance manifest drift check
+        run: git diff --exit-code jac-py/tests/conformance_manifest.json
+
       - name: P2 libtest partial (bisect/heapq/platform)
         run: jac test jac-py/tests/test_p2_libtest_partial.jac
 
@@ -645,11 +657,64 @@ jobs:
       - name: P2 corpus density ratchet (committed lift output)
         run: jac test jac-py/tests/test_p2_corpus_density.jac
 
-      - name: P3 object core manifest gate (P3.1a)
+      - name: P2 wave-2 c2jac corpus lift + Tier-B density gate
+        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave2_gate.py
+
+      - name: P2 wave-2 module differential oracles
+        run: jac test jac-py/tests/test_p2_wave2_module_oracles.jac
+
+      - name: P2 wave-2 staged vs lifted drift gate
+        run: jac test jac-py/tests/test_p2_wave2_staged_sync.jac
+
+      - name: P2 wave-2 conformance manifest gate
+        run: python3 -m unittest jac-py/tools/p2_conformance_wave2_gate.py
+
+      - name: P2 wave-2 corpus density ratchet (committed lift output)
+        run: jac test jac-py/tests/test_p2_wave2_corpus_density.jac
+
+      - name: P2 wave-3 c2jac corpus lift + Tier-B density gate
+        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave3_gate.py
+
+      - name: P2 wave-3 module differential oracles
+        run: jac test jac-py/tests/test_p2_wave3_module_oracles.jac
+
+      - name: P2 wave-3 staged vs lifted drift gate
+        run: jac test jac-py/tests/test_p2_wave3_staged_sync.jac
+
+      - name: P2 wave-3 conformance manifest gate
+        run: python3 -m unittest jac-py/tools/p2_conformance_wave3_gate.py
+
+      - name: P2 wave-3 corpus density ratchet (committed lift output)
+        run: jac test jac-py/tests/test_p2_wave3_corpus_density.jac
+
+      - name: P2 wave-4 c2jac corpus lift + Tier-B density gate
+        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave4_gate.py
+
+      - name: P2 wave-4 module differential oracles
+        run: jac test jac-py/tests/test_p2_wave4_module_oracles.jac
+
+      - name: P2 wave-4 staged vs lifted drift gate
+        run: jac test jac-py/tests/test_p2_wave4_staged_sync.jac
+
+      - name: P2 wave-4 conformance manifest gate
+        run: python3 -m unittest jac-py/tools/p2_conformance_wave4_gate.py
+
+      - name: P2 wave-4 corpus density ratchet (committed lift output)
+        run: jac test jac-py/tests/test_p2_wave4_corpus_density.jac
+
+      - name: P2 JacPython libtest harness
+        run: jac test jac-py/jacpython/layer_p2_libtest.jac
+
+      - name: P3 object core manifest gate (P3.1a/P3.1b)
         run: jac test jac-py/tests/test_p3_object_core_gate.jac
 
-      - name: P3 Layer-0 corpus replay ratchet (P3.1a)
+      - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac
+
+      - name: P3 Layer-0/1 corpus ratchet (isolated jac run)
+        run: python jac-py/tools/p3_object_core/replay_gate.py
+        env:
+          JACPYTHON_CPYTHON: /home/jac/.local/bin/python3.14
 
   test-solid-and-desktop:
     needs: [changes, build-jac]

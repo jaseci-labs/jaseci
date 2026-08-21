@@ -13,6 +13,7 @@ obj LibtestSnippet {
     has jac_preamble: str = "";
     has jac_entry: str = "";
     has jac_expect_stdout: str = "";
+    has jacpython_capable: bool = False;
 }
 
 # Mock PyObj helpers for _bisectmodule / _heapqmodule differential legs
@@ -159,6 +160,7 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "    assert isinstance(plat, str) and len(plat) > 0;\n"
             "    print('ok');\n"
             "}\n"
-        )
+        ),
+        jacpython_capable=True
     ),
 ];

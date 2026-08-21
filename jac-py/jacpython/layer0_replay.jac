@@ -352,5 +352,260 @@ test "layer1: generator functions replay through the exec-mode method harness" {
     assert result.errored == 0;
 }
 
+test "layer1: set hash richcompare and iter protocol (P3.1e)" {
+    src = "class TestSetProtocol(unittest.TestCase):\n"
+    "    def test_set_eq(self):\n"
+    "        self.assertEqual({1, 2, 3}, {3, 2, 1})\n"
+    "        self.assertTrue({1} == {1})\n"
+    "        self.assertFalse({1} == {2})\n"
+    "    def test_hash_collapse(self):\n"
+    "        self.assertEqual(hash(1), hash(1.0))\n"
+    "        self.assertEqual(hash(1), hash(True))\n"
+    "    def test_getiter(self):\n"
+    "        it = iter([10, 20])\n"
+    "        self.assertEqual(next(it), 10)\n"
+    "        self.assertEqual(next(it), 20)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: tuple hash richcompare and repr (P3.2a)" {
+    src = "class TestTupleCore(unittest.TestCase):\n"
+    "    def test_tuple_hash(self):\n"
+    "        self.assertEqual(hash((1, 2)), hash((1, 2)))\n"
+    "        self.assertNotEqual(hash((1,)), hash((1, 2)))\n"
+    "    def test_tuple_richcompare(self):\n"
+    "        self.assertEqual((1, 2), (1, 2))\n"
+    "        self.assertLess((1,), (1, 2))\n"
+    "        self.assertNotEqual((1, 2), (2, 1))\n"
+    "    def test_tuple_repr(self):\n"
+    "        self.assertEqual(repr((1,)), '(1,)')\n"
+    "        self.assertEqual(repr(()), '()')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: int hash and digit add (P3.2a)" {
+    src = "class TestIntCore(unittest.TestCase):\n"
+    "    def test_int_hash(self):\n"
+    "        self.assertEqual(hash(1), hash(1.0))\n"
+    "        self.assertEqual(hash(1), hash(True))\n"
+    "        big = 10 ** 100\n"
+    "        self.assertEqual(hash(big), hash(big))\n"
+    "    def test_bigint_add(self):\n"
+    "        a = 10 ** 50\n"
+    "        self.assertEqual(a + a, 2 * a)\n"
+    "    def test_bigint_compare(self):\n"
+    "        self.assertLess(10 ** 50, 10 ** 50 + 1)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: set and frozenset hash and equality (P3.2a)" {
+    src = "class TestSetCore(unittest.TestCase):\n"
+    "    def test_set_eq(self):\n"
+    "        self.assertEqual({1, 2, 3}, {3, 2, 1})\n"
+    "        self.assertNotEqual({1, 2}, {1, 3})\n"
+    "    def test_frozenset_hash(self):\n"
+    "        self.assertEqual(hash(frozenset({1, 2})), hash(frozenset({2, 1})))\n"
+    "        self.assertEqual(hash(frozenset()), hash(frozenset()))\n"
+    "    def test_set_unhashable(self):\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            hash({1})\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: exception isinstance str and repr (P3.2a)" {
+    src = "class TestExcCore(unittest.TestCase):\n"
+    "    def test_isinstance_exc(self):\n"
+    "        e = ValueError('x')\n"
+    "        self.assertTrue(isinstance(e, ValueError))\n"
+    "        self.assertTrue(isinstance(e, Exception))\n"
+    "        self.assertFalse(isinstance(e, TypeError))\n"
+    "    def test_str_exc(self):\n"
+    "        self.assertEqual(str(ValueError('hello')), 'hello')\n"
+    "        self.assertEqual(str(ValueError()), '')\n"
+    "    def test_repr_exc(self):\n"
+    "        self.assertEqual(repr(ValueError('x')), \"ValueError('x')\")\n"
+    "        self.assertEqual(repr(ValueError()), 'ValueError()')\n"
+    "        self.assertEqual(repr(ValueError(\"it's\")), 'ValueError(\"it\\'s\")')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 4;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: dict equality repr and key collision (P3.2a)" {
+    src = "class TestDictCore(unittest.TestCase):\n"
+    "    def test_dict_unhashable(self):\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            hash({})\n"
+    "    def test_dict_equal(self):\n"
+    "        self.assertEqual({1: 2}, {1: 2})\n"
+    "        self.assertNotEqual({1: 2}, {2: 1})\n"
+    "    def test_key_collision(self):\n"
+    "        d = {}\n"
+    "        d[1] = 'a'\n"
+    "        d[1.0] = 'b'\n"
+    "        self.assertEqual(len(d), 1)\n"
+    "        self.assertEqual(d[True], 'b')\n"
+    "    def test_dict_repr(self):\n"
+    "        self.assertEqual(repr({}), '{}')\n"
+    "        self.assertEqual(repr({1: 2}), '{1: 2}')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 4;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: bytes hash richcompare and repr (P3.2a)" {
+    src = "class TestBytesCore(unittest.TestCase):\n"
+    "    def test_bytes_hash(self):\n"
+    "        self.assertEqual(hash(b'abc'), hash(b'abc'))\n"
+    "        self.assertNotEqual(hash(b'a'), hash(b'b'))\n"
+    "    def test_bytes_richcompare(self):\n"
+    "        self.assertEqual(b'abc', b'abc')\n"
+    "        self.assertLess(b'a', b'b')\n"
+    "        self.assertNotEqual(b'abc', b'abd')\n"
+    "    def test_bytes_repr(self):\n"
+    "        self.assertEqual(repr(b'abc'), \"b'abc'\")\n"
+    "        self.assertEqual(repr(b'\\t'), \"b'\\\\t'\")\n"
+    "        self.assertEqual(repr(b\"it's\"), 'b\"it\\'s\"')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: list richcompare and repr (P3.2a)" {
+    src = "class TestListCore(unittest.TestCase):\n"
+    "    def test_list_richcompare(self):\n"
+    "        self.assertEqual([1, 2], [1, 2])\n"
+    "        self.assertLess([1], [1, 2])\n"
+    "        self.assertNotEqual([1, 2], [2, 1])\n"
+    "    def test_list_repr(self):\n"
+    "        self.assertEqual(repr([]), '[]')\n"
+    "        self.assertEqual(repr([1, 2]), '[1, 2]')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 2;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: type repr identity and isinstance (P3.2a)" {
+    src = "class TestTypeCore(unittest.TestCase):\n"
+    "    def test_type_repr(self):\n"
+    "        class C:\n"
+    "            pass\n"
+    "        self.assertEqual(repr(C), \"<class '__main__.C'>\")\n"
+    "        self.assertEqual(repr(int), \"<class 'int'>\")\n"
+    "    def test_type_identity(self):\n"
+    "        self.assertTrue(int is int)\n"
+    "        self.assertTrue(int == int)\n"
+    "        self.assertFalse(int == float)\n"
+    "    def test_isinstance_basics(self):\n"
+    "        self.assertTrue(isinstance(1, int))\n"
+    "        class C:\n"
+    "            pass\n"
+    "        c = C()\n"
+    "        self.assertTrue(isinstance(c, C))\n"
+    "        self.assertFalse(isinstance(c, int))\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: list repr and richcompare survive operand mutation" {
+    src = "class TestListMutate(unittest.TestCase):\n"
+    "    def test_repr_mutate(self):\n"
+    "        class Obj:\n"
+    "            @staticmethod\n"
+    "            def __repr__():\n"
+    "                try:\n"
+    "                    mylist.pop()\n"
+    "                except IndexError:\n"
+    "                    pass\n"
+    "                return 'obj'\n"
+    "        mylist = [Obj() for _ in range(5)]\n"
+    "        self.assertEqual(repr(mylist), '[obj, obj, obj]')\n"
+    "    def test_equal_operator_modifying_operand(self):\n"
+    "        class X:\n"
+    "            def __eq__(self, other):\n"
+    "                list2.clear()\n"
+    "                return NotImplemented\n"
+    "        class Y:\n"
+    "            def __eq__(self, other):\n"
+    "                list1.clear()\n"
+    "                return NotImplemented\n"
+    "        class Z:\n"
+    "            def __eq__(self, other):\n"
+    "                list3.clear()\n"
+    "                return NotImplemented\n"
+    "        list1 = [X()]\n"
+    "        list2 = [Y()]\n"
+    "        self.assertTrue(list1 == list2)\n"
+    "        list3 = [Z()]\n"
+    "        list4 = [1]\n"
+    "        self.assertFalse(list3 == list4)\n"
+    "    def test_lt_operator_modifying_operand(self):\n"
+    "        class evil:\n"
+    "            def __lt__(self, other):\n"
+    "                other.clear()\n"
+    "                return NotImplemented\n"
+    "        a = [[evil()]]\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            a[0] < a\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 3;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: hash routing and compare protocol probes (P3.1e/M10)" {
+    src = "class TestProtocolCore(unittest.TestCase):\n"
+    "    def test_hash_neg1_sentinel(self):\n"
+    "        self.assertEqual(hash(-1), -2)\n"
+    "        self.assertNotEqual(hash((-1,)), -1)\n"
+    "    def test_hash_str_float_stable(self):\n"
+    "        self.assertEqual(hash('a'), hash('a'))\n"
+    "        self.assertEqual(hash(1.5), hash(1.5))\n"
+    "        self.assertEqual(hash(1.0), hash(1))\n"
+    "        self.assertEqual(hash(1.5), 1152921504606846977)\n"
+    "    def test_bool_int_equality(self):\n"
+    "        self.assertTrue(True == 1)\n"
+    "        self.assertTrue(1 == True)\n"
+    "        self.assertEqual(hash(1), hash(True))\n"
+    "    def test_cross_type_ordering(self):\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            1 < 'a'\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            (1, 2) < 'a'\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 4;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
 # P3 corpus ratchet tests live in ``layer0_replay_p3_gate.jac`` so they run in
 # isolation (this file's 56 replay regression tests mutate ceval state).

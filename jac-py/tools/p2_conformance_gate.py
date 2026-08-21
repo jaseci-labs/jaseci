@@ -18,6 +18,8 @@ _MANIFEST = _REPO / "jac-py" / "tests" / "conformance_manifest.json"
 _CORPUS = _HERE / "p2_corpus" / "manifest.json"
 _EXPECTED_COUNT = 10
 _ALLOWED_GATE_TYPES = frozenset({"oracle", "libtest", "deferred"})
+# Stems with ``jacpython_capable`` snippets in ``libtest_snippets.jac``.
+_JACPYTHON_CAPABLE_LIBTEST = frozenset({"getplatform"})
 
 
 class P2ConformanceGateTests(unittest.TestCase):
@@ -84,6 +86,21 @@ class P2ConformanceGateTests(unittest.TestCase):
             )
             summary = jac_results[stem]
             self.assertEqual(summary.get("failed", -1), 0, summary)
+
+    def test_libtest_modules_record_jacpython_results(self) -> None:
+        manifest = json.loads(_MANIFEST.read_text(encoding="utf-8"))
+        jp_results = manifest.get("jacpython_results")
+        self.assertIsNotNone(jp_results, "manifest must record jacpython_results")
+        for row in manifest.get("modules", []):
+            if row.get("gate_type") != "libtest":
+                continue
+            stem = row["stem"]
+            self.assertIn(stem, jp_results, f"missing jacpython_results for {stem}")
+            summary = jp_results[stem]
+            self.assertEqual(summary.get("failed", -1), 0, summary)
+            if stem in _JACPYTHON_CAPABLE_LIBTEST:
+                self.assertGreater(summary.get("passed", 0), 0, summary)
+                self.assertEqual(summary.get("skipped", 0), 0, summary)
 
 
 def run_conformance_gate() -> tuple[bool, str]:

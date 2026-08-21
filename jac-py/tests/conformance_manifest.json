@@ -90,6 +90,24 @@
             "detail": "no jac differential entry"
           }
         ]
+      },
+      "jacpython": {
+        "passed": 0,
+        "failed": 0,
+        "skipped": 2,
+        "total": 2,
+        "cases": [
+          {
+            "name": "bisect_precomputed",
+            "status": "skip",
+            "detail": "bisect_precomputed not jacpython-capable or disabled"
+          },
+          {
+            "name": "bisect_insort",
+            "status": "skip",
+            "detail": "bisect_insort not jacpython-capable or disabled"
+          }
+        ]
       }
     },
     {
@@ -138,6 +156,24 @@
             "detail": "no jac differential entry"
           }
         ]
+      },
+      "jacpython": {
+        "passed": 0,
+        "failed": 0,
+        "skipped": 2,
+        "total": 2,
+        "cases": [
+          {
+            "name": "heapq_push_pop",
+            "status": "skip",
+            "detail": "heapq_push_pop not jacpython-capable or disabled"
+          },
+          {
+            "name": "heapq_heapify",
+            "status": "skip",
+            "detail": "heapq_heapify not jacpython-capable or disabled"
+          }
+        ]
       }
     },
     {
@@ -164,6 +200,19 @@
         ]
       },
       "jac_differential": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "total": 1,
+        "cases": [
+          {
+            "name": "platform_basic",
+            "status": "pass",
+            "detail": "ok"
+          }
+        ]
+      },
+      "jacpython": {
         "passed": 1,
         "failed": 0,
         "skipped": 0,
@@ -290,6 +339,57 @@
           "name": "heapq_heapify",
           "status": "skip",
           "detail": "no jac differential entry"
+        }
+      ]
+    },
+    "getplatform": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "total": 1,
+      "cases": [
+        {
+          "name": "platform_basic",
+          "status": "pass",
+          "detail": "ok"
+        }
+      ]
+    }
+  },
+  "jacpython_results": {
+    "_bisectmodule": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 2,
+      "total": 2,
+      "cases": [
+        {
+          "name": "bisect_precomputed",
+          "status": "skip",
+          "detail": "bisect_precomputed not jacpython-capable or disabled"
+        },
+        {
+          "name": "bisect_insort",
+          "status": "skip",
+          "detail": "bisect_insort not jacpython-capable or disabled"
+        }
+      ]
+    },
+    "_heapqmodule": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 2,
+      "total": 2,
+      "cases": [
+        {
+          "name": "heapq_push_pop",
+          "status": "skip",
+          "detail": "heapq_push_pop not jacpython-capable or disabled"
+        },
+        {
+          "name": "heapq_heapify",
+          "status": "skip",
+          "detail": "heapq_heapify not jacpython-capable or disabled"
         }
       ]
     },

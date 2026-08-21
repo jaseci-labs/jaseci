@@ -21,8 +21,9 @@ Object-core conformance (P3) uses a separate Layer-0 replay ratchet; see **§P3*
 | P2 | `tools/p2_corpus/manifest.json` | 10 (P1 six + four Python/*.c extracts) | `test_p2_corpus_gate.py` |
 | P2 wave 2 | `tools/p2_corpus_wave2/manifest.json` | 4 (`_stat`, `_opcode`, `math_gcd`, `pystrnicmp`) | `test_p2_corpus_wave2_gate.py` |
 | P2 wave 3 | `tools/p2_corpus_wave3/manifest.json` | 4 (`math_count_bits`, `math_lcm_long`, `strhex_byte`, `pyctype_digit`) | `test_p2_corpus_wave3_gate.py` |
+| P2 wave 4 | `tools/p2_corpus_wave4/manifest.json` | 4 (`pystricmp`, `pyctype_space`, `pyctype_alpha`, `math_factorial_small`) | `test_p2_corpus_wave4_gate.py` |
 
-Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), or `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3).
+Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3), or `python jac-py/tools/lift_p2_corpus_wave4.py` (wave 4).
 
 ## Staged modules (P2 wave 1)
 
@@ -39,7 +40,11 @@ Ten files in `jac-py/Modules/`:
 
 - `math_count_bits` (popcount), `math_lcm_long` (lcm on long), `strhex_byte` (hex pack), `pyctype_digit` (Py_ISDIGIT-style)
 
-Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (wave 1), `test_p2_wave2_module_oracles.jac` (wave 2), `test_p2_wave3_module_oracles.jac` (wave 3).
+**Wave 4** (four leaf extracts in `jac-py/Modules/`):
+
+- `pystricmp` (PyOS_mystricmp), `pyctype_space` (isspace), `pyctype_alpha` (isalpha), `math_factorial_small` (small n! core)
+
+Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (wave 1), `test_p2_wave2_module_oracles.jac` (wave 2), `test_p2_wave3_module_oracles.jac` (wave 3), `test_p2_wave4_module_oracles.jac` (wave 4).
 
 ## Dual pipeline - staged oracle vs lifted corpus
 
@@ -50,7 +55,7 @@ Two trees hold `.jac` for the same ten modules:
 | **Staged oracle** | `jac-py/Modules/{stem}.jac` | Runtime + differential-test truth; may include hand edits and PyObj stubs |
 | **Lifted corpus** | `jac-py/Modules/_lifted/p2_corpus_wave1/{stem}.jac` | Fresh c2jac output + T8 tier-B metrics input |
 
-Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged_manifest_wave2.json` (wave 2), or `tools/p2_staged_manifest_wave3.json` (wave 3) (`staging`: `lift` | `hand`):
+Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged_manifest_wave2.json` (wave 2), `tools/p2_staged_manifest_wave3.json` (wave 3), or `tools/p2_staged_manifest_wave4.json` (wave 4) (`staging`: `lift` | `hand`):
 
 - **`lift`** - staged file must match committed `_lifted` byte-for-byte. Drift means re-lift (`lift_p2_corpus.py`) or accidental edit.
 - **`hand`** - staged oracle intentionally differs from fresh lift (`getbuildinfo`, `_bisectmodule`, `_heapqmodule`, `mysnprintf`). Exempt from equality gate; manifest `note` documents sync after burn-down.
@@ -65,6 +70,7 @@ Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged
 python jac-py/tools/sync_staged_to_lifted.py          # wave 1 hand modules
 python jac-py/tools/sync_staged_to_lifted.py --wave wave2
 python jac-py/tools/sync_staged_to_lifted.py --wave wave3
+python jac-py/tools/sync_staged_to_lifted.py --wave wave4
 python jac-py/tools/sync_staged_to_lifted.py --stem getbuildinfo
 python jac-py/tools/sync_staged_to_lifted.py --dry-run
 ```
@@ -77,7 +83,9 @@ Workflow: edit staged oracle → oracle tests green → tier-B burn-down on stag
 
 | Artifact | Role |
 |----------|------|
-| `jac/tests/jacpy/libtest_runner.jac` | Shared host + staged-Jac differential libtest runner |
+| `jac/tests/jacpy/libtest_runner.jac` | Shared host + staged-Jac + JacPython libtest runner |
+| `jac-py/jacpython/layer_p2_libtest.jac` | JacPython ceval libtest harness (shim `platform` from staged ports) |
+| `jac-py/tools/p2_libtest_jacpython_bridge.py` | Subprocess bridge for libtest_runner → layer_p2_libtest |
 | `tests/run_conformance.jac` | Runs host libtest snippets and staged Jac differential legs; writes `tests/conformance_manifest.json` |
 | `tests/test_p2_libtest_partial.jac` | Jac tests for bisect/heapq/platform (host CPython + staged Modules/*.jac differential) |
 | `tools/p2_conformance_gate.py` | CI gate: all ten P2 modules have `status: gated` in the manifest |
@@ -85,13 +93,13 @@ Workflow: edit staged oracle → oracle tests green → tier-B burn-down on stag
 Gate types in the manifest:
 
 - **oracle** - no stdlib mirror or hand-edited staged lift (`rotatingtree`, `pystrcmp`, `mysnprintf`, `getbuildinfo`, `getcompiler`, `getcopyright`, `pyfpe`); correctness via cc vs jac differential tests
-- **libtest** - partial `Lib/test` snippets on **host CPython** (stdlib algorithm smoke) plus optional **staged Jac differential** via `tests.jacpy.libtest_runner` (`jac run` on `Modules/*.jac` when `JACPY_LIBTEST_JAC_DIFF` is enabled). Full JacPython native import of these ports remains future work.
+- **libtest** - partial `Lib/test` snippets on **host CPython** (stdlib algorithm smoke) plus optional **staged Jac differential** via `tests.jacpy.libtest_runner` (`jac run` on `Modules/*.jac` when `JACPY_LIBTEST_JAC_DIFF` is enabled) plus optional **JacPython ceval** via `layer_p2_libtest.jac` (`JACPY_LIBTEST_JACPYTHON`, shim `import platform` today). Full stdlib mirror (bisect/heapq) remains future work.
 
-**Jac differential vs host-only smoke:** `tests.jacpy.libtest_runner` always runs the host CPython leg (`expect_stdout`, default `"ok"`). The Jac differential leg is separate: it composes `Modules/{stem}.jac` + mock preamble + `jac_entry` (same pattern as `lift_oracle.jac` / `test_p2_module_oracles.jac`), then checks stdout against `jac_expect_stdout` when set, else falls back to `expect_stdout`. Disable differential collection with `JACPY_LIBTEST_JAC_DIFF=0` (host smoke only).
+**Jac differential vs JacPython vs host-only smoke:** `tests.jacpy.libtest_runner` always runs the host CPython leg (`expect_stdout`, default `"ok"`). The Jac differential leg composes `Modules/{stem}.jac` + mock preamble + `jac_entry`. The JacPython leg runs the same embedded Python snippet through `exec_code` with shim modules from staged ports. Disable legs with `JACPY_LIBTEST_JAC_DIFF=0` or `JACPY_LIBTEST_JACPYTHON=0`.
 
 Regenerate manifest: `jac test jac-py/tests/run_conformance.jac` (writes `conformance_manifest.json` during collection; fails if host libtest or jac differential legs fail)
 
-P2 exit ratchet: every module in `conformance_manifest.json` must stay `"gated"`; libtest modules must keep `libtest_results[*].failed == 0` and `jac_differential_results[*].failed == 0` when present.
+P2 exit ratchet: every module in `conformance_manifest.json` must stay `"gated"`; libtest modules must keep `libtest_results[*].failed == 0`, `jac_differential_results[*].failed == 0`, and `jacpython_results[*].failed == 0` when present.
 
 ## T8 AI cleanup (MVP)
 

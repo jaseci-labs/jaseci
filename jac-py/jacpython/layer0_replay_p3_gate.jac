@@ -1,5 +1,7 @@
 # P3 object-core corpus ratchet (TODO.md P3.1a/P3.1b).
 #
+# ``test_int`` baseline 119 = 114 arithmetic/conversion pairs + 5 memoryview ``int()``
+# slices (Gap #4); a drop to 114 with zero failures means those five errored/skipped.
 # Run via ``jac run`` (not ``jac test``): importing pyc_first through the replay
 # harness would otherwise collect pyc_first.jac's 38 regression tests first and
 # mutate ceval state before corpus counts are measured.

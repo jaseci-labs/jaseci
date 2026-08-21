@@ -26,6 +26,9 @@ obj PyObj {
         if kind == 3 {
             return PyBool(t="bool", val=self.t != other.t);
         }
+        if self.t != other.t {
+            return PY_NOT_IMPLEMENTED;
+        }
         return PyBool(t="bool", val=False);
     }
 
@@ -203,7 +206,7 @@ obj PyInt(PyObj) {
         if kind == 3 {
             return PyBool(t="bool", val=True);
         }
-        return PyBool(t="bool", val=False);
+        return PY_NOT_IMPLEMENTED;
     }
 
     def tp_bool -> bool {
@@ -250,7 +253,7 @@ obj PyStr(PyObj) {
             if kind == 3 {
                 return PyBool(t="bool", val=True);
             }
-            return PyBool(t="bool", val=False);
+            return PY_NOT_IMPLEMENTED;
         }
         a = self.val;
         b = (other as PyStr).val;
@@ -414,7 +417,7 @@ obj PyFloat(PyObj) {
             if kind == 3 {
                 return PyBool(t="bool", val=True);
             }
-            return PyBool(t="bool", val=False);
+            return PY_NOT_IMPLEMENTED;
         }
         a = self.val;
         # NaN comparisons: every operator but != is False, != is True. The
@@ -483,6 +486,48 @@ obj PyBool(PyObj) {
             return "n:1";
         }
         return "n:0";
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # bool is an int subclass: ``True == 1`` mirrors ``1 == True``.
+        if other.t == "int" or other.t == "bool" {
+            a = 0;
+            if self.val {
+                a = 1;
+            }
+            b = 0;
+            if other.t == "int" {
+                b = (other as PyInt).val;
+            } elif (other as PyBool).val {
+                b = 1;
+            }
+            if kind == 0 {
+                return PyBool(t="bool", val=a < b);
+            }
+            if kind == 1 {
+                return PyBool(t="bool", val=a <= b);
+            }
+            if kind == 2 {
+                return PyBool(t="bool", val=a == b);
+            }
+            if kind == 3 {
+                return PyBool(t="bool", val=a != b);
+            }
+            if kind == 4 {
+                return PyBool(t="bool", val=a > b);
+            }
+            if kind == 5 {
+                return PyBool(t="bool", val=a >= b);
+            }
+            return PyBool(t="bool", val=False);
+        }
+        if kind == 2 {
+            return PyBool(t="bool", val=False);
+        }
+        if kind == 3 {
+            return PyBool(t="bool", val=True);
+        }
+        return PY_NOT_IMPLEMENTED;
     }
     # bool is an int subclass: real/numerator are int 0 or 1 (not bool), imag 0.
     def tp_getattro(name: str) -> PyObj {
@@ -1067,42 +1112,49 @@ obj PySet(PyObj) {
             if kind == 3 {
                 return PyBool(t="bool", val=True);
             }
-            return py_error("TypeError", "unorderable types");
+            return PY_NOT_IMPLEMENTED;
         }
-        o = other as PySet;
-        self_sub = True;
-        for hk in self.items {
-            if not (hk in o.items) {
-                self_sub = False;
-            }
-        }
-        o_sub = True;
-        for hk in o.items {
-            if not (hk in self.items) {
-                o_sub = False;
-            }
-        }
-        eq = self_sub and o_sub;
-        if kind == 2 {
-            return PyBool(t="bool", val=eq);
-        }
-        if kind == 3 {
-            return PyBool(t="bool", val=not eq);
-        }
-        if kind == 1 {
-            return PyBool(t="bool", val=self_sub);
-        }
-        if kind == 0 {
-            return PyBool(t="bool", val=self_sub and not eq);
-        }
-        if kind == 5 {
-            return PyBool(t="bool", val=o_sub);
-        }
-        if kind == 4 {
-            return PyBool(t="bool", val=o_sub and not eq);
-        }
-        return PyBool(t="bool", val=False);
+        return _pyset_richcompare_na(kind, self, other as PySet);
     }
+}
+
+# Shared set/set richcompare (na-clean). ``setobject.set_richcompare`` and ceval
+# ``py_compare`` both route here; keeps one implementation for subset algebra.
+def _pyset_richcompare_na(op: int, v: PySet, w: PySet) -> PyObj {
+    vlen = len(v.items);
+    wlen = len(w.items);
+    v_sub = True;
+    for hk in v.items {
+        if not (hk in w.items) {
+            v_sub = False;
+        }
+    }
+    w_sub = True;
+    for hk in w.items {
+        if not (hk in v.items) {
+            w_sub = False;
+        }
+    }
+    eq = v_sub and w_sub;
+    if op == 2 {
+        return PyBool(t="bool", val=eq);
+    }
+    if op == 3 {
+        return PyBool(t="bool", val=not eq);
+    }
+    if op == 1 {
+        return PyBool(t="bool", val=v_sub);
+    }
+    if op == 0 {
+        return PyBool(t="bool", val=v_sub and not eq);
+    }
+    if op == 5 {
+        return PyBool(t="bool", val=w_sub);
+    }
+    if op == 4 {
+        return PyBool(t="bool", val=w_sub and not eq);
+    }
+    return PyBool(t="bool", val=False);
 }
 
 obj PyExceptionType(PyObj) {
@@ -1182,6 +1234,15 @@ obj PyError(PyObj) {
         lasti: int = -1;
 }
 
+# Native richcompare deferral sentinel (CPython ``NotImplemented`` for builtin slots).
+obj PyNotImplementedSentinel(PyObj) {
+    has _marker: bool = True;
+}
+
+glob PY_NOT_IMPLEMENTED: PyNotImplementedSentinel = PyNotImplementedSentinel(
+    t="notimplemented"
+);
+
 obj PyIter(PyObj) {
     has items: list[PyObj],
         index: int;
@@ -1249,11 +1310,107 @@ def expect_str(o: PyObj) -> str {
     return "";
 }
 
+# CPython ``PyUnicode_Repr`` escaping for a single codepoint (non-printable).
+def _repr_hex2(n: int) -> str {
+    return "0123456789abcdef"[n];
+}
+
+def _repr_unicode_escape(cp: int) -> str {
+    if cp < 256 {
+        return (
+            "\\x"
+            + _repr_hex2((cp >> 4) & 15)
+            + _repr_hex2(cp & 15)
+        );
+    }
+    if cp <= 0xFFFF {
+        out = "\\u";
+        shift = 12;
+        while shift >= 0 {
+            out = out + _repr_hex2((cp >> shift) & 15);
+            shift = shift - 4;
+        }
+        return out;
+    }
+    out = "\\U";
+    shift = 28;
+    while shift >= 0 {
+        out = out + _repr_hex2((cp >> shift) & 15);
+        shift = shift - 4;
+    }
+    return out;
+}
+
+def _repr_unicode_char(ch: str, quote: int) -> str {
+    if ch == "\\" {
+        return "\\\\";
+    }
+    if quote == 39 and ch == "'" {
+        return "\\'";
+    }
+    if quote == 34 and ch == "\"" {
+        return "\\\"";
+    }
+    if ch == "\t" {
+        return "\\t";
+    }
+    if ch == "\n" {
+        return "\\n";
+    }
+    if ch == "\r" {
+        return "\\r";
+    }
+    if ch.isprintable() {
+        return ch;
+    }
+    return _repr_unicode_escape(ord(ch));
+}
+
+# CPython ``unicode_repr`` (smart quotes + escapes). Shared by ``str_repr`` and
+# ``dict_key_repr`` so KeyError / ``%r`` match container repr paths.
+def str_repr_text(val: str) -> str {
+    if len(val) == 0 {
+        return "''";
+    }
+    squotes = 0;
+    dquotes = 0;
+    i = 0;
+    while i < len(val) {
+        if val[i] == "'" {
+            squotes = squotes + 1;
+        } elif val[i] == "\"" {
+            dquotes = dquotes + 1;
+        }
+        i = i + 1;
+    }
+    quote = 39;
+    if squotes > 0 and dquotes == 0 {
+        quote = 34;
+    }
+    out = "";
+    if quote == 39 {
+        out = "'";
+    } else {
+        out = "\"";
+    }
+    i = 0;
+    while i < len(val) {
+        out = out + _repr_unicode_char(val[i], quote);
+        i = i + 1;
+    }
+    if quote == 39 {
+        out = out + "'";
+    } else {
+        out = out + "\"";
+    }
+    return out;
+}
+
 # Best-effort repr of a missing dict key for KeyError messages: str keys are
 # quoted, ints show their value, other keys fall back to their hashkey.
 def dict_key_repr(index: PyObj) -> str {
     if isinstance(index, PyStr) {
-        return "'" + (index as PyStr).val + "'";
+        return str_repr_text((index as PyStr).val);
     }
     if isinstance(index, PyInt) {
         return str((index as PyInt).val);
@@ -1547,7 +1704,7 @@ def _pyobj_str(o: PyObj) -> str {
 
 def _pyobj_repr(o: PyObj) -> str {
     if isinstance(o, PyStr) {
-        return "'" + (o as PyStr).val + "'";
+        return str_repr_text((o as PyStr).val);
     }
     return _pyobj_str(o);
 }
