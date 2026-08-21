@@ -81,21 +81,21 @@ def parse_opts(argv: list[str]) -> dict {
 
 """Audit every requested cell; fail if an enforced build has RC machinery."""
 def main(opts: dict) {
-    census: dict = {};
+    results: dict = {};
     bad = False;
     for kernel in [
         k
         for k in opts["kernels"].split(",")
         if k
     ] {
-        census[kernel] = {};
+        results[kernel] = {};
         for mode in [
             m
             for m in opts["modes"].split(",")
             if m
         ] {
             a = audit(kernel, mode);
-            census[kernel][mode] = a;
+            results[kernel][mode] = a;
             print(
                 f"{kernel:12s} {mode:6s} rc_refs={a['rc_symbol_refs']:4d} "
                 f"trace_fns={a['trace_fns']:2d} collector={a['collector_refs']}"
@@ -107,7 +107,7 @@ def main(opts: dict) {
         }
     }
     out = Path(opts["out"]);
-    out.write_text(json.dumps(census, indent=2) + "\n");
+    out.write_text(json.dumps(results, indent=2) + "\n");
     print(f"wrote {out}");
     if bad {
         sys.`exit("zero-RC audit FAILED for an enforced build");
