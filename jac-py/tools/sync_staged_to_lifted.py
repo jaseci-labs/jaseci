@@ -27,6 +27,7 @@ _MANIFESTS = {
     "wave2": _HERE / "p2_staged_manifest_wave2.json",
     "wave3": _HERE / "p2_staged_manifest_wave3.json",
     "wave4": _HERE / "p2_staged_manifest_wave4.json",
+    "wave5": _HERE / "p2_staged_manifest_wave5.json",
 }
 
 
