@@ -68,15 +68,15 @@ def _make_import(src: uni.Source, mod_stem: str, names: list[str]) -> uni.Import
 
 def _collect_c_defs(file_ast: object, stem: str, registry: dict[str, str]) {
     # First-wins: the first defining TU owns the symbol.
-    for entry in (file_ast?.ext or []) {
-        if isinstance(entry, c_ast.FuncDef) and entry.decl and entry.decl.name {
-            nm = entry.decl.name;
+    for ext_decl in (file_ast?.ext or []) {
+        if isinstance(ext_decl, c_ast.FuncDef) and ext_decl.decl and ext_decl.decl.name {
+            nm = ext_decl.decl.name;
             if nm not in registry {
                 registry[nm] = stem;
             }
         }
-        if isinstance(entry, c_ast.Decl) and entry.type is not None {
-            t = entry.type;
+        if isinstance(ext_decl, c_ast.Decl) and ext_decl.type is not None {
+            t = ext_decl.type;
             if isinstance(t, c_ast.Struct) and t.name and t.decls is not None {
                 if t.name not in registry {
                     registry[t.name] = stem;
@@ -89,9 +89,9 @@ def _collect_c_defs(file_ast: object, stem: str, registry: dict[str, str]) {
                 }
             }
         }
-        if isinstance(entry, c_ast.Typedef) and entry.name {
-            if entry.name not in registry {
-                registry[entry.name] = stem;
+        if isinstance(ext_decl, c_ast.Typedef) and ext_decl.name {
+            if ext_decl.name not in registry {
+                registry[ext_decl.name] = stem;
             }
         }
     }
