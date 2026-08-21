@@ -8,7 +8,7 @@ impl native_compiler_fingerprint(options: any) -> str {
     _comp_h = _cfh_hash.sha256();
     for _cp in [
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
-        _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
+        _cfp_os.path.join(_nat_dir, "na_ir_gen", "*.jac"),
 
     ] {
         for _cf in sorted(_cgl.`glob(_cp)) {
