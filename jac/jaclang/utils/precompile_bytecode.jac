@@ -320,6 +320,7 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/passes/endpoint_effect_pass.jac",
          "jac0core/passes/jcir_gen_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/prefix_drive.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/transform.jac",
@@ -445,10 +446,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
-         (
-             "compiler/passes/main/cfg_build_pass.jac::"
-             "CFGBuildPass._find_next_cfg_stmt_after"
-         ),
 
      ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple[str, ...] = (
@@ -489,7 +486,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
-         "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/native_materialize.jac": (
+             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
+         ),
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -629,9 +628,9 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "reaches the emitter as a bare pointer, and the second "
              "cascades on `unparse_node`. They clear together when a "
              "container stored inside a container keeps its layout. "
-             "`_find_next_cfg_stmt_after` is on the real schedule and "
-             "reads a `Sequence` element through `cast`; it clears when "
-             "that read lowers."
+             "`_find_next_cfg_stmt_after` was here until it learned to "
+             "read the body through the classes that own one; it lowers "
+             "now and its waiver is gone."
          ),
          (
              "jcir interop manifest and driver reads",
@@ -1280,6 +1279,192 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str 
     return _merge_probe_parity(np);
 }
 
+def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str {
+    import traceback;
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    import from jaclang.jac0core.compile_options { env_na_debug }
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.materialize { bind_native_parser }
+    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
+    import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+    import from jaclang.jac0core.passes.decl_impl_match_pass { DeclImplMatchPass }
+    import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
+    import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
+    import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+
+    nl = chr(10);
+    sys.stderr.write(f"    canary: prefix parity in {os.path.basename(lib_path)}\n");
+    sys.stderr.flush();
+    try {
+        np = bind_native_parser(lib_path, layout_dict);
+    } except Exception as bind_exc {
+        if env_na_debug() {
+            traceback.print_exc(file=sys.stderr);
+        }
+        return f"binding failed: {type(bind_exc).__name__}: {bind_exc}";
+    }
+    if not np.serves_prefix() {
+        return "the artifact exports no mat_parse_and_run_prefix entry";
+    }
+    _pfx_harness_lines = [
+        (
+            'test "box holds" { assert Canary(a=2).m() >= -1; }'
+                if ln.startswith("test box_holds")
+                else ln
+        ) for ln in _PARITY_CANARY_LINES
+    ];
+    _pfx_alerting_lines = [
+        "def m(p: int) -> int {",
+        "    break;",
+        "    return p;",
+        "}",
+
+    ];
+    corpora = [
+        (nl.join(_pfx_harness_lines), "__seal_prefix_harness__.jac", 0, ),
+        (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_prefix_corpus__.jac", 0, ),
+        (nl.join(_pfx_alerting_lines), "__seal_prefix_alerting__.jac", 1, ),
+
+    ];
+    import from jaclang.jac0core.passes.prefix_drive {
+        PREFIX_NATIVE_FRONTIER as _pfx_frontier
+    }
+    for (canary_src, canary_path, min_rows) in corpora {
+        try {
+            r = np.parse_and_run_prefix(canary_src, canary_path, 6, "", 0, 0);
+        } except Exception as run_exc {
+            if env_na_debug() {
+                traceback.print_exc(file=sys.stderr);
+            }
+            return (
+                f"prefix crossing of {canary_path} raised "
+                f"{type(run_exc).__name__}: {run_exc}"
+            );
+        }
+        (native_mod, n_errs, _pd, _cm, _ld, n_lex) = (
+            r[0],
+            r[1],
+            r[2],
+            r[3],
+            r[4],
+            r[5],
+
+        );
+        (executed, clause, detail, rows) = (r[6], r[7], r[8], r[9], );
+        if n_errs or n_lex {
+            _pd_head: list[str] = [];
+            try {
+                for _pd_row in (list(_pd) + list(_ld))[:3] {
+                    _pd_head.append(
+                        f"{_pd_row.loc.line}:{_pd_row.loc.col_start} "
+                        f"{str(_pd_row.message)[:90]}"
+                    );
+                }
+            } except Exception as _pd_exc {
+                _pd_head.append(f"<diag rows unreadable: {_pd_exc}>");
+            }
+            return (
+                f"{canary_path}: the seal corpus did not parse "
+                f"({n_errs}/{n_lex}): {'; '.join(_pd_head)}"
+            );
+        }
+        if executed != _pfx_frontier {
+            return (
+                f"{canary_path}: the crossing executed {executed}, but the "
+                f"native frontier claims {_pfx_frontier} ({clause}: {detail})"
+            );
+        }
+        if len(rows) < min_rows {
+            return (
+                f"{canary_path}: the alerting corpus produced {len(rows)} "
+                f"row(s); a canary that cannot see an alert is decoration"
+            );
+        }
+        (tokens, _c, _lx, lex_errs) = tokenize_full(canary_src, canary_path);
+        pyp = Parser(tokens=tokens, file_path=canary_path, source_code=canary_src);
+        py_mod = pyp.parse();
+        if pyp.error_count or lex_errs {
+            return f"{canary_path}: the staged parse of the corpus errored";
+        }
+        prog = JacProgram();
+        staged_rows: list[tuple] = [];
+        _pfx_all_passes = (
+            ASTValidationPass,
+            SymTabBuildPass,
+            DeclImplMatchPass,
+            SemanticAnalysisPass,
+            SemDefMatchPass,
+            CFGBuildPass,
+
+        );
+        for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
+            inst: any = cls(ir_in=py_mod, prog=prog);
+            for e in inst.errors_had {
+                staged_rows.append(
+                    (
+                        1,
+                        e.code.code if e.code is not None else "",
+                        e.msg,
+                        e.loc.first_line,
+                        e.loc.col_start,
+                        e.loc.pos_start,
+                        e.loc.pos_end,
+                        pass_ord,
+
+                    )
+                );
+            }
+            for w in inst.warnings_had {
+                staged_rows.append(
+                    (
+                        0,
+                        w.code.code if w.code is not None else "",
+                        w.msg,
+                        w.loc.first_line,
+                        w.loc.col_start,
+                        w.loc.pos_start,
+                        w.loc.pos_end,
+                        pass_ord,
+
+                    )
+                );
+            }
+        }
+        native_rows = [
+            (rr[0], rr[1], rr[2], rr[4], rr[5], rr[6], rr[7], rr[8], ) for rr in rows
+        ];
+        if native_rows != staged_rows {
+            return (
+                f"{canary_path}: the alert streams diverged "
+                f"(prefix {len(native_rows)} row(s), staged "
+                f"{len(staged_rows)}): {native_rows[:3]} != {staged_rows[:3]}"
+            );
+        }
+        native_up = unparse_node(native_mod);
+        py_up = unparse_node(py_mod);
+        if native_up != py_up {
+            return _parity_text_report(canary_path, native_up, py_up);
+        }
+        n_syms: list[str] = [];
+        p_syms: list[str] = [];
+        try {
+            n_syms = _sym_name_fingerprint(native_mod);
+            p_syms = _sym_name_fingerprint(py_mod);
+        } except Exception as sym_exc {
+            return (
+                f"{canary_path}: post-pass symbol fingerprint raised "
+                f"{type(sym_exc).__name__}: {sym_exc}"
+            );
+        }
+        if n_syms != p_syms {
+            return _parity_sym_report(canary_path, n_syms, p_syms);
+        }
+    }
+    return "";
+}
+
 glob _MERGE_PROBE_MAIN: tuple[str, ...] = (
          "obj Widget {",
          "    has size: int = 1;",
@@ -1891,6 +2076,11 @@ def seal_native_roots(
                             str(reuse_lib), reused_layout
                         );
                     }
+                    if not canary and rel == NATIVE_SEAL_MATERIALIZE_ROOT {
+                        canary = seal_prefix_parity_canary(
+                            str(reuse_lib), reused_layout
+                        );
+                    }
                 }
                 if canary {
                     why = f"its canary no longer passes: {canary}";
@@ -2105,12 +2295,15 @@ def seal_native_roots(
         }
         if rel == NATIVE_SEAL_MATERIALIZE_ROOT {
             parity = seal_parse_parity_canary(str(lib_path), layout_dict);
+            if not parity {
+                parity = seal_prefix_parity_canary(str(lib_path), layout_dict);
+            }
             if parity {
                 console.error(
                     f"NATIVE SEAL: {rel}: the emitted artifact "
-                    f"{lib_path.name} failed its parse parity canary. The "
-                    "seal refuses artifacts whose parses do not match the "
-                    "bytecode parser; set JAC_NA_DEBUG=1 for the full "
+                    f"{lib_path.name} failed its parity canaries. The seal "
+                    "refuses artifacts whose parse or prefix does not match "
+                    "the staged route; set JAC_NA_DEBUG=1 for the full "
                     f"unparsed texts and the traceback.{chr(10)}{parity}"
                 );
                 lib_path.unlink(missing_ok=True);
