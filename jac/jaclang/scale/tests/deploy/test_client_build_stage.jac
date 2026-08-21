@@ -12,13 +12,21 @@ import os;
 import shutil;
 import subprocess;
 import tempfile;
-import from contextlib { redirect_stderr }
+import time;
+import from contextlib { redirect_stderr, redirect_stdout }
 import from pathlib { Path }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
-import from jaclang.scale.injector.bundle { bundle_source_files }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    _CLIENT_BUILD_ATTEMPTS,
+    _CLIENT_BUILD_RETRY_PAUSE_S,
+    _is_transient_client_build_failure,
+    _membership_diagnosis,
+    ManifestBuilder
+}
+import from jaclang.scale.injector.bundle { bundle_source_files, source_filter_for }
 import from jaclang.scale.runtime.context.util { jac_executable }
 
 glob _PARKED: str = "# parked for the deploy\ndocsite/\nevaluation/\n",
@@ -155,6 +163,33 @@ def _read(path: str) -> str {
 }
 
 
+"""The raw-tree control build, retried on the same transient install/network
+markers the deploy retries on, so a flaky bun install cannot fail the VITE_
+leg for a reason unrelated to what it asserts."""
+def _control_build(cwd: str) -> any {
+    attempt = 0;
+    while True {
+        attempt += 1;
+        result = subprocess.run(
+            [jac_executable(), "build", "main.jac", "--client", "web"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=900
+        );
+        output = (result.stdout or "") + "\n" + (result.stderr or "");
+        if (
+            result.returncode == 0
+            or attempt >= _CLIENT_BUILD_ATTEMPTS
+            or not _is_transient_client_build_failure(output)
+        ) {
+            return result;
+        }
+        time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+    }
+}
+
+
 def _dist_mentions(project_dir: str, needle: str) -> list[str] {
     dist = Path(project_dir) / ".jac" / "client" / "dist";
     return [
@@ -213,6 +248,13 @@ test "the build reads the sanitized jac.toml, not the raw one" {
 
 test "the build runs in an ephemeral stage and the dist is copied back" {
     project_dir = _app(_PARKED);
+    client_dir = os.path.join(project_dir, ".jac", "client");
+    os.makedirs(os.path.join(client_dir, "dist"));
+    with open(
+        os.path.join(client_dir, "dist", "stale.js"), "w", encoding="utf-8"
+    ) as f {
+        f.write("from the last deploy");
+    }
     (raised, rec) = _with_recording_build(project_dir);
     try {
         assert raised is None , f"the staged build must succeed: {raised}";
@@ -230,6 +272,10 @@ test "the build runs in an ephemeral stage and the dist is copied back" {
             "the built dist never made it back to where the bundle pack "
             "ships it from"
         );
+        assert not os.path.exists(os.path.join(client_dir, "dist", "stale.js")) , (
+            "last deploy's dist survived under the new one"
+        );
+        assert os.listdir(client_dir) == ["dist"] , os.listdir(client_dir);
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
         shutil.rmtree(rec, ignore_errors=True);
@@ -357,13 +403,7 @@ test "a VITE_ value in .env never reaches the shipped dist" {
     shutil.copytree(project_dir, control, dirs_exist_ok=True);
     rec = tempfile.mkdtemp(prefix="client-stage-rec-");
     try {
-        raw = subprocess.run(
-            [jac_executable(), "build", "main.jac", "--client", "web"],
-            cwd=control,
-            capture_output=True,
-            text=True,
-            timeout=900
-        );
+        raw = _control_build(control);
         assert raw.returncode == 0 , (
             f"the raw-tree control build failed:\n{raw.stdout}\n{raw.stderr}"
         );
@@ -424,7 +464,6 @@ test "an undeclared entry that does not exist skips the build and says so" {
     out = io.StringIO();
     raised = None;
     try {
-        import from contextlib { redirect_stdout }
         with redirect_stdout(out) {
             mb._build_client_bundle(project_dir);
         }
@@ -453,6 +492,86 @@ test "entry = false is not a declared entry" {
             project_dir, client={"entry": " app.jac "}
         )._declared_client_entry()
             == "app.jac";
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "entry = false with no client source skips the build and says so" {
+    project_dir = _app(_PARKED);
+    out = io.StringIO();
+    try {
+        with redirect_stdout(out) {
+            _builder(project_dir, client={"entry": False})._build_client_bundle(
+                project_dir
+            );
+        }
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+    assert "skipping the client build" in out.getvalue() , (
+        f"a deploy with no client must say it is skipping the build: "
+        f"{out.getvalue()!r}"
+    );
+}
+
+
+test "a jac.toml the loader rejects fails the deploy instead of skipping the client" {
+    project_dir = _app(_PARKED);
+    with open(os.path.join(project_dir, "jac.toml"), "w", encoding="utf-8") as f {
+        f.write("[project\nname = \"shop\"\n");
+    }
+    mb = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="shop", namespace="jb-shop"),
+        microservices_config=None
+    );
+    mb.project_dir = project_dir;
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    out = io.StringIO();
+    raised = None;
+    try {
+        with redirect_stdout(out) {
+            mb._build_client_bundle(project_dir);
+        }
+    } except Exception as e {
+        raised = e;
+    } finally {
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+    assert raised is not None , (
+        f"a jac.toml the loader cannot read must fail the deploy, not skip the "
+        f"client build and ship a gateway with nothing to serve: {out.getvalue()!r}"
+    );
+    assert "skipping the client build" not in out.getvalue() , out.getvalue();
+}
+
+
+test "the membership diagnosis never blames a build or cache tree" {
+    project_dir = _app(_PARKED);
+    base = Path(project_dir);
+    vite = base / ".jac" / "client" / "node_modules" / "vite" / "dist";
+    vite.mkdir(parents=True);
+    (vite / "cli.js").write_text("", encoding="utf-8");
+    try {
+        filt = source_filter_for(base);
+        output = (
+            "error during build:\n"
+            "    at .jac/client/node_modules/vite/dist/cli.js:1:1\n"
+            "cannot import docsite/util.jac: no such module\n"
+        );
+        diagnosis = _membership_diagnosis(output, base, filt);
+        assert "docsite/util.jac" in diagnosis , diagnosis;
+        assert "node_modules" not in diagnosis , (
+            f"the diagnosis told the user to drop a tooling-tree exclusion: "
+            f"{diagnosis}"
+        );
+        only_tooling = _membership_diagnosis(
+            "error at .jac/client/node_modules/vite/dist/cli.js:1:1", base, filt
+        );
+        assert only_tooling == "" , only_tooling;
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
     }

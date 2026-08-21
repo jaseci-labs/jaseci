@@ -87,6 +87,9 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
             if not (base / rel).exists() or not excluded.excludes(rel) {
                 continue;
             }
+            if excluded.is_build_tree(rel) {
+                continue;
+            }
             seen.add(rel.as_posix());
             lines.append(f"  - {rel.as_posix()}: {excluded.exclusion_reason(rel)}");
             break;
@@ -341,6 +344,12 @@ obj ManifestBuilder {
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
+            console.print(
+                "[scale.microservices.client] entry is unset or false and the "
+                "project has no client source (no pages/ or components/ "
+                "directory, no [client] table in jac.toml); skipping the "
+                "client build."
+            );
             return;
         }
         base = Path(project_dir);
@@ -503,11 +512,17 @@ obj ManifestBuilder {
                 );
             }
             target = os.path.join(project_dir, ".jac", "client", "dist");
-            if os.path.isdir(target) {
-                shutil.rmtree(target);
-            }
+            incoming = target + ".incoming";
+            outgoing = target + ".outgoing";
             os.makedirs(os.path.dirname(target), exist_ok=True);
-            shutil.copytree(dist, target);
+            shutil.rmtree(incoming, ignore_errors=True);
+            shutil.rmtree(outgoing, ignore_errors=True);
+            shutil.copytree(dist, incoming);
+            if os.path.isdir(target) {
+                os.replace(target, outgoing);
+            }
+            os.replace(incoming, target);
+            shutil.rmtree(outgoing, ignore_errors=True);
         } finally {
             remove_stage_root(stage_root);
         }
@@ -674,35 +689,39 @@ obj ManifestBuilder {
         }
     }
 
-    def _declared_client_entry -> str {
-        try {
-            if self.microservices_config is not None {
-                raw = self.microservices_config;
-            } else {
-                import from jaclang.scale.config.config_loader { get_scale_config }
-                raw = get_scale_config().load().get("microservices", {}) or {};
-            }
-            `entry = dict(raw.get("client", {}) or {}).get("entry", None);
-            return `entry.strip() if isinstance(`entry, str) else "";
-        } except Exception {
-            return "";
+    def _client_entry_setting -> tuple[str, str] {
+        import from jaclang.scale.config.config_loader {
+            get_scale_config,
+            normalize_microservices_config
         }
+        if self.microservices_config is not None {
+            raw = self.microservices_config;
+        } else {
+            raw = get_scale_config().load().get("microservices", {}) or {};
+        }
+        declared = dict(raw.get("client", {}) or {}).get("entry", None);
+        resolved = normalize_microservices_config(raw, env_routes_fallback=False)[
+            "client"
+        ]["entry"];
+        return (
+            str(resolved or "").strip(),
+            declared.strip() if isinstance(declared, str) else ""
+        );
+    }
+
+    def _declared_client_entry -> str {
+        return self._client_entry_setting()[1];
     }
 
     def _client_entry -> str {
-        try {
-            ms_cfg = self._ms_cfg();
-            explicit = str(dict(ms_cfg.get("client", {})).get("entry", "")).strip();
-            if explicit {
-                return explicit;
-            }
-            if self._has_client_source() {
-                return "main.jac";
-            }
-            return "";
-        } except Exception {
-            return "";
+        (resolved, _) = self._client_entry_setting();
+        if resolved {
+            return resolved;
         }
+        if self._has_client_source() {
+            return "main.jac";
+        }
+        return "";
     }
 
     def _has_client_source -> bool {

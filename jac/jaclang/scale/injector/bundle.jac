@@ -93,11 +93,13 @@ obj BundleSourceFilter {
         return path_matches_exclude(rel.as_posix(), self.ignore_patterns);
     }
 
+    def is_build_tree(rel: Path) -> bool {
+        return _exclude_dir_root(rel) is not None;
+    }
+
     def excludes_tree(rel: Path) -> bool {
-        for part in rel.parts {
-            if part in _EXCLUDE_DIRS {
-                return True;
-            }
+        if self.is_build_tree(rel) {
+            return True;
         }
         return self.parks(rel);
     }
