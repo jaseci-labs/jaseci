@@ -257,27 +257,33 @@ impl KEDAAutoscaler.apply{
     }
 
     manifests = self._build_manifests(spec);
-    scaled_object = manifests[0];
-    for auth_manifest in manifests[1:] {
-        self._apply_custom_object(
-            api,
-            "keda.sh",
-            "v1alpha1",
-            spec.namespace,
-            "triggerauthentications",
-            auth_manifest["metadata"]["name"],
-            auth_manifest
+    known_kinds = [kind for (kind, _) in KEDAAutoscaler._APPLY_ORDER];
+    unknown_kinds = [
+        manifest["kind"]
+        for manifest in manifests
+        if manifest["kind"] not in known_kinds
+    ];
+    if unknown_kinds {
+        raise ValueError(
+            f"_build_manifests returned unhandled kind(s) {unknown_kinds}; "
+            "add them to KEDAAutoscaler._APPLY_ORDER."
         );
     }
-    self._apply_custom_object(
-        api,
-        "keda.sh",
-        "v1alpha1",
-        spec.namespace,
-        "scaledobjects",
-        scaled_object["metadata"]["name"],
-        scaled_object
-    );
+    for (kind, plural) in KEDAAutoscaler._APPLY_ORDER {
+        for manifest in manifests {
+            if manifest["kind"] == kind {
+                self._apply_custom_object(
+                    api,
+                    "keda.sh",
+                    "v1alpha1",
+                    spec.namespace,
+                    plural,
+                    manifest["metadata"]["name"],
+                    manifest
+                );
+            }
+        }
+    }
     return True;
 }
 

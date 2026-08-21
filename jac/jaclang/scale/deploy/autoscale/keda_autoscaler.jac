@@ -28,7 +28,11 @@ obj KEDAAutoscaler(Autoscaler) {
         logger: (Logger | None) = None,
         _capabilities_cache: dict[str, any] = {};
 
-    static has _preflight_cache: dict[str, any] = {};
+    static has _preflight_cache: dict[str, any] = {},
+        _APPLY_ORDER: list[tuple[str, str]] = [
+            ("TriggerAuthentication", "triggerauthentications"),
+            ("ScaledObject", "scaledobjects")
+        ];
 
     def _get_cluster_key -> str;
     def _trigger_key(trigger: Trigger, trigger_index: int) -> str;
