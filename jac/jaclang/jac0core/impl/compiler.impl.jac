@@ -1421,8 +1421,7 @@ impl JacCompiler._compile_once(
         );
     }
 
-    _analyze = 'cfg' in providers_of(_head_sched)
-        and actual_program is not self._internal_program;
+    _full_head = 'cfg' in providers_of(_head_sched);
     if _prefix_ran {
         mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
     }
@@ -1450,6 +1449,21 @@ impl JacCompiler._compile_once(
     import from jaclang.jac0core.constant { CodeContext as _CodeCtx }
     is_native_mod = mod_targ is not None
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
+
+    # Analysis runs on every compile, with one bootstrap exception: a
+    # jaclang-internal module whose own Python import is mid-flight. There the
+    # analysis passes' run-time imports would re-enter the partially
+    # initialized module (the CompilerSourceError this file raises for that),
+    # and the census compiles every internal module directly -- never
+    # mid-import -- so nothing escapes the gate. Native modules analyze even
+    # mid-flight: their codegen schedule REQUIRES 'inference', and they sit
+    # outside the analysis machinery's import closure.
+    _analyze = _full_head
+        and (
+            is_native_mod
+            or actual_program is not self._internal_program
+            or not module_import_in_flight(file_path)
+        );
 
     if _analyze {
         self.run_schedule(
