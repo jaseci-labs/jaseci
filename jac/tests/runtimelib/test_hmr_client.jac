@@ -13,6 +13,11 @@ import from jaclang.runtimelib.hmr { HotReloader }
 import from jaclang.runtimelib.testing { JacTestClient }
 import from jaclang.runtimelib.watcher { JacFileWatcher }
 
+
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # --- TestHMRWalkerReload ---
 test "walker code reloads after file change" {
     with TemporaryDirectory() as tmpdir {
@@ -34,7 +39,7 @@ test "walker code reloads after file change" {
             # Call walker - should return 1
             response1 = client.post("/walker/get_value", json={});
             assert response1.ok;
-            reports1 = response1.data.get("reports", []);
+            reports1 = _as_any(response1.data).get("reports", []);
             assert len(reports1) > 0;
             assert reports1[0].get("value") == 1;
 
@@ -53,7 +58,7 @@ test "walker code reloads after file change" {
             # Call walker again - should now return 2
             response2 = client.post("/walker/get_value", json={});
             assert response2.ok;
-            reports2 = response2.data.get("reports", []);
+            reports2 = _as_any(response2.data).get("reports", []);
             assert len(reports2) > 0;
             assert reports2[0].get("value") == 2;
 
@@ -86,7 +91,7 @@ test "global variable reloads" {
             # Get version 1
             response1 = client.post("/walker/get_version", json={});
             assert response1.ok;
-            v1 = response1.data.get("reports", [{}])[0].get("version");
+            v1 = _as_any(response1.data).get("reports", [{}])[0].get("version");
             assert v1 == 1;
 
             # Version 2
@@ -105,7 +110,7 @@ test "global variable reloads" {
             # Get version 2
             response2 = client.post("/walker/get_version", json={});
             assert response2.ok;
-            v2 = response2.data.get("reports", [{}])[0].get("version");
+            v2 = _as_any(response2.data).get("reports", [{}])[0].get("version");
             assert v2 == 2;
         } finally {
             client.close();
@@ -160,7 +165,7 @@ test "new walker available after reload" {
 
             response4 = client.post("/walker/walker_two", json={});
             assert response4.ok;
-            assert response4.data.get("reports", [{}])[0].get("name") == "two";
+            assert _as_any(response4.data).get("reports", [{}])[0].get("name") == "two";
         } finally {
             client.close();
         }
@@ -201,7 +206,7 @@ test "multiple rapid reloads" {
 
                 response = client.post("/walker/get_counter", json={});
                 assert response.ok;
-                counter = response.data.get("reports", [{}])[0].get("counter");
+                counter = _as_any(response.data).get("reports", [{}])[0].get("counter");
                 assert counter == i , f"Expected counter={i}, got {counter}";
             }
         } finally {
@@ -226,7 +231,7 @@ test "function code reloads" {
             # Call function
             response1 = client.post("/function/get_message", json={});
             assert response1.ok;
-            result1 = response1.data.get("result");
+            result1 = _as_any(response1.data).get("result");
             assert "Version 1" in result1;
 
             # Version 2
@@ -238,7 +243,7 @@ test "function code reloads" {
 
             response2 = client.post("/function/get_message", json={});
             assert response2.ok;
-            result2 = response2.data.get("result");
+            result2 = _as_any(response2.data).get("result");
             assert "Version 2" in result2;
         } finally {
             client.close();
@@ -265,7 +270,7 @@ test "auth token preserved after reload" {
             # Verify auth works
             resp1 = client.post("/walker/get_status", json={});
             assert resp1.ok;
-            assert resp1.data.get("reports", [{}])[0].get("status") == "v1";
+            assert _as_any(resp1.data).get("reports", [{}])[0].get("status") == "v1";
 
             # Reload module
             app_file.write_text(
@@ -280,7 +285,7 @@ test "auth token preserved after reload" {
             # Auth should still work (token preserved in client)
             resp2 = client.post("/walker/get_status", json={});
             assert resp2.ok , "Auth failed after reload";
-            assert resp2.data.get("reports", [{}])[0].get("status") == "v2" , "Code change not applied after reload";
+            assert _as_any(resp2.data).get("reports", [{}])[0].get("status") == "v2" , "Code change not applied after reload";
         } finally {
             client.close();
         }
@@ -329,7 +334,7 @@ test "user isolation without reload" {
             # User B should only see their own secret
             resp3 = client.post("/walker/get_secrets", json={});
             assert resp3.ok;
-            secrets_b = [r.get("data") for r in resp3.data.get("reports", [])];
+            secrets_b = [r.get("data") for r in _as_any(resp3.data).get("reports", [])];
             assert "B's secret" in secrets_b , "User B can't see their own data";
             assert "A's secret" not in secrets_b , "User isolation broken: B can see A's data";
 
@@ -337,7 +342,7 @@ test "user isolation without reload" {
             client.login("userA", "passA");
             resp4 = client.post("/walker/get_secrets", json={});
             assert resp4.ok;
-            secrets_a = [r.get("data") for r in resp4.data.get("reports", [])];
+            secrets_a = [r.get("data") for r in _as_any(resp4.data).get("reports", [])];
             assert "A's secret" in secrets_a , "User A can't see their own data";
             assert "B's secret" not in secrets_a , "User isolation broken: A can see B's data";
         } finally {
@@ -365,7 +370,7 @@ test "recovery from syntax error" {
             # Verify initial code works
             resp1 = client.post("/walker/get_value", json={});
             assert resp1.ok;
-            assert resp1.data.get("reports", [{}])[0].get("value") == 1;
+            assert _as_any(resp1.data).get("reports", [{}])[0].get("value") == 1;
 
             # Introduce syntax error
             app_file.write_text(
@@ -402,7 +407,7 @@ test "recovery from syntax error" {
             # Should work with fixed code
             resp2 = client.post("/walker/get_value", json={});
             assert resp2.ok;
-            assert resp2.data.get("reports", [{}])[0].get("value") == 3 , "Code not updated after recovery from syntax error";
+            assert _as_any(resp2.data).get("reports", [{}])[0].get("value") == 3 , "Code not updated after recovery from syntax error";
         } finally {
             client.close();
         }
@@ -424,7 +429,7 @@ test "reload with code change preserves functionality" {
             # Test v1 logic
             resp1 = client.post("/function/compute", json={"x": 5});
             assert resp1.ok;
-            assert resp1.data.get("result") == 10;  # 5 * 2
+            assert _as_any(resp1.data).get("result") == 10;  # 5 * 2
 
             # Version 2: multiply by 3
             app_file.write_text(
@@ -436,7 +441,9 @@ test "reload with code change preserves functionality" {
             # Test v2 logic - should now multiply by 3
             resp2 = client.post("/function/compute", json={"x": 5});
             assert resp2.ok;
-            assert resp2.data.get("result") == 15 , f"Expected 15 (5*3), got {resp2.data.get(  # 5 * 3
+            assert _as_any(resp2.data).get("result") == 15 , f"Expected 15 (5*3), got {_as_any(
+                resp2.data
+            ).get(  # 5 * 3
                 'result'
             )} - code change not applied";
         } finally {
@@ -689,7 +696,7 @@ test "server impl file reloads base jac file" {
             # Call walker - should return 8 (5 + 3)
             response1 = client.post("/walker/calculate", json={});
             assert response1.ok;
-            reports1 = response1.data.get("reports", []);
+            reports1 = _as_any(response1.data).get("reports", []);
             assert len(reports1) > 0;
             assert reports1[0].get("result") == 8;
 
@@ -706,7 +713,7 @@ test "server impl file reloads base jac file" {
             # Call walker again - should now return 15 (5 * 3)
             response2 = client.post("/walker/calculate", json={});
             assert response2.ok;
-            reports2 = response2.data.get("reports", []);
+            reports2 = _as_any(response2.data).get("reports", []);
             assert len(reports2) > 0;
             assert reports2[0].get("result") == 15;
 

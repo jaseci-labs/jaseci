@@ -56,11 +56,15 @@ def _publish_home_module -> (object | None) {
 }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def _restore_home_module(previous: (object | None)) {
     if previous is None {
         sys.modules.pop(_EarlyNode.__module__, None);
     } else {
-        sys.modules[_EarlyNode.__module__] = previous;
+        sys.modules[_EarlyNode.__module__] = _as_any(previous);
     }
 }
 

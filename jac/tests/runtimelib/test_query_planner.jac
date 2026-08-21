@@ -10,6 +10,10 @@ import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.runtimelib.query_planner { resolve_query }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 node PA {
     has val: int = 0;
 }
@@ -39,7 +43,10 @@ def _seed(ctx: ExecutionContext) -> UUID {
         nanch = PA(val=i).__jac__;
         nanch.persistent = True;
         eanch = EdgeAnchor(
-            archetype=PRel(w=i), source=ranch, target=nanch, is_undirected=False
+            archetype=_as_any(PRel(w=i)),
+            source=ranch,
+            target=nanch,
+            is_undirected=False
         );
         eanch.persistent = True;
         ranch.edges.append(eanch);
@@ -51,7 +58,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
     banch = PB(tag="leaf").__jac__;
     banch.persistent = True;
     e2 = EdgeAnchor(
-        archetype=PRel(w=9), source=pas[1], target=banch, is_undirected=False
+        archetype=_as_any(PRel(w=9)), source=pas[1], target=banch, is_undirected=False
     );
     e2.persistent = True;
     pas[1].edges.append(e2);
@@ -150,7 +157,10 @@ test "overlay: uncommitted writes are visible, both directions" {
             fresh = PA(val=99).__jac__;
             fresh.persistent = True;
             fe = EdgeAnchor(
-                archetype=PRel(w=0), source=ranch, target=fresh, is_undirected=False
+                archetype=_as_any(PRel(w=0)),
+                source=ranch,
+                target=fresh,
+                is_undirected=False
             );
             fe.persistent = True;
             ranch.edges.append(fe);

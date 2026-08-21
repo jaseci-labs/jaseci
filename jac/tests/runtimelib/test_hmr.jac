@@ -14,6 +14,10 @@ import watchdog;
 import from jaclang.runtimelib.hmr { HotReloader, get_build_status }
 import from jaclang.runtimelib.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # --- TestJacFileWatcher ---
 test "watcher can be instantiated" {
     with tempfile.TemporaryDirectory() as tmp {
@@ -55,9 +59,9 @@ test "callback registration" {
         temp_dir = Path(tmp);
         watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
         callback = MagicMock();
-        watcher.add_callback(callback);
+        watcher.add_callback(_as_any(callback));
         assert callback in watcher._callbacks;
-        watcher.remove_callback(callback);
+        watcher.remove_callback(_as_any(callback));
         assert callback not in watcher._callbacks;
     }
 }
@@ -447,7 +451,7 @@ test "reloading a broken module reports its errors once per reload" {
         } finally {
             # Long-lived global program: do not leak this file's alerts into
             # whatever else runs in this worker.
-            Jac.program.drop_module_alerts(resolved);
+            _as_any(Jac.program).drop_module_alerts(resolved);
         }
     }
 }

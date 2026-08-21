@@ -32,6 +32,10 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      DOCKERFILE = REPO_ROOT / "docker" / "jaclang.Dockerfile";
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 obj _BootProbe {
     has calls: list[str] = [],
         _orig: any = None;
@@ -45,7 +49,7 @@ obj _BootProbe {
             calls.append(str(rt.database));
             return orig(rt);
         }
-        PgRuntime.ensure = _probe;
+        PgRuntime.ensure = _as_any(_probe);
     }
 
     def remove {

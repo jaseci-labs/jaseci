@@ -22,6 +22,12 @@ glob DIST: str = "vend-demo",
      VERSION: str = "0.0.1";
 
 
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
 """Write a minimal, valid pure-python wheel for `vend_demo` into `wheelhouse`.
 
 A wheel is just a zip with the package tree plus a `.dist-info/` carrying
@@ -205,7 +211,7 @@ test "native vendoring builds sdist-only deps instead of refusing the closure" {
     import jaclang.runtimelib.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
-    jab_vendor._pip = functools.partial(_pip_scripted, calls);
+    jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));
     try {
         with tempfile.TemporaryDirectory() as tmp {
             (ok, err) = jab_vendor.download_wheels(["pywebpush>=2.0.0"], Path(tmp));
@@ -226,7 +232,7 @@ test "cross-target vendoring still refuses when wheels are missing" {
     import jaclang.runtimelib.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
-    jab_vendor._pip = functools.partial(_pip_scripted, calls);
+    jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));
     try {
         with tempfile.TemporaryDirectory() as tmp {
             (ok, err) = jab_vendor.download_wheels(
