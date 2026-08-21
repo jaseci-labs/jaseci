@@ -122,9 +122,12 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                 self._emit_untyped_external(binding, item_name, from_mod_name);
                 return binding.type;
             }
-            if sym
-                := lookup_symtab(
-                    from_mod_type.symbol_table, item_name, self.builtins_module
+            if from_mod_type.symbol_table is not None
+                and (
+                    sym
+                    := lookup_symtab(
+                        from_mod_type.symbol_table, item_name, self.builtins_module
+                    )
                 ) {
                 return self._set_module_item_symbol_and_type(node_, sym);
             }
