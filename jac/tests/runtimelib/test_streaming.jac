@@ -29,7 +29,7 @@ async def _drain(stream: any) -> list {
 }
 
 glob _probe: contextvars.ContextVar = contextvars.ContextVar(
-         "_probe", default="unset"
+         "_probe", `default="unset"
      );
 
 

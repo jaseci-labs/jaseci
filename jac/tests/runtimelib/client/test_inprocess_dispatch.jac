@@ -146,9 +146,9 @@ test "native dispatch opens push stream for streaming functions" {
     seen: list = [];
     done = threading.Event();
     def capture(stream_id: str, frame: dict) {
-        entry = dict(frame);
-        entry["stream_id"] = stream_id;
-        seen.append(entry);
+        rec = dict(frame);
+        rec["stream_id"] = stream_id;
+        seen.append(rec);
         if frame.get("type") in ("end", "error") {
             done.set();
         }
@@ -169,7 +169,7 @@ test "native dispatch opens push stream for streaming functions" {
         assert reply.get("v") == 1;
         sid = reply.get("stream_id");
         assert isinstance(sid, str) and len(sid) > 0;
-        assert done.wait(2.0) , "stream pump did not emit end in time";
+        assert getattr(done, "wait")(2.0) , "stream pump did not emit end in time";
         # Allow a brief settle for the final append ordering.
         time.sleep(0.05);
         data_frames = [
@@ -225,7 +225,7 @@ test "cancel_stream stops the pump and suppresses the end frame" {
         env = json.loads(raw);
         sid = env["stream_id"];
         assert env["__jac_stream"] == True;
-        assert started.wait(2.0);
+        assert getattr(started, "wait")(2.0);
         time.sleep(0.09);  # let a couple frames flow
         n_before = len(
             [
@@ -237,7 +237,7 @@ test "cancel_stream stops the pump and suppresses the end frame" {
         assert n_before >= 1;
 
         ipd.cancel_stream(sid);
-        assert closed.wait(2.0) , "cancel must close the generator (finally ran)";
+        assert getattr(closed, "wait")(2.0) , "cancel must close the generator (finally ran)";
         time.sleep(0.15);
         n_after = len(
             [
@@ -368,7 +368,7 @@ test "a generator raising mid-stream emits an error frame and deregisters" {
             and time.monotonic() < deadline {
             time.sleep(0.01);
         }
-        assert closed.wait(2.0) , "the raising generator must be closed (finally ran)";
+        assert getattr(closed, "wait")(2.0) , "the raising generator must be closed (finally ran)";
         types = [f["type"] for f in frames];
         assert "data" in types , types;
         assert types[-1] == "error" , types;
@@ -440,14 +440,14 @@ test "shutdown cancels an active stream without hanging or leaking" {
 
         raw = ipd._open_native_stream(_slow_gen());
         sid = json.loads(raw)["stream_id"];
-        assert started.wait(2.0);
+        assert getattr(started, "wait")(2.0);
         time.sleep(0.05);
 
         t0 = time.monotonic();
         ipd.shutdown();
         elapsed = time.monotonic() - t0;
 
-        assert closed.wait(2.0) , "shutdown must close the active stream's generator";
+        assert getattr(closed, "wait")(2.0) , "shutdown must close the active stream's generator";
         assert elapsed < 5.0 , "shutdown must not hang on an active stream";
         assert sid not in ipd._streams , "shutdown must deregister the stream";
         assert not any(f["type"] == "end" for f in frames) , (
@@ -499,7 +499,7 @@ test "streaming graph writes inside yield frames commit exactly once (context li
         );
         assert reply.get("__jac_stream") == True;
         assert reply.get("protocol") == "push";
-        assert done.wait(3.0) , "stream pump did not finish in time";
+        assert getattr(done, "wait")(3.0) , "stream pump did not finish in time";
         time.sleep(0.05);
         # No error frame: every graph write inside a yield frame succeeded
         # against the live request context.
@@ -568,7 +568,7 @@ test "async streaming drains context-bound through the native pump (Phase 3)" {
         );
         assert reply.get("__jac_stream") == True;
         assert reply.get("protocol") == "push";
-        assert done.wait(3.0) , "async stream pump did not finish in time";
+        assert getattr(done, "wait")(3.0) , "async stream pump did not finish in time";
         time.sleep(0.05);
         # No error frame: every async step ran against the live request context.
         errs = [
@@ -983,7 +983,7 @@ test "boot() clears stale _BOOT_ERROR at entry" {
             } except Exception { }
         }
         assert "stale ImportError" not in ipd._BOOT_ERROR , (
-            "boot() must clear a stale error at entry before recording a new one"
+            "boot() must clear a stale error at rec before recording a new one"
         );
         assert ipd._BOOT_ERROR != "" , "boot() must still record the fresh failure";
 
@@ -1353,7 +1353,7 @@ test "pool runs invocations concurrently (no head-of-line blocking)" {
     def _blocking_dispatch(payload_json: str) -> str {
         req = json.loads(payload_json);
         if req.get("name") == "slow" {
-            release.wait(5.0);
+            getattr(release, "wait")(5.0);
             return json.dumps(
                 {
                     "status": 200,

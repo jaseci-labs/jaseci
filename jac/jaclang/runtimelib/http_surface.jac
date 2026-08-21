@@ -115,7 +115,7 @@ obj HttpSurface {
         self.routes = [d[2] for d in decorated];
     }
 
-    def match(method: str, path: str) -> (tuple[RouteSpec, dict] | None) {
+    def resolve(method: str, path: str) -> (tuple[RouteSpec, dict] | None) {
         m = _norm_method(method);
         target = path.split("?", 1)[0];
         segs = [

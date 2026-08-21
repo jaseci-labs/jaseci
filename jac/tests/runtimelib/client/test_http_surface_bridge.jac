@@ -87,21 +87,21 @@ test "route surface matches verbs, path params, and prefers literal routes" {
     surface.finalize();
 
     # Literal wins over the fully-templated route for the same segment count.
-    hit = surface.match("GET", "/a/b");
+    hit = surface.resolve("GET", "/a/b");
     assert hit is not None;
     assert hit[0].name == "Literal" and hit[1] == {};
 
     # A non-literal path binds the param.
-    hit2 = surface.match("GET", "/a/zzz");
+    hit2 = surface.resolve("GET", "/a/zzz");
     assert hit2 is not None;
     assert hit2[0].name == "Templated" and hit2[1] == {"x": "zzz"};
 
     # Verb mismatch -> no match (this is what yields the wrong-verb 404).
-    assert surface.match("POST", "/a/b") is None;
+    assert surface.resolve("POST", "/a/b") is None;
     # Unknown path -> None.
-    assert surface.match("GET", "/nope") is None;
+    assert surface.resolve("GET", "/nope") is None;
     # Query string on the request path is ignored by the matcher.
-    hit3 = surface.match("GET", "/a/b?z=1");
+    hit3 = surface.resolve("GET", "/a/b?z=1");
     assert hit3 is not None and hit3[0].name == "Literal";
 }
 

@@ -600,7 +600,7 @@ def _bundle_pydeps(project_dir: Path, output_dir: Path) {
                 + (": " + detail if detail else "")
         );
     }
-    if not any(pydeps_dir.glob("*.dist-info")) {
+    if not any(getattr(pydeps_dir, "glob")("*.dist-info")) {
         raise RuntimeError(
             "jac-desktop: pip reported success but "
                 + DESKTOP_PYDEPS_DIR

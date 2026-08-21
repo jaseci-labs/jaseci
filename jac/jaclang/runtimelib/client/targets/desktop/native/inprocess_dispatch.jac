@@ -532,7 +532,7 @@ def route_exists(method: str, path: str) -> bool {
     if surface is None {
         return False;
     }
-    return surface.match(method, urlparse(path).path) is not None;
+    return surface.resolve(method, urlparse(path).path) is not None;
 }
 
 
@@ -558,7 +558,7 @@ def _bridge_resolve(method: str, path: str, body: bytes, token: str) -> dict {
     }
 
     parsed = urlparse(path);
-    matched = surface.match(method, parsed.path);
+    matched = surface.resolve(method, parsed.path);
     if matched is None {
         return {"error": _bridge_error(404, "unknown route: " + path)};
     }

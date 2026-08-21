@@ -108,7 +108,7 @@ def _sse_default(v: any) -> str {
 
 
 def _sse_data_frame(item: any) -> str {
-    return f"data: {json.dumps(item, default=_sse_default)}\n\n";
+    return f"data: {json.dumps(item, `default=_sse_default)}\n\n";
 }
 
 
@@ -120,7 +120,7 @@ def iter_sse_frames(gen: any) -> Generator[str] {
             "error_type": "TypeError",
             "message": f"sse expected a generator, got {type(gen).__name__}"
         };
-        yield f"event: error\ndata: {json.dumps(err, default=_sse_default)}\n\n";
+        yield f"event: error\ndata: {json.dumps(err, `default=_sse_default)}\n\n";
         return;
     }
     try {
@@ -130,7 +130,7 @@ def iter_sse_frames(gen: any) -> Generator[str] {
         yield "event: end\ndata: {}\n\n";
     } except Exception as e {
         err = {"error_type": type(e).__name__, "message": str(e)};
-        yield f"event: error\ndata: {json.dumps(err, default=_sse_default)}\n\n";
+        yield f"event: error\ndata: {json.dumps(err, `default=_sse_default)}\n\n";
     } finally {
         try {
             items.close();
