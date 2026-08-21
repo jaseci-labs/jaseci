@@ -15,7 +15,7 @@ obj HPAAutoscaler(Autoscaler) {
 
     def _build_manifests(spec: AutoscalerSpec) -> list[dict[str, any]];
     def apply(spec: AutoscalerSpec) -> bool;
-    def destroy(autoscaler_name: str, namespace: str) -> None;
+    def destroy(app_name: str, namespace: str) -> None;
     def destroy_collection(namespace: str, label_selector: str) -> None;
     def resource_name_for(target: str) -> str;
 }
