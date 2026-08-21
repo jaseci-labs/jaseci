@@ -1134,7 +1134,7 @@ class Function(GlobalValue) {
         return self.blocks;
     }
 
-    def append_basic_block(self: Function, name: any = '') -> object {
+    def append_basic_block(self: Function, name: any = '') -> Block {
         blk = Block(parent=self, name=name);
         self.blocks.append(blk);
         return blk;
@@ -1381,7 +1381,7 @@ class Block(NamedValue) {
     }
 
     @property
-    def function(self: Block) -> object {
+    def function(self: Block) -> Function {
         return self.parent;
     }
 

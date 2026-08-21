@@ -20,7 +20,7 @@ class Type(_StrCaching) {
         raise NotImplementedError;
     }
 
-    def as_pointer(self: Type, addrspace: any = 0) -> object {
+    def as_pointer(self: Type, addrspace: any = 0) -> PointerType {
         return PointerType(self, addrspace);
     }
 

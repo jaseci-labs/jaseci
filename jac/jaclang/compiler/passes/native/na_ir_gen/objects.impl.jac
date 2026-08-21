@@ -549,7 +549,15 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    struct_type.set_body(*field_types);
+    # An extern clib struct redeclared by another translation unit sharing
+    # this LLVM context keeps its first definition, as in C; set_body on an
+    # already-defined identified type raises. The local field registries are
+    # still recorded so this module's codegen can address the layout.
+    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
+        ;
+    } else {
+        struct_type.set_body(*field_types);
+    }
     self.struct_field_indices[arch_name] = field_index_map;
     self.struct_field_order[arch_name] = [f.name for f in layout.fields];
     self.struct_field_types[arch_name] = field_type_map;
