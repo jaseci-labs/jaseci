@@ -137,41 +137,62 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
         }
     }
 
+    import from jaclang.compiler.passes.main.layout_pass {
+        get_layout_registry as _no_glr
+    }
+    _no_reg = _no_glr(self.ir_in, self.prog);
     for (base_name, layout) in self.vtable_layouts.items() {
         non_overridden: set[str] = set();
+        _no_base_lay = _no_reg.get_layout(base_name);
         for method_name in layout {
             defining_class = self._resolve_method_owner(base_name, method_name);
             if defining_class is None {
                 continue;
             }
+            _no_base_owner = defining_class;
+            if _no_base_lay is not None {
+                _no_bmi = _no_base_lay.method_index.get(method_name);
+                if _no_bmi is not None and _no_bmi < len(_no_base_lay.methods) {
+                    _no_base_owner = _no_base_lay.methods[_no_bmi].owner
+                        or defining_class;
+                }
+            }
 
             overridden = False;
-            for child_name in self.arch_ast_map {
-                child_mro = self._mro_of(child_name);
-                if base_name not in child_mro {
+            for child_name in _no_reg.mro_order {
+                if child_name == base_name
+                    or base_name not in _no_reg.get_mro(child_name) {
                     continue;
                 }
-
-                child_full = f"{child_name}.{method_name}";
-                if child_full in self.method_funcs {
-                    child_arch = self.arch_ast_map.get(child_name);
-                    if child_arch is not None and child_arch.body is not None {
-                        for stmt in child_arch.body {
-                            if isinstance(stmt, uni.Ability) {
-                                mn = stmt.name_ref.sym_name if stmt.name_ref else None;
-                                if mn == method_name {
-                                    overridden = True;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if not overridden and child_arch is not None {
-                        for (_slot, _accvar, _acc) in archetype_accessors(child_arch) {
-                            if _slot == method_name {
+                _no_cl = _no_reg.get_layout(child_name);
+                if _no_cl is None {
+                    continue;
+                }
+                _no_cmi = _no_cl.method_index.get(method_name);
+                if _no_cmi is None or _no_cmi >= len(_no_cl.methods) {
+                    continue;
+                }
+                if _no_cl.methods[_no_cmi].owner != _no_base_owner {
+                    overridden = True;
+                    break;
+                }
+                child_arch = self.arch_ast_map.get(child_name);
+                if child_arch is not None and child_arch.body is not None {
+                    for stmt in child_arch.body {
+                        if isinstance(stmt, uni.Ability) {
+                            mn = stmt.name_ref.sym_name if stmt.name_ref else None;
+                            if mn == method_name {
                                 overridden = True;
                                 break;
                             }
+                        }
+                    }
+                }
+                if not overridden and child_arch is not None {
+                    for (_slot, _accvar, _acc) in archetype_accessors(child_arch) {
+                        if _slot == method_name {
+                            overridden = True;
+                            break;
                         }
                     }
                 }
@@ -3237,8 +3258,30 @@ impl NaIRGenObjects._codegen_accessor_call(
     return self.builder.call(func, coerced, name=f"acc.{slot}");
 }
 
+impl NaIRGenObjects._receiver_union_parts(
+    nd: (uni.UniNode | None)
+) -> (list[str] | None) {
+    if not isinstance(nd, uni.AtomTrailer) or not isinstance(nd.target, uni.Expr) {
+        return None;
+    }
+    _rk = self._mangled_of(self._flow_narrowed_type_of(nd.target));
+    if _rk is None or "|" not in _rk {
+        return None;
+    }
+    _rp = [
+        p
+        for p in self._split_union_key(_rk)
+        if p in self.struct_types
+    ];
+    return _rp if len(_rp) >= 2 else None;
+}
+
 impl NaIRGenObjects._emit_dispatched_field_ptr(
-    obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+    obj_val: ir.Value,
+    type_name: str,
+    field_name: str,
+    ftype: (ir.Type | None),
+    parts: (list[str] | None) = None
 ) -> (ir.Value | None) {
     import from jaclang.compiler.passes.main.layout_pass {
         get_layout_registry as _df_glr
@@ -3249,13 +3292,25 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
         return None;
     }
     _base_idx = _base_lay.field_index.get(field_name);
-    if _base_idx is None {
+    if _base_idx is None and ftype is not None {
         return None;
     }
     _variants: list[tuple] = [];
     _uniform = True;
     for _cls in reg.mro_order {
-        if type_name not in self._mro_of(_cls) {
+        _cls_mro = self._mro_of(_cls);
+        if parts {
+            _dom_ok = False;
+            for _pp in parts {
+                if _pp in _cls_mro {
+                    _dom_ok = True;
+                    break;
+                }
+            }
+            if not _dom_ok {
+                continue;
+            }
+        } elif type_name not in _cls_mro {
             continue;
         }
         _lay = reg.get_layout(_cls);
@@ -3270,10 +3325,38 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
         if _vt is None {
             continue;
         }
-        _variants.append((_cls, _vt, _ci));
-        if _ci != _base_idx {
+        _cls_elems = self.struct_types[_cls].elements;
+        if _ci >= len(_cls_elems) {
+            continue;
+        }
+        if ftype is None {
+            if field_name in self.struct_field_inline.get(_cls, set()) {
+                return None;
+            }
+            _vf = _cls_elems[_ci];
+            if _variants and _vf != _variants[0][3] {
+                return None;
+            }
+            _variants.append((_cls, _vt, _ci, _vf));
+        } else {
+            _variants.append((_cls, _vt, _ci, ftype));
+        }
+        if _base_idx is None or _ci != _base_idx {
             _uniform = False;
         }
+    }
+    if ftype is None {
+        if not _variants {
+            return None;
+        }
+        ftype = _variants[0][3];
+    }
+    if field_name == "affected_symbols" and self._na_debug_on() {
+        import sys as _df_sys;
+        _df_sys.stderr.write(
+            f"DFDIAG {type_name}.{field_name}: base_idx={_base_idx} "
+            f"variants={len(_variants)} uniform={_uniform}\n"
+        );
     }
     if _uniform or not _variants {
         return None;
@@ -3288,7 +3371,7 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
     _df_fnc = b.block.function;
     _df_done = _df_fnc.append_basic_block(name=f"df.{field_name}.done");
     _df_incoming: list[tuple] = [];
-    for (_vc, _vt, _ci) in _variants {
+    for (_vc, _vt, _ci, _vft) in _variants {
         _df_hit = _df_fnc.append_basic_block(name=f"df.{field_name}.{_vc}");
         _df_nxt = _df_fnc.append_basic_block(name=f"df.{field_name}.n.{_vc}");
         _df_eq = b.icmp_unsigned(
@@ -3311,17 +3394,28 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
         b.position_at_end(_df_nxt);
     }
 
-    _df_fb_recv = obj_val;
-    if type_name in self.struct_types {
-        _df_fb_recv = b.bitcast(
-            obj_val, self.struct_types[type_name].as_pointer(), name="df.self.fb"
+    if _base_idx is not None {
+        _df_fb_recv = obj_val;
+        if type_name in self.struct_types {
+            _df_fb_recv = b.bitcast(
+                obj_val, self.struct_types[type_name].as_pointer(), name="df.self.fb"
+            );
+        }
+        _df_fb = b.gep(
+            _df_fb_recv,
+            [ir.Constant(i32, 0), ir.Constant(i32, _base_idx)],
+            name="df.p.fb"
         );
+        _df_fbc = b.bitcast(_df_fb, _fp_t, name="df.pc.fb");
+        _df_incoming.append((_df_fbc, b.block));
+    } else {
+        self._emit_runtime_raise(
+            ir.Constant(ir.IntType(1), 1),
+            "AttributeError",
+            f"object has no attribute '{field_name}'"
+        );
+        _df_incoming.append((ir.Constant(_fp_t, None), b.block));
     }
-    _df_fb = b.gep(
-        _df_fb_recv, [ir.Constant(i32, 0), ir.Constant(i32, _base_idx)], name="df.p.fb"
-    );
-    _df_fbc = b.bitcast(_df_fb, _fp_t, name="df.pc.fb");
-    _df_incoming.append((_df_fbc, b.block));
     b.branch(_df_done);
     b.position_at_end(_df_done);
     _df_phi = b.phi(_fp_t, name=f"df.{field_name}.ptr");
@@ -3484,6 +3578,19 @@ impl NaIRGenObjects._codegen_field_access(
     field_indices = self.struct_field_indices.get(type_name);
     _getter = self._accessor_slot_of(type_name, field_name, "property");
     if _getter is None and (field_indices is None or field_name not in field_indices) {
+        _uf_recv = self._narrow_receiver_ptr(obj_val, type_name);
+        if _uf_recv is not None {
+            _uf_ptr = self._emit_dispatched_field_ptr(
+                _uf_recv,
+                type_name,
+                field_name,
+                None,
+                parts=self._receiver_union_parts(nd)
+            );
+            if _uf_ptr is not None {
+                return self.builder.load(_uf_ptr, name=f"field.{field_name}");
+            }
+        }
         return None;
     }
     if _getter is None and self._refuse_opaque_field(nd, type_name, field_name) {
