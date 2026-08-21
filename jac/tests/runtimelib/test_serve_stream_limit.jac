@@ -205,11 +205,20 @@ test "a negative max_concurrent_streams falls back to the default with a warning
             assert cfg is not None and cfg.serve.max_concurrent_streams == -1 , "jac.toml [serve] max_concurrent_streams was not loaded";
             capture = MemoryHandler(100);
             serve_logger = logging.getLogger("jaclang.serve");
+            prior_disabled = serve_logger.disabled;
+            prior_level = serve_logger.level;
+            prior_global = logging.root.manager.disable;
+            serve_logger.disabled = False;
+            serve_logger.setLevel(logging.WARNING);
+            logging.disable(logging.NOTSET);
             serve_logger.addHandler(capture);
             try {
                 assert _stream_limit() == 1024 , "a negative ceiling must fall back to the default, not remove the limit";
             } finally {
                 serve_logger.removeHandler(capture);
+                serve_logger.disabled = prior_disabled;
+                serve_logger.setLevel(prior_level);
+                logging.disable(prior_global);
             }
             messages = [r.getMessage() for r in capture.buffer];
             assert any("max_concurrent_streams" in m and "-1" in m for m in messages) , f"no warning named the bad key: {messages}";
