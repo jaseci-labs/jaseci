@@ -509,7 +509,32 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
 
 impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
     import os;
+    import sys;
     import ctypes.util;
+
+    # macOS ships unversioned libcrypto/libssl dylibs whose only behavior is
+    # abort("loading libcrypto in an unsafe way") -- dlopen'ing one kills the
+    # whole compiler process, uncatchably. Refusing them here routes the
+    # module through the ordinary could-not-load path (W5021, and a named
+    # unresolved-symbol error if the JIT image is ever materialized) instead
+    # of a SIGABRT at compile time. A real OpenSSL at any other path (e.g.
+    # Homebrew's) still loads.
+    def is_darwin_abort_stub(cand: str) -> bool {
+        if sys.platform != "darwin" {
+            return False;
+        }
+        cand_base = os.path.basename(cand);
+        if cand_base not in ("libcrypto.dylib", "libssl.dylib") {
+            return False;
+        }
+        if os.path.isabs(cand) {
+            return os.path.dirname(os.path.realpath(cand)) == "/usr/lib";
+        }
+        # A bare name reaches dyld's search path, which resolves it from the
+        # shared cache's /usr/lib -- the stub.
+        return True;
+    }
+
     probe = lib_path;
     if probe.startswith("$ORIGIN/") {
         probe = probe[8:];
@@ -519,16 +544,18 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
     base = os.path.basename(probe);
 
     for cand in [lib_path, probe, os.path.join(".", base)] {
-        if cand and os.path.exists(cand) {
+        if cand and os.path.exists(cand) and not is_darwin_abort_stub(cand) {
             llvm.load_library_permanently(os.path.abspath(cand));
             return True;
         }
     }
 
-    try {
-        llvm.load_library_permanently(base);
-        return True;
-    } except Exception { }
+    if not is_darwin_abort_stub(base) {
+        try {
+            llvm.load_library_permanently(base);
+            return True;
+        } except Exception { }
+    }
 
     stem = base;
     if stem.startswith("lib") {
@@ -541,7 +568,7 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
         }
     }
     found = ctypes.util.find_library(stem) or ctypes.util.find_library(probe);
-    if found {
+    if found and not is_darwin_abort_stub(found) {
         llvm.load_library_permanently(found);
         return True;
     }
