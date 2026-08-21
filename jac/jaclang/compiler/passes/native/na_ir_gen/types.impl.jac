@@ -3872,6 +3872,9 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                         _tok = False;
                         break;
                     }
+                    if self._str_desc_ty is not None and _lt == self._str_desc_ty {
+                        _lt = ir.IntType(8).as_pointer();
+                    }
                     _tlow.append(_lt);
                 }
                 if _tok and _tlow {
