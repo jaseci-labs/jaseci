@@ -2039,8 +2039,9 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='ignore',
-                    `default='',
-                    help='Path to skip during collection',
+                    kind=ArgKind.MULTI_OPTION,
+                    `default=[],
+                    help='Paths to skip during collection (space separated)',
                     short='i'
                 ),
                 ArgMeta(
