@@ -1477,6 +1477,22 @@ impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
 
     is_async = isinstance(scope, Ability) and scope.is_async;
     yield_type = get_generator_yield_type(return_type, is_async);
+    if yield_type is None
+        and isinstance(return_type, ClassType)
+        and return_type.is_builtin(
+            [
+                "Generator",
+                "AsyncGenerator",
+                "AwaitableGenerator",
+                "Iterator",
+                "AsyncIterator",
+                "Iterable",
+                "AsyncIterable",
+
+            ]
+        ) {
+        return;
+    }
     expected_yield = (
         self.evaluator._convert_to_instance(yield_type)
             if yield_type is not None
