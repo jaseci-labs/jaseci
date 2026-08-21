@@ -132,10 +132,15 @@ impl TypeEvaluator._validate_component_jsx_props(
         props_type = param_map["props"].param_type;
 
         is_any_class = props_type is not None and props_type.is_any_instance();
+        _is_open_dict = (
+            isinstance(props_type, ClassType)
+            and props_type.is_builtin("dict")
+        );
         if (
             props_type is None
             or isinstance(props_type, (AnyType, UnknownType))
             or is_any_class
+            or _is_open_dict
         ) {
             return;
         }
