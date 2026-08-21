@@ -566,7 +566,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             _seen_default = False;
             for _base in reversed(cls.__mro__[1:]) {
                 for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
-                    if _bf.default is not dataclasses.MISSING
+                    if _bf.`default is not dataclasses.MISSING
                         or _bf.default_factory is not dataclasses.MISSING {
                         _seen_default = True;
                     }
@@ -580,7 +580,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
                 _has_default = _own_val is not dataclasses.MISSING;
                 if _has_default
                     and isinstance(_own_val, dataclasses.Field)
-                    and _own_val.default is dataclasses.MISSING
+                    and _own_val.`default is dataclasses.MISSING
                     and _own_val.default_factory is dataclasses.MISSING {
                     _has_default = False;
                 }
