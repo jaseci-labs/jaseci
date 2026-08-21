@@ -1412,6 +1412,19 @@ impl TypeCheckPass.enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     }
 }
 
+impl TypeCheckPass.exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None {
+    # Nothing else visits a bare statement condition since the
+    # stamp-everything inference pass retired, and downstream consumers
+    # read the stamp: the ES backend decides truthiness coercion from it,
+    # so an unstamped `if lst {` compiled to a bare JS `if (lst)` where an
+    # empty array is truthy.
+    self.evaluator.get_type_of_expression(nd.condition);
+}
+
+impl TypeCheckPass.exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None {
+    self.evaluator.get_type_of_expression(nd.condition);
+}
+
 impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     enter_method = "__aenter__" if nd.is_async else "__enter__";
     exit_method = "__aexit__" if nd.is_async else "__exit__";

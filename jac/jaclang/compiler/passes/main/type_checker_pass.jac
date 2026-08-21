@@ -48,6 +48,8 @@ import from jaclang.jac0core.unitree {
     TypeAlias,
     UniNode,
     VisitStmt,
+    IfStmt,
+    ElseIf,
     WhileStmt,
     WithStmt,
     YieldExpr
@@ -159,6 +161,8 @@ class TypeCheckPass(UniPass) {
     def exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None;
     def enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
     def exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
+    def exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None;
+    def exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None;
     def exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None;
     def exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None;
     def exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None;
