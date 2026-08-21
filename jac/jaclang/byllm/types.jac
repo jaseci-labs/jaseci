@@ -129,8 +129,15 @@ obj Text(Media) {
 obj Image(Media) {
     has url:
         (
-            "str | bytes | bytearray | memoryview | BytesIO | IO[bytes] | "
-            "os.PathLike[str] | os.PathLike[bytes] | PILImageCls"
+            str
+            | bytes
+            | bytearray
+            | memoryview
+            | BytesIO
+            | IO[bytes]
+            | os.PathLike[str]
+            | os.PathLike[bytes]
+            | PILImageCls
         ),
         mime_type: str | None = None;
 
