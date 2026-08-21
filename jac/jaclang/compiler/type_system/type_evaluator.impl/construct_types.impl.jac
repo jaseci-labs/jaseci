@@ -680,6 +680,14 @@ impl TypeEvaluator._super_owner_for(
                 return candidate;
             }
         }
+        if (
+            member_name in ('init', '__init__')
+            and candidate.is_data_class()
+            and isinstance(candidate.shared.symbol_table, Archetype)
+            and candidate.shared.symbol_table.get_has_vars()
+        ) {
+            return candidate;
+        }
     }
     return rest[0];
 }
