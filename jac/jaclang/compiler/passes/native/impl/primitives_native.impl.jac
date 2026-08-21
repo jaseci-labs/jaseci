@@ -5151,6 +5151,12 @@ impl NativeBuiltinEmitter.emit_str(
         return p._emit_float_repr(arg_val);
     }
 
+    if p?.jacval_type and arg_val.type == p.jacval_type {
+        _jv_fn = p._str_jacval_fn();
+        if _jv_fn is not None {
+            return b.call(_jv_fn, [arg_val], name="str.jacval");
+        }
+    }
     if isinstance(arg_val.type, ir.LiteralStructType) {
         cont_s = p._emit_container_repr(arg_val, ctx.type_key or None);
         if cont_s is not None {
