@@ -199,7 +199,7 @@ def _plugin_mod_names -> list {
 }
 
 """Run a function with the plugin source directory on sys.path, restoring it after."""
-def _with_plugins(fn: callable) {
+def _with_plugins(fn: any) {
     import sys;
     saved_path = sys.path[:];
     sys.path.insert(0, str(_plugin_src_dir()));
@@ -232,6 +232,7 @@ def _import_plugin(mod_name: str) -> object {
             raise ImportError(f"Cannot find {mod_name} as .jac or .py");
         }
         mod = importlib.util.module_from_spec(spec);
+        assert spec.loader is not None;
         spec.loader.exec_module(mod);
         import sys;
         sys.modules[mod_name] = mod;
