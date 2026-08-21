@@ -663,6 +663,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         processed_modules.add(abs_key);
         _canon_src[abs_key] = src_mod_str;
         imported_mods.append((src_mod_str, imported_mod));
+        manifest.native_source_paths[src_mod_str] = os.path.realpath(full_path);
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
         for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)

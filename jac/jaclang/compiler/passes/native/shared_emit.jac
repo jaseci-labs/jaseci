@@ -1,12 +1,15 @@
 def inject_shared_init(
-    llvm_ir_str: str, transitive_sources: list[str]
+    llvm_ir_str: str, manifest: any
 ) -> tuple[str, list[str]] {
     init_calls: list[str] = [];
+    transitive_sources: list[str] = (
+        list(manifest.native_transitive_sources) if manifest else []
+    );
 
     if ('@"__jac_glob_init"' in llvm_ir_str) or ("@__jac_glob_init(" in llvm_ir_str) {
         init_calls.append("  call void @__jac_glob_init()");
     }
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
+    import from jaclang.jac0core.codeinfo { native_glob_init_name }
     import re as _re;
 
     _defined: list[str] = [];
@@ -26,7 +29,7 @@ def inject_shared_init(
             continue;
         }
         _seen.add(_src);
-        _nm = f"__jac_glob_init_{native_safe_sym(_src)}";
+        _nm = native_glob_init_name(_src, manifest);
         if _nm in _defined and _nm not in _ordered {
             _ordered.append(_nm);
         }

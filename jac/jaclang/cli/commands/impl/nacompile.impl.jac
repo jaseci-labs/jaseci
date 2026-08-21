@@ -510,15 +510,11 @@ impl nacompile(
     _static_musl = _is_linux_exec and (len(needed_libs) == 0);
 
     if shared {
-        _transitive: list[str] = [];
         _mf = ir_module.gen.interop_manifest;
-        if _mf {
-            _transitive = _mf.native_transitive_sources;
-        }
         import from jaclang.compiler.passes.native.shared_emit {
             inject_shared_init as _inject_shared_init
         }
-        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _transitive);
+        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _mf);
         init_funcs = ["__jac_shared_init"];
         for _s in ir_module.gen._exported_symbols {
             if _s not in export_symbols {

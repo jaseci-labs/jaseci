@@ -160,8 +160,6 @@ impl skip_jaclang(p: str) -> bool {
         or "_precompiled" in p
         or "vendor/typeshed/stubs" in p
         or "libjacllvm." in p
-        or "libjacpyembed." in p
-        or "jacpyembed.dll" in p
         or "client/_bun" in p
         or p.endswith(".pyc")
     );

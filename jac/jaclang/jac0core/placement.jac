@@ -673,7 +673,14 @@ def scan_native_blockers(
                 if clean and is_bundled_native_module(clean) {
                     continue;
                 }
-                if not (is_plain_bare and path is not None and path.endswith('.jac')) {
+                _local_jac = path is not None and path.endswith('.jac');
+                if not (
+                    _local_jac
+                    and (
+                        is_plain_bare
+                        or resolve_native_module(clean, base_dir)[1] is not None
+                    )
+                ) {
                     return (f"non-native import '{clean}'", deps);
                 }
             }
@@ -695,9 +702,11 @@ def scan_native_blockers(
             if clean and is_bundled_native_module(clean) {
                 continue;
             }
-            if clean
-                and resolve_native_module(clean, base_dir, allow_inferred=False)[1]
-                    is not None {
+            (_, _local_native) = resolve_native_module(clean, base_dir) if clean else (None, None);
+            if _local_native is not None {
+                if _local_native.endswith('.jac') {
+                    deps.append(os.path.abspath(_local_native));
+                }
                 continue;
             }
             return (f"unresolved import '{clean}'", deps);

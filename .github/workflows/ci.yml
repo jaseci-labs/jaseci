@@ -79,6 +79,11 @@ jobs:
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
+              - 'jac/bootstrap/**'
+              - 'jac/launcher/**'
+              - 'jac/jaclang/runtimelib/fused/**'
+              - 'jac/jaclang/runtimelib/na_stdlib/**'
+              - 'jac/jaclang/payload/**'
               - '.github/workflows/ci.yml'
               # Payload-baked inputs. The host kit's binary predates a PR that
               # changes these, so the jobs that can notice must take the kit
@@ -541,20 +546,6 @@ jobs:
             | grep -P '\.py$'; then
             echo "::error::New Python (.py) files detected in this PR. This codebase does not allow adding Python files."
             echo "To skip this check, add the 'skip-no-python-check' label to your PR."
-            exit 1
-          fi
-
-      - name: Check bun version lockstep
-        run: |
-          jac_ver=$(grep -oE 'glob BUN_VERSION = "[^"]+"' jac/jaclang/runtimelib/client/bun_installer.jac | grep -oE '"[^"]+"' | tr -d '"')
-          zig_ver=$(grep -oE 'const BUN_VERSION = "[^"]+"' jac/launcher/payload.zig | grep -oE '"[^"]+"' | tr -d '"')
-          echo "jaclang BUN_VERSION='$jac_ver'  payload.zig BUN_VERSION='$zig_ver'"
-          if [ -z "$jac_ver" ] || [ -z "$zig_ver" ]; then
-            echo "::error::Could not read BUN_VERSION from both bun_installer.jac and payload.zig"
-            exit 1
-          fi
-          if [ "$jac_ver" != "$zig_ver" ]; then
-            echo "::error::BUN_VERSION mismatch: bun_installer.jac=$jac_ver vs payload.zig=$zig_ver. The Jac resolver/deploy pin and the Zig fetcher must stay in lockstep."
             exit 1
           fi
 
@@ -1042,6 +1033,32 @@ jobs:
           jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
           -f aarch64
 
+  # The single-binary launcher and its build tooling are Jac: the trailer codec
+  # and payload tool (tests/payload), the bundled zstd/tar decode path the
+  # launcher materializes through, the walk-up import shape the stub is built
+  # with, and an end-to-end fused-runtime boot of a freshly compiled na host.
+  test-launcher-jac:
+    needs: [changes, build-kit]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: ./.github/actions/jac-kit
+      - name: Payload tool + trailer codec
+        run: jac test jac/tests/payload/
+      - name: Bundled zstd + tarfile decode path
+        run: |
+          jac test jac/jaclang/compiler/tests/test_zstd_equivalence.jac
+          jac test jac/jaclang/compiler/tests/test_tarfile_equivalence.jac
+      - name: Native import shapes the stub relies on
+        run: |
+          jac test jac/tests/compiler/passes/native/test_walkup_imports.jac
+          jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac -f "environ"
+      - name: Fused-runtime boot of a fresh na host
+        run: jac test jac/tests/runtimelib/client/test_fused_runtime_boot.jac
+
   test-native-macos:
     needs: [changes, build-kit-macos]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
@@ -1070,10 +1087,11 @@ jobs:
           jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
           -f "shutil or path or textwrap or keyword or str or bytes"
 
-  # Launcher unit tests: trailer codec + .jab-overlay round-trip. Zig only.
-  # Cross-platform matrix on purpose: the format code has OS-divergent
-  # syscall behavior.
-  test-launcher:
+  # Bootstrap unit tests: the Zig seed that fetches the pbs CPython before any
+  # Python exists (bootstrap/fetch_pbs.zig). Cross-platform on purpose. The
+  # launcher itself is Jac; its trailer codec, payload tool and boot path are
+  # covered by `jac test` in the kit lanes below.
+  test-bootstrap:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     strategy:
@@ -1088,7 +1106,7 @@ jobs:
         with:
           version: 0.16.0
           use-cache: false
-      - name: Launcher unit tests (zig build test)
+      - name: Bootstrap unit tests (zig build test)
         working-directory: jac
         run: zig build test --summary all
 
@@ -1401,7 +1419,7 @@ jobs:
       - test-scale-k8s
       - test-native-aarch64
       - test-native-macos
-      - test-launcher
+      - test-bootstrap
       - test-cef-build
       - test-jac-pack-smoke
       - installer-test

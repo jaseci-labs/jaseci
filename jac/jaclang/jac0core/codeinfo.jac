@@ -144,6 +144,19 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def native_module_key(path: str) -> str {
+    import os;
+    rp = os.path.realpath(path);
+    stem = os.path.splitext(os.path.basename(rp))[0];
+    return f"{stem}:{hashlib.sha1(rp.encode()).hexdigest()[:12]}";
+}
+
+def native_glob_init_name(src: str, manifest: (InteropManifest | None)) -> str {
+    path = manifest.native_source_paths.get(src) if manifest is not None else None;
+    key = native_module_key(path) if path else src;
+    return f"__jac_glob_init_{native_safe_sym(key)}";
+}
+
 def native_glob_init_symbols(manifest: (InteropManifest | None)) -> list[str] {
     syms: list[str] = [];
     sources: list[str] = [];
@@ -154,7 +167,7 @@ def native_glob_init_symbols(manifest: (InteropManifest | None)) -> list[str] {
         if not src {
             continue;
         }
-        sym = f"__jac_glob_init_{native_safe_sym(src)}";
+        sym = native_glob_init_name(src, manifest);
         if sym not in syms {
             syms.append(sym);
         }
@@ -558,6 +571,7 @@ obj InteropManifest {
             default_factory=`dict
         ),
         native_transitive_sources: list[str] = field(default_factory=`list);
+        native_source_paths: dict[str, str] = field(default_factory=`dict);
 
     has native_imports: list[InteropBinding] { getter; }
     has native_exports: list[InteropBinding] { getter; }
