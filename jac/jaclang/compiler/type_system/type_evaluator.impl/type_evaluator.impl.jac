@@ -4933,7 +4933,7 @@ impl TypeEvaluator.exclude_type_from_union(
             t
             for t in original.types
             if not any(
-                [self._exclusion_drops_member(t, excl_t) for excl_t in to_exclude_list]
+                self._exclusion_drops_member(t, excl_t) for excl_t in to_exclude_list
             )
         ];
         if len(remaining) == 0 {
