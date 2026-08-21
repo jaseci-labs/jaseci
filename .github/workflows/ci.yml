@@ -89,28 +89,6 @@ jobs:
               - 'jac/sitecustomize.py'
               - 'jac/jaclang/utils/precompile_bytecode.jac'
               - '.github/actions/**'
-            # NARROWING filter (like `installer`, unlike `scale`/`byllm`, which
-            # only ever widen `core`). The macOS and aarch64 native lanes cost a
-            # macOS runner and a qemu-user cross build, and `core: jac/**` fired
-            # them on every runtimelib/scale PR that could not possibly move
-            # Mach-O linking, the na->wasm floor, or MOVW_UABS relocations.
-            # Deliberately excludes ci.yml (matching every other narrow filter
-            # here) and jac0core/** -- payload-compiler regressions surface in
-            # test-compiler/test-runtime, which are not path-filtered off. To
-            # exercise these lanes on a PR that touches none of these paths, use
-            # workflow_dispatch; push-to-main always runs them.
-            native:
-              - 'jac/jaclang/compiler/passes/native/**'
-              - 'jac/tests/compiler/passes/native/**'
-              - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
-              - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
-              - 'jac/native/**'
-              - 'jac/build.zig'
-              - 'jac/build.zig.zon'
-              # The native lanes' own definitions live here, so a change to
-              # what they run must run them -- `core` already lists this file
-              # for the same reason.
-              - '.github/workflows/ci.yml'
             # NARROWING filter, same shape as `native`: test-graphmend-torch
             # installs a ~250 MB CPU torch and drives TorchDynamo, which is
             # wasted on a PR that cannot move a graph break. Everything listed
