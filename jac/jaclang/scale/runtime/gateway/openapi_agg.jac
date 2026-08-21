@@ -63,9 +63,9 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
     import asyncio;
 
     candidates: list[tuple[str, ServiceEntry]] = [
-        (name, entry)
-        for (name, entry) in registry.entries.items()
-        if entry.is_routable()
+        (name, `entry)
+        for (name, `entry) in registry.entries.items()
+        if `entry.is_routable()
     ];
     answers: dict[str, SpecFetch] = {};
 
@@ -79,7 +79,7 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
 
     merged_paths: dict = {};
     merged_schemas: dict = {};
-    for (name, entry) in candidates {
+    for (name, `entry) in candidates {
         got: SpecFetch | None = answers.get(name);
         doc: dict | None = got.doc if got is not None else None;
         if doc is None {
@@ -88,7 +88,7 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
         }
 
         paths: dict = doc.get("paths") or {};
-        for (path, op) in _prefixed_paths(paths, entry.prefix).items() {
+        for (path, op) in _prefixed_paths(paths, `entry.prefix).items() {
             if path in merged_paths {
                 _agg_logger.warning(
                     f"openapi aggregate: path collision on {path}; keeping the "

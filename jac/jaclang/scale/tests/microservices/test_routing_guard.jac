@@ -1,4 +1,9 @@
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.project.config { get_config }
 import from jaclang.scale.runtime.routing {
+    ensure_main_service,
     guard_route_name,
     is_reserved,
     resolve_routes,
@@ -159,5 +164,25 @@ test "only concrete members of service-owned families are learnable" {
         assert not is_learnable_prefix(prefix) , (
             f"{prefix} must never be handed to a single service"
         );
+    }
+}
+
+
+test "the main service takes its filename from the project entry point" {
+    project_dir = Path(tempfile.mkdtemp(prefix="jac-entrypoint-"));
+    (project_dir / "jac.toml").write_text(
+        '[project]\n' 'name = "entrypointread"\n' 'entry-point = "app.jac"\n',
+        encoding="utf-8"
+    );
+    (project_dir / "app.jac").write_text("with entry {}\n", encoding="utf-8");
+    routes: dict[str, str] = {"orders": "/orders"};
+    service_files: dict[str, str] = {"orders": "orders.jac"};
+    try {
+        get_config(start_path=project_dir, force_discover=True);
+        ensure_main_service(routes, service_files);
+        assert service_files["main"] == "app.jac";
+    } finally {
+        get_config(force_discover=True);
+        shutil.rmtree(project_dir, ignore_errors=True);
     }
 }

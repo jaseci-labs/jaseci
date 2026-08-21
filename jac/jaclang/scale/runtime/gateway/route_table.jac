@@ -50,9 +50,9 @@ async def learn_service_routes(
     }
 
     due: list[tuple[str, ServiceEntry]] = [
-        (name, entry)
-        for (name, entry) in registry.entries.items()
-        if entry.is_routable() and table.spec_due(entry, now, max_age)
+        (name, `entry)
+        for (name, `entry) in registry.entries.items()
+        if `entry.is_routable() and table.spec_due(`entry, now, max_age)
     ];
     if not due {
         return 0;
@@ -67,12 +67,12 @@ async def learn_service_routes(
         return_exceptions=True
     );
 
-    for (name, entry) in due {
+    for (name, `entry) in due {
         got: SpecFetch | None = answers.get(name);
         if got is None or not got.answered() {
             continue;
         }
-        table.mark_spec_seen(entry, now);
+        table.mark_spec_seen(`entry, now);
         if got.doc is None {
             table.unlearn(name);
             _rt_logger.warning(
@@ -86,7 +86,7 @@ async def learn_service_routes(
         if clashes {
             _rt_logger.warning(
                 f"service '{name}' declares {clashes}, already claimed by another "
-                f"service; reach them under '{entry.prefix}' instead"
+                f"service; reach them under '{`entry.prefix}' instead"
             );
         }
     }
