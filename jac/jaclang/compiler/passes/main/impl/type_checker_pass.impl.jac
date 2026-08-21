@@ -491,13 +491,6 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                             }
                         }
                     } elif isinstance(target.right, Name) {
-                        # A dynamic attribute (no symbol -- resolved through
-                        # __getattr__): when the base class declares its own
-                        # __setattr__, that setter's value parameter governs
-                        # the write, per Python semantics. Without this the
-                        # write was checked against the __getattr__ READ type
-                        # (e.g. assigning a function to a _HostObject slot on
-                        # globalThis was refused).
                         setter_base = self.evaluator.get_type_of_expression(
                             target.target
                         );
@@ -604,12 +597,6 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                     self.evaluator.is_none_type(left_type)
                     or (isinstance(target, Name) and target.value == "_")
                 );
-            # The optional-dependency idiom rebinds an imported module name to
-            # a stand-in when the import fails (the shape every _optdeps shim
-            # is built on, and what test_optional_import_binding pins). The
-            # symbol's declared type is the module, so plain assignability can
-            # never accept the fallback -- exempt exactly that: a Name whose
-            # definitions include an import, being rebound off a ModuleType.
             is_module_fallback_rebind = (
                 isinstance(target, Name)
                 and target.sym is not None
@@ -813,7 +800,9 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
         is_generator = len(nd.get_all_sub_nodes(YieldExpr)) > 0;
 
         body_stmts: list[CodeBlockStmt] = [
-            stmt for stmt in nd.body if isinstance(stmt, CodeBlockStmt)
+            stmt
+            for stmt in nd.body
+            if isinstance(stmt, CodeBlockStmt)
         ];
         is_stub = self.evaluator._is_ellipsis_only_body(body_stmts);
         if not is_overload and not is_generator and not is_stub {
@@ -934,7 +923,11 @@ impl TypeCheckPass._check_event_trigger_archetype(
     }
 
     targets: list[Expr] = (
-        [v for v in sig.arch_tag_info.values if isinstance(v, Expr)]
+        [
+            v
+            for v in sig.arch_tag_info.values
+            if isinstance(v, Expr)
+        ]
             if (isinstance(sig.arch_tag_info, TupleVal) and sig.arch_tag_info.values)
             else collect_union_leaves(sig.arch_tag_info)
     );
@@ -1240,11 +1233,6 @@ impl TypeCheckPass.exit_has_var(self: TypeCheckPass, nd: HasVar) -> None {
         self._check_walker_reports_shape(nd, declared_type);
 
         if nd.value is not None and nd.type is not None {
-            # Fields of an extern struct inside a clib import describe a C
-            # ABI layout, not jac values: `add_ref: Callable[[int], int] = 0`
-            # is a null function pointer. exit_import already exempts clib
-            # declarations wholesale; their has-var defaults follow the same
-            # rule.
             if nd.find_parent_of_type(Import) is not None {
                 return;
             }
@@ -1430,7 +1418,7 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     for item in nd.exprs {
         ctx_item: ExprAsItem = item;
         expr_type = self.evaluator.get_type_of_expression(ctx_item.expr);
-        if not isinstance(expr_type, UnknownType) {
+        if not isinstance(expr_type, UnknownType) and not expr_type.is_any_instance() {
             enter_result = self.evaluator.get_type_of_magic_method_call(
                 expr_type, enter_method, [], ctx_item.expr
             );

@@ -52,8 +52,8 @@ def dump_traceback(e: Exception) -> str {
             )
         ) {
             line_o = frame.line;
-            original_line = getattr(frame, '_original_line', None);
-            original_lines = getattr(frame, '_original_lines', None);
+            original_line = frame?._original_line;
+            original_lines = frame?._original_lines;
             if isinstance(original_line, str) and original_line {
                 line_o = original_line.rstrip();
             } elif isinstance(original_lines, str) and original_lines {

@@ -1,4 +1,12 @@
-import from jaclang.jac0core.unitree { Module, Ability, Archetype, AstTypedVarNode, FuncSignature, GlobalVars, UniNode }
+import from jaclang.jac0core.unitree {
+    Module,
+    Ability,
+    Archetype,
+    AstTypedVarNode,
+    FuncSignature,
+    GlobalVars,
+    UniNode
+}
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.publish.jsdoc { jac_type_to_ts }
 

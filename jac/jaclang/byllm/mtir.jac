@@ -47,7 +47,7 @@ obj MTRuntime {
     def get_msg_list -> list[dict[(str, object)] | LiteLLMMessage];
     def get_history_for_persist -> list[MessageType];
     def write_back_conversation -> None;
-    def parse_response(response: str) -> object;
+    def parse_response(response: str) -> any;
     def get_tool(tool_name: str) -> Tool | McpTool | None;
     def get_tool_list -> list[dict];
     def get_output_schema -> dict | None;

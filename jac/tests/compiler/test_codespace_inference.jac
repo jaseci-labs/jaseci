@@ -19,7 +19,7 @@ glob FIXTURE_DIR = os.path.join(
      );
 
 """Compile a codespace fixture; stamps only (no codegen) unless cgen=True."""
-def compile_fixture(name: str, cgen: bool = False) -> object {
+def compile_fixture(name: str, cgen: bool = False) -> any {
     prog = JacProgram();
     mod = prog.compile(os.path.join(FIXTURE_DIR, name), no_cgen=not cgen);
     assert not prog.errors_had , f"{name}: {[str(e) for e in prog.errors_had]}";
@@ -63,7 +63,7 @@ def stamp_of(mod: uni.Module, name: str) -> str {
                 }
             }
         }
-        if found {
+        if found and isinstance(stmt, uni.ContextAwareNode) {
             return str(stmt.code_context);
         }
     }
@@ -266,7 +266,7 @@ test "two colors infer independently and conflicts stay server" {
 
 """Compile a fixture under an explicit default codespace; resets the
 process-wide effective default afterwards so later tests are unaffected."""
-def compile_with_default(name: str, dcs: str, cgen: bool = False) -> object {
+def compile_with_default(name: str, dcs: str, cgen: bool = False) -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo {
         set_effective_default_codespace,
@@ -517,7 +517,7 @@ test "bare import of a cl module stays server under native default" {
 }
 
 """Find a module in a program hub by filename suffix."""
-def hub_module(prog: JacProgram, name_suffix: str) -> object {
+def hub_module(prog: JacProgram, name_suffix: str) -> any {
     for (path, m) in prog.mod.hub.items() {
         if path.endswith(name_suffix) {
             return m;

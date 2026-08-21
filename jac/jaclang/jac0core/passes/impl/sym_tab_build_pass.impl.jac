@@ -199,9 +199,7 @@ impl SymTabBuildPass.exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> 
         )
     ) {
         if isinstance(nd.path[0], Name) {
-            self.import_binding_scope(nd.path[0]).def_insert(
-                nd.path[0], imported=True
-            );
+            self.import_binding_scope(nd.path[0]).def_insert(nd.path[0], imported=True);
         }
     } else {
         ;

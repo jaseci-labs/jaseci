@@ -569,7 +569,7 @@ impl BaseLLM._compact_messages(
 }
 
 
-impl BaseLLM.ainvoke(mt_run: MTRuntime) -> object {
+impl BaseLLM.ainvoke(mt_run: MTRuntime) -> any {
     import asyncio;
     logging_stream = mt_run.stream and mt_run.call_params.get("logging", False);
     no_tools = len(mt_run.tools) == 0;
@@ -588,7 +588,7 @@ impl BaseLLM.__call__(**kwargs: object) -> BaseLLM {
     return self;
 }
 
-impl BaseLLM.invoke(mt_run: MTRuntime) -> object {
+impl BaseLLM.invoke(mt_run: MTRuntime) -> any {
     handler = mt_run.call_params.get("stream_handler");
     if mt_run.stream and handler is not None and callable(handler) {
         return self._invoke_with_handler(mt_run, handler);

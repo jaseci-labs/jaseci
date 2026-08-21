@@ -251,6 +251,7 @@ test "ELF shared object initializes a global clib struct on dlopen" {
         if sys.platform.startswith("linux")
             and ("x86_64" in llvm.get_default_triple()) {
             import ctypes;
+            lib: ctypes.CDLL | None = None;
             try {
                 lib = ctypes.CDLL(out);  # __jac_shared_init runs here (CTOR)
             } except OSError as _e {
@@ -260,7 +261,6 @@ test "ELF shared object initializes a global clib struct on dlopen" {
                 # fix: the build + inject + link above already exercised the
                 # codegen path, and the unit test locks the injection itself.
                 print(f"[skip-dlopen] host refuses execstack load: {_e}");
-                lib = None;
             }
             if lib is not None {
                 lib.read_struct_field.restype = ctypes.c_int64;

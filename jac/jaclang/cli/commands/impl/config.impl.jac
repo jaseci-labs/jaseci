@@ -669,7 +669,7 @@ def _parse_value(value: str, target_type: type) -> object {
         }
     }
 
-    _origin = getattr(target_type, "__origin__", None);
+    _origin = target_type?.__origin__;
     if target_type == list or _origin == list {
         if value == '[]' or value == '' {
             return [];

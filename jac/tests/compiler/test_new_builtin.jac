@@ -32,7 +32,7 @@ with entry {
 """Compile inline Jac source through a fresh JacProgram and return module."""
 def compile_inline(
     code: str, prog: JacProgram | None = None, client: bool = False
-) -> object {
+) -> any {
     with NamedTemporaryFile(
         mode="w",
         suffix=".jac",

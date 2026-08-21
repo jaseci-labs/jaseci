@@ -54,13 +54,13 @@ obj Tool {
         timeout_sec: float | None = None;
 
     def postinit -> None;
-    def __call__(*args: list, **kwargs: dict) -> object;
+    def __call__(*args: any, **kwargs: any) -> any;
     def get_name -> str;
     static def get_func_description(func: Callable) -> str;
     static def make_finish_tool(resp_type: type) -> Tool;
     def is_finish_tool -> bool;
     def get_json_schema -> dict[str, object];
-    def parse_arguments(args_json: dict) -> dict;
+    def parse_arguments(args_json: dict | str) -> dict;
     def _parse_finish_arguments(args_json: dict, params: dict) -> dict;
     def _required_params(params: dict) -> list;
 }

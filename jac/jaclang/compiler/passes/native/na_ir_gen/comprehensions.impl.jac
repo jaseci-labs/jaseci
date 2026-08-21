@@ -8,10 +8,7 @@ impl NaIRGenComprehensions._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value |
     if _own_spec == "i64" and isinstance(nd.out_expr, uni.Null) {
         _own_spec = "ptr";
     }
-    # The produced element's own stamped type outranks any hint taken from
-    # the collection: `[isinstance(x, T) for x in ptrs]` yields booleans,
-    # and a collection-derived "ptr" spec would hand the result list a
-    # pointer destructor that later releases the integer 1 as an object.
+
     if _own_spec is None
         and isinstance(nd.out_expr, uni.Expr)
         and nd.out_expr.type is not None {

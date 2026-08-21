@@ -344,9 +344,7 @@ impl ReactNativeTarget._compile_native_jac_modules(
 ) -> tuple[(any, Path)] {
     console.print("  Step 1: Compiling Jac modules + native runtime...", style="muted");
 
-    import from jaclang.runtimelib.client.vite_client_bundle {
-        ViteClientBundleBuilder
-    }
+    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
     builder = Jac.get_client_bundle_builder();
     if not isinstance(builder, ViteClientBundleBuilder) {
         raise RuntimeError(

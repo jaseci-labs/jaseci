@@ -40,8 +40,8 @@ class JacStrABI(ctypes.Structure) {
 }
 
 def native_str_func(
-    eng: object, name: str, restype: type | None, *argtypes: type
-) -> object {
+    eng: any, name: str, restype: type | None, *argtypes: type
+) -> any {
     # descriptor-ABI JIT getter shared by native tests: a c_char_p
     # spelling means a Jac str (the by-value {root, data, len}
     # descriptor); LLVM decomposes the by-value param into three scalar
@@ -50,7 +50,7 @@ def native_str_func(
     # the payload NUL-bounded at data
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {

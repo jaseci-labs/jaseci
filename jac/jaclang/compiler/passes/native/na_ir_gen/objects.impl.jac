@@ -549,10 +549,6 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    # An extern clib struct redeclared by another translation unit sharing
-    # this LLVM context keeps its first definition, as in C; set_body on an
-    # already-defined identified type raises. The local field registries are
-    # still recorded so this module's codegen can address the layout.
     if arch_name in self.clib_struct_names and not struct_type.is_opaque {
         ;
     } else {
@@ -813,7 +809,9 @@ impl NaIRGenObjects._method_slot_name(
 }
 
 impl NaIRGenObjects._forward_declare_method(
-    arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None,
+    arch_name: str,
+    method: uni.Ability,
+    field: (uni.HasVar | None) = None,
     imported: bool = False
 ) -> None {
     method_name = self._method_slot_name(method, field);
@@ -1082,7 +1080,10 @@ impl NaIRGenObjects._codegen_method(
 }
 
 impl NaIRGenObjects._demote_method_if_unlowerable(
-    full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False,
+    full_name: str,
+    func: ir.Function,
+    local_mark: int,
+    keep_func: bool = False,
     stub_body: bool = True
 ) -> bool {
     if len(self.errors_had) <= local_mark {
@@ -1118,11 +1119,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
         } except Exception { }
     }
     del self.errors_had[local_mark:];
-    # An importer never defines a symbol it does not own: for a method
-    # forward-declared from another module, the refusal is spent but the
-    # function stays a declaration -- the owning module's unit brings the
-    # real body (or its own trap stub), and a local strong stub would
-    # collide with it at link (E5026).
+
     if stub_body {
         func.blocks.clear();
         blk = func.append_basic_block(name="entry");

@@ -349,8 +349,6 @@ def route_visit(candidates: list[object], model: BaseLLM) -> list {
 
     handles = [r["handle"] for r in recs];
 
-    # Dynamic class creation through the Enum functional API; the checker
-    # has no special form for it (tracked in #8443), so state the dynamism.
     enum_factory: any = enum.Enum;
     Choice = enum_factory("RouteChoice", {h: h for h in handles}) if handles else None;
     resp_type = list[Choice] if Choice is not None else list;

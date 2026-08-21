@@ -265,9 +265,7 @@ def adopt_imported_bases(module: Module) -> list[str] {
         }
     }
     layouts = reg.layouts;
-    order = sorted(
-        layouts.keys(), key=lambda (n: str) { len(layouts[n].mro or [n]); }
-    );
+    order = sorted(layouts.keys(), key=lambda (n: str) { len(layouts[n].mro or [n]); });
     adopted: list[str] = [];
     for name in order {
         lay = reg.layouts.get(name);

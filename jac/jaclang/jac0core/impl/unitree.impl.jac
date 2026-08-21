@@ -1223,10 +1223,7 @@ impl ModuleItem.binding_name.getter -> (Name | None) {
     if isinstance(self.name, Name) {
         return self.name;
     }
-    # `default as X` and `* as ns` both bind their alias (a bare absorb star
-    # has no alias and correctly yields None). Without the star case the
-    # namespace binding had no name to type, so it degraded to a bare
-    # Unknown that re-diagnosed at every member access.
+
     if self.name.value in ('default', '*') {
         return self.alias;
     }
@@ -1510,15 +1507,7 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
             nodew = nodew.parent;
         }
     }
-    # In a py-raised module, a def nested in class-body statements is still
-    # that class's method -- the shape of every version-gated stub method:
-    # the raise wraps a class body's `if sys.version_info >= (3, 11):` as
-    # ModuleCode + IfStmt under the Archetype (typeshed's EnumMeta.__call__).
-    # Without this the gated overload loses its receiver: `cls` stays a
-    # required positional and no call can ever match it. Scoped to raised
-    # modules because that wrapping is an artifact of the raise; a jac-source
-    # def inside `with entry` in an archetype keeps its explicit-self,
-    # plain-function lowering (jac0core/constant.jac's enum __str__).
+
     if found is None {
         nodew = self.parent;
         while isinstance(nodew, (IfStmt, ElseStmt, ModuleCode)) {

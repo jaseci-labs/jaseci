@@ -786,10 +786,7 @@ impl NaIRGenTypes._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type 
             return ir.IntType(8).as_pointer();
         }
     }
-    # Unstamped fall-through mirrors the stamped branch above: a `str`
-    # in a signature is the one-register i8* form, never the by-value
-    # descriptor -- the descriptor would occupy two argument slots and
-    # shift every later parameter against the defining unit's ABI.
+
     _sig_out = self._resolve_jac_type(type_expr);
     if self._str_desc_ty is not None and _sig_out == self._str_desc_ty {
         return ir.IntType(8).as_pointer();
@@ -832,10 +829,7 @@ impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type 
         }
         return self._emit_unlowerable_type(type_expr, type_expr.type);
     }
-    # No checker stamp and a declaration wrapper (imported-module walk):
-    # the annotation under type_tag decides the ABI, so it must lower for
-    # real or fail loudly -- a silent i64 here diverges from the defining
-    # unit's stamped signature and corrupts the call.
+
     if isinstance(type_expr, (uni.HasVar, uni.ParamVar))
         and type_expr.type_tag is not None {
         return self._resolve_jac_type(type_expr.type_tag.tag);
@@ -867,19 +861,12 @@ impl NaIRGenTypes._widened_tuple_decl_type(
     }
     _tb = nd?.type;
     if _tb is None {
-        # A dep module in a seal closure is lowered without the checker
-        # having walked it, so the annotation carries no stamped type. The
-        # widened-tuple design is syntactic -- a bare `tuple` annotation
-        # takes its layout from the initializer -- so recognize the shape
-        # from the AST alone.
         if not (isinstance(nd, uni.Name) and nd.value == "tuple") {
             return None;
         }
     } else {
         try {
-            import from jaclang.compiler.type_system.types {
-                ClassType as _WdClassType
-            }
+            import from jaclang.compiler.type_system.types { ClassType as _WdClassType }
         } except ImportError {
             return None;
         }
@@ -939,13 +926,11 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             return self._emit_unlowerable_type(var, _ptb);
         }
     }
-    # No checker stamp (imported-module walk): the annotation expr under
-    # type_tag still names the layout, so lower it structurally; keep the
-    # i64 erasure only when the shape has no mirror.
+
     _hv_tag = (
         var.type_tag.tag
-        if isinstance(var, (uni.HasVar, uni.ParamVar)) and var.type_tag is not None
-        else None
+            if isinstance(var, (uni.HasVar, uni.ParamVar)) and var.type_tag is not None
+            else None
     );
     if _hv_tag is not None and _hv_tag?.type is None {
         _structural = self._lower_untyped_annotation(_hv_tag);
@@ -955,10 +940,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             }
             return _structural;
         }
-        # A field shape with no mirror must stay QUIET: a loud unlowerable
-        # here demotes the accessor in every importing unit. An `X | None`
-        # shape erases to i8* (the stamped foreign-optional repr); anything
-        # else keeps the pointer-sized i64 erasure.
+
         _hv_opt = False;
         _hv_scan: list[uni.UniNode] = [_hv_tag];
         while _hv_scan {
@@ -971,10 +953,11 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
                 and _hv_cur.op.value == "|" {
                 _hv_scan.append(_hv_cur.left);
                 _hv_scan.append(_hv_cur.right);
-            } elif isinstance(_hv_cur, uni.Null) or (
-                isinstance(_hv_cur, uni.Name)
-                and _hv_cur.value in ("None", "NoneType")
-            ) {
+            } elif isinstance(_hv_cur, uni.Null)
+                or (
+                    isinstance(_hv_cur, uni.Name)
+                    and _hv_cur.value in ("None", "NoneType")
+                ) {
                 _hv_opt = True;
             }
         }
@@ -3803,10 +3786,6 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
     if isinstance(nd, uni.BinaryExpr)
         and isinstance(nd.op, uni.Token)
         and nd.op.value == "|" {
-        # Mirror the stamped UnionType lowering: strip None members, lower
-        # each leaf, unify the representations (same repr or all-pointer
-        # keeps the first; mixed reprs box as jacval), and wrap a single
-        # member that had a None sibling as an optional.
         _leaves: list[uni.UniNode] = [];
         _stack: list[uni.UniNode] = [nd];
         while _stack {
@@ -3854,9 +3833,7 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
         if _ulow is None {
             return None;
         }
-        if _had_none
-            and len(_live) == 1
-            and not isinstance(_ulow, ir.VoidType) {
+        if _had_none and len(_live) == 1 and not isinstance(_ulow, ir.VoidType) {
             return self._jac_optional_type(_ulow);
         }
         return _ulow;
@@ -3884,8 +3861,8 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                 }
                 _telems = (
                     list(_tvals.values)
-                    if isinstance(_tvals, uni.TupleVal)
-                    else [_tvals]
+                        if isinstance(_tvals, uni.TupleVal)
+                        else [_tvals]
                 );
                 _tlow: list = [];
                 _tok = True;
@@ -3904,9 +3881,6 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
             return None;
         }
         if _base == "Callable" {
-            # Both spellings arrive here: Callable[([a, b], R)] puts one
-            # tuple in one slice; Callable[[a, b], R] puts the list and the
-            # return in two slices.
             _fnslices = nd.right.slices;
             _fnparams_nd: (uni.UniNode | None) = None;
             _fnret_nd: (uni.UniNode | None) = None;
@@ -3938,9 +3912,7 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                 if isinstance(_fnparams_nd, uni.ListVal) {
                     for _fp in _fnparams_nd.values {
                         _fpl = self._lower_untyped_annotation(_fp);
-                        _fnparams.append(
-                            _fpl if _fpl is not None else ir.IntType(64)
-                        );
+                        _fnparams.append(_fpl if _fpl is not None else ir.IntType(64));
                     }
                     return ir.FunctionType(_fnret, _fnparams).as_pointer();
                 }
@@ -3968,9 +3940,7 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                         }
                         (_dk_spec, _dk_size) = self._dict_key_spec(_dk);
                         _dv_spec = self._dict_val_spec(_dv);
-                        self._emit_dict_helpers(
-                            _dk_spec, _dv_spec, _dk, _dv, _dk_size
-                        );
+                        self._emit_dict_helpers(_dk_spec, _dv_spec, _dk, _dv, _dk_size);
                         _dict_ty = self.dict_types.get(f"{_dk_spec}:{_dv_spec}");
                         if _dict_ty is not None {
                             return _dict_ty.as_pointer();
@@ -4008,10 +3978,7 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
         return self._lower_untyped_annotation(nd.target);
     }
     _nm = self._get_name(nd);
-    # The symtab bound this name even without checker stamps, and it
-    # outranks the bare-name registries: one closure can hold an enum and
-    # a class under the same name, and which registry filled in first is
-    # walk-order luck, not a fact about this reference.
+
     if isinstance(nd, uni.Name) and nd.sym is not None and nd.sym.decl is not None {
         _decl_of = nd.sym.decl.name_of;
         if isinstance(_decl_of, uni.Enum) {
@@ -4023,9 +3990,8 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                 return self.struct_types[_decl_anm].as_pointer();
             }
         }
-        if isinstance(_decl_of, uni.TypeParam) or (
-            _decl_of is not None and isinstance(_decl_of.parent, uni.TypeParam)
-        ) {
+        if isinstance(_decl_of, uni.TypeParam)
+            or (_decl_of is not None and isinstance(_decl_of.parent, uni.TypeParam)) {
             return ir.IntType(8).as_pointer();
         }
         if _decl_of is not None and isinstance(_decl_of.parent, uni.ModuleItem) {
@@ -4040,19 +4006,14 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
                     return _by_name;
                 }
             }
-            # An imported name resolves against the module the import
-            # actually names. The prescan recorded which module owns each
-            # enum and archetype name before any lowering ran, so this
-            # holds under any walk order: an enum in one dep shadowed by a
-            # same-named class in another picks by origin, not by which
-            # registry filled in first.
+
             if _orig is not None {
                 _imp_node = _item.find_parent_of_type(uni.Import);
                 _imp_from = _imp_node.from_loc if _imp_node is not None else None;
                 _imp_tail = (
                     _imp_from.dot_path_str.split(".")[-1]
-                    if _imp_from is not None
-                    else None
+                        if _imp_from is not None
+                        else None
                 );
                 if _imp_tail is not None {
                     if self._enum_source_name.get(_orig) == _imp_tail {

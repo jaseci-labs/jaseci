@@ -112,7 +112,9 @@ impl Scheduler._run_loop -> None {
     done_event.set();
 }
 
-impl Scheduler._pick_up_new_tasks(heap: list[tuple[float, int, ScheduledTask]]) -> None {
+impl Scheduler._pick_up_new_tasks(
+    heap: list[tuple[float, int, ScheduledTask]]
+) -> None {
     heap_tasks = {id(t) for (_, _, t) in heap};
     for (i, task) in enumerate(self._tasks) {
         if task.next_run is None {

@@ -86,7 +86,7 @@ def type_to_str(t: object) -> str {
     try {
         import from dataclasses { is_dataclass }
         if (is_dataclass(t) and t?.name) {
-            tname = getattr(t, 'name', None);
+            tname = t?.name;
             if isinstance(tname, str) {
                 return tname;
             }

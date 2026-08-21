@@ -29,7 +29,7 @@ with entry {
     """
 def create_mcjit_compiler(
     module: any, target_machine: any, use_lmm: any = None
-) -> object {
+) -> ExecutionEngine {
     if (use_lmm is None) {
         use_lmm = platform.machine() in ('arm64', 'aarch64');
     }
@@ -109,7 +109,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         static initializers run first -- unless *name* is listed in
         *static_init_chained*, meaning that function runs them itself.
         """
-    def get_function_address(self: ExecutionEngine, name: any) -> object {
+    def get_function_address(self: ExecutionEngine, name: any) -> int {
         if self.static_init_symbols and (name not in self.static_init_chained) {
             self.run_static_init();
         }

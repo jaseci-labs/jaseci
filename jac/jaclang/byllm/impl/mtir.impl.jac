@@ -298,7 +298,7 @@ impl MTRuntime.get_history_for_persist -> list[MessageType] {
     return out;
 }
 
-impl MTRuntime.parse_response(response: str) -> object {
+impl MTRuntime.parse_response(response: str) -> any {
     if self.resp_type is None or self.resp_type is str or response.strip() == "" {
         return response;
     }

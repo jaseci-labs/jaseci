@@ -25,7 +25,7 @@ with entry {
 """Write inline Jac code to a temp file and compile it, return the module."""
 def compile_inline(
     code: str, prog: JacProgram | None = None, client: bool = False
-) -> object {
+) -> any {
     with NamedTemporaryFile(
         mode="w",
         suffix=".jac",

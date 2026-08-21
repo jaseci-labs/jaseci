@@ -357,8 +357,7 @@ def _log(msg: str) {
 
 def:pub cef_dispatch_get_exe_dir -> str {
     _init_exe_dir();
-    # g_exe_dir_buf is the C char* the backend marshals into a jac str at
-    # this public boundary; `any` states the handoff.
+
     exe_dir: any = g_exe_dir_buf;
     return exe_dir;
 }
@@ -493,12 +492,8 @@ def _on_before_cmdline(self: int, process_type: int, command_line: int) {
 
     ud_val: int = getenv("JAC_CEF_USER_DATA_DIR");
     if ud_val != 0 and strlen(ud_val) > 0 {
-        # ud_val is the C char* getenv returned; the backend marshals it into
-        # the jac str parameter at this boundary.
         ud_str: any = ud_val;
-        cef_dispatch_cmdline_append_switch_value(
-            command_line, "user-data-dir", ud_str
-        );
+        cef_dispatch_cmdline_append_switch_value(command_line, "user-data-dir", ud_str);
     }
     _log("cmdline: done");
 }

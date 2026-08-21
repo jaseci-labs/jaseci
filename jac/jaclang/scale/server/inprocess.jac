@@ -113,8 +113,7 @@ def prepare_inprocess_runtime(
         _register_endpoint_profile(server, endpoint_profile);
 
         _um = server.user_manager;
-        assert isinstance(_um, JacScaleUserManager) ,
-            "the scale server builds a JacScaleUserManager";
+        assert isinstance(_um, JacScaleUserManager) , "the scale server builds a JacScaleUserManager";
         if _um.get_root_id(Con.GUEST.value) is None {
             _um.create_internal_user(Con.GUEST.value, "__no_password__");
         }
@@ -131,9 +130,7 @@ def prepare_inprocess_runtime(
 
         native_server = server.server;
         if native_server is None {
-            raise RuntimeError(
-                "in-process runtime requires a started server"
-            );
+            raise RuntimeError("in-process runtime requires a started server");
         }
         client = ServingTestClient(
             app=native_server.app, raise_server_exceptions=False

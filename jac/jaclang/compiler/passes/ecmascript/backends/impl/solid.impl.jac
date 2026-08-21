@@ -501,8 +501,7 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
         except_fallback: es.Expression = a.except_exprs[0];
     } else {
         except_fallback = self._view_children_as_expr(
-            [DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs],
-            self._noloc
+            [DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs], self._noloc
         );
     }
     error_view = ViewElement(

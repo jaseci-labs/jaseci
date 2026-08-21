@@ -406,10 +406,6 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
     if (isinstance(caller_type, ClassType) and caller_type.is_instantiable_class()) {
         matched_method: FunctionType | None = None;
 
-        # Constructing an extern struct declared inside a clib import fills a
-        # C ABI layout: a fn-ptr field is declared int and legitimately takes
-        # a jac callback (the backend builds the trampoline), and 0 is a null
-        # pointer. Same principle as the gradual extern function signatures.
         ctor_arch = caller_type.shared.symbol_table;
         if isinstance(ctor_arch, Archetype)
             and ctor_arch.find_parent_of_type(Import) is not None {
@@ -493,9 +489,7 @@ impl TypeEvaluator.match_args_to_params(
         for arg_node in arg_nodes {
             arg_params[arg_node] = None;
         }
-        return MatchArgsToParamsResult(
-            arg_params=arg_params, argument_errors=False
-        );
+        return MatchArgsToParamsResult(arg_params=arg_params, argument_errors=False);
     }
     params_to_match = func_type.parameters.copy();
     if is_unbound_call {
@@ -712,10 +706,6 @@ impl TypeEvaluator.assign_type_to_type_var(
                 not self.assign_type(resolved_arg, existing)
                 and not self.assign_type(existing, resolved_arg)
             ) {
-                # Two literal solutions for one type var widen to their
-                # common base before the overload is rejected: suffix=".log"
-                # and prefix="x_" both solve AnyStr as str, not as two
-                # incompatible Literal pins.
                 _w_arg = self._widen_literal_for_declaration(resolved_arg);
                 _w_prev = self._widen_literal_for_declaration(existing);
                 if self.assign_type(_w_arg, _w_prev) {
@@ -894,7 +884,9 @@ impl TypeEvaluator._substitute_type_vars(
     return typ;
 }
 
-impl TypeEvaluator.class_constructor_callables(cls_type: ClassType) -> list[FunctionType] {
+impl TypeEvaluator.class_constructor_callables(
+    cls_type: ClassType
+) -> list[FunctionType] {
     out: list[FunctionType] = [];
     instance = cls_type.clone_as_instance();
     for name in ['init', '__init__', '__new__'] {

@@ -77,8 +77,8 @@ obj BaseLLM {
         _usage_history: list = [];
 
     def __call__(**kwargs: object) -> BaseLLM;
-    def invoke(mt_run: MTRuntime) -> object;
-    async def ainvoke(mt_run: MTRuntime) -> object;
+    def invoke(mt_run: MTRuntime) -> any;
+    async def ainvoke(mt_run: MTRuntime) -> any;
     def _resolve_output_attempts(mt_run: MTRuntime) -> int;
     def _resolve_stream_retries(mt_run: MTRuntime) -> int;
     def _should_retry_stream(
@@ -200,7 +200,7 @@ obj Model(BaseLLM) {
         _async_proxy_client: AsyncOpenAI | None = None;
 
     def postinit -> None;
-    override def invoke(mt_run: MTRuntime) -> object;
+    override def invoke(mt_run: MTRuntime) -> any;
     def _raise_mapped_provider_error(e: Exception) -> None;
     def model_call_no_stream(params: dict) -> dict;
     async def model_call_no_stream_async(params: dict) -> dict;

@@ -25,7 +25,7 @@ impl Tool.postinit -> None {
     }
 }
 
-impl Tool.__call__(*args: list, **kwargs: dict) -> object {
+impl Tool.__call__(*args: any, **kwargs: any) -> any {
     if self.is_finish_tool() {
         try {
             return self.func(*args, **kwargs);
@@ -87,7 +87,7 @@ impl Tool.get_json_schema -> dict[str, object] {
     );
 }
 
-impl Tool.parse_arguments(args_json: dict) -> dict {
+impl Tool.parse_arguments(args_json: dict | str) -> dict {
     annotations: dict = {};
     try {
         annotations = self.func.__annotations__;

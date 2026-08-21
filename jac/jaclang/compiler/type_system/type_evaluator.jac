@@ -595,6 +595,7 @@ obj TypeEvaluator {
     def _enum_member_attr_type(
         base_type: EnumMemberType, member_name: str
     ) -> (TypeBase | None);
+
     def _has_typeddict_special_form_base(node_: Archetype) -> bool;
     def _typeddict_value_union(base_type: ClassType) -> TypeBase;
     def _get_typeddict_indexed_type(
@@ -627,7 +628,6 @@ obj TypeEvaluator {
     ) -> None;
 
     def class_constructor_callables(cls_type: ClassType) -> list[FunctionType];
-
     def _infer_type_args_from_method(
         caller_type: ClassType, expr: FuncCall, matched_method: FunctionType | None
     ) -> list[TypeBase];

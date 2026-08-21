@@ -180,6 +180,19 @@ impl TypeEvaluator._get_type_of_expression_core(
                         elem_type = self.get_type_of_expression(
                             _val, expected_type=expected_elem
                         );
+
+                        if expected_elem is None
+                            and isinstance(elem_type, ClassType)
+                            and elem_type.is_instantiable_class()
+                            and not elem_type.is_class_instance()
+                            and self.prefetch is not None
+                            and self.prefetch.type_class is not None {
+                            _tc_wrap = self.prefetch.type_class.clone_as_instance();
+                            _tc_wrap.private.type_args = [
+                                self._convert_to_instance(elem_type)
+                            ];
+                            elem_type = _tc_wrap;
+                        }
                         if not isinstance(elem_type, UnknownType)
                             and not self._type_in_list(elem_type, elem_types) {
                             elem_types.append(elem_type);
@@ -744,11 +757,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                                     module_inst, expr.right.value
                                 ) {
                                 module_member.symbol.add_use(expr.right);
-                                # Same property unwrap the instance-attr path
-                                # applies: ModuleType.__dict__ is an
-                                # @property in typeshed, and without this a
-                                # module's __dict__ types as the raw getter
-                                # function instead of dict[str, Any].
+
                                 if prop_ret
                                     := self.get_getter_type_from_property(
                                         module_member.symbol
@@ -871,11 +880,6 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return UnknownType();
                 } elif base_type.is_class_instance() {
                     assert isinstance(base_type, ClassType);
-                    # A member of an extern struct declared inside a clib
-                    # import is C ABI surface: a fn-ptr field declared int is
-                    # called, a nested struct pointer is re-viewed. The
-                    # jac-visible member type is foreign `any`, the same
-                    # gradual boundary the extern function signatures get.
                     _attr_arch = base_type.shared.symbol_table;
                     if isinstance(_attr_arch, Archetype)
                         and _attr_arch.find_parent_of_type(Import) is not None {
@@ -1483,10 +1487,6 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
                 if isinstance(base_type, ClassType)
                     and base_type.is_instantiable_class() {
-                    # A string type-arg is a PEP 484 forward reference
-                    # (Sequence["JsonType"]), not a Literal -- the same rule
-                    # union-annotation members already get. Literal[...] never
-                    # reaches here: it returns from its own branch above.
                     type_args: list[TypeBase] = [];
                     if isinstance(expr.right, IndexSlice) and expr.right.slices {
                         type_args_vals = expr.right.slices[0].start;
@@ -1552,18 +1552,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                 ) {
                     subscript_arg = expr.right.slices[0].start;
                 }
-                # Subscripting `any` stays `any`, exactly as attribute access
-                # on `any` does above. Falling through to __getitem__ would
-                # degrade it to Unknown, whose accesses then hard-error --
-                # making x[k] strictly harsher than x.k on the same value.
                 if isinstance(base_type, AnyType) {
                     return AnyType(is_foreign=base_type.is_foreign);
                 }
-                # Subscripting an Unknown keeps its diagnosed/incomplete
-                # flags, as the attribute path does. A fresh bare Unknown
-                # here laundered away the suppression: assign x[k] to a name
-                # and every later use of that name re-diagnosed E1032 for a
-                # cause that was already reported once at its source.
                 if isinstance(base_type, UnknownType) {
                     return UnknownType(
                         is_diagnosed=base_type.is_diagnosed,
@@ -2448,11 +2439,6 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                     return self.prefetch.any_class;
                 }
 
-                # Iterating `any` yields `any`, and iterating an Unknown keeps
-                # its diagnosed/incomplete flags -- mirroring attribute access
-                # and subscripts. The __iter__/__next__ resolution below would
-                # otherwise type the loop variable as a fresh bare Unknown,
-                # which re-diagnoses at every use of the variable.
                 if isinstance(collection_type, AnyType) {
                     elem_any = AnyType(is_foreign=collection_type.is_foreign);
                     node_.type = elem_any;
@@ -3127,10 +3113,6 @@ impl TypeEvaluator.assign_type(
         return True;
     }
 
-    # An extern struct declared inside a clib import is a C pointer view:
-    # `b: cef_browser_t = some_int` reinterprets the pointer the backend
-    # hands around as int. The extern boundary is gradual, so an
-    # extern-struct destination accepts any source.
     if isinstance(dest_type, ClassType) and dest_type.is_class_instance() {
         _ext_arch = dest_type.shared.symbol_table;
         if isinstance(_ext_arch, Archetype)
@@ -3138,8 +3120,7 @@ impl TypeEvaluator.assign_type(
             return True;
         }
     }
-    # And the mirror: an extern-struct value decays to the int pointer the
-    # C side declares (`return g_cli;` from a `-> int` trampoline).
+
     if isinstance(src_type, ClassType) and src_type.is_class_instance() {
         _ext_src = src_type.shared.symbol_table;
         if isinstance(_ext_src, Archetype)
@@ -3252,7 +3233,6 @@ impl TypeEvaluator.assign_type(
                 }
             }
         }
-
     }
 
     if self.is_any_type(dest_type) or self.is_any_type(src_type) {
@@ -4229,11 +4209,6 @@ impl TypeEvaluator._get_type_from_flow_node(
                 ) {
                     declared_type = target.declared_type;
 
-                    # An extern-struct annotation is a C pointer view the
-                    # native backend compiles against; the gradual extern
-                    # boundary accepts an int pointer into it, but that
-                    # acceptance is not subtype evidence -- narrowing the
-                    # view back down to int would erase the declared layout.
                     _decl_extern = (
                         isinstance(declared_type, ClassType)
                         and declared_type.is_class_instance()

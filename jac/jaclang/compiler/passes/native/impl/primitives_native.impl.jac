@@ -3839,7 +3839,11 @@ impl NativeSetEmitter.emit_add(
 }
 
 impl NativeSetEmitter._emit_set_elem_loop(
-    self: NativeSetEmitter, ctx: NativeEmitCtx, src_set: ir.Value, prefix: str, body_cb: object
+    self: NativeSetEmitter,
+    ctx: NativeEmitCtx,
+    src_set: ir.Value,
+    prefix: str,
+    body_cb: object
 ) -> None {
     p = ctx.pass_ref;
     helpers = p.set_helpers.get(ctx.type_key);

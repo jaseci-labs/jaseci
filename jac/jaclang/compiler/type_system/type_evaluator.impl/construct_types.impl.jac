@@ -98,16 +98,13 @@ impl TypeEvaluator._extract_tuple_element_type(
     if tuple_type.is_any_instance() {
         return tuple_type;
     }
-    # Unpacking `any` yields `any`, and unpacking an Unknown keeps its
-    # diagnosed/incomplete flags -- the same rule attribute access,
-    # subscripts and iteration follow.
+
     if isinstance(tuple_type, AnyType) {
         return AnyType(is_foreign=tuple_type.is_foreign);
     }
     if isinstance(tuple_type, UnknownType) {
         return UnknownType(
-            is_diagnosed=tuple_type.is_diagnosed,
-            is_incomplete=tuple_type.is_incomplete
+            is_diagnosed=tuple_type.is_diagnosed, is_incomplete=tuple_type.is_incomplete
         );
     }
     if not isinstance(tuple_type, ClassType) {
@@ -190,16 +187,10 @@ impl TypeEvaluator._tuple_literal_index_type(
 impl TypeEvaluator._get_iterable_element_type(
     iterable_type: TypeBase, node_for_error: Expr | None = None
 ) -> TypeBase | None {
-    # Iterating `any` yields `any`, matching attribute access and subscripts
-    # on `any`; resolving __iter__/__next__ against it would produce None and
-    # type every loop variable Unknown, whose accesses then hard-error.
     if isinstance(iterable_type, AnyType) {
         return AnyType(is_foreign=iterable_type.is_foreign);
     }
-    # Iterating an Unknown keeps its diagnosed/incomplete flags, mirroring
-    # the attribute and subscript paths: a loop variable over an
-    # already-diagnosed collection must not become a fresh bare Unknown that
-    # re-diagnoses at every use.
+
     if isinstance(iterable_type, UnknownType) {
         return UnknownType(
             is_diagnosed=iterable_type.is_diagnosed,
@@ -364,13 +355,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
 
         }
     }
-    # A clib extern declaration's annotations describe the C ABI (pointers as
-    # int, strings as char*), and the native backend marshals jac values
-    # across that boundary at the call site -- an int pointer, a wrap struct
-    # or a str can each legitimately meet an `int` parameter. Until the
-    # checker models the marshalling rules, the jac-visible signature is
-    # gradual: arity is still enforced, the value types are foreign `any`.
-    # exit_import exempts clib declarations on the same principle.
+
     if node_.find_parent_of_type(Import) is not None {
         extern_params: list[Parameter] = [];
         if isinstance(node_.signature, FuncSignature) {
@@ -698,5 +683,3 @@ impl TypeEvaluator._super_owner_for(
     }
     return rest[0];
 }
-
-

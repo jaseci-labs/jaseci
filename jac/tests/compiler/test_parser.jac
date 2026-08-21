@@ -588,7 +588,7 @@ test "bracket filter trailer produces FilterCompr AST" {
     (mod_new, err) = rd_parse('with entry { x[?:Foo, a==5]; }', "");
     assert not err , "Failed to parse x[?:Foo, a==5]";
     # Find the FilterCompr node in the tree
-    def find_fc(nd: object) -> object {
+    def find_fc(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) {
             return nd;
         }
@@ -686,7 +686,7 @@ test "typed edge ref produces FilterCompr with compares" {
     (mod, err) = rd_parse(src, "");
     assert not err;
 
-    def find_filter_compr_with_compares(nd: object) -> object {
+    def find_filter_compr_with_compares(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) and nd.compares {
             return nd;
         }

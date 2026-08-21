@@ -4,7 +4,7 @@ obj _HostState {
         out2: str = "";
 }
 
-def _emit(st: _HostState, fd: int, text: str) -> None {
+def _emit(st: _HostState, fd: int, text: str) {
     if fd == 2 {
         st.out2 = st.out2 + text;
     } else {
@@ -25,7 +25,7 @@ def _emit(st: _HostState, fd: int, text: str) -> None {
     }
 }
 
-def _flush_all(st: _HostState) -> None {
+def _flush_all(st: _HostState) {
     if len(st.out1) > 0 {
         console.log(st.out1);
         st.out1 = "";

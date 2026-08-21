@@ -930,7 +930,9 @@ impl UnparsePass.exit_yield_expr(nd: uni.YieldExpr) -> None {
 }
 
 impl UnparsePass.exit_func_call(nd: uni.FuncCall) -> None {
-    call_params: Sequence[(uni.Expr | uni.KWPair)] = nd.params if nd.params is not None else [];
+    call_params: Sequence[(uni.Expr | uni.KWPair)] = nd.params
+        if nd.params is not None
+        else [];
     is_gencompr = len(call_params) == 1 and isinstance(call_params[0], uni.GenCompr);
     params_str = self._comma_sep(call_params);
     if is_gencompr {

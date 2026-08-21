@@ -18,11 +18,6 @@ impl TypeEvaluator._try_resolve_forward_ref(expr: String) -> TypeBase | None {
 
     resolved = self.get_type_of_symbol(symbol);
     if isinstance(resolved, UnknownType) {
-        # A recursive alias (JsonType = ... | Sequence["JsonType"]) re-enters
-        # its own resolution here and comes back incomplete. The name still
-        # resolved to a symbol, so this IS a forward reference -- returning
-        # None would let the caller literal-ize the string into an
-        # unsatisfiable Literal["JsonType"] that nothing can ever match.
         if resolved.is_incomplete {
             return resolved;
         }
@@ -433,6 +428,15 @@ impl TypeEvaluator._get_getattr_return_type(base_type: ClassType) -> TypeBase | 
         getattr_type = self.get_type_of_symbol(member.symbol);
         if isinstance(getattr_type, FunctionType) {
             return getattr_type.return_type or UnknownType();
+        }
+    }
+
+    if member := self._lookup_class_member(base_type, "__getattribute__") {
+        if member.class_type.shared.class_name != "object" {
+            getattr_type = self.get_type_of_symbol(member.symbol);
+            if isinstance(getattr_type, FunctionType) {
+                return getattr_type.return_type or UnknownType();
+            }
         }
     }
     return None;

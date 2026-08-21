@@ -1712,9 +1712,7 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             and nd.target.is_attr {
             mem_enum = self._get_name(nd.target.target);
             mem_name = self._get_name(nd.target.right);
-            # `Tokens as Tok` keys the registry under the origin name, so
-            # a miss on the alias hops through the import item that bound
-            # it (stamps are absent in dep units; the symtab is not).
+
             if mem_enum is not None
                 and mem_name is not None
                 and f"{mem_enum}.{mem_name}" not in self.enum_values {

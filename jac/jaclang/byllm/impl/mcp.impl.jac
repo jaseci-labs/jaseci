@@ -81,7 +81,7 @@ impl _McpState.stop -> None {
     self.connected = False;
 }
 
-async def _async_cleanup(state: _McpState) -> None {
+async def _async_cleanup(state: _McpState) {
     session_ctx = state.session_ctx;
     if session_ctx is not None {
         try {
@@ -113,7 +113,7 @@ def _get_state(client: McpClient) -> _McpState {
     return _states[client._id];
 }
 
-async def _do_connect(client: McpClient, transport_type: str) -> None {
+async def _do_connect(client: McpClient, transport_type: str) {
     import from mcp.client.session { ClientSession }
     import from datetime { timedelta }
 
@@ -133,7 +133,7 @@ async def _do_connect(client: McpClient, transport_type: str) -> None {
     tools_result = await session.list_tools();
     discovered: list[McpTool] = [];
     for t in tools_result.tools {
-        raw_schema = getattr(t, "inputSchema", None);
+        raw_schema = t?.inputSchema;
         schema: dict[str, any] = raw_schema if isinstance(raw_schema, dict) else {};
         discovered.append(
             McpTool(
@@ -166,7 +166,7 @@ async def _do_call_tool(
     result = await session.call_tool(name, arguments);
     parts: list[str] = [];
     for item in (result.content or []) {
-        text = getattr(item, 'text', None);
+        text = item?.text;
         parts.append(str(text) if text is not None else str(item));
     }
     return "\n".join(parts) if parts else "MCP tool returned no content.";

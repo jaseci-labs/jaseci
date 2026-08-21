@@ -495,9 +495,7 @@ impl _locate(cdp: CDP, session: str, selector: str, timeout: float = 10.0) -> tu
         }
         cx = float(st["x"]);
         cy = float(st["y"]);
-        if prev is not None
-            and abs(cx - prev[0]) < 1
-            and abs(cy - prev[1]) < 1 {
+        if prev is not None and abs(cx - prev[0]) < 1 and abs(cy - prev[1]) < 1 {
             return (cx, cy);
         }
         prev = (cx, cy);

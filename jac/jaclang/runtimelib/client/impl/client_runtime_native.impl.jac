@@ -768,9 +768,7 @@ impl __ensureNativeTokenPrimed -> any {
     return globalThis.__jacNativeTokenPrimePromise__;
 }
 
-impl AuthGuard(
-    redirect: str = "/login", children: any = None
-) -> (JsxElement | None) {
+impl AuthGuard(redirect: str = "/login", children: any = None) -> (JsxElement | None) {
     [ready, setReady] = useState(globalThis.__jacNativeTokenPrimed__ == True);
     React.useEffect(
         lambda {

@@ -543,9 +543,18 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
     }
     _own_anns = cls.__dict__.get('__annotations__', {});
     if _own_anns {
+        _pre_attrs = dict(cls.__dict__);
         try {
             dataclass(eq=False)(cls);
         } except TypeError {
+            # The failed wrap may already have consumed or removed field
+            # defaults from the class; the retry decides from the
+            # pre-wrap snapshot and puts clobbered attributes back.
+            for _rname in _own_anns {
+                if _rname in _pre_attrs and _rname not in cls.__dict__ {
+                    setattr(cls, _rname, _pre_attrs[_rname]);
+                }
+            }
             # A field mixin gives a base defaulted has-vars while a
             # subclass still declares required ones. Python's dataclass
             # rejects a non-default field after a default one across that
@@ -567,7 +576,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
                 if "ClassVar" in str(_fann) or "InitVar" in str(_fann) {
                     continue;
                 }
-                _own_val = cls.__dict__.get(_fname, dataclasses.MISSING);
+                _own_val = _pre_attrs.get(_fname, dataclasses.MISSING);
                 _has_default = _own_val is not dataclasses.MISSING;
                 if _has_default
                     and isinstance(_own_val, dataclasses.Field)

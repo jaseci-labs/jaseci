@@ -282,9 +282,7 @@ impl types_equivalent(a: TypeBase, b: TypeBase, depth: int = 0) -> bool {
     return False;
 }
 
-impl origin_of_local_name(
-    nd: UniNode, local: str
-) -> tuple[str, (str | None)] {
+impl origin_of_local_name(nd: UniNode, local: str) -> tuple[str, (str | None)] {
     mod = nd.find_parent_of_type(Module);
     if mod is None {
         return (local, None);

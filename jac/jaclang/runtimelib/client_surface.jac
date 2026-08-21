@@ -66,7 +66,9 @@ def _required_runtime_globals(
     return (default_names, "@jac/runtime");
 }
 
-def with_runtime_globals(js_code: str, backend: (FrameworkBackend | None) = None) -> str {
+def with_runtime_globals(
+    js_code: str, backend: (FrameworkBackend | None) = None
+) -> str {
     (names, src) = _required_runtime_globals(backend);
     missing = [
         name

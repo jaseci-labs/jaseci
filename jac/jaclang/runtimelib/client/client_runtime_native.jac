@@ -114,6 +114,7 @@ def:pub __ensureNativeTokenPrimed -> any;
 def:pub AuthGuard(
     redirect: str = "/login", children: any = None
 ) -> (JsxElement | None);
+
 def:pub ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement;
 def:pub errorOverlay(filePath: str, errors: str) -> JsxElement;
 def:pub JacForm(props: dict) -> JsxElement;

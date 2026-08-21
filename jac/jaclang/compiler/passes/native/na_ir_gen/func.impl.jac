@@ -126,13 +126,12 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     if len(self.errors_had) > _sig_mark {
         self.generator_fns.pop(name, None);
         self.decorated_fns.pop(name, None);
-        # A function declared from another module keeps only its
-        # declaration on demotion: the owning unit brings the definition,
-        # so no stub, no rename, and no seam on this unit's budget.
+
         _fd_imported = _fdm is not None and _fdm is not self.ir_in;
         if self._demote_method_if_unlowerable(
             name, func, _sig_mark, stub_body=not _fd_imported
-        ) and not _fd_imported {
+        )
+            and not _fd_imported {
             self._rename_demoted_symbol(name, func);
         }
     }

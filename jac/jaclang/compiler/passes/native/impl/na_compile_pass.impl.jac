@@ -512,13 +512,6 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
     import sys;
     import ctypes.util;
 
-    # macOS ships unversioned libcrypto/libssl dylibs whose only behavior is
-    # abort("loading libcrypto in an unsafe way") -- dlopen'ing one kills the
-    # whole compiler process, uncatchably. Refusing them here routes the
-    # module through the ordinary could-not-load path (W5021, and a named
-    # unresolved-symbol error if the JIT image is ever materialized) instead
-    # of a SIGABRT at compile time. A real OpenSSL at any other path (e.g.
-    # Homebrew's) still loads.
     def is_darwin_abort_stub(cand: str) -> bool {
         if sys.platform != "darwin" {
             return False;
@@ -530,8 +523,7 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
         if os.path.isabs(cand) {
             return os.path.dirname(os.path.realpath(cand)) == "/usr/lib";
         }
-        # A bare name reaches dyld's search path, which resolves it from the
-        # shared cache's /usr/lib -- the stub.
+
         return True;
     }
 

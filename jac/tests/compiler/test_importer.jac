@@ -359,7 +359,7 @@ test "pyi loads build via PyastBuildPass and never compile" {
         symtab_ir_only: bool = False,
         cancel_token = None,
         options = None
-    ) -> object {
+    ) -> any {
         compile_calls += 1;
         return orig_compile(
             self,
@@ -414,7 +414,7 @@ test "resolve_import_source_module never compiles pyi stubs" {
             symtab_ir_only: bool = False,
             cancel_token = None,
             options = None
-        ) -> object {
+        ) -> any {
             compile_calls += 1;
             return orig_compile(
                 self,
@@ -750,7 +750,7 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         source_path = os.path.join(d, "source.jac");
         stub_path = os.path.join(d, "types.pyi");
         prog = JacProgram();
-        def source_ref -> object {
+        def source_ref -> any {
             source_mod = prog.parse_str("glob value = 1;\n", source_path);
             return weakref.ref(source_mod);
         }

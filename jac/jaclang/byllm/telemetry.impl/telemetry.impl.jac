@@ -50,7 +50,7 @@ impl _emit_agent_telemetry(
         }
     }
 
-    record_mtir = getattr(mt_run, "mtir", None);
+    record_mtir = mt_run?.mtir;
     record = {
         "invocation_id": getattr(mt_run, "_invocation_id"),
         "parent_invocation_id": mt_run?._parent_invocation_id,

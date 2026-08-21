@@ -55,7 +55,7 @@ def _model_lacks_tool_role(model_name: str) -> bool {
     return False;
 }
 
-impl Model.invoke(mt_run: MTRuntime) -> object {
+impl Model.invoke(mt_run: MTRuntime) -> any {
     import uuid;
     import time;
     import types as _types_mod;
