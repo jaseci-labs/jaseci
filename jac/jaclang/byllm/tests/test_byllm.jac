@@ -1856,6 +1856,100 @@ test "finish_tool exit sends an identical tools array on the narration call" {
     );
 }
 
+"""mt_run with an extra non-finish tool alongside a structured finish_tool, so a
+tools-array shrink (vs. the tool_choice-forcing fix) is actually observable."""
+def _forced_finish_env -> tuple {
+    def extra_tool(x: str) -> str {
+        return x;
+    }
+
+    model = Model(model_name="anthropic/claude-3-5-sonnet-20241022");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Who?")
+        ],
+        resp_type=_TestPerson,
+        stream=False,
+        tools=[Tool(func=extra_tool), Tool.make_finish_tool(_TestPerson)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    original_tool_names = [t.get_name() for t in mt_run.tools];
+    fake_fn = types.SimpleNamespace(
+        name="finish_tool", arguments='{"final_output": {"name": "Amy", "age": 30}}'
+    );
+    fake_response = {
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
+                }
+            }
+        ]
+    };
+    return (model, mt_run, fake_response, original_tool_names);
+}
+
+test "_force_final_answer keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response, original_tool_names) = _forced_finish_env();
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(
+            {"tools": params.get("tools"), "tool_choice": params.get("tool_choice")}
+        );
+        return fake_response;
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        out = model._force_final_answer(mt_run);
+    }
+
+    assert len(captured) == 1;
+    sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
+    assert sent_names == original_tool_names , (
+        f"the forced final-answer call must keep the same tools array so "
+        f"Anthropic's cache prefix still matches; got {sent_names}, "
+        f"expected {original_tool_names}"
+    );
+    assert captured[0]["tool_choice"]
+        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
+    assert out.name == "Amy" , f"expected the healed typed output, got: {out}";
+}
+
+test "_attempt_recovery keeps the tools array intact and forces finish_tool" {
+    (model, mt_run, fake_response, original_tool_names) = _forced_finish_env();
+
+    captured: list = [];
+    def _serve(params: dict) -> dict {
+        captured.append(
+            {"tools": params.get("tools"), "tool_choice": params.get("tool_choice")}
+        );
+        return fake_response;
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        recovery = model._attempt_recovery(mt_run);
+    }
+
+    assert len(captured) == 1;
+    sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
+    assert sent_names == original_tool_names , (
+        f"the recovery call must keep the same tools array so Anthropic's "
+        f"cache prefix still matches; got {sent_names}, "
+        f"expected {original_tool_names}"
+    );
+    assert captured[0]["tool_choice"]
+        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
+    assert recovery is not None and recovery.tool_calls[0].is_finish_call();
+}
+
 import asyncio;
 import inspect;
 
