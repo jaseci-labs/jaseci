@@ -21,7 +21,12 @@ with entry {
     Returns True if SVML was enabled at FFI support compile time.
     """
 def _has_svml -> object {
-    if (ffi.lib.LLVMPY_HasSVMLSupport() == 0) {
+    try {
+        _svml = ffi.lib.LLVMPY_HasSVMLSupport();
+    } except OSError {
+        return False;
+    }
+    if (_svml == 0) {
         return False;
     } else {
         return True;
@@ -37,7 +42,12 @@ with entry {
     returns "dynamic" otherwise.
     """
 def _build_llvm_linkage_type -> object {
-    if (ffi.lib.LLVMPY_IsDynamicLLVMLinkageBuild() == 0) {
+    try {
+        _dyn = ffi.lib.LLVMPY_IsDynamicLLVMLinkageBuild();
+    } except OSError {
+        return "unknown";
+    }
+    if (_dyn == 0) {
         return "static";
     } else {
         return "dynamic";
@@ -53,7 +63,12 @@ with entry {
     returns "dynamic" otherwise.
     """
 def _build_libstdcxx_linkage_type -> object {
-    if (ffi.lib.LLVMPY_IsStaticLibstdcxxLinkageBuild() == 1) {
+    try {
+        _cxx_static = ffi.lib.LLVMPY_IsStaticLibstdcxxLinkageBuild();
+    } except OSError {
+        return "unknown";
+    }
+    if (_cxx_static == 1) {
         return "static";
     } else {
         return "dynamic";
@@ -68,7 +83,11 @@ with entry {
     Returns "wheel", "conda" or "unspecified"
     """
 def _package_format -> object {
-    return ffi.lib.LLVMPY_PackageFormat().decode();
+    try {
+        return ffi.lib.LLVMPY_PackageFormat().decode();
+    } except OSError {
+        return "unspecified";
+    }
 }
 
 with entry {
@@ -82,7 +101,11 @@ with entry {
     case it's not easily identified whether LLVM was built with assertions.
     """
 def _llvm_assertions_state -> object {
-    return ffi.lib.LLVMPY_LlvmAssertionsState().decode();
+    try {
+        return ffi.lib.LLVMPY_LlvmAssertionsState().decode();
+    } except OSError {
+        return "unknown";
+    }
 }
 
 with entry {

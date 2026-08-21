@@ -547,22 +547,12 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
         try {
             dataclass(eq=False)(cls);
         } except TypeError {
-            # The failed wrap may already have consumed or removed field
-            # defaults from the class; the retry decides from the
-            # pre-wrap snapshot and puts clobbered attributes back.
             for _rname in _own_anns {
                 if _rname in _pre_attrs and _rname not in cls.__dict__ {
                     setattr(cls, _rname, _pre_attrs[_rname]);
                 }
             }
-            # A field mixin gives a base defaulted has-vars while a
-            # subclass still declares required ones. Python's dataclass
-            # rejects a non-default field after a default one across that
-            # inheritance; the archetype constructor is keyword-friendly,
-            # so the violating required fields become keyword-only rather
-            # than the class failing to exist. Classes the plain wrap
-            # accepts never take this path, so positional construction of
-            # existing classes is untouched.
+
             _seen_default = False;
             for _base in reversed(cls.__mro__[1:]) {
                 for _bf in getattr(_base, '__dataclass_fields__', {}).values() {
