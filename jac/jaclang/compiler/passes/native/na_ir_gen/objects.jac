@@ -70,7 +70,7 @@ obj NaIRGenObjects(NaIRGenState) {
 
     def _forward_declare_method(
         arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
-    ) -> None;
+    , imported: bool = False) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _codegen_method(
@@ -115,7 +115,7 @@ obj NaIRGenObjects(NaIRGenState) {
 
     def _demote_method_if_unlowerable(
         full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
-    ) -> bool;
+    , stub_body: bool = True) -> bool;
 
     def _seam_warnings_on -> bool;
     def _opaque_field_if_unlowerable(
