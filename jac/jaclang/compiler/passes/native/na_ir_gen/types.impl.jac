@@ -734,7 +734,7 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
             spec = "ptr";
             if isinstance(elem_llvm.pointee, ir.LiteralStructType) {
                 esize = self._get_struct_size(elem_llvm.pointee);
-                spec = f"tuple{esize}";
+                spec = self._tuple_spec_name(elem_llvm.pointee);
             }
         }
         self._emit_set_helpers(spec, elem_llvm, esize);

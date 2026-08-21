@@ -8,7 +8,7 @@ impl NaIRGenDicts._dict_key_spec(key_type: ir.Type) -> tuple {
     if isinstance(key_type, ir.PointerType) {
         if isinstance(key_type.pointee, ir.LiteralStructType) {
             _sz = self._get_struct_size(key_type.pointee);
-            return (f"tuple{_sz}", _sz);
+            return (self._tuple_spec_name(key_type.pointee), _sz);
         }
         return ("ptr", 0);
     }
