@@ -2271,19 +2271,19 @@ test "jac check disable_error_code warns on unknown diagnostics" {
     assert "E9999" in combined , "unknown warning should use canonical code casing";
 }
 
-test "jac check native-census flag maps to check arg" {
+test "jac check native-coverage flag maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
     parser = build_command_parser(get_command_meta("check"));
     (args, _) = parser.parse_known_args(
-        [fixture_path("warnings_only.jac"), "--native-census"]
+        [fixture_path("warnings_only.jac"), "--native-coverage"]
     );
-    assert getattr(args, "native_census", False) == True , (
-        "kebab flag should map to native_census dest"
+    assert getattr(args, "native_coverage", False) == True , (
+        "kebab flag should map to native_coverage dest"
     );
 }
 
-test "jac check native census ranks module outcomes" {
+test "jac check native coverage ranks module outcomes" {
     with tempfile.TemporaryDirectory() as td {
         with open(os.path.join(td, "pure.jac"), "w") as f {
             f.write("def add(a: int, b: int) -> int {\n    return a + b;\n}\n");
@@ -2305,14 +2305,14 @@ test "jac check native census ranks module outcomes" {
         (captured_stdout, captured_stderr, old_stdout, old_stderr) = _capture_output();
         _reset_config();
         try {
-            result = analysis.check([td], native_census=True);
+            result = analysis.check([td], native_coverage=True);
             combined = captured_stdout.getvalue() + captured_stderr.getvalue();
         } finally {
             _restore_output(old_stdout, old_stderr);
             set_config(None);
             _reset_config();
         }
-        assert "native census" in combined.lower() , "census header missing";
+        assert "native coverage" in combined.lower() , "coverage header missing";
         assert "native seams" in combined , (
             "a module whose callable demoted granularly must be reported "
             "under the native-seams section"
@@ -2327,7 +2327,7 @@ test "jac check native census ranks module outcomes" {
         assert "root access (persistent graph)" in combined , (
             "server reason strings must be real signal labels"
         );
-        assert result == 0 , "census seams must not flip exit code";
+        assert result == 0 , "coverage seams must not flip exit code";
     }
 }
 

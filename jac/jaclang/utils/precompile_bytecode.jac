@@ -697,10 +697,10 @@ def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
 }
 
 def _seal_demotions(
-    census: dict[str, dict[str, any]], pkg_path: (Path | None) = None
+    coverage: dict[str, dict[str, any]], pkg_path: (Path | None) = None
 ) -> list[tuple[str, str, str]] {
     found: list[tuple[str, str, str]] = [];
-    for (path, rec) in sorted(census.items()) {
+    for (path, rec) in sorted(coverage.items()) {
         where = _seal_module_label(path, pkg_path);
         for seam in (rec.get("seams") or []) {
             text = str(seam);
@@ -735,12 +735,12 @@ def seal_waiver_names(
 
 def seal_demotion_report(
     rel: str,
-    census: dict[str, dict[str, any]],
+    coverage: dict[str, dict[str, any]],
     waivers: (dict[str, tuple[str, ...]] | None) = None,
     pkg_path: (Path | None) = None
 ) -> tuple[str, list[str], list[str]] {
     (allowed, _bare) = seal_waiver_names(rel, waivers);
-    found = _seal_demotions(census, pkg_path);
+    found = _seal_demotions(coverage, pkg_path);
     names = {q for (q, _b, _why) in found};
     offending = [
         (q, why)
@@ -1796,7 +1796,7 @@ def seal_native_roots(
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo { native_layout_to_dict }
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
@@ -1921,7 +1921,7 @@ def seal_native_roots(
         }
         console.print(f"  Building {rel}: {why}.");
         prog = JacProgram();
-        na_census_begin();
+        na_coverage_begin();
         try {
             ir = prog.compile(
                 file_path=str(src),
@@ -1935,7 +1935,7 @@ def seal_native_roots(
                 )
             );
         } finally {
-            census = na_census_end();
+            coverage = na_coverage_end();
         }
         closure_deps: list[str] = [];
         if ir is not None and ir.gen.interop_manifest is not None {
@@ -1963,7 +1963,7 @@ def seal_native_roots(
             return None;
         }
         (demotion_error, waived, stale_waivers) = seal_demotion_report(
-            rel, census, waivers, pkg_path
+            rel, coverage, waivers, pkg_path
         );
         if demotion_error {
             console.error(demotion_error);
@@ -2012,7 +2012,7 @@ def seal_native_roots(
                 f"NATIVE SEAL: {rel} would link {len(shipped_stubs)} abort "
                 f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This is "
                 "read off the IR that actually ships, so it holds even when the "
-                "native census recorded nothing (a stale native IR cache serves "
+                "native coverage recorded nothing (a stale native IR cache serves "
                 "a demoted dependency without re-running codegen). The cached IR "
                 "for this closure has been purged; re-run the seal to recompile "
                 "it and get the per-method diagnostic."

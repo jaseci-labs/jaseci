@@ -27,7 +27,10 @@ def _rpc_with_retries(
     module_name: str, label: str, send: any, rpc_timeout: float
 ) -> any {
     import time;
-    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+    import from jaclang.runtimelib.serving.client {
+        ClientConnectionError,
+        ClientRequestNotSent
+    }
 
     (admitted, probe) = breaker_admit(
         module_name, rpc_timeout + _BREAKER_PROBE_GRACE_SECONDS
@@ -48,7 +51,7 @@ def _rpc_with_retries(
                 payload = send();
                 breaker_record_success(module_name, probe);
                 return payload;
-            } except (ClientConnectionError, OSError) as e {
+            } except ClientRequestNotSent as e {
                 err_ref: any = e;
                 last_err = err_ref;
                 breaker_record_failure(module_name, probe);
@@ -60,6 +63,11 @@ def _rpc_with_retries(
                     time.sleep(backoff);
                     backoff = backoff * 2.0;
                 }
+            } except (ClientConnectionError, OSError) as e {
+                sent_ref: any = e;
+                last_err = sent_ref;
+                breaker_record_failure(module_name, probe);
+                break;
             }
         }
     } finally {

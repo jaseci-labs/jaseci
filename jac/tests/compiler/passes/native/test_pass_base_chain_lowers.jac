@@ -22,7 +22,7 @@ measurement the base classes' typing was there to protect.
 
 Pinned here: the chain carries no type parameters, and the constructor
 lowers. The seams that remain on the unit are inventoried once, in
-`test_transform_diagnostics_census.jac`, which pins them two-way with
+`test_transform_diagnostics_baseline.jac`, which pins them two-way with
 the mechanism that clears each -- so a constructor that demoted again
 would fail there as an un-waived seam and fail here by name.
 
@@ -41,7 +41,7 @@ import os;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
@@ -57,11 +57,11 @@ glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes",
      _MEMO: list = [],
      _PROBE_MEMO: list = [];
 
-"""Seams the native census recorded inside transform.jac, keyed by method."""
+"""Seams the native coverage recorded inside transform.jac, keyed by method."""
 def _transform_seams -> dict[(str, str)] {
     if _jaclang_image() is not None {
         testskip(
-            "this runtime is a sealed jaclang image, so the census would "
+            "this runtime is a sealed jaclang image, so the coverage would "
             "read the image's trust boundary rather than this unit's own "
             "coupling"
         );
@@ -74,7 +74,7 @@ def _transform_seams -> dict[(str, str)] {
     }
     path = str(PASSES_DIR / "transform.jac");
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=path,
@@ -88,11 +88,11 @@ def _transform_seams -> dict[(str, str)] {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert ir is not None , "transform.jac produced no module";
-    rec = census.get(os.path.realpath(path));
-    assert rec is not None , "transform.jac never entered the native census";
+    rec = coverage.get(os.path.realpath(path));
+    assert rec is not None , "transform.jac never entered the native coverage";
     assert rec["outcome"] == "native" , (
         f"transform.jac did not stay native ({rec['outcome']}: {rec['detail']})"
     );
@@ -103,11 +103,11 @@ def _transform_seams -> dict[(str, str)] {
     }
     # The unit exports no LLVM IR and no layout of its own -- it is in no
     # closure, which is section 11.1's symptom rather than its disease --
-    # so the census record is the whole measurement. It is guarded against
+    # so the coverage record is the whole measurement. It is guarded against
     # vacuity from the other side: the seam set is pinned both ways below,
     # and an unreached compile would empty it and fail on the stale half.
     assert found , (
-        "the census recorded no seam at all for transform.jac, which on "
+        "the coverage recorded no seam at all for transform.jac, which on "
         "this unit means the compile was never reached rather than that it "
         "is clean"
     );
@@ -153,7 +153,7 @@ def _ctor_probe -> tuple {
         return _PROBE_MEMO[0];
     }
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=str(CTOR_PROBE),
@@ -167,9 +167,9 @@ def _ctor_probe -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(os.path.realpath(str(CTOR_PROBE)));
+    rec = coverage.get(os.path.realpath(str(CTOR_PROBE)));
     assert rec is not None and rec["outcome"] == "native" , (
         "the constructor probe never compiled as a native root, so nothing "
         "below is a measurement"
@@ -181,7 +181,7 @@ def _ctor_probe -> tuple {
     }
     closure = sorted(
         os.path.relpath(p, os.path.dirname(os.path.realpath(jaclang.__file__)))
-        for p in census
+        for p in coverage
     );
     result = (seams, closure, );
     _PROBE_MEMO.append(result);
