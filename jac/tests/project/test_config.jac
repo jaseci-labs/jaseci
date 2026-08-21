@@ -231,6 +231,39 @@ test "get_config_for_path uses nearest jac.toml, never merges ancestors" {
     }
 }
 
+test "get_config_for_path reuses the process config only for its own project" {
+    # Reusing too little drops the profile overlay; reusing too eagerly leaks
+    # one project's config into another.
+    config_mod._config = None;
+    config_mod._config_explicit = False;
+    config_mod._config_by_root = {};
+    with TemporaryDirectory() as tmpdir {
+        mine = Path(tmpdir) / "mine";
+        mine.mkdir();
+        (mine / "jac.toml").write_text(
+            "[project]\nname = \"mine\"\n\n[test]\nverbose = false\n\n"
+            "[environments.ci.test]\nverbose = true\n"
+        );
+        (mine / "main.jac").write_text(MAIN_JAC_CONTENT);
+        other = Path(tmpdir) / "other";
+        other.mkdir();
+        (other / "jac.toml").write_text("[project]\nname = \"other\"\n");
+        (other / "main.jac").write_text(MAIN_JAC_CONTENT);
+        cfg = get_config(start_path=mine, force_discover=True);
+        assert cfg is not None;
+        cfg.apply_profile_overlay("ci");
+        own_cfg = get_config_for_path(mine / "main.jac");
+        assert own_cfg is cfg , "the accessor re-discovered its own project from disk";
+        assert own_cfg.`test.verbose is True , "the profile overlay was dropped";
+        foreign = get_config_for_path(other / "main.jac");
+        assert foreign is not cfg , "the process config leaked into another project";
+        assert foreign.project.name == "other";
+        assert foreign.`test.verbose is False , "the overlay leaked across projects";
+    }
+    config_mod._config = None;
+    config_mod._config_by_root = {};
+}
+
 test "explicit set_config overrides file-anchored resolution" {
     config_mod._config = None;
     config_mod._config_explicit = False;

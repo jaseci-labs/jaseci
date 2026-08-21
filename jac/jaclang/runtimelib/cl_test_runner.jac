@@ -88,13 +88,11 @@ def _compile_runtime_js -> str;
 def _compile_runtime_core_js -> str;
 
 obj ClImportPlan {
-    has paths: dict[str, str] postinit,
-        staged: dict[str, str] postinit,
-        stubbed: list[str] postinit,
-        star_stubbed: list[str] postinit,
+    has paths: dict[str, str] = {},
+        staged: dict[str, str] = {},
+        stubbed: list[str] = [],
+        star_stubbed: list[str] = [],
         uses_runtime: bool = False;
-
-    def postinit -> None;
 }
 
 def _scan_all_specs(js: str) -> dict[str, dict];
@@ -106,6 +104,8 @@ def _scan_relative_specs(js: str) -> list[str];
 def _resolve_relative_source(base_dir: str, spec: str) -> (str | None);
 
 def _mock_target(spec: str) -> str;
+
+def _client_test_settings(source_path: (str | None)) -> tuple[str, dict, (str | None)];
 
 def _mock_sources_for(source_path: (str | None)) -> dict[str, str];
 
@@ -125,7 +125,7 @@ def _build_harness(
 
 def _collect_local_imports(
     module_js: str, source_dir: str, entry_path: str
-) -> tuple[dict, dict];
+) -> dict[str, str];
 
 def _exported_names(js: str) -> set;
 
@@ -148,7 +148,6 @@ def run_cl_test_file(
 def _run_harness(
     module_js: str,
     tests: list,
-    imports: dict,
     api_base_url: str,
     storage: (dict | None),
     timeout: float,

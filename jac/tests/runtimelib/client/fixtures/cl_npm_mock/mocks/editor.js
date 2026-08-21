@@ -1,9 +1,3 @@
-// Behaving mock for the `fake-editor` npm package.
-//
-// The universal Proxy stub makes imports inert; this returns real values and
-// records what it was called with, which is what a test suite actually needs
-// to assert against.
-
 const priorities = [];
 
 export const editor = {

@@ -1443,6 +1443,11 @@ impl get_config_for_path(start_path: Path) -> JacConfig | None {
         return None;
     }
     (project_root, _) = result;
+    if (_config is not None)
+        and (_config.project_root is not None)
+        and (Path(_config.project_root).resolve() == project_root.resolve()) {
+        return _config;
+    }
     key = str(project_root);
     if key not in _config_by_root {
         _config_by_root[key] = JacConfig.discover(start_path=project_root);

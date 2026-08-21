@@ -1,7 +1,4 @@
-"""Client test whose mock is found by the tests/__mocks__ convention.
-
-Dropping the file into `tests/__mocks__/` is the whole configuration.
-"""
+"""Client test whose mock is found by the tests/__mocks__ convention."""
 
 import from "fake-widgets" { widget, helper }
 

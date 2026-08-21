@@ -1,9 +1,4 @@
-"""Client tests whose npm dependencies are replaced by behaving mocks.
-
-`fake-editor` and `@fake/telemetry` are mapped to real modules by this
-project's `[test.client.mocks]`; `unmapped-pkg` is not, so it keeps the universal
-Proxy stub.  Both paths have to work in the same file.
-"""
+"""Mapped mocks and an unmapped package must both work in one file."""
 
 import from "fake-editor" { editor, recordedPriorities }
 import from "@fake/telemetry" { track, trackedCount }
@@ -25,7 +20,6 @@ test "a jac-authored mock is compiled and staged like any client module" {
 }
 
 test "an unmapped npm module still falls back to the proxy stub" {
-    # The Proxy swallows everything without throwing; that stays the default.
     whatever();
     whatever.deeply.nested.thing();
     assert 1 + 1 == 2;

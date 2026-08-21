@@ -53,13 +53,6 @@ impl _compile_runtime_core_js -> str {
     return js;
 }
 
-impl ClImportPlan.postinit -> None {
-    self.paths = {};
-    self.staged = {};
-    self.stubbed = [];
-    self.star_stubbed = [];
-}
-
 impl _scan_all_specs(js: str) -> dict[str, dict] {
     uses: dict[str, dict] = {};
 
@@ -152,24 +145,33 @@ impl _mock_target(spec: str) -> str {
     return "./" + _MOCKS_DIR + "/" + spec.strip("/") + ".js";
 }
 
-impl _mock_sources_for(source_path: (str | None)) -> dict[str, str] {
-    if not source_path {
-        return {};
-    }
-    import from jaclang.project.config { JacConfig }
+impl _client_test_settings(
+    source_path: (str | None)
+) -> tuple[str, dict, (str | None)] {
+    import from jaclang.project.config { get_config_for_path }
 
+    if not source_path {
+        return ("note", {}, None);
+    }
     start = Path(source_path).resolve().parent;
-    config = JacConfig.discover(start_path=start);
+    config = get_config_for_path(start);
     if config is None {
+        return ("note", {}, None);
+    }
+    client = config.`test.client;
+    base_dir = start if config.toml_path is None else config.toml_path.parent;
+    return (client.on_stub or "note", dict(client.mocks or {}), str(base_dir));
+}
+
+impl _mock_sources_for(source_path: (str | None)) -> dict[str, str] {
+    (_on_stub, mocks, base_str) = _client_test_settings(source_path);
+    if base_str is None {
         return {};
     }
-    base_dir = start if config.toml_path is None else config.toml_path.parent;
+    base_dir = Path(base_str);
     found: dict[str, str] = {};
 
-    search_root = base_dir;
-    for part in _MOCK_SEARCH_DIR {
-        search_root = search_root / part;
-    }
+    search_root = base_dir.joinpath(*_MOCK_SEARCH_DIR);
     if search_root.is_dir() {
         for cand in sorted(search_root.rglob("*")) {
             if (not cand.is_file()) or (cand.suffix not in (".js", ".jac")) {
@@ -180,7 +182,7 @@ impl _mock_sources_for(source_path: (str | None)) -> dict[str, str] {
         }
     }
 
-    for (spec, rel) in (config.`test.client.mocks or {}).items() {
+    for (spec, rel) in mocks.items() {
         cand = Path(rel);
         if not cand.is_absolute() {
             cand = base_dir / cand;
@@ -228,15 +230,7 @@ impl _report_stubbed(source_path: (str | None), plan: ClImportPlan) -> None {
     if not plan.stubbed {
         return;
     }
-    import from jaclang.project.config { JacConfig }
-
-    on_stub = "note";
-    if source_path {
-        config = JacConfig.discover(start_path=Path(source_path).resolve().parent);
-        if config is not None {
-            on_stub = config.`test.client.on_stub or "note";
-        }
-    }
+    (on_stub, _mocks, _base) = _client_test_settings(source_path);
     listed = ", ".join(sorted(plan.stubbed));
     label = Path(source_path).name if source_path else "cl test";
     message = (
@@ -390,7 +384,7 @@ impl _resolve_client_imports(
         for (spec, use) in _scan_import_specs(js).items() {
             already = spec in uses;
             merge(spec, use);
-            if already or (spec in plan.paths) {
+            if already {
                 continue;
             }
             if spec in mocks {
@@ -453,9 +447,8 @@ impl _build_harness(
 
 impl _collect_local_imports(
     module_js: str, source_dir: str, entry_path: str
-) -> tuple[dict, dict] {
+) -> dict[str, str] {
     staged: dict[str, str] = {};
-    merged_imports: dict[str, str] = {};
     requested: dict = {};
     pending: list[str] = [module_js];
     while pending {
@@ -506,9 +499,10 @@ impl _collect_local_imports(
                     f"expected sibling source {src_jac}"
                 );
             }
-            (dep_js, _dep_tests, dep_imports, _dep_server) = compile_cl_module(src_jac);
+            (dep_js, _dep_tests, _dep_imports, _dep_server) = compile_cl_module(
+                src_jac
+            );
             staged[name] = dep_js;
-            merged_imports.update(dep_imports);
             pending.append(dep_js);
         }
     }
@@ -530,7 +524,7 @@ impl _collect_local_imports(
             );
         }
     }
-    return (staged, merged_imports);
+    return staged;
 }
 
 impl _exported_names(js: str) -> set {
@@ -709,7 +703,6 @@ impl run_cl_test_file(
                     return _run_harness(
                         module_js,
                         tests,
-                        imports,
                         api_base_url=f"http://127.0.0.1:{port}",
                         storage=storage,
                         timeout=timeout,
@@ -725,7 +718,6 @@ impl run_cl_test_file(
     return _run_harness(
         module_js,
         tests,
-        imports,
         api_base_url=api_base_url or "",
         storage=storage,
         timeout=timeout,
@@ -736,7 +728,6 @@ impl run_cl_test_file(
 impl _run_harness(
     module_js: str,
     tests: list,
-    imports: dict,
     api_base_url: str,
     storage: (dict | None),
     timeout: float,
@@ -755,10 +746,9 @@ impl _run_harness(
     work_dir = Path(tempfile.mkdtemp(prefix="jac_cl_test_"));
     try {
         dep_files: dict[str, str] = {};
-        dep_imports: dict[str, str] = {};
         if source_path is not None {
             `entry = Path(source_path).resolve();
-            (dep_files, dep_imports) = _collect_local_imports(
+            dep_files = _collect_local_imports(
                 module_js, str(`entry.parent), str(`entry)
             );
         }
