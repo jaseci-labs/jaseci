@@ -22,8 +22,9 @@ Object-core conformance (P3) uses a separate Layer-0 replay ratchet; see **§P3*
 | P2 wave 2 | `tools/p2_corpus_wave2/manifest.json` | 4 (`_stat`, `_opcode`, `math_gcd`, `pystrnicmp`) | `test_p2_corpus_wave2_gate.py` |
 | P2 wave 3 | `tools/p2_corpus_wave3/manifest.json` | 4 (`math_count_bits`, `math_lcm_long`, `strhex_byte`, `pyctype_digit`) | `test_p2_corpus_wave3_gate.py` |
 | P2 wave 4 | `tools/p2_corpus_wave4/manifest.json` | 4 (`pystricmp`, `pyctype_space`, `pyctype_alpha`, `math_factorial_small`) | `test_p2_corpus_wave4_gate.py` |
+| P2 wave 5 | `tools/p2_corpus_wave5/manifest.json` | 4 (`pyctype_xdigit`, `pyctype_alnum`, `pyctype_lower`, `math_isqrt_small`) | `test_p2_corpus_wave5_gate.py` |
 
-Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3), or `python jac-py/tools/lift_p2_corpus_wave4.py` (wave 4).
+Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3), `python jac-py/tools/lift_p2_corpus_wave4.py` (wave 4), or `python jac-py/tools/lift_p2_corpus_wave5.py` (wave 5).
 
 ## Staged modules (P2 wave 1)
 
@@ -44,7 +45,11 @@ Ten files in `jac-py/Modules/`:
 
 - `pystricmp` (PyOS_mystricmp), `pyctype_space` (isspace), `pyctype_alpha` (isalpha), `math_factorial_small` (small n! core)
 
-Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (wave 1), `test_p2_wave2_module_oracles.jac` (wave 2), `test_p2_wave3_module_oracles.jac` (wave 3), `test_p2_wave4_module_oracles.jac` (wave 4).
+**Wave 5** (four leaf extracts in `jac-py/Modules/`):
+
+- `pyctype_xdigit` (isxdigit), `pyctype_alnum` (isalnum), `pyctype_lower` (islower), `math_isqrt_small` (unsigned isqrt)
+
+Differential oracles: `test_rotatingtree_oracle.jac`, `test_p2_module_oracles.jac` (wave 1), `test_p2_wave2_module_oracles.jac` (wave 2), `test_p2_wave3_module_oracles.jac` (wave 3), `test_p2_wave4_module_oracles.jac` (wave 4), `test_p2_wave5_module_oracles.jac` (wave 5).
 
 ## Dual pipeline - staged oracle vs lifted corpus
 
@@ -55,7 +60,7 @@ Two trees hold `.jac` for the same ten modules:
 | **Staged oracle** | `jac-py/Modules/{stem}.jac` | Runtime + differential-test truth; may include hand edits and PyObj stubs |
 | **Lifted corpus** | `jac-py/Modules/_lifted/p2_corpus_wave1/{stem}.jac` | Fresh c2jac output + T8 tier-B metrics input |
 
-Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged_manifest_wave2.json` (wave 2), `tools/p2_staged_manifest_wave3.json` (wave 3), or `tools/p2_staged_manifest_wave4.json` (wave 4) (`staging`: `lift` | `hand`):
+Policy is recorded in `tools/p2_staged_manifest.json` (wave 1), `tools/p2_staged_manifest_wave2.json` (wave 2), `tools/p2_staged_manifest_wave3.json` (wave 3), `tools/p2_staged_manifest_wave4.json` (wave 4), or `tools/p2_staged_manifest_wave5.json` (wave 5) (`staging`: `lift` | `hand`):
 
 - **`lift`** - staged file must match committed `_lifted` byte-for-byte. Drift means re-lift (`lift_p2_corpus.py`) or accidental edit.
 - **`hand`** - staged oracle intentionally differs from fresh lift (`getbuildinfo`, `_bisectmodule`, `_heapqmodule`, `mysnprintf`). Exempt from equality gate; manifest `note` documents sync after burn-down.
@@ -71,6 +76,7 @@ python jac-py/tools/sync_staged_to_lifted.py          # wave 1 hand modules
 python jac-py/tools/sync_staged_to_lifted.py --wave wave2
 python jac-py/tools/sync_staged_to_lifted.py --wave wave3
 python jac-py/tools/sync_staged_to_lifted.py --wave wave4
+python jac-py/tools/sync_staged_to_lifted.py --wave wave5
 python jac-py/tools/sync_staged_to_lifted.py --stem getbuildinfo
 python jac-py/tools/sync_staged_to_lifted.py --dry-run
 ```

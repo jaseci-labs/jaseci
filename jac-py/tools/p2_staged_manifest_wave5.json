@@ -8,6 +8,18 @@
     {
       "stem": "pyctype_xdigit",
       "staging": "lift"
+    },
+    {
+      "stem": "pyctype_alnum",
+      "staging": "lift"
+    },
+    {
+      "stem": "pyctype_lower",
+      "staging": "lift"
+    },
+    {
+      "stem": "math_isqrt_small",
+      "staging": "lift"
     }
   ]
 }
