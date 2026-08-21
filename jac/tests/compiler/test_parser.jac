@@ -108,7 +108,7 @@ test "all ast has normalize" {
     ];
     ordered_classes = sorted(
         uni_node_classes,
-        key=lambda (cls) { source_code.find(f"class {cls.__name__}"); },
+        key=lambda (cls: any) { source_code.find(f"class {cls.__name__}"); },
     );
     for cls in ordered_classes {
         if cls.__name__ not in exclude {
@@ -508,7 +508,7 @@ import from libs.raylib {
         if type(stmt).__name__ == "Import"
     ];
     assert len(imports) == 1;
-    import_stmt = imports[0];
+    import_stmt: any = imports[0];
     assert import_stmt.from_loc.dot_path_str == "libs.raylib";
     assert import_stmt.clib_decls is not None and len(import_stmt.clib_decls) == 1;
     assert len(import_stmt.items) == 0;
@@ -543,6 +543,7 @@ test "decorated test blocks" {
     mod = JacProgram().parse_str(source, "test.jac");
     t = mod.body[0];
     assert isinstance(t, uni.Test);
+    assert t.decorators is not None;
     assert len(t.decorators) == 2;
 
     # No decorator still works
@@ -773,7 +774,10 @@ test "docstring attaches to all member types inside archetype body" {
 
 with entry {
     parametrize(
-        "parser", MICRO_JAC_FILES, parser_file_test, id_fn=lambda (f) { Path(f).stem; }
+        "parser",
+        MICRO_JAC_FILES,
+        parser_file_test,
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }
 
@@ -822,7 +826,7 @@ test "parser module naming and test slugs are python-free" {
     (module2, _) = rd_parse("with entry {}", "other\\win\\mod.custom.ext");
     assert module2.name == "mod.custom";
     (module3, _) = rd_parse('test "Hello, World! 42" {}', "t.jac");
-    tnode = module3.body[0];
+    tnode: any = module3.body[0];
     assert tnode.name.value == "hello_world_42";
 }
 

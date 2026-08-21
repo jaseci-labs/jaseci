@@ -76,7 +76,7 @@ def dual_compile_file(path: str) -> tuple {
     return (ref_tree, mods[0][1], blob);
 }
 
-def assert_dump_equal(ref_tree: object, got_tree: object) {
+def assert_dump_equal(ref_tree: any, got_tree: any) {
     want = pyast.dump(ref_tree, include_attributes=True);
     got = pyast.dump(got_tree, include_attributes=True);
     if want != got {
@@ -137,14 +137,14 @@ def code_diffs(a: any, b: any, path: str, out: list) -> list {
     return out;
 }
 
-def assert_bytecode_equal(ref_tree: object, mod_path: str, bytecode: bytes) {
+def assert_bytecode_equal(ref_tree: any, mod_path: str, bytecode: bytes) {
     ref_code = pycompile(ref_tree, mod_path, "exec");
     jcir_code = marshal.loads(bytecode);
     diffs = code_diffs(ref_code, jcir_code, "module", []);
     assert diffs == [] , "\n".join(diffs);
 }
 
-def exec_both(ref_tree: object, got_tree: object, path: str, names: list) {
+def exec_both(ref_tree: any, got_tree: any, path: str, names: list) {
     ref_ns: dict = {};
     got_ns: dict = {};
     pyexec(pycompile(ref_tree, path, "exec"), ref_ns);

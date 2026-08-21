@@ -89,6 +89,13 @@ def _fatal_errors(prog: JacProgram) -> list {
     ];
 }
 
+"""Body statements of a function declaration, asserting the block exists."""
+def _fn_stmts(fn: es.FunctionDeclaration) -> list[es.Statement] {
+    blk = fn.body;
+    assert blk is not None;
+    return blk.body;
+}
+
 """Compile Jac source to an ESTree program.
 
 type_check=True mirrors the real client codegen path: the backend consumes
@@ -231,7 +238,7 @@ test "class separate impl file" {
     assert "ScientificCalculator" in class_names;
 
     # Check that methods from impl file are present
-    calculator_class = next(
+    calculator_class: any = next(
         (
             cls
             for cls in class_decls
@@ -412,8 +419,12 @@ test "react read seam lowers a reactive read to a store cell member" {
     assert isinstance(read_node, es.MemberExpression) , (
         "react read seam must return a MemberExpression"
     );
-    assert read_node.object.name == "__jacS_count";
-    assert read_node.property.name == "val";
+    read_obj = read_node.object;
+    assert isinstance(read_obj, es.Identifier);
+    assert read_obj.name == "__jacS_count";
+    read_prop = read_node.property;
+    assert isinstance(read_prop, es.Identifier);
+    assert read_prop.name == "val";
 }
 
 test "react read seam routes every value position through the cell" {
@@ -770,14 +781,14 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(greeting.params[0], es.Identifier);
     assert greeting.params[0].name == "props";
 
-    direct_pos_ret = funcs["direct_pos"].body.body[0];
+    direct_pos_ret = _fn_stmts(funcs["direct_pos"])[0];
     assert isinstance(direct_pos_ret, es.ReturnStatement);
     direct_pos_call = direct_pos_ret.argument;
     assert isinstance(direct_pos_call, es.CallExpression);
     assert len(direct_pos_call.arguments) == 1;
     assert isinstance(direct_pos_call.arguments[0], es.ObjectExpression);
 
-    direct_single_ret = funcs["direct_single_object"].body.body[0];
+    direct_single_ret = _fn_stmts(funcs["direct_single_object"])[0];
     assert isinstance(direct_single_ret, es.ReturnStatement);
     direct_single_call = direct_single_ret.argument;
     assert isinstance(direct_single_call, es.CallExpression);
@@ -788,7 +799,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(direct_single_props[0].key, es.Identifier);
     assert direct_single_props[0].key.name == "payload";
 
-    direct_spread_ret = funcs["direct_spread"].body.body[0];
+    direct_spread_ret = _fn_stmts(funcs["direct_spread"])[0];
     assert isinstance(direct_spread_ret, es.ReturnStatement);
     direct_spread_call = direct_spread_ret.argument;
     assert isinstance(direct_spread_call, es.CallExpression);
@@ -798,7 +809,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert len(spread_elems) == 1;
     assert isinstance(spread_elems[0], es.SpreadElement);
 
-    direct_mixed_ret = funcs["direct_mixed_spread"].body.body[0];
+    direct_mixed_ret = _fn_stmts(funcs["direct_mixed_spread"])[0];
     assert isinstance(direct_mixed_ret, es.ReturnStatement);
     direct_mixed_call = direct_mixed_ret.argument;
     assert isinstance(direct_mixed_call, es.CallExpression);
@@ -808,13 +819,13 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(mixed_elems[0], es.Literal);
     assert isinstance(mixed_elems[1], es.SpreadElement);
 
-    passthrough_ret = funcs["passthrough_bundle"].body.body[0];
+    passthrough_ret = _fn_stmts(funcs["passthrough_bundle"])[0];
     assert isinstance(passthrough_ret, es.ReturnStatement);
     passthrough_call = passthrough_ret.argument;
     assert isinstance(passthrough_call, es.CallExpression);
     assert isinstance(passthrough_call.arguments[0], es.Identifier);
 
-    plain_spread_ret = funcs["plain_spread"].body.body[0];
+    plain_spread_ret = _fn_stmts(funcs["plain_spread"])[0];
     assert isinstance(plain_spread_ret, es.ReturnStatement);
     plain_spread_call = plain_spread_ret.argument;
     assert isinstance(plain_spread_call, es.CallExpression);
@@ -838,26 +849,26 @@ test "implicit JSX returns lower like explicit returns" {
     assert len(badge.params) == 1;
     assert isinstance(badge.params[0], es.Identifier);
     assert badge.params[0].name == "props";
-    badge_ret = badge.body.body[-1];
+    badge_ret = _fn_stmts(badge)[-1];
     assert isinstance(badge_ret, es.ReturnStatement) , (
         "implicit JSX tail must lower to a ReturnStatement"
     );
 
     # Statements before the tail expression are kept ahead of the return.
     after_stmts = funcs["ImplicitAfterStmts"];
-    after_ret = after_stmts.body.body[-1];
+    after_ret = _fn_stmts(after_stmts)[-1];
     assert isinstance(after_ret, es.ReturnStatement);
-    assert len(after_stmts.body.body) >= 2 , (
+    assert len(_fn_stmts(after_stmts)) >= 2 , (
         "leading statements must be preserved before the implicit return"
     );
 
     # An early explicit return can mix with an implicit tail return.
     guarded = funcs["GuardedImplicit"];
-    guarded_ret = guarded.body.body[-1];
+    guarded_ret = _fn_stmts(guarded)[-1];
     assert isinstance(guarded_ret, es.ReturnStatement);
 
     # Call sites wrap args into a props object, same as explicit-return components.
-    direct_ret = funcs["direct_call_implicit"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_implicit"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -888,7 +899,7 @@ test "conditional JSX returns still trigger props-destructure lowering" {
     assert match_greeting.params[0].name == "props";
 
     # Direct call site must wrap positional args into a props object.
-    direct_ret = funcs["direct_call_conditional"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_conditional"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -913,7 +924,7 @@ test "union JsxElement return type still triggers props-destructure lowering" {
     assert isinstance(error_banner.params[0], es.Identifier);
     assert error_banner.params[0].name == "props";
 
-    direct_ret = funcs["direct_call"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -1302,14 +1313,14 @@ def _codes_of(alerts: list) -> list[str] {
 """Compile a fixture the whole way through client codegen, keeping its alerts."""
 def compile_fixture_reporting(filename: str) -> JacProgram {
     prog = JacProgram();
-    prog.compile(file_path=fixture_path(filename), type_check=True);
+    prog.compile(file_path=fixture_path(filename));
     return prog;
 }
 
 """Run the ES pass with a backend and hand back the program's alerts."""
 def codegen_alerts(filename: str, backend: object) -> list {
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path(filename), no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture_path(filename), no_cgen=True);
     run_pass(EsastGenPass, ir, prog, backend=backend);
     return list(prog.errors_had);
 }

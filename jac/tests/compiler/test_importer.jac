@@ -350,15 +350,15 @@ test "pyi loads build via PyastBuildPass and never compile" {
     past = time.time() - 2;
     os.utime(stub_file, (past, past));
     compile_calls = 0;
-    orig_compile = JacProgram.compile;
+    orig_compile: any = JacProgram.compile;
     def counting_compile(
         self: JacProgram,
         file_path: str,
         use_str: (str | None) = None,
         no_cgen: bool = False,
         symtab_ir_only: bool = False,
-        cancel_token = None,
-        options = None
+        cancel_token: any = None,
+        options: any = None
     ) -> any {
         compile_calls += 1;
         return orig_compile(
@@ -405,15 +405,15 @@ test "resolve_import_source_module never compiles pyi stubs" {
             f.write('import from "' + stub_name + '" { CacheProbe }\n');
         }
         compile_calls = 0;
-        orig_compile = JacProgram.compile;
+        orig_compile: any = JacProgram.compile;
         def counting_compile(
             self: JacProgram,
             file_path: str,
             use_str: (str | None) = None,
             no_cgen: bool = False,
             symtab_ir_only: bool = False,
-            cancel_token = None,
-            options = None
+            cancel_token: any = None,
+            options: any = None
         ) -> any {
             compile_calls += 1;
             return orig_compile(
@@ -705,6 +705,7 @@ test "get_bytecode busts in-memory hub when .impl.jac changes" {
         prog = JacProgram();
         def tag_of -> int {
             code = compiler.get_bytecode(mod, prog);
+            assert code is not None , "get_bytecode returned None";
             ns: dict = {};
             exec(code, ns);
             return ns["Thing"]().get_tag();

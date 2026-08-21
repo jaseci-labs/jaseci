@@ -1206,12 +1206,12 @@ with entry {
         "new reject",
         list(MUST_REJECT_NEW.items()),
         reject_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "new validate reject",
         list(MUST_VALIDATE_NEW.items()),
         validate_reject_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
 }

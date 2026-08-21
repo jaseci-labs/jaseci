@@ -64,7 +64,9 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
         toml_text = "";
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
             names = tar.getnames();
-            toml_text = tar.extractfile("jac.toml").read().decode("utf-8");
+            toml_member = tar.extractfile("jac.toml");
+            assert toml_member is not None;
+            toml_text = toml_member.read().decode("utf-8");
         }
         assert "app.jac" in names;
         assert "_precompiled/MANIFEST.json" in names;

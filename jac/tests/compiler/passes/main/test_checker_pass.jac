@@ -1352,7 +1352,7 @@ test "agentvisitor_connect_no_errors" {
     non_w1051 = [
         w
         for w in program.warnings_had
-        if w.code.code != "W1051"
+        if w.code is None or w.code.code != "W1051"
     ];
     assert len(non_w1051) == 0;
 }
@@ -1401,7 +1401,9 @@ test "inferred_local_type_frozen" {
         program.errors_had
     )}: "
         + "\n".join([err.pretty_print() for err in program.errors_had]);
-    assert program.errors_had[0].code.code == "E1001";
+    _first_code = program.errors_had[0].code;
+    assert _first_code is not None;
+    assert _first_code.code == "E1001";
     assert_error_pretty_found(
         """
         a = "some str";  # <-- Error
@@ -1423,7 +1425,9 @@ test "inferred_local_type_widens_literals" {
         program.errors_had
     )}: "
         + "\n".join([err.pretty_print() for err in program.errors_had]);
-    assert program.errors_had[0].code.code == "E1001";
+    _first_code = program.errors_had[0].code;
+    assert _first_code is not None;
+    assert _first_code.code == "E1001";
     msg = program.errors_had[0].pretty_print();
     assert "Cannot assign int to str" in msg , f"Expected widened-base message, got: {msg}";
     assert "Literal[" not in msg , f"Frozen type should not leak a literal: {msg}";
@@ -2455,8 +2459,12 @@ test "enum_member_impl_declaration_resolves_to_enum_member_type" {
                 member_type
             ).__name__}: {member_type}"
         );
-        assert member_type.member_info.member_name == member_name;
-        assert member_type.enum_class.shared.class_name == "Color";
+        member_info = member_type.member_info;
+        assert member_info is not None;
+        assert member_info.member_name == member_name;
+        enum_class = member_type.enum_class;
+        assert enum_class is not None;
+        assert enum_class.shared.class_name == "Color";
     }
 }
 
@@ -4951,7 +4959,7 @@ test "root_special_var_returns_root_type" {
     w1051 = [
         w
         for w in program.warnings_had
-        if w.code.code == "W1051"
+        if w.code is not None and w.code.code == "W1051"
     ];
     assert len(w1051) == 0 , f"Expected no W1051 warnings for bare `root`, got {len(
         w1051
@@ -5092,7 +5100,7 @@ test "optional_chaining_no_false_e1030" {
     w1051_warnings = [
         w
         for w in program.warnings_had
-        if w.code.code == "W1051"
+        if w.code is not None and w.code.code == "W1051"
     ];
     for w in w1051_warnings {
         # Any W1051 must be on the `b.extra` line (regular access), not ?. lines
@@ -5233,7 +5241,7 @@ test "isinstance_and_narrowing" {
     w1051 = [
         w
         for w in program.warnings_had
-        if w.code.code == "W1051"
+        if w.code is not None and w.code.code == "W1051"
     ];
     assert len(w1051) == 0 , f"Expected no W1051 warnings, got {len(w1051)}:\n"
         + "\n---\n".join(w.pretty_print() for w in w1051);
@@ -5519,7 +5527,9 @@ test "callable_null_default_rejected_outside_native" {
     assert len(program.errors_had) == 1 , "Expected exactly 1 error, got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(e.pretty_print() for e in program.errors_had);
-    assert program.errors_had[0].code.code == "E1001";
+    _first_code = program.errors_had[0].code;
+    assert _first_code is not None;
+    assert _first_code.code == "E1001";
     assert_error_pretty_found(
         """
         has fn: Callable[[int], int] = 0;  # <-- Error
