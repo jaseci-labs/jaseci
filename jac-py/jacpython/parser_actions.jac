@@ -1347,7 +1347,18 @@ def pa_join_names_with_dot(a: expr, b: expr) -> expr {
 }
 
 def pa_join_sequences(a: list[object], b: list[object]) -> list[object] {
-    return a;
+    out: list[object] = [];
+    i = 0;
+    while i < len(a) {
+        out.append(a[i]);
+        i = i + 1;
+    }
+    i = 0;
+    while i < len(b) {
+        out.append(b[i]);
+        i = i + 1;
+    }
+    return out;
 }
 
 def pa_alias_for_star(

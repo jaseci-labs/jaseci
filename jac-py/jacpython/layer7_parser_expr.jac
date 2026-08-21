@@ -185,3 +185,44 @@ test "parser_expr: multi-element tuple (0, 1) parses" {
     tu = got as Tuple;
     assert len(tu.elts) == 2;
 }
+
+def call_keyword_sig(e: expr) -> list[str] {
+    assert isinstance(e, Call);
+    c = e as Call;
+    sig: list[str] = [];
+    for k in c.keywords {
+        kw = k as keyword;
+        if kw.arg is not None {
+            sig.append(kw.arg);
+        } else {
+            sig.append("**");
+        }
+    }
+    return sig;
+}
+
+test "parser_expr: trailing **kwargs after named kwarg is kept (8473)" {
+    got = parse_eval_expr("g(a=1, **d)", "<parser-test>");
+    assert got is not None;
+    assert call_keyword_sig(got) == ["a", "**"];
+}
+
+test "parser_expr: trailing **kwargs after star and named kwarg is kept (8473)" {
+    got = parse_eval_expr("g(*a, b=1, **d)", "<parser-test>");
+    assert got is not None;
+    assert len((got as Call).args) == 1;
+    assert call_keyword_sig(got) == ["b", "**"];
+}
+
+test "parser_expr: mixed star and double-star kwargs variants" {
+    got = parse_eval_expr("g(a=1, *b, **d)", "<parser-test>");
+    assert got is not None;
+    assert len((got as Call).args) == 1;
+    assert call_keyword_sig(got) == ["a", "**"];
+    got = parse_eval_expr("g(a=1, **d,)", "<parser-test>");
+    assert got is not None;
+    assert call_keyword_sig(got) == ["a", "**"];
+    got = parse_eval_expr("g(**d, **e)", "<parser-test>");
+    assert got is not None;
+    assert call_keyword_sig(got) == ["**", "**"];
+}
