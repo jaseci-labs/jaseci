@@ -121,9 +121,12 @@ def materialized_runtime_dir(path: str = "") -> (str | None) {
 
 def bundled_floor_roots(pkg_root: str) -> list[str] {
     roots: list[str] = [os.path.join(os.path.dirname(pkg_root), "python", "floor")];
-    rt = materialized_runtime_dir();
-    if rt is not None {
-        roots.append(os.path.join(rt, "python", "floor"));
+    dev_src = os.environ.get("JAC_DEV_SOURCE", "");
+    if dev_src and os.path.realpath(dev_src) == os.path.realpath(pkg_root) {
+        rt = materialized_runtime_dir();
+        if rt is not None {
+            roots.append(os.path.join(rt, "python", "floor"));
+        }
     }
     return roots;
 }
