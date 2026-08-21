@@ -47,11 +47,11 @@ def resolved_graphmend_setting -> bool {
     if cfg is None {
         return True;
     }
-    val = _cfg_attr(_cfg_attr(cfg, 'run'), 'graphmend');
-    if val is None {
+    run_cfg = _cfg_attr(cfg, 'run');
+    if run_cfg is None {
         return True;
     }
-    return bool(val);
+    return bool(_cfg_attr(run_cfg, 'graphmend'));
 }
 
 def resolved_graphmend_disable_setting -> list[str] {

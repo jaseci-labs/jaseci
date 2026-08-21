@@ -1,5 +1,4 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params_keyed }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {

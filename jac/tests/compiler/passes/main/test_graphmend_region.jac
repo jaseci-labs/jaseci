@@ -277,7 +277,7 @@ test "a reached helper module keeps its own gm cache variant" {
 glob REACH_ENTRY_SRC = "import torch;\n"
          + "import from ..reached { reach_helper }\n\n"
          + "@torch.compile()\n"
-         + "def entry(x: any) -> any {\n"
+         + "def `entry(x: any) -> any {\n"
          + "    return torch.sin(reach_helper(x));\n"
          + "}\n",
      REACH_USED_SRC = "import torch;\n\n"
