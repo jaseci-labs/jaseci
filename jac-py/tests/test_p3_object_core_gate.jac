@@ -9,7 +9,7 @@ cannot ``import layer0_replay`` on collection (``ModuleNotFoundError``).
 
 Layer-0/1 corpus replay ratchets live in ``jac-py/jacpython/layer0_replay_p3_gate.jac``
 (``jac run`` via ``tools/p3_object_core/replay_gate.py``); this file validates manifest
-shape and P3.1c Objects/ lift gates (``boolobject`` lifted; ``sliceobject`` pending).
+shape and P3.1c Objects/ lift gates (``boolobject`` + ``sliceobject`` lifted).
 
 Runtime parity probes (FIXME M11) run via ``tools/p3_object_core/runtime_gate.py`` on a
 clean ceval slate; this file validates manifest wiring and invokes that driver.
@@ -108,7 +108,7 @@ test "P3 manifest: Layer-1 entries gated with honest skip counts (P3.1b)" {
 }
 
 
-test "P3 manifest: boolobject lifted, sliceobject not staged (P3.1c)" {
+test "P3 manifest: boolobject and sliceobject lifted (P3.1c)" {
     manifest = _load_json(MANIFEST_PATH);
     bool_spec = _wave_spec(manifest, "boolobject");
     assert (bool_spec["status"] as str) == "lift";
@@ -118,9 +118,10 @@ test "P3 manifest: boolobject lifted, sliceobject not staged (P3.1c)" {
     assert os.path.isfile(bool_lift) , bool_lift;
 
     slice_spec = _wave_spec(manifest, "sliceobject");
-    assert (slice_spec["status"] as str) == "not_staged";
+    assert (slice_spec["status"] as str) == "lift";
+    assert (slice_spec["staging"] as str) == "lift";
     slice_lift = os.path.join(REPO_ROOT, slice_spec["lift_output"] as str);
-    assert not os.path.isfile(slice_lift);
+    assert os.path.isfile(slice_lift) , slice_lift;
 }
 
 
@@ -145,6 +146,20 @@ test "P3 boolobject lift: TRAP-doc quarantined_functions (P3.1c)" {
     sidecar = _load_json(report_path);
     assert (sidecar["quarantined_functions"] as list)
         == ["bool_repr", "bool_vectorcall"];
+}
+
+
+test "P3 sliceobject lift: tier_b ratchet and empty quarantine (P3.1c)" {
+    manifest = _load_json(MANIFEST_PATH);
+    spec = _wave_spec(manifest, "sliceobject");
+    lift_path = os.path.join(REPO_ROOT, spec["lift_output"] as str);
+    report_path = os.path.join(REPO_ROOT, _report_path(spec["lift_output"] as str));
+    assert os.path.isfile(lift_path) , lift_path;
+    sidecar = _load_json(report_path);
+    baseline = spec["tier_b_baseline"] as int;
+    tier_b = sidecar["tier_b_count"] as int;
+    assert tier_b <= baseline , f"Tier-B regressed: {tier_b} > baseline {baseline}";
+    assert (sidecar["quarantined_functions"] as list) == [];
 }
 
 

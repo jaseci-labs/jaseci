@@ -7,8 +7,7 @@
   "modules": [
     {
       "stem": "pystricmp",
-      "staging": "hand",
-      "note": "NUL-terminated compare loop (lifted parity); hand-staged after c2jac empty-string hang"
+      "staging": "lift"
     },
     {
       "stem": "pyctype_space",

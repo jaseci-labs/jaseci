@@ -32,6 +32,34 @@ test "jac-py pystricmp: cc vs staged jac agree on ABC vs abc" {
 }
 
 
+test "jac-py pystricmp: cc vs staged jac agree on empty strings" {
+    _staged_oracle(
+        "pystricmp.c",
+        "#include <stdio.h>\n"
+        "int PyOS_mystricmp(const char *s1, const char *s2);\n"
+        "int main(void) {\n"
+        "    printf(\"%d\\n\", PyOS_mystricmp(\"\", \"\"));\n"
+        "    return 0;\n"
+        "}\n",
+        "with entry {\n" "    print(PyOS_mystricmp(\"\", \"\"));\n" "}\n"
+    );
+}
+
+
+test "jac-py pystricmp: cc vs staged jac agree on prefix mismatch" {
+    _staged_oracle(
+        "pystricmp.c",
+        "#include <stdio.h>\n"
+        "int PyOS_mystricmp(const char *s1, const char *s2);\n"
+        "int main(void) {\n"
+        "    printf(\"%d\\n\", PyOS_mystricmp(\"ab\", \"abc\"));\n"
+        "    return 0;\n"
+        "}\n",
+        "with entry {\n" "    print(PyOS_mystricmp(\"ab\", \"abc\"));\n" "}\n"
+    );
+}
+
+
 test "jac-py pyctype_space: cc vs staged jac agree on isspace(32)" {
     _staged_oracle(
         "pyctype_space.c",

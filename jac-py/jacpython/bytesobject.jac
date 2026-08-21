@@ -4,17 +4,7 @@
 # (lift: ``jac-py/Objects/_lifted/bytesobject_core.jac``).
 import from objects { PyObj, PyBytes, PyInt, PyStr, PyBool, is_error, py_error, }
 import from abstract_protocol { Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
-
-::py::
-def _cpython_bytes_hash(data: list) -> int:
-    # ``Py_HashBuffer`` depends on process-local ``_Py_HashSecret``; delegate to
-    # the embedding interpreter so Layer-1 replay matches host ``hash(bytes)``.
-    if len(data) == 0:
-        return 0
-    return hash(bytes(data))
-::py::
-
-
+import from pyhash { bytes_hash_data, }
 
 def _compare_ints(a: int, b: int, op: int) -> PyObj {
     if op == Py_LT {
@@ -58,9 +48,9 @@ def _bytes_compare_eq(a: list[int], b: list[int]) -> bool {
     return True;
 }
 
-# CPython ``bytes_hash`` — ``Py_HashBuffer`` (host delegate for secret parity).
+# CPython ``bytes_hash`` — ``Py_HashBuffer`` (SipHash13 via ``pyhash.jac``).
 def bytes_hash_obj(v: PyBytes) -> PyObj {
-    return PyInt(t="int", val=_cpython_bytes_hash(v.val));
+    return PyInt(t="int", val=bytes_hash_data(v.val));
 }
 
 # CPython ``bytes_richcompare`` (lexicographic; EQ/NE via ``bytes_compare_eq``).

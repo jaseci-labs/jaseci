@@ -6,8 +6,15 @@
 # differential stays separate; this path exercises ``import platform`` (etc.)
 # through register_shim_module + exec_code.
 
-import from objects { PyObj, PyStr, PyError, is_error, py_none }
+import from objects { PyObj, PyStr, PyError, PyList, PyInt, is_error, py_none, py_error, }
 import from getplatform { Py_GetPlatform }
+import from _bisectmodule {
+    _p2_bisect_right,
+    _p2_bisect_left,
+    _p2_insort,
+    _p2_insort_left,
+}
+import from _heapqmodule { _p2_heappush, _p2_heappop, _p2_heapify, }
 import from pyc_first {
     PyModule,
     register_shim_module,
@@ -16,6 +23,7 @@ import from pyc_first {
     unmarshal,
     exec_code,
     to_host,
+    from_host,
 }
 
 ::py::
@@ -28,6 +36,16 @@ def _p2_wrap_snippet(source: str) -> str:
         + source
         + "\n"
     )
+
+# ``platform.system`` / ``platform.machine`` are outside the getplatform port;
+# seed shims from host CPython so libtest sees real strings on any OS.
+import platform as _host_platform
+
+def _p2_libtest_host_system() -> str:
+    return _host_platform.system()
+
+def _p2_libtest_host_machine() -> str:
+    return _host_platform.machine()
 ::py::
 
 
@@ -41,13 +59,150 @@ obj P2LibtestPlatformFn(PyObj) {
 # Minimal stdlib ``platform`` shims for libtest snippets (not in getplatform port).
 obj P2LibtestSystemFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        return PyStr(t="str", val="Linux");
+        return PyStr(t="str", val=_p2_libtest_host_system());
     }
 }
 
 obj P2LibtestMachineFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        return PyStr(t="str", val="x86_64");
+        return PyStr(t="str", val=_p2_libtest_host_machine());
+    }
+}
+
+def _p2_sync_pylist_from_host(py_list: PyList, host_list: any) -> None {
+    new_items: list[PyObj] = [];
+    for item in host_list {
+        new_items.append(from_host(item));
+    }
+    py_list.items = new_items;
+}
+
+def _p2_optional_int_arg(args: list[PyObj], idx: int, `default: int) -> int {
+    if len(args) > idx and isinstance(args[idx], PyInt) {
+        return (args[idx] as PyInt).val;
+    }
+    return `default;
+}
+
+obj P2LibtestBisectRightFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error("TypeError", "missing arguments");
+        }
+        data = args[0] as PyList;
+        item = args[1];
+        lo = _p2_optional_int_arg(args, 2, 0);
+        hi = _p2_optional_int_arg(args, 3, -1);
+        host_data = to_host(data);
+        host_item = to_host(item);
+        if hi < 0 {
+            got = _p2_bisect_right(host_data, host_item, lo);
+        } else {
+            got = _p2_bisect_right(host_data, host_item, lo, hi);
+        }
+        return PyInt(t="int", val=got);
+    }
+}
+
+obj P2LibtestBisectLeftFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error("TypeError", "missing arguments");
+        }
+        data = args[0] as PyList;
+        item = args[1];
+        lo = _p2_optional_int_arg(args, 2, 0);
+        hi = _p2_optional_int_arg(args, 3, -1);
+        host_data = to_host(data);
+        host_item = to_host(item);
+        if hi < 0 {
+            got = _p2_bisect_left(host_data, host_item, lo);
+        } else {
+            got = _p2_bisect_left(host_data, host_item, lo, hi);
+        }
+        return PyInt(t="int", val=got);
+    }
+}
+
+obj P2LibtestInsortFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error("TypeError", "missing arguments");
+        }
+        data = args[0] as PyList;
+        item = args[1];
+        lo = _p2_optional_int_arg(args, 2, 0);
+        hi = _p2_optional_int_arg(args, 3, -1);
+        host_data = to_host(data);
+        host_item = to_host(item);
+        if hi < 0 {
+            _p2_insort(host_data, host_item, lo);
+        } else {
+            _p2_insort(host_data, host_item, lo, hi);
+        }
+        _p2_sync_pylist_from_host(data, host_data);
+        return py_none();
+    }
+}
+
+obj P2LibtestInsortLeftFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error("TypeError", "missing arguments");
+        }
+        data = args[0] as PyList;
+        item = args[1];
+        lo = _p2_optional_int_arg(args, 2, 0);
+        hi = _p2_optional_int_arg(args, 3, -1);
+        host_data = to_host(data);
+        host_item = to_host(item);
+        if hi < 0 {
+            _p2_insort_left(host_data, host_item, lo);
+        } else {
+            _p2_insort_left(host_data, host_item, lo, hi);
+        }
+        _p2_sync_pylist_from_host(data, host_data);
+        return py_none();
+    }
+}
+
+obj P2LibtestHeappushFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error("TypeError", "missing arguments");
+        }
+        heap = args[0] as PyList;
+        item = args[1];
+        host_heap = to_host(heap);
+        _p2_heappush(host_heap, to_host(item));
+        _p2_sync_pylist_from_host(heap, host_heap);
+        return py_none();
+    }
+}
+
+obj P2LibtestHeappopFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "missing arguments");
+        }
+        heap = args[0] as PyList;
+        host_heap = to_host(heap);
+        got = _p2_heappop(host_heap);
+        _p2_sync_pylist_from_host(heap, host_heap);
+        return from_host(got);
+    }
+}
+
+obj P2LibtestHeapifyFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "missing arguments");
+        }
+        heap = args[0] as PyList;
+        host_heap = to_host(heap);
+        _p2_heapify(host_heap);
+        _p2_sync_pylist_from_host(heap, host_heap);
+        return py_none();
     }
 }
 
@@ -61,6 +216,29 @@ def p2_libtest_reset {
     };
     register_shim_module(
         "platform", PyModule(t="module", name="platform", attrs=platform_attrs)
+    );
+    bisect_right_fn = P2LibtestBisectRightFn(t="function");
+    bisect_left_fn = P2LibtestBisectLeftFn(t="function");
+    insort_fn = P2LibtestInsortFn(t="function");
+    insort_left_fn = P2LibtestInsortLeftFn(t="function");
+    bisect_attrs: dict[str, PyObj] = {
+        "bisect_right": bisect_right_fn,
+        "bisect_left": bisect_left_fn,
+        "insort": insort_fn,
+        "insort_left": insort_left_fn,
+        "bisect": bisect_right_fn,
+        "insort_right": insort_fn,
+    };
+    register_shim_module(
+        "bisect", PyModule(t="module", name="bisect", attrs=bisect_attrs)
+    );
+    heapq_attrs: dict[str, PyObj] = {
+        "heappush": P2LibtestHeappushFn(t="function"),
+        "heappop": P2LibtestHeappopFn(t="function"),
+        "heapify": P2LibtestHeapifyFn(t="function"),
+    };
+    register_shim_module(
+        "heapq", PyModule(t="module", name="heapq", attrs=heapq_attrs)
     );
 }
 
@@ -113,6 +291,69 @@ test "layer_p2_libtest: platform_basic snippet prints ok on JacPython" {
         "assert platform.platform() == platform.platform()\n"
         "assert isinstance(platform.system(), str)\n"
         "assert isinstance(platform.machine(), str)\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: bisect_precomputed snippet prints ok on JacPython" {
+    snippet = (
+        "import bisect\n"
+        "cases = [\n"
+        "    (bisect.bisect_right, [], 1, 0),\n"
+        "    (bisect.bisect_right, [1, 2, 3], 2, 2),\n"
+        "    (bisect.bisect_left, [1, 1, 2, 2], 1.5, 2),\n"
+        "    (bisect.bisect_left, [1, 2, 2, 3, 3, 3, 4, 4, 4, 4], 3, 3),\n"
+        "]\n"
+        "for func, data, elem, expected in cases:\n"
+        "    got = func(data, elem)\n"
+        "    assert got == expected, (func.__name__, data, elem, got, expected)\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: bisect_insort snippet prints ok on JacPython" {
+    snippet = (
+        "import bisect\n"
+        "data = [1, 2, 3]\n"
+        "bisect.insort(data, 2)\n"
+        "assert data == [1, 2, 2, 3]\n"
+        "bisect.insort_left(data, 2)\n"
+        "assert data == [1, 2, 2, 2, 3]\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: heapq_push_pop snippet prints ok on JacPython" {
+    snippet = (
+        "import heapq\n"
+        "heap = []\n"
+        "data = [3, 1, 4, 1, 5, 9, 2, 6]\n"
+        "for x in data:\n"
+        "    heapq.heappush(heap, x)\n"
+        "out = []\n"
+        "while heap:\n"
+        "    out.append(heapq.heappop(heap))\n"
+        "assert out == sorted(data)\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: heapq_heapify snippet prints ok on JacPython" {
+    snippet = (
+        "import heapq\n"
+        "data = [3, 1, 4, 1, 5, 9, 2, 6]\n"
+        "heapq.heapify(data)\n"
+        "parent_ok = all(data[(i - 1) >> 1] <= data[i] for i in range(1, len(data)))\n"
+        "assert parent_ok\n"
+        "assert sorted(data) == [1, 1, 2, 3, 4, 5, 6, 9]\n"
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);

@@ -134,7 +134,19 @@
       "cpython_path": "Objects/sliceobject.c",
       "lift_output": "jac-py/Objects/_lifted/sliceobject.jac",
       "gate": "P3.1c",
-      "status": "not_staged"
+      "status": "lift",
+      "tier_b_baseline": 0,
+      "staging": "lift",
+      "runtime_probe": {
+        "source": "jac-py/tools/p3_object_core/probes/sliceobject.py",
+        "baseline": {
+          "passed": 3,
+          "failed": 0,
+          "errored": 0,
+          "skipped": 0
+        },
+        "jacpython_module": "sliceobject.jac"
+      }
     },
     {
       "stem": "abstract_protocol",

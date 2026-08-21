@@ -91,7 +91,8 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "    assert got >= 0;\n"
             "    print('ok');\n"
             "}\n"
-        )
+        ),
+        jacpython_capable=True
     ),
     LibtestSnippet(
         module_stem="_bisectmodule",
@@ -104,7 +105,8 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "bisect.insort_left(data, 2)\n"
             "assert data == [1, 2, 2, 2, 3]\n"
             "print('ok')\n"
-        )
+        ),
+        jacpython_capable=True
     ),
     LibtestSnippet(
         module_stem="_heapqmodule",
@@ -128,7 +130,9 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "    assert heap_siftdown(lst, 0, 3) == 0;\n"
             "    print('ok');\n"
             "}\n"
-        )
+        ),
+        jacpython_capable=True,
+        jacpython_capable=True
     ),
     LibtestSnippet(
         module_stem="_heapqmodule",
@@ -141,7 +145,8 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "assert parent_ok\n"
             "assert sorted(data) == [1, 1, 2, 3, 4, 5, 6, 9]\n"
             "print('ok')\n"
-        )
+        ),
+        jacpython_capable=True
     ),
     LibtestSnippet(
         module_stem="getplatform",

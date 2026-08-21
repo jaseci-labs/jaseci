@@ -957,11 +957,19 @@ obj PySet(PyObj) {
         frozen: bool = False;
 
     def set_contains(member: PyObj) -> bool {
-        hk = member.tp_hashkey();
-        if hk == "" {
+        found = _set_contains_elem(self, member);
+        if is_error(found) {
             return False;
         }
-        return hk in self.items;
+        if isinstance(found, PyBool) {
+            return (found as PyBool).val;
+        }
+        return True;
+    }
+
+    # Membership with element ``==`` (propagates comparison errors).
+    def set_lookup(member: PyObj) -> PyObj {
+        return _set_contains_elem(self, member);
     }
 
     def set_add(member: PyObj) -> PyObj {
@@ -1120,18 +1128,103 @@ obj PySet(PyObj) {
 
 # Shared set/set richcompare (na-clean). ``setobject.set_richcompare`` and ceval
 # ``py_compare`` both route here; keeps one implementation for subset algebra.
+def _richcompare_truth(res: PyObj) -> int {
+    if is_error(res) {
+        return -1;
+    }
+    if isinstance(res, PyBool) {
+        if (res as PyBool).val {
+            return 1;
+        }
+        return 0;
+    }
+    if res.t == "none" {
+        return 0;
+    }
+    if res.t == "int" {
+        if (res as PyInt).val != 0 {
+            return 1;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+# Tri-state ``==`` for set membership (1 true, 0 false, -1 error).
+def _obj_eq_bool(a: PyObj, b: PyObj) -> int {
+    if a is b {
+        return 1;
+    }
+    res = a.tp_richcompare(2, b);
+    if is_error(res) {
+        return -1;
+    }
+    if res is not PY_NOT_IMPLEMENTED {
+        return _richcompare_truth(res);
+    }
+    res = b.tp_richcompare(2, a);
+    if is_error(res) {
+        return -1;
+    }
+    if res is not PY_NOT_IMPLEMENTED {
+        return _richcompare_truth(res);
+    }
+    return 0;
+}
+
+def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
+    hk = key.tp_hashkey();
+    if hk == "" {
+        return PyBool(t="bool", val=False);
+    }
+    if hk in so.items {
+        stored = so.items[hk];
+        cmp = _obj_eq_bool(key, stored);
+        if cmp < 0 {
+            return py_error("TypeError", "comparison failed");
+        }
+        if cmp != 0 {
+            return PyBool(t="bool", val=True);
+        }
+    }
+    for hk2 in so.items {
+        stored = so.items[hk2];
+        if key is stored {
+            return PyBool(t="bool", val=True);
+        }
+        cmp = _obj_eq_bool(key, stored);
+        if cmp < 0 {
+            return py_error("TypeError", "comparison failed");
+        }
+        if cmp != 0 {
+            return PyBool(t="bool", val=True);
+        }
+    }
+    return PyBool(t="bool", val=False);
+}
+
 def _pyset_richcompare_na(op: int, v: PySet, w: PySet) -> PyObj {
     vlen = len(v.items);
     wlen = len(w.items);
     v_sub = True;
     for hk in v.items {
-        if not (hk in w.items) {
+        elem = v.items[hk];
+        found = _set_contains_elem(w, elem);
+        if is_error(found) {
+            return found;
+        }
+        if not (found as PyBool).val {
             v_sub = False;
         }
     }
     w_sub = True;
     for hk in w.items {
-        if not (hk in v.items) {
+        elem = w.items[hk];
+        found = _set_contains_elem(v, elem);
+        if is_error(found) {
+            return found;
+        }
+        if not (found as PyBool).val {
             w_sub = False;
         }
     }

@@ -19,7 +19,7 @@ _CORPUS = _HERE / "p2_corpus" / "manifest.json"
 _EXPECTED_COUNT = 10
 _ALLOWED_GATE_TYPES = frozenset({"oracle", "libtest", "deferred"})
 # Stems with ``jacpython_capable`` snippets in ``libtest_snippets.jac``.
-_JACPYTHON_CAPABLE_LIBTEST = frozenset({"getplatform"})
+_JACPYTHON_CAPABLE_LIBTEST = frozenset({"getplatform", "_bisectmodule", "_heapqmodule"})
 
 
 class P2ConformanceGateTests(unittest.TestCase):

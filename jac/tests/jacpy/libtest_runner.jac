@@ -53,6 +53,7 @@ def can_run_jacpython_libtest(`case: LibtestSnippet) -> bool {
         return False;
     }
     # JacPython leg imports ``jacpython/{stem}.jac`` facades (mirrors staged Modules).
+    # Staged ``Modules/{stem}.jac`` is the lift oracle; runtime uses the facade.
     return os.path.isfile(jacpython_facade_path(`case.module_stem));
 }
 

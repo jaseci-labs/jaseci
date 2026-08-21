@@ -394,6 +394,8 @@ import from typeobject {
     type_richcompare,
     type_richcompare_same,
     type_tp_name,
+    type_ready,
+    Py_TPFLAGS_READY,
 }
 import from bytesobject { bytes_hash_obj, bytes_richcompare, bytes_repr, }
 import from strobject { str_repr, }
@@ -624,7 +626,7 @@ def shim_module_get(name: str) -> PyObj {
 # descriptors, exceptions, comprehensions, and the full language surface.
 
 glob sys3_modules: dict[str, PyObj] = {},
-     layer3_force_host: list[str] = ["enum"],
+     layer3_force_host: list[str] = [],
      layer3_flag: list[bool] = [False];
 
 # Modules deliberately kept host-proxied even though pure-Python source exists,
@@ -952,7 +954,9 @@ obj PyClass(PyObj) {
         # The type OF this class (its metaclass). None means the default `type`.
         # A user metaclass (EnumType, ABCMeta) is recorded here by type.__new__ so
         # `class Sub(Base)` can re-derive it from a base and re-run the protocol.
-        metaclass: any = None;
+        metaclass: any = None,
+        # ``PyType_Ready`` lifecycle flags (P5 heap types).
+        tp_flags: int = 0;
 
     # Attribute lookup walks the MRO (self first, then bases) so an inherited
     # method/attr is visible on a subclass. Instance access binds via PyUserObj.
@@ -2472,7 +2476,7 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
         return view_contains(container as PyDictView, member);
     }
     if isinstance(container, PySet) {
-        return PyBool(t="bool", val=(container as PySet).set_contains(member));
+        return (container as PySet).set_lookup(member);
     }
     if isinstance(container, PyDict) {
         return PyBool(t="bool", val=(container as PyDict).dict_contains(member));
@@ -3957,13 +3961,18 @@ def compute_native_base(bases: list[PyObj]) -> str {
 def make_pyclass_from_map(
     class_name: str, bases: list[PyObj], namespace: dict[str, PyObj], meta: any
 ) -> PyClass {
+    flags = type_ready(0);
+    if flags < 0 {
+        flags = Py_TPFLAGS_READY;
+    }
     return PyClass(
         t="class",
         name=class_name,
         attrs=namespace,
         bases=bases,
         native_base=compute_native_base(bases),
-        metaclass=meta
+        metaclass=meta,
+        tp_flags=flags
     );
 }
 
@@ -4596,7 +4605,7 @@ obj PySetMethod(PyObj) {
             if len(args) < 1 {
                 return py_error("TypeError", "__contains__ expected 1 argument");
             }
-            return PyBool(t="bool", val=s.set_contains(args[0]));
+            return s.set_lookup(args[0]);
         }
         # --- no-arg mutating / accessor methods ---
         if n == "pop" {
@@ -4645,9 +4654,14 @@ obj PySetMethod(PyObj) {
             if n == "issuperset" {
                 return set_richcompare(Py_GE, s, os);
             }
-            # isdisjoint: no shared member.
+            # isdisjoint: no shared member (element ``==``, not hashkey only).
             for hk in s.items {
-                if hk in os.items {
+                elem = s.items[hk];
+                found = os.set_lookup(elem);
+                if is_error(found) {
+                    return found;
+                }
+                if (found as PyBool).val {
                     return PyBool(t="bool", val=False);
                 }
             }
@@ -5206,7 +5220,7 @@ def setlike_contains(container: PyObj, elem: PyObj) -> PyObj {
         return view_contains(container as PyDictView, elem);
     }
     if isinstance(container, PySet) {
-        return PyBool(t="bool", val=(container as PySet).set_contains(elem));
+        return (container as PySet).set_lookup(elem);
     }
     if isinstance(container, PyDict) {
         return dict_haskey(container as PyDict, elem);

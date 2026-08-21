@@ -56,6 +56,8 @@ def type_richcompare_same(op: int, same: bool) -> PyObj {
 }
 
 # ``PyType_Ready`` minimal stub — set READY without full MRO/slot setup.
+# Wired into ``make_pyclass_from_map`` (P5 heap types); full slot finalization
+# remains future work.
 def type_ready(flags: int) -> int {
     if (flags & Py_TPFLAGS_READY) != 0 {
         return flags;

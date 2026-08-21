@@ -1712,6 +1712,24 @@ test "pyc-first: set literal first-value-wins + native .pop()/methods (Track d/e
     );
     assert expect_int(err["h1"]) == 1;
     assert expect_int(err["h2"]) == 1;
+
+    # M9: issubset / isdisjoint use element ``==``, not hashkey bucket only.
+    # Identity-keyed user objects (no ``__hash__``) can be ``==`` without sharing
+    # a hashkey — CPython set algebra still treats them as members.
+    subset_eq = run_source(
+        "class AlwaysEq:\n"
+        "    def __eq__(self, other):\n"
+        "        return isinstance(other, AlwaysEq)\n"
+        "a, b = AlwaysEq(), AlwaysEq()\n"
+        "sub = {a}.issubset({b})\n"
+        "le = {a} <= {b}\n"
+        "dis = {a}.isdisjoint({b})\n"
+        "mem = a in {b}\n"
+    );
+    assert expect_bool(subset_eq["sub"]) == True;
+    assert expect_bool(subset_eq["le"]) == True;
+    assert expect_bool(subset_eq["dis"]) == False;
+    assert expect_bool(subset_eq["mem"]) == True;
 }
 
 test "pyc-first: dict mutation during iteration raises RuntimeError (Track b)" {

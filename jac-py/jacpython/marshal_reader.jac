@@ -9,6 +9,8 @@ import from objects {
     PyFloat,
     PyBool,
     PyNoneType,
+    PySlice,
+    PyComplex,
     PyTuple,
     PyList,
     PyDict,

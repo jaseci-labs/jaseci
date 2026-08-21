@@ -606,5 +606,28 @@ test "layer1: hash routing and compare protocol probes (P3.1e/M10)" {
     assert result.errored == 0;
 }
 
+test "layer1: user subclass construction after type_ready (P5 heap types)" {
+    src = "class TestHeapType(unittest.TestCase):\n"
+    "    def test_subclass_attrs(self):\n"
+    "        class A:\n"
+    "            x = 1\n"
+    "        class B(A):\n"
+    "            y = 2\n"
+    "        self.assertEqual(B.x, 1)\n"
+    "        self.assertEqual(B().y, 2)\n"
+    "    def test_mro_lookup(self):\n"
+    "        class Base:\n"
+    "            def f(self):\n"
+    "                return 1\n"
+    "        class Sub(Base):\n"
+    "            pass\n"
+    "        self.assertEqual(Sub().f(), 1)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 2;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
 # P3 corpus ratchet tests live in ``layer0_replay_p3_gate.jac`` so they run in
 # isolation (this file's 56 replay regression tests mutate ceval state).

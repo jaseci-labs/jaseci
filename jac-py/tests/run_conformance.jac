@@ -28,7 +28,11 @@ glob REPO_ROOT: str = os.path.dirname(JAC_ROOT),
          REPO_ROOT, "jac-py", "tools", "p2_corpus", "manifest.json"
      ),
      P2_MODULE_COUNT: int = 10,
-     JACPYTHON_CAPABLE_LIBTEST: list[str] = ["getplatform"];
+     JACPYTHON_CAPABLE_LIBTEST: list[str] = [
+         "getplatform",
+         "_bisectmodule",
+         "_heapqmodule",
+     ];
 
 
 obj P2ModuleGate {
