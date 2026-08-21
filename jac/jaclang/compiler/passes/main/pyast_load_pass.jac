@@ -2,9 +2,8 @@ import ast as py_ast;
 import math;
 import os;
 import re;
-import from collections.abc { Sequence }
 import from threading { Event }
-import from typing { TypeAlias, TypeVar, cast }
+import from typing { TypeAlias, cast }
 import from jaclang.jac0core.unitree {
     _decode_str_escapes,
     Ability,
@@ -146,6 +145,7 @@ obj PyastBuildPass(Transform) {
         is_kwesc: bool = False
     ) -> Name;
 
+    def is_canceled -> bool;
     def convert(nd: py_ast.AST) -> UniNode;
     def transform(ir_in: PythonModuleAst) -> Module;
     def extract_with_entry(

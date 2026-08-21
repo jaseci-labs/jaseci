@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.unitree { fstring_escape_interior }
 import from jaclang.jac0core.passes { UniPass }
