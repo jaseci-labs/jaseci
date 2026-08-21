@@ -200,7 +200,7 @@ test "build_env injects K8S_APP_NAME and K8S_NAMESPACE from k8s_config" {
 
     env = builder._build_env("orders", {});
 
-    pairs = {entry["name"]: entry["value"] for entry in env};
+    pairs = {`entry["name"]: `entry["value"] for `entry in env};
     assert pairs.get("JAC_SV_NAME") == "orders";
     assert pairs.get("K8S_APP_NAME") == "jac-shop";
     assert pairs.get("K8S_NAMESPACE") == "jac-shop-dev";
@@ -215,7 +215,7 @@ test "build_env keeps per-service overrides but never shadows the K8S_* vars" {
         "orders", {"env": {"STRIPE_KEY": "sk_test", "K8S_APP_NAME": "evil"}}
     );
 
-    names = [entry["name"] for entry in env];
+    names = [`entry["name"] for `entry in env];
     assert "STRIPE_KEY" in names;
 
     first_app_name = next(
@@ -236,9 +236,9 @@ test "the gateway pod never rebuilds the client at boot" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_client_entry", return_value="main.jac") {
-        entry = builder._pod_entrypoint();
+        `entry = builder._pod_entrypoint();
     }
-    args = entry["args"][0];
+    args = `entry["args"][0];
     assert "jac build" not in args;
     assert "exec jac scale gateway" in args;
 }
@@ -248,9 +248,9 @@ test "no client entry means no client build in the gateway entrypoint" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg);
     with mock.patch.object(builder, "_client_entry", return_value="") {
-        entry = builder._pod_entrypoint();
+        `entry = builder._pod_entrypoint();
     }
-    assert "jac build" not in entry["args"][0];
+    assert "jac build" not in `entry["args"][0];
 }
 
 
@@ -475,8 +475,8 @@ def _peer_env_of(svc_name: str) -> dict[str, str] {
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     specs = _peer_builder().generate_service_pod_specs(app_cfg, "img");
     return {
-        entry["name"]: entry["value"]
-        for entry in specs[svc_name]["containers"][0]["env"]
+        `entry["name"]: `entry["value"]
+        for `entry in specs[svc_name]["containers"][0]["env"]
     };
 }
 
@@ -599,11 +599,11 @@ test "url_for uses the override when one is set" {
         standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
         os.environ[peer_url_env_key("orders_app")] = standby;
 
-        entry = ServiceEntry(
+        `entry = ServiceEntry(
             name="orders_app", file="orders_app.jac", prefix="/orders"
         );
 
-        assert _peer_resolver().url_for(entry) == standby;
+        assert _peer_resolver().url_for(`entry) == standby;
     } finally {
         _peer_env_restore(saved);
     }
@@ -615,11 +615,11 @@ test "url_for derives when no override is set" {
     try {
         _peer_env_isolate();
 
-        entry = ServiceEntry(
+        `entry = ServiceEntry(
             name="orders_app", file="orders_app.jac", prefix="/orders"
         );
 
-        assert _peer_resolver().url_for(entry) == _ORDERS_DERIVED;
+        assert _peer_resolver().url_for(`entry) == _ORDERS_DERIVED;
     } finally {
         _peer_env_restore(saved);
     }
@@ -638,6 +638,20 @@ obj _FakeSecrets {
     def create_namespaced_secret(namespace: str, body: any) -> any {
         self.created.append(body["metadata"]["name"]);
         return SimpleNamespace(metadata=SimpleNamespace(resource_version=self.version));
+    }
+}
+
+
+# Rollback depth (#8089) rode the Kubernetes default of 10 because the field was
+# never set. Declaring it makes the depth something a consumer can read back and
+# reason about before offering a rollback it cannot honor.
+test "every deployment declares its revision history limit" {
+    cfg = KubernetesConfig(app_name="littlex", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    for name in ["littlex", GATEWAY_NAME] {
+        manifest = builder._build_deployment_manifest(name, {});
+        assert manifest["spec"]["revisionHistoryLimit"] == 10;
     }
 }
 
@@ -701,4 +715,16 @@ test "an app with no secrets applies none and needs no revision" {
 
     assert create_k8s_secret(api, "ns", "app-secrets", {}) == "";
     assert api.created == [];
+}
+
+
+test "a configured revision history limit reaches the deployment" {
+    cfg = KubernetesConfig(
+        app_name="littlex", namespace="ns", revision_history_limit=3
+    );
+    builder = ManifestBuilder(k8s_config=cfg);
+
+    manifest = builder._build_deployment_manifest("littlex", {});
+
+    assert manifest["spec"]["revisionHistoryLimit"] == 3;
 }

@@ -567,9 +567,9 @@ obj ManifestBuilder {
                 return [];
             }
             out: list[dict[str, any]] = [];
-            for entry in raw {
-                if isinstance(entry, dict) {
-                    out.append(dict(entry));
+            for `entry in raw {
+                if isinstance(`entry, dict) {
+                    out.append(dict(`entry));
                 }
             }
             return out;
@@ -770,8 +770,8 @@ obj ManifestBuilder {
             env.append({"name": key, "value": self._peer_dns_url(peer_name)});
         }
 
-        for entry in self.deploy_context.env_list {
-            env.append(entry);
+        for `entry in self.deploy_context.env_list {
+            env.append(`entry);
         }
 
         extra: dict[str, any] = svc_cfg.get("env", {});
@@ -914,6 +914,7 @@ obj ManifestBuilder {
             },
             "spec": {
                 "replicas": replicas,
+                "revisionHistoryLimit": self.k8s_config.revision_history_limit,
                 "strategy": {
                     "type": "RollingUpdate",
                     "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}
@@ -1168,7 +1169,7 @@ obj ManifestBuilder {
     def _build_pod_spec(svc_name: str, image: str) -> dict[str, any] {
         drain_t: int = self._drain_timeout();
         svc_cfg = self._service_config(svc_name);
-        entry = self._pod_entrypoint();
+        `entry = self._pod_entrypoint();
 
         resolved_image: str = self.k8s_config.python_image;
         env_list = self._build_env(svc_name, svc_cfg);
@@ -1176,8 +1177,8 @@ obj ManifestBuilder {
         container: dict[str, any] = {
             "name": k8s_safe_name(svc_name),
             "image": resolved_image,
-            "command": entry["command"],
-            "args": entry["args"],
+            "command": `entry["command"],
+            "args": `entry["args"],
             "env": env_list,
             "ports": [{"containerPort": self.k8s_config.container_port}],
             "readinessProbe": self._build_readiness_probe(),

@@ -679,7 +679,8 @@ impl JacCompiler.parse_str(
     source_str: str,
     file_path: str,
     target_program: JacProgram,
-    cancel_token: (Event | None) = None
+    cancel_token: (Event | None) = None,
+    prefix_kind: str = ''
 ) -> uni.Module {
     had_error = False;
     run_codespace_infer = False;
@@ -697,7 +698,6 @@ impl JacCompiler.parse_str(
         had_error = len(py_ast_ret.errors_had) > 0;
         mod = py_ast_ret.ir_out;
     } else {
-        import from jaclang.jac0core.parser { parse as rd_parse }
         import from jaclang.jac0core.ext_registry {
             is_retired_client_marker,
             is_retired_native_marker
@@ -718,7 +718,15 @@ impl JacCompiler.parse_str(
                 "'jac fix placement' to migrate the project."
             );
         }
-        (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
+        import from jaclang.jac0core.prefix_flip { parse_with_prefix }
+        _p_opts_pre = target_program._compile_options;
+        (mod, had_error) = parse_with_prefix(
+            source_str,
+            file_path,
+            target_program,
+            kind=prefix_kind,
+            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False
+        );
         codespace = '';
         import from jaclang.jac0core.codeinfo {
             is_client_by_location as _cbl,
@@ -732,7 +740,7 @@ impl JacCompiler.parse_str(
         }
         if not codespace {
             import from jaclang.jac0core.placement_pins {
-                config_module_pin as _mod_pin
+                effective_module_pin as _mod_pin
             }
             _pinned_space = _mod_pin(file_path);
             if _pinned_space in ('client', 'native') {
@@ -768,7 +776,7 @@ impl JacCompiler.parse_str(
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
             _coerce_native_module(mod);
-            na_census_record(mod.loc.mod_path, 'native');
+            na_coverage_record(mod.loc.mod_path, 'native');
         } else {
             run_codespace_infer = True;
         }
@@ -783,6 +791,8 @@ impl JacCompiler.parse_str(
     if target_program.mod.main.stub_only {
         old_hub = target_program.mod.hub;
         target_program.mod = uni.ProgramModule(main_mod=mod);
+
+        target_program.mod.hub.clear();
         target_program.mod.hub.update(old_hub);
     }
     target_program.mod.hub[hub_key] = mod;
@@ -802,9 +812,9 @@ impl JacCompiler.parse_str(
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
-                na_census_record(mod.loc.mod_path, 'native');
+                na_coverage_record(mod.loc.mod_path, 'native');
             } else {
-                na_census_record(mod.loc.mod_path, 'server', '', _na_why);
+                na_coverage_record(mod.loc.mod_path, 'server', '', _na_why);
             }
         }
     }
@@ -950,13 +960,128 @@ impl JacCompiler.stamp_boundary_facts(
     }
 
     def parse_only_module(file_path: str) -> (uni.Module | None) {
+        memo = target_program._boundary_parse_memo;
+        try {
+            key = JacProgram.hub_key(file_path);
+            stamp = os.path.getmtime(file_path);
+        } except OSError {
+            return None;
+        }
+        cached = memo.get(key);
+        if cached is not None and cached[0] == stamp {
+            return cached[1];
+        }
         try {
             src_text = read_file_with_encoding(file_path);
-            return JacCompiler().parse_str(
+            parsed = JacCompiler().parse_str(
                 source_str=src_text, file_path=file_path, target_program=JacProgram()
             );
         } except Exception {
             return None;
+        }
+        memo[key] = (stamp, parsed);
+        return parsed;
+    }
+
+    def source_mod_for(resolved_path: (str | None)) -> (uni.Module | None) {
+        if resolved_path is None {
+            return None;
+        }
+        found = target_program.find_module(resolved_path);
+        if (found is None and os.path.isfile(resolved_path)) {
+            found = parse_only_module(resolved_path);
+        }
+        return found;
+    }
+
+    def collect_abilities(nd: uni.UniNode, out: dict[(str, uni.Ability)]) {
+        if isinstance(nd, uni.Ability) and nd.sym_name {
+            out[nd.sym_name] = nd;
+        }
+        for k in nd.kid {
+            collect_abilities(k, out);
+        }
+    }
+
+    def collect_pub_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) {
+        if isinstance(nd, uni.Archetype) and nd.sym_name {
+            if nd.arch_kind == 'walker' and bool(nd.public_access) {
+                out[nd.sym_name] = nd;
+            }
+        }
+        for k in nd.kid {
+            collect_pub_walkers(k, out);
+        }
+    }
+
+    def imported_names(imp: uni.Import) -> set[str] {
+        names: set[str] = set();
+        for item in imp.items {
+            if isinstance(item, uni.ModuleItem) {
+                names.add(item.name.value);
+            }
+        }
+        return names;
+    }
+
+    def stamp_sv_decls(imp: uni.Import, facts: uni.ImportBoundaryFacts) -> None {
+        wanted = imported_names(imp);
+        if not wanted {
+            return;
+        }
+        src = source_mod_for(facts.from_loc_resolved);
+        if src is None {
+            return;
+        }
+        abilities: dict[(str, uni.Ability)] = {};
+        walkers: dict[(str, uni.Archetype)] = {};
+        try {
+            collect_abilities(src, abilities);
+        } except Exception { }
+        try {
+            collect_pub_walkers(src, walkers);
+        } except Exception { }
+        for name in wanted {
+            wk_decl = walkers.get(name);
+            if wk_decl is not None {
+                facts.sv_walkers[name] = wk_decl;
+                continue;
+            }
+            ab_decl = abilities.get(name);
+            if ab_decl is not None {
+                facts.sv_abilities[name] = ab_decl;
+            }
+        }
+    }
+
+    def stamp_na_decls(imp: uni.Import, facts: uni.ImportBoundaryFacts) -> None {
+        wanted = imported_names(imp);
+        if not wanted {
+            return;
+        }
+        src = source_mod_for(facts.from_loc_resolved);
+        if src is None {
+            return;
+        }
+        for decl in src.body {
+            if not isinstance(decl, (uni.Ability, uni.Archetype, uni.Enum)) {
+                continue;
+            }
+            name = decl.sym_name;
+            if (
+                not name
+                or name not in wanted
+                or name in facts.na_target_decls
+                or name in facts.na_unmappable_targets
+            ) {
+                continue;
+            }
+            if isinstance(decl, uni.Ability)
+                and isinstance(decl.signature, uni.FuncSignature) {
+                facts.na_target_decls[name] = decl;
+            } else {
+                facts.na_unmappable_targets.append(name);
+            }
         }
     }
 
@@ -1002,17 +1127,10 @@ impl JacCompiler.stamp_boundary_facts(
                     (facts.is_service and not facts.native_from_path)
                     or (nd.items and not facts.is_service and facts.pinned_server)
                 ) {
-                    source_mod: (uni.Module | None) = None;
-                    resolved_path = facts.from_loc_resolved;
-                    if resolved_path is not None {
-                        if (target_program.mod and target_program.mod.hub) {
-                            source_mod = target_program.mod.hub.get(resolved_path);
-                        }
-                        if (source_mod is None and os.path.isfile(resolved_path)) {
-                            source_mod = parse_only_module(resolved_path);
-                        }
-                    }
-                    facts.sv_source_mod = source_mod;
+                    stamp_sv_decls(nd, facts);
+                }
+                if (cl_na_edge and nd.items) {
+                    stamp_na_decls(nd, facts);
                 }
                 if (
                     nd.items
@@ -1095,12 +1213,16 @@ impl JacCompiler.compile(
     self._reentrant_depth = _depth_prev + 1;
     _outer_opts: (CompileOptions | None) = None;
     _outer_prog: (JacProgram | None) = None;
+    _scratch_prog: (JacProgram | None) = None;
     try {
         if options.force_target_program {
             _wrap_prog = target_program;
         } else {
             _wrap_prog = self._resolve_program(file_path, target_program);
         }
+
+        _scratch_prog = _wrap_prog;
+        _wrap_prog._compile_depth += 1;
         if _depth_prev > 0 {
             _outer_prog = _wrap_prog;
             _outer_opts = _wrap_prog._compile_options;
@@ -1163,9 +1285,10 @@ impl JacCompiler.compile(
                 if (_demote_alerts and _demote_alerts[0].code is not None)
                 else type(_crash).__name__
         );
-        na_census_record(
+        na_coverage_record(
             _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
         );
+        import from jaclang.jac0core.placement_pins { _mark_demoted_native }
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
         _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
@@ -1173,6 +1296,18 @@ impl JacCompiler.compile(
             _wrap_prog.invalidate_module(_resolved);
         } except Exception {
             ;
+        }
+        try {
+            import from jaclang.jac0core.placement_solver { invalidate_importers_es }
+            for _stale_mod in invalidate_importers_es(_wrap_prog, _resolved) {
+                _drop_demoted_native_bindings(_stale_mod, _resolved);
+            }
+        } except Exception as _reset_exc {
+            import logging as _reset_log;
+            _reset_log.getLogger(__name__).warning(
+                f"native demotion of {_resolved} could not reset its importers "
+                f"({_reset_exc}); stale client bindings may persist until a rebuild."
+            );
         }
         try {
             import from jaclang.cli.console { console as _note_console }
@@ -1193,7 +1328,25 @@ impl JacCompiler.compile(
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog._compile_options = _outer_opts;
         }
+        if _depth_prev == 0 {
+            import from jaclang.jac0core.prefix_flip { emit_prefix_summary }
+            emit_prefix_summary();
+        }
+        if _scratch_prog is not None {
+            _scratch_prog._compile_depth -= 1;
+            if _scratch_prog._compile_depth <= 0 {
+                _scratch_prog._compile_depth = 0;
+                self._release_compile_scratch(_scratch_prog);
+            }
+        }
     }
+}
+
+impl JacCompiler._release_compile_scratch(target_program: JacProgram) -> None {
+    try {
+        target_program.release_native_dep_units();
+        target_program.release_check_caches();
+    } except Exception { }
 }
 
 impl JacCompiler._compile_once(
@@ -1240,33 +1393,49 @@ impl JacCompiler._compile_once(
     }
     keep_str = use_str or read_file_with_encoding(file_path);
     had_parse_errors = len(actual_program.errors_had);
+    import from jaclang.jac0core.prefix_flip {
+        drop_executed_prefix,
+        mark_prefix_provided,
+        prefix_span_blocking,
+        prefix_span_errors,
+        take_prefix_handoff
+    }
     mod_targ = self.parse_str(
-        keep_str, file_path, actual_program, cancel_token=options.cancel_token
+        keep_str,
+        file_path,
+        actual_program,
+        cancel_token=options.cancel_token,
+        prefix_kind=('symtab-ir' if options.symtab_ir_only else 'ir-gen')
     );
-    had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    _prefix_span = take_prefix_handoff(mod_targ);
+    _prefix_ran = _prefix_span[0];
+    had_parse_errors = (
+        len(actual_program.errors_had) - prefix_span_errors(_prefix_span)
+    )
+        > had_parse_errors;
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
-    );
+    )
+        - prefix_span_blocking(actual_program, _prefix_span, cur_mod_path);
     if options.symtab_ir_only {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_symtab_ir_sched(),
-            cancel_token=options.cancel_token
-        );
+        _head_sched = get_symtab_ir_sched();
     } else {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_ir_gen_sched(
-                is_internal=(actual_program is self._internal_program),
-                gen_mtir=not options.no_cgen
-            ),
-            cancel_token=options.cancel_token
+        _head_sched = get_ir_gen_sched(
+            is_internal=(actual_program is self._internal_program),
+            gen_mtir=not options.no_cgen
         );
     }
+    if _prefix_ran {
+        mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
+    }
+    self.run_schedule(
+        mod=mod_targ,
+        target_program=actual_program,
+        passes=drop_executed_prefix(_head_sched, _prefix_ran),
+        cancel_token=options.cancel_token
+    );
 
     blocking_errs_post_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
@@ -1445,7 +1614,8 @@ impl JacCompiler._compile_once(
                     continue;
                 }
                 cb_seen.add(cb_src);
-                cb_mod = actual_program.mod.hub.get(cb_src);
+
+                cb_mod = actual_program.find_module(cb_src);
                 cb_has_facts = (
                     cb_mod is not None
                     and cb_mod.gen

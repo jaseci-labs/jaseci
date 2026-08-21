@@ -49,9 +49,9 @@ def cluster_node_archs -> list[str] {
 
 
 def node_arch -> str {
-    override = os.environ.get("JAC_NODE_ARCH", "");
-    if override {
-        return release_arch(override);
+    `override = os.environ.get("JAC_NODE_ARCH", "");
+    if `override {
+        return release_arch(`override);
     }
     archs = cluster_node_archs();
     if len(archs) == 1 {

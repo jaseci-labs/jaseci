@@ -6,7 +6,7 @@ import time;
 import threading;
 import from collections { deque }
 import from concurrent.futures { Future }
-import from typing { Callable, Optional }
+import from typing { Optional }
 
 import jaclang.jac0core.unitree as uni;
 import from jaclang { JacRuntimeInterface as Jac }
