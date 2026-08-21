@@ -5,10 +5,10 @@ import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 obj NaIRGenState(ModuleCodegenPass) {
     has _llvm_module: (ir.Module | None) = None,
         _type_map: (dict[str, ir.Type] | None) = None,
-        _complex_struct_type: (object | None) = None,
-        _range_struct_type: (object | None) = None,
-        _slice_struct_type: (object | None) = None,
-        _jacval_type: (object | None) = None,
+        _complex_struct_type: (ir.Type | None) = None,
+        _range_struct_type: (ir.Type | None) = None,
+        _slice_struct_type: (ir.Type | None) = None,
+        _jacval_type: (ir.Type | None) = None,
         _builder: (ir.IRBuilder | None) = None,
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
@@ -46,7 +46,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _loop_coll_seq: int = 0,
         _iter_owned_srcs: (list | None) = None,
         _str_count: int = 0,
-        struct_types: dict[str, object] = {},
+        struct_types: dict[str, ir.Type] = {},
         struct_field_indices: dict[str, dict] = {},
         struct_field_order: dict[str, list] = {},
         struct_field_types: dict[str, dict] = {},
@@ -243,11 +243,10 @@ obj NaIRGenState(ModuleCodegenPass) {
         _loop_rebind_memo: dict[tuple, bool] = {};
 
     has builder: ir.IRBuilder { getter; }
-
     has llvm_module: ir.Module { getter; }
     has type_map: dict[str, ir.Type] { getter; }
-    has complex_struct_type: object { getter; }
-    has range_struct_type: object { getter; }
-    has slice_struct_type: object { getter; }
-    has jacval_type: object { getter; }
+    has complex_struct_type: ir.Type { getter; }
+    has range_struct_type: ir.Type { getter; }
+    has slice_struct_type: ir.Type { getter; }
+    has jacval_type: ir.Type { getter; }
 }

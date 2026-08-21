@@ -544,7 +544,6 @@ impl NaIRGenTypes._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
 
 impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     cname = t.shared.class_name;
-
     if cname in self.type_map {
         return self.type_map[cname];
     }
@@ -595,19 +594,7 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_llvm = _e;
         }
-        if self._str_desc_ty is not None and elem_llvm == self._str_desc_ty {
-            elem_llvm = ir.IntType(8).as_pointer();
-        }
-        spec = "i64";
-        if isinstance(elem_llvm, ir.DoubleType) {
-            spec = "f64";
-        } elif isinstance(elem_llvm, ir.PointerType) {
-            spec = "ptr";
-        } elif self?.jacval_type and elem_llvm == self.jacval_type {
-            spec = "jacval";
-        }
-        self._emit_list_helpers(spec, elem_llvm);
-        return self.list_types[spec].as_pointer();
+        return self._lower_list_for_elem(elem_llvm);
     }
 
     if cname == "dict" {
@@ -828,6 +815,10 @@ impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type 
             _sname = self._get_name(type_expr);
             if _sname is not None and _sname in self.struct_types {
                 return self.struct_types[_sname].as_pointer();
+            }
+            _structural = self._lower_untyped_annotation(type_expr);
+            if _structural is not None {
+                return _structural;
             }
             return self._emit_unlowerable_type(type_expr, None);
         }
@@ -3718,4 +3709,85 @@ impl NaIRGenTypes._infer_compr_elem_struct(compr: object) -> (str | None) {
         }
     }
     return None;
+}
+
+impl NaIRGenTypes._lower_type_by_name(name: (str | None)) -> (ir.Type | None) {
+    if name is None {
+        return None;
+    }
+    if name in self.type_map {
+        return self.type_map[name];
+    }
+    if name in ("None", "NoneType") {
+        return ir.VoidType();
+    }
+    if name in ("any", "Any", "object") {
+        return self.jacval_type;
+    }
+    return None;
+}
+
+impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None) {
+    if isinstance(nd, uni.Null) {
+        return ir.VoidType();
+    }
+    if isinstance(nd, uni.AtomUnit) and nd.value is not None {
+        return self._lower_untyped_annotation(nd.value);
+    }
+    if isinstance(nd, uni.BinaryExpr)
+        and isinstance(nd.op, uni.Token)
+        and nd.op.value == "|" {
+        _live: list[uni.UniNode] = [];
+        for _side in (nd.left, nd.right) {
+            if isinstance(_side, uni.Null) {
+                continue;
+            }
+            if isinstance(_side, uni.Name) and _side.value in ("None", "NoneType") {
+                continue;
+            }
+            _live.append(_side);
+        }
+        if len(_live) == 1 {
+            return self._lower_untyped_annotation(_live[0]);
+        }
+        return None;
+    }
+    if isinstance(nd, uni.AtomTrailer) and isinstance(nd.right, uni.IndexSlice) {
+        _base = self._get_name(nd.target);
+        if _base in ("list", "Sequence") {
+            _elem_ty: ir.Type = ir.IntType(64);
+            _slices = nd.right.slices;
+            if _slices and _slices[0].start is not None {
+                _lowered_elem = self._lower_untyped_annotation(_slices[0].start);
+                if _lowered_elem is None {
+                    return None;
+                }
+                _elem_ty = _lowered_elem;
+            }
+            return self._lower_list_for_elem(_elem_ty);
+        }
+        return self._lower_untyped_annotation(nd.target);
+    }
+    _nm = self._get_name(nd);
+    if _nm is not None and _nm in self.struct_types {
+        return self.struct_types[_nm].as_pointer();
+    }
+    return self._lower_type_by_name(_nm);
+}
+
+impl NaIRGenTypes._lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type {
+    _elem = elem_llvm;
+    if self._str_desc_ty is not None and _elem == self._str_desc_ty {
+        _elem = ir.IntType(8).as_pointer();
+    }
+    spec = "i64";
+    if isinstance(_elem, ir.DoubleType) {
+        spec = "f64";
+    } elif isinstance(_elem, ir.PointerType) {
+        spec = "ptr";
+    } elif self?.jacval_type and _elem == self.jacval_type {
+        spec = "jacval";
+    }
+    self._emit_list_helpers(spec, _elem);
+    return self.list_types[spec].as_pointer();
 }
