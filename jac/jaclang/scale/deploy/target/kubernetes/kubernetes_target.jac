@@ -8,6 +8,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.injector.pvc_injector { bundle_pvc_name }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     COMPANION_DEFS,
+    create_k8s_secret,
     delete_k8s_secret,
     delete_if_exists,
     delete_namespace,
