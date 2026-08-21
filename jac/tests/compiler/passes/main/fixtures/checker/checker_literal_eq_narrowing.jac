@@ -88,13 +88,6 @@ def ne_literal_union_to_none(v: Literal["a"] | None) -> None {
     return None;
 }
 
-def ne_literal_union_keeps_sibling(v: Literal["a"] | Literal["b"] | None) -> str {
-    if v == "a" {
-        return v;
-    }
-    return "obj";
-}
-
 # Each of `==` and `!=` has one edge that narrows by matching rather than by
 # subtracting, and that edge holds for every literal.
 

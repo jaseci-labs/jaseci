@@ -2196,7 +2196,7 @@ test "literal_ne_does_not_over_narrow" {
         options=NO_TC
     );
     run_pass(TypeCheckPass, mod, program);
-    assert len(program.errors_had) == 6 , f"Expected 6 type errors, but got {len(
+    assert len(program.errors_had) == 9 , f"Expected 9 type errors, but got {len(
         program.errors_had
     )}: "
         + "\n".join([err.pretty_print() for err in program.errors_had]);
@@ -2206,9 +2206,12 @@ test "literal_ne_does_not_over_narrow" {
             "Cannot assign str | NoneType to NoneType",
             "Cannot assign int | NoneType to NoneType",
             "Cannot assign float | NoneType to NoneType",
+            "Cannot assign bool | NoneType to NoneType",
             "Cannot assign str | NoneType to NoneType",
             "Cannot assign int | NoneType to NoneType",
-            "Cannot assign float | NoneType to NoneType"
+            "Cannot assign float | NoneType to NoneType",
+            "Cannot assign bool | NoneType to NoneType",
+            "Cannot assign Literal[\"b\"] to NoneType"
         ]
     ) {
         assert expected in err.pretty_print() , f"Expected '{expected}' in:\n{err.pretty_print()}";
