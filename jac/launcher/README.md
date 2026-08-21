@@ -9,7 +9,7 @@ Python, uv, or pip** at install or runtime. Both halves are Jac:
 | Launcher stub (`launcher.jac`) | this directory | native (`jac build --as native` / `nacompile`) |
 | Fused-runtime library | `jaclang/runtimelib/fused/` | native, shipped in the payload |
 | Payload tool (fetch, stage, precompile, pack) | `jaclang/payload/` | Python tier, run on the pbs CPython |
-| Bootstrap seed (`fetch_pbs.zig`), `jacboot.py`, `pins.json` | `bootstrap/` | Zig + the build shim |
+| Bootstrap seed (`fetch_pbs.zig`), `pins.json` | `bootstrap/` | Zig + the pin file |
 | `build.zig` | `jac/` | the one-command entry; also the C/C++ cross-compiler for the LLVM shim and the vendored runtimes |
 
 Instead of statically linking CPython, the launcher **`dlopen`s the bundled
@@ -87,9 +87,9 @@ zig build -Ddev                      # editable dev binary: link the compiler fr
 `zig build` first runs the Zig seed (`bootstrap/fetch_pbs.zig`: download, verify
 and extract the pinned python-build-standalone tree -- the one step that runs
 before any Python exists). Every other step runs the in-checkout compiler on that
-interpreter through `bootstrap/jacboot.py`: `payload <subcommand>` for the Jac
-payload tool and `jac <args>` for the CLI, which is how the stub itself is built
-(`jac nacompile launcher/launcher.jac`). No prior jac binary is needed; jaclang
+interpreter through the small boot program in `build.zig` (`JACBOOT_SRC`):
+`payload <subcommand>` for the Jac payload tool and `jac <args>` for the CLI,
+which is how the stub itself is built (`jac nacompile --strict launcher/launcher.jac`). No prior jac binary is needed; jaclang
 has no third-party runtime dependencies. The pins (pbs release, LLVM slices) live
 in `bootstrap/pins.json`, read by both `build.zig` and the Jac tool.
 

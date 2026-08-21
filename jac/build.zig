@@ -12,9 +12,9 @@
 //!     vendored inputs, stages the runtime tree, packs it, and appends it to the
 //!     stub with the trailer.
 //!
-//! Both run on the pbs CPython the build fetches first -- so the only thing
-//! that must exist before any Python does is `bootstrap/fetch_pbs.zig`, the one
-//! Zig tool. Zig is otherwise the C/C++ cross-compiler: the LLVMPY_* shim
+//! Both run on the pbs CPython the build fetches first (through JACBOOT_SRC
+//! below) -- so the only thing that must exist before any Python does is
+//! `bootstrap/fetch_pbs.zig`, the one Zig tool. Zig is otherwise the C/C++ cross-compiler: the LLVMPY_* shim
 //! (`zig c++`), the static-musl harvest, and the wasm32 libc bitcode.
 //!
 //!   zig build test                 # bootstrap unit tests
@@ -55,20 +55,46 @@ fn llvmCacheDir(b: *std.Build, target: std.Build.ResolvedTarget) ?[]const u8 {
 // link path can both feed it through the same mkpayload/place plumbing.
 const Shim = struct { bin: std.Build.LazyPath, place: *std.Build.Step };
 
-/// The Jac build tooling, as a runnable: `<pbs python> -I bootstrap/jacboot.py
-/// <mode> args...`, where `mode` is `payload` (jaclang.payload.cli) or `jac`
-/// (the jac CLI itself). Every run depends on the host pbs fetch; the callee
-/// imports the compiler from this checkout, so callers that cache on inputs
-/// must also declare the jaclang tree (addTreeInputs).
+/// The Python that boots the in-checkout compiler on the pbs CPython. `zig
+/// build` fetches python-build-standalone first (bootstrap/fetch_pbs.zig, the
+/// one step that runs before any Python exists) and then drives every other
+/// build step through this program, so the build tooling is Jac
+/// (`jaclang.payload`) and needs no prior jac binary:
+///
+///     <pbs-python> -I -c JACBOOT <root> payload <subcommand> [args...]   # jaclang.payload.cli
+///     <pbs-python> -I -c JACBOOT <root> jac <jac-cli-args...>             # the jac CLI itself
+///
+/// `-I` keeps the interpreter isolated from the ambient environment; the
+/// checkout root is put on sys.path explicitly and the lazy `.jac` finder
+/// installed, which is all importing the compiler from source takes (jaclang
+/// has no third-party runtime dependencies). JAC_NO_DEV_SOURCE pins the build
+/// to this checkout: it must never be rerouted to a dev-source tree or a
+/// project venv, because this checkout IS the source being built.
+const JACBOOT_SRC =
+    "import os, sys\n" ++
+    "root, mode, argv = sys.argv[1], sys.argv[2], sys.argv[3:]\n" ++
+    "sys.path.insert(0, root)\n" ++
+    "os.environ['JAC_NO_DEV_SOURCE'] = '1'\n" ++
+    "import _jac_finder\n" ++
+    "_jac_finder.install()\n" ++
+    "if mode == 'payload':\n" ++
+    "    from jaclang.payload.cli import main\n" ++
+    "    sys.exit(int(main(argv) or 0))\n" ++
+    "sys.argv = ['jac'] + argv\n" ++
+    "from jaclang.jac0core.cli_boot import start_cli\n" ++
+    "start_cli()\n";
+
+/// The Jac build tooling, as a runnable. Every run depends on the host pbs
+/// fetch; the callee imports the compiler from this checkout, so callers that
+/// cache on inputs must also declare the jaclang tree (addTreeInputs).
 const JacTool = struct {
     b: *std.Build,
     python: []const u8,
+    root: []const u8,
     fetch: *std.Build.Step,
 
     fn run(self: JacTool, mode: []const u8, args: []const []const u8) *std.Build.Step.Run {
-        const cmd = self.b.addSystemCommand(&.{ self.python, "-I" });
-        cmd.addFileArg(self.b.path("bootstrap/jacboot.py"));
-        cmd.addArg(mode);
+        const cmd = self.b.addSystemCommand(&.{ self.python, "-I", "-c", JACBOOT_SRC, self.root, mode });
         cmd.addArgs(args);
         cmd.step.dependOn(self.fetch);
         return cmd;
@@ -116,12 +142,13 @@ pub fn build(b: *std.Build) void {
     const fetch_host = b.addRunArtifact(seed);
     fetch_host.addArgs(&.{ host_osarch, host_pbs_dir, pins_path });
     fetch_host.has_side_effects = true;
+    const root = b.pathFromRoot(".");
     const tool = JacTool{
         .b = b,
         .python = b.fmt("{s}/python/install/bin/python{s}", .{ host_pbs_dir, pins.pyMinor(b) }),
+        .root = root,
         .fetch = &fetch_host.step,
     };
-    const root = b.pathFromRoot(".");
 
     // Standalone step: materialize the gitignored typeshed stdlib stubs at the
     // pinned commit, without building a binary. Used by CI (test-binary) and
@@ -369,7 +396,6 @@ pub fn build(b: *std.Build) void {
         mk.addFileInput(.{ .cwd_relative = b.pathFromRoot("../jac.toml") });
         // The pins (pbs/bun/LLVM) and the tool itself; a bump must repack.
         mk.addFileInput(b.path(pins.PINS_PATH));
-        mk.addFileInput(b.path("bootstrap/jacboot.py"));
         break :payload out;
     };
 
