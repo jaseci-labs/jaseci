@@ -350,7 +350,15 @@ jobs:
             jac/tests/cli/test_manifest_parity.jac \
             jac/tests/cli/test_startup_isolation.jac
 
+      # The targets ARE jaclang's source, and jaclang.* belongs to the running
+      # compiler: checked sealed, a checkout module's `import from
+      # jaclang.x` resolves into the kit's bundled copy, and one class gets two
+      # identities ("Cannot assign ServingApp to parameter of type
+      # ServingApp"). Check the tree with its own compiler instead (sealed:
+      # "" clears JAC_NO_DEV_SOURCE, as the equivalence chunk does).
       - name: Run jac check (using .jacignore)
+        env:
+          JAC_NO_DEV_SOURCE: ""
         run: |
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
