@@ -107,6 +107,18 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.MATMUL_EQ: Tok.DECOR_OP
      };
 
+def _is_runtime_archetype_instance(t: TypeBase, base_name: str) -> bool {
+    if not (isinstance(t, ClassType) and t.is_instance()) {
+        return False;
+    }
+    for cls in (t.shared.mro or []) {
+        if cls.shared.class_name == base_name {
+            return True;
+        }
+    }
+    return False;
+}
+
 def _has_gradual_type_args(t: TypeBase) -> bool {
     if not isinstance(t, ClassType) {
         return False;
@@ -391,7 +403,10 @@ def get_type_of_binary_operation(
 
     if isinstance(expr.op, (ConnectOp, DisconnectOp)) {
         def is_node_type_instance(t: TypeBase) -> bool {
-            return (isinstance(t, ClassType) and t.is_node_type() and t.is_instance());
+            if isinstance(t, ClassType) and t.is_node_type() and t.is_instance() {
+                return True;
+            }
+            return _is_runtime_archetype_instance(t, "NodeArchetype");
         }
 
         def unparameterized_connect_collection(t: TypeBase) -> str | None {
@@ -548,6 +563,9 @@ def get_type_of_binary_operation(
             if isinstance(t, ClassType) and t.is_walker_type() and t.is_instance() {
                 return True;
             }
+            if _is_runtime_archetype_instance(t, "WalkerArchetype") {
+                return True;
+            }
             if isinstance(t, UnionType) {
                 return all(is_walker_instance(m) for m in t.types);
             }
@@ -567,6 +585,10 @@ def get_type_of_binary_operation(
             }
             if isinstance(t, ClassType) {
                 if t.is_node_type() or t.is_edge_type() {
+                    return True;
+                }
+                if _is_runtime_archetype_instance(t, "NodeArchetype")
+                    or _is_runtime_archetype_instance(t, "EdgeArchetype") {
                     return True;
                 }
                 if (

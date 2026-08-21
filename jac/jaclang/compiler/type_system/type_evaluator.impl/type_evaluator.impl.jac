@@ -654,6 +654,28 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
             }
 
+            if isinstance(base_type, TypeVarType) and base_type.is_self {
+                _sf_arch = expr.find_parent_of_type(Archetype);
+                if _sf_arch is None {
+                    _sf_impl = expr.find_parent_of_type(ImplDef);
+                    if _sf_impl is not None
+                        and isinstance(_sf_impl.decl_link, Ability) {
+                        _sf_arch = _sf_impl.decl_link.method_owner;
+                    }
+                }
+                if isinstance(_sf_arch, Archetype) {
+                    _sf_cls = self.get_type_of_class(_sf_arch);
+                    if isinstance(_sf_cls, ClassType) {
+                        base_type = _sf_cls
+                            if (
+                                isinstance(expr.target, Name)
+                                and expr.target.value == "Self"
+                            )
+                            else _sf_cls.clone_as_instance();
+                    }
+                }
+            }
+
             if expr.is_attr {
                 if isinstance(base_type, UnknownType) {
                     assert isinstance(expr.right, Name);
@@ -2002,6 +2024,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                     na_sym = self.na_builtins_module.names_in_scope.get(expr.value);
                     if na_sym is not None {
                         symbol = na_sym;
+                    }
+                }
+
+                if symbol is None and expr.value == "Self" {
+                    import from jaclang.compiler.type_system.type_utils {
+                        synthesize_self_type_var
+                    }
+                    if expr.find_parent_of_type(Archetype) is not None {
+                        expr.type = synthesize_self_type_var();
+                        return expr.type;
                     }
                 }
 
@@ -4409,7 +4441,11 @@ impl TypeEvaluator._loop_body_writes_target(
             keys.update(collect_assignment_target_keys(f.target));
         }
         for compr in loop_node.get_all_sub_nodes(AssignCompr) {
-            keys.update(collect_assignment_target_keys(compr.target));
+            for kw in (compr.assigns or []) {
+                if kw.key is not None {
+                    keys.update(collect_assignment_target_keys(kw.key));
+                }
+            }
         }
         written = keys;
         self._loop_written_keys_cache[cache_key] = written;

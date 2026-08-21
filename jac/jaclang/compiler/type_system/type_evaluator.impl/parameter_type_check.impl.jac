@@ -141,6 +141,23 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
             }
         }
 
+        if caller_type.is_self {
+            _self_arch = expr.find_parent_of_type(Archetype);
+            if _self_arch is None {
+                _self_impl = expr.find_parent_of_type(ImplDef);
+                if _self_impl is not None
+                    and isinstance(_self_impl.decl_link, Ability) {
+                    _self_arch = _self_impl.decl_link.method_owner;
+                }
+            }
+            if isinstance(_self_arch, Archetype) {
+                _self_cls = self.get_type_of_class(_self_arch);
+                if isinstance(_self_cls, ClassType) {
+                    return _self_cls.clone_as_instance();
+                }
+            }
+        }
+
         self.emit_diag(E1023, expr, type=caller_type.name);
         return UnknownType();
     }
@@ -1038,6 +1055,18 @@ impl TypeEvaluator._collect_type_var_bindings(
     is_constructor_call: bool = False
 ) -> dict[str, TypeBase] {
     bindings: dict[str, TypeBase] = {};
+
+    if isinstance(expr.target, AtomTrailer)
+        and isinstance(expr.target.target, Expr)
+        and expr.target.target.type is not None {
+        _recv_t = expr.target.target.type;
+        if isinstance(_recv_t, ClassType) {
+            if not _recv_t.is_instance() and _recv_t.is_instantiable() {
+                _recv_t = _recv_t.clone_as_instance();
+            }
+            bindings["Self"] = _recv_t;
+        }
+    }
 
     params = method.parameters.copy();
     if is_unbound_call {

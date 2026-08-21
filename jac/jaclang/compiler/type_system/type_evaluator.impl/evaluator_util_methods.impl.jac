@@ -1636,6 +1636,12 @@ impl TypeEvaluator.validate_typevar_variance(func: Ability) -> None {
 }
 
 impl TypeEvaluator.validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> None {
+    if type_var.is_self {
+        if expr.find_parent_of_type(Archetype) is not None
+            or expr.find_parent_of_type(ImplDef) is not None {
+            return;
+        }
+    }
     if isinstance(expr, Name) and expr.sym {
         sym_decl = expr.sym.decl;
         if sym_decl {

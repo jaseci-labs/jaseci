@@ -363,9 +363,29 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
         in_walker = False;
         parent = nd.parent;
         while parent is not None {
+            if isinstance(parent, Ability)
+                and isinstance(parent.signature, EventSignature) {
+                in_walker = True;
+                break;
+            }
             if isinstance(parent, Archetype) {
                 if parent.arch_kind == "walker" {
                     in_walker = True;
+                }
+                break;
+            }
+            if isinstance(parent, ImplDef) {
+                _dl = parent.decl_link;
+                if isinstance(_dl, Ability) {
+                    if isinstance(_dl.signature, EventSignature) {
+                        in_walker = True;
+                    } else {
+                        _owner = _dl.method_owner;
+                        if isinstance(_owner, Archetype)
+                            and _owner.arch_kind == "walker" {
+                            in_walker = True;
+                        }
+                    }
                 }
                 break;
             }
