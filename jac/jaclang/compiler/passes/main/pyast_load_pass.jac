@@ -127,6 +127,7 @@ obj PyastBuildPass(Transform) {
         is_kwesc: bool = False
     ) -> Name;
 
+    def is_canceled -> bool;
     def convert(nd: py_ast.AST) -> UniNode;
     def transform(ir_in: PythonModuleAst) -> Module;
     def extract_with_entry(

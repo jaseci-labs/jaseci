@@ -39,7 +39,7 @@ obj Scheduler {
 
     def start -> None;
     def stop -> None;
-    def wait -> None;
+    def `wait -> None;
     def has_pending -> bool;
     def _run_loop -> None;
     def _pick_up_new_tasks(heap: list) -> None;
