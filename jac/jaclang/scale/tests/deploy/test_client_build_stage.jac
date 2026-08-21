@@ -176,7 +176,7 @@ test "the client build's inputs are the bundle's membership, nothing more" {
     try {
         assert raised is None , f"the staged build must succeed: {raised}";
         with open(os.path.join(rec, "files"), encoding="utf-8") as f {
-            staged = set(f.read().splitlines());
+            staged: set[str] = set(f.read().splitlines());
         }
         assert staged == expected , (
             f"the build saw a different tree than the bundle ships:\n"
@@ -286,7 +286,7 @@ test "the same reference fails silently nowhere: unparked, it just builds" {
     try {
         assert raised is None , f"an unparked tree must build: {raised}";
         with open(os.path.join(rec, "files"), encoding="utf-8") as f {
-            staged = set(f.read().splitlines());
+            staged: set[str] = set(f.read().splitlines());
         }
         assert "docsite/util.jac" in staged , staged;
         assert ".env" not in staged , (".env never ships, .jacignore or not");
@@ -348,7 +348,7 @@ test "a VITE_ value in .env never reaches the shipped dist" {
     with open(os.path.join(project_dir, "main.jac"), "w", encoding="utf-8") as f {
         f.write(
             "def:pub app() -> JsxElement {\n"
-            "    return <div>{import.meta.env.VITE_API_KEY or \"unset\"}</div>;\n"
+            "    return <div>{`import.meta.env.VITE_API_KEY or \"unset\"}</div>;\n"
             "}\n\n"
             "with entry {}\n"
         );

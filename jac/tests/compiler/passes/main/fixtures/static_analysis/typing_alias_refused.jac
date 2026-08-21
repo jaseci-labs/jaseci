@@ -12,15 +12,18 @@ Five statements, six refusals:
   - `Set` and `FrozenSet` together in one list (two refusals from one statement)
   - `Type`, the one whose builtin twin is not a container
 
-The sibling names (`Optional`, `Callable`, `cast`) are the control: only the
-deprecated aliases are refused, the rest of typing stays importable.
+The sibling names (`Optional`, `cast`) are the control: only the deprecated
+aliases draw E1123, the rest of these stay importable. Ambient names
+(`Callable`, ...) are deliberately absent from the import lists -- their
+import is its own refusal (E1125, redundant_typing_imports.jac) -- and
+`Callable` is used ambient in the body instead.
 """
 
 import from typing { List }
 import from typing { Optional, Dict, cast }
 import from typing { Tuple as Pair }
 import from typing { Set, FrozenSet }
-import from typing { Callable, Type }
+import from typing { Type }
 
 def uses(
     a: List[int],
