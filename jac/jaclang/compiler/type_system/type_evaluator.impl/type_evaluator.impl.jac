@@ -185,6 +185,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                             and isinstance(elem_type, ClassType)
                             and elem_type.is_instantiable_class()
                             and not elem_type.is_class_instance()
+                            and not elem_type.is_any_instance()
+                            and not self.is_any_type(elem_type)
                             and self.prefetch is not None
                             and self.prefetch.type_class is not None {
                             _tc_wrap = self.prefetch.type_class.clone_as_instance();
@@ -1996,7 +1998,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
 
                 if symbol is None or symbol.parent_tab is self.builtins_module {
-                    js_sym = self.js_globals_module.names_in_scope.get(expr.value);
+                    _js_name = expr.value;
+                    if _js_name == "import" {
+                        _js_name = "__import_meta__";
+                    }
+                    js_sym = self.js_globals_module.names_in_scope.get(_js_name);
                     if js_sym is not None and expr.in_client_context() {
                         symbol = js_sym;
                     }

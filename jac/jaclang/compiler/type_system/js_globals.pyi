@@ -20,7 +20,7 @@ sessionStorage) live in dom_types.pyi; this file is disjoint from it.
 """
 
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     # HTMLElement lives in dom_types.pyi, whose names the TypeEvaluator merges
@@ -647,6 +647,29 @@ class _GlobalThis:
     def __getattr__(self, name: str) -> _HostObject: ...
 
 globalThis: _GlobalThis
+
+class _ImportMetaEnv:
+    """`import.meta.env` -- build-time environment strings (Vite-style)."""
+
+    def __getattr__(self, name: str) -> Any: ...
+
+class _ImportMetaObject:
+    """The ES module `import.meta` object."""
+
+    url: str
+    env: _ImportMetaEnv
+    def __getattr__(self, name: str) -> Any: ...
+
+class _ImportNamespace:
+    """Pseudo-object for the escaped `import` keyword in client expressions.
+
+    `import` cannot be declared as a variable name in a stub, so the
+    evaluator aliases the client name `import` to `__import_meta__`.
+    """
+
+    meta: _ImportMetaObject
+
+__import_meta__: _ImportNamespace
 
 class _Performance:
     """The `performance` object (High Resolution Time)."""
