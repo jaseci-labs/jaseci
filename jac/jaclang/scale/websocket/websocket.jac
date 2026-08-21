@@ -6,11 +6,9 @@ import from asyncio { Lock }
 import from jaclang.runtimelib.serving.streams { close_stream_like }
 import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
-import from inspect { isgenerator }
 import from jaclang.scale.websocket.backplane { BaseBackplane, MemoryBackplane }
 
-glob logger = logging.getLogger(__name__),
-     _WS_STREAM_STOP: any = object();
+glob logger = logging.getLogger(__name__);
 
 obj ConnectionContext {
     has websocket: WebSocket,
@@ -63,7 +61,5 @@ obj WebSocketConnectionManager {
 def consume_rate_token(
     ctx: ConnectionContext, capacity: float, refill_per_sec: float
 ) -> bool;
-
-def _ws_stream_next(gen: any) -> any;
 
 async def _ws_stream_result(send_result: any, result: any);

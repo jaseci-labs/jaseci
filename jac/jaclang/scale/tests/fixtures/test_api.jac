@@ -265,6 +265,22 @@ walker MinimalWebhook {
     }
 }
 
+"""Webhook walker that reports a generator: the response must stream as SSE
+instead of the envelope path choking on a generator."""
+@restspec(protocol=APIProtocol.WEBHOOK)
+walker WebhookStream {
+    has count: int = 3;
+
+    can stream with Root entry {
+        def items -> Generator {
+            for i in range(self.count) {
+                yield {"n": i, "transport": "webhook"};
+            }
+        }
+        report items();
+    }
+}
+
 # ============================================================================
 # WebSocket Walkers
 # ============================================================================

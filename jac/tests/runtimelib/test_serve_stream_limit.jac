@@ -1,22 +1,27 @@
 """Open streams are a declared resource.
 
-Every streamed response from a synchronous producer holds a dedicated worker
-thread for its whole life, so the number open at once must have a ceiling.
+Every open stream, sync or async, pins a connection and a request context for
+its whole life, and one from a synchronous producer also holds a dedicated
+worker thread, so the number open at once must have a ceiling.
 `[serve] max_concurrent_streams` is that ceiling: streams under it run side by
 side and each completes on its own; a request past it is refused before any
 bytes are streamed with a typed 503 `stream_limit`, and the slot comes back the
-moment an open stream ends.
+moment an open stream ends. A negative ceiling is a misconfiguration and falls
+back to the default with a warning rather than silently removing the limit.
 """
 
 import json;
+import logging;
 import socket;
 import threading;
 import time;
 import urllib.error;
 import urllib.request;
+import from logging.handlers { MemoryHandler }
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.project.config { get_config }
+import from jaclang.runtimelib.server { _stream_limit }
 import from jaclang.runtimelib.serving.server { ServingServer }
 import from jaclang.runtimelib.testing { JacTestClient }
 
@@ -95,7 +100,7 @@ test "concurrent streams run side by side and each completes on its own" {
                 results: dict = {};
 
                 def _run(tag: str) {
-                    results[tag] = _post_stream(server.bound_port, tag);
+                    results[tag] = _post_stream(server.bound_port, tag, 20);
                 }
                 threads = [
                     threading.Thread(target=_run, args=(tag, ))
@@ -112,7 +117,7 @@ test "concurrent streams run side by side and each completes on its own" {
                 for tag in ("a", "b", "c") {
                     (status, text) = results[tag];
                     assert status == 200 , f"stream {tag}: {status} {text}";
-                    for i in range(5) {
+                    for i in range(20) {
                         assert f'data: {{"tag": "{tag}", "n": {i}}}' in text , f"stream {tag} missing item {i}: {text}";
                     }
                     others = [
@@ -179,6 +184,35 @@ test "a stream past max_concurrent_streams is refused with 503 stream_limit" {
             } finally {
                 stop();
             }
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "a negative max_concurrent_streams falls back to the default with a warning" {
+    with TemporaryDirectory() as tmp {
+        (Path(tmp) / "jac.toml").write_text("[serve]\nmax_concurrent_streams = -1\n");
+        app_file = Path(tmp) / "tagged_stream_app.jac";
+        app_file.write_text(TAGGED_STREAM_APP);
+        client = JacTestClient.from_file(str(app_file), base_path=tmp);
+        try {
+            warm = client.post(
+                "/function/tagged_stream", json={"tag": "warm", "count": 1}
+            );
+            assert warm.status_code == 200 , f"warmup failed: {warm.text}";
+            cfg = get_config();
+            assert cfg is not None and cfg.serve.max_concurrent_streams == -1 , "jac.toml [serve] max_concurrent_streams was not loaded";
+            capture = MemoryHandler(100);
+            serve_logger = logging.getLogger("jaclang.serve");
+            serve_logger.addHandler(capture);
+            try {
+                assert _stream_limit() == 1024 , "a negative ceiling must fall back to the default, not remove the limit";
+            } finally {
+                serve_logger.removeHandler(capture);
+            }
+            messages = [r.getMessage() for r in capture.buffer];
+            assert any("max_concurrent_streams" in m and "-1" in m for m in messages) , f"no warning named the bad key: {messages}";
         } finally {
             client.close();
         }

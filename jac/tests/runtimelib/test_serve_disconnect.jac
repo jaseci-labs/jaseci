@@ -88,15 +88,41 @@ def _assert_producer_stopped(client: any) {
     assert _call_int(client, "progress") < 60 , "producer ran to exhaustion for a client that was gone";
 }
 
-def _open_slow_stream(port: int) -> any {
+glob WRITING_STREAM_APP: str = (
+         'import time;\n'
+         'import from typing { Generator }\n'
+         'node Item {\n'
+         '    has v: int = 0;\n'
+         '}\n'
+         'glob CLOSED: list = [0];\n'
+         'def:pub writing_stream -> Generator[dict, None, None] {\n'
+         '    try {\n'
+         '        for i in range(60) {\n'
+         '            root ++> Item(v=i);\n'
+         '            yield {"n": i};\n'
+         '            time.sleep(0.05);\n'
+         '        }\n'
+         '    } finally {\n'
+         '        CLOSED[0] = CLOSED[0] + 1;\n'
+         '    }\n'
+         '}\n'
+         'def:pub closed -> int {\n'
+         '    return CLOSED[0];\n'
+         '}\n'
+         'def:pub count_items -> int {\n'
+         '    return len([root-->][?:Item]);\n'
+         '}\n'
+     );
+
+def _open_slow_stream(port: int, name: str = "slow_stream") -> any {
     sock = socket.create_connection(('127.0.0.1', port), timeout=5);
     sock.settimeout(1.0);
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0));
     sock.sendall(
-        b"POST /function/slow_stream HTTP/1.1\r\n"
-        b"Host: x\r\n"
-        b"Content-Type: application/json\r\n"
-        b"Content-Length: 2\r\n\r\n{}"
+        f"POST /function/{name} HTTP/1.1\r\n".encode("ascii")
+            + b"Host: x\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: 2\r\n\r\n{}"
     );
     head = _recv_until(sock, b'"n": 0');
     assert b'"n": 0' in head , f"no first SSE chunk: {head}";
@@ -168,6 +194,43 @@ test "cancelling a streaming connection task stops the producer" {
                     f"http://127.0.0.1:{server.bound_port}/healthz", timeout=5
                 );
                 assert resp.status == 200 , "server stopped serving after cancellation";
+            } finally {
+                stop();
+            }
+        } finally {
+            client.close();
+        }
+    }
+}
+
+"""A client that walks away mid-stream ends the request, not the work already
+done: every yield is a consistent boundary, so the writes the producer made
+before the disconnect are committed, the same as a completed stream. The
+session is process-shared and cannot be aborted per request, so leaving them
+dirty would hand them to whichever unrelated request commits next."""
+test "a disconnected stream commits the writes it made before the client left" {
+    with TemporaryDirectory() as tmp {
+        app_file = Path(tmp) / "writing_stream_app.jac";
+        app_file.write_text(WRITING_STREAM_APP);
+        client = JacTestClient.from_file(str(app_file), base_path=tmp);
+        try {
+            assert _call_int(client, "count_items") == 0;
+            session = Jac.get_context().mem;
+            Jac.commit();
+            assert not session._dirty , "dirty anchors before the stream opened";
+            server = ServingServer(app=client._app, host='127.0.0.1', port=0);
+            stop = server.serve_background();
+            try {
+                sock = _open_slow_stream(server.bound_port, "writing_stream");
+                sock.close();
+                deadline = time.monotonic() + 3.0;
+                while session._dirty and time.monotonic() < deadline {
+                    time.sleep(0.05);
+                }
+                assert not session._dirty , "the disconnected stream's writes were left uncommitted";
+                assert _call_int(client, "closed") == 1 , "producer was not closed after the client was gone";
+                written = _call_int(client, "count_items");
+                assert 1 <= written < 60 , f"expected only the pre-disconnect writes, got {written}";
             } finally {
                 stop();
             }

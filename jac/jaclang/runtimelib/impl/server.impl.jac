@@ -410,6 +410,11 @@ async def _run_function_with_occ(
                     limit = _stream_limit();
                     slot = _stream_pool.acquire(limit);
                     if slot is None {
+                        logger.warning(
+                            f"stream_limit: refusing a new stream, "
+                            f"{_stream_pool.active} of {limit} concurrent "
+                            "streams are already open"
+                        );
                         await close_stream_like(result, what="refused stream");
                         return {
                             'error': (
@@ -474,10 +479,21 @@ def _stream_limit -> int {
         if cfg is not None {
             limit = int(cfg.serve.max_concurrent_streams);
         }
-    } except Exception {
-        ;
+    } except Exception as e {
+        logger.warning(
+            f"[serve] max_concurrent_streams could not be read "
+            f"({type(e).__name__}: {e}); using the default of 1024"
+        );
+        return 1024;
     }
-    return max(0, limit);
+    if limit < 0 {
+        logger.warning(
+            f"[serve] max_concurrent_streams = {limit} is negative; using the "
+            "default of 1024 (0 = unlimited)"
+        );
+        return 1024;
+    }
+    return limit;
 }
 
 impl StreamPool.postinit -> None {
@@ -567,18 +583,16 @@ async def _stream_sync_gen(
             } finally {
                 gen.close();
             }
-            if not stopped[0] {
-                ctx.mem.unit_enter();
+            ctx.mem.unit_enter();
+            try {
+                Jac.commit();
+            } finally {
                 try {
-                    Jac.commit();
-                } finally {
-                    try {
-                        ctx.mem.unit_exit();
-                    } except Exception as ue {
-                        logger.warning(
-                            f"stream unit exit failed: {type(ue).__name__}: {ue}"
-                        );
-                    }
+                    ctx.mem.unit_exit();
+                } except Exception as ue {
+                    logger.warning(
+                        f"stream unit exit failed: {type(ue).__name__}: {ue}"
+                    );
                 }
             }
             _put(('done', None));

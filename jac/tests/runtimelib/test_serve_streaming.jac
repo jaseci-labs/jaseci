@@ -41,6 +41,35 @@ glob ROOT_STREAM_APP: str = (
          '        report count_gen();\n'
          '    }\n'
          '}\n'
+         'def:pub item_jid -> str {\n'
+         '    return jid([root-->][?:Item][0]);\n'
+         '}\n'
+         'def:pub stream_by_jid(node_id: str) -> Generator[dict, None, None] {\n'
+         '    yield {"found": jobj(node_id) is not None};\n'
+         '}\n'
+         'def stream_private -> Generator[dict, None, None] {\n'
+         '    yield {"count": len([root-->][?:Item])};\n'
+         '}\n'
+     ),
+     ASYNC_STREAM_APP: str = (
+         'import asyncio;\n'
+         'import from typing { AsyncGenerator }\n'
+         'node Item {\n'
+         '    has v: int = 0;\n'
+         '}\n'
+         'def:pub seed -> int {\n'
+         '    root ++> Item(v=1);\n'
+         '    return len([root-->][?:Item]);\n'
+         '}\n'
+         'def:pub count_direct -> int {\n'
+         '    return len([root-->][?:Item]);\n'
+         '}\n'
+         'async def:pub count_async_streamed -> AsyncGenerator[dict, None] {\n'
+         '    yield {"count": len([root-->][?:Item])};\n'
+         '    await asyncio.sleep(0);\n'
+         '    root ++> Item(v=42);\n'
+         '    yield {"count": len([root-->][?:Item])};\n'
+         '}\n'
      ),
      FAILING_STREAM_APP: str = (
          'import from typing { Generator }\n'
@@ -150,6 +179,103 @@ test "function returning an iterator streams as SSE instead of crashing" {
             # Clean terminator, and crucially NOT the pre-fix crash.
             assert "event: end" in resp.text;
             assert "not JSON serializable" not in resp.text;
+        } finally {
+            client.close();
+        }
+    }
+}
+
+"""Pushing the caller's context is what puts the caller's principal in front of
+the access checks, so a streamed body must see only the caller's graph: another
+user's stream counts zero, and a foreign node looked up by jid resolves to
+nothing, for a second registered user and for the guest root alike."""
+test "a streamed body sees only the caller's graph" {
+    with TemporaryDirectory() as tmp {
+        app = Path(tmp) / "stream_root_app.jac";
+        app.write_text(ROOT_STREAM_APP);
+        client = JacTestClient.from_file(str(app), base_path=tmp);
+        try {
+            assert client.register_user("stream_owner", "pw12345").ok;
+            seeded = client.post("/function/seed", json={});
+            assert seeded.status_code == 200 , f"seed failed: {seeded.text}";
+            node_id = client.post("/function/item_jid", json={}).json()["data"][
+                "result"
+            ];
+            owner_stream = client.post("/function/count_streamed", json={});
+            assert 'data: {"count": 1}' in owner_stream.text , f"owner: {owner_stream.text}";
+            owner_ref = client.post(
+                "/function/stream_by_jid", json={"node_id": node_id}
+            );
+            assert 'data: {"found": true}' in owner_ref.text , f"owner by jid: {owner_ref.text}";
+
+            client.clear_auth();
+            assert client.register_user("stream_other", "pw12345").ok;
+            other = client.post("/function/count_streamed", json={});
+            assert other.status_code == 200 , f"other user: {other.text}";
+            assert 'data: {"count": 0}' in other.text , f"other user saw a foreign graph: {other.text}";
+            assert 'data: {"count": 1}' not in other.text , f"other user saw a foreign graph: {other.text}";
+            other_ref = client.post(
+                "/function/stream_by_jid", json={"node_id": node_id}
+            );
+            assert 'data: {"found": false}' in other_ref.text , f"other user read a foreign node by jid: {other_ref.text}";
+
+            client.clear_auth();
+            guest = client.post("/function/count_streamed", json={});
+            assert guest.status_code == 200 , f"guest: {guest.text}";
+            assert 'data: {"count": 0}' in guest.text , f"guest saw a foreign graph: {guest.text}";
+            guest_ref = client.post(
+                "/function/stream_by_jid", json={"node_id": node_id}
+            );
+            assert 'data: {"found": false}' in guest_ref.text , f"guest read a foreign node by jid: {guest_ref.text}";
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "a non-public streaming function without a token is refused before any bytes" {
+    with TemporaryDirectory() as tmp {
+        app = Path(tmp) / "stream_root_app.jac";
+        app.write_text(ROOT_STREAM_APP);
+        client = JacTestClient.from_file(str(app), base_path=tmp);
+        try {
+            refused = client.post("/function/stream_private", json={});
+            assert refused.status_code == 401 , f"expected 401, got {refused.status_code}: {refused.text}";
+            assert "data:" not in refused.text , f"bytes were streamed to an unauthenticated caller: {refused.text}";
+            assert "text/event-stream" not in refused.headers.get("Content-Type", "");
+
+            assert client.register_user("stream_member", "pw12345").ok;
+            client.post("/function/seed", json={});
+            allowed = client.post("/function/stream_private", json={});
+            assert allowed.status_code == 200 , f"authenticated stream: {allowed.text}";
+            assert 'data: {"count": 1}' in allowed.text , f"got: {allowed.text}";
+            assert "event: end" in allowed.text;
+        } finally {
+            client.close();
+        }
+    }
+}
+
+"""An `async def:pub` generator takes the async wrapper: each pull runs under
+the caller's context on the loop, and the stream's writes commit when it is
+exhausted, the same contract as the threaded sync wrapper."""
+test "async generator streams under the caller's root and commits on completion" {
+    with TemporaryDirectory() as tmp {
+        app = Path(tmp) / "async_stream_app.jac";
+        app.write_text(ASYNC_STREAM_APP);
+        client = JacTestClient.from_file(str(app), base_path=tmp);
+        try {
+            seeded = client.post("/function/seed", json={});
+            assert seeded.status_code == 200 , f"seed failed: {seeded.text}";
+            streamed = client.post("/function/count_async_streamed", json={});
+            assert streamed.status_code == 200 , f"async stream: {streamed.text}";
+            assert "text/event-stream" in streamed.headers.get("Content-Type", "");
+            assert 'data: {"count": 1}' in streamed.text , f"got: {streamed.text}";
+            assert 'data: {"count": 2}' in streamed.text , f"got: {streamed.text}";
+            assert 'data: {"count": 0}' not in streamed.text , f"got: {streamed.text}";
+            assert "event: end" in streamed.text , f"got: {streamed.text}";
+            after = client.post("/function/count_direct", json={});
+            assert after.json()["data"]["result"] == 2 , f"async stream's write was not committed: {after.text}";
         } finally {
             client.close();
         }
