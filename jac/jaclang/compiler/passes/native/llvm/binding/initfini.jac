@@ -73,7 +73,7 @@ def _version_info -> object {
     try {
         x = ffi.lib.LLVMPY_GetVersionInfo();
     } except OSError {
-        return `tuple([]);
+        return (0, 0, 0);
     }
     while x {
         v.append((x & 255));
