@@ -786,7 +786,15 @@ impl NaIRGenTypes._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type 
             return ir.IntType(8).as_pointer();
         }
     }
-    return self._resolve_jac_type(type_expr);
+    # Unstamped fall-through mirrors the stamped branch above: a `str`
+    # in a signature is the one-register i8* form, never the by-value
+    # descriptor -- the descriptor would occupy two argument slots and
+    # shift every later parameter against the defining unit's ABI.
+    _sig_out = self._resolve_jac_type(type_expr);
+    if self._str_desc_ty is not None and _sig_out == self._str_desc_ty {
+        return ir.IntType(8).as_pointer();
+    }
+    return _sig_out;
 }
 
 impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
@@ -812,10 +820,6 @@ impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type 
     }
     if isinstance(type_expr, uni.Expr) {
         if type_expr.type is None {
-            _sname = self._get_name(type_expr);
-            if _sname is not None and _sname in self.struct_types {
-                return self.struct_types[_sname].as_pointer();
-            }
             _structural = self._lower_untyped_annotation(type_expr);
             if _structural is not None {
                 return _structural;
@@ -827,6 +831,14 @@ impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type 
             return lowered;
         }
         return self._emit_unlowerable_type(type_expr, type_expr.type);
+    }
+    # No checker stamp and a declaration wrapper (imported-module walk):
+    # the annotation under type_tag decides the ABI, so it must lower for
+    # real or fail loudly -- a silent i64 here diverges from the defining
+    # unit's stamped signature and corrupts the call.
+    if isinstance(type_expr, (uni.HasVar, uni.ParamVar))
+        and type_expr.type_tag is not None {
+        return self._resolve_jac_type(type_expr.type_tag.tag);
     }
     return ir.IntType(64);
 }
@@ -926,6 +938,50 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
         if not self._type_base_is_unknown(_ptb) {
             return self._emit_unlowerable_type(var, _ptb);
         }
+    }
+    # No checker stamp (imported-module walk): the annotation expr under
+    # type_tag still names the layout, so lower it structurally; keep the
+    # i64 erasure only when the shape has no mirror.
+    _hv_tag = (
+        var.type_tag.tag
+        if isinstance(var, (uni.HasVar, uni.ParamVar)) and var.type_tag is not None
+        else None
+    );
+    if _hv_tag is not None and _hv_tag?.type is None {
+        _structural = self._lower_untyped_annotation(_hv_tag);
+        if _structural is not None {
+            if self._str_desc_ty is not None and _structural == self._str_desc_ty {
+                _structural = ir.IntType(8).as_pointer();
+            }
+            return _structural;
+        }
+        # A field shape with no mirror must stay QUIET: a loud unlowerable
+        # here demotes the accessor in every importing unit. An `X | None`
+        # shape erases to i8* (the stamped foreign-optional repr); anything
+        # else keeps the pointer-sized i64 erasure.
+        _hv_opt = False;
+        _hv_scan: list[uni.UniNode] = [_hv_tag];
+        while _hv_scan {
+            _hv_cur = _hv_scan.pop();
+            if isinstance(_hv_cur, uni.AtomUnit) and _hv_cur.value is not None {
+                _hv_cur = _hv_cur.value;
+            }
+            if isinstance(_hv_cur, uni.BinaryExpr)
+                and isinstance(_hv_cur.op, uni.Token)
+                and _hv_cur.op.value == "|" {
+                _hv_scan.append(_hv_cur.left);
+                _hv_scan.append(_hv_cur.right);
+            } elif isinstance(_hv_cur, uni.Null) or (
+                isinstance(_hv_cur, uni.Name)
+                and _hv_cur.value in ("None", "NoneType")
+            ) {
+                _hv_opt = True;
+            }
+        }
+        if _hv_opt {
+            return ir.IntType(8).as_pointer();
+        }
+        return ir.IntType(64);
     }
     return self._resolve_jac_type(var);
 }
@@ -3747,20 +3803,63 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
     if isinstance(nd, uni.BinaryExpr)
         and isinstance(nd.op, uni.Token)
         and nd.op.value == "|" {
+        # Mirror the stamped UnionType lowering: strip None members, lower
+        # each leaf, unify the representations (same repr or all-pointer
+        # keeps the first; mixed reprs box as jacval), and wrap a single
+        # member that had a None sibling as an optional.
+        _leaves: list[uni.UniNode] = [];
+        _stack: list[uni.UniNode] = [nd];
+        while _stack {
+            _cur = _stack.pop();
+            if isinstance(_cur, uni.AtomUnit) and _cur.value is not None {
+                _cur = _cur.value;
+            }
+            if isinstance(_cur, uni.BinaryExpr)
+                and isinstance(_cur.op, uni.Token)
+                and _cur.op.value == "|" {
+                _stack.append(_cur.left);
+                _stack.append(_cur.right);
+            } else {
+                _leaves.append(_cur);
+            }
+        }
         _live: list[uni.UniNode] = [];
-        for _side in (nd.left, nd.right) {
+        _had_none = False;
+        for _side in _leaves {
             if isinstance(_side, uni.Null) {
+                _had_none = True;
                 continue;
             }
             if isinstance(_side, uni.Name) and _side.value in ("None", "NoneType") {
+                _had_none = True;
                 continue;
             }
             _live.append(_side);
         }
-        if len(_live) == 1 {
-            return self._lower_untyped_annotation(_live[0]);
+        if not _live {
+            return None;
         }
-        return None;
+        _lreprs: list = [];
+        for _lv in _live {
+            _lr = self._lower_untyped_annotation(_lv);
+            if _lr is None {
+                return None;
+            }
+            if self._str_desc_ty is not None and _lr == self._str_desc_ty {
+                _lr = ir.IntType(8).as_pointer();
+            }
+            _lreprs.append(_lr);
+        }
+        _ulow = self._unify_repr_lowering(_lreprs);
+        if _ulow is None {
+            return None;
+        }
+        if _had_none
+            and len(_live) == 1
+            and not isinstance(_ulow, ir.VoidType) {
+            return self._jac_optional_type(_ulow);
+        }
+        return _ulow;
     }
     if isinstance(nd, uni.AtomTrailer) and isinstance(nd.right, uni.IndexSlice) {
         _base = self._get_name(nd.target);
@@ -3776,7 +3875,68 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
             }
             return self._lower_list_for_elem(_elem_ty);
         }
-        if _base == "set" {
+        if _base == "tuple" {
+            _tslices = nd.right.slices;
+            if _tslices and _tslices[0].start is not None {
+                _tvals = _tslices[0].start;
+                if isinstance(_tvals, uni.AtomUnit) and _tvals.value is not None {
+                    _tvals = _tvals.value;
+                }
+                _telems = (
+                    list(_tvals.values)
+                    if isinstance(_tvals, uni.TupleVal)
+                    else [_tvals]
+                );
+                _tlow: list = [];
+                _tok = True;
+                for _tv in _telems {
+                    _lt = self._lower_untyped_annotation(_tv);
+                    if _lt is None {
+                        _tok = False;
+                        break;
+                    }
+                    _tlow.append(_lt);
+                }
+                if _tok and _tlow {
+                    return self._tuple_struct_of(_tlow).as_pointer();
+                }
+            }
+            return None;
+        }
+        if _base == "dict" {
+            _dslices = nd.right.slices;
+            if _dslices and _dslices[0].start is not None {
+                _dkv = _dslices[0].start;
+                if isinstance(_dkv, uni.AtomUnit) and _dkv.value is not None {
+                    _dkv = _dkv.value;
+                }
+                if isinstance(_dkv, uni.TupleVal) and len(_dkv.values) == 2 {
+                    _dk = self._lower_untyped_annotation(_dkv.values[0]);
+                    _dv = self._lower_untyped_annotation(_dkv.values[1]);
+                    if _dk is not None and _dv is not None {
+                        if self._str_desc_ty is not None {
+                            if _dk == self._str_desc_ty {
+                                _dk = ir.IntType(8).as_pointer();
+                            }
+                            if _dv == self._str_desc_ty {
+                                _dv = ir.IntType(8).as_pointer();
+                            }
+                        }
+                        (_dk_spec, _dk_size) = self._dict_key_spec(_dk);
+                        _dv_spec = self._dict_val_spec(_dv);
+                        self._emit_dict_helpers(
+                            _dk_spec, _dv_spec, _dk, _dv, _dk_size
+                        );
+                        _dict_ty = self.dict_types.get(f"{_dk_spec}:{_dv_spec}");
+                        if _dict_ty is not None {
+                            return _dict_ty.as_pointer();
+                        }
+                    }
+                }
+            }
+            return None;
+        }
+        if _base in ("set", "frozenset") {
             _sslices = nd.right.slices;
             if _sslices and _sslices[0].start is not None {
                 _set_elem = self._lower_untyped_annotation(_sslices[0].start);
@@ -3804,11 +3964,85 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
         return self._lower_untyped_annotation(nd.target);
     }
     _nm = self._get_name(nd);
-    if _nm is not None and _nm in self.struct_types {
+    # The symtab bound this name even without checker stamps, and it
+    # outranks the bare-name registries: one closure can hold an enum and
+    # a class under the same name, and which registry filled in first is
+    # walk-order luck, not a fact about this reference.
+    if isinstance(nd, uni.Name) and nd.sym is not None and nd.sym.decl is not None {
+        _decl_of = nd.sym.decl.name_of;
+        if isinstance(_decl_of, uni.Enum) {
+            return ir.IntType(64);
+        }
+        if isinstance(_decl_of, uni.Archetype) {
+            _decl_anm = _decl_of.name.value if _decl_of.name else None;
+            if _decl_anm is not None and _decl_anm in self.struct_types {
+                return self.struct_types[_decl_anm].as_pointer();
+            }
+        }
+        if isinstance(_decl_of, uni.TypeParam) or (
+            _decl_of is not None and isinstance(_decl_of.parent, uni.TypeParam)
+        ) {
+            return ir.IntType(8).as_pointer();
+        }
+        if _decl_of is not None and isinstance(_decl_of.parent, uni.ModuleItem) {
+            _item = _decl_of.parent;
+            _orig = _item.name.value if isinstance(_item.name, uni.Name) else None;
+            if _orig is not None and _orig != _nm {
+                if _orig in self.struct_types {
+                    return self.struct_types[_orig].as_pointer();
+                }
+                _by_name = self._lower_type_by_name(_orig);
+                if _by_name is not None {
+                    return _by_name;
+                }
+            }
+            # An imported name resolves against the module the import
+            # actually names. The prescan recorded which module owns each
+            # enum and archetype name before any lowering ran, so this
+            # holds under any walk order: an enum in one dep shadowed by a
+            # same-named class in another picks by origin, not by which
+            # registry filled in first.
+            if _orig is not None {
+                _imp_node = _item.find_parent_of_type(uni.Import);
+                _imp_from = _imp_node.from_loc if _imp_node is not None else None;
+                _imp_tail = (
+                    _imp_from.dot_path_str.split(".")[-1]
+                    if _imp_from is not None
+                    else None
+                );
+                if _imp_tail is not None {
+                    if self._enum_source_name.get(_orig) == _imp_tail {
+                        return ir.IntType(64);
+                    }
+                    if self._struct_source_name.get(_orig) == _imp_tail {
+                        _osrc_st = self.struct_types.get(_orig);
+                        if _osrc_st is not None {
+                            return _osrc_st.as_pointer();
+                        }
+                    }
+                }
+                if _orig in self.struct_types {
+                    return self.struct_types[_orig].as_pointer();
+                }
+                if _orig in self.enum_types {
+                    return self.enum_types[_orig];
+                }
+            }
+        }
+    }
+    _nm_enum = _nm is not None and _nm in self.enum_types;
+    _nm_struct = _nm is not None and _nm in self.struct_types;
+    if _nm_enum and not _nm_struct {
+        return self.enum_types[_nm];
+    }
+    if _nm_struct and not _nm_enum {
         return self.struct_types[_nm].as_pointer();
     }
     if _nm == "bytes" {
         return self._get_bytes_struct_type().as_pointer();
+    }
+    if _nm == "list" {
+        return self._lower_list_for_elem(ir.IntType(64));
     }
     return self._lower_type_by_name(_nm);
 }

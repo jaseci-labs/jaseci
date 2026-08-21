@@ -794,6 +794,14 @@ impl NaIRGenCore._walk_imported_module_type_names(imported_mod: uni.Module) -> N
                 struct_type = self.llvm_module.context.get_identified_type(aname);
                 self.struct_types[aname] = struct_type;
             }
+            if aname is not None and aname not in self._struct_source_name {
+                self._struct_source_name[aname] = imported_mod.name;
+            }
+        } elif isinstance(stmt, uni.Enum) {
+            ename = stmt.name.value if stmt.name else None;
+            if ename is not None and ename not in self._enum_source_name {
+                self._enum_source_name[ename] = imported_mod.name;
+            }
         }
     }
 }

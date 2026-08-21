@@ -74,6 +74,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         vtable_globals: dict[str, ir.GlobalVariable] = {},
         _non_overridden_methods: dict[str, set[str]] = {},
         _struct_source_mod: dict[str, str] = {},
+        _struct_source_name: dict[str, str] = {},
+        _enum_source_name: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
