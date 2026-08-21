@@ -966,7 +966,11 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
         }
         return ir.IntType(64);
     }
-    return self._resolve_jac_type(var);
+    _rf_out = self._resolve_jac_type(var);
+    if self._str_desc_ty is not None and _rf_out == self._str_desc_ty {
+        return ir.IntType(8).as_pointer();
+    }
+    return _rf_out;
 }
 
 impl NaIRGenTypes._foreign_optional_field(tb: any) -> bool {

@@ -28,6 +28,11 @@ import from jaclang { JacRuntimeInterface as Jac }
 glob jac_import = Jac.jac_import,
      FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures");
 
+"""Identity cast that keeps duck-typed test payloads out of nominal checks."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "llm mail summerize" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
@@ -2172,11 +2177,11 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    damaged = _byllm_llm_mod._sanitize_tool_calls(message);
+    damaged = _byllm_llm_mod._sanitize_tool_calls(_as_any(message));
     assert "call_1" in damaged , f"damaged call must be reported, got {damaged!r}";
     # finish_reason is "tool_calls" for a corrupted batch, so the truncation
     # guard cannot be what reports it.
-    assert not _byllm_llm_mod._truncated_call_ids(message, "tool_calls") , "the truncation guard must not be the thing catching this";
+    assert not _byllm_llm_mod._truncated_call_ids(_as_any(message), "tool_calls") , "the truncation guard must not be the thing catching this";
 
     # A tool that genuinely takes no arguments is normal, not damage.
     blank = {
@@ -2189,7 +2194,7 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
         ],
         "content": ""
     };
-    assert not _byllm_llm_mod._sanitize_tool_calls(blank) , "an argument-less call must not be reported as truncated";
+    assert not _byllm_llm_mod._sanitize_tool_calls(_as_any(blank)) , "an argument-less call must not be reported as truncated";
 }
 
 
