@@ -7,6 +7,6 @@ import torch;
 import from region_xmod_helper { far_helper }
 
 @torch.compile()
-def entry(x: any) -> any {
+def `entry(x: any) -> any {
     return torch.sin(far_helper(x));
 }

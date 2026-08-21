@@ -242,22 +242,22 @@ def collect_wrap_entries(
                 }
                 first = False;
             }
-            entry = resolve_wrapped_entry(prog, call, seen);
-            if entry is None {
+            `entry = resolve_wrapped_entry(prog, call, seen);
+            if `entry is None {
                 continue;
             }
-            if isinstance(entry, uni.Ability) {
-                wrap_keys.add(entry_key(entry));
-            } elif isinstance(entry, uni.Archetype) {
-                for meth in entry.get_all_sub_nodes(uni.Ability) {
+            if isinstance(`entry, uni.Ability) {
+                wrap_keys.add(entry_key(`entry));
+            } elif isinstance(`entry, uni.Archetype) {
+                for meth in `entry.get_all_sub_nodes(uni.Ability) {
                     if meth.sym_name == 'forward' {
                         wrap_keys.add(entry_key(meth));
                     }
                 }
             }
-            if id(entry) not in ids {
-                ids.add(id(entry));
-                out.append(entry);
+            if id(`entry) not in ids {
+                ids.add(id(`entry));
+                out.append(`entry);
             }
         }
     }

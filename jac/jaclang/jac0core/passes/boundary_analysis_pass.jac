@@ -79,14 +79,6 @@ class BoundaryAnalysisPass(UniPass) {
         self: BoundaryAnalysisPass, nd: Import
     ) -> None;
 
-    def _collect_abilities(
-        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Ability)]
-    ) -> None;
-
-    def _collect_pub_walkers(
-        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Archetype)]
-    ) -> None;
-
     def _extract_walker_has_fields(
         self: BoundaryAnalysisPass, walker_nd: (Archetype | None)
     ) -> tuple[list[str], list[str]];

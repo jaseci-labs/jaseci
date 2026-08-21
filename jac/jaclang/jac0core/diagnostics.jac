@@ -115,6 +115,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
      ),
+     E0014 = _err(
+         "E0014",
+         Category.SYNTAX,
+         "'{name}' is not a keyword -- remove the backtick",
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+     ),
      E0020 = _err(
          "E0020",
          Category.SYNTAX,
@@ -694,6 +700,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " layout reaches the comparison.",
          blocks_codegen=True
      ),
+     E1125 = _err(
+         "E1125",
+         Category.IMPORT,
+         "'{name}' is ambient and cannot be imported from '{module}'",
+         help="Jac provides '{name}' in every module's scope and generated"
+         " code re-imports it automatically, so the explicit import is a"
+         " second spelling of the same binding -- and when the source is"
+         " 'typing', the import alone keeps the module off the native"
+         " pathway. Drop '{name}' from the import list (remove the import"
+         " when it was the only name) and keep writing '{name}' as before."
+         " Binding a different local name on purpose stays legal: alias it"
+         " ('{name} as LocalName').",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -1232,9 +1252,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Empty parentheses can be removed [remove-empty-parens]"
      ),
-     W3006 = _warn(
-         "W3006", Category.LINT, "Unnecessary keyword escape on '{name}' [remove-kwesc]"
-     ),
      W3007 = _warn(
          "W3007",
          Category.LINT,
@@ -1376,7 +1393,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "combine-glob": "W3003",
          "init-to-can": "W3004",
          "remove-empty-parens": "W3005",
-         "remove-kwesc": "W3006",
          "hasattr-to-null-ok": "W3007",
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
@@ -1457,7 +1473,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5018",
          Category.CODEGEN,
          "match pattern {construct} is not supported by client codegen",
-         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         help="`match` itself lowers to the client; only this pattern shape does not. {fix}",
          blocks_codegen=True
      ),
      W5013 = _warn(
@@ -1508,6 +1524,21 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "(cached fingerprint {cached_fp}, current build {current_fp}); "
          "refusing a mixed-options link.",
          help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
+     ),
+     E5028 = _err(
+         "E5028",
+         Category.CODEGEN,
+         "Native module '{path}' still calls {names} as live after {attempts} "
+         "re-emissions, but the defining module's verdict demotes them; the "
+         "demotion/emission order did not converge.",
+         help="Within one native unit a caller's emitted IR must observe the callee module's final demotion verdicts (verdict-before-emission). A caller emitted under an import cycle is re-emitted once its callees' verdicts land; failing to converge means a verdict keeps flipping between emissions, which is a compiler defect worth reporting with JAC_NA_DEBUG=1 output."
+     ),
+     E5029 = _err(
+         "E5029",
+         Category.CODEGEN,
+         "Native link of '{path}' tripped the verdict blast-radius guard: "
+         "{detail}. Refusing to compose further instead of grinding.",
+         help="A healthy native link keeps the unverified-live set near zero and compiles at most a handful of modules at link time. Numbers this size mean verdict resolution is missing systematically -- every miss fails closed into conflict-on-all and another full compile -- which presents as a silent multi-hour build. The counts in the message say which lever moved: taint means the emission lane is recording where it should not, link-time compiles mean dependency identity is splitting, and verdict misses mean the resolver cannot see modules that are already compiled. Report with JAC_NA_DEBUG=1 output."
      ),
      E5030 = _err(
          "E5030",
@@ -1665,6 +1696,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Constructing '{cls}' would run '{owner}.postinit' on a Python shadow the native object cannot see",
          help="A native class over a Python-side base owns two halves: its own slots live in the native struct, the base's live on a Python shadow instance the bridge keeps beside it. Construction runs the base's `__post_init__` on that shadow, where the subclass's native slots do not exist and its method overrides are not on the shadow's class -- so a store the base initializer makes is invisible natively, and a call it dispatches reaches the base's body rather than the override. The object comes out with its declared defaults and nothing says so. Give '{cls}' a `postinit` of its own -- it suppresses the base's and can chain into it with `super.postinit()`, which does bridge -- or bring the base into the native unit so the whole chain lowers."
+     ),
+     E5100 = _err(
+         "E5100",
+         Category.CODEGEN,
+         "Client code imports '{name}' from native module '{module}', but '{name}' is not a function",
+         help="A client import of a native module is the cl->na edge: every name is bound to a lazily instantiated wasm export via `__na_bind`. A wasm module exports only functions, so a type, a variable, or an enum has no export to bind to -- '{name}' would come back as a plain async callable, and the page fails the first time it is constructed or read with a TypeError. This holds even where '{name}' is only used as an annotation, because the binding is emitted either way. Import the native functions that operate on '{name}' and keep the declaration itself in a client or shared module.",
+         blocks_codegen=True
+     ),
+     E5101 = _err(
+         "E5101",
+         Category.CODEGEN,
+         "Client codegen emitted '{name}', which the module never binds",
+         help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
+         blocks_codegen=True
      ),
      E5089 = _err(
          "E5089",

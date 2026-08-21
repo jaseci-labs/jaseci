@@ -915,8 +915,8 @@ impl JacBuiltin.se_flush -> None {
     }
     pending: list[tuple] = list(_gm_se_buffer);
     _gm_se_buffer.clear();
-    for entry in pending {
-        (fn, args, kwargs) = entry;
+    for `entry in pending {
+        (fn, args, kwargs) = `entry;
         fn(*args, **kwargs);
     }
 }
@@ -964,8 +964,8 @@ impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {
     }
     pending: list[tuple] = list(_gm_log_buffer);
     _gm_log_buffer.clear();
-    for entry in pending {
-        (slot, args, kwargs) = entry;
+    for `entry in pending {
+        (slot, args, kwargs) = `entry;
         _gm_log_registry[slot](*args, **kwargs);
     }
     return output;
@@ -1166,7 +1166,7 @@ impl JacBuiltin.safe_subscript(`obj: any, key: any) -> any {
     }
 }
 
-impl JacGraph.root -> Root {
+impl JacGraph.`root -> Root {
     return JacRuntime.get_context().get_root();
 }
 

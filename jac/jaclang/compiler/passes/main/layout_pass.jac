@@ -19,7 +19,6 @@ import from jaclang.jac0core.unitree {
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
@@ -68,6 +67,8 @@ obj MethodSlot {
 obj ArchetypeLayout {
     has name: str,
         arch_type: str,
+        decl_mod: str = "",
+        parent_mods: list[str] = [],
         parents: list[str] = [],
         mro: list[str] = [],
         fields: list[FieldInfo] = [],
@@ -154,6 +155,22 @@ def layout_slot_count(lay: ArchetypeLayout) -> int {
     return top;
 }
 
+def declaring_module_path(base_expr: UniNode) -> str {
+    import os;
+    sym = base_expr?.sym;
+    decl = sym.decl if sym is not None else None;
+    if decl is None {
+        return "";
+    }
+    base_arch = decl.find_parent_of_type(Archetype);
+    if base_arch is None {
+        return "";
+    }
+    decl_mod = decl.find_parent_of_type(Module);
+    path = decl_mod.loc.mod_path if decl_mod?.loc else None;
+    return os.path.realpath(path) if path else "";
+}
+
 def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
     return child.vtable_ptr_slot == base.vtable_ptr_slot
         and child.type_tag_slot == base.type_tag_slot
@@ -197,34 +214,55 @@ def relax_vtable_header(
     return headers_agree(lay, ancestors[0]);
 }
 
+def extended_mro(reg: LayoutRegistry, lay: ArchetypeLayout) -> list[str] {
+    out: list[str] = list(lay.mro or [lay.name]);
+    trusted: set[str] = set();
+    for (i, pname) in enumerate(lay.parents or []) {
+        anc_lay = reg.layouts.get(pname);
+        if anc_lay is None {
+            continue;
+        }
+        want = (lay.parent_mods or [])[i] if i < len(lay.parent_mods or []) else "";
+        if want and anc_lay.decl_mod and want == anc_lay.decl_mod {
+            trusted.add(pname);
+        }
+    }
+    idx = 1;
+    while idx < len(out) {
+        anc = out[idx];
+        anc_lay = reg.layouts.get(anc);
+        if anc_lay is not None
+            and (anc in trusted or anc not in (lay.parents or []))
+            and headers_agree(lay, anc_lay) {
+            for nxt in (reg.mro_order.get(anc) or [])[1:] {
+                if nxt not in out {
+                    out.append(nxt);
+                    trusted.add(nxt);
+                }
+            }
+        }
+        idx += 1;
+    }
+    return out;
+}
+
 def adopt_imported_bases(module: Module) -> list[str] {
-    """Flatten ancestors that only reached the registry after the pass ran.
-
-    A consumer that subclasses an imported archetype linearizes it from a
-    base whose declaration lives in another module, so `_collect_archetypes`
-    never sees it and `_build_layout` skips the ancestor whose layout is
-    absent. The importing codegen merges the defining module's layouts in
-    afterwards, which is late for a registry nothing revisits -- so revisit
-    it here, once, with the ancestors in hand.
-
-    A subclass adopts its primary ancestor's slot assignment verbatim, which
-    is what makes the two units agree: the ancestor's own methods, and the
-    consumer's when it passes the object back, read the object through the
-    offsets the defining module assigned. Where the header slots disagree --
-    a flat ancestor with no vtable under a subclass that needs one -- no
-    assignment satisfies both, so the layout is left as it was and the field
-    access stays refused.
-
-    Only layouts this module built are eligible: the merge shares the very
-    objects the defining module's registry holds, and reassigning slots in
-    one of those would move a field under the unit that owns it.
-    """;
     reg = module.gen.layout_registry;
     if reg is None {
         return [];
     }
+    for (name, lay) in reg.layouts.items() {
+        full = extended_mro(reg, lay);
+        if len(full) > len(lay.mro or []) {
+            lay.mro = full;
+            reg.mro_order[name] = list(full);
+        }
+    }
+    order = sorted(
+        reg.layouts.keys(), key=lambda (n: str) { len(reg.layouts[n].mro or [n]); }
+    );
     adopted: list[str] = [];
-    for name in reg.local_names {
+    for name in order {
         lay = reg.layouts.get(name);
         if lay is None {
             continue;
@@ -406,7 +444,7 @@ def class_form_enum_scalar(t: any) -> (str | None) {
 
 def class_form_enum_decls(module: Module) -> list[Archetype] {
     out: list[Archetype] = [];
-    for nd in UniPass.get_all_sub_nodes(module, Archetype) {
+    for nd in module.get_all_sub_nodes(Archetype) {
         if nd.name is None {
             continue;
         }
@@ -498,8 +536,8 @@ def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] 
         _values[mname] = _asn.value;
     }
     _placed.sort();
-    for entry in _placed {
-        out.append((entry[2], _values[entry[2]]));
+    for `entry in _placed {
+        out.append((`entry[2], _values[`entry[2]]));
     }
     return out;
 }
@@ -544,6 +582,7 @@ def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
         class_parents: dict[str, list[str]] = {},
+        parent_mods: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         topo_order: list[str] = [],
         local_names: list[str] = [],

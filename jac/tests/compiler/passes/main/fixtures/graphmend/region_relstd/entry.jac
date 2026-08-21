@@ -8,6 +8,6 @@ import torch;
 import from .json { near_helper }
 
 @torch.compile()
-def entry(x: any) -> any {
+def `entry(x: any) -> any {
     return torch.sin(near_helper(x));
 }

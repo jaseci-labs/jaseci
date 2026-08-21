@@ -379,7 +379,7 @@ def _race_compile_hook(
     gate = _RACE_GATE.get(os.path.realpath(file_path));
     if gate is not None {
         gate[0].set();
-        gate[1].wait(60);
+        gate[1].`wait(60);
         if gate[2] {
             raise RuntimeError("compile blew up mid-flight");
         }
@@ -447,7 +447,7 @@ test "concurrent compiles under different settings keep their own cache key" {
             _RACE_GATE[os.path.realpath(plain_path)] = (off_in, engaged_done, False);
             _RACE_DONE[os.path.realpath(main_path)] = engaged_done;
             engaged = flow _race_worker(main_path) ;
-            assert engaged_in.wait(60) , "the engaged compile never started";
+            assert engaged_in.`wait(60) , "the engaged compile never started";
             plain = flow _race_worker(str(plain_path)) ;
             code_on = wait engaged ;
             code_plain = wait plain ;

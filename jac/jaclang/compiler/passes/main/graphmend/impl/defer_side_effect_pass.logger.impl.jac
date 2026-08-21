@@ -116,10 +116,10 @@ impl DeferSideEffectPass._hook_guard_stmt(
     has_nm = gen_name(at, 'hasattr', False);
     recv = gen_name(at, name, False);
     attr = self._str(at, 'register_forward_pre_hook');
-    test = uni.FuncCall(
+    `test = uni.FuncCall(
         target=has_nm, params=[recv, attr], genai_call=None, kid=[has_nm, recv, attr]
     );
-    return uni.IfStmt(condition=test, body=body, kid=[test] + body);
+    return uni.IfStmt(condition=`test, body=body, kid=[`test] + body);
 }
 
 impl DeferSideEffectPass._pre_hook_register_stmt(

@@ -16,6 +16,6 @@ def mid(x: any) -> any {
 }
 
 @torch.compile()
-def entry(x: any) -> any {
+def `entry(x: any) -> any {
     return torch.sin(mid(x));
 }

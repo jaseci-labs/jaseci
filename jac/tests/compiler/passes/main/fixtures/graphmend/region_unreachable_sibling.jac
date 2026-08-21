@@ -7,7 +7,7 @@ is reachable from the entry, so GraphMend must leave both byte-identical."""
 import torch;
 
 @torch.compile()
-def entry(x: any, mask: torch.Tensor) -> any {
+def `entry(x: any, mask: torch.Tensor) -> any {
     x = torch.relu(x);
     if not mask.all() {
         raise ValueError("entry mask must be all true");

@@ -230,10 +230,10 @@ def verify(mask: torch.Tensor):
 dependency's generated source."""
 def _guard_pkg_src(tmp: str, entry_src: str) -> str {
     _write(tmp, os.path.join("pkg", "__init__.py"), "");
-    entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
+    `entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
     checks = _write(tmp, os.path.join("pkg", "checks.py"), GUARD_DEP_SRC);
     prog = JacProgram();
-    _src(prog, entry);
+    _src(prog, `entry);
     return _src(prog, checks);
 }
 
@@ -293,11 +293,11 @@ test "an imported class wrapped at the importer's call site registers as an entr
     # import and registers nothing at all.
     with tempfile.TemporaryDirectory() as tmp {
         _write(tmp, os.path.join("pkg", "__init__.py"), "");
-        entry = _write(tmp, os.path.join("pkg", "entry.py"), WRAP_ENTRY_SRC);
+        `entry = _write(tmp, os.path.join("pkg", "entry.py"), WRAP_ENTRY_SRC);
         net = _write(tmp, os.path.join("pkg", "net.py"), WRAP_NET_SRC);
         prog = JacProgram();
-        _src(prog, entry);
-        entry_facts = _mod_facts(prog, entry);
+        _src(prog, `entry);
+        entry_facts = _mod_facts(prog, `entry);
         assert (entry_facts is not None) and entry_facts.wrapped_keys , (
             "the cross-module wrap registered no entry"
         );
@@ -349,11 +349,11 @@ def verify(mask: torch.Tensor):
 module's generated source together with its facts carrier."""
 def _chain_src(tmp: str, entry_src: str) -> tuple[str, any] {
     _write(tmp, os.path.join("pkg", "__init__.py"), "");
-    entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
+    `entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
     _write(tmp, os.path.join("pkg", "net.py"), CHAIN_NET_SRC);
     deep = _write(tmp, os.path.join("pkg", "deep.py"), CHAIN_DEEP_SRC);
     prog = JacProgram();
-    _src(prog, entry);
+    _src(prog, `entry);
     deep_src = _src(prog, deep);
     return (deep_src, _mod_facts(prog, deep));
 }
@@ -370,8 +370,8 @@ test "a guard two hops down the claim chain lowers under the entry's wrap" {
         );
         assert facts is not None;
         covering = [
-            entry
-            for (guard, entry) in facts.covered_by.items()
+            `entry
+            for (guard, `entry) in facts.covered_by.items()
             if guard.endswith("::verify")
         ];
         assert covering , "no covering entry was recorded for the guard";

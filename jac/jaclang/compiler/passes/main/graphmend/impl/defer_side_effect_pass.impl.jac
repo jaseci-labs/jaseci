@@ -51,8 +51,8 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
             return;
         }
     }
-    (entry, hoists) = self._buffer_entry(nd);
-    append_call = self._buffer_append(nd, entry);
+    (`entry, hoists) = self._buffer_entry(nd);
+    append_call = self._buffer_append(nd, `entry);
     parent.expr = append_call;
     parent.set_kids([append_call]);
     for h in hoists {
@@ -268,7 +268,7 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
     has_nm = gen_name(at, 'hasattr', False);
     test_recv = gen_name(at, tmp, False);
     attr_name = self._str(at, 'clone');
-    test = uni.FuncCall(
+    `test = uni.FuncCall(
         target=has_nm,
         params=[test_recv, attr_name],
         genai_call=None,
@@ -276,7 +276,7 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
     );
     else_recv = gen_name(at, tmp, False);
     val_cfg = uni.CfgExpr(expr=clone_call, kid=[clone_call]);
-    cond_cfg = uni.CfgExpr(expr=test, kid=[test]);
+    cond_cfg = uni.CfgExpr(expr=`test, kid=[`test]);
     else_cfg = uni.CfgExpr(expr=else_recv, kid=[else_recv]);
     return uni.IfElseExpr(
         value=val_cfg,
