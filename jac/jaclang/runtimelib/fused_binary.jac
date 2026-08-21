@@ -9,7 +9,8 @@ import from jaclang.runtimelib.fused.trailer {
     Trailer,
     build_trailer,
     parse_trailer,
-    region_start
+    region_start,
+    rt_key
 }
 
 def fused_base_length(data: bytes) -> int {
@@ -61,6 +62,9 @@ def graft_runtime(self_path: str, host_path: str) -> bool {
         return False;
     }
     t = parse_trailer(data[base_total - TRAILER_LEN:base_total], MAGIC);
+    if t is None {
+        return False;
+    }
     start = region_start(base_total, t.payload_len);
     if start < 0 {
         return False;
@@ -69,4 +73,57 @@ def graft_runtime(self_path: str, host_path: str) -> bool {
         f.write(data[start:base_total]);
     }
     return True;
+}
+
+
+def materialized_runtime_dir(path: str = "") -> (str | None) {
+    import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
+    exe = path
+        or os.environ.get("JAC_EXECUTABLE", "")
+        or os.path.realpath(sys.executable);
+    if not os.path.isfile(exe) {
+        return None;
+    }
+    total = os.path.getsize(exe);
+    if total < TRAILER_LEN {
+        return None;
+    }
+    with open(exe, "rb") as f {
+        f.seek(total - TRAILER_LEN);
+        tail = f.read(TRAILER_LEN);
+        ovl = parse_trailer(tail, OVERLAY_MAGIC);
+        if ovl is not None {
+            total = region_start(total, ovl.payload_len);
+            if total < TRAILER_LEN {
+                return None;
+            }
+            f.seek(total - TRAILER_LEN);
+            tail = f.read(TRAILER_LEN);
+        }
+    }
+    t = parse_trailer(tail, MAGIC);
+    if t is None {
+        return None;
+    }
+    key = rt_key(t.hash16(), exe);
+    roots = [str(get_jir_cache_dir().parent / "rt")];
+    tmp = os.environ.get("TMPDIR", "") or "/tmp";
+    roots.append(os.path.join(tmp, f"jac-cache-{os.getuid()}", "rt"));
+    for r in roots {
+        cand = os.path.join(r, key);
+        if os.path.isfile(os.path.join(cand, ".ok")) {
+            return cand;
+        }
+    }
+    return None;
+}
+
+
+def bundled_floor_roots(pkg_root: str) -> list[str] {
+    roots: list[str] = [os.path.join(os.path.dirname(pkg_root), "python", "floor")];
+    rt = materialized_runtime_dir();
+    if rt is not None {
+        roots.append(os.path.join(rt, "python", "floor"));
+    }
+    return roots;
 }

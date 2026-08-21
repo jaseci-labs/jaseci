@@ -190,7 +190,7 @@ def _lse_sym(nm: str) -> list[str] {
 
 def emit_shared_library(
     llvm_ir_str: str,
-    transitive_sources: list[str],
+    manifest: any,
     export_symbols: list[str],
     output_path: str,
     opt_level: int = 2,
@@ -201,7 +201,7 @@ def emit_shared_library(
     import os;
     import sys;
 
-    (ir_str, extra_exports) = inject_shared_init(llvm_ir_str, transitive_sources);
+    (ir_str, extra_exports) = inject_shared_init(llvm_ir_str, manifest);
     is_elf = not sys.platform.startswith("win") and sys.platform != "darwin";
     if is_elf and clib_paths and "@atexit(" not in ir_str {
         ir_str += (

@@ -49,7 +49,9 @@ test "na host boots the fused runtime (no display)" {
             text=True,
             timeout=300
         );
-        assert comp.returncode == 0 and binary.exists() , f"nacompile failed:\n{comp.stderr}";
+        assert comp.returncode == 0 and binary.exists() , (
+            f"nacompile failed:\nstdout:\n{comp.stdout}\nstderr:\n{comp.stderr}"
+        );
         # Append this jac's [payload][trailer] so the host carries the fused runtime
         # and engine_boot() can materialize it from /proc/self/exe at launch.
         _bundle_runtime(binary);

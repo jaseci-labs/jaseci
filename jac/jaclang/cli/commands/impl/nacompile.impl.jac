@@ -802,8 +802,11 @@ def _musl_lib_dir(triple: str) -> (str | None) {
         }
     }
 
-    floor = os.path.join(os.path.dirname(pkg_root), "python", "floor");
-    if os.path.isdir(floor) {
+    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    for floor in bundled_floor_roots(pkg_root) {
+        if not os.path.isdir(floor) {
+            continue;
+        }
         for d in sorted(os.listdir(floor)) {
             cand = os.path.join(floor, d, "musl");
             if os.path.isdir(cand)
