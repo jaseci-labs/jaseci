@@ -855,17 +855,27 @@ impl NaIRGenTypes._widened_tuple_decl_type(
     }
     _tb = nd?.type;
     if _tb is None {
-        return None;
-    }
-    try {
-        import from jaclang.compiler.type_system.types { ClassType as _WdClassType }
-    } except ImportError {
-        return None;
-    }
-    if not isinstance(_tb, _WdClassType)
-        or _tb.shared.class_name != "tuple"
-        or (_tb.private.type_args or []) {
-        return None;
+        # A dep module in a seal closure is lowered without the checker
+        # having walked it, so the annotation carries no stamped type. The
+        # widened-tuple design is syntactic -- a bare `tuple` annotation
+        # takes its layout from the initializer -- so recognize the shape
+        # from the AST alone.
+        if not (isinstance(nd, uni.Name) and nd.value == "tuple") {
+            return None;
+        }
+    } else {
+        try {
+            import from jaclang.compiler.type_system.types {
+                ClassType as _WdClassType
+            }
+        } except ImportError {
+            return None;
+        }
+        if not isinstance(_tb, _WdClassType)
+            or _tb.shared.class_name != "tuple"
+            or (_tb.private.type_args or []) {
+            return None;
+        }
     }
     if isinstance(value, uni.TupleVal) and not value.values {
         return self._tuple_struct_of([]).as_pointer();
