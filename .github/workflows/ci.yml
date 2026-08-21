@@ -914,7 +914,19 @@ jobs:
           free -h
           swapon --show
 
+      # The precompiler's inline seal auto-sizes its worker pool from
+      # MemAvailable / 4.5 GiB, which reads as three roots at once on this
+      # 4-vCPU, 16 GiB runner -- the same count build-kit pins. Here the parent
+      # has just precompiled every package and still holds those trees, so
+      # with the B4/A3 closures (2.2-3.4 GiB per root, every root carrying the
+      # pass spine) three workers on top of it die the way the swap step
+      # above describes: the runner loses communication ~40 min in, no log.
+      # main's lighter closures finish in 27 min. Two workers is the B6
+      # capacity measurement for this lane (#8323) until the crossing
+      # reclaims its tree.
       - name: Precompile all packages
+        env:
+          JAC_SEAL_JOBS: "2"
         run: jac run jac/jaclang/utils/precompile_bytecode.jac ./jac
 
       - name: Verify cold start with precompiled bytecode
