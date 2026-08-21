@@ -1106,15 +1106,17 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
             sys.stderr.write(f"NA_DEBUG   {_diag.pretty_print()}\n");
         }
     }
-    try {
-        import from jaclang.jac0core.compiler { na_coverage_seam }
-        _first_code = _own[0].code.code if _own[0].code is not None else "";
-        _code_tag = f"[{_first_code}] " if _first_code else "";
-        na_coverage_seam(
-            self.ir_in.loc.mod_path,
-            f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
-        );
-    } except Exception { }
+    if stub_body {
+        try {
+            import from jaclang.jac0core.compiler { na_coverage_seam }
+            _first_code = _own[0].code.code if _own[0].code is not None else "";
+            _code_tag = f"[{_first_code}] " if _first_code else "";
+            na_coverage_seam(
+                self.ir_in.loc.mod_path,
+                f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
+            );
+        } except Exception { }
+    }
     del self.errors_had[local_mark:];
     # An importer never defines a symbol it does not own: for a method
     # forward-declared from another module, the refusal is spent but the

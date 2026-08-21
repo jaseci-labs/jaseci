@@ -3776,11 +3776,39 @@ impl NaIRGenTypes._lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None)
             }
             return self._lower_list_for_elem(_elem_ty);
         }
+        if _base == "set" {
+            _sslices = nd.right.slices;
+            if _sslices and _sslices[0].start is not None {
+                _set_elem = self._lower_untyped_annotation(_sslices[0].start);
+                if _set_elem is not None {
+                    _set_spec = "i64";
+                    if isinstance(_set_elem, ir.DoubleType) {
+                        _set_spec = "f64";
+                    } elif isinstance(_set_elem, ir.PointerType) {
+                        _set_spec = "ptr";
+                    }
+                    if self._str_desc_ty is not None
+                        and _set_elem == self._str_desc_ty {
+                        _set_elem = ir.IntType(8).as_pointer();
+                        _set_spec = "ptr";
+                    }
+                    self._emit_set_helpers(_set_spec, _set_elem);
+                    _set_ty = self.set_types.get(_set_spec);
+                    if _set_ty is not None {
+                        return _set_ty.as_pointer();
+                    }
+                }
+            }
+            return None;
+        }
         return self._lower_untyped_annotation(nd.target);
     }
     _nm = self._get_name(nd);
     if _nm is not None and _nm in self.struct_types {
         return self.struct_types[_nm].as_pointer();
+    }
+    if _nm == "bytes" {
+        return self._get_bytes_struct_type().as_pointer();
     }
     return self._lower_type_by_name(_nm);
 }
