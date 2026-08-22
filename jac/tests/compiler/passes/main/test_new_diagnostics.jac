@@ -284,7 +284,7 @@ test "E0001: bare tuple target in for loop names the parenthesized form" {
         }
     }
     assert alert is not None;
-    assert "for (n, c) in" in (alert.help_text if alert.help_text else "");
+    assert "for (n, c) in" in (alert.help_text or "");
 }
 
 test "E0001: bare tuple target in comprehension names the parenthesized form" {
@@ -299,7 +299,7 @@ test "E0001: bare tuple target in comprehension names the parenthesized form" {
         }
     }
     assert alert is not None;
-    assert "(k, v)" in (alert.help_text if alert.help_text else "");
+    assert "(k, v)" in (alert.help_text or "");
 }
 
 test "E0001: bare triple target emits one diagnostic and resyncs at 'in'" {
@@ -312,7 +312,7 @@ test "E0001: bare triple target emits one diagnostic and resyncs at 'in'" {
 test "E0001: parenthesized tuple target does not fire" {
     (prog, had_err) = parse_with_prog(
         'with entry { d = {"a": 1}; for (k, v) in d.items() { print(k); } '
-        + 'ks = [k for (k, v) in d.items()]; }'
+            + 'ks = [k for (k, v) in d.items()]; }'
     );
     assert not had_err;
     assert not has_diagnostic_code(prog, "E0001");

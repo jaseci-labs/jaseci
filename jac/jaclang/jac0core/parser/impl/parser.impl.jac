@@ -4012,13 +4012,6 @@ impl Parser.parse_forever_stmt -> ForeverStmt {
     return ForeverStmt(body=body, kid=kid);
 }
 
-"""Parse the iteration target of an `in`-style loop or comprehension.
-
-Jac only allows tuple targets in parenthesized form (`for (n, c) in ...`);
-this emits a targeted diagnostic instead of a confusing
-"Expected 'in', got ','" when the bare form is written, then resynchronizes
-at the `in` keyword so parsing can continue.
-"""
 impl Parser.parse_in_target(example: str) -> Expr {
     target = self.parse_atomic_chain();
     if self.check(TokenKind.COMMA) {
