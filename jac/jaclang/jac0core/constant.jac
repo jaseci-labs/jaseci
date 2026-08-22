@@ -126,7 +126,7 @@ glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
      NATIVE_ERASED_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"}),
      NATIVE_ERASED_ANNOTATIONS: frozenset = frozenset({"ClassVar"});
 
-glob JS_HOST_GLOBAL_TAGS: dict[str, tuple[str, str]] = {
+glob JS_HOST_GLOBAL_TAGS: dict[str, tuple[str, str, bool]] = {
          "window": ("browser", "value", True),
          "document": ("browser", "value", True),
          "navigator": ("browser", "value", True),
@@ -242,17 +242,56 @@ glob JS_HOST_GLOBAL_TAGS: dict[str, tuple[str, str]] = {
          "setImmediate": ("node", "value", False),
          "clearImmediate": ("node", "value", False)
      },
-     BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
-         nm
-         for (nm, tags) in JS_HOST_GLOBAL_TAGS.items()
-         if tags[2]
-     ),
-     JS_HOST_AMBIENT_GLOBALS: frozenset[str] = frozenset(JS_HOST_GLOBAL_TAGS),
-     JS_HOST_CONSTRUCTORS: frozenset[str] = frozenset(
-         nm
-         for (nm, tags) in JS_HOST_GLOBAL_TAGS.items()
-         if tags[1] == "ctor"
-     ),
+     BROWSER_SEED_GLOBALS: frozenset[str] = frozenset({
+         "window", "document", "navigator", "localStorage", "sessionStorage",
+         "requestAnimationFrame", "cancelAnimationFrame", "requestIdleCallback",
+         "setTimeout", "setInterval", "clearTimeout", "clearInterval", "atob", "btoa",
+         "performance", "structuredClone", "fetch", "Promise", "Date",
+         "URLSearchParams", "AbortController", "CustomEvent", "WebSocket", "Blob",
+         "FileReader", "FormData", "IntersectionObserver", "ResizeObserver",
+         "MutationObserver",
+     }),
+     JS_HOST_AMBIENT_GLOBALS: frozenset[str] = frozenset({
+         "window", "document", "navigator", "localStorage", "sessionStorage",
+         "requestAnimationFrame", "cancelAnimationFrame", "requestIdleCallback",
+         "cancelIdleCallback", "setTimeout", "setInterval", "clearTimeout",
+         "clearInterval", "matchMedia", "getComputedStyle", "customElements", "CSS",
+         "globalThis", "undefined", "NaN", "Infinity", "arguments", "eval", "escape",
+         "unescape", "atob", "btoa", "crypto", "performance", "structuredClone",
+         "fetch", "AbortSignal", "Atomics", "Intl", "Reflect", "Function", "Symbol",
+         "MessagePort", "Promise", "Date", "RegExp", "Error", "TypeError", "RangeError",
+         "ReferenceError", "SyntaxError", "EvalError", "URIError", "AggregateError",
+         "Array", "ArrayBuffer", "SharedArrayBuffer", "DataView", "Int8Array",
+         "Int16Array", "Int32Array", "Uint8Array", "Uint16Array", "Uint32Array",
+         "Uint8ClampedArray", "Float32Array", "Float64Array", "BigInt64Array",
+         "BigUint64Array", "Map", "Set", "WeakMap", "WeakSet", "WeakRef",
+         "FinalizationRegistry", "Proxy", "TextDecoder", "TextEncoder", "URL",
+         "URLSearchParams", "ReadableStream", "ReadableStreamDefaultReader",
+         "AbortController", "Event", "CustomEvent", "PopStateEvent", "EventTarget",
+         "MessageChannel", "WebSocket", "Blob", "File", "FileReader", "FormData",
+         "Headers", "Request", "Response", "XMLHttpRequest", "DOMParser",
+         "XMLSerializer", "Image", "Audio", "Notification", "Worker",
+         "BroadcastChannel", "EventSource", "IntersectionObserver", "ResizeObserver",
+         "MutationObserver", "PerformanceObserver", "process", "require", "module",
+         "exports", "__dirname", "__filename", "global", "Buffer", "setImmediate",
+         "clearImmediate",
+     }),
+     JS_HOST_CONSTRUCTORS: frozenset[str] = frozenset({
+         "Promise", "Date", "RegExp", "Error", "TypeError", "RangeError",
+         "ReferenceError", "SyntaxError", "EvalError", "URIError", "AggregateError",
+         "Array", "ArrayBuffer", "SharedArrayBuffer", "DataView", "Int8Array",
+         "Int16Array", "Int32Array", "Uint8Array", "Uint16Array", "Uint32Array",
+         "Uint8ClampedArray", "Float32Array", "Float64Array", "BigInt64Array",
+         "BigUint64Array", "Map", "Set", "WeakMap", "WeakSet", "WeakRef",
+         "FinalizationRegistry", "Proxy", "TextDecoder", "TextEncoder", "URL",
+         "URLSearchParams", "ReadableStream", "ReadableStreamDefaultReader",
+         "AbortController", "Event", "CustomEvent", "PopStateEvent", "EventTarget",
+         "MessageChannel", "WebSocket", "Blob", "File", "FileReader", "FormData",
+         "Headers", "Request", "Response", "XMLHttpRequest", "DOMParser",
+         "XMLSerializer", "Image", "Audio", "Notification", "Worker",
+         "BroadcastChannel", "EventSource", "IntersectionObserver", "ResizeObserver",
+         "MutationObserver", "PerformanceObserver",
+     }),
      BUILTIN_CALLABLE_NAMES: frozenset[str] = frozenset(
          {
              "ArithmeticError",
