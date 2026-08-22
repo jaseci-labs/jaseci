@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { CodeContext, EdgeDir }
@@ -12,9 +11,6 @@ obj NormalizePass(UniPass) {
     def enter_global_vars(nd: uni.GlobalVars) -> None;
     def enter_test(nd: uni.Test) -> None;
     def enter_module_code(nd: uni.ModuleCode) -> None;
-    def enter_client_block(nd: uni.ClientBlock) -> None;
-    def enter_server_block(nd: uni.ServerBlock) -> None;
-    def enter_native_block(nd: uni.NativeBlock) -> None;
     def enter_py_inline_code(nd: uni.PyInlineCode) -> None;
     def enter_import(nd: uni.Import) -> None;
     def enter_module_path(nd: uni.ModulePath) -> None;
@@ -30,8 +26,8 @@ obj NormalizePass(UniPass) {
     def enter_arch_has(nd: uni.ArchHas) -> None;
     def enter_has_var(nd: uni.HasVar) -> None;
     def enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
-    def _normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None;
-    def _normalize_name_list_stmt(nd: uni.UniNode, op: Tok) -> None;
+    def _normalize_cond_block(nd: (uni.IfStmt | uni.WhileStmt), kw: Tok) -> None;
+    def _normalize_name_list_stmt(nd: (uni.SemDef | uni.ImplDef), op: Tok) -> None;
     def enter_open_stmt(nd: uni.OpenStmt) -> None;
     def enter_if_stmt(nd: uni.IfStmt) -> None;
     def enter_else_if(nd: uni.ElseIf) -> None;

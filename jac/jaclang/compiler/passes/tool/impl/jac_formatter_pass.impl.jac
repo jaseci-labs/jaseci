@@ -165,7 +165,7 @@ impl JacFormatPass.format_doc_ir(
             trailing_width=trailing_width
         );
     } else {
-        raise self.ice(f"Unknown DocType: {type(doc_node)}");
+        raise RuntimeError(self.ice(f"Unknown DocType: {type(doc_node)}"));
     }
 }
 
@@ -274,7 +274,7 @@ impl JacFormatPass._probe_fits(
         } elif isinstance(cur, doc.LineSuffix) {
             continue;
         } else {
-            raise self.ice(f"Unknown DocType in probe: {type(cur)}");
+            raise RuntimeError(self.ice(f"Unknown DocType in probe: {type(cur)}"));
         }
     }
     self._probe_cache[cache_key] = True;
@@ -331,7 +331,7 @@ impl JacFormatPass._flat_first_line_width(
 impl JacFormatPass.pre_transform -> None {
     self.indent_size = 4;
     self.MAX_LINE_LENGTH = 88;
-    self._probe_cache: dict = {};
+    self._probe_cache = {};
     self._pending_suffixes: list[str] = [];
     self._line_has_content = False;
     self._rendering_suffix = False;

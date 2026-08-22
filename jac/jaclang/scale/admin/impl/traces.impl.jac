@@ -1,9 +1,9 @@
 import os;
 import logging;
 import time;
-import from fastapi { Request }
-import from fastapi.responses { JSONResponse }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -66,7 +66,7 @@ def _build_traceql(service: str, status: str, min_duration_ms: int) -> str {
 
 
 async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> dict {
-    import httpx;
+    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
     base = _tempo_base_url();
     url = base + path;
     headers: dict = {};
@@ -74,18 +74,14 @@ async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> 
         headers["Accept"] = "application/json";
     }
     try {
-        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0)) as cl {
-            resp = await cl.get(url, params=params, headers=headers);
-            resp.raise_for_status();
-            return resp.json();
-        }
-    } except httpx.TimeoutException as e {
-        raise ConnectionError(f"Tempo timed out: {e}");
-    } except httpx.HTTPStatusError as e {
-        raise ConnectionError(f"Tempo returned {e.response.status_code}");
-    } except httpx.RequestError as e {
+        resp = await arequest("GET", url, headers=headers, params=params, timeout=8.0);
+    } except ClientConnectionError as e {
         raise ConnectionError(f"Tempo unreachable: {e}");
     }
+    if not resp.ok() {
+        raise ConnectionError(f"Tempo returned {resp.status_code}");
+    }
+    return resp.json();
 }
 
 
@@ -124,7 +120,7 @@ def _flatten_tempo_trace(payload: dict) -> dict {
     max_end: int = 0;
     batches = payload.get("batches", []) or [];
     for batch in batches {
-        resource = batch.get("resource", {}) or {};
+        resource: dict[str, any] = batch.get("resource", {}) or {};
         res_attrs = _otlp_attrs(resource.get("attributes", []));
         service = str(res_attrs.get("service.name", "unknown"));
         scope_spans = batch.get("scopeSpans", []) or [];
@@ -170,6 +166,11 @@ def _flatten_tempo_trace(payload: dict) -> dict {
 
 
 impl JacAPIServerTraces.register_traces_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def services_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -179,7 +180,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
             content={"ok": True, "data": {"services": _trace_services()}}
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces/services",
@@ -275,7 +276,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces",
@@ -320,7 +321,7 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
         flat["trace_id"] = norm;
         return JSONResponse(content={"ok": True, "data": flat});
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/traces/{trace_id}",
@@ -330,9 +331,9 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
                     name="trace_id",
                     data_type="string",
                     required=True,
-                    default=None,
+                    default_value=None,
                     description="Trace id (dashed UUID or 32-hex Tempo form)",
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,

@@ -23,7 +23,11 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.bccache { discover_base_file }
 
 glob BATCH_DIR = str(
-         Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures" / "batch_decl_identity"
+         Path(jaclang.__file__).parent
+             / "compiler"
+             / "tests"
+             / "fixtures"
+             / "batch_decl_identity"
      );
 
 
@@ -44,9 +48,7 @@ def check_batch(files: list[str]) -> list[str] {
         }
         prog.compile(
             file_path=file_path,
-            options=CompileOptions(
-                type_check=True, no_cgen=True, force_target_program=True
-            )
+            options=CompileOptions(no_cgen=True, force_target_program=True)
         );
     }
     return [str(e) for e in prog.errors_had];

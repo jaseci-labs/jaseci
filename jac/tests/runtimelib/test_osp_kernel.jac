@@ -33,6 +33,10 @@ glob _ancestors = {1: [1], 2: [2, 1], 3: [3], 10: [10]},
      _ndescs: dict = {},
      _last_reports: list = [];
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def t_tag_of(h: any) -> int {
     return h.tag;
 }
@@ -45,7 +49,7 @@ def t_node_desc(tag: int) -> NodeDesc {
     if tag in _ndescs {
         return _ndescs[tag];
     }
-    return NodeDesc(type_tag=tag, entry=[], exit=[]);
+    return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
 }
 
 def t_on_complete(scope: WalkScope, ok: bool) {
@@ -113,13 +117,13 @@ def ab_node_for_walker(here: any, visitor: any) {
 test "osp kernel: subtyping dispatch and report collection" {
     wd = WalkerDesc(
         type_tag=10,
-        entry=[Slot(trig_tag=1, fn=ab_place), Slot(trig_tag=2, fn=ab_cafe)],
-        exit=[]
+        `entry=[Slot(trig_tag=1, fn=ab_place), Slot(trig_tag=2, fn=ab_cafe)],
+        `exit=[]
     );
     w = TWalker();
     # Spawn on a Cafe (tag 2): the Place-triggered ability fires via subtyping,
     # the Cafe-triggered ability fires by exact match.
-    osp_spawn(_runtime(), w, wd, [TNode(tag=2, name="Bluebird")]);
+    osp_spawn(_runtime(), w, wd, _as_any([TNode(tag=2, name="Bluebird")]));
     assert w.log == ["place:Bluebird", "cafe:Bluebird"];
     assert _last_reports == ["Bluebird"];
 }
@@ -131,9 +135,9 @@ test "osp kernel: visit enqueues, DFS recursion through a chain" {
     a.neighbors = [b];
     b.neighbors = [c];
     c.neighbors = [];
-    wd = WalkerDesc(type_tag=10, entry=[Slot(trig_tag=1, fn=ab_step)], exit=[]);
+    wd = WalkerDesc(type_tag=10, `entry=[Slot(trig_tag=1, fn=ab_step)], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     assert w.log == ["step:A", "step:B", "step:C"];
 }
 
@@ -148,11 +152,11 @@ test "osp kernel: branching tree - queue-FIFO entries, post-order exits" {
     d.neighbors = [];
     wd = WalkerDesc(
         type_tag=10,
-        entry=[Slot(trig_tag=1, fn=ab_log_entry)],
-        exit=[Slot(trig_tag=1, fn=ab_log_exit)]
+        `entry=[Slot(trig_tag=1, fn=ab_log_entry)],
+        `exit=[Slot(trig_tag=1, fn=ab_log_exit)]
     );
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # All visits share `scope.next`, so entries fire in queue-FIFO order across
     # branches (A->B->C->D, not A->B->D->C). The "depth-first" aspect lives in
     # the exit phase: structural post-order via recursion (D before C before B
@@ -167,11 +171,11 @@ test "osp kernel: exit abilities fire in post-order" {
     b.neighbors = [];
     wd = WalkerDesc(
         type_tag=10,
-        entry=[Slot(trig_tag=1, fn=ab_step_with_exit)],
-        exit=[Slot(trig_tag=1, fn=ab_exit)]
+        `entry=[Slot(trig_tag=1, fn=ab_step_with_exit)],
+        `exit=[Slot(trig_tag=1, fn=ab_exit)]
     );
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # Entries fire on entry (pre-order), exits fire after all descendants (post-order).
     assert w.log == ["entry:A", "entry:B", "exit:B", "exit:A"];
 }
@@ -183,9 +187,9 @@ test "osp kernel: disengage stops the walk" {
     a.neighbors = [b];
     b.neighbors = [c];
     c.neighbors = [];
-    wd = WalkerDesc(type_tag=10, entry=[Slot(trig_tag=1, fn=ab_stop)], exit=[]);
+    wd = WalkerDesc(type_tag=10, `entry=[Slot(trig_tag=1, fn=ab_stop)], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [a]);
+    osp_spawn(_runtime(), w, wd, _as_any([a]));
     # Disengage at B drops the already-queued C.
     assert w.log == ["stop:A", "stop:B"];
 }
@@ -193,15 +197,15 @@ test "osp kernel: disengage stops the walk" {
 test "osp kernel: node-side untyped and walker-typed entry abilities" {
     _ndescs[3] = NodeDesc(
         type_tag=3,
-        entry=[
+        `entry=[
             Slot(trig_tag=UNTYPED, fn=ab_node_any),
             Slot(trig_tag=10, fn=ab_node_for_walker)
         ],
-        exit=[]
+        `exit=[]
     );
-    wd = WalkerDesc(type_tag=10, entry=[], exit=[]);
+    wd = WalkerDesc(type_tag=10, `entry=[], `exit=[]);
     w = TWalker();
-    osp_spawn(_runtime(), w, wd, [TNode(tag=3, name="P")]);
+    osp_spawn(_runtime(), w, wd, _as_any([TNode(tag=3, name="P")]));
     # Untyped node ability (phase 2) then walker-typed node ability (phase 3).
     assert w.log == ["nany:P", "nforw:P"];
 }

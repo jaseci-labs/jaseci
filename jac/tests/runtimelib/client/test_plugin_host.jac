@@ -14,7 +14,12 @@ import from pathlib { Path }
 # sys.path before the bare imports below resolve. Top-level statements run in
 # source order, so this entry block puts it on the path before the imports.
 glob _plugin_dir = str(
-         Path(jaclang.__file__).parent / "runtimelib" / "client" / "targets" / "desktop" / "plugin"
+         Path(jaclang.__file__).parent
+             / "runtimelib"
+             / "client"
+             / "targets"
+             / "desktop"
+             / "plugin"
      );
 
 with entry {
@@ -30,7 +35,8 @@ import from plugin_host { PluginHost }
 """A mock plugin that records calls and returns configurable results."""
 obj MockPlugin(DesktopPlugin) {
     has calls: list,
-        _responses: dict;
+        _responses: dict,
+        plugin_name: str = "mock";
 
     def init(name: str = "mock") {
         # DesktopPlugin now exposes plugin_name as a field (no-arg init), so set

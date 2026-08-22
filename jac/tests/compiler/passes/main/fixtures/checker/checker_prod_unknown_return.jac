@@ -13,24 +13,24 @@ Expected errors: 3
   3. caller bad assignment    — downstream int->str mismatch
 """
 
-def returns_int_but_unknown() -> int {
-    items: list = [1, 2, 3];
-    any_val = items.pop();
-    val = any_val + 1;
-    return val;                    # Error: Unknown returned where int declared
+obj UnBox {
+    has v: int = 0;
 }
 
-def returns_str_but_unknown() -> str {
-    items: list = ["a", "b"];
-    any_val = items.pop();
-    val = any_val + "x";
-    return val;                    # Error: Unknown returned where str declared
+def returns_int_but_unknown -> int {
+    val = UnBox()[0];
+    return val;  # Error: Unknown returned where int declared
+}
+
+def returns_str_but_unknown -> str {
+    val = UnBox()[1];
+    return val;  # Error: Unknown returned where str declared
 }
 
 with entry {
     # Even if the above functions are declared -> int and -> str,
     # the return paths are suspect. Downstream uses should be correct
     # per the declared type, but the function body has a type hole.
-    r1: int = returns_int_but_unknown();   # Ok per declaration
-    bad1: str = returns_int_but_unknown(); # Error: int -> str
+    r1: int = returns_int_but_unknown();  # Ok per declaration
+    bad1: str = returns_int_but_unknown();  # Error: int -> str
 }

@@ -24,27 +24,29 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
 
     if nd.dynamic_tag is not None {
         dyn_expr: Expression = cast(
-            'Expression',
+            es.Expression,
             nd.dynamic_tag.gen.es_ast
-            or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd)
+                or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd)
         );
-        tag = DynamicTag(expr=dyn_expr, jac_node=nd);
+        tag: (HostTag | ComponentTag | FragmentTag | DynamicTag) = DynamicTag(
+            expr=dyn_expr, jac_node=nd
+        );
     } elif (nd.is_fragment or not nd.name) {
         tag = FragmentTag(jac_node=nd);
     } else {
-        parts = nd.name.parts or [];
-        first_val = parts[0].value if parts else None;
-        is_host = bool(parts)
-        and (len(parts) == 1)
-        and bool(first_val)
-        and not first_val[0].isupper();
-        if is_host {
+        parts: Sequence[(uni.Name | uni.Token)] = nd.name.parts or [];
+        first_val: (str | None) = parts[0].value if parts else None;
+        is_host = (first_val is not None)
+            and (len(parts) == 1)
+            and bool(first_val)
+            and not first_val[0].isupper();
+        if is_host and first_val is not None {
             tag = HostTag(name=first_val, jac_node=nd.name);
         } else {
             ref: Expression = cast(
-                'Expression',
+                es.Expression,
                 nd.name.gen.es_ast
-                or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd.name)
+                    or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd.name)
             );
             tag = ComponentTag(ref=ref, jac_node=nd.name);
         }
@@ -54,11 +56,11 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
     for attr in (nd.attributes or []) {
         if isinstance(attr, uni.JsxSpreadAttribute) {
             spread_val: Expression = cast(
-                'Expression',
+                es.Expression,
                 attr.gen.es_ast
-                or self.pass_ref.sync_loc(
-                    es.ObjectExpression(properties=[]), jac_node=attr
-                )
+                    or self.pass_ref.sync_loc(
+                        es.ObjectExpression(properties=[]), jac_node=attr
+                    )
             );
             attrs.append(SpreadAttr(value=spread_val, jac_node=attr));
         } elif isinstance(attr, uni.JsxNormalAttribute) {
@@ -77,7 +79,7 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
         }
         if isinstance(child, uni.JsxText) {
             children.append(
-                TextChild(value=cast('Expression', child.gen.es_ast), jac_node=child)
+                TextChild(value=cast(es.Expression, child.gen.es_ast), jac_node=child)
             );
         } elif isinstance(child, uni.JsxExpression) {
             lifted = self._lift_control_flow(child);
@@ -86,7 +88,7 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
             } else {
                 children.append(
                     DynamicChild(
-                        value=cast('Expression', child.gen.es_ast), jac_node=child
+                        value=cast(es.Expression, child.gen.es_ast), jac_node=child
                     )
                 );
             }
@@ -102,12 +104,12 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
             if isinstance(child_expr, `list) {
                 for sub in child_expr {
                     children.append(
-                        SlotChild(expr=cast('Expression', sub), jac_node=child)
+                        SlotChild(expr=cast(es.Expression, sub), jac_node=child)
                     );
                 }
             } else {
                 children.append(
-                    SlotChild(expr=cast('Expression', child_expr), jac_node=child)
+                    SlotChild(expr=cast(es.Expression, child_expr), jac_node=child)
                 );
             }
         }
@@ -115,7 +117,9 @@ impl EsJsxProcessor.element(self: EsJsxProcessor, nd: uni.JsxElement) -> Express
     view = ViewElement(tag=tag, attrs=attrs, children=children, jac_node=nd);
     self._view_by_node[id(nd)] = view;
     self.pass_ref._ensure_backend();
-    return self.pass_ref.backend.lower_view(view, self.pass_ref.sync_loc);
+    backend = self.pass_ref.backend;
+    assert backend is not None , "framework backend was not initialized";
+    return backend.lower_view(view, self.pass_ref.sync_loc);
 }
 
 impl EsJsxProcessor._lift_control_flow(
@@ -157,11 +161,11 @@ impl EsJsxProcessor._lift_each(
         return None;
     }
     item_name = inner.target.value;
-    items_expr = inner.collection.gen.es_ast;
-    if items_expr is None {
+    raw_items = inner.collection.gen.es_ast;
+    if raw_items is None {
         return None;
     }
-    items_expr = cast('Expression', items_expr);
+    items_expr: es.Expression = cast(es.Expression, raw_items);
     for cond in (inner.conditional or []) {
         pred = cond.gen.es_ast;
         if pred is None {
@@ -169,7 +173,7 @@ impl EsJsxProcessor._lift_each(
         }
         filter_arrow = es.ArrowFunctionExpression(
             params=[es.Identifier(name=item_name)],
-            body=cast('Expression', pred),
+            body=cast(es.Expression, pred),
             async_=False,
             expression=True
         );
@@ -192,7 +196,7 @@ impl EsJsxProcessor._lift_each(
         item=item_name,
         key=key_expr,
         body=[ElementChild(element=body_ve, jac_node=out_expr)],
-        js_fallback=cast('Expression', child.gen.es_ast),
+        js_fallback=cast(es.Expression, child.gen.es_ast),
         jac_node=child
     );
 }
@@ -225,15 +229,15 @@ impl EsJsxProcessor._lift_if(
             return None;
         }
     }
-    test = ternary.condition.gen.es_ast;
-    if test is None {
+    `test = ternary.condition.gen.es_ast;
+    if `test is None {
         return None;
     }
     return IfChild(
-        test=cast('Expression', test),
+        `test=cast(es.Expression, `test),
         consequent=consequent,
         alternate=alternate,
-        js_fallback=cast('Expression', child.gen.es_ast),
+        js_fallback=cast(es.Expression, child.gen.es_ast),
         jac_node=child
     );
 }
@@ -268,7 +272,9 @@ impl EsJsxProcessor.element_name(
 ) -> Expression {
     es = self.es;
     if not nd.parts {
-        expr = self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd);
+        expr: es.Expression = self.pass_ref.sync_loc(
+            es.Literal(value=None), jac_node=nd
+        );
     } else {
         parts = [part.value for part in nd.parts];
         first = parts[0];
@@ -305,7 +311,7 @@ impl EsJsxProcessor.spread_attribute(
     self: EsJsxProcessor, nd: uni.JsxSpreadAttribute
 ) -> Expression {
     es = self.es;
-    expr: Expression = cast('Expression', nd.expr.gen.es_ast)
+    expr: Expression = cast(es.Expression, nd.expr.gen.es_ast)
         if (nd.expr and nd.expr.gen.es_ast)
         else self.pass_ref.sync_loc(es.ObjectExpression(properties=[]), jac_node=nd);
     nd.gen.es_ast = expr;
@@ -325,7 +331,9 @@ impl EsJsxProcessor.normal_attribute(
     }
     attr_name = nd.name.value;
     if (nd.value is None) {
-        value_expr = self.pass_ref.sync_loc(es.Literal(value=True), jac_node=nd);
+        value_expr: es.Expression = self.pass_ref.sync_loc(
+            es.Literal(value=True), jac_node=nd
+        );
         return StaticAttr(name=attr_name, value=value_expr, jac_node=nd);
     } elif isinstance(nd.value, uni.String) {
         import html;
@@ -339,13 +347,13 @@ impl EsJsxProcessor.normal_attribute(
         );
         return StaticAttr(name=attr_name, value=value_expr, jac_node=nd);
     }
-    value_expr = nd.value.gen.es_ast
-    or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd.value);
-    value_expr = cast('Expression', value_expr);
+    raw_value = nd.value.gen.es_ast
+        or self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd.value);
+    value_expr = cast(es.Expression, raw_value);
 
     is_event = attr_name.startswith('on')
-    and len(attr_name) > 2
-    and attr_name[2].isupper();
+        and len(attr_name) > 2
+        and attr_name[2].isupper();
     if is_event {
         return EventAttr(name=attr_name, handler=value_expr, jac_node=nd);
     }
@@ -369,149 +377,9 @@ impl EsJsxProcessor.expression(
     self: EsJsxProcessor, nd: uni.JsxExpression
 ) -> Expression {
     es = self.es;
-    expr: Expression = cast('Expression', nd.expr.gen.es_ast)
+    expr: Expression = cast(es.Expression, nd.expr.gen.es_ast)
         if (nd.expr and nd.expr.gen.es_ast)
         else self.pass_ref.sync_loc(es.Literal(value=None), jac_node=nd.expr);
     nd.gen.es_ast = expr;
     return expr;
-}
-
-impl PyJsxProcessor.init(self: PyJsxProcessor, pass_ref: PyastGenPass) -> None {
-    self.pass_ref = pass_ref;
-}
-
-impl PyJsxProcessor.element(
-    self: PyJsxProcessor, nd: uni.JsxElement
-) -> list[ast3.AST] {
-    if nd.dynamic_tag is not None {
-        tag_arg: ast3.expr = cast(ast3.expr, nd.dynamic_tag.gen.py_ast[0]);
-    } elif (nd.is_fragment or not nd.name) {
-        tag_arg = self.pass_ref.sync(ast3.Constant(value=None), nd);
-    } else {
-        tag_arg = cast(ast3.expr, nd.name.gen.py_ast[0]);
-    }
-    if not nd.attributes {
-        attrs_expr = self.pass_ref.sync(ast3.Dict(keys=[], values=[]), nd);
-    } elif `any(isinstance(attr, uni.JsxSpreadAttribute) for attr in nd.attributes) {
-        attrs_expr = self.pass_ref.sync(ast3.Dict(keys=[], values=[]), nd);
-        for attr in nd.attributes {
-            if isinstance(attr, uni.JsxSpreadAttribute) {
-                attr_ast = cast(ast3.expr, attr.gen.py_ast[0]);
-                attrs_expr = self.pass_ref.sync(
-                    ast3.Dict(keys=[None, None], values=[attrs_expr, attr_ast]), attr
-                );
-            } elif isinstance(attr, uni.JsxNormalAttribute) {
-                attr_tuple = cast(ast3.Tuple, attr.gen.py_ast[0]);
-                (key_ast, value_ast) = attr_tuple.elts;
-                attrs_expr = self.pass_ref.sync(
-                    ast3.Dict(
-                        keys=[None, key_ast],
-                        values=[attrs_expr, cast(ast3.expr, value_ast)]
-                    ),
-                    attr
-                );
-            }
-        }
-    } else {
-        keys: list[(ast3.expr | None)] = [];
-        values: list[ast3.expr] = [];
-        for attr in nd.attributes {
-            if isinstance(attr, uni.JsxNormalAttribute) {
-                attr_ast = cast(ast3.Tuple, attr.gen.py_ast[0]);
-                (key_ast, value_ast) = attr_ast.elts;
-                keys.append(cast(ast3.expr, key_ast));
-                values.append(cast(ast3.expr, value_ast));
-            }
-        }
-        attrs_expr = self.pass_ref.sync(ast3.Dict(keys=keys, values=values), nd);
-    }
-    if nd.children {
-        kept_children = [
-            c
-            for c in nd.children
-            if not isinstance(c, uni.JsxComment)
-            and not (isinstance(c, uni.JsxText) and not c.get_normalized_text())
-        ];
-        children_arg = self.pass_ref.sync(
-            ast3.List(
-                elts=[cast(ast3.expr, c.gen.py_ast[0]) for c in kept_children],
-                ctx=ast3.Load()
-            ),
-            nd
-        );
-    } else {
-        children_arg = self.pass_ref.sync(ast3.List(elts=[], ctx=ast3.Load()), nd);
-    }
-    call = self.pass_ref.sync(
-        ast3.Call(
-            func=self.pass_ref.jaclib_obj('jsx'),
-            args=[tag_arg, attrs_expr, children_arg],
-            keywords=[]
-        ),
-        nd
-    );
-    nd.gen.py_ast = [call];
-    return nd.gen.py_ast;
-}
-
-impl PyJsxProcessor.element_name(
-    self: PyJsxProcessor, nd: uni.JsxElementName
-) -> list[ast3.AST] {
-    name_str = '.'.join(part.value for part in nd.parts);
-    expr: ast3.expr;
-    if (nd.parts and nd.parts[0].value[0].isupper()) {
-        expr = self.pass_ref.sync(ast3.Name(id=name_str, ctx=ast3.Load()), nd);
-    } else {
-        expr = self.pass_ref.sync(ast3.Constant(value=name_str), nd);
-    }
-    nd.gen.py_ast = [expr];
-    return nd.gen.py_ast;
-}
-
-impl PyJsxProcessor.spread_attribute(
-    self: PyJsxProcessor, nd: uni.JsxSpreadAttribute
-) -> list[ast3.AST] {
-    nd.gen.py_ast = [cast(ast3.expr, nd.expr.gen.py_ast[0])];
-    return nd.gen.py_ast;
-}
-
-impl PyJsxProcessor.normal_attribute(
-    self: PyJsxProcessor, nd: uni.JsxNormalAttribute
-) -> list[ast3.AST] {
-    if not nd.name {
-        nd.gen.py_ast = [];
-        return nd.gen.py_ast;
-    }
-    key_ast = self.pass_ref.sync(ast3.Constant(value=nd.name.value), nd.name);
-    value_ast: ast3.expr;
-    if (nd.value and isinstance(nd.value, uni.String)) {
-        import html;
-        value_ast = self.pass_ref.sync(
-            ast3.Constant(value=html.unescape(nd.value.lit_value)), nd.value
-        );
-    } elif (nd.value and nd.value.gen.py_ast) {
-        value_ast = cast(ast3.expr, nd.value.gen.py_ast[0]);
-    } else {
-        value_ast = self.pass_ref.sync(ast3.Constant(value=True), nd);
-    }
-    nd.gen.py_ast = [
-        self.pass_ref.sync(ast3.Tuple(elts=[key_ast, value_ast], ctx=ast3.Load()), nd)
-    ];
-    return nd.gen.py_ast;
-}
-
-impl PyJsxProcessor.text(self: PyJsxProcessor, nd: uni.JsxText) -> list[ast3.AST] {
-    import html;
-    expr = self.pass_ref.sync(
-        ast3.Constant(value=html.unescape(nd.get_normalized_text())), nd
-    );
-    nd.gen.py_ast = [expr];
-    return nd.gen.py_ast;
-}
-
-impl PyJsxProcessor.expression(
-    self: PyJsxProcessor, nd: uni.JsxExpression
-) -> list[ast3.AST] {
-    nd.gen.py_ast = [cast(ast3.expr, nd.expr.gen.py_ast[0])];
-    return nd.gen.py_ast;
 }

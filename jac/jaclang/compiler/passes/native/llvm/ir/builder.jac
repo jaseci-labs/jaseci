@@ -1,12 +1,19 @@
 import functools;
 import from jaclang.compiler.passes.native.llvm.ir { instructions, types, values }
-with entry {
-    _CMP_MAP = {'>': 'gt', '<': 'lt', '==': 'eq', '!=': 'ne', '>=': 'ge', '<=': 'le'};
-}
-def _unop(opname: Any, cls: Any = instructions.Instruction) -> object {
-    def wrap(fn: Any) -> object {
+
+glob _CMP_MAP = {
+         '>': 'gt',
+         '<': 'lt',
+         '==': 'eq',
+         '!=': 'ne',
+         '>=': 'ge',
+         '<=': 'le'
+     };
+
+def _unop(opname: any, cls: any = instructions.Instruction) -> object {
+    def wrap(fn: any) -> object {
         @functools.wraps(fn)
-        def wrapped(self: Any, arg: Any, name: Any = '', flags: Any = ()) -> object {
+        def wrapped(self: any, arg: any, name: any = '', flags: any = ()) -> object {
             instr = cls(self.block, arg.type, opname, [arg], name, flags);
             self._insert(instr);
             return instr;
@@ -15,19 +22,18 @@ def _unop(opname: Any, cls: Any = instructions.Instruction) -> object {
     }
     return wrap;
 }
-def _binop(opname: Any, cls: Any = instructions.Instruction) -> object {
-    def wrap(fn: Any) -> object {
+
+def _binop(opname: any, cls: any = instructions.Instruction) -> object {
+    def wrap(fn: any) -> object {
         @functools.wraps(fn)
         def wrapped(
-            self: Any, lhs: Any, rhs: Any, name: Any = '', flags: Any = ()
+            self: any, lhs: any, rhs: any, name: any = '', flags: any = ()
         ) -> object {
             if (lhs.type != rhs.type) {
                 raise ValueError(
                     (
-                        "Operands must be the same type, got (%s, %s)" % (
-                            lhs.type,
-                            rhs.type
-                        )
+                        "Operands must be the same type, got (%s, %s)"
+                        % (lhs.type, rhs.type)
                     )
                 );
             }
@@ -39,10 +45,11 @@ def _binop(opname: Any, cls: Any = instructions.Instruction) -> object {
     }
     return wrap;
 }
-def _castop(opname: Any, cls: Any = instructions.CastInstr) -> object {
-    def wrap(fn: Any) -> object {
+
+def _castop(opname: any, cls: any = instructions.CastInstr) -> object {
+    def wrap(fn: any) -> object {
         @functools.wraps(fn)
-        def wrapped(self: Any, val: Any, typ: Any, name: Any = '') -> object {
+        def wrapped(self: any, val: any, typ: any, name: any = '') -> object {
             if (val.type == typ) {
                 return val;
             }
@@ -56,28 +63,35 @@ def _castop(opname: Any, cls: Any = instructions.CastInstr) -> object {
 }
 
 class IRBuilder(object) {
-    def init(self: IRBuilder, block: Any = None) -> object {
+    def init(self: IRBuilder, block: any = None) -> object {
         self._block = block;
         self._anchor = len(block.instructions) if block else 0;
         self.debug_metadata = None;
     }
+
     """
         The current basic block.
         """
     @property
-    def block(self: IRBuilder) -> object {
+    def block(self: IRBuilder) -> values.Block {
         return self._block;
     }
 
-    with entry {
-        basic_block = block;
+    """
+        The current basic block (alias of `block`, kept as a real property so
+        the checker sees the getter's return type rather than the raw
+        function object a `basic_block = block` class-body alias binds).
+        """
+    @property
+    def basic_block(self: IRBuilder) -> values.Block {
+        return self._block;
     }
 
     """
         The current function.
         """
     @property
-    def function(self: IRBuilder) -> object {
+    def function(self: IRBuilder) -> values.Function {
         return self.block.parent;
     }
 
@@ -93,7 +107,7 @@ class IRBuilder(object) {
         Position immediately before the given instruction.  The current block
         is also changed to the instruction's basic block.
         """
-    def position_before(self: IRBuilder, instr: Any) -> object {
+    def position_before(self: IRBuilder, instr: any) -> object {
         self._block = instr.parent;
         self._anchor = self._block.instructions.index(instr);
     }
@@ -102,7 +116,7 @@ class IRBuilder(object) {
         Position immediately after the given instruction.  The current block
         is also changed to the instruction's basic block.
         """
-    def position_after(self: IRBuilder, instr: Any) -> object {
+    def position_after(self: IRBuilder, instr: any) -> object {
         self._block = instr.parent;
         self._anchor = self._block.instructions.index(instr) + 1;
     }
@@ -110,7 +124,7 @@ class IRBuilder(object) {
     """
         Position at the start of the basic *block*.
         """
-    def position_at_start(self: IRBuilder, block: Any) -> object {
+    def position_at_start(self: IRBuilder, block: any) -> object {
         self._block = block;
         self._anchor = 0;
     }
@@ -118,7 +132,7 @@ class IRBuilder(object) {
     """
         Position at the end of the basic *block*.
         """
-    def position_at_end(self: IRBuilder, block: Any) -> object {
+    def position_at_end(self: IRBuilder, block: any) -> object {
         self._block = block;
         self._anchor = len(block.instructions);
     }
@@ -127,12 +141,12 @@ class IRBuilder(object) {
         Append a basic block, with the given optional *name*, to the current
         function.  The current block is not changed.  The new block is returned.
         """
-    def append_basic_block(self: IRBuilder, name: Any = '') -> object {
+    def append_basic_block(self: IRBuilder, name: any = '') -> values.Block {
         return self.function.append_basic_block(name);
     }
 
     """Remove the given instruction."""
-    def remove(self: IRBuilder, instr: Any) -> object {
+    def remove(self: IRBuilder, instr: any) -> object {
         idx = self._block.instructions.index(instr);
         del self._block.instructions[idx];
         if (self._block.terminator == instr) {
@@ -143,151 +157,152 @@ class IRBuilder(object) {
         }
     }
 
-    def _insert(self: IRBuilder, instr: Any) -> object {
+    def _insert(self: IRBuilder, instr: any) -> object {
         if ((self.debug_metadata is not None) and ('dbg' not in instr.metadata)) {
             instr.metadata['dbg'] = self.debug_metadata;
         }
         self._block.instructions.insert(self._anchor, instr);
         self._anchor += 1;
     }
-    def _set_terminator(self: IRBuilder, term: Any) -> object {
+
+    def _set_terminator(self: IRBuilder, term: any) -> values.Value {
         assert not self.block.is_terminated;
         self._insert(term);
         self.block.terminator = term;
         return term;
     }
+
     """
         Left integer shift:
             name = lhs << rhs
         """
     @_binop('shl')
-    def shl(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def shl(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Logical (unsigned) right integer shift:
             name = lhs >> rhs
         """
     @_binop('lshr')
-    def lshr(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def lshr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Arithmetic (signed) right integer shift:
             name = lhs >> rhs
         """
     @_binop('ashr')
-    def ashr(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def ashr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Integer addition:
             name = lhs + rhs
         """
     @_binop('add')
-    def add(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def add(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Floating-point addition:
             name = lhs + rhs
         """
     @_binop('fadd')
-    def fadd(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def fadd(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Integer subtraction:
             name = lhs - rhs
         """
     @_binop('sub')
-    def sub(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def sub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Floating-point subtraction:
             name = lhs - rhs
         """
     @_binop('fsub')
-    def fsub(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def fsub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Integer multiplication:
             name = lhs * rhs
         """
     @_binop('mul')
-    def mul(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def mul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Floating-point multiplication:
             name = lhs * rhs
         """
     @_binop('fmul')
-    def fmul(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def fmul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Unsigned integer division:
             name = lhs / rhs
         """
     @_binop('udiv')
-    def udiv(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def udiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Signed integer division:
             name = lhs / rhs
         """
     @_binop('sdiv')
-    def sdiv(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def sdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Floating-point division:
             name = lhs / rhs
         """
     @_binop('fdiv')
-    def fdiv(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def fdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Unsigned integer remainder:
             name = lhs % rhs
         """
     @_binop('urem')
-    def urem(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def urem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Signed integer remainder:
             name = lhs % rhs
         """
     @_binop('srem')
-    def srem(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def srem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Floating-point remainder:
             name = lhs % rhs
         """
     @_binop('frem')
-    def frem(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def frem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Bitwise integer OR:
             name = lhs | rhs
         """
     @_binop('or')
-    def or_(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def or_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Bitwise integer AND:
             name = lhs & rhs
         """
     @_binop('and')
-    def and_(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
+    def and_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Bitwise integer XOR:
             name = lhs ^ rhs
         """
     @_binop('xor')
-    def xor(self: IRBuilder, lhs: Any, rhs: Any, name: Any = '') -> object { }
-
+    def xor(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
 
     """
         Bitwise integer complement:
             name = ~value
         """
-    def not_(self: IRBuilder, value: Any, name: Any = '') -> object {
+    def not_(self: IRBuilder, value: any, name: any = '') -> values.Value {
         if isinstance(value.type, types.VectorType) {
             rhs = values.Constant(value.type, ((-1, ) * value.type.count));
         } else {
@@ -300,7 +315,7 @@ class IRBuilder(object) {
         Integer negative:
             name = -value
         """
-    def neg(self: IRBuilder, value: Any, name: Any = '') -> object {
+    def neg(self: IRBuilder, value: any, name: any = '') -> values.Value {
         return self.sub(values.Constant(value.type, 0), value, name=name);
     }
 
@@ -309,11 +324,11 @@ class IRBuilder(object) {
             name = -arg
         """
     @_unop('fneg')
-    def fneg(self: IRBuilder, arg: Any, name: Any = '', flags: Any = ()) -> object { }
+    def fneg(self: IRBuilder, arg: any, name: any = '', flags: any = ()) -> values.Value { }
 
     def _icmp(
-        self: IRBuilder, prefix: Any, cmpop: Any, lhs: Any, rhs: Any, name: Any
-    ) -> object {
+        self: IRBuilder, prefix: str, cmpop: any, lhs: any, rhs: any, name: any
+    ) -> values.Value {
         try {
             op = _CMP_MAP[cmpop];
         } except KeyError {
@@ -326,6 +341,7 @@ class IRBuilder(object) {
         self._insert(instr);
         return instr;
     }
+
     """
         Signed integer comparison:
             name = lhs <cmpop> rhs
@@ -333,8 +349,8 @@ class IRBuilder(object) {
         where cmpop can be '==', '!=', '<', '<=', '>', '>='
         """
     def icmp_signed(
-        self: IRBuilder, cmpop: Any, lhs: Any, rhs: Any, name: Any = ''
-    ) -> object {
+        self: IRBuilder, cmpop: any, lhs: any, rhs: any, name: any = ''
+    ) -> values.Value {
         return self._icmp('s', cmpop, lhs, rhs, name);
     }
 
@@ -345,8 +361,8 @@ class IRBuilder(object) {
         where cmpop can be '==', '!=', '<', '<=', '>', '>='
         """
     def icmp_unsigned(
-        self: IRBuilder, cmpop: Any, lhs: Any, rhs: Any, name: Any = ''
-    ) -> object {
+        self: IRBuilder, cmpop: any, lhs: any, rhs: any, name: any = ''
+    ) -> values.Value {
         return self._icmp('u', cmpop, lhs, rhs, name);
     }
 
@@ -357,8 +373,8 @@ class IRBuilder(object) {
         where cmpop can be '==', '!=', '<', '<=', '>', '>=', 'ord', 'uno'
         """
     def fcmp_ordered(
-        self: IRBuilder, cmpop: Any, lhs: Any, rhs: Any, name: Any = '', flags: Any = ()
-    ) -> object {
+        self: IRBuilder, cmpop: any, lhs: any, rhs: any, name: any = '', flags: any = ()
+    ) -> values.Value {
         if (cmpop in _CMP_MAP) {
             op = 'o' + _CMP_MAP[cmpop];
         } else {
@@ -378,8 +394,8 @@ class IRBuilder(object) {
         where cmpop can be '==', '!=', '<', '<=', '>', '>=', 'ord', 'uno'
         """
     def fcmp_unordered(
-        self: IRBuilder, cmpop: Any, lhs: Any, rhs: Any, name: Any = '', flags: Any = ()
-    ) -> object {
+        self: IRBuilder, cmpop: any, lhs: any, rhs: any, name: any = '', flags: any = ()
+    ) -> values.Value {
         if (cmpop in _CMP_MAP) {
             op = 'u' + _CMP_MAP[cmpop];
         } else {
@@ -397,8 +413,8 @@ class IRBuilder(object) {
             name = cond ? lhs : rhs
         """
     def select(
-        self: IRBuilder, cond: Any, lhs: Any, rhs: Any, name: Any = '', flags: Any = ()
-    ) -> object {
+        self: IRBuilder, cond: any, lhs: any, rhs: any, name: any = '', flags: any = ()
+    ) -> values.Value {
         instr = instructions.SelectInstr(
             self.block, cond, lhs, rhs, name=name, flags=flags
         );
@@ -411,83 +427,83 @@ class IRBuilder(object) {
             name = (typ) value
         """
     @_castop('trunc')
-    def trunc(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def trunc(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Zero-extending integer upcast to a larger type:
             name = (typ) value
         """
     @_castop('zext')
-    def zext(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def zext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Sign-extending integer upcast to a larger type:
             name = (typ) value
         """
     @_castop('sext')
-    def sext(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def sext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Floating-point downcast to a less precise type:
             name = (typ) value
         """
     @_castop('fptrunc')
-    def fptrunc(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def fptrunc(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Floating-point upcast to a more precise type:
             name = (typ) value
         """
     @_castop('fpext')
-    def fpext(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def fpext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Pointer cast to a different pointer type:
             name = (typ) value
         """
     @_castop('bitcast')
-    def bitcast(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def bitcast(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Convert unsigned integer to floating-point:
             name = (typ) value
         """
     @_castop('uitofp')
-    def uitofp(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def uitofp(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Convert floating-point to signed integer:
             name = (typ) value
         """
     @_castop('fptosi')
-    def fptosi(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def fptosi(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Convert signed integer to floating-point:
             name = (typ) value
         """
     @_castop('sitofp')
-    def sitofp(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def sitofp(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Cast pointer to integer:
             name = (typ) value
         """
     @_castop('ptrtoint')
-    def ptrtoint(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def ptrtoint(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Cast integer to pointer:
             name = (typ) value
         """
     @_castop('inttoptr')
-    def inttoptr(self: IRBuilder, value: Any, typ: Any, name: Any = '') -> object { }
+    def inttoptr(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
 
     """
         Stack-allocate a slot for *size* elements of the given type.
         (default one element)
         """
-    def alloca(self: IRBuilder, typ: Any, size: Any = None, name: Any = '') -> object {
+    def alloca(self: IRBuilder, typ: any, size: any = None, name: any = '') -> values.Value {
         if (size is None) {
             ;
         } elif isinstance(size, (values.Value, values.Constant)) {
@@ -505,8 +521,8 @@ class IRBuilder(object) {
             name = *ptr
         """
     def load(
-        self: IRBuilder, ptr: Any, name: Any = '', align: Any = None, typ: Any = None
-    ) -> object {
+        self: IRBuilder, ptr: any, name: any = '', align: any = None, typ: any = None
+    ) -> values.Value {
         if not isinstance(ptr.type, types.PointerType) {
             msg = "cannot load from value of type %s (%r): not a pointer";
             raise TypeError((msg % (ptr.type, str(ptr))));
@@ -521,7 +537,7 @@ class IRBuilder(object) {
         Store value to pointer, with optional guaranteed alignment:
             *ptr = name
         """
-    def store(self: IRBuilder, value: Any, ptr: Any, align: Any = None) -> object {
+    def store(self: IRBuilder, value: any, ptr: any, align: any = None) -> values.Value {
         if not isinstance(ptr.type, types.PointerType) {
             msg = "cannot store to value of type %s (%r): not a pointer";
             raise TypeError((msg % (ptr.type, str(ptr))));
@@ -537,20 +553,29 @@ class IRBuilder(object) {
         return st;
     }
 
-
     """
         Unconditional branch to *target*.
         """
-    def branch(self: IRBuilder, target: Any) -> object {
+    def branch(self: IRBuilder, target: any) -> values.Value {
         br = instructions.Branch(self.block, "br", [target]);
         self._set_terminator(br);
         return br;
     }
 
     """
+        Switch on *value*, jumping to *default_bb* unless a case added via
+        `add_case` matches.
+        """
+    def `switch(self: IRBuilder, value: any, default_bb: any) -> object {
+        swt = instructions.SwitchInstr(self.block, "switch", value, default_bb);
+        self._set_terminator(swt);
+        return swt;
+    }
+
+    """
         Conditional branch to *truebr* if *cond* is true, else to *falsebr*.
         """
-    def cbranch(self: IRBuilder, cond: Any, truebr: Any, falsebr: Any) -> object {
+    def cbranch(self: IRBuilder, cond: any, truebr: any, falsebr: any) -> values.Value {
         br = instructions.ConditionalBranch(self.block, "br", [cond, truebr, falsebr]);
         self._set_terminator(br);
         return br;
@@ -559,17 +584,16 @@ class IRBuilder(object) {
     """
         Return from function without a value.
         """
-    def ret_void(self: IRBuilder) -> object {
+    def ret_void(self: IRBuilder) -> values.Value {
         return self._set_terminator(instructions.Ret(self.block, "ret void"));
     }
 
     """
         Return from function with the given *value*.
         """
-    def ret(self: IRBuilder, value: Any) -> object {
+    def ret(self: IRBuilder, value: any) -> values.Value {
         return self._set_terminator(instructions.Ret(self.block, "ret", value));
     }
-
 
     """
         Call function *fn* with *args*:
@@ -577,15 +601,15 @@ class IRBuilder(object) {
         """
     def call(
         self: IRBuilder,
-        fn: Any,
-        args: Any,
-        name: Any = '',
-        cconv: Any = None,
-        tail: Any = False,
-        fastmath: Any = (),
-        attrs: Any = (),
-        arg_attrs: Any = None
-    ) -> object {
+        fn: any,
+        args: any,
+        name: any = '',
+        cconv: any = None,
+        tail: any = False,
+        fastmath: any = (),
+        attrs: any = (),
+        arg_attrs: any = None
+    ) -> values.Value {
         inst = instructions.CallInstr(
             self.block,
             fn,
@@ -606,13 +630,13 @@ class IRBuilder(object) {
         """
     def asm(
         self: IRBuilder,
-        ftype: Any,
-        asm: Any,
-        constraint: Any,
-        args: Any,
-        side_effect: Any,
-        name: Any = ''
-    ) -> object {
+        ftype: any,
+        asm: any,
+        constraint: any,
+        args: any,
+        side_effect: any,
+        name: any = ''
+    ) -> values.Value {
         asm = instructions.InlineAsm(ftype, asm, constraint, side_effect);
         return self.call(asm, args, name);
     }
@@ -623,12 +647,12 @@ class IRBuilder(object) {
         """
     def gep(
         self: IRBuilder,
-        ptr: Any,
-        indices: Any,
-        inbounds: Any = False,
-        name: Any = '',
-        source_etype: Any = None
-    ) -> object {
+        ptr: any,
+        indices: any,
+        inbounds: any = False,
+        name: any = '',
+        source_etype: any = None
+    ) -> values.Value {
         instr = instructions.GEPInstr(
             self.block,
             ptr,
@@ -641,12 +665,10 @@ class IRBuilder(object) {
         return instr;
     }
 
-
-
     """
         Extract member number *idx* from aggregate.
         """
-    def extract_value(self: IRBuilder, agg: Any, idx: Any, name: Any = '') -> object {
+    def extract_value(self: IRBuilder, agg: any, idx: any, name: any = '') -> values.Value {
         if not isinstance(idx, (`tuple, `list)) {
             idx = [idx];
         }
@@ -659,8 +681,8 @@ class IRBuilder(object) {
         Insert *value* into member number *idx* from aggregate.
         """
     def insert_value(
-        self: IRBuilder, agg: Any, value: Any, idx: Any, name: Any = ''
-    ) -> object {
+        self: IRBuilder, agg: any, value: any, idx: any, name: any = ''
+    ) -> values.Value {
         if not isinstance(idx, (`tuple, `list)) {
             idx = [idx];
         }
@@ -669,22 +691,23 @@ class IRBuilder(object) {
         return instr;
     }
 
-    def phi(self: IRBuilder, typ: Any, name: Any = '', flags: Any = ()) -> object {
+    def phi(self: IRBuilder, typ: any, name: any = '', flags: any = ()) -> instructions.PhiInstr {
         inst = instructions.PhiInstr(self.block, typ, name=name, flags=flags);
         self._insert(inst);
         return inst;
     }
-    def unreachable(self: IRBuilder) -> object {
+
+    def unreachable(self: IRBuilder) -> values.Value {
         inst = instructions.Unreachable(self.block);
         self._set_terminator(inst);
         return inst;
     }
+
     def atomic_rmw(
-        self: IRBuilder, op: Any, ptr: Any, val: Any, ordering: Any, name: Any = ''
-    ) -> object {
+        self: IRBuilder, op: any, ptr: any, val: any, ordering: any, name: any = ''
+    ) -> values.Value {
         inst = instructions.AtomicRMW(self.block, op, ptr, val, ordering, name=name);
         self._insert(inst);
         return inst;
     }
 }
-

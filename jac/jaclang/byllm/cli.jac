@@ -30,7 +30,7 @@ def _cmd_model(action: str = "list", alias: str = "") -> int {
     action = (action or "list").strip().lower();
 
     if action == "list" {
-        cached = {entry["alias"]: entry for entry in list_downloaded()};
+        cached = {`entry["alias"]: `entry for `entry in list_downloaded()};
         console.print(f"Local model cache: {get_cache_dir()}");
         console.print("");
         console.print(f"  {'ALIAS':<22} {'SIZE':>9} {'STATUS':<12} DESCRIPTION");
@@ -60,19 +60,19 @@ def _cmd_model(action: str = "list", alias: str = "") -> int {
 
     if action == "pull" {
         norm = alias.strip().lower();
-        spec = LOCAL_MODELS.get(norm);
-        if spec is None {
+        pull_spec = LOCAL_MODELS.get(norm);
+        if pull_spec is None {
             console.error(
                 f"unknown alias '{alias}'", hint="run `jac model list` for choices"
             );
             return 2;
         }
-        if is_downloaded(norm, spec) {
+        if is_downloaded(norm, pull_spec) {
             console.info(f"'{norm}' is already downloaded");
             return 0;
         }
         try {
-            path = force_pull(norm, spec);
+            path = force_pull(norm, pull_spec);
         } except Exception as e {
             console.error(f"download failed: {e}");
             return 1;
@@ -102,13 +102,13 @@ def _cmd_model(action: str = "list", alias: str = "") -> int {
         Arg.create(
             "action",
             kind=ArgKind.POSITIONAL,
-            default="list",
+            `default="list",
             help="Action: list, pull, rm"
         ),
         Arg.create(
             "alias",
             kind=ArgKind.POSITIONAL,
-            default="",
+            `default="",
             help="Local-model alias (e.g. gemma-4-e4b). Omit for `list`."
         ),
 

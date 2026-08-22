@@ -1,18 +1,22 @@
+import from jaclang.cli.mcp.prompts { PromptProvider }
+import from jaclang.cli.mcp.resources { ResourceProvider }
+import from jaclang.cli.mcp.tools { ToolProvider }
+
 obj McpEngine {
-    has resources: object,
-        tools: object,
-        prompts: object,
+    has resources: ResourceProvider,
+        tools: ToolProvider,
+        prompts: PromptProvider,
         instructions: str = "";
 
-    def handle_message(msg: dict) -> dict | None;
-    def _dispatch(method: str, params: dict) -> dict;
-    def _initialize(params: dict) -> dict;
-    def _list_resources -> dict;
-    def _read_resource(params: dict) -> dict;
-    def _list_tools -> dict;
-    def _call_tool(params: dict) -> dict;
-    def _list_prompts -> dict;
-    def _get_prompt(params: dict) -> dict;
+    def handle_message(msg: dict[str, any]) -> dict[str, any] | None;
+    def _dispatch(method: str, params: dict[str, any]) -> dict[str, any];
+    def _initialize(params: dict[str, any]) -> dict[str, any];
+    def _list_resources -> dict[str, any];
+    def _read_resource(params: dict[str, any]) -> dict[str, any];
+    def _list_tools -> dict[str, any];
+    def _call_tool(params: dict[str, any]) -> dict[str, any];
+    def _list_prompts -> dict[str, any];
+    def _get_prompt(params: dict[str, any]) -> dict[str, any];
 }
 
 def build_engine(instructions: str = "") -> McpEngine;

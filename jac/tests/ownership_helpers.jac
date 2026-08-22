@@ -15,10 +15,17 @@ glob FIXTURES = os.path.join(
      OWNERSHIP_PREFIX = "E13";
 
 """Compile a fixture with type checking. Returns the JacProgram."""
-def compile_fixture(fixture_name: str) -> JacProgram {
+def compile_fixture(fixture_name: str, enforce: bool = False) -> JacProgram {
     path = os.path.join(FIXTURES, fixture_name);
     program = JacProgram();
-    program.compile(path, type_check=True);
+    if enforce {
+        import from jaclang.jac0core.compile_options { CompileOptions }
+        program.compile(
+            path, options=CompileOptions(na_gc_mode="none", nogc_enforce_all=True)
+        );
+    } else {
+        program.compile(path);
+    }
     return program;
 }
 
