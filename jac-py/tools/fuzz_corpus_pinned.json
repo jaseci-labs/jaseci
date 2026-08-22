@@ -103,7 +103,7 @@
   },
   {
    "name": "pin-item19-range-identity",
-   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        r = range(2, 20, 3)\n        self.assertEqual(type(r).__name__, 'range')\n        self.assertEqual((r.start, r.stop, r.step), (2, 20, 3))\n        self.assertEqual(r[2:8:2], range(8, 14, 6))\n"
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        r = range(2, 20, 3)\n        self.assertEqual(type(r).__name__, 'range')\n        self.assertEqual((r.start, r.stop, r.step), (2, 20, 3))\n        self.assertEqual(r[2:8:2], range(8, 20, 6))\n"
   },
   {
    "name": "pin-item4-noncallable-call",
@@ -148,6 +148,14 @@
   {
    "name": "pin-item8-key-raise-propagates",
    "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def boom(x):\n            raise ValueError('kaboom')\n        with self.assertRaises(ValueError):\n            sorted([1, 2], key=boom)\n"
+  },
+  {
+   "name": "pin-item25-float-int-eq-boundary",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 2 ** 53 + 1\n        b = float(a)\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual((2 ** 53) == float(2 ** 53), True)\n"
+  },
+  {
+   "name": "pin-item22b-unhashable-display-typerror",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            got = ''\n            try:\n                d = {[]: 'nope'}\n            except TypeError:\n                return 'type-error'\n            return 'no-error'\n        self.assertEqual(probe(), 'type-error')\n"
   }
  ]
 }
