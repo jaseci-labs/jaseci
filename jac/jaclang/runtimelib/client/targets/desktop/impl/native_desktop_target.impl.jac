@@ -11,9 +11,8 @@ import from jaclang.runtimelib.client.targets.desktop.desktop_build {
     _find_webview_dir,
     _jac_bin,
     _jac_subprocess_env,
-    _stage_pyembed_shim,
+    _stage_fused_runtime,
     _bundle_runtime,
-    _bundle_pydeps,
 }
 import from jaclang.runtimelib.client.targets.desktop._host_bootstrap {
     _generate_host_source
@@ -101,8 +100,7 @@ def _assemble_native_host(
     shutil.copytree(sv_root, sv_stage, ignore=sv_ignore);
     sv_entry_rel = str(entry_file.name);
 
-    _bundle_pydeps(project_dir, output_dir);
-    _stage_pyembed_shim(output_dir);
+    _stage_fused_runtime(output_dir);
     host_src = _generate_host_source(
         win.title or app_name,
         win.width,
