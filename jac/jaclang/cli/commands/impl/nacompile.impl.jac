@@ -327,7 +327,6 @@ def _compile_native_link_ctx(
     enforce_nogc: bool,
     auto_promote: bool,
     scrub: bool = False,
-=======
     target: NativeLinkTarget = NativeLinkTarget.STANDALONE_EXE,
     plan: NativeTargetPlan | None = None
 ) -> (NativeLinkCtx | None) {

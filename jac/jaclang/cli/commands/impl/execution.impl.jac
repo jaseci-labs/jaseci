@@ -80,7 +80,6 @@ def _set_native_argv_in_dll(lib: object, argv: list[str]) -> bool {
 }
 
 def _populate_native_argv(engine: ExecutionEngine, argv: list[str]) -> None {
->>>>>>> a6da698cb (feat(native): seal entry libraries into binary jabs and boot them in-process)
     import ctypes;
 
     argc_addr = int(engine.get_global_value_address("__jac_argc"));
