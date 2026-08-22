@@ -4,6 +4,7 @@ import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { DiagnosticInfo }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.placement {
+    PLACEMENT_HOLD_EXEMPT_ROOTS,
     get_module_summary,
     placement_state,
     record_placement_evidence,
@@ -11,7 +12,7 @@ import from jaclang.jac0core.placement {
     summarize_module
 }
 
-glob _na_scan_memo: dict[str, tuple] = {},
+glob _na_scan_memo: dict[tuple, tuple] = {},
      _SPACE_BY_NAME: dict[str, CodeContext] = {
          'server': CodeContext.SERVER,
          'client': CodeContext.CLIENT,
@@ -22,7 +23,9 @@ def native_scan_memo_clear {
     _na_scan_memo.clear();
 }
 
-def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
+def _native_dep_scan(
+    path: str, hold_exempt: bool = False
+) -> (tuple[str, list[str]] | None) {
     import from jaclang.jac0core.placement_pins { _is_demoted_native }
     import from jaclang.jac0core.helpers { read_file_with_encoding }
     import from jaclang.jac0core.program { JacProgram }
@@ -44,7 +47,7 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
         }
     }
     fresh_key = tuple(fresh_parts);
-    cached = _na_scan_memo.get(path);
+    cached = _na_scan_memo.get((path, hold_exempt, ));
     if cached is not None and cached[0] == fresh_key {
         return (cached[1], cached[2]);
     }
@@ -64,7 +67,9 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
                 sv_reason = "parse error";
                 break;
             }
-            (f_sv, f_deps) = scan_native_blockers(dep_mod, base_dir, allow_pub=True);
+            (f_sv, f_deps) = scan_native_blockers(
+                dep_mod, base_dir, allow_pub=True, hold_exempt=hold_exempt
+            );
             if f_sv {
                 sv_reason = f_sv;
                 break;
@@ -75,11 +80,13 @@ def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
     if sv_reason {
         deps = [];
     }
-    _na_scan_memo[path] = (fresh_key, sv_reason, deps);
+    _na_scan_memo[(path, hold_exempt, )] = (fresh_key, sv_reason, deps);
     return (sv_reason, deps);
 }
 
-def _native_deps_ok(root_path: str, root_deps: list[str]) -> bool {
+def _native_deps_ok(
+    root_path: str, root_deps: list[str], hold_exempt: bool = False
+) -> bool {
     import from jaclang.jac0core.codeinfo { effective_native_closure_cap }
     import from jaclang.jac0core.compiler { _note_native_closure_cap }
     cap = effective_native_closure_cap();
@@ -94,7 +101,7 @@ def _native_deps_ok(root_path: str, root_deps: list[str]) -> bool {
         if dep in edges {
             continue;
         }
-        info = _native_dep_scan(dep);
+        info = _native_dep_scan(dep, hold_exempt=hold_exempt);
         if info is None {
             return False;
         }
@@ -114,7 +121,10 @@ def _native_deps_ok(root_path: str, root_deps: list[str]) -> bool {
 
 def native_default_path_ok(path: str) -> bool {
     ap = os.path.abspath(path);
-    info = _native_dep_scan(ap);
+
+    _ap_posix = ap.replace(os.sep, "/");
+    exempt = any(marker in _ap_posix for marker in PLACEMENT_HOLD_EXEMPT_ROOTS);
+    info = _native_dep_scan(ap, hold_exempt=exempt);
     if info is None {
         return False;
     }
@@ -122,7 +132,7 @@ def native_default_path_ok(path: str) -> bool {
     if has_sv {
         return False;
     }
-    return _native_deps_ok(ap, deps);
+    return _native_deps_ok(ap, deps, hold_exempt=exempt);
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
