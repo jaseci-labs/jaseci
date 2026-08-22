@@ -45,11 +45,16 @@ def _post_lift_refresh_report(out_dir: Path, report: Path) -> None:
 def _post_lift_wave2_burn_down(out_dir: Path, report: Path) -> None:
     """Wave-2 post-lift burn-down (T8 rule pass + staged pystrnicmp sync).
 
-    The T8 rule pass strips C typedef/boilerplate globs from the lift output;
-    committed wave-2 artifacts assume it ran. ``pystrnicmp`` is staging=lift in
-    ``p2_staged_manifest_wave2.json``, so the staged oracle must stay
-    byte-identical to fresh lift output (checked by
+    ``pystrnicmp`` is staging=lift in ``p2_staged_manifest_wave2.json``, so the
+    staged oracle must stay byte-identical to fresh lift output (checked by
     ``tests/test_p2_waves_staged_sync.jac``).
+
+    NOTE: committed wave-2 ``_lifted/{_opcode,_stat}.jac`` are hand-curated
+    extracts (see c431159be), not full lifts: fresh c2jac output additionally
+    emits C typedef globs and data tables (e.g. _PyOpcode_opcode_metadata)
+    that the curated copies intentionally omit. Re-lifting wave 2 therefore
+    leaves those two files dirty; only tier-B totals/density are gated on the
+    fresh output, never byte-identity.
     """
     if str(_HERE) not in sys.path:
         sys.path.insert(0, str(_HERE))
