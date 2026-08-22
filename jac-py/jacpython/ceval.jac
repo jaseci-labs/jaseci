@@ -374,6 +374,29 @@ def _jac_make_host_trampoline(native_fn):
         pass
     return _trampoline
 
+def _jac_make_weakref(target):
+    # Host weakref over the RAW jacpython object. PyUserObj/PyClass/native
+    # wrappers are ordinary CPython objects, so the host weakref tracks their
+    # exact refcount lifetime: when the last strong reference dies, ref()
+    # returns None with no extra bookkeeping. Returns None on TypeError.
+    import weakref
+    try:
+        return weakref.ref(target)
+    except TypeError:
+        return None
+
+def _jac_weakref_deref(wr):
+    return wr()
+
+def _jac_dbg_dead_check_simple(r):
+    # Minimal: alive or dead, no walking.
+    import sys
+    wr = getattr(r, "wr")
+    return wr() is None
+
+def _py_dict_del(d, k):
+    del d[k]
+
 def _jac_recover_native(raw) -> PyObj | None:
     # If raw is a trampoline we minted, hand back the native function it wraps
     # so a host->native round-trip collapses instead of nesting proxies. Read the
@@ -451,6 +474,7 @@ import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
 import from objects {
+    _py_container_del,
     PyObj,
     PyInt,
     PyStr,
@@ -701,7 +725,7 @@ def clear_sys3_modules {
 # execution raised, so a retry re-runs it instead of seeing a half-built shell).
 def _sys3_forget(name: str) {
     if name in sys3_modules {
-        del sys3_modules[name];
+        _py_container_del(sys3_modules, name);
     }
 }
 
@@ -759,6 +783,11 @@ def _resolve_relative(current_package: str, name: str, level: int) -> str {
 # packages import first (and the submodule is bound as an attribute on its
 # parent, per CPython). Pure-Python source runs in-VM; anything else is proxied.
 def import_native(absname: str) -> PyObj {
+    if absname == "weakref" and not ("weakref" in shim_modules) {
+        # Register before the module-info lookup: weakref.py is pure-Python
+        # stdlib and would otherwise be executed in-VM against C internals.
+        shim_modules["weakref"] = build_weakref_module();
+    }
     if absname in sys3_modules {
         return sys3_modules[absname];
     }
@@ -1975,6 +2004,11 @@ def host_builtin(name: str) -> PyObj {
 }
 
 def host_import(name: str, fromlist: PyObj) -> PyObj {
+    if name == "weakref" and not ("weakref" in shim_modules) {
+        # The host module's ref() sees to_host conversions (plain objects ->
+        # None), so serve our identity-faithful shim instead.
+        shim_modules["weakref"] = build_weakref_module();
+    }
     if name in shim_modules {
         return shim_modules[name];
     }
@@ -2813,7 +2847,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyClass) {
         c = value as PyClass;
         if name in c.attrs {
-            del c.attrs[name];
+            _py_container_del(c.attrs, name);
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -2821,7 +2855,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if name in u.attrs {
-            del u.attrs[name];
+            _py_container_del(u.attrs, name);
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -2829,7 +2863,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyModule) {
         m = value as PyModule;
         if name in m.attrs {
-            del m.attrs[name];
+            _py_container_del(m.attrs, name);
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -2837,7 +2871,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyFunction) {
         f = value as PyFunction;
         if name in f.attrs {
-            del f.attrs[name];
+            _py_container_del(f.attrs, name);
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -5885,6 +5919,64 @@ obj PyCopyFn(PyObj) {
 
 # The native `copy` module, seeded into a Layer-1 namespace so a test that does
 # copy.copy(gen) sees CPython's TypeError natively (the host proxy would drain).
+# Native weakref module surface (shimmed over host weakref). CPython-faithful
+# for objects whose RAW Python identity is the object itself (PyUserObj,
+# PyClass, functions, generators): deref hands back the identical object, and
+# death follows refcounting exactly. Boxed value types (int/str/list/...) are
+# rejected up front because CPython makes them un-weakreferenceable, and host
+# proxies are rejected because deref would mint a fresh proxy and break
+# `r() is o` identity.
+obj PyWeakRefFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            # callback= / weakref.ref(cls) forms unsupported by this surface.
+            return py_error("TypeError", "weakref.ref expected 1 argument");
+        }
+        target = args[0];
+        if isinstance(target, PyHostProxy) or isinstance(target, PyInt)
+            or isinstance(target, PyFloat) or isinstance(target, PyBool)
+            or isinstance(target, PyStr) or isinstance(target, PyBytes)
+            or isinstance(target, PyTuple) or isinstance(target, PyList)
+            or isinstance(target, PyDict) or isinstance(target, PySet)
+            or isinstance(target, PyNoneType) {
+            tname = "object";
+            tn = py_type_of(target);
+            if isinstance(tn, PyClass) {
+                tname = (tn as PyClass).name;
+            }
+            return py_error("TypeError", "cannot create weak reference to '" + tname + "' object");
+        }
+        wr = _jac_make_weakref(target);
+        if wr is None {
+            return py_error("TypeError", "cannot create weak reference to 'object' object");
+        }
+        return PyWeakRef(t="weakref", wr=wr);
+    }
+}
+
+obj PyWeakRef(PyObj) {
+    has wr: any;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        raw = _jac_weakref_deref(self.wr);
+        if raw is None {
+            return py_none();
+        }
+        # The raw value IS the original PyObj: identity (`r() is o`) holds.
+        return raw as PyObj;
+    }
+}
+
+def build_weakref_module -> PyObj {
+    return PyModule(
+        t="module",
+        name="weakref",
+        attrs={
+            "ref": PyWeakRefFn(t="weakref_fn"),
+        },
+    );
+}
+
 def build_copy_module -> PyObj {
     return PyModule(
         t="module",
@@ -6379,7 +6471,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_DELETE_GLOBAL {
             gdel_name = co.names[arg];
             if gdel_name in globals {
-                del globals[gdel_name];
+                _py_container_del(globals, gdel_name);
                 continue;
             }
             gdeleted = py_error("NameError", "name '" + gdel_name + "' is not defined");
@@ -6393,7 +6485,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_DELETE_NAME {
             del_name = co.names[arg];
             if del_name in locals {
-                del locals[del_name];
+                _py_dict_del(locals, del_name);
                 continue;
             }
             deleted = py_error("NameError", "name '" + del_name + "' is not defined");
