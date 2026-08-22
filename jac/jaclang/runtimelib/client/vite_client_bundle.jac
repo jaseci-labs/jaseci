@@ -1,6 +1,5 @@
 import contextlib;
 import shutil;
-import from collections.abc { Callable }
 import from pathlib { Path }
 import from types { ModuleType }
 import from typing { cast }
@@ -12,6 +11,8 @@ import from jaclang.runtimelib.client_bundle {
 import from .compiler { ViteCompiler }
 
 class ViteClientBundleBuilder(ClientBundleBuilder) {
+    has _compiler: (ViteCompiler | None) = None;
+
     def init(
         self: ViteClientBundleBuilder,
         runtime_path: (Path | None) = None,
@@ -24,6 +25,8 @@ class ViteClientBundleBuilder(ClientBundleBuilder) {
     def _compile_bundle(
         self: ViteClientBundleBuilder, module: ModuleType, module_path: Path
     ) -> ClientBundle;
+
+    def _emitted_digest(self: ViteClientBundleBuilder) -> str;
 }
 
 def make_client_bundle_builder(

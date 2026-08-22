@@ -17,7 +17,7 @@ obj DialogPlugin(OsPlugin) {
     }
 
     static def build(ctx: PluginContext, config: object) -> DesktopPlugin {
-        return DialogPlugin(config);
+        return DialogPlugin(DesktopPlugin._coerce_config(config));
     }
 
     def init(config: dict) {

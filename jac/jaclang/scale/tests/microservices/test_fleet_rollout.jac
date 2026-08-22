@@ -3,9 +3,7 @@ import kubernetes;
 import from datetime { datetime, timezone, timedelta }
 import from types { SimpleNamespace }
 import unittest.mock;
-import from jaclang.scale.deploy.target.kubernetes.microservice.target {
-    KubernetesMicroserviceTarget
-}
+import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -65,11 +63,27 @@ def _bundle(deploy_name: str, app: str) -> dict {
     };
 }
 
+# A single replica Deployment as the apiserver reports it. "Not ready" is a
+# pod that exists on the current template but has not become available, which
+# is what a starting or crash-looping replica actually looks like.
+def _dep(ready: int) -> object {
+    return SimpleNamespace(
+        metadata=SimpleNamespace(generation=1),
+        spec=SimpleNamespace(replicas=1),
+        status=SimpleNamespace(
+            observed_generation=1,
+            replicas=1,
+            updated_replicas=1,
+            available_replicas=ready,
+            ready_replicas=ready
+        )
+    );
+}
+
+
 def _apis(ready: int, pods: list) -> tuple {
     apps = unittest.mock.MagicMock();
-    apps.read_namespaced_deployment.return_value = SimpleNamespace(
-        status=SimpleNamespace(ready_replicas=ready)
-    );
+    apps.read_namespaced_deployment.return_value = _dep(ready);
     core = unittest.mock.MagicMock();
     core.list_namespaced_pod.return_value = SimpleNamespace(items=pods);
     core.list_namespaced_event.return_value = SimpleNamespace(items=[]);
@@ -77,7 +91,7 @@ def _apis(ready: int, pods: list) -> tuple {
 }
 
 def _run(
-    target: object, bundle: dict, apps: object, core: object, timeout: int
+    target: any, bundle: dict, apps: object, core: object, timeout: int
 ) -> object {
     err = None;
     with unittest.mock.patch.object(
@@ -86,7 +100,7 @@ def _run(
         with unittest.mock.patch.object(
             kubernetes.client, "CoreV1Api", return_value=core
         ) {
-            with unittest.mock.patch.object(target, "_load_kube_config") {
+            with unittest.mock.patch.object(target, "_load_cluster_config") {
                 with unittest.mock.patch.object(time, "sleep") {
                     try {
                         target._wait_for_fleet_rollout(bundle, timeout=timeout);
@@ -101,7 +115,7 @@ def _run(
 }
 
 test "init-container crashloop surfaces jac-bootstrap exec format error" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     boot = _cs(
@@ -125,7 +139,7 @@ test "init-container crashloop surfaces jac-bootstrap exec format error" {
 }
 
 test "image pull failure fails fast after it persists" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     app_c = _cs("gateway", restarts=0, waiting_reason="ImagePullBackOff");
@@ -140,7 +154,7 @@ test "image pull failure fails fast after it persists" {
 }
 
 test "unrelated failing pod does not abort the fleet" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     stranger = _cs("prometheus", restarts=9, waiting_reason="ImagePullBackOff");
@@ -157,7 +171,7 @@ test "unrelated failing pod does not abort the fleet" {
 }
 
 test "ready fleet returns without raising" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     (apps, core) = _apis(1, []);
@@ -168,7 +182,7 @@ test "ready fleet returns without raising" {
 }
 
 test "multiple image-pull containers do not fail on the first poll" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     c1 = _cs("init-a", restarts=0, waiting_reason="ImagePullBackOff");
@@ -186,7 +200,7 @@ test "multiple image-pull containers do not fail on the first poll" {
 }
 
 test "multiple image-pull containers still fail once it persists" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     c1 = _cs("init-a", restarts=0, waiting_reason="ImagePullBackOff");
@@ -201,7 +215,7 @@ test "multiple image-pull containers still fail once it persists" {
 }
 
 test "crashloop is reported before image-pull in the same poll" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     boot = _cs(
@@ -226,7 +240,7 @@ test "crashloop is reported before image-pull in the same poll" {
 }
 
 test "persistent pull failure is healed once, then fails when it recurs" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     app_c = _cs("gateway", restarts=0, waiting_reason="ImagePullBackOff");
@@ -247,14 +261,14 @@ test "persistent pull failure is healed once, then fails when it recurs" {
 }
 
 test "a heal that unwedges the pod lets the rollout succeed" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     app_c = _cs("gateway", restarts=0, waiting_reason="ImagePullBackOff");
     pod = _pod("gateway-xyz", "gateway", "Pending", [], [app_c]);
     (apps, core) = _apis(0, [pod]);
-    not_ready = SimpleNamespace(status=SimpleNamespace(ready_replicas=0));
-    ready = SimpleNamespace(status=SimpleNamespace(ready_replicas=1));
+    not_ready = _dep(0);
+    ready = _dep(1);
     apps.read_namespaced_deployment.side_effect = [
         not_ready,
         not_ready,
@@ -270,10 +284,10 @@ test "a heal that unwedges the pod lets the rollout succeed" {
 }
 
 test "pod stuck ContainerCreating with FailedMount events is healed" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
     core.list_namespaced_event.return_value = SimpleNamespace(
@@ -299,10 +313,10 @@ test "pod stuck ContainerCreating with FailedMount events is healed" {
 }
 
 test "slow ContainerCreating without FailedMount events is left alone" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
 
@@ -316,10 +330,10 @@ test "slow ContainerCreating without FailedMount events is left alone" {
 
 
 test "a stale FailedMount event from a recovered hiccup never heals" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
     core.list_namespaced_event.return_value = SimpleNamespace(
@@ -342,7 +356,7 @@ test "a stale FailedMount event from a recovered hiccup never heals" {
 }
 
 test "a pod running init containers (PodInitializing) is never mount-healed" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     boot = _cs("jac-bootstrap", restarts=0, waiting_reason="PodInitializing");
@@ -369,7 +383,7 @@ test "a pod running init containers (PodInitializing) is never mount-healed" {
 
 
 test "a terminating pod is invisible to the scanner (no false re-abort)" {
-    target = KubernetesMicroserviceTarget(
+    target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
     app_c = _cs("gateway", restarts=0, waiting_reason="ImagePullBackOff");

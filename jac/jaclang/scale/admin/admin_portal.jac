@@ -1,16 +1,29 @@
 import from pathlib { Path }
-import from fastapi { Request }
-import from fastapi.responses { HTMLResponse, JSONResponse, Response, FileResponse }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes {
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    Response
+}
 import from jaclang.runtimelib.transport { TransportResponse }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
     ParameterType
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.server.native_server { NativeJServer }
+import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.scale.observability.metrics { MetricsCollector }
 
 obj JacAPIServerAdmin {
+    has server: (NativeJServer | None) = None,
+        user_manager: (JacScaleUserManager | None) = None,
+        _metrics: (MetricsCollector | None) = None;
+
+    def _require_user_manager -> JacScaleUserManager;
     def register_admin_endpoints -> None;
     def bootstrap_admin -> None;
     def admin_login(username: str, password: str) -> TransportResponse;
@@ -41,6 +54,10 @@ obj JacAPIServerAdmin {
 
     def admin_delete_user(
         username: str, Authorization: str | None = None
+    ) -> TransportResponse;
+
+    def admin_expire_legacy_credentials(
+        username: str | None = None, Authorization: str | None = None
     ) -> TransportResponse;
 
     def reset_password(
