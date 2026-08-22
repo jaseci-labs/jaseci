@@ -93,3 +93,116 @@ itertools_chain_scan(Py_ssize_t *remaining, Py_ssize_t nsrc, Py_ssize_t *active)
     }
     return -1;
 }
+
+/* itertools.product odometer-advance kernel.
+ *
+ * Mirrors the index update loop of product_next: increment right-to-left,
+ * carrying on roll-over. Returns 0 when a new combination exists (indices
+ * updated) or -1 when all indices rolled over (product_next -> empty).
+ */
+int
+itertools_product_advance(Py_ssize_t *indices, const Py_ssize_t *sizes,
+                          Py_ssize_t npools)
+{
+    Py_ssize_t i = npools - 1;
+    while (i >= 0) {
+        indices[i] = indices[i] + 1;
+        if (indices[i] < sizes[i]) {
+            return 0;
+        }
+        indices[i] = 0;
+        i = i - 1;
+    }
+    return -1;
+}
+
+/* itertools.combinations index-scan kernel.
+ *
+ * Mirrors combinations_next: scan right-to-left for an index below its
+ * maximum (i + n - r), increment it, and reset every later index to one
+ * more than its predecessor (sorted-order invariant). Returns the leftmost
+ * changed position, or -1 when exhausted.
+ */
+Py_ssize_t
+itertools_combinations_scan(Py_ssize_t *indices, Py_ssize_t n, Py_ssize_t r)
+{
+    Py_ssize_t i = r - 1;
+    Py_ssize_t j;
+    while (i >= 0 && indices[i] == i + n - r) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        return -1;
+    }
+    indices[i] = indices[i] + 1;
+    for (j = i + 1; j < r; j++) {
+        indices[j] = indices[j - 1] + 1;
+    }
+    return i;
+}
+
+/* itertools.combinations_with_replacement index-scan kernel.
+ *
+ * Mirrors cwr_next: scan right-to-left for an index below n-1, then set
+ * the whole suffix from that position to the incremented value.
+ * Returns the leftmost changed position, or -1 when exhausted.
+ */
+Py_ssize_t
+itertools_cwr_scan(Py_ssize_t *indices, Py_ssize_t n, Py_ssize_t r)
+{
+    Py_ssize_t i = r - 1;
+    Py_ssize_t j;
+    Py_ssize_t index;
+    while (i >= 0 && indices[i] == n - 1) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        return -1;
+    }
+    index = indices[i] + 1;
+    for (j = i; j < r; j++) {
+        indices[j] = index;
+    }
+    return i;
+}
+
+/* itertools.permutations cycle-step kernel.
+ *
+ * Mirrors the permutations_next advance loop (see also the canonical
+ * Python transliteration in the C source comment): decrement cycles
+ * right-to-left; on zero rotate indices[i:] left by one and reset
+ * cycles[i] = n - i; otherwise swap indices[i] with indices[n-cycles[i]]
+ * and stop. Returns the leftmost changed position after a swap (caller
+ * yields), or -1 when every cycle rolled over (exhausted).
+ */
+Py_ssize_t
+itertools_permutations_step(Py_ssize_t *indices, Py_ssize_t *cycles,
+                            Py_ssize_t n, Py_ssize_t r)
+{
+    Py_ssize_t i = r - 1;
+    Py_ssize_t j;
+    Py_ssize_t index;
+    while (i >= 0) {
+        cycles[i] = cycles[i] - 1;
+        if (cycles[i] == 0) {
+            /* rotation: indices[i:] = indices[i+1:] + indices[i:i+1] */
+            index = indices[i];
+            for (j = i; j < n - 1; j++) {
+                indices[j] = indices[j + 1];
+            }
+            indices[n - 1] = index;
+            cycles[i] = n - i;
+            i = i - 1;
+        } else {
+            j = cycles[i];
+            index = indices[i];
+            indices[i] = indices[n - j];
+            indices[n - j] = index;
+            break;
+        }
+    }
+    if (i < 0) {
+        return -1;
+    }
+    return i;
+}
