@@ -7522,8 +7522,7 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
     if not self.client_manifest.has_client {
         return;
     }
-    # `import` is a language-level name (dynamic import / import.meta), not a
-    # host global, so it lives outside the drift-guarded ambient registry.
+
     allowed = client_ambient_globals() | RUNTIME_PRELUDE_GLOBALS | {"import"};
     frees = free_identifiers(program, allowed);
     if not frees {
