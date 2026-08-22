@@ -775,6 +775,9 @@ impl PortabilityWarnPass._check_js_host_constructors(mod: Module) -> None {
             continue;
         }
         self.emit(W6010, node_override=call.target, name=call.target.sym_name);
+        if any(isinstance(p, KWPair) for p in (call.params or [])) {
+            self.emit(E6010, node_override=call.target, name=call.target.sym_name);
+        }
     }
 }
 

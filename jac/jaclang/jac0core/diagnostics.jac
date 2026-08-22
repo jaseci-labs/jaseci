@@ -1805,6 +1805,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Bare call to JS host constructor '{name}' — use `new({name}, ...)` instead",
          help="Jac has no `new` keyword. Host constructors like TextEncoder and URL must be created with the portable `new(Cls, ...args)` builtin, which lowers to `Reflect.construct(Cls, [args])` in client code."
      ),
+     E6010 = _err(
+         "E6010",
+         Category.CODEGEN,
+         "JS host constructor '{name}' called with keyword arguments — host constructors are positional-only",
+         help="Keyword arguments cannot be mapped onto a JS host constructor's positional parameter list: lowering receives them as an options object the constructor does not understand. Pass the arguments positionally, or use `new({name}, ...)` which validates parameters at compile time."
+     ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(
          "E9002",

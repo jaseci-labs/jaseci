@@ -42,6 +42,7 @@ import from jaclang.jac0core.constant { SymbolType }
 import from jaclang.jac0core.diagnostics {
     E5090,
     E5096,
+    E6010,
     W6001,
     W6002,
     W6003,

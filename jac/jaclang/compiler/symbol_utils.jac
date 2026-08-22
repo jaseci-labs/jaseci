@@ -26,7 +26,12 @@ import from jaclang.jac0core.unitree {
     UniNode,
     UniScopeNode
 }
-import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
+import from jaclang.jac0core.constant {
+    CodeContext,
+    JS_HOST_CONSTRUCTORS,
+    Tokens as Tok,
+    SymbolType
+}
 import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
 import from jaclang.jac0core.compiler {
     ClientImportVerdict,
@@ -286,39 +291,6 @@ def collect_method_names(arch: Archetype) -> set[str] {
     }
     return names;
 }
-
-glob JS_HOST_CONSTRUCTORS: frozenset[str] = frozenset(
-         {
-             "Array",
-             "ArrayBuffer",
-             "CustomEvent",
-             "DataView",
-             "Date",
-             "Error",
-             "Float32Array",
-             "Float64Array",
-             "Headers",
-             "Int32Array",
-             "Map",
-             "PopStateEvent",
-             "Promise",
-             "Proxy",
-             "ReadableStream",
-             "ReadableStreamDefaultReader",
-             "ReadableStreamReadResult",
-             "RegExp",
-             "Response",
-             "Set",
-             "TextDecoder",
-             "TextEncoder",
-             "TypeError",
-             "URL",
-             "URLSearchParams",
-             "Uint32Array",
-             "Uint8Array",
-             "WebSocket"
-         }
-     );
 
 def is_js_host_constructor_call(nd: FuncCall) -> bool {
     if not nd.in_client_context() {
