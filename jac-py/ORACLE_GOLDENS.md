@@ -36,6 +36,8 @@ Each dir contains:
 - `goldens.json` - machine-readable records (paste source from here)
 - `goldens.md` - human-readable dump
 - `SUMMARY.md` - per-stream agent report
+- `paste_ready.json` - compact source + `co_code_hex` / `co_exceptiontable_hex` for pasting into slice tests
+- `INDEX.md` - fixture size table
 
 ## Key facts captured
 
