@@ -2879,6 +2879,20 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
+        # A property with a deleter is a data descriptor: deletion routes through
+        # fdel instead of removing an instance-dict entry (mirror of tp_setattro).
+        classattr = class_lookup_attr(u.cls, name);
+        if isinstance(classattr, PyProperty) {
+            p = classattr as PyProperty;
+            if p.fdel is not None {
+                res = py_invoke(p.fdel as PyObj, [u as PyObj], {});
+                if is_error(res) {
+                    return res;
+                }
+                return py_none();
+            }
+            return py_error("AttributeError", "can't delete attribute '" + name + "'");
+        }
         if name in u.attrs {
             _py_container_del(u.attrs, name);
             return py_none();
