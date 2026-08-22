@@ -1743,9 +1743,7 @@ impl EsastGenPass._try_lower_js_host_constructor_call(
         ),
         jac_node=nd
     );
-    # Positional args plus kwarg values, mirroring the `new(Cls, ...)`
-    # builtin's output -- so a kwarg'd host call lowers instead of falling
-    # through as a bare constructor invocation.
+
     ctor_args_array_elements: list[(es.Expression | es.SpreadElement)] = list(
         call_args
     );
@@ -2170,9 +2168,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    host_ctor = self._try_lower_js_host_constructor_call(
-        nd, callee_expr, args, props
-    );
+    host_ctor = self._try_lower_js_host_constructor_call(nd, callee_expr, args, props);
     if host_ctor is not None {
         nd.gen.es_ast = host_ctor;
         return;
