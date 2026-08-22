@@ -6858,15 +6858,28 @@ def run_frame(frame: PyFrame) -> PyObj {
                 # Shapes that are merely not-yet-natively-hashed (e.g. slice,
                 # hashable in CPython) keep the opaque-host fallback so their
                 # behavior is unchanged.
+                bm_err: PyObj = py_none();
                 j = 0;
                 while j < arg {
                     keyobj = popped[j * 2];
                     if keyobj.t == "list" or keyobj.t == "dict" or keyobj.t == "set" {
-                        return py_error(
+                        bm_err = py_error(
                             "TypeError", "unhashable type: '" + keyobj.t + "'"
                         );
+                        break;
                     }
                     j = j + 1;
+                }
+                if bm_err.t == "error" {
+                    # Route through frame unwinding so guest try/except handlers
+                    # can catch the display-literal raise (TODO item 26 residual:
+                    # a bare return bypassed handler dispatch).
+                    target = recover_exception(co, bm_err, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return bm_err;
                 }
                 host_map: dict[any, any] = {};
                 j = 0;
