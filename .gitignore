@@ -120,3 +120,6 @@ zig-pkg/
 
 # Seal-time generated materializer root (see jaclang/utils/gen_native_materialize.jac)
 jac/jaclang/compiler/native_materialize.jac
+
+# Pi subagent session artifacts
+.pi-subagents/
