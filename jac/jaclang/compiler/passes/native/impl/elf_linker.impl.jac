@@ -130,7 +130,7 @@ def _write_ehdr(
     arch: ArchConfig,
     num_phdrs: int,
     ehdr_size: int
-) -> None {
+) {
     ident = bytearray(16);
     ident[0:4] = ELFMAG;
     ident[4] = ELFCLASS64;
@@ -168,9 +168,19 @@ def _write_phdr(
     filesz: int,
     memsz: int,
     align: int
-) -> None {
+) {
     struct.pack_into(
-        "<IIQQQQQQ", output, off, p_type, flags, foff, vaddr, vaddr, filesz, memsz, align
+        "<IIQQQQQQ",
+        output,
+        off,
+        p_type,
+        flags,
+        foff,
+        vaddr,
+        vaddr,
+        filesz,
+        memsz,
+        align
     );
 }
 
@@ -1202,32 +1212,67 @@ impl ElfLinker.build_executable -> bytes {
     phdr_off = ehdr_size;
 
     _write_phdr(
-        output, phdr_off, PT_PHDR, PF_R, ehdr_size,
-        BASE_VADDR + ehdr_size, phdr_size, phdr_size, 8
+        output,
+        phdr_off,
+        PT_PHDR,
+        PF_R,
+        ehdr_size,
+        BASE_VADDR + ehdr_size,
+        phdr_size,
+        phdr_size,
+        8
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_INTERP, PF_R, interp_foff,
-        interp_vaddr, len(interp_data), len(interp_data), 1
+        output,
+        phdr_off,
+        PT_INTERP,
+        PF_R,
+        interp_foff,
+        interp_vaddr,
+        len(interp_data),
+        len(interp_data),
+        1
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_X, 0,
-        BASE_VADDR, code_seg_size, code_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_X,
+        0,
+        BASE_VADDR,
+        code_seg_size,
+        code_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_W, data_seg_foff,
-        data_seg_vaddr, data_seg_size, data_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_W,
+        data_seg_foff,
+        data_seg_vaddr,
+        data_seg_size,
+        data_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_DYNAMIC, PF_R | PF_W, dynamic_foff,
-        dynamic_vaddr, len(dynamic_data), len(dynamic_data), 8
+        output,
+        phdr_off,
+        PT_DYNAMIC,
+        PF_R | PF_W,
+        dynamic_foff,
+        dynamic_vaddr,
+        len(dynamic_data),
+        len(dynamic_data),
+        8
     );
 
     output[interp_foff:interp_foff + len(interp_data)] = interp_data;
@@ -2308,26 +2353,54 @@ impl ElfLinker.build_shared_object -> bytes {
     phdr_off = ehdr_size;
 
     _write_phdr(
-        output, phdr_off, PT_PHDR, PF_R, ehdr_size,
-        BASE_VADDR + ehdr_size, phdr_size, phdr_size, 8
+        output,
+        phdr_off,
+        PT_PHDR,
+        PF_R,
+        ehdr_size,
+        BASE_VADDR + ehdr_size,
+        phdr_size,
+        phdr_size,
+        8
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_X, 0,
-        BASE_VADDR, code_seg_size, code_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_X,
+        0,
+        BASE_VADDR,
+        code_seg_size,
+        code_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_W, data_seg_foff,
-        data_seg_vaddr, data_seg_size, data_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_W,
+        data_seg_foff,
+        data_seg_vaddr,
+        data_seg_size,
+        data_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
 
     _write_phdr(
-        output, phdr_off, PT_DYNAMIC, PF_R | PF_W, dynamic_foff,
-        dynamic_vaddr, dynamic_size, dynamic_size, 8
+        output,
+        phdr_off,
+        PT_DYNAMIC,
+        PF_R | PF_W,
+        dynamic_foff,
+        dynamic_vaddr,
+        dynamic_size,
+        dynamic_size,
+        8
     );
     phdr_off += 56;
 
@@ -2976,24 +3049,52 @@ impl ElfLinker.build_static_executable -> bytes {
 
     phdr_off = ehdr_size;
     _write_phdr(
-        output, phdr_off, PT_PHDR, PF_R, ehdr_size,
-        BASE_VADDR + ehdr_size, phdr_size, phdr_size, 8
+        output,
+        phdr_off,
+        PT_PHDR,
+        PF_R,
+        ehdr_size,
+        BASE_VADDR + ehdr_size,
+        phdr_size,
+        phdr_size,
+        8
     );
     phdr_off += 56;
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_X, 0,
-        BASE_VADDR, code_seg_size, code_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_X,
+        0,
+        BASE_VADDR,
+        code_seg_size,
+        code_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
     _write_phdr(
-        output, phdr_off, PT_LOAD, PF_R | PF_W, data_seg_foff,
-        data_seg_vaddr, data_seg_size, data_seg_size, PAGE_SIZE
+        output,
+        phdr_off,
+        PT_LOAD,
+        PF_R | PF_W,
+        data_seg_foff,
+        data_seg_vaddr,
+        data_seg_size,
+        data_seg_size,
+        PAGE_SIZE
     );
     phdr_off += 56;
     if has_tls {
         _write_phdr(
-            output, phdr_off, PT_TLS, PF_R, tls_foff,
-            tls_vaddr, tls_file_size, tls_mem_size, max(tls_align, 1)
+            output,
+            phdr_off,
+            PT_TLS,
+            PF_R,
+            tls_foff,
+            tls_vaddr,
+            tls_file_size,
+            tls_mem_size,
+            max(tls_align, 1)
         );
         phdr_off += 56;
     }
