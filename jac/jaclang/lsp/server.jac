@@ -94,7 +94,7 @@ obj Workspace {
 obj LanguageServer {
     has name: str = "",
         version: str = "",
-        _features: dict[str, Callable] = {},
+        _features: dict[str, Callable[[any, any], any]] = {},
         _feature_options: dict[str, any] = {},
         _workspace: Optional[Workspace] = None,
         _transport_writer: Optional[any] = None,

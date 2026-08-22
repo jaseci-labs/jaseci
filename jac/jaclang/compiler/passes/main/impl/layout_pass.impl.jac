@@ -363,7 +363,7 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
 
     import os as _lay_os;
     _decl_mod = arch.find_parent_of_type(Module);
-    _decl_path = _decl_mod.loc.mod_path if _decl_mod?.loc else None;
+    _decl_path = _decl_mod.loc.mod_path if _decl_mod is not None else None;
     return ArchetypeLayout(
         name=aname,
         arch_type=arch_type_str,

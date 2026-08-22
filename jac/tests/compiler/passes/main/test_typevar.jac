@@ -25,7 +25,6 @@ glob CHECKER_FIXTURES = os.path.join(
 test "typevar1_validation_errors" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar1.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 3 , f"Expected 3 errors, got {len(
         program.errors_had
@@ -44,7 +43,6 @@ test "typevar1_validation_errors" {
 test "typevar3_scope_errors" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar3.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     assert len(program.errors_had) == 12 , f"Expected 12 TypeVar scope errors, got {len(
         program.errors_had
@@ -61,7 +59,6 @@ test "typevar3_scope_errors" {
 test "typevar4_variance_validation" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar4.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     # 5 errors: covariant in param, contravariant in returns (explicit + inferred)
     assert len(program.errors_had) == 5 , f"Expected 5 errors, got {len(
@@ -82,7 +79,6 @@ test "typevar4_variance_validation" {
 test "typevar5_unbounded_operations" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar5.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     # 18 errors: 9 per function (attribute, call, subscript, attribute, binary,
     # unary, augmented assignment, await, iteration)
@@ -121,7 +117,6 @@ test "typevar5_unbounded_operations" {
 test "typevar6_bounded_operations" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar6.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     error_messages = [e.pretty_print() for e in program.errors_had];
     all_errors = "\n".join(error_messages);
@@ -140,7 +135,6 @@ test "typevar6_bounded_operations" {
 test "typevar7_constrained_operations" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar7.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     error_messages = [e.pretty_print() for e in program.errors_had];
     all_errors = "\n".join(error_messages);
@@ -169,7 +163,6 @@ test "typevar7_constrained_operations" {
 test "paramspec_callable_no_false_e1071" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "paramspec.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     errors = [e.pretty_print() for e in program.errors_had];
     all_errors = "\n".join(errors);
@@ -186,7 +179,6 @@ test "paramspec_callable_no_false_e1071" {
 test "typevar10_ellipsis_stub_no_error" {
     program = JacProgram();
     mod = program.compile(os.path.join(TYPEVAR_FIXTURES, "typeVar10.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     errors = [e.pretty_print() for e in program.errors_had];
     all_errors = "\n".join(errors);
@@ -204,7 +196,6 @@ test "typevar10_ellipsis_stub_no_error" {
 test "module_dunders_no_errors" {
     program = JacProgram();
     mod = program.compile(os.path.join(CHECKER_FIXTURES, "module_dunders.jac"));
-    run_pass(TypeCheckPass, mod, program);
 
     errors = [e.pretty_print() for e in program.errors_had];
     all_errors = "\n".join(errors);

@@ -31,14 +31,16 @@ def _bundled_app(slug: str, body: str) -> tuple[Path, Path] {
 test "find_module resolves a module routed to the internal program" {
     (d, f) = _bundled_app("resolve", 'def:pub greet() -> str { return "hi"; }\n');
     key = str(f.resolve());
+    prog = Jac.program;
+    assert prog is not None;
     try {
-        mod = Jac.program.compile(key);
+        mod = prog.compile(key);
         assert mod is not None;
         # The divergence the bug relied on: a jaclang-root file is routed to the
         # internal program, so it never lands in the user program's hub.
-        assert key not in Jac.program.mod.hub;
+        assert key not in prog.mod.hub;
         # ...but find_module spans the internal program and resolves it.
-        assert Jac.program.find_module(key) is mod;
+        assert prog.find_module(key) is mod;
     } finally {
         shutil.rmtree(d, ignore_errors=True);
     }
@@ -49,10 +51,12 @@ test "find_module resolves a user-program module and returns None for unknown" {
         f = Path(tmp) / "user.jac";
         f.write_text('def:pub f() -> int { return 1; }\n');
         key = str(f.resolve());
-        mod = Jac.program.compile(key);
+        prog = Jac.program;
+        assert prog is not None;
+        mod = prog.compile(key);
         # A user-dir module lands in the user program and resolves there.
-        assert Jac.program.find_module(key) is mod;
-        assert Jac.program.find_module(str(Path(tmp) / "nope.jac")) is None;
+        assert prog.find_module(key) is mod;
+        assert prog.find_module(str(Path(tmp) / "nope.jac")) is None;
     }
 }
 

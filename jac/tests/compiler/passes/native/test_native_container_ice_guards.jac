@@ -47,7 +47,7 @@ glob FIXTURES = os.path.join(
 
 
 """JIT the fixture once; return its execution engine."""
-def engine -> object {
+def engine -> any {
     if _ENGINE {
         return _ENGINE[0];
     }
@@ -112,10 +112,7 @@ test "compr over or lowers, and its absent arm is falsy rather than a fault" {
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, "compr_or_erased.jac"),
             options=CompileOptions(
-                type_check=False,
-                force_codespace='native',
-                force_target_program=True,
-                no_ir_cache=True
+                force_codespace='native', force_target_program=True, no_ir_cache=True
             )
         );
     } finally {

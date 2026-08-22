@@ -55,15 +55,16 @@ def _model_lacks_tool_role(model_name: str) -> bool {
     return False;
 }
 
-impl Model.invoke(mt_run: MTRuntime) -> object {
+impl Model.invoke(mt_run: MTRuntime) -> any {
     import uuid;
     import time;
     import types as _types_mod;
 
     _parent = _current_invocation_id.get(None);
-    mt_run._parent_invocation_id = _parent;
-    mt_run._invocation_id = str(uuid.uuid4());
-    _ctx_token = _current_invocation_id.set(mt_run._invocation_id);
+    _invocation_id = str(uuid.uuid4());
+    setattr(mt_run, "_parent_invocation_id", _parent);
+    setattr(mt_run, "_invocation_id", _invocation_id);
+    _ctx_token = _current_invocation_id.set(_invocation_id);
     _start = time.time();
 
     try {
@@ -142,18 +143,17 @@ def _stream_with_telemetry(
 }
 
 impl Model._raise_mapped_provider_error(e: Exception) -> None {
-    if isinstance(e, litellm.exceptions.AuthenticationError)
-        or isinstance(e, openai.AuthenticationError) {
+    if isinstance(
+        e, (litellm.exceptions.AuthenticationError, openai.AuthenticationError)
+    ) {
         logger.error(f"LLM AuthenticationError: {e}");
         raise AuthenticationError(str(e));
     }
-    if isinstance(e, litellm.exceptions.RateLimitError)
-        or isinstance(e, openai.RateLimitError) {
+    if isinstance(e, (litellm.exceptions.RateLimitError, openai.RateLimitError)) {
         logger.error(f"LLM RateLimitError: {e}");
         raise RateLimitError(str(e));
     }
-    if isinstance(e, litellm.exceptions.NotFoundError)
-        or isinstance(e, openai.NotFoundError) {
+    if isinstance(e, (litellm.exceptions.NotFoundError, openai.NotFoundError)) {
         logger.error(f"LLM ModelNotFoundError: {e}");
         raise ModelNotFoundError(str(e));
     }
@@ -220,11 +220,12 @@ impl Model.model_call_with_stream(params: dict) {
 }
 
 impl Model.model_call_http(
-    url: str, token: str, payload: dict, ca_bundle: str
+    url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
 ) -> object {
     import httpx;
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"};
-    with httpx.Client(verify=ca_bundle or True, timeout=60.0) as client {
+    client = httpx.Client(verify=ca_bundle or True, timeout=60.0);
+    with client {
         response = client.post(url=url, headers=headers, json=payload);
     }
     return response.json();
@@ -246,7 +247,9 @@ impl Model.model_call_no_stream_async(params: dict) -> dict {
                     base_url=self.api_base, api_key=self.api_key or None
                 );
             }
-            response = await self._async_proxy_client.chat.completions.create(**params);
+            async_client = self._async_proxy_client;
+            assert async_client is not None;
+            response = await async_client.chat.completions.create(**params);
         } else {
             require_optional("litellm", "llm");
             response = await litellm.acompletion(
@@ -277,7 +280,9 @@ impl Model.model_call_with_stream_async(params: dict) {
                     base_url=self.api_base, api_key=self.api_key or None
                 );
             }
-            response = await self._async_proxy_client.chat.completions.create(
+            async_client = self._async_proxy_client;
+            assert async_client is not None;
+            response = await async_client.chat.completions.create(
                 stream=True, **params
             );
         } else {
@@ -296,11 +301,12 @@ impl Model.model_call_with_stream_async(params: dict) {
 }
 
 impl Model.model_call_http_async(
-    url: str, token: str, payload: dict, ca_bundle: str
+    url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
 ) -> object {
     import httpx;
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"};
-    async with httpx.AsyncClient(verify=ca_bundle or True, timeout=60.0) as client {
+    client = httpx.AsyncClient(verify=ca_bundle or True, timeout=60.0);
+    async with client {
         response = await client.post(url=url, headers=headers, json=payload);
     }
     return response.json();

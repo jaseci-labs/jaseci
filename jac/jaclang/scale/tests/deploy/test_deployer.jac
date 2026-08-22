@@ -7,6 +7,10 @@ import from jaclang.scale.runtime.gateway.service_registry {
 }
 import from jaclang.scale.runtime.orchestrator.local_deployer { LocalDeployer }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "local deployer initializes with registry" {
     reg = ServiceRegistry();
     reg.register(ServiceEntry(name="orders", file="orders.jac", prefix="/api/orders"));
@@ -92,7 +96,7 @@ test "stop service stops subprocess" {
     mock_proc = unittest.mock.MagicMock();
     mock_proc.pid = 100;
     mock_proc.`wait = unittest.mock.MagicMock(return_value=0);
-    pm.processes["orders"] = mock_proc;
+    pm.processes["orders"] = _as_any(mock_proc);
 
     result = deployer.stop_service("orders");
     assert result;
@@ -108,7 +112,7 @@ test "restart service stops then starts" {
     old_proc = unittest.mock.MagicMock();
     old_proc.pid = 100;
     old_proc.`wait = unittest.mock.MagicMock(return_value=0);
-    pm.processes["orders"] = old_proc;
+    pm.processes["orders"] = _as_any(old_proc);
 
     new_proc = unittest.mock.MagicMock();
     new_proc.pid = 200;
@@ -129,7 +133,7 @@ test "scale to 0 stops service" {
     mock_proc = unittest.mock.MagicMock();
     mock_proc.pid = 100;
     mock_proc.`wait = unittest.mock.MagicMock(return_value=0);
-    pm.processes["orders"] = mock_proc;
+    pm.processes["orders"] = _as_any(mock_proc);
 
     deployer.scale_service("orders", 0);
     assert "orders" not in pm.processes;
@@ -195,7 +199,7 @@ test "destroy all stops everything" {
         mock_proc = unittest.mock.MagicMock();
         mock_proc.pid = 100;
         mock_proc.`wait = unittest.mock.MagicMock(return_value=0);
-        pm.processes[name] = mock_proc;
+        pm.processes[name] = _as_any(mock_proc);
     }
 
     result = deployer.destroy_all();

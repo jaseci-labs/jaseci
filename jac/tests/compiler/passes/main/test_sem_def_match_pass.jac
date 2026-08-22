@@ -132,7 +132,7 @@ test "sem target names produce no spurious warnings" {
     # be resolved") or W2001 ("may be undefined") warnings.
     file_path = os.path.join(FIXTURES, "sem_target_no_warnings.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     sem_target_names = ["cost", "carby", "Inner"];
 

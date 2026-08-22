@@ -44,8 +44,13 @@ import from jaclang.publish.builder { WheelBuilder }
 
 
 # Helpers --------------------------------------------------------------------------
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def sha256_b64(data: bytes) -> str {
-    b64 = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=");
+    b64 = _as_any(base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"="));
     return f"sha256={b64.decode('ascii')}";
 }
 

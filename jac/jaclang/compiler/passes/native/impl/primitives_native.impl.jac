@@ -3310,7 +3310,7 @@ impl NativeDictEmitter.emit_get(
 
     b.position_at_start(notfound_bb);
     if wrap_optional {
-        default_val = ir.Constant(result_type, None);
+        default_val: ir.Value = ir.Constant(result_type, None);
     } elif len(args) >= 2 {
         default_val = p._coerce_type(args[1], val_type);
     } else {
@@ -3839,7 +3839,11 @@ impl NativeSetEmitter.emit_add(
 }
 
 impl NativeSetEmitter._emit_set_elem_loop(
-    self, ctx: NativeEmitCtx, src_set: ir.Value, prefix: str, body_cb: object
+    self: NativeSetEmitter,
+    ctx: NativeEmitCtx,
+    src_set: ir.Value,
+    prefix: str,
+    body_cb: object
 ) -> None {
     p = ctx.pass_ref;
     helpers = p.set_helpers.get(ctx.type_key);
@@ -4256,8 +4260,10 @@ impl NativeSetEmitter.emit_copy(
 
 impl NativeFrozensetEmitter._get_set_emitter(
     self: NativeFrozensetEmitter, ctx: NativeEmitCtx
-) -> (object | None) {
-    return ctx.pass_ref._native_emitters.get("set");
+) -> (NativeSetEmitter | None) {
+    regs = ctx.pass_ref._native_emitters;
+    se = regs.get("set") if regs is not None else None;
+    return se if isinstance(se, NativeSetEmitter) else None;
 }
 
 impl NativeFrozensetEmitter.emit_union(
@@ -4342,7 +4348,7 @@ impl NativeFrozensetEmitter.emit_copy(
 
 impl NativeTupleEmitter._get_struct_info(
     self: NativeTupleEmitter, ctx: NativeEmitCtx, target: ir.Value
-) -> (object | None) {
+) -> (ir.LiteralStructType | None) {
     if isinstance(target.type, ir.PointerType)
         and isinstance(target.type.pointee, ir.LiteralStructType) {
         return target.type.pointee;
@@ -4364,7 +4370,7 @@ impl NativeTupleEmitter.emit_count(
     b = get_builder(p);
     i64 = ir.IntType(64);
     n = len(st.elements);
-    count = ir.Constant(i64, 0);
+    count: ir.Value = ir.Constant(i64, 0);
     val = args[0];
     for i in range(n) {
         ep = b.gep(
@@ -4400,7 +4406,7 @@ impl NativeTupleEmitter.emit_index(
     n = len(st.elements);
     val = args[0];
 
-    result = ir.Constant(i64, -1);
+    result: ir.Value = ir.Constant(i64, -1);
     for i in range(n - 1, -1, -1) {
         ep = b.gep(
             target,
@@ -4746,7 +4752,7 @@ impl NativeBuiltinEmitter.emit_sorted(
         return None;
     }
     _le = p._native_emitters.get("list") if p?._native_emitters else None;
-    if _le is None {
+    if not isinstance(_le, NativeListEmitter) {
         return None;
     }
     _ctx2 = ctx.__class__(
@@ -4785,7 +4791,7 @@ impl NativeBuiltinEmitter.emit_reversed(
         return None;
     }
     _le = p._native_emitters.get("list") if p?._native_emitters else None;
-    if _le is None {
+    if not isinstance(_le, NativeListEmitter) {
         return None;
     }
     _ctx2 = ctx.__class__(pass_ref=p, type_key=elem_key or "");
@@ -5341,7 +5347,7 @@ impl NativeBuiltinEmitter.emit_list(
         ltype = p.list_types.get(lk);
         if ltype is not None and val.type == ltype.as_pointer() {
             _le = p?._native_emitters?.get("list");
-            if _le is None {
+            if not isinstance(_le, NativeListEmitter) {
                 return None;
             }
             _ctx2 = ctx.__class__(pass_ref=p, type_key=lk);
@@ -5355,7 +5361,7 @@ impl NativeBuiltinEmitter.emit_list(
         p._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
         _lt_ptr = p.list_types.get("ptr");
         _le3 = p?._native_emitters?.get("list");
-        if _lt_ptr is not None and _le3 is not None {
+        if _lt_ptr is not None and isinstance(_le3, NativeListEmitter) {
             _lv = b.bitcast(val, _lt_ptr.as_pointer(), name="l.union.cast");
             _ctx3 = ctx.__class__(pass_ref=p, type_key="ptr");
             return _le3.emit_copy(_ctx3, _lv, []);
@@ -5385,7 +5391,7 @@ impl NativeBuiltinEmitter.emit_dict(
         dtype = p.dict_types.get(dk);
         if dtype is not None and val.type == dtype.as_pointer() {
             _de = p?._native_emitters?.get("dict");
-            if _de is None {
+            if not isinstance(_de, NativeDictEmitter) {
                 return None;
             }
             _ctx2 = ctx.__class__(pass_ref=p, type_key=dk);
@@ -5442,7 +5448,7 @@ impl NativeBuiltinEmitter.emit_set(
         stype = p.set_types.get(sk);
         if stype is not None and val.type == stype.as_pointer() {
             _se = p?._native_emitters?.get("set");
-            if _se is None {
+            if not isinstance(_se, NativeSetEmitter) {
                 return None;
             }
             _ctx2 = ctx.__class__(pass_ref=p, type_key=sk);
