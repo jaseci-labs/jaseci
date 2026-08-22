@@ -1137,7 +1137,13 @@ def visit_subscript_index(
         if isinstance(cv, PyInt) {
             kloc = expr_loc(key);
             if register_small_int {
-                g.u.add_const((key as Constant).value);
+                # CPython keeps the dead small-int slot ONLY when the pool is
+                # still empty (index 0), mirroring register_int_literal_const;
+                # later subscript keys are pure LOAD_SMALL_INT with no entry.
+                in_class_body = g.sym_top is not None and g.sym_top.block_type == "class";
+                if len(g.u.consts) == 0 and not in_class_body {
+                    g.u.add_const(cv);
+                }
             }
             emit_folded_int(g, (cv as PyInt).val, kloc);
             return;
@@ -1601,7 +1607,12 @@ def visit_expr(
             return None;
         }
         if display_all_constant(telts) {
-            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(telts)));
+            ti2 = 0;
+            while ti2 < len(telts) {
+                register_int_literal_const(g, telts[ti2], True);
+                ti2 = ti2 + 1;
+            }
+            cidx = g.u.stage_late_const(PyTuple(t="tuple", items=display_const_items(telts)));
             g.emit_op(OP_LOAD_CONST, cidx, dloc);
             return None;
         }
@@ -1625,10 +1636,15 @@ def visit_expr(
             return None;
         }
         if len(lelts) > 0 and display_all_constant(lelts) {
+            li2 = 0;
+            while li2 < len(lelts) {
+                register_int_literal_const(g, lelts[li2], True);
+                li2 = li2 + 1;
+            }
             # CPython packs an all-constant list as an empty list extended by a
             # folded const tuple: BUILD_LIST 0; LOAD_CONST (tuple); LIST_EXTEND 1.
             g.emit_op(OP_BUILD_LIST, 0, dloc);
-            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(lelts)));
+            cidx = g.u.stage_late_const(PyTuple(t="tuple", items=display_const_items(lelts)));
             g.emit_op(OP_LOAD_CONST, cidx, dloc);
             g.emit_op(OP_LIST_EXTEND, 1, dloc);
             return None;
@@ -1671,6 +1687,11 @@ def visit_expr(
             return None;
         }
         if len(selts) > 0 and display_all_constant(selts) {
+            si3 = 0;
+            while si3 < len(selts) {
+                register_int_literal_const(g, selts[si3], True);
+                si3 = si3 + 1;
+            }
             # CPython packs an all-constant set as an empty set extended by a
             # folded frozenset const: BUILD_SET 0; LOAD_CONST (frozenset);
             # SET_UPDATE 1. Mirrors the all-constant list path above.
@@ -1685,7 +1706,7 @@ def visit_expr(
                 ci2 = ci2 + 1;
             }
             g.emit_op(OP_BUILD_SET, 0, dloc);
-            cidx_set = g.u.add_const(frozen);
+            cidx_set = g.u.stage_late_const(frozen);
             g.emit_op(OP_LOAD_CONST, cidx_set, dloc);
             g.emit_op(OP_SET_UPDATE, 1, dloc);
             return None;

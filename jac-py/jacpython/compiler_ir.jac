@@ -7,8 +7,8 @@
 # na-clean leaf: no host calls, no import cycles. Location encoding matches
 # CPython 3.14 (PEP 626); col offsets are 0-based byte offsets, NO_COLUMN = -1.
 
-import from objects { PyObj }
-import from opcode_meta { opcode_cache_count }
+import from objects { PyObj, py_none }
+import from opcode_meta { opcode_cache_count, OP_LOAD_CONST }
 import from compiler_diagnostics { compiler_diagnostic }
 import from compiler_symtable { sym_block }
 
@@ -260,6 +260,12 @@ obj unverified_cfg {
         # Set by codegen on unsupported nodes; product_compile checks before
         # flowgraph verification (PLAN.md: no silent codegen paths).
         diag: compiler_diagnostic | None = None,
+        # Folded display consts (tuple/list/frozenset) staged for late interning.
+        # CPython's display folding runs as a post-visit optimizer pass, so its
+        # folded consts land AFTER every visit-time const including the implicit
+        # epilogue None; eager add_const at fold time shifts all later indices.
+        late_consts: list[PyObj] = [],
+        late_flushed: bool = False,
         # CPython keeps one dead small-int const (first 0..255 literal seen).
         dead_small_int_const: bool = False,
         # Set after MAKE_FUNCTION; suppresses dead small-int consts on call args.
@@ -324,6 +330,49 @@ obj unverified_cfg {
         }
         self.names.append(n);
         return len(self.names) - 1;
+    }
+
+    # Stage a folded display const for interning at flush time. Returns a
+    # negative placeholder oparg; flush_late_consts patches it to the final
+    # index. Dedup within the staged set mirrors add_const.
+    def stage_late_const(c: PyObj) -> int {
+        key = c.tp_hashkey();
+        k = 0;
+        while k < len(self.late_consts) {
+            if self.late_consts[k].tp_hashkey() == key {
+                return -(k + 1);
+            }
+            k = k + 1;
+        }
+        self.late_consts.append(c);
+        return -len(self.late_consts);
+    }
+
+    # Intern staged consts after every visit-time const (CPython interns them
+    # in a post-visit optimizer pass, after the epilogue None), then patch all
+    # negative OP_LOAD_CONST opargs to final indices. Call exactly once per
+    # unverified_cfg before verification/assembly; no-op when nothing staged.
+    def flush_late_consts() {
+        if self.late_flushed or len(self.late_consts) == 0 {
+            return;
+        }
+        finals: list[int] = [];
+        k = 0;
+        while k < len(self.late_consts) {
+            finals.append(self.add_const(self.late_consts[k]));
+            k = k + 1;
+        }
+        bi = 0;
+        while bi < len(self.blocks) {
+            for ins in self.blocks[bi].instrs {
+                if ins.opcode == OP_LOAD_CONST and ins.oparg < 0 {
+                    ins.oparg = finals[-(ins.oparg) - 1];
+                }
+            }
+            bi = bi + 1;
+        }
+        self.late_consts = [];
+        self.late_flushed = True;
     }
 }
 

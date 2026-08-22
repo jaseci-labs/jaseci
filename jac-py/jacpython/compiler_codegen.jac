@@ -732,6 +732,7 @@ def compile_eval(
     g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
     cleanup = visit_expr(g, e, false_shortcircuit_returns=True);
     if codegen_busy(g) {
+        u.flush_late_consts();
         return u;
     }
     eloc = top_loc(e);
@@ -753,6 +754,7 @@ def compile_eval(
             g.emit_op(OP_RETURN_VALUE, 0, eloc);
         }
     }
+    u.flush_late_consts();
     return u;
 }
 
@@ -5201,6 +5203,7 @@ def compile_fn_cfg(
             terminated = True;
         }
         if codegen_busy(g) {
+            u.flush_late_consts();
             return u;
         }
         if cont.next_si >= 0 {
@@ -5218,6 +5221,7 @@ def compile_fn_cfg(
     if is_suspendable {
         emit_generator_except_handler(g, protect_start);
     }
+    u.flush_late_consts();
     return u;
 }
 
@@ -5290,6 +5294,7 @@ def compile_exec(
             terminated = True;
         }
         if codegen_busy(g) {
+            u.flush_late_consts();
             return u;
         }
         if cont.next_si >= 0 {
@@ -5301,15 +5306,18 @@ def compile_exec(
     if len(ann_plan.entries) > 0 {
         finish_module_annotations(g, ann_plan);
         if codegen_busy(g) {
+            u.flush_late_consts();
             return u;
         }
     }
     if terminated {
+        u.flush_late_consts();
         return u;
     }
     none_idx = u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, last);
     g.emit_op(OP_RETURN_VALUE, 0, last);
     emit_deferred_comp_handlers(g);
+    u.flush_late_consts();
     return u;
 }
