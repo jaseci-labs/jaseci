@@ -1252,7 +1252,6 @@ impl PyastBuildPass.proc_continue(nd: py_ast.Continue) -> CtrlStmt {
 }
 
 impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> Expr {
-    # int/float/complex handled below; non-finite floats need special emission.
     type_mapping: dict[type, type[Expr]] = {
         str: String,
         bytes: String,
