@@ -201,6 +201,7 @@ console.log(`out=${JSON.stringify(out)} compute=${c}`);
 test "abi64 adapter gap is reported against the floor, not the app" {
     _require_libc();
     src = _wasm_libc_dir();
+    assert src is not None;
     d = tempfile.mkdtemp();
     floor = os.path.join(d, "libc");
     shutil.copytree(src, floor);
@@ -266,6 +267,7 @@ test "the built floor defines every abi64 adapter" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { _ABI64_ADAPTED }
     libc_dir = _wasm_libc_dir();
+    assert libc_dir is not None;
     blobs = [
         Path(os.path.join(libc_dir, f)).read_bytes()
         for f in os.listdir(libc_dir)
@@ -291,6 +293,7 @@ test "a floor built from different wasm_rt sources is refused" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
+    assert src is not None;
     if not os.path.isfile(os.path.join(src, FLOOR_MANIFEST)) {
         testskip("floor predates SOURCES.sha256");
     }
@@ -340,6 +343,7 @@ test "a floor without a manifest still links" {
     _require_libc();
     import from jaclang.compiler.passes.native.wasm_build { FLOOR_MANIFEST }
     src = _wasm_libc_dir();
+    assert src is not None;
     d = tempfile.mkdtemp();
     floor = os.path.join(d, "libc");
     shutil.copytree(src, floor);

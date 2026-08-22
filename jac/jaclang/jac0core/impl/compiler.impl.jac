@@ -1483,7 +1483,9 @@ impl JacCompiler._compile_once(
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
 
     _is_decl_stub = str(file_path).endswith('.pyi')
-        or (mod_targ is not None and mod_targ.stub_only);
+        or str(file_path).endswith('.py')
+        or (mod_targ is not None and mod_targ.stub_only)
+        or (mod_targ is not None and mod_targ.is_raised_from_py);
     import from jaclang.jac0core.ext_registry { is_annex as _cc_is_annex }
     _standalone_annex = _cc_is_annex(file_path);
     _analyze = _full_head

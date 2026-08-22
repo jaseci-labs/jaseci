@@ -169,7 +169,7 @@ glob _LATE_BOUND: set = {
 
      },
      _BACKEND_BOUND: set = {"memcpy", "memmove", "memset", "__multi3"},
-     _ABI64_ADAPTED: set = {
+     _ABI64_ADAPTED: set[str] = {
          "strlen",
          "malloc",
          "calloc",
