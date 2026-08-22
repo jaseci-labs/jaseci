@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave12",
+  "description": "P2 wave-12 conformance manifest (itertools facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "itertoolsmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_itertools_facade_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "22 iterator archetypes mirroring pinned CPython algorithms; host-oracle facade parity tests"
+    }
+  ]
+}

@@ -29,7 +29,7 @@ class P2ConformanceWavesGateTests(unittest.TestCase):
         return _load(_TESTS_DIR / f"conformance_manifest_wave{wave}.json")
 
     def test_all_waves(self) -> None:
-        for wave in range(2, 12):
+        for wave in range(2, 13):
             with self.subTest(wave=wave):
                 self._check_wave(wave)
 
