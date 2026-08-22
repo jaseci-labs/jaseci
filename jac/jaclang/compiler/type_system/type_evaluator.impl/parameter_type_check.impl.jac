@@ -193,6 +193,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         bindings = self._collect_type_var_bindings(
             caller_type, expr, is_unbound_call=is_unbound_call
         );
+        self._stamp_call_binding(expr, caller_type, arg_param_match, bindings);
         ret: TypeBase = caller_type.return_type or UnknownType();
         if bindings {
             specialized = caller_type.specialize_func_type_vars(bindings);
@@ -206,6 +207,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
     }
     if isinstance(caller_type, OverloadedType) {
         _fallback_result: TypeBase | None = None;
+        _fallback_stamp: tuple | None = None;
 
         def _contains_unknown(ty: TypeBase) -> bool {
             if isinstance(ty, UnknownType) {
@@ -235,26 +237,32 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
                     ret_type = overload.return_type;
-
-                    if ret_type and _contains_unknown(ret_type) {
-                        bindings = self._collect_type_var_bindings(
-                            overload, expr, is_unbound_call=is_unbound_call
-                        );
-                        if bindings {
-                            ret_type = self._substitute_type_vars(ret_type, bindings);
-                        }
+                    bindings = self._collect_type_var_bindings(
+                        overload, expr, is_unbound_call=is_unbound_call
+                    );
+                    if ret_type and _contains_unknown(ret_type) and bindings {
+                        ret_type = self._substitute_type_vars(ret_type, bindings);
                     }
 
                     if not _contains_unknown(ret_type or UnknownType()) {
+                        self._stamp_call_binding(
+                            expr, overload, arg_param_match, bindings
+                        );
                         return ret_type or UnknownType();
                     }
                     if _fallback_result is None {
                         _fallback_result = ret_type;
+                        _fallback_stamp = (overload, arg_param_match, bindings);
                     }
                 }
             }
         }
         if _fallback_result is not None {
+            if _fallback_stamp is not None {
+                self._stamp_call_binding(
+                    expr, _fallback_stamp[0], _fallback_stamp[1], _fallback_stamp[2]
+                );
+            }
             return _fallback_result;
         }
         lambda_param = self._unannotated_lambda_arg_name(expr);
@@ -613,14 +621,23 @@ impl TypeEvaluator._validate_constructor_method(
             ) {
             has_params = len(method_type.parameters) > 1;
         }
+        ctor_type = self._strip_implicit_self_cls(method_type);
         if has_params {
-            ctor_type = self._strip_implicit_self_cls(method_type);
             arg_param_match = self.match_args_to_params(expr.params, expr, ctor_type);
             if not arg_param_match.argument_errors {
                 self.validate_arg_types(arg_param_match);
             }
+            self._stamp_call_binding(
+                expr,
+                ctor_type,
+                arg_param_match,
+                self._collect_type_var_bindings(
+                    method_type, expr, is_constructor_call=True
+                )
+            );
             return method_type;
         }
+        self._stamp_call_binding(expr, ctor_type, None, None);
         return None;
     }
     if isinstance(method_type, OverloadedType) {
@@ -634,6 +651,14 @@ impl TypeEvaluator._validate_constructor_method(
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
                     matched_overload = overload;
+                    self._stamp_call_binding(
+                        expr,
+                        ctor_overload,
+                        arg_param_match,
+                        self._collect_type_var_bindings(
+                            overload, expr, is_constructor_call=True
+                        )
+                    );
                     break;
                 }
             }
@@ -647,6 +672,35 @@ impl TypeEvaluator._validate_constructor_method(
         return matched_overload;
     }
     return None;
+}
+
+impl TypeEvaluator._stamp_call_binding(
+    expr: FuncCall,
+    callee: FunctionType,
+    matched: (MatchArgsToParamsResult | None),
+    bindings: (dict[str, TypeBase] | None)
+) -> None {
+    resolved = callee;
+    if bindings {
+        resolved = callee.specialize_func_type_vars(bindings);
+    }
+    arg_params: dict[(Expr | KWPair, Parameter | None)] = {};
+    if matched is not None {
+        index_of: dict[int, int] = {
+            id(p): i for (i, p) in enumerate(callee.parameters or [])
+        };
+        for (arg, param) in matched.arg_params.items() {
+            if param is None {
+                arg_params[arg] = None;
+                continue;
+            }
+            idx = index_of.get(id(param));
+            arg_params[arg] = resolved.parameters[idx] if idx is not None else param;
+        }
+    }
+    expr.resolved_callee = resolved;
+    expr.arg_params = arg_params;
+    expr.type_var_bindings = dict(bindings) if bindings else {};
 }
 
 impl TypeEvaluator._strip_implicit_self_cls(method: FunctionType) -> FunctionType {

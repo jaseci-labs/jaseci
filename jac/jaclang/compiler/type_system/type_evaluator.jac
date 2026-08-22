@@ -124,6 +124,7 @@ import from jaclang.compiler.type_system.types {
     ParamKind,
     Parameter,
     ParameterCategory,
+    ResolvedOperator,
     TypeBase,
     TypeCategory,
     TypeFlags,
@@ -132,6 +133,7 @@ import from jaclang.compiler.type_system.types {
     UnknownType,
     create_callable_type
 }
+import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES, PASS_RIM_MODULE }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
 import from jaclang.jac0core.passes.transform { Transform }
 import type from jaclang.jac0core.program { JacProgram }
@@ -462,6 +464,10 @@ obj TypeEvaluator {
         src_type: TypeBase, dest_type: TypeBase, strict: bool = False
     ) -> bool;
 
+    def resolve_operator(
+        owner: TypeBase, method: str, reflected: bool
+    ) -> ResolvedOperator;
+
     def get_type_of_magic_method_call(
         obj_type: TypeBase,
         method_name: str,
@@ -584,6 +590,13 @@ obj TypeEvaluator {
 
     def _is_unbound_method_call(expr: FuncCall) -> bool;
     def validate_call_args(expr: FuncCall) -> TypeBase;
+    def _stamp_call_binding(
+        expr: FuncCall,
+        callee: FunctionType,
+        matched: (MatchArgsToParamsResult | None),
+        bindings: (dict[str, TypeBase] | None)
+    ) -> None;
+
     def _unannotated_lambda_arg_name(expr: FuncCall) -> str | None;
     def _make_coroutine_type(inner: TypeBase) -> TypeBase;
     def _is_awaitable_type(t: TypeBase) -> bool;

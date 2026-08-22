@@ -622,6 +622,7 @@ obj CodeGenTarget {
         has_root_access: (bool | None) = None,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',
+        native_capability_partition: (tuple | None) = None,
         layout_registry: any = None,
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),

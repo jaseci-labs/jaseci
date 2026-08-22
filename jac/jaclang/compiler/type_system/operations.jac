@@ -381,18 +381,24 @@ def get_type_of_binary_operation(
                 evaluator, left_type, right_type, expr.op.name
             );
             if promoted_type is not None {
+                expr.resolved_op = None;
                 return promoted_type;
             }
         }
 
+        expr.resolved_op = None;
         result = evaluator.get_type_of_magic_method_call(
             left_type, magic, [expr.right], None
         );
-
-        if result is None {
+        if result is not None {
+            expr.resolved_op = evaluator.resolve_operator(left_type, magic, False);
+        } else {
             result = evaluator.get_type_of_magic_method_call(
                 right_type, rmagic, [expr.left], None
             );
+            if result is not None {
+                expr.resolved_op = evaluator.resolve_operator(right_type, rmagic, True);
+            }
         }
 
         if result is None {

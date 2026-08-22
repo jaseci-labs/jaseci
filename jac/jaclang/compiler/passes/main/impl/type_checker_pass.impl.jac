@@ -638,9 +638,15 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
             ) {
                 aug_magic = AUG_OPERATOR_MAP.get(aug_op.name);
                 if aug_magic is not None {
+                    nd.resolved_op = None;
                     result = self.evaluator.get_type_of_magic_method_call(
                         left_type, aug_magic, [nd.value], nd.value
                     );
+                    if result is not None {
+                        nd.resolved_op = self.evaluator.resolve_operator(
+                            left_type, aug_magic, False
+                        );
+                    }
                     if result is None {
                         base_op = AUG_TO_BINARY_MAP.get(aug_op.name);
                         if base_op is not None {
@@ -665,10 +671,19 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                                     result = self.evaluator.get_type_of_magic_method_call(
                                         left_type, magic, [nd.value], nd.value
                                     );
-                                    if result is None {
+                                    if result is not None {
+                                        nd.resolved_op = self.evaluator.resolve_operator(
+                                            left_type, magic, False
+                                        );
+                                    } else {
                                         result = self.evaluator.get_type_of_magic_method_call(
                                             right_type, rmagic, [nd.value], nd.value
                                         );
+                                        if result is not None {
+                                            nd.resolved_op = self.evaluator.resolve_operator(
+                                                right_type, rmagic, True
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -1459,12 +1474,45 @@ impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None
     }
 }
 
+impl TypeCheckPass.exit_expr_stmt(self: TypeCheckPass, nd: ExprStmt) -> None {
+    if self._lambda_depth > 0 {
+        return;
+    }
+    if isinstance(nd.expr, Name) and nd.expr.type is None {
+        self.evaluator.get_type_of_expression(nd.expr);
+    }
+}
+
+impl TypeCheckPass.exit_match_stmt(self: TypeCheckPass, nd: MatchStmt) -> None {
+    if self._lambda_depth > 0 {
+        return;
+    }
+    if nd.target.type is None {
+        self.evaluator.get_type_of_expression(nd.target);
+    }
+}
+
+impl TypeCheckPass.exit_except(self: TypeCheckPass, nd: Except) -> None {
+    if self._lambda_depth > 0 {
+        return;
+    }
+    if nd.ex_type.type is None {
+        self.evaluator.get_type_of_expression(nd.ex_type);
+    }
+    if nd.name is not None and nd.name.type is None and nd.name.sym is not None {
+        nd.name.type = self.evaluator.get_type_of_symbol(nd.name.sym);
+    }
+}
+
 impl TypeCheckPass.exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None {
+    scope = self.evaluator._get_enclosing_return_scope(nd);
+    if isinstance(scope, Ability) {
+        scope.is_generator = True;
+    }
     if nd.expr is None {
         return;
     }
     yielded_type = self.evaluator.get_type_of_expression(nd.expr);
-    scope = self.evaluator._get_enclosing_return_scope(nd);
     if scope is None {
         return;
     }

@@ -2,6 +2,7 @@ import from abc { ABC }
 import from enum { IntEnum, auto }
 import from pathlib { Path }
 import type from jaclang.jac0core.unitree { Expr, Symbol }
+import from jaclang.jac0core.constant { OwnershipKind }
 import type from jaclang.jac0core.unitree { UniScopeNode as SymbolTable }
 
 enum TypeCategory(IntEnum) {
@@ -125,6 +126,7 @@ obj ClassDetailsShared {
         is_typeddict: bool = False,
         typeddict_fields: (dict[str, TypeBase] | None) = None,
         is_root_class: bool = False,
+        is_native_erased: bool = False,
         is_enum_class: bool = False,
         enum_value_type: (TypeBase | None) = None,
         enum_members: (dict[str, EnumMemberInfo] | None) = None,
@@ -204,11 +206,19 @@ obj Parameter {
         is_self: bool = False,
         is_cls: bool = False,
         param_kind: ParamKind = ParamKind.NORMAL,
-        has_default: bool = False;
+        has_default: bool = False,
+        ownership: OwnershipKind = OwnershipKind.NONE;
 
     def clone -> Parameter;
 
     has is_optional: bool { getter; }
+}
+
+obj ResolvedOperator {
+    has owner: TypeBase,
+        method: str,
+        reflected: bool = False,
+        callee: (FunctionType | None) = None;
 }
 
 obj FunctionType(TypeBase) {

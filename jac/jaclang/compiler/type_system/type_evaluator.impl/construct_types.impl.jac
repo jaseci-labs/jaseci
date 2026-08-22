@@ -430,6 +430,11 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 is_self=is_self_param,
                 is_cls=is_cls_param,
                 param_kind=_convert_param_kind(param.param_kind),
+                ownership=(
+                    param.type_tag.ownership
+                        if param.type_tag is not None
+                        else OwnershipKind.NONE
+                ),
             )
         );
     }
@@ -565,6 +570,19 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
         );
         enum_members = build_enum_members(node_, self, enum_value_type);
     }
+    _decl_mod = node_.find_parent_of_type(Module);
+    is_native_erased = (
+        node_.name_spec.sym_name in NATIVE_ERASED_BASES
+        and (
+            is_from_stdlib_stub
+            or (
+                _decl_mod is not None
+                and _decl_mod.loc.mod_path.replace(os.sep, "/").endswith(
+                    "/" + PASS_RIM_MODULE.replace(".", "/") + ".jac"
+                )
+            )
+        )
+    );
     cls_type = ClassType(
         _shared=ClassDetailsShared(
             class_name=node_.name_spec.sym_name,
@@ -576,6 +594,7 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
             is_data_class=is_data_class,
             is_namedtuple=is_namedtuple,
             is_typeddict=is_typeddict,
+            is_native_erased=is_native_erased,
             is_enum_class=is_enum_class,
             enum_value_type=enum_value_type,
             enum_members=enum_members,

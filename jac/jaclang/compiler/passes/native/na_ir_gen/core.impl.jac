@@ -88,31 +88,12 @@ impl NaIRGenCore.postinit -> None {
 }
 
 impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
-    import from jaclang.compiler.passes.main.capability_check_pass {
-        native_capability_violations,
-        partition_native_capability_violations
-    }
     self._capability_demotions = {};
     self._claimed_capability_demotions = set();
-    _viols = native_capability_violations(self.ir_in);
-    if _viols {
-        (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
+    _partition = self.ir_in.gen.native_capability_partition;
+    if _partition is not None {
+        (_fatal_viols, _demotable) = _partition;
         if _fatal_viols {
-            if not self.ir_in.native_viols_reported {
-                _report = list(_fatal_viols);
-                for _unit_viols in _demotable.values() {
-                    _report.extend(_unit_viols);
-                }
-                for (_vnode, _vkind, _vname, _vhelp) in _report {
-                    self.emit(
-                        E5090,
-                        node_override=_vnode,
-                        kind=_vkind,
-                        name=_vname,
-                        help_text=_vhelp
-                    );
-                }
-            }
             return self.ir_in;
         }
         self._capability_demotions = _demotable;

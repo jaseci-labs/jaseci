@@ -1,5 +1,6 @@
 import from jaclang.jac0core.unitree {
     Ability,
+    Expr,
     ArchHas,
     Archetype,
     Assignment,
@@ -401,18 +402,15 @@ def adopt_ancestor_methods(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout
     lay.method_index = method_index;
 }
 
-def is_erased_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
-    return name in NATIVE_ERASED_BASES and name not in archetypes;
+def base_expr_is_erased(base: UniNode) -> bool {
+    import from jaclang.compiler.type_system.types { ClassType }
+    _ty = base.type if isinstance(base, Expr) else None;
+    return isinstance(_ty, ClassType) and _ty.shared.is_native_erased;
 }
 
 def is_enum_class_type(t: any) -> bool {
-    try {
-        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
-    } except ImportError {
-        return False;
-    }
-    return isinstance(t, _ClassType)
+    import from jaclang.compiler.type_system.types { ClassType }
+    return isinstance(t, ClassType)
         and t._shared is not None
         and t.shared.is_enum_class;
 }
@@ -559,14 +557,8 @@ def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
 }
 
 def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
-    try {
-        import from jaclang.compiler.type_system.types {
-            EnumMemberType as _EnumMemberType
-        }
-    } except ImportError {
-        return None;
-    }
-    if not isinstance(t, _EnumMemberType) or t.enum_class is None {
+    import from jaclang.compiler.type_system.types { EnumMemberType }
+    if not isinstance(t, EnumMemberType) or t.enum_class is None {
         return None;
     }
     _scalar = class_form_enum_scalar(t.enum_class);

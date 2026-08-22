@@ -20,7 +20,12 @@ import from jaclang.jac0core.constant { JacSemTokenModifier as SemTokMod }
 import from jaclang.jac0core.constant { JacSemTokenType as SemTokType }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.constant { ParamKind }
-import type from jaclang.compiler.type_system.types { TypeBase }
+import type from jaclang.compiler.type_system.types {
+    FunctionType,
+    Parameter,
+    ResolvedOperator,
+    TypeBase
+}
 
 
 obj UniNode {
@@ -614,7 +619,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None;
+        event_triggers: (list[TypeBase] | None) = None,
+        is_generator: bool = False;
 
     def postinit -> None;
 
@@ -952,6 +958,7 @@ obj Assignment(AstTypedVarNode, EnumBlockStmt, CodeBlockStmt) {
         value: Expr | YieldExpr | None,
         mutable: bool = True,
         aug_op: (Token | None) = None,
+        resolved_op: (ResolvedOperator | None) = None,
         na_move_lowerable: bool = False,
         na_overwrite_consumed: bool = False,
         na_flow_reduce: str = "";
@@ -975,7 +982,8 @@ obj BinaryExpr(Expr) {
 
     has left: Expr,
         right: Expr,
-        op: Token | DisconnectOp | ConnectOp;
+        op: Token | DisconnectOp | ConnectOp,
+        resolved_op: (ResolvedOperator | None) = None;
 
     def postinit -> None;
 }
@@ -986,7 +994,8 @@ obj CompareExpr(Expr) {
 
     has left: Expr,
         rights: list[Expr],
-        ops: list[Token];
+        ops: list[Token],
+        resolved_ops: (list[(ResolvedOperator | None)] | None) = None;
 
     def postinit -> None;
 }
@@ -1209,7 +1218,10 @@ obj FuncCall(Expr) {
         genai_call: (Expr | None),
         call_kind: (str | None) = None,
         chunks_recv_type: (str | None) = None,
-        callee_decl: (Ability | None) postinit;
+        callee_decl: (Ability | None) postinit,
+        resolved_callee: (FunctionType | None) = None,
+        arg_params: (dict[(Expr | KWPair, Parameter | None)] | None) = None,
+        type_var_bindings: (dict[str, TypeBase] | None) = None;
 
     def postinit -> None;
 }

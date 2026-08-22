@@ -1230,7 +1230,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _call_kind = nd.call_kind;
 
     _mod_qual: (str | None) = None;
-    if _call_kind == "method" {
+    if _call_kind in ("method", "module_function") {
         _mod_fn = self._native_module_call_target(nd);
         if _mod_fn is None {
             return self._codegen_method_call(nd);
@@ -1252,7 +1252,8 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
-    if _call_kind != "method" and func_name not in self.local_vars {
+    if _call_kind not in ("method", "module_function")
+        and func_name not in self.local_vars {
         _ec_name = self._enum_ctor_target(nd);
         if _ec_name is not None {
             return self._codegen_enum_ctor(nd, _ec_name);

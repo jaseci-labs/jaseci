@@ -1698,6 +1698,8 @@ impl TypeEvaluator._get_type_of_expression_core(
             for right in expr.rights {
                 operand_types.append(self.get_type_of_expression(right));
             }
+            resolved_ops: list[(ResolvedOperator | None)] = [None for _ in expr.ops];
+            expr.resolved_ops = resolved_ops;
             for i in range(len(expr.ops)) {
                 op = expr.ops[i];
                 left_type = operand_types[i];
@@ -1741,13 +1743,22 @@ impl TypeEvaluator._get_type_of_expression_core(
                     result = self.get_type_of_magic_method_call(
                         left_type, magic, [expr.rights[i]], None
                     );
-                    if result is None {
+                    if result is not None {
+                        resolved_ops[i] = self.resolve_operator(
+                            left_type, magic, False
+                        );
+                    } else {
                         result = self.get_type_of_magic_method_call(
                             right_type,
                             rmagic,
                             [expr.left if i == 0 else expr.rights[i - 1]],
                             None
                         );
+                        if result is not None {
+                            resolved_ops[i] = self.resolve_operator(
+                                right_type, rmagic, True
+                            );
+                        }
                     }
                     if result is None and op.name in (Tok.EE, Tok.NE) {
                         continue;
@@ -2133,6 +2144,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                         } else {
                             symbol_type = self._convert_to_instance(narrowed);
                         }
+                        expr.narrowed_type = symbol_type;
                     }
                     if isinstance(symbol_type, FunctionType) {
                         overloaded_ty: OverloadedType | None = None;
@@ -2960,6 +2972,24 @@ impl TypeEvaluator.is_sub_class(super_cls: ClassType, sub_cls: ClassType) -> boo
     return False;
 }
 
+impl TypeEvaluator.resolve_operator(
+    owner: TypeBase, method: str, reflected: bool
+) -> ResolvedOperator {
+    callee: (FunctionType | None) = None;
+    if isinstance(owner, ClassType) {
+        member = self._lookup_class_member(owner, method);
+        if member is not None {
+            member_ty = self.get_type_of_symbol(member.symbol);
+            if isinstance(member_ty, FunctionType) {
+                callee = member_ty.specialize(owner);
+            }
+        }
+    }
+    return ResolvedOperator(
+        owner=owner, method=method, reflected=reflected, callee=callee
+    );
+}
+
 impl TypeEvaluator.get_type_of_magic_method_call(
     obj_type: TypeBase,
     method_name: str,
@@ -3238,21 +3268,6 @@ impl TypeEvaluator.assign_type(
         _ext_arch = dest_type.shared.symbol_table;
         if isinstance(_ext_arch, Archetype)
             and _ext_arch.find_parent_of_type(Import) is not None {
-            return True;
-        }
-    }
-
-    if self._in_native_context() {
-        if (
-            isinstance(dest_type, FunctionType)
-            and isinstance(src_type, ClassType)
-            and src_type.is_builtin("int")
-        )
-            or (
-                isinstance(src_type, FunctionType)
-                and isinstance(dest_type, ClassType)
-                and dest_type.is_builtin("int")
-            ) {
             return True;
         }
     }

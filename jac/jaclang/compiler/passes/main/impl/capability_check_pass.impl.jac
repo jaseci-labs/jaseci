@@ -171,9 +171,10 @@ impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
 }
 
 impl base_expr_is_erased(base: UniNode) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
-    _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
-    return isinstance(_tail, Name) and _tail.value in NATIVE_ERASED_BASES;
+    import from jaclang.compiler.passes.main.layout_pass {
+        base_expr_is_erased as _base_expr_is_erased
+    }
+    return _base_expr_is_erased(base);
 }
 
 impl name_in_type_position(name_nd: UniNode) -> bool {
@@ -713,6 +714,7 @@ impl NativeCapabilityCheckPass.transform(ir_in: Module) -> Module {
     (_fatal_viols, _demotable) = partition_native_capability_violations(
         native_capability_violations(ir_in)
     );
+    ir_in.gen.native_capability_partition = (_fatal_viols, _demotable);
     if _fatal_viols {
         _report: list[tuple[(UniNode, str, str, (str | None))]] = list(_fatal_viols);
         for _unit_viols in _demotable.values() {

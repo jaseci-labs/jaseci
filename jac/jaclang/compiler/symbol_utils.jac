@@ -48,6 +48,7 @@ import from jaclang.compiler.expr_keys {
 
 enum CallKind {
     METHOD = "method",
+    MODULE_FUNCTION = "module_function",
     INSTANTIATION = "instantiation",
     BUILTIN = "builtin",
     CLIB = "clib",
@@ -191,6 +192,10 @@ def classify_call(nd: FuncCall) -> CallKind {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
     if isinstance(nd.target, AtomTrailer) and nd.target.is_attr {
+        recv_sym = resolve_expr_symbol(nd.target.target);
+        if recv_sym is not None and recv_sym.sym_type == SymbolType.MODULE {
+            return CallKind.MODULE_FUNCTION;
+        }
         return CallKind.METHOD;
     }
 
