@@ -107,21 +107,65 @@ def _dedent_segment(seg, base_col):
     return "\n".join(fixed)
 
 
+def _l1_is_check_expr(s):
+    """True for a `self.assertX(...)` expression statement (X in _L1_CHECKS)."""
+    return (
+        isinstance(s, ast.Expr)
+        and isinstance(s.value, ast.Call)
+        and isinstance(s.value.func, ast.Attribute)
+        and isinstance(s.value.func.value, ast.Name)
+        and s.value.func.value.id == "self"
+        and s.value.func.attr in _L1_CHECKS
+    )
+
+
+def _l1_is_raises_with(s):
+    """True for a `with self.assertRaises(E): ...` statement."""
+    return (
+        isinstance(s, ast.With)
+        and len(s.items) == 1
+        and isinstance(s.items[0].context_expr, ast.Call)
+        and isinstance(s.items[0].context_expr.func, ast.Attribute)
+        and isinstance(s.items[0].context_expr.func.value, ast.Name)
+        and s.items[0].context_expr.func.value.id == "self"
+        and s.items[0].context_expr.func.attr == "assertRaises"
+        and len(s.items[0].context_expr.args) >= 1
+    )
+
+
+def _l1_lift_try_checks(try_node):
+    """Collect harvestable check nodes from a Try's body/orelse/finalbody
+    (recursing into nested Trys). Handler bodies are NEVER touched: their
+    exception bindings are invisible to post-hoc evaluation.
+
+    The Try statement itself stays COMPLETELY intact in setup -- source
+    segments always render the original text, so any in-place assert still
+    executes on both legs during setup (divergence surfaces honestly as a
+    probe decline or replay error); the lifted copy adds post-hoc value
+    comparison on top. Never rewrites control flow: the old expansion made
+    `try: x=risky() except: x=0` run as `x=risky(); x=0` on both legs --
+    identical wrong code, FALSE GREEN.
+
+    Returns (check_nodes_in_order)."""
+    lifted = []
+    for region in (try_node.body, try_node.orelse, try_node.finalbody):
+        for s in region:
+            if isinstance(s, ast.Try):
+                lifted.extend(_l1_lift_try_checks(s))
+            elif _l1_is_check_expr(s) or _l1_is_raises_with(s):
+                lifted.append(s)
+    return lifted
+
+
 def _l1_flatten_seq(stmts):
-    """Flatten a statement sequence, expanding Try blocks into their inner
-    statements (body, handlers, orelse, finally) so nested self.assert* checks
-    are harvested as checks instead of being silently swallowed by the
-    whole-block drop rule (HARNESS B). Control flow itself stays in setup:
-    non-assert statements keep their source shape and still execute there;
-    only the checks are lifted out. Recurses through nested Try blocks."""
+    """Flatten a statement sequence for harvesting. Try blocks stay whole;
+    their nested checks ride along as siblings so the harvest loop lifts them
+    like top-level checks (see _l1_lift_try_checks)."""
     out = []
     for s in stmts:
         if isinstance(s, ast.Try):
-            out.extend(_l1_flatten_seq(s.body))
-            for h in s.handlers:
-                out.extend(_l1_flatten_seq(h.body))
-            out.extend(_l1_flatten_seq(s.orelse))
-            out.extend(_l1_flatten_seq(s.finalbody))
+            out.append(s)
+            out.extend(_l1_lift_try_checks(s))
         else:
             out.append(s)
     return out
@@ -149,14 +193,7 @@ def _l1_harvest_methods(source):
         setup_stmts, checks, ok = [], [], True
         for stmt in _l1_flatten_seq(node.body):
             # A `self.assertX(...)` check statement.
-            if (
-                isinstance(stmt, ast.Expr)
-                and isinstance(stmt.value, ast.Call)
-                and isinstance(stmt.value.func, ast.Attribute)
-                and isinstance(stmt.value.func.value, ast.Name)
-                and stmt.value.func.value.id == "self"
-                and stmt.value.func.attr in _L1_CHECKS
-            ):
+            if _l1_is_check_expr(stmt):
                 args = [ast.get_source_segment(source, a) for a in stmt.value.args]
                 if any(a is None for a in args):
                     ok = False
@@ -166,16 +203,7 @@ def _l1_harvest_methods(source):
             # A `with self.assertRaises(E): body` raises-check. Stored as
             # ("assertRaises", [exc_src, body_src]); body_src is a dedented
             # statement block whose execution must raise a matching exception.
-            if (
-                isinstance(stmt, ast.With)
-                and len(stmt.items) == 1
-                and isinstance(stmt.items[0].context_expr, ast.Call)
-                and isinstance(stmt.items[0].context_expr.func, ast.Attribute)
-                and isinstance(stmt.items[0].context_expr.func.value, ast.Name)
-                and stmt.items[0].context_expr.func.value.id == "self"
-                and stmt.items[0].context_expr.func.attr == "assertRaises"
-                and len(stmt.items[0].context_expr.args) >= 1
-            ):
+            if _l1_is_raises_with(stmt):
                 exc_src = ast.get_source_segment(
                     source, stmt.items[0].context_expr.args[0]
                 )
@@ -195,6 +223,18 @@ def _l1_harvest_methods(source):
                 continue
             # A bare docstring/expression constant is inert setup.
             if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+                continue
+            # Kept-intact Try: control flow must not be rewritten (see
+            # _l1_lift_try_checks), so bypass the self-touch drop here. Nested
+            # self refs are handled honestly: lifted checks evaluate post-hoc;
+            # unlifted ones (handler bodies) NameError during setup exec since
+            # the layer-1 namespace has no self -> host probe declines -> skip.
+            if isinstance(stmt, ast.Try):
+                seg = ast.get_source_segment(source, stmt)
+                if seg is None:
+                    ok = False
+                    break
+                setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
                 continue
             # Anything referencing `self` (or an unharvestable segment) is out.
             # The walk skips nested def/class subtrees: a method parameter named
