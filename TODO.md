@@ -122,22 +122,22 @@ claims below re-verified against source by hand. Order = fix priority.
 
 ### A. Verified bugs (fix before merge)
 
-1. **`jac-py/jacpython/objects.jac:1591` `slice_indices()` — missing zero-step guard.**
+1. **`jac-py/jacpython/objects.jac:1591` `slice_indices()` - missing zero-step guard.**
    No `step == 0` check; with step 0 `_slice_objs`'s negative-step loop (`i + 0 == i`)
    hangs the VM / grows memory unboundedly. Reachable via `l[5:1:0]` and
    `del l[5:1:0]` (`mp_del_subscript`, objects.jac:673). CPython raises
    `ValueError: slice step cannot be zero`. **Fix:** raise that error when
    `step == 0`; add oracle test.
 
-2. **`.github/workflows/ci.yml:665-673` — P3 gate steps hardcode dev-machine paths.**
+2. **`.github/workflows/ci.yml:665-673` - P3 gate steps hardcode dev-machine paths.**
    `JACPYTHON_CPYTHON=/home/jac/.local/bin/python3.14` (author's home dir,
    nonexistent on runners) and `runtime_gate.py`/`replay_gate.py` run
-   `REPO_ROOT/.venv/bin/jac` (runtime_gate.py:16), which CI never creates — CI only
+   `REPO_ROOT/.venv/bin/jac` (runtime_gate.py:16), which CI never creates - CI only
    installs `jac/zig-out/bin/jac`. These two steps cannot pass on GitHub CI.
    **Fix:** resolve CPython from PATH/`python3` action input, and point gates at the
    jac-kit-installed binary (or make them skip loudly, not fail).
 
-3. **`jac/jaclang/langserve/impl/engine.impl.jac:640` — copy-paste f-string bug +
+3. **`jac/jaclang/langserve/impl/engine.impl.jac:640` - copy-paste f-string bug +
    scope creep.** `node_info += f"'\n'placement: ..."` emits literal apostrophes
    around a real newline in LSP hover text (sibling at :619 is correct). Also tags
    every symbol `'inferred'` unconditionally. Whole hunk is codespace hover
@@ -159,16 +159,16 @@ claims below re-verified against source by hand. Order = fix priority.
 
 2. **Truth-of-comparison-result helpers 4x**: `abstract_protocol._object_is_true`,
    `abstract_protocol._richcompare_to_bool`, `dictobject._richcompare_true` (pure
-   alias), `objects._richcompare_truth` — with subtly different error semantics
+   alias), `objects._richcompare_truth` - with subtly different error semantics
    (-1 tri-state vs silent False). Consolidate to one tri-state helper.
 
 3. **P2 wave harnesses are copy-paste with real strength drift**:
    `tools/test_p2_corpus_wave{2..11}_gate.py` (10 near-identical 79-line files),
    `tools/lift_p2_corpus_wave{2..11}.py`, `tools/p2_conformance_wave{2..11}_gate.py`
-   (waves 2-3 assert less than waves 4-11 — weaker gating by accident of copy timing;
+   (waves 2-3 assert less than waves 4-11 - weaker gating by accident of copy timing;
    wave10 checks `oracle_tests` + staged `.jac` existence, wave2 doesn't).
    **Fix:** one parameterized harness iterating `tools/p2_corpus_wave*/manifest.json`
-   (the consolidated `.jac` harnesses already do this — follow that pattern), and
+   (the consolidated `.jac` harnesses already do this - follow that pattern), and
    apply the wave10-strength asserts to all waves.
 
 4. **Wave/stem inventory maintained in four lockstep-by-hand places**:
@@ -182,7 +182,7 @@ claims below re-verified against source by hand. Order = fix priority.
    inlined in abstract_protocol `_hashkey_digest`); `_Py_SwappedOp = [4,5,2,3,0,1]`
    literal re-spelled in ceval.jac:2286 vs abstract_protocol.jac:13; NB_* binop kinds
    used as bare magic ints (0..12) throughout `nb_binop`/`py_binop` while Py_LT..Py_GE
-   got named globs — define NB_ADD.. once.
+   got named globs - define NB_ADD.. once.
 
 ### C. Dead code shipped as runtime (bloat)
 
@@ -192,11 +192,11 @@ claims below re-verified against source by hand. Order = fix priority.
     unionobject, typevarobject, structseq, capsule, cellobject (`cell_is_empty`
     always False), picklebufobject, interpolationobject, templateobject, fileobject,
     namespaceobject, moduleobject, classobject, funcobject, unicodectype,
-    unicodeobject, bytes_methods, methodobject, descrobject, typeobject stubs —
+    unicodeobject, bytes_methods, methodobject, descrobject, typeobject stubs -
     ~450+ lines of identity helpers (`union_is_empty(n) { return n == 0; }`).
     Move outside the import graph (reference corpus tree like `Objects/_lifted/`)
     or delete until wired.
-2. **dictobject.jac:19-95** open-addressing probe section (~75 lines) unused —
+2. **dictobject.jac:19-95** open-addressing probe section (~75 lines) unused -
     header admits it's "c2jac reference for a future native table". Quarantine.
 3. **longobject.jac:23-260** digit-vector add/sub/compare machinery unreachable
     (ceval routes int compares through `PyObj.tp_richcompare`); reimplements
@@ -208,7 +208,7 @@ claims below re-verified against source by hand. Order = fix priority.
 1. **20 committed `_staging/*.c` scratch files** contradict `.gitignore:94-96` and
     get rmtree'd by lift scripts on next run → tracked-file churn. Untrack.
 2. **`tools/sync_staged_to_lifted.py:59-66,107`** sidecar-zeroing makes part of the
-    Tier-B density ratchet unauditable — staged counts silently reset to lifted ones.
+    Tier-B density ratchet unauditable - staged counts silently reset to lifted ones.
 3. **na_cliffs t7_gate.py + na_concat.py not wired to CI** despite "runs in CI"
     docstrings.
 
@@ -217,7 +217,7 @@ claims below re-verified against source by hand. Order = fix priority.
 1. **Session artifacts committed at repo root**: CURRENT.md, FIXME.md,
     INTEGRATION_PLAN.md, PROGRESS.md, PR_SPLIT_PLAN.md, TASK.md, AUDIT-typefacts-infer_type.md,
     SKILL.md (+ AGENTS.md/CLAUDE.md additions). Keep out of the upstream PR.
-2. **`.cursor/hooks.json` + `.cursor/hooks/notify-agent-complete.sh`** — personal
+2. **`.cursor/hooks.json` + `.cursor/hooks/notify-agent-complete.sh`** - personal
     editor tooling; remove from PR.
 3. **Release-note fragments use issue numbers** (7145/7230/7353.*.md); CONTRIBUTING
     requires PR numbers. Rename when those land as PRs or drop fragments until then.
@@ -236,12 +236,12 @@ claims below re-verified against source by hand. Order = fix priority.
   no debug prints, no swallowed-error paths found in hot dispatch.
 - `pyhash.jac` SipHash-13/PYTHONHASHSEED port matches CPython semantics exactly.
 - vtable GEP-on-coerced-receiver fix, SHA256 exception-type-ids, doc_ir_gen identity
-  check, pyast_load ctrl_loc, jir clib header-dep tracking — all root-cause fixes
+  check, pyast_load ctrl_loc, jir clib header-dep tracking - all root-cause fixes
   with tests. Good pattern.
 
 ---
 
-## Adversarial-review findings (YoungViper — live log, append-only)
+## Adversarial-review findings (YoungViper - live log, append-only)
 
 Status per item as of last update. Verified = I reproduced it myself; fixed = fix landed and I re-verified.
 
@@ -249,7 +249,7 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 
 ### Open
 
-0. **[COMPILER][HIGH] Compiled-jac `del d[k]` on typed dicts pins the removed value.**
+0. **\[COMPILER\]\[HIGH\] Compiled-jac `del d[k]` on typed dicts pins the removed value.**
    Found while implementing native weakref (workaround 4fc98bc13). An ObjectAnchor
    gets cached in the removed object's **dict** via cached_property `__jac__`; the
    anchor is a strong root that gc.collect() cannot reach, so every object whose
@@ -272,7 +272,7 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
    **get**/**set** before returning (data-descr priority over instance dict).
 
 2. **[LOW-MED] Exposed `__mro__` is not the C3 linearization.**
-   `A.__mro__` == `(A,)` — missing `object`; diamond classes expose immediate
+   `A.__mro__` == `(A,)` - missing `object`; diamond classes expose immediate
    bases only. Internal DISPATCH MRO is correct (diamond method resolution
    verified green), so this is the introspection surface only.
    Fix: expose the same linearized order dispatch uses, with object appended.
@@ -285,20 +285,29 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 6. **[MED-HIGH] range() degrades to a list across the bridge.**
     type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
     .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
-    and LAZINESS IS LOST — range(10**9) presumably materializes 1e9 elements
+    and LAZINESS IS LOST - range(10**9) presumably materializes 1e9 elements
     (memory/time bomb). All my earlier range greens (len/in/iteration) passed
     coincidentally through list semantics. Root cause family C: from_host has
     no range branch so host range lands as PyHostProxy/list. Fix: native
     PyRange with start/stop/step + O(1) len/contains/index/slice arithmetic,
     or at minimum preserve the host range object through the bridge.
 
-Pattern note: user-class dunder support is piecemeal — consider one sweep that
+7. **[LOW-MED] Subscripting with a slice OBJECT raises; inline syntax works.**
+    xs[s] where s = slice(1,7,2) -> TypeError "list indices must be integers";
+    identical inline xs[1:7:2] is GREEN. The compiler lowers literal slice
+    syntax directly to (start,stop,step) args, but a dynamic PySlice value as
+    subscript index never reaches the slice path in mp_subscript. Same family
+    as item 10 (slice assignment): one shared fix, mp_subscript/ass/del all
+    accepting PySlice. Standalone slice() objects are fine (type/attrs/
+    .indices() green).
+
+Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
 
 1. **[LOW-MED] float('inf') compared with huge int raises.** `inf > 10 ** 400`
    errors on jacpython (likely OverflowError converting the int to float);
-   CPython compares exactly and returns True — no conversion overflow allowed.
+   CPython compares exactly and returns True - no conversion overflow allowed.
 
 2. **~~[CODEGEN-PARITY] three byte-parity gaps~~ FIXED 2026-08-22.**
    All three landed and sentinel-flipped-to-parity in the literals differential
@@ -308,7 +317,7 @@ per-protocol special cases.
    c. bool-not jump folding: 46da75e83 (+ consumer wiring 903423308)
 
 3. **[MED] List slice ASSIGNMENT broken both paths.** `xs[::2] = [7, 8]`
-    raises TypeError("list indices must be integers") — STORE_SUBSCRIPT does
+    raises TypeError("list indices must be integers") - STORE_SUBSCRIPT does
     not accept PySlice. Direct xs.**setitem**(slice(0,4,2), [7,8]) returns
     None but silently does NOT mutate (mp_ass_subscript slice branch missing/
     no-op). Asymmetric: slice READ (xs[::2]) and slice DELETE (del xs[1:3])
@@ -334,25 +343,25 @@ per-protocol special cases.
     **dict**, **module** on instances).
 
 6. **[LOW] callable() says False for user classes.** callable(C) where C is
-    a plain user class returns False (CPython: True — classes instantiate).
+    a plain user class returns False (CPython: True - classes instantiate).
     callable(fn) works. Part of the type-slot family: tp_call presence isn't
     consulted for user types.
 
 7. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
-    def g(): yield 1; return 99 — after consuming via next(), the terminal
+    def g(): yield 1; return 99 - after consuming via next(), the terminal
     StopIteration has .value == None instead of 99. Asymmetric: yield from
     DOES forward the inner gen's return correctly (yieldfrom-return-value
     green), so the internal path carries it but the caller-facing
     StopIteration doesn't attach .value. Only affects explicit-iteration
     consumers (for loops ignore .value).
 
-## Runtime fix lane — HANDOFF BRIEF (for new worker agent)
+## Runtime fix lane - HANDOFF BRIEF (for new worker agent)
 
 You own VM RUNTIME fixes in jac-py/jacpython (ceval.jac/objects.jac family).
-BrightTiger is reviewer/fuzzer — do NOT edit their files (_fuzz_smoke.jac,
+BrightTiger is reviewer/fuzzer - do NOT edit their files (_fuzz_smoke.jac,
 _fuzz_introspect.jac, TODO.md live-log section); they verify your landings
 against jac-py/tools/fuzz_corpus_pinned.json (26 pins) after each landing.
-QuickBear owns compiler_codegen/compiler_emit/compiler_annotations — don't touch.
+QuickBear owns compiler_codegen/compiler_emit/compiler_annotations - don't touch.
 
 FIX ORDER (cheapest-green-first, per GoldLion review):
 
@@ -368,7 +377,7 @@ FIX ORDER (cheapest-green-first, per GoldLion review):
    Discuss design with BrightTiger/GoldLion before landing.
 4. Branch-closing sweep AFTER the above: **class**/**dict**/**module**
    synthesis (item 12), **getattr** tail hook (15), generic descriptors (1).
-   GoldLion's two-flavor walker review governs this phase — send them the
+   GoldLion's two-flavor walker review governs this phase - send them the
    walker diff BEFORE merging anything.
 
 DISCIPLINE:
@@ -384,14 +393,14 @@ DISCIPLINE:
 
 **A. Incomplete dunder dispatch wiring** (items 1/4/5/12/13/15/17, +2 adjacent).
 REVISED after code reading (was overstated as "no unified lookup"): the
-machinery EXISTS — PyUserObj.tp_getattro walks the class MRO via
+machinery EXISTS - PyUserObj.tp_getattro walks the class MRO via
 class_lookup_attr/descriptor_get/bind_attribute (ceval.jac ~1395);
 user_has_dunder/call_user_dunder helpers exist (~2632); iter(g) correctly
 consults tp_iter. Actual gaps are TWO kinds:
   (i) missing branches: no **getattr** tail hook after MRO miss; no **class**
       synthesis; descriptor_get handles PyProperty but not generic **get**;
   (ii) BRIDGE-FIRST CALL SITES: builtins push args across to_host BEFORE
-      consulting local slots — list(g) does to_host(g)->None then "NoneType
+      consulting local slots - list(g) does to_host(g)->None then "NoneType
       not iterable" while iter(g) works (same object, verified same session).
 Fix = close branch gaps + make builtin call sites consult tp_* before
 bridging. Consistent with GoldLion's walker-core review.
@@ -416,17 +425,17 @@ Meta-root-cause: bottom-up conformance (make each observed test pass) instead
 of top-down architecture (slot table + single lookup). Explains why ~60 green
 domains coexist with these gaps: lifted-from-bytecode areas are solid,
 hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
-don't patch — individual fixes leave holes reopening under future features.
+don't patch - individual fixes leave holes reopening under future features.
 
 **PIN STATUS @ HEAD 0694fda4d** (full 30-pin run post item-4 fix + 9A):
 11 GREEN (item4 family x5, inverse sentinels x3, iter-half,
-property-precedence, unpack-star) / 19 RED — every red maps to an open item,
+property-precedence, unpack-star) / 19 RED - every red maps to an open item,
 zero unexplained drift (9A const-pool landing caused none, as predicted for
 parity-only work). NOTE: pin-ok-exc-chaining-nesteddef is RED because its
-asserts resolve r2.**cause**.**class**.**name** — blocked on item 12, not a
+asserts resolve r2.**cause**.**class**.**name** - blocked on item 12, not a
 chaining regression; mislabeled 'ok-' at creation, will flip with item 12.
 
-**PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json — 16 cases:
+**PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json - 16 cases:
 minimal repros for items 1/2/4/5/7/8/10/12/13/14 (red until fixed), descriptor
 precedence + instance-dict-inverse sentinels (guard the sweep), and
 healthy-behavior pins (exception chaining via nested-def) that must stay green.
@@ -434,16 +443,16 @@ Not wired into CI; run manually via _fuzz_smoke.jac. Delete _fuzz_smoke.jac +
 _fuzz_introspect.jac before any upstream PR; the pin file itself should land.
 
 1. **[MED] `__getattr__` fallback never implemented.** Proxy().zzz raises
-    bare AttributeError('zzz') — type.**getattr** is never consulted on lookup
+    bare AttributeError('zzz') - type.**getattr** is never consulted on lookup
     failure. objects.jac has ZERO **getattr** references (grep-verified).
     Breaks lazy proxies/delegation idioms wholesale.
-    CORRECTION: early coverage-map entry listed **getattr** green — that was
+    CORRECTION: early coverage-map entry listed **getattr** green - that was
     WRONG (mis-attributed from an unharvested case). Coverage map corrected.
 
 2. **[HIGH if async in scope] Coroutine/bridge integration broken.**
     (a) asyncio.run(vm_coro()) -> "An asyncio.Future, a coroutine or an
     awaitable is required": host event loop cannot recognize guest coroutines
-    across the bridge. (b) type(coro_obj) returns PyHostProxy(val=list) —
+    across the bridge. (b) type(coro_obj) returns PyHostProxy(val=list) -
     type() misreports coroutine objects as list (to_host wrapper gap family,
     cf. carried ledger item). hasattr(c,'send') True, so the object exists;
     identification/bridging is what fails.
@@ -452,7 +461,7 @@ _fuzz_introspect.jac before any upstream PR; the pin file itself should land.
     with-protocol suppression itself works (return True suppresses, exit args
     flow), but reading et.**name** inside **exit** raises bare AttributeError
     ("**name**"). The raised-exception CLASS object crossing into user code is
-    missing identity attrs — same family as item 12 (**class** synthesis).
+    missing identity attrs - same family as item 12 (**class** synthesis).
     Repro: log.append(et.**name** if et else None) inside **exit**.
 
 4. **[LOW-MED] property .deleter ignored.** del o.x on a property with
@@ -467,14 +476,23 @@ green. Class-decorator support needs pinning elsewhere.
 1. **[MED-HIGH] range() degrades to a list across the bridge.**
     type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
     .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
-    and LAZINESS IS LOST — range(10**9) presumably materializes 1e9 elements
+    and LAZINESS IS LOST - range(10**9) presumably materializes 1e9 elements
     (memory/time bomb). All my earlier range greens (len/in/iteration) passed
     coincidentally through list semantics. Root cause family C: from_host has
     no range branch so host range lands as PyHostProxy/list. Fix: native
     PyRange with start/stop/step + O(1) len/contains/index/slice arithmetic,
     or at minimum preserve the host range object through the bridge.
 
-Pattern note: user-class dunder support is piecemeal — consider one sweep that
+2. **[LOW-MED] Subscripting with a slice OBJECT raises; inline syntax works.**
+    xs[s] where s = slice(1,7,2) -> TypeError "list indices must be integers";
+    identical inline xs[1:7:2] is GREEN. The compiler lowers literal slice
+    syntax directly to (start,stop,step) args, but a dynamic PySlice value as
+    subscript index never reaches the slice path in mp_subscript. Same family
+    as item 10 (slice assignment): one shared fix, mp_subscript/ass/del all
+    accepting PySlice. Standalone slice() objects are fine (type/attrs/
+    .indices() green).
+
+Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
 
@@ -495,21 +513,21 @@ per-protocol special cases.
   abs() workaround removed; HARNESS A strict setup errors count ERRORED.
 - [a13ba6a06] HARNESS C residual: _dedent_segment strips exactly base_col per
   continuation line; try/except/else setups replay green end-to-end (exc-else verified).
-- [d5235d1d7] unbound builtin-method silent no-op — list.append/dict.get route to
+- [d5235d1d7] unbound builtin-method silent no-op - list.append/dict.get route to
   native wrappers; PyIter.tp_iter + to_host drain for host consumers.
-- `list.sort()` missing entirely (silent no-op via host-copy mutation) — ae82851a0;
+- `list.sort()` missing entirely (silent no-op via host-copy mutation) - ae82851a0;
   my 99-case stateful corpus went 77/99 → 99/99 post-fix; stability-under-key verified.
 
-- `list.sort()` missing entirely (silent no-op via host-copy mutation) — ae82851a0;
+- `list.sort()` missing entirely (silent no-op via host-copy mutation) - ae82851a0;
   my 99-case stateful corpus went 77/99 → 99/99 post-fix; stability-under-key verified.
 - Undefined name raised AttributeError("module 'builtins' has no attribute") instead
-  of NameError — ae82851a0, verified via assertRaises(NameError).
-- Generator re-entrancy unguarded (would recurse run_frame on live frame) — 62e7018d1;
+  of NameError - ae82851a0, verified via assertRaises(NameError).
+- Generator re-entrancy unguarded (would recurse run_frame on live frame) - 62e7018d1;
   bypass sweep confirmed all resume/throw paths funnel through guarded entries.
-- HARNESS: 25/107 real probe methods never replayed — all "skips" were indentation-
-  corruption artifacts from get_source_segment + single global dedent — 1d823f5d6;
+- HARNESS: 25/107 real probe methods never replayed - all "skips" were indentation-
+  corruption artifacts from get_source_segment + single global dedent - 1d823f5d6;
   independently re-verified 107/107 passed / 0 skipped across all 44 stems.
-- PyHostProxy eq/hash inconsistency — 1d823f5d6 option-2 implementation reviewed;
+- PyHostProxy eq/hash inconsistency - 1d823f5d6 option-2 implementation reviewed;
   identity fast-path + host-eq defer + error propagation all correct.
 
 ### Fuzz coverage map (all differential vs CPython, green)
@@ -546,4 +564,4 @@ Infra: `/tmp/gen_fuzz.py`, `/tmp/gen_fuzz2.py` (corpus generators),
 `jac-py/jacpython/_fuzz_smoke.jac` (driver, reads /tmp/fuzz_cases.json),
 `jac-py/jacpython/_fuzz_introspect.jac` (direct namespace inspection).
 Run: `JACPYTHON_CPYTHON=python3 .venv/bin/jac run jac-py/jacpython/_fuzz_smoke.jac`
-(both .jac files are temp — delete before any upstream PR).
+(both .jac files are temp - delete before any upstream PR).
