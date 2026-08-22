@@ -1738,6 +1738,18 @@ def from_host(raw: any) -> PyObj {
         }
         return PyList(t="list", items=range_values);
     }
+    if isinstance(raw, slice) {
+        # A dynamic host slice (slice(1, 7, 2) built by bridged guest code)
+        # materializes as a native PySlice: the subscript slots' slice branches
+        # key on isinstance(PySlice), and a PyHostProxy here would make xs[s]
+        # raise "list indices must be integers" while inline xs[1:7:2] works.
+        return PySlice(
+            t="slice",
+            start=from_host(raw.start),
+            stop=from_host(raw.stop),
+            step=from_host(raw.step),
+        );
+    }
     if isinstance(raw, list) {
         list_values: list[PyObj] = [];
         for item in raw {
@@ -2719,6 +2731,17 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
 }
 
 def py_store_subscript(container: PyObj, index: PyObj, value: PyObj) -> PyObj {
+    # Slice assignment accepts ANY iterable as its value; CPython runs it
+    # through PySequence_Fast before list_ass_subscript. members_of() is that
+    # conversion (py_iter-first, host fallback), so user generators/iterables
+    # drain in-VM instead of dying inside the na-clean leaf slot.
+    if isinstance(container, PyList) and isinstance(index, PySlice) {
+        seq = members_of(value);
+        if is_error(seq) {
+            return seq;
+        }
+        return container.mp_ass_subscript(index, seq);
+    }
     return container.mp_ass_subscript(index, value);
 }
 
@@ -3970,7 +3993,9 @@ obj PyBuiltinSuperMethod(PyObj) {
             return py_none();
         }
         if n == "__setitem__" {
-            return b.mp_ass_subscript(args[0], args[1]);
+            # Route through the public dispatch (not the raw slot) so slice
+            # assignment shares the iterable-value normalization above.
+            return py_store_subscript(b, args[0], args[1]);
         }
         if n == "__getitem__" {
             return b.mp_subscript(args[0]);
