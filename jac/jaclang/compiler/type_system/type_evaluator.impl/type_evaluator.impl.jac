@@ -1847,7 +1847,15 @@ impl TypeEvaluator._get_type_of_expression_core(
         case UnaryExpr():
             if isinstance(expr.op, Token) {
                 if expr.op.name == Tok.BW_AND {
-                    return self.get_type_of_expression(expr.operand);
+                    _ref_t = self.get_type_of_expression(expr.operand);
+                    if (
+                        isinstance(_ref_t, ClassType)
+                        and _ref_t.is_builtin("str")
+                        and _ref_t.is_instance()
+                    ) {
+                        return AnyType();
+                    }
+                    return _ref_t;
                 }
                 if expr.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
                     return self.get_type_of_expression(expr.operand);
@@ -3161,6 +3169,38 @@ impl TypeEvaluator.assign_type(
         _ext_arch = dest_type.shared.symbol_table;
         if isinstance(_ext_arch, Archetype)
             and _ext_arch.find_parent_of_type(Import) is not None {
+            return True;
+        }
+    }
+
+    _rt_base_kinds = {
+        'Archetype': ('node', 'edge', 'walker', 'object'),
+        'NodeArchetype': ('node', ),
+        'EdgeArchetype': ('edge', ),
+        'WalkerArchetype': ('walker', ),
+        'ObjectArchetype': ('object', )
+    };
+    if (
+        isinstance(dest_type, ClassType)
+        and dest_type.is_class_instance()
+        and dest_type.shared.class_name in _rt_base_kinds
+        and isinstance(src_type, ClassType)
+        and src_type.is_class_instance()
+    ) {
+        import from jaclang.jac0core.constant { SymbolType as _RtSymT }
+        _rt_kinds = _rt_base_kinds[dest_type.shared.class_name];
+        _rt_cat_map = {
+            'node': _RtSymT.NODE_ARCH,
+            'edge': _RtSymT.EDGE_ARCH,
+            'walker': _RtSymT.WALKER_ARCH,
+            'object': _RtSymT.OBJECT_ARCH
+        };
+        _rt_src_tab = src_type.shared.symbol_table;
+        if isinstance(_rt_src_tab, Archetype)
+            and any(_rt_src_tab.sym_category == _rt_cat_map[k] for k in _rt_kinds) {
+            return True;
+        }
+        if src_type.shared.is_root_class and 'node' in _rt_kinds {
             return True;
         }
     }
