@@ -2315,6 +2315,33 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                 return enum_member_type;
             }
 
+            if (
+                isinstance(node_.parent, UnaryExpr)
+                and isinstance(node_.parent.op, Token)
+                and node_.parent.op.name == Tok.STAR_MUL
+                and isinstance(node_.parent.parent, (TupleVal, ListVal))
+            ) {
+                star_container = node_.parent.parent;
+                while isinstance(star_container.parent, (TupleVal, ListVal)) {
+                    star_container = star_container.parent;
+                }
+                star_assignment = star_container.parent;
+                if (
+                    isinstance(star_assignment, Assignment)
+                    and star_assignment.value is not None
+                ) {
+                    rhs_type = self.get_type_of_expression(star_assignment.value);
+                    if elem
+                        := self._get_iterable_element_type(
+                            rhs_type, star_assignment.value
+                        ) {
+                        star_type = self.prefetch.list_class.clone_as_instance();
+                        star_type.private.type_args = [elem];
+                        return star_type;
+                    }
+                }
+            }
+
             if isinstance(node_.parent, (TupleVal, ListVal)) {
                 unpack_container = node_.parent;
                 while isinstance(unpack_container.parent, (TupleVal, ListVal)) {
@@ -3181,10 +3208,21 @@ impl TypeEvaluator.assign_type(
         'WalkerArchetype': ('walker', ),
         'ObjectArchetype': ('object', )
     };
+    _rt_dest_tab = (
+        dest_type.shared.symbol_table if isinstance(dest_type, ClassType) else None
+    );
+    _rt_dest_mod = (
+        str(_rt_dest_tab.loc.mod_path)
+            if (_rt_dest_tab is not None and _rt_dest_tab.loc is not None)
+            else ''
+    ).replace(
+        '\\', '/'
+    );
     if (
         isinstance(dest_type, ClassType)
         and dest_type.is_class_instance()
         and dest_type.shared.class_name in _rt_base_kinds
+        and _rt_dest_mod.endswith('jac0core/archetype.jac')
         and isinstance(src_type, ClassType)
         and src_type.is_class_instance()
     ) {

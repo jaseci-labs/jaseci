@@ -16,6 +16,11 @@ impl primitive_type_name_of(ty: (TypeBase | None)) -> (str | None) {
 }
 
 impl expr_primitive_name(expr_node: UniNode) -> str {
+    import from jaclang.jac0core.unitree { CfgExpr }
+
+    while isinstance(expr_node, CfgExpr) {
+        expr_node = expr_node.expr;
+    }
     return primitive_type_name_of(expr_node?.type) or "";
 }
 

@@ -510,6 +510,9 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
 
 impl StaticAnalysisPass._check_typing_import_refusals(mod: Module) -> None {
     for nd in mod.get_all_sub_nodes(typ=Import) {
+        if (nd.loc.mod_path or "").endswith(".pyi") {
+            continue;
+        }
         if nd.from_loc is None or nd.from_loc.dot_path_str != "typing" {
             continue;
         }
@@ -549,6 +552,9 @@ impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
     advisory_only = is_bootstrap_compiled_module(mod_path)
         or is_ambient_provider_module(mod_path);
     for nd in mod.get_all_sub_nodes(typ=Import) {
+        if (nd.loc.mod_path or "").endswith(".pyi") {
+            continue;
+        }
         if nd.from_loc is None {
             continue;
         }
