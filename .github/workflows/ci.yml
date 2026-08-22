@@ -631,15 +631,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # jobs: 2, not auto. Type checking on the critical path (#8398)
+          # made every fixture compile carry inference, and the pool's
+          # long-lived fork workers accumulate that weight across files:
+          # at auto (4 workers) the swapless runner exhausts memory
+          # ~12 minutes in and the runner agent itself is killed ("lost
+          # communication", no step log). Two workers keep the aggregate
+          # under the box.
           - chunk: passes-native
             paths: tests/compiler/passes/native tests/compiler/passes/tool
             sealed: "1"
+            jobs: "2"
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it always runs through the
           # reroute, here over the sealed kit's shim and floors.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
+            jobs: auto
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -654,7 +663,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   # Everything except the compiler tests.
   test-runtime:

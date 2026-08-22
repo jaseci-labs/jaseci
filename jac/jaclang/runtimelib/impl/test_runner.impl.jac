@@ -913,6 +913,14 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
 impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     import json;
     install_warning_filters();
+
+    _recycle = 25;
+    try {
+        _recycle = int(os.environ.get("JAC_TEST_RECYCLE", "25") or "25");
+    } except ValueError {
+        _recycle = 25;
+    }
+    _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
         line = reader.readline();
@@ -950,12 +958,21 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
                 )
             ];
         }
+        _served += 1;
+        _retire = _recycle > 0 and _served >= _recycle;
         payload = json.dumps(
-            {"idx": request["idx"], "outcomes": [o.to_wire() for o in outcomes]}
+            {
+                "idx": request["idx"],
+                "outcomes": [o.to_wire() for o in outcomes],
+                "retire": _retire
+            }
         );
         try {
             os.write(result_fd, (payload + "\n").encode("utf-8"));
         } except OSError {
+            break;
+        }
+        if _retire {
             break;
         }
     }
@@ -1003,6 +1020,15 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
+    if record.get("retire") {
+        kid["retired"] = True;
+        if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+            replacement = self._spawn(kid["slot"]);
+            self.kids.append(replacement);
+            self._dispatch(replacement);
+        }
+        return;
+    }
     self._dispatch(kid);
 }
 
@@ -1044,7 +1070,11 @@ impl ForkPool._reap(kid: dict[(str, any)]) -> None {
         }
         self.reporter.file_crashed(self.plan.files[idx], detail);
     }
-    if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+    if (
+        not kid.get("retired")
+        and not self._should_stop()
+        and (self.cursor < len(self.plan.files))
+    ) {
         replacement = self._spawn(kid["slot"]);
         self.kids.append(replacement);
         self._dispatch(replacement);
