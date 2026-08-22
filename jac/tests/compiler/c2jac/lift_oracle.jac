@@ -320,9 +320,8 @@ def assert_lift_matches_c_or_traps(
 ) -> tuple[str, str] {
     # Auto-derive MATCH vs TRAP from whether `entry_fn` is quarantined.
     # Returns (status, detail) with status in {ok, mismatch, hang, wrong-regime}.
-    if cc() is None {
-        return ("ok", "skipped: no cc");
-    }
+    # Missing cc must never look like a green pass - fail on CI, skip elsewhere.
+    require_cc();
     incs = include_dirs or [os.path.dirname(c_path)];
     try {
         res = lift_c_file(c_path, include_dirs=include_dirs);
