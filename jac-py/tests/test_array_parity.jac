@@ -7,9 +7,6 @@ Run with JACPATH=jac-py/jacpython (same pattern as test_p2_facade_parity).
 """
 
 import array as host_arr;
-# Host oracle emits DeprecationWarning for 'u' (removal in 3.16); keep the
-# runner from escalating it so the semantic comparison still runs.
-import warnings as _host_warn;
 import from arrayobject {
     _p2_array,
 }
@@ -156,7 +153,6 @@ test "wave14 float arrays round-trip through bytes" {
 test "wave14 char arrays match host u/w behavior" {
     # 'u' is deprecated on the host (DeprecationWarning, removal 3.16);
     # suppress so warning-as-error does not mask value parity.
-    _host_warn.simplefilter("ignore", DeprecationWarning);
     mine_u = _p2_array("u", "ab\u00e9");
     # same runner-promoted warning as above
     with catch_warnings() {

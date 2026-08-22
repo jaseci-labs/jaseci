@@ -69,3 +69,46 @@ stored-result refcounting), or if the VM gains mutable tuples plus a
 unique-reference primitive making zero-allocation reuse profitable,
 revisit: flip to guarded reuse, keep the pin asserting parity with whatever
 the host then does, and mark this entry =SUPERSEDED=.
+
+* D02 -- array facade: three documented host divergences
+:PROPERTIES:
+:ID: wave14-array-divergences
+:END:
+
+**Decision**
+Ship the wave-14 array facade with three known, pinned deviations from
+host CPython 3.14 =array=, each documented in code rather than emulated:
+1. =buffer_info()[0]= (data address) returns 0 — the Jac runtime exposes
+   no raw pointer; the (address, length) tuple shape is preserved with a
+   sentinel address so structural consumers keep working.
+2. The facade does not emit the host's DeprecationWarning for the ='u'=
+   typecode. Warning emission is a host-runner concern; value semantics
+   are fully ported and parity-tested (with host-side warning suppressed
+   in the test harness).
+3. Iterator invalidation-on-resize is untested (host invalidates live
+   array iterators on mutation); current implementation snapshots
+   length at iterator creation.
+
+**Context**
+CPython's array module leaks C-level details (raw addresses, warning
+side channels, iterator invalidation hooks) that have no equivalent in
+the Jac runtime substrate.
+
+**Options considered**
+1. Emulate each behavior faithfully — rejected: requires runtime
+   primitives (raw pointers, warning plumbing, iterator registries)
+   outside Jac's current expressible surface, for edge-case fidelity.
+2. Document + pin as tracked deviations with reversal conditions —
+   chosen.
+3. Omit the affected APIs entirely — rejected: silently narrows the
+   stdlib surface and breaks import-compatibility for real code.
+
+**Tradeoff**
+Byte/identity-level observability differs from host in the three cases
+above. Structural and value semantics — the surface real programs use —
+are bit-exact per the parity suite.
+
+**Reversal condition**
+If the VM gains raw-address introspection, a warnings subsystem, or
+registered-iterator invalidation, revisit each item: emit the host
+behavior, flip pins to two-sided parity, mark this entry =SUPERSEDED=.
