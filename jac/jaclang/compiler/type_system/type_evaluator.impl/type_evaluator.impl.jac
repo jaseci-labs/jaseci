@@ -3228,11 +3228,12 @@ impl TypeEvaluator.assign_type(
             isinstance(dest_type, FunctionType)
             and isinstance(src_type, ClassType)
             and src_type.is_builtin("int")
-        ) or (
-            isinstance(src_type, FunctionType)
-            and isinstance(dest_type, ClassType)
-            and dest_type.is_builtin("int")
-        ) {
+        )
+            or (
+                isinstance(src_type, FunctionType)
+                and isinstance(dest_type, ClassType)
+                and dest_type.is_builtin("int")
+            ) {
             return True;
         }
     }

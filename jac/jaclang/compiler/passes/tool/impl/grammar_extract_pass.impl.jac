@@ -356,7 +356,11 @@ impl GrammarExtractPass._compute_rule_firsts(rules: list) -> dict {
 impl GrammarExtractPass._stage_simplify(rules: list) -> list {
     result: list = [];
     for rule in rules {
-        result.append(GrammarRule(name=rule.name, body=GrammarExtractPass.simplify_expr(rule.body)));
+        result.append(
+            GrammarRule(
+                name=rule.name, body=GrammarExtractPass.simplify_expr(rule.body)
+            )
+        );
     }
     return result;
 }

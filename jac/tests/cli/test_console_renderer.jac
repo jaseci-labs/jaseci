@@ -72,8 +72,8 @@ test "the live console delegates to a real renderer" {
     console_dyn: any = console;
     c = (
         console_dyn.__getattr__('print').__self__
-        if console_dyn?.__getattr__
-        else console_dyn
+            if console_dyn?.__getattr__
+            else console_dyn
     );
     assert hasattr(c, '_renderer') , "console facade has no _renderer to delegate to";
     assert isinstance(c._renderer, ConsoleRenderer) , f"expected a ConsoleRenderer, got {type(
