@@ -527,7 +527,7 @@ obj _P2Groupby {
         self.last_serial = self.last_serial + 1;
         serial: int = self.last_serial;
         self.currgrouper = serial;
-        return tuple([tk, _P2Grouper(parent=self, tgtkey=tk, serial=serial)]);
+        return (tk, _P2Grouper(parent=self, tgtkey=tk, serial=serial));
     }
 }
 
@@ -564,7 +564,10 @@ def _p2_groupby(iterable: any, keyfunc: any = None) -> _P2Groupby {
 
 obj _P2Tee {
     # Shared-lookahead model of the teedataobject chain: every clone reads
-    # from one buffer; index tracks per-clone consumption.
+    # from one buffer; index tracks per-clone consumption. Unlike CPython's
+    # teedataobject links this buffer grows unboundedly (the C version lets
+    # the GC reclaim fully-drained link cells); behavioral equivalence holds,
+    # only memory profile differs -- do not 'fix' without a VM-level reason.
     has src: any = None,
         buf: list = [],
         done: bool = False,
@@ -652,7 +655,7 @@ obj _P2Islice {
 def _p2_islice_stop(seq: any, stop: any) -> _P2Islice {
     lz = _P2Islice(it=_get_iter(seq));
     if stop is not None {
-        if not isinstance(stop, int) or isinstance(stop, bool) or stop < 0 {
+        if not isinstance(stop, int) or stop < 0 {
             raise ValueError(
                 "Stop argument for islice() must be None or "
                 + "an integer: 0 <= x <= sys.maxsize."
@@ -669,7 +672,7 @@ def _p2_islice_full(seq: any, start: any, stop: any, step: any) -> _P2Islice {
     e: int = -1;
     st: int = 1;
     if start is not None {
-        if not isinstance(start, int) or isinstance(start, bool) or start < 0 {
+        if not isinstance(start, int) or start < 0 {
             raise ValueError(
                 "Indices for islice() must be None or "
                 + "an integer: 0 <= x <= sys.maxsize."
@@ -678,7 +681,7 @@ def _p2_islice_full(seq: any, start: any, stop: any, step: any) -> _P2Islice {
         s = start;
     }
     if stop is not None {
-        if not isinstance(stop, int) or isinstance(stop, bool) or stop < 0 {
+        if not isinstance(stop, int) or stop < 0 {
             raise ValueError(
                 "Indices for islice() must be None or "
                 + "an integer: 0 <= x <= sys.maxsize."
@@ -687,7 +690,7 @@ def _p2_islice_full(seq: any, start: any, stop: any, step: any) -> _P2Islice {
         e = stop;
     }
     if step is not None {
-        if not isinstance(step, int) or isinstance(step, bool) or step < 1 {
+        if not isinstance(step, int) or step < 1 {
             raise ValueError("Step for islice() must be a positive integer or None.");
         }
         st = step;
@@ -843,7 +846,7 @@ obj _P2Pairwise {
         item: any = _advance(self.it);
         oldprev: any = self.prev;
         self.prev = item;
-        return tuple([oldprev, item]);
+        return (oldprev, item);
     }
 }
 

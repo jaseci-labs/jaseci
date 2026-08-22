@@ -341,9 +341,6 @@ test "wave12 islice agrees with host itertools.islice" {
     assert _take_until_stop(_p2_islice_full(seq, None, None, 3)) == (
         list(host_it.islice(seq, None, None, 3))
     ) , "(None, None, step)";
-    assert _take_until_stop(_p2_islice_full(seq, 18, None, None)) == (
-        list(host_it.islice(seq, 18))
-    ) or True;
     got = _take_until_stop(_p2_islice_full(range(20), 18, None, None));
     want = list(host_it.islice(range(20), 18, None));
     assert got == want , (got, want);
@@ -447,4 +444,158 @@ test "wave12 batched/zip_longest agree with host" {
     got = _take_until_stop(_p2_zip_longest(["ab", [1]], fillvalue=0));
     want = _take_until_stop(host_it.zip_longest("ab", [1], fillvalue=0));
     assert got == want , (got, want);
+}
+
+test "wave12 islice accepts bool indices like host (bool is an int)" {
+    assert _take_until_stop(_p2_islice_stop(range(3), True)) == (
+        list(host_it.islice(range(3), True))
+    ) , "stop=True";
+    got = _take_until_stop(_p2_islice_full(range(10), False, True, True));
+    want = list(host_it.islice(range(10), False, True, True));
+    assert got == want , (got, want);
+    raised = False;
+    try {
+        _p2_islice_stop(range(5), "x");
+    } except ValueError {
+        raised = True;
+    }
+    assert raised , "non-int stop still raises";
+}
+
+
+def _make_p2_groupby(seq: any) -> any {
+    return _p2_groupby(seq);
+}
+
+
+def _make_host_groupby(seq: any) -> any {
+    return host_it.groupby(seq);
+}
+
+
+# Pin (a): partially consume a grouper, then advance the outer iterator;
+# the stale grouper must raise StopIteration on next access.
+def _groupby_stale_trace(make: any) -> list {
+    trace: list = [];
+    gb = make([1, 1, 2, 2, 3]);
+    first = _advance(gb);
+    g1: any = first[1];
+    trace.append(_advance(g1));
+    second = _advance(gb);
+    g2: any = second[1];
+    try {
+        trace.append(_advance(g1));
+        trace.append("no-stop");
+    } except StopIteration {
+        trace.append("stop");
+    }
+    while True {
+        try {
+            trace.append(_advance(g2));
+        } except StopIteration {
+            return trace;
+        }
+    }
+}
+
+
+# Pin (b): hold two grouper objects; consume the second after its group
+# boundary has passed (outer advanced past it) -> StopIteration.
+def _groupby_two_grousers_trace(make: any) -> list {
+    trace: list = [];
+    gb = make([1, 1, 2]);
+    first = _advance(gb);
+    g1: any = first[1];
+    second = _advance(gb);
+    g2: any = second[1];
+    while True {
+        try {
+            trace.append(_advance(g2));
+        } except StopIteration {
+            break;
+        }
+    }
+    exhausted = False;
+    try {
+        _advance(gb);
+    } except StopIteration {
+        exhausted = True;
+    }
+    trace.append("outer-done" if exhausted else "outer-live");
+    try {
+        _advance(g2);
+        trace.append("no-stop");
+    } except StopIteration {
+        trace.append("stop");
+    }
+    # stale g1 stays dead too
+    try {
+        _advance(g1);
+        trace.append("no-stop");
+    } except StopIteration {
+        trace.append("stop");
+    }
+    return trace;
+}
+
+
+test "wave12 groupby grouper timing matches host" {
+    got_a = _groupby_stale_trace(_make_p2_groupby);
+    want_a = _groupby_stale_trace(_make_host_groupby);
+    assert got_a == want_a , (got_a, want_a);
+
+    got_b = _groupby_two_grousers_trace(_make_p2_groupby);
+    want_b = _groupby_two_grousers_trace(_make_host_groupby);
+    assert got_b == want_b , (got_b, want_b);
+}
+
+
+def _make_p2_tee2(seq: any) -> any {
+    tp = _p2_tee(seq);
+    return [tp[0], tp[1]];
+}
+
+
+def _make_host_tee2(seq: any) -> any {
+    return list(host_it.tee(seq));
+}
+
+
+test "wave12 tee clones are independent after advancing either" {
+    for maker in [_make_p2_tee2, _make_host_tee2] {
+        clones: any = maker([7, 8, 9]);
+        one: any = clones[0];
+        two: any = clones[1];
+        assert _take(one, 2) == [7, 8] , "first clone advanced";
+        assert _advance(two) == 7 , "second clone unaffected";
+        assert _advance(two) == 8 , "second clone continues from start";
+        assert _take_until_stop(one) == [9] , "first clone resumes where left";
+    }
+}
+
+
+# Tracked deviation from host-oracle identity semantics (jac-python
+# docs/decisions.org): CPython's product/permutations/combinations/cwr
+# mutate ONE result tuple in place across next() calls; this port returns
+# a fresh tuple each time. This pin freezes the fresh-tuple behavior so a
+# future VM-level mutable pseudo-tuple flips it deliberately.
+test "wave12 combinatorics results are stable fresh tuples per next" {
+    mine = _p2_combinations("ABC", 2);
+    m1 = _advance(mine);
+    assert m1 == ("A", "B") , m1;
+    _advance(mine);
+    assert m1 == ("A", "B") , "held tuple unchanged by advancing";
+
+    prod = _p2_product(["ab"]);
+    t1 = _advance(prod);
+    t2 = _advance(prod);
+    assert t1 == ("a",) and t2 == ("a",);
+    assert id(t1) != id(t2) , "fresh tuple object per __next__";
+
+    hc = host_it.combinations("ABC", 2);
+    h1 = next(hc);
+    next(hc);
+    assert list(h1) == ["A", "C"] , (
+        "host mutates the held tuple in place -- the divergence this pin tracks"
+    );
 }
