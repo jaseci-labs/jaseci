@@ -574,8 +574,11 @@ jobs:
       - name: P2 corpus density ratchet (committed lift output)
         run: jac test jac-py/tests/test_p2_corpus_density.jac
 
-      - name: P2 wave-2 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave2_gate.py
+      - name: P2 waves 2-11 c2jac corpus lifts + Tier-B density gates
+        run: python3 -m unittest jac-py/tools/test_p2_corpus_waves_gate
+
+      - name: P2 waves 2-11 conformance manifest gates
+        run: python3 -m unittest jac-py/tools/p2_conformance_waves_gate
 
       - name: P2 waves 2-11 module oracles
         run: jac test jac-py/tests/test_p2_waves_module_oracles.jac
@@ -585,67 +588,6 @@ jobs:
 
       - name: P2 waves 2-11 corpus density ratchets
         run: jac test jac-py/tests/test_p2_waves_corpus_density.jac
-
-      - name: P2 wave-2 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave2_gate.py
-
-      - name: P2 wave-3 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave3_gate.py
-
-      - name: P2 wave-3 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave3_gate.py
-
-      - name: P2 wave-4 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave4_gate.py
-
-      - name: P2 wave-4 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave4_gate.py
-
-      - name: P2 wave-5 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave5_gate.py
-
-      - name: P2 wave-5 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave5_gate.py
-
-      - name: P2 wave-6 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave6_gate.py
-
-      - name: P2 wave-6 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave6_gate.py
-
-      - name: P2 wave-7 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave7_gate.py
-
-      - name: P2 wave-7 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave7_gate.py
-
-
-      - name: P2 wave-8 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave8_gate.py
-
-      - name: P2 wave-8 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave8_gate.py
-
-
-      - name: P2 wave-9 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave9_gate.py
-
-      - name: P2 wave-9 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave9_gate.py
-
-
-      - name: P2 wave-10 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave10_gate.py
-
-      - name: P2 wave-10 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave10_gate.py
-
-
-      - name: P2 wave-11 c2jac corpus lift + Tier-B density gate
-        run: python3 -m unittest jac-py/tools/test_p2_corpus_wave11_gate.py
-
-      - name: P2 wave-11 conformance manifest gate
-        run: python3 -m unittest jac-py/tools/p2_conformance_wave11_gate.py
 
       - name: P2 JacPython libtest harness
         run: jac test jac-py/jacpython/layer_p2_libtest.jac
@@ -657,6 +599,11 @@ jobs:
         env:
           JACPATH: jac-py/jacpython
         run: jac test jac-py/tests/test_pyhash_secret.jac
+
+      - name: P2 facade parity (bisect/heapq/stat)
+        env:
+          JACPATH: jac-py/jacpython
+        run: jac test jac-py/tests/test_p2_facade_parity.jac
 
       - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac

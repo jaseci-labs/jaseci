@@ -9,7 +9,7 @@
       "gate_type": "oracle",
       "status": "gated",
       "oracle_tests": [
-        "test_p2_wave2_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "notes": "S_IMODE/S_IFMT extract; cc vs hand-staged jac oracle."
@@ -19,7 +19,7 @@
       "gate_type": "oracle",
       "status": "gated",
       "oracle_tests": [
-        "test_p2_wave2_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "notes": "is_valid/has_arg extract; cc vs hand-staged jac oracle."
@@ -29,7 +29,7 @@
       "gate_type": "oracle",
       "status": "gated",
       "oracle_tests": [
-        "test_p2_wave2_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "notes": "mathmodule gcd fast path; cc vs lifted jac oracle."
@@ -39,7 +39,7 @@
       "gate_type": "oracle",
       "status": "gated",
       "oracle_tests": [
-        "test_p2_wave2_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "notes": "PyOS_mystrnicmp string compare; cc vs lifted jac oracle."
