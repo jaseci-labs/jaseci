@@ -68,6 +68,7 @@ import from jaclang.utils.precompile_bytecode {
     NATIVE_SEAL_REFUSED_ROOTS,
     NATIVE_SEAL_ROOTS,
     NATIVE_SEAL_WAIVER_FAMILIES,
+    seal_abort_stubs,
     seal_waiver_names
 }
 
@@ -82,7 +83,8 @@ glob AUDITED_ROOTS: tuple = tuple(
          list(NATIVE_SEAL_ROOTS) + sorted(NATIVE_SEAL_REFUSED_ROOTS)
      );
 
-glob _COVERAGE_MEMO: dict[(str, tuple)] = {};
+glob _COVERAGE_MEMO: dict[(str, tuple)] = {},
+     _STUB_MEMO: dict[(str, set[str])] = {};
 
 """A root's dotted module name, for the sealed-runtime skip gate."""
 def _root_module_name(rel: str) -> str {
@@ -122,6 +124,7 @@ def _root_coverage(rel: str) -> tuple {
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
+    _STUB_MEMO[rel] = set(seal_abort_stubs(str(ir.gen.llvm_ir))) if has_ir else set();
     result = (coverage, has_ir, errors, );
     _COVERAGE_MEMO[rel] = result;
     return result;
@@ -222,10 +225,16 @@ test "every sealed root's demotion report is exactly its waiver list" {
             for k in seams
             if k not in allowed
         );
+        # A caller whose body unconditionally reaches a demoted function is
+        # folded to an abort stub by the optimizer (the callee's noreturn
+        # stub inlines into it), so it ships as a stub the coverage never
+        # saw. The seal's linkage check requires a waiver for it, so a
+        # waiver naming a shipped stub is load-bearing, not stale.
+        shipped = _STUB_MEMO.get(rel) or set();
         stale = sorted(
             k
             for k in allowed
-            if k not in seams
+            if k not in seams and k.split("::")[-1] not in shipped
         );
         for k in unwaived {
             failures.append(f"{rel}: un-waived seam {k}: {seams[k]}");

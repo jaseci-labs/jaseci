@@ -438,6 +438,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::collect_member_syms",
          "compiler/type_system/type_utils.jac::get_completion_items",
          "compiler/type_system/type_utils.jac::completion_kind_from_sym",
+         "compiler/type_system/type_utils.jac::completion_item_from_sym",
          "compiler/type_system/type_utils.jac::compute_mro_linearization",
          "compiler/type_system/type_utils.jac::build_type_var_solution",
          "compiler/type_system/type_utils.jac::shadowed_type_var_names",
