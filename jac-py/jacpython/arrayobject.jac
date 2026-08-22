@@ -13,6 +13,17 @@
 # Error messages are pinned against the host oracle (CPython 3.14 array):
 # OverflowError texts differ per typecode and are reproduced verbatim.
 
+# Float<->IEEE754 bit conversion is shared with the wave-13 struct port
+# (single source of truth). struct's pack raises OverflowError past float32
+# range like CPython PyFloat_Pack4; array's C setitem instead saturates via
+# a plain C cast, so _sat_f32_bits maps that error to +/-inf bits here.
+import from _structmodule {
+    _f64_bits,
+    _bits_f64,
+    _f32_bits,
+    _bits_f32,
+}
+
 
 # ---------------------------------------------------------------------------
 # Descriptor table (mirrors struct arraydescr descriptors[] on LP64)
@@ -69,170 +80,16 @@ def _tc_is_float(tc: str) -> bool {
 # float32 path rounds the double bit pattern to nearest-even.
 # ---------------------------------------------------------------------------
 
-def _f64_bits(x: float) -> int {
-    s = x.hex();
-    neg: bool = s.startswith("-");
-    body = s;
-    if neg {
-        body = s[1:len(s)];
-    }
-    if body == "nan" {
-        return 0x7ff8000000000000;
-    }
-    if body == "inf" {
-        return 0x7ff0000000000000 | (_sign_shift64(neg));
-    }
-    # Normal/denormal form: [-]0x<hex>.<hex>p<dec-exp>
-    parts = body.split("p");
-    mant_part = parts[0];
-    exp_part = int(parts[1]);
-    digits = mant_part[2:len(mant_part)];
-    halves = digits.split(".");
-    int_d = halves[0];
-    frac_d = halves[1];
-    m_str = int_d + frac_d;
-    mant = int(m_str, 16);
-    k: int = len(frac_d);
-    e: int = exp_part - 4 * k;
-    if mant == 0 {
-        return _sign_shift64(neg);
-    }
-    if int_d == "0" {
-        # Denormal double: value = mant * 2^e with e >= -1074 and
-        # mant * 2^(e + 1074) an exact integer (the encoded fraction).
-        return (mant << (e + 1074)) | _sign_shift64(neg);
-    }
-    # Normalize mant into [2^52, 2^53) keeping value = mant * 2^e.
-    while mant < 4503599627370496 {
-        mant = mant * 2;
-        e -= 1;
-    }
-    while mant >= 9007199254740992 {
-        mant = mant >> 1;
-        e += 1;
-    }
-    # Normalized value = 1.f * 2^(e + 52): the hidden bit sits at bit 52.
-    frac = mant - 4503599627370496;
-    return (((e + 1075) << 52) | frac) | _sign_shift64(neg);
-}
-
-def _sign_shift64(neg: bool) -> int {
-    # Sign bit as an unsigned 64-bit pattern component.
-    if neg {
-        return 9223372036854775808;
-    }
-    return 0;
-}
-
-def _bits_f64(bits: int) -> float {
-    expf = (bits >> 52) & 0x7ff;
-    frac = bits & 4503599627370495;
-    neg = (bits >> 63) == 1;
-    if expf == 2047 {
-        if frac == 0 {
-            v = float("inf");
-        } else {
-            v = float.fromhex("nan");
+def _sat_f32_bits(x: float) -> int {
+    try {
+        return _f32_bits(x);
+    } except OverflowError {
+        if x < 0 {
+            return 0xff800000;
         }
-    } elif expf == 0 {
-        v = frac * 2 ** -1074;
-    } else {
-        v = (frac + 4503599627370496) * 2 ** (expf - 1075);
+        return 0x7f800000;
     }
-    if neg {
-        return -v;
-    }
-    return v;
 }
-
-# Round-to-nearest-even right shift of a non-negative int.
-def _rshift_round_even(m: int, shift: int) -> int {
-    if shift <= 0 {
-        return m << (-shift);
-    }
-    q = m >> shift;
-    r = m - (q << shift);
-    half = 1 << (shift - 1);
-    if r > half or (r == half and (q % 2) == 1) {
-        q += 1;
-    }
-    return q;
-}
-
-def _f32_bits(x: float) -> int {
-    if x != x {
-        return 0x7fc00000;
-    }
-    b64 = _f64_bits(x);
-    neg = b64 < 0;
-    ub = b64;
-    if neg {
-        ub = -b64;
-    }
-    expf = (ub >> 52) & 0x7ff;
-    frac64 = ub & 4503599627370495;
-    if expf == 2047 {
-        if frac64 == 0 {
-            return 0x7f800000 | ((ub >> 63) << 31);
-        }
-        return 0x7fc00000;
-    }
-    if expf == 0 {
-        mant = frac64;
-        e = -1074;
-    } else {
-        mant = frac64 + 4503599627370496;
-        e = expf - 1075;
-    }
-    if mant == 0 {
-        return (ub >> 63) << 31;
-    }
-    # Here value = mant * 2^e with mant in [2^52, 2^53), so the unbiased
-    # binary exponent is E = e + 52 and float32 normals need E >= -126.
-    if e >= -178 {
-        # Normal float32: round mantissa to 24 significant bits.
-        n = _rshift_round_even(mant, 29);
-        if n >= 16777216 {
-            n = n >> 1;
-            e += 1;
-        }
-        if e + 179 >= 255 {
-            return 0x7f800000 | ((ub >> 63) << 31);
-        }
-        return (((e + 179) << 23) | (n - 8388608)) | ((ub >> 63) << 31);
-    }
-    # Subnormal float32 (or underflow to zero): grid step 2^-149,
-    # n2 = mant * 2^(e + 149).
-    n2 = _rshift_round_even(mant, -e - 149);
-    if n2 >= 16777216 {
-        # Rounded up into the smallest normal.
-        return (1 << 23) | ((ub >> 63) << 31);
-    }
-    return (n2 << 0) | ((ub >> 63) << 31);
-}
-
-def _bits_f32(bits: int) -> float {
-    expf = (bits >> 23) & 0xff;
-    frac = bits & 8388607;
-    neg = (bits >> 31) == 1;
-    ub = bits;
-    if expf == 255 {
-        if frac == 0 {
-            v = float("inf");
-        } else {
-            v = float.fromhex("nan");
-        }
-    } elif expf == 0 {
-        v = frac * 2 ** -149;
-    } else {
-        v = (frac + 8388608) * 2 ** (expf - 150);
-    }
-    if neg {
-        return -v;
-    }
-    return v;
-}
-
 
 # ---------------------------------------------------------------------------
 # Item pack/unpack (little-endian native order, mirrors memcpy of C types)
@@ -260,7 +117,7 @@ def _pack_float(v: float, tc: str) -> bytes {
     if tc == "d" {
         bits = _f64_bits(v);
     } else {
-        bits = _f32_bits(v);
+        bits = _sat_f32_bits(v);
     }
     size: int = 8;
     if tc == "f" {
