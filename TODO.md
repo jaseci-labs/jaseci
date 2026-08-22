@@ -112,3 +112,200 @@ Post-TODO queue is clear of the three axes above. Further work is opportunistic 
 2. ~~**Parser #8473**~~ ✓ - trailing `**` after named kwargs (`pa_join_sequences`); merged onto `jac-python`.
 3. ~~**P2 leaf deepen / `_stat` / `_opcode` facades**~~ ✓ - native `jacpython/_statmodule.jac` + `_opcodemodule.jac`; libtest shims + facade parity; `opcode_meta2jac` emits `OPCODE_HAS_*` classifiers.
 4. ~~**Compiler deferral slice: try/except/finally multi-handler**~~ ✓ - `visit_try_except_finally` chains N handlers (typed/bare), else, finally; nested try in body/handler publishes extents + inline enclosing epilogues; oracle-parity gates in `compiler_slice` / `layer9` (247 + 188). Except-as binding in the finally path remains deferred.
+
+---
+
+## PR #6973 review findings (2026-08-22)
+
+Full per-area reports: `/tmp/review_findings_{compiler,runtime,corpus}.md`. All headline
+claims below re-verified against source by hand. Order = fix priority.
+
+### A. Verified bugs (fix before merge)
+
+1. **`jac-py/jacpython/objects.jac:1591` `slice_indices()` — missing zero-step guard.**
+   No `step == 0` check; with step 0 `_slice_objs`'s negative-step loop (`i + 0 == i`)
+   hangs the VM / grows memory unboundedly. Reachable via `l[5:1:0]` and
+   `del l[5:1:0]` (`mp_del_subscript`, objects.jac:673). CPython raises
+   `ValueError: slice step cannot be zero`. **Fix:** raise that error when
+   `step == 0`; add oracle test.
+
+2. **`.github/workflows/ci.yml:665-673` — P3 gate steps hardcode dev-machine paths.**
+   `JACPYTHON_CPYTHON=/home/jac/.local/bin/python3.14` (author's home dir,
+   nonexistent on runners) and `runtime_gate.py`/`replay_gate.py` run
+   `REPO_ROOT/.venv/bin/jac` (runtime_gate.py:16), which CI never creates — CI only
+   installs `jac/zig-out/bin/jac`. These two steps cannot pass on GitHub CI.
+   **Fix:** resolve CPython from PATH/`python3` action input, and point gates at the
+   jac-kit-installed binary (or make them skip loudly, not fail).
+
+3. **`jac/jaclang/langserve/impl/engine.impl.jac:640` — copy-paste f-string bug +
+   scope creep.** `node_info += f"'\n'placement: ..."` emits literal apostrophes
+   around a real newline in LSP hover text (sibling at :619 is correct). Also tags
+   every symbol `'inferred'` unconditionally. Whole hunk is codespace hover
+   decoration unrelated to jac-py. **Fix:** revert hunk or correct to
+   `f"\nplacement: ..."` on its own branch.
+
+4. **Bool-index inconsistency across sequence subscripts** (objects.jac).
+   `PyList.mp_subscript` (:635) uses `to_index()` (accepts bool); `PyStr.mp_subscript`
+   (:285), `PyBytes.mp_subscript` (:324), `PyTuple.mp_subscript` (:588) reject via
+   `index.t != "int"`, so `"abc"[True]` fails where CPython returns `'b'`.
+   **Fix:** route all four subscript paths through `to_index()`.
+
+### B. Duplication (hoist into shared helpers)
+
+1. **Richcompare op→bool ladder copied 10x**: objects.jac (PyInt/PyStr/PyFloat/
+   PyBool x2), longobject `_richcompare_from_sign`, bytesobject/listobject/tupleobject
+   `_compare_sizes`/`_compare_ints`, setobject. One shared
+   `_bool_from_cmp(cmp: int, op: int)` in abstract_protocol replaces all.
+
+2. **Truth-of-comparison-result helpers 4x**: `abstract_protocol._object_is_true`,
+   `abstract_protocol._richcompare_to_bool`, `dictobject._richcompare_true` (pure
+   alias), `objects._richcompare_truth` — with subtly different error semantics
+   (-1 tri-state vs silent False). Consolidate to one tri-state helper.
+
+3. **P2 wave harnesses are copy-paste with real strength drift**:
+   `tools/test_p2_corpus_wave{2..11}_gate.py` (10 near-identical 79-line files),
+   `tools/lift_p2_corpus_wave{2..11}.py`, `tools/p2_conformance_wave{2..11}_gate.py`
+   (waves 2-3 assert less than waves 4-11 — weaker gating by accident of copy timing;
+   wave10 checks `oracle_tests` + staged `.jac` existence, wave2 doesn't).
+   **Fix:** one parameterized harness iterating `tools/p2_corpus_wave*/manifest.json`
+   (the consolidated `.jac` harnesses already do this — follow that pattern), and
+   apply the wave10-strength asserts to all waves.
+
+4. **Wave/stem inventory maintained in four lockstep-by-hand places**:
+   `manifest.json`, `tests/conformance_manifest_waveN.json`,
+   `tools/p2_staged_manifest_waveN.json`, plus hardcoded `_expected_stems(wave)`
+   if-chains duplicated verbatim in tests/test_p2_waves_staged_sync.jac:48,
+   test_p2_waves_module_oracles.jac:71, test_p2_waves_corpus_density.jac:48.
+   Derive expected stems from the corpus manifests instead.
+
+5. **Misc duplicated glue**: `_signed_hash` (tupleobject.jac:50 = setobject.jac:25 =
+   inlined in abstract_protocol `_hashkey_digest`); `_Py_SwappedOp = [4,5,2,3,0,1]`
+   literal re-spelled in ceval.jac:2286 vs abstract_protocol.jac:13; NB_* binop kinds
+   used as bare magic ints (0..12) throughout `nb_binop`/`py_binop` while Py_LT..Py_GE
+   got named globs — define NB_ADD.. once.
+
+### C. Dead code shipped as runtime (bloat)
+
+1. **~25 "lifted" stub modules under jac-py/jacpython/ have zero callers**
+    (repo-wide grep verified): iterobject, genobject, frameobject, enumobject,
+    weakrefobject, odictobject, bytearrayobject, memoryobject, genericaliasobject,
+    unionobject, typevarobject, structseq, capsule, cellobject (`cell_is_empty`
+    always False), picklebufobject, interpolationobject, templateobject, fileobject,
+    namespaceobject, moduleobject, classobject, funcobject, unicodectype,
+    unicodeobject, bytes_methods, methodobject, descrobject, typeobject stubs —
+    ~450+ lines of identity helpers (`union_is_empty(n) { return n == 0; }`).
+    Move outside the import graph (reference corpus tree like `Objects/_lifted/`)
+    or delete until wired.
+2. **dictobject.jac:19-95** open-addressing probe section (~75 lines) unused —
+    header admits it's "c2jac reference for a future native table". Quarantine.
+3. **longobject.jac:23-260** digit-vector add/sub/compare machinery unreachable
+    (ceval routes int compares through `PyObj.tp_richcompare`); reimplements
+    bignum arithmetic on top of Jac's already-bignum host ints. Delete or quarantine.
+4. **floatobject.jac:96-103** dead `float_eq_doubles`/`float_ne_doubles`.
+
+### D. Corpus/gates integrity
+
+1. **20 committed `_staging/*.c` scratch files** contradict `.gitignore:94-96` and
+    get rmtree'd by lift scripts on next run → tracked-file churn. Untrack.
+2. **`tools/sync_staged_to_lifted.py:59-66,107`** sidecar-zeroing makes part of the
+    Tier-B density ratchet unauditable — staged counts silently reset to lifted ones.
+3. **na_cliffs t7_gate.py + na_concat.py not wired to CI** despite "runs in CI"
+    docstrings.
+
+### E. Hygiene / scope (upstream PR cleanliness)
+
+1. **Session artifacts committed at repo root**: CURRENT.md, FIXME.md,
+    INTEGRATION_PLAN.md, PROGRESS.md, PR_SPLIT_PLAN.md, TASK.md, AUDIT-typefacts-infer_type.md,
+    SKILL.md (+ AGENTS.md/CLAUDE.md additions). Keep out of the upstream PR.
+2. **`.cursor/hooks.json` + `.cursor/hooks/notify-agent-complete.sh`** — personal
+    editor tooling; remove from PR.
+3. **Release-note fragments use issue numbers** (7145/7230/7353.*.md); CONTRIBUTING
+    requires PR numbers. Rename when those land as PRs or drop fragments until then.
+4. **`.gitignore` per-wave negation lines grow linearly; `.jacignore` has broad
+    unqualified basenames** (e.g. `types.impl.jac`) that can over-ignore future files.
+5. **Minor compiler-core nits to track** (details in compiler report):
+    layout_pass.impl.jac:394 `resolve_ref` leaves `list[Foo]` type_tags unresolved in
+    shared-registry mode; normalize_pass synthesized-token line interpolation is a
+    post-hoc workaround (anchor positions should be set at token creation);
+    parser.impl.jac:5090 wrong-kwarg clib() error cascades a second parse error;
+    tools.impl.jac `_run_c_transform` ~135-line argparse clone.
+
+### Positives worth keeping
+
+- Error-propagation discipline (`is_error` checks) consistent across the runtime;
+  no debug prints, no swallowed-error paths found in hot dispatch.
+- `pyhash.jac` SipHash-13/PYTHONHASHSEED port matches CPython semantics exactly.
+- vtable GEP-on-coerced-receiver fix, SHA256 exception-type-ids, doc_ir_gen identity
+  check, pyast_load ctrl_loc, jir clib header-dep tracking — all root-cause fixes
+  with tests. Good pattern.
+
+---
+
+## Adversarial-review findings (YoungViper — live log, append-only)
+
+Status per item as of last update. Verified = I reproduced it myself; fixed = fix landed and I re-verified.
+
+### Open
+
+1. **[RESOLVED a13ba6a06] `repr()` drains native iterators**: py_repr now returns
+   '<iterator object>' for PyIter before any to_host path; repr is observational again.
+2. **[RESOLVED a13ba6a06] dedent sibling-clause residual (try/except/else)**: strip is
+   now exactly base_col per continuation line, so sibling clauses keep relative shape;
+   exc/else setup replays green end-to-end.
+
+3. **[MED] `repr()` drains native iterators** (regression from `PyIter` to_host drain,
+   d5235d1d7). `py_repr` → host_convert → `to_host(PyIter)` exhausts the iterator.
+   Repro: `it = iter([1,2,3]); r = repr(it)` → `r == '[1, 2, 3]'` (CPython:
+   `<list_iterator object at ...>`) and `it` is exhausted. Fix: `py_repr` case for
+   `PyIter` returning a CPython-style `<list_iterator object>` string before the
+   host fallback; audit other accidental `to_host` paths over iterators.
+
+4. **[HARNESS] `_dedent_segment` no-ops for sibling-clause statements.**
+   min-delta formula (`min(continuation) - base_col`) gives strip=0 for
+   try/except/else because except/else siblings sit AT base_col. Residual repro:
+   top-level try/except/else in setup still skips (IndentationError).
+   Exact fix: continuation lines always carry >= base_col, so strip exactly
+   base_col from every non-empty continuation line:
+   `[l[base_col:] if l[:base_col].strip()=='' else l for l in lines[1:]]`.
+   Partially fixed in 1d823f5d6 (def/class bodies work).
+
+5. **[HIGH→ledger] unbound builtin-method silent no-op** — fixed d5235d1d7 ✓
+   (verified: list.append/dict.get route to native wrappers).
+
+6. **[LEDGER] remaining items**: to_host drops PyNativeBuiltin/bound methods
+   (type(len) gap); HARNESS A (setup-error should count errored not replay
+   partial ns); weakref probe lacks real API coverage.
+
+### Fixed & verified
+
+- `list.sort()` missing entirely (silent no-op via host-copy mutation) — ae82851a0;
+  my 99-case stateful corpus went 77/99 → 99/99 post-fix; stability-under-key verified.
+- Undefined name raised AttributeError("module 'builtins' has no attribute") instead
+  of NameError — ae82851a0, verified via assertRaises(NameError).
+- Generator re-entrancy unguarded (would recurse run_frame on live frame) — 62e7018d1;
+  bypass sweep confirmed all resume/throw paths funnel through guarded entries.
+- HARNESS: 25/107 real probe methods never replayed — all "skips" were indentation-
+  corruption artifacts from get_source_segment + single global dedent — 1d823f5d6;
+  independently re-verified 107/107 passed / 0 skipped across all 44 stems.
+- PyHostProxy eq/hash inconsistency — 1d823f5d6 option-2 implementation reviewed;
+  identity fast-path + host-eq defer + error propagation all correct.
+
+### Fuzz coverage map (all differential vs CPython, green)
+
+richcompare chains/reflected priority · dict key collapse/order · bigint hash parity ·
+floor/mod signs · gen yield/close/throw/yield-from/StopIteration→RuntimeError/reentrancy ·
+exception hierarchy/tuple-match/nested-finally/return-in-finally/reraise/NameError ·
+comprehension scoping (no-leak)/dict/set-comp/genexpr · f-strings/%-format/format() ·
+with enter/exit/suppression · operator overloads (**add**/**radd**/**eq**/**hash**/
+**len**/**bool**/**repr** fallback/**getattr**) · slice semantics · str methods.
+
+Known harness limits when writing new probes: asserts must be direct statements of a
+`test_*` method (no nesting inside try/with); avoid literal `self` tokens outside the
+assert calls; assert args must be interpreter-independent or folded intra-expression;
+host-baked literal expected values are stronger than self-comparisons.
+
+Infra: `/tmp/gen_fuzz.py`, `/tmp/gen_fuzz2.py` (corpus generators),
+`jac-py/jacpython/_fuzz_smoke.jac` (driver, reads /tmp/fuzz_cases.json),
+`jac-py/jacpython/_fuzz_introspect.jac` (direct namespace inspection).
+Run: `JACPYTHON_CPYTHON=python3 .venv/bin/jac run jac-py/jacpython/_fuzz_smoke.jac`
+(both .jac files are temp — delete before any upstream PR).
