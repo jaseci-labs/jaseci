@@ -112,8 +112,7 @@ def ensure_watchdog_common(target_name: str) -> bool {
     } except ImportError {
         console.warning(
             f"  watchdog not installed — saving .jac files will not refresh {target_name}. "
-            "Install with: pip install 'watchdog>=3.0.0' (or add to [dev-dependencies]).",
-            style="muted"
+            "Install with: pip install 'watchdog>=3.0.0' (or add to [dev-dependencies])."
         );
         return False;
     }
@@ -146,7 +145,11 @@ def prepare_vite_dev_compilation(project_dir: Path, entry_file: Path) -> tuple {
         builder.vite_package_json = package_json_path;
     }
     compiler = builder._get_compiler();
-    compiler.compiled_dir.mkdir(parents=True, exist_ok=True);
+    compiled_dir = compiler.compiled_dir;
+    if compiled_dir is None {
+        raise RuntimeError("Client compiled directory could not be resolved");
+    }
+    compiled_dir.mkdir(parents=True, exist_ok=True);
     (_, mod, _) = compiler.jac_compiler.compile_module(entry_file);
     if not mod {
         raise RuntimeError(f"Failed to compile client entry module: {entry_file}");

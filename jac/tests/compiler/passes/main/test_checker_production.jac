@@ -32,7 +32,6 @@ glob CHECKER_FIXTURES = os.path.join(
 def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(os.path.join(CHECKER_FIXTURES, fixture_name));
-    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 

@@ -64,7 +64,7 @@ def families_engine -> ExecutionEngine {
 }
 
 """A JIT-resident `int -> int` (or `-> int`) entry point as a callable."""
-def native_fn(name: str, argc: int = 1) -> object {
+def native_fn(name: str, argc: int = 1) -> any {
     addr = families_engine().get_function_address(name);
     assert addr != 0 , f"'{name}' is not in the JIT engine";
     if argc == 0 {
@@ -74,12 +74,12 @@ def native_fn(name: str, argc: int = 1) -> object {
 }
 
 """CPython's verdict for the same operand, as the 0/1 the fixture returns."""
-def py_verdict(value: object, types: object) -> int {
+def py_verdict(value: any, types: any) -> int {
     return 1 if isinstance(value, types) else 0;
 }
 
 """The operand `chk_list_or_tuple` / `chk_sequence` build for each selector."""
-def operand_for(k: int) -> object {
+def operand_for(k: int) -> any {
     return [[1, 2], "s", 3, PyFoo()][k];
 }
 

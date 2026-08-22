@@ -33,7 +33,6 @@ class JacProgram {
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,
-        _inferred_mods: set,
         _analyses_run: dict,
         _placement_summaries: dict,
         _placement_state: dict,
@@ -81,17 +80,13 @@ class JacProgram {
         file_path: str,
         use_str: (str | None) = None,
         no_cgen: bool = False,
-        type_check: bool = False,
         symtab_ir_only: bool = False,
         cancel_token: (Event | None) = None,
         options: (CompileOptions | None) = None
     ) -> uni.Module;
 
     def build(
-        self: JacProgram,
-        file_path: str,
-        use_str: (str | None) = None,
-        type_check: bool = False
+        self: JacProgram, file_path: str, use_str: (str | None) = None
     ) -> uni.Module;
 
     def run_schedule(

@@ -32,7 +32,6 @@ def compile_native(name: str) -> tuple {
         file_path=os.path.join(FIXTURES, name),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             na_gc_mode='cycles',
@@ -48,9 +47,7 @@ def server_errors(name: str) -> list {
     prog = JacProgram();
     prog.compile(
         file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(
-            type_check=False, no_ir_cache=True, force_codespace='server'
-        )
+        options=CompileOptions(no_ir_cache=True, force_codespace='server')
     );
     return [str(e) for e in prog.errors_had];
 }

@@ -69,8 +69,9 @@ test "raises lets an unrelated exception propagate" {
 
 test "raises rejects non-exception arguments" {
     caught = False;
+    bad_raises: any = testraises;
     try {
-        testraises(int);
+        bad_raises(int);
     } except TypeError {
         caught = True;
     }

@@ -1712,6 +1712,28 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             and nd.target.is_attr {
             mem_enum = self._get_name(nd.target.target);
             mem_name = self._get_name(nd.target.right);
+
+            if mem_enum is not None
+                and mem_name is not None
+                and f"{mem_enum}.{mem_name}" not in self.enum_values {
+                _al_nd = nd.target.target;
+                if isinstance(_al_nd, uni.Name)
+                    and _al_nd.sym is not None
+                    and _al_nd.sym.decl is not None {
+                    _al_of = _al_nd.sym.decl.name_of;
+                    if _al_of is not None
+                        and isinstance(_al_of.parent, uni.ModuleItem)
+                        and isinstance(_al_of.parent.name, uni.Name) {
+                        _al_orig = _al_of.parent.name.value;
+                        if f"{_al_orig}.{mem_name}" not in self.enum_values {
+                            self._codegen_enum_layout(_al_orig, None);
+                        }
+                        if f"{_al_orig}.{mem_name}" in self.enum_values {
+                            mem_enum = _al_orig;
+                        }
+                    }
+                }
+            }
             if mem_enum is not None
                 and mem_name is not None
                 and f"{mem_enum}.{mem_name}" in self.enum_values {
@@ -1833,6 +1855,23 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             full_name = f"{target_name}.{right_name}";
             if full_name in self.enum_values {
                 return self.enum_values[full_name];
+            }
+            if isinstance(nd.target, uni.Name)
+                and nd.target.sym is not None
+                and nd.target.sym.decl is not None {
+                _mv_of = nd.target.sym.decl.name_of;
+                if _mv_of is not None
+                    and isinstance(_mv_of.parent, uni.ModuleItem)
+                    and isinstance(_mv_of.parent.name, uni.Name) {
+                    _mv_orig = _mv_of.parent.name.value;
+                    _mv_full = f"{_mv_orig}.{right_name}";
+                    if _mv_full not in self.enum_values {
+                        self._codegen_enum_layout(_mv_orig, None);
+                    }
+                    if _mv_full in self.enum_values {
+                        return self.enum_values[_mv_full];
+                    }
+                }
             }
             _tk_alias = self._type_key_of(nd.target);
             if _tk_alias is not None {

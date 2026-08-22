@@ -78,8 +78,12 @@ def micro_suite_combined_test(rel_path: str) -> None {
         if isinstance(i, (ast3.Constant, ast3.arg)) {
             continue;
         }
-        assert i.lineno >= 1 , (
-            f"{filename}: {type(i).__name__} has lineno {i.lineno}: " f"{ast3.dump(i)}"
+        # `lineno` lives on concrete nodes, not the `AST` base the stub types
+        # here; the `_attributes` guard above is the real check.
+        located: any = i;
+        assert located.lineno >= 1 , (
+            f"{filename}: {type(i).__name__} has lineno {located.lineno}: "
+            f"{ast3.dump(i)}"
         );
     }
     assert parent_scrub(code_gen) , f"Parent scrub failed for {filename}";
@@ -160,6 +164,6 @@ with entry {
         "micro suite",
         MICRO_JAC_FILES,
         micro_suite_combined_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }

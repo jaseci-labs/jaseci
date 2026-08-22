@@ -16,7 +16,6 @@ obj NaIRGenCore(NaIRGenState) {
     def transform(ir_in: uni.Module) -> uni.Module;
     def _register_imported_struct_types -> None;
     def _permuted_walk_order(mods: list) -> list;
-    def _ensure_imported_module_inferred(imported_mod: uni.Module) -> None;
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;
     def _walk_imported_module_type_names(imported_mod: uni.Module) -> None;
@@ -32,6 +31,7 @@ obj NaIRGenCore(NaIRGenState) {
         nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
     ) -> None;
 
+    def _ensure_dep_inference(dep_mod: uni.Module) -> None;
     def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _predemote_capability_unit(
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False
