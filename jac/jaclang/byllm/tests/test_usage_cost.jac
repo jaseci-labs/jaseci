@@ -114,13 +114,13 @@ def _usage_from(path: str, response: (dict | None) = None) -> any {
         with mock.patch.object(llm, "model_call_with_stream", _stream) {
             list(llm.dispatch_streaming(mt));
         }
-        return llm._usage_history[-1];
+        return mt._usage_history[-1];
     }
     with mock.patch.object(llm, "model_call_with_stream_async", _astream) {
         agen: any = llm.adispatch_streaming(mt);
         asyncio.run(_drain(agen));
     }
-    return llm._usage_history[-1];
+    return mt._usage_history[-1];
 }
 
 
