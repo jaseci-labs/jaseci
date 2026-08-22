@@ -1273,6 +1273,12 @@ obj PyUserObj(PyObj) {
         if name == "__dict__" {
             return dict_from_str_map(self.attrs);
         }
+        # Identity dunder: every object's __class__ resolves to its type object
+        # (CPython object.__class__ descriptor). Needed for e.__class__.__name__
+        # on caught exceptions and isinstance-style idioms.
+        if name == "__class__" {
+            return self.cls;
+        }
         return py_error("AttributeError", name);
     }
 
@@ -2906,7 +2912,14 @@ def py_iter(value: PyObj) -> PyObj {
             if is_error(res) {
                 return res;
             }
-            if not (res.t == "iter" or res.t == "generator" or res.t == "dictiter") {
+            # A plain object returned by __iter__ that defines __next__ IS an
+            # iterator (the self-returning class-iterator idiom): CPython fills
+            # tp_iternext from __next__, so PyIter_Check accepts it.
+            if not (res.t == "iter" or res.t == "generator" or res.t == "dictiter")
+                and not (
+                    isinstance(res, PyUserObj)
+                    and user_has_dunder(res as PyUserObj, "__next__")
+                ) {
                 return py_error(
                     "TypeError", "iter() returned non-iterator of type '" + res.t + "'"
                 );
@@ -3672,6 +3685,19 @@ def py_call_host(
         }
         if owner == "set" and isinstance(recv, PySet) and is_set_method(meth, (recv as PySet).frozen) {
             return PySetMethod(t="set_method", target=(recv as PySet), name=meth).tp_call(rest, kwargs);
+        }
+    }
+    # The `list` constructor consults iteration IN-VM before any bridge attempt:
+    # to_host drops plain user objects (a generator/user iterable marshals as
+    # None and host list(None) fails with the misleading 'NoneType' error while
+    # iter(same object) works -- family-C bridge-first call site). py_iter sees
+    # tp_iter/__iter__/boxed bases; on error fall through to the host call,
+    # which stays authoritative for host-only iterables (dict views) and raises
+    # the exact CPython TypeError for non-iterables.
+    if len(args) == 1 and len(kwargs) == 0 and _jac_builtin_base_name(fn.val) == "list" {
+        it = py_iter(args[0]);
+        if not is_error(it) {
+            return drain_to_list(it);
         }
     }
     raw_args: list[any] = [];
@@ -4736,22 +4762,9 @@ obj PyNsMethod(PyObj) {
 # The method surface lives here (host-adjacent: arbitrary-iterable args are
 # drained through py_iter/host_iter), wrapping the leaf's value-based set algebra.
 
-# Materialize any iterable arg into a PyList of its members, or return a PyError
-# if it is not iterable (this is the TypeError set().difference(123) must raise).
-def members_of(arg: PyObj) -> PyObj {
-    if isinstance(arg, PySet) {
-        return PyList(t="list", items=(arg as PySet).set_members());
-    }
-    if isinstance(arg, PyList) {
-        return arg;
-    }
-    it = py_iter(arg);
-    if is_error(it) {
-        it = host_iter(PyHostProxy(t="host", val=to_host(arg)));
-        if is_error(it) {
-            return it;
-        }
-    }
+# Drain an iterator to exhaustion, collecting the yielded values into a FRESH
+# PyList. The first error the iterator propagates is returned verbatim.
+def drain_to_list(it: PyObj) -> PyObj {
     out: list[PyObj] = [];
     while True {
         step = send_into(it, py_none());
@@ -4764,6 +4777,27 @@ def members_of(arg: PyObj) -> PyObj {
         out.append(step);
     }
     return PyList(t="list", items=out);
+}
+
+# Materialize any iterable arg into a PyList of its members, or return a PyError
+# if it is not iterable (this is the TypeError set().difference(123) must raise).
+def members_of(arg: PyObj) -> PyObj {
+    if isinstance(arg, PySet) {
+        return PyList(t="list", items=(arg as PySet).set_members());
+    }
+    # A list arg needs no copy here: every consumer only READS the members
+    # (set algebra). The list() ctor has its own path and always copies.
+    if isinstance(arg, PyList) {
+        return arg;
+    }
+    it = py_iter(arg);
+    if is_error(it) {
+        it = host_iter(PyHostProxy(t="host", val=to_host(arg)));
+        if is_error(it) {
+            return it;
+        }
+    }
+    return drain_to_list(it);
 }
 
 def set_from_members(members: list[PyObj], frozen: bool) -> PyObj {
