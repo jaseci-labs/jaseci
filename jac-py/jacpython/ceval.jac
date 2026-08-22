@@ -60,7 +60,7 @@ def _jac_is_type_type(value):
     # build a class object (type.__new__), not a plain instance.
     return value is type
 
-def _jac_host_hashkey(value):
+def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
     # host objects share a hash, hence a bucket; the dict layer confirms a bucket
@@ -123,7 +123,7 @@ _JAC_BUILTIN_BASES = (
     "tuple", "set", "frozenset", "bytes", "object",
 )
 
-def _jac_builtin_base_name(host_val):
+def _jac_builtin_base_name(host_val) -> str:
     # If host_val is one of the subclassable builtin TYPES, return its name.
     import builtins
     if isinstance(host_val, type):
@@ -159,7 +159,7 @@ def _jac_builtin_new_slot(name):
         return object.__new__
     return getattr(builtins, name).__new__
 
-def _jac_isinstance_of_builtin(host_val, name):
+def _jac_isinstance_of_builtin(host_val, name) -> bool:
     # True iff host_val is an instance of the named builtin type.
     import builtins
     t = getattr(builtins, name, None)
@@ -173,7 +173,7 @@ def _jac_host_isinstance(host_obj, host_type):
     except BaseException:
         return False
 
-def _jac_type_has_flag(host_obj, flag_bit):
+def _jac_type_has_flag(host_obj, flag_bit) -> bool:
     try:
         return bool(type(host_obj).__flags__ & flag_bit)
     except BaseException:
@@ -196,7 +196,7 @@ def _jac_host_exception_instance(raw):
         return (True, type(raw).__name__, str(raw))
     return (False, "", "")
 
-def _jac_host_issubclass(host_cls, host_type):
+def _jac_host_issubclass(host_cls, host_type) -> bool:
     try:
         return issubclass(host_cls, host_type)
     except BaseException:
@@ -329,7 +329,7 @@ def _jac_make_host_trampoline(native_fn):
         pass
     return _trampoline
 
-def _jac_recover_native(raw):
+def _jac_recover_native(raw) -> PyObj:
     # If raw is a trampoline we minted, hand back the native function it wraps
     # so a host->native round-trip collapses instead of nesting proxies. Read the
     # marker from the object's OWN __dict__, not via getattr: a bound method
@@ -936,7 +936,7 @@ obj PyHostProxy(PyObj) {
     }
 
     def tp_hashkey -> str {
-        return _jac_host_hashkey(self.val);
+        return _jac_host_hashkey(self.val) as str;
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
@@ -1584,7 +1584,7 @@ def from_host(raw: any) -> PyObj {
     if _jac_is_builtin_subclass_instance(raw) {
         recovered = _jac_recover_native(raw);
         if recovered is not None {
-            return recovered;
+            return recovered as PyObj;
         }
         return PyHostProxy(t="host", val=raw);
     }
@@ -1601,32 +1601,32 @@ def from_host(raw: any) -> PyObj {
         return PyStr(t="str", val=raw);
     }
     if isinstance(raw, bytes) {
-        values: list[int] = [];
+        byte_values: list[int] = [];
         for item in raw {
-            values.append(item);
+            byte_values.append(item);
         }
-        return PyBytes(t="bytes", val=values);
+        return PyBytes(t="bytes", val=byte_values);
     }
     if isinstance(raw, range) {
-        values: list[PyObj] = [];
+        range_values: list[PyObj] = [];
         for item in raw {
-            values.append(PyInt(t="int", val=item));
+            range_values.append(PyInt(t="int", val=item));
         }
-        return PyList(t="list", items=values);
+        return PyList(t="list", items=range_values);
     }
     if isinstance(raw, list) {
-        values: list[PyObj] = [];
+        list_values: list[PyObj] = [];
         for item in raw {
-            values.append(from_host(item));
+            list_values.append(from_host(item));
         }
-        return PyList(t="list", items=values);
+        return PyList(t="list", items=list_values);
     }
     if isinstance(raw, tuple) {
-        values: list[PyObj] = [];
+        tuple_values: list[PyObj] = [];
         for item in raw {
-            values.append(from_host(item));
+            tuple_values.append(from_host(item));
         }
-        return PyTuple(t="tuple", items=values);
+        return PyTuple(t="tuple", items=tuple_values);
     }
     if isinstance(raw, dict) {
         # Native PyDict now keys on the hash-key protocol, so any hashable key
@@ -1670,7 +1670,7 @@ def from_host(raw: any) -> PyObj {
     # native function rather than nesting host->native->host indirection.
     recovered = _jac_recover_native(raw);
     if recovered is not None {
-        return recovered;
+        return recovered as PyObj;
     }
     return PyHostProxy(t="host", val=raw);
 }
@@ -1699,26 +1699,26 @@ def to_host(value: PyObj) -> any {
             return bytes(value.val);
 
         case PyTuple():
-            result: list[any] = [];
+            tuple_items: list[any] = [];
             for item in value.items {
-                result.append(to_host(item));
+                tuple_items.append(to_host(item));
             }
-            return tuple(result);
+            return tuple(tuple_items);
 
         case PyList():
-            result: list[any] = [];
+            list_items: list[any] = [];
             for item in value.items {
-                result.append(to_host(item));
+                list_items.append(to_host(item));
             }
-            return result;
+            return list_items;
 
         case PyDict():
-            result: dict[any, any] = {};
+            dict_items: dict[any, any] = {};
             for hk in value.items {
                 `entry = value.items[hk];
-                result[to_host(`entry.key)] = to_host(`entry.value);
+                dict_items[to_host(`entry.key)] = to_host(`entry.value);
             }
-            return result;
+            return dict_items;
 
         case PySet():
             members: list[any] = [];
@@ -2906,8 +2906,8 @@ def py_type_has_sequence_flag(value: PyObj) -> bool {
         if _jac_type_has_flag(host_val, _TPFLAGS_SEQUENCE) {
             return True;
         }
-        return _jac_isinstance_of_builtin(host_val, "list")
-            or _jac_isinstance_of_builtin(host_val, "tuple");
+        return (_jac_isinstance_of_builtin(host_val, "list")
+            or _jac_isinstance_of_builtin(host_val, "tuple")) as bool;
     }
     return False;
 }
@@ -2924,14 +2924,14 @@ def py_type_has_mapping_flag(value: PyObj) -> bool {
         if _jac_type_has_flag(host_val, _TPFLAGS_MAPPING) {
             return True;
         }
-        return _jac_isinstance_of_builtin(host_val, "dict");
+        return _jac_isinstance_of_builtin(host_val, "dict") as bool;
     }
     return False;
 }
 
 def py_type_has_match_self_flag(type_obj: PyObj) -> bool {
     if isinstance(type_obj, PyHostProxy) {
-        return _jac_type_has_flag((type_obj as PyHostProxy).val, _TPFLAGS_MATCH_SELF);
+        return _jac_type_has_flag((type_obj as PyHostProxy).val, _TPFLAGS_MATCH_SELF) as bool;
     }
     return False;
 }
@@ -5867,6 +5867,11 @@ def run_frame(frame: PyFrame) -> PyObj {
     # entry, POP_EXCEPT pops on handler exit. Frame-local: a bare raise across a
     # generator yield boundary is not modeled (vanishingly rare).
     exc_handling: list[PyObj] = [];
+    # Polymorphic opcode scratch slots: handlers below store PyObj values (and
+    # occasionally the narrower PyStr/PyException subtypes) here, so they are
+    # declared once up front instead of being pinned to a first-use type.
+    result: PyObj = py_none();
+    exc: PyObj = py_none();
     while ip < len(code) {
         offset = ip;
         op = code[ip];
@@ -7012,7 +7017,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_IMPORT_NAME {
             fromlist = stack.pop();
             level_obj = stack.pop();
-            result: PyObj = py_none();
+            result = py_none();
             if layer3_is_active() {
                 import_level = 0;
                 if isinstance(level_obj, PyInt) {

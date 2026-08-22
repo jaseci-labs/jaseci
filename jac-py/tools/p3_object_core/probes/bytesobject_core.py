@@ -1,7 +1,9 @@
 class TestBytesCore(unittest.TestCase):
     def test_bytes_hash(self):
-        self.assertEqual(hash(b'abc'), hash(b'abc'))
-        self.assertNotEqual(hash(b'a'), hash(b'b'))
+        # bytes hashes are seed-randomized; stability must be asserted
+        # intra-expression for the Layer-1 replay to be interpreter-independent.
+        self.assertEqual(hash(b'abc') == hash(b'abc'), True)
+        self.assertEqual(hash(b'a') != hash(b'b'), True)
 
     def test_bytes_richcompare(self):
         self.assertEqual(b'abc', b'abc')

@@ -4,7 +4,10 @@ class TestProtocolCore(unittest.TestCase):
         self.assertNotEqual(hash((-1,)), -1)
 
     def test_hash_str_float_stable(self):
-        self.assertEqual(hash('a'), hash('a'))
+        # str hashes are seed-randomized, so stability must be asserted
+        # intra-expression: the Layer-1 replay evaluates each argument on both
+        # interpreters and diffs values, which can never match across seeds.
+        self.assertEqual(hash('a') == hash('a'), True)
         self.assertEqual(hash(1.5), hash(1.5))
         self.assertEqual(hash(1.0), hash(1))
         self.assertEqual(hash(1.5), 1152921504606846977)
