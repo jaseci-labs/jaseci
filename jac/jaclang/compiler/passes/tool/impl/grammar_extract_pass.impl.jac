@@ -278,7 +278,9 @@ impl GrammarExtractPass._collect_glob_tokens(expr: uni.Expr) -> list {
         }
         return [];
     }
-    if isinstance(expr, uni.SetVal) or isinstance(expr, uni.ListVal) or isinstance(expr, uni.TupleVal) {
+    if isinstance(expr, uni.SetVal)
+        or isinstance(expr, uni.ListVal)
+        or isinstance(expr, uni.TupleVal) {
         toks = [];
         for item in expr.values {
             tn = self.extract_token_kind(item);
@@ -2207,7 +2209,9 @@ impl GrammarExtractPass.interpret_condition(cond: uni.Expr) -> ConditionResult |
                         glob_toks = self._token_glob_map().get(right.value, []);
                         if len(glob_toks) > 0 {
                             return ConditionResult(
-                                method="check", kind="lookahead_any", tokens=list(glob_toks)
+                                method="check",
+                                kind="lookahead_any",
+                                tokens=list(glob_toks)
                             );
                         }
                     }

@@ -528,8 +528,8 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                     self.evaluator.get_type_of_magic_method_call(
                         left_type.bound, op_name, [nd.value], nd
                     )
-                    if op_name
-                    else None
+                        if op_name
+                        else None
                 );
                 if result is None {
                     self.emit(

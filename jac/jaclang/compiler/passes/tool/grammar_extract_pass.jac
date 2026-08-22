@@ -167,18 +167,46 @@ glob METHOD_TABLE: dict[str, MethodSemantics] = {
              "RF_TSQ_START"
          ],
          "at_comparison_op": [
-             "EE", "NE", "LT", "GT", "LTE", "GTE",
-             "KW_IN", "KW_IS", "KW_NIN", "KW_ISN"
+             "EE",
+             "NE",
+             "LT",
+             "GT",
+             "LTE",
+             "GTE",
+             "KW_IN",
+             "KW_IS",
+             "KW_NIN",
+             "KW_ISN"
          ],
          "at_aug_assign_op": [
-             "ADD_EQ", "SUB_EQ", "MUL_EQ", "DIV_EQ", "FLOOR_DIV_EQ",
-             "MOD_EQ", "STAR_POW_EQ", "MATMUL_EQ", "BW_AND_EQ",
-             "BW_OR_EQ", "BW_XOR_EQ", "LSHIFT_EQ", "RSHIFT_EQ"
+             "ADD_EQ",
+             "SUB_EQ",
+             "MUL_EQ",
+             "DIV_EQ",
+             "FLOOR_DIV_EQ",
+             "MOD_EQ",
+             "STAR_POW_EQ",
+             "MATMUL_EQ",
+             "BW_AND_EQ",
+             "BW_OR_EQ",
+             "BW_XOR_EQ",
+             "LSHIFT_EQ",
+             "RSHIFT_EQ"
          ],
          "peek_at_aug_assign_op": [
-             "ADD_EQ", "SUB_EQ", "MUL_EQ", "DIV_EQ", "FLOOR_DIV_EQ",
-             "MOD_EQ", "STAR_POW_EQ", "MATMUL_EQ", "BW_AND_EQ",
-             "BW_OR_EQ", "BW_XOR_EQ", "LSHIFT_EQ", "RSHIFT_EQ"
+             "ADD_EQ",
+             "SUB_EQ",
+             "MUL_EQ",
+             "DIV_EQ",
+             "FLOOR_DIV_EQ",
+             "MOD_EQ",
+             "STAR_POW_EQ",
+             "MATMUL_EQ",
+             "BW_AND_EQ",
+             "BW_OR_EQ",
+             "BW_XOR_EQ",
+             "LSHIFT_EQ",
+             "RSHIFT_EQ"
          ],
          "is_name_usable_token": ["NAME", "KWESC_NAME"]
      };
