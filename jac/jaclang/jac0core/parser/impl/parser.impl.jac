@@ -2758,7 +2758,7 @@ impl Parser.parse_compr_clause -> InnerCompr {
         async_uni = self.make_uni_token(self.previous());
     }
     for_uni = self.consume_uni(TokenKind.KW_FOR);
-    target = self.parse_atomic_chain();
+    target = self.parse_in_target("[k for (k, v) in pairs]");
     in_uni = self.consume_uni(TokenKind.KW_IN);
     iter_expr = self.parse_pipe_call();
     ifs: list[Expr] = [];
@@ -4012,6 +4012,28 @@ impl Parser.parse_forever_stmt -> ForeverStmt {
     return ForeverStmt(body=body, kid=kid);
 }
 
+"""Parse the iteration target of an `in`-style loop or comprehension.
+
+Jac only allows tuple targets in parenthesized form (`for (n, c) in ...`);
+this emits a targeted diagnostic instead of a confusing
+"Expected 'in', got ','" when the bare form is written, then resynchronizes
+at the `in` keyword so parsing can continue.
+"""
+impl Parser.parse_in_target(example: str) -> Expr {
+    target = self.parse_atomic_chain();
+    if self.check(TokenKind.COMMA) {
+        self.emit_diag(
+            "tuple targets must be parenthesized",
+            "E0001",
+            help=f"wrap the variables in parentheses, e.g. `{example}`",
+        );
+        while not self.check_any(TokenKind.KW_IN, TokenKind.EOF) {
+            self.advance();
+        }
+    }
+    return target;
+}
+
 impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
     is_async = False;
     async_uni = None;
@@ -4025,7 +4047,7 @@ impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
     }
     for_uni = self.consume_uni(TokenKind.KW_FOR);
 
-    target = self.parse_atomic_chain();
+    target = self.parse_in_target("for (n, c) in items { ... }");
 
     if self.check(TokenKind.EQ) {
         if flow_uni is not None {
