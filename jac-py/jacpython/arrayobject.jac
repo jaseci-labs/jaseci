@@ -472,14 +472,7 @@ obj Array {
     }
 
     def _append_value(v: any) {
-        tc = self.typecode;
-        if _tc_is_int(tc) {
-            self.data += _pack_int(_checked_int_item(tc, v), self.itemsize, _tc_is_signed_int(tc));
-        } elif _tc_is_char(tc) {
-            self.data += _pack_char(_checked_char_item(v));
-        } else {
-            self.data += _pack_float(_checked_float_item(tc, v), tc);
-        }
+        self.data += self._pack_item(v);
     }
 
     def __iter__ -> ArrayIter {
@@ -544,15 +537,7 @@ obj Array {
         if i < 0 or i >= self._n_items() {
             raise IndexError("array assignment index out of range");
         }
-        tc = self.typecode;
-        packed: bytes;
-        if _tc_is_int(tc) {
-            packed = _pack_int(_checked_int_item(tc, v), self.itemsize, _tc_is_signed_int(tc));
-        } elif _tc_is_char(tc) {
-            packed = _pack_char(_checked_char_item(v));
-        } else {
-            packed = _pack_float(_checked_float_item(tc, v), tc);
-        }
+        packed = self._pack_item(v);
         base = i * self.itemsize;
         self.data[base:base + self.itemsize] = packed;
     }
@@ -593,7 +578,7 @@ obj Array {
             }
         }
         if dst_count != len(src) {
-            raise ValueError("attempt to assign sequence of size " + str(len(src)) + " to extended slice of size " + str(dst_count));
+            raise ValueError("attempt to assign array of size " + str(len(src)) + " to extended slice of size " + str(dst_count));
         }
         si: int = 0;
         j = start;
@@ -654,13 +639,212 @@ obj Array {
         self.data = bytearray(head) + bytearray(tail);
     }
 
+    def append(v: any) {
+        self._append_value(v);
+    }
+
+    def insert(i: any, v: any) {
+        n = self._n_items();
+        idx = _require_int(i);
+        if idx < 0 {
+            idx += n;
+        }
+        if idx < 0 {
+            idx = 0;
+        }
+        if idx > n {
+            idx = n;
+        }
+        packed = self._pack_item(v);
+        base = idx * self.itemsize;
+        self.data[base:base] = packed;
+    }
+
+    def pop(i: any = None) -> any {
+        n = self._n_items();
+        if n == 0 {
+            raise IndexError("pop from empty array");
+        }
+        idx: int;
+        if i is None {
+            idx = n - 1;
+        } else {
+            idx = _require_int(i);
+            if idx < 0 {
+                idx += n;
+            }
+            if idx < 0 or idx >= n {
+                raise IndexError("pop index out of range");
+            }
+        }
+        item = self._unpack_at(idx);
+        self.__delitem__(idx);
+        return item;
+    }
+
+    def remove(v: any) {
+        i: int = 0;
+        n = self._n_items();
+        while i < n {
+            if _items_equal(self._unpack_at(i), v) {
+                self.__delitem__(i);
+                return;
+            }
+            i += 1;
+        }
+        raise ValueError("array.remove(x): x not in array");
+    }
+
+    def index(v: any, start: any = None, stop: any = None) -> int {
+        n = self._n_items();
+        lo: int = 0;
+        hi: int = n;
+        if start is not None {
+            lo = _require_int(start);
+            if lo < 0 {
+                lo += n;
+                if lo < 0 {
+                    lo = 0;
+                }
+            }
+        }
+        if stop is not None {
+            hi = _require_int(stop);
+            if hi < 0 {
+                hi += n;
+                if hi < 0 {
+                    hi = 0;
+                }
+            }
+        }
+        i: int = lo;
+        while i < hi and i < n {
+            if _items_equal(self._unpack_at(i), v) {
+                return i;
+            }
+            i += 1;
+        }
+        raise ValueError("array.index(x): x not in array");
+    }
+
+    def count(v: any) -> int {
+        total: int = 0;
+        i: int = 0;
+        n = self._n_items();
+        while i < n {
+            if _items_equal(self._unpack_at(i), v) {
+                total += 1;
+            }
+            i += 1;
+        }
+        return total;
+    }
+
+    def reverse() {
+        n = self._n_items();
+        lo: int = 0;
+        hi: int = n - 1;
+        while lo < hi {
+            tmp = bytearray(self._chunk(lo));
+            base_lo = lo * self.itemsize;
+            base_hi = hi * self.itemsize;
+            self.data[base_lo:base_lo + self.itemsize] = self._chunk(hi);
+            self.data[base_hi:base_hi + self.itemsize] = tmp;
+            lo += 1;
+            hi -= 1;
+        }
+    }
+
+    def clear() {
+        self.data = bytearray();
+    }
+
+    def extend(other: any) {
+        if isinstance(other, Array) {
+            oa: Array = other;
+            if oa.typecode != self.typecode {
+                raise TypeError("can only extend with array of same kind");
+            }
+            # Copy first: extending from self must see a stable source
+            # (mirrors CPython's memcpy-overlap-safe extend).
+            self.data += bytearray(oa.data);
+            return;
+        }
+        # Materialize so extend(self) / mutating iterables stay safe.
+        items = list(other);
+        for v in items {
+            self._append_value(v);
+        }
+    }
+
+    def __add__(other: any) -> any {
+        if not isinstance(other, Array) {
+            raise TypeError('can only append array (not "' + _type_name(other) + '") to array');
+        }
+        oa: Array = other;
+        if oa.typecode != self.typecode {
+            raise TypeError("bad argument type for built-in operation");
+        }
+        out = _p2_array(self.typecode, self);
+        out.data += oa.data;
+        return out;
+    }
+
+    def __iadd__(other: any) -> any {
+        if not isinstance(other, Array) {
+            raise TypeError('can only extend array with array (not "' + _type_name(other) + '")');
+        }
+        oa: Array = other;
+        if oa.typecode != self.typecode {
+            raise TypeError("can only extend with array of same kind");
+        }
+        self.data += oa.data;
+        return self;
+    }
+
+    def __mul__(n: any) -> any {
+        cnt = _require_int(n);
+        out = _p2_array(self.typecode);
+        k: int = 0;
+        while k < cnt {
+            out.data += self.data;
+            k += 1;
+        }
+        return out;
+    }
+
+    def __rmul__(n: any) -> any {
+        return self.__mul__(n);
+    }
+
+    def _pack_item(v: any) -> bytes {
+        tc = self.typecode;
+        if _tc_is_int(tc) {
+            return _pack_int(_checked_int_item(tc, v), self.itemsize, _tc_is_signed_int(tc));
+        }
+        if _tc_is_char(tc) {
+            return _pack_char(_checked_char_item(v));
+        }
+        return _pack_float(_checked_float_item(tc, v), tc);
+    }
+
     def __repr__ -> str {
         prefix = "array('" + self.typecode + "'";
         if self._n_items() == 0 {
             return prefix + ")";
         }
+        if _tc_is_char(self.typecode) {
+            # Char arrays repr as one quoted string: array('u', 'ab').
+            text = "";
+            i: int = 0;
+            while i < self._n_items() {
+                text += self._unpack_at(i);
+                i += 1;
+            }
+            return prefix + ", '" + text + "')";
+        }
         parts: list[str] = [];
-        i: int = 0;
+        i = 0;
         while i < self._n_items() {
             parts.append(_format_item(self._unpack_at(i), self.typecode));
             i += 1;
