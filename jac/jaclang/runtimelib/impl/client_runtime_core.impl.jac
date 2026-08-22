@@ -186,19 +186,32 @@ async def __consumeNativeSse(response: any) -> any {
         buf = frames.pop();
         for frame in frames {
             lines = frame.split(nl);
-            is_event = False;
+            ev = "";
+            data = "";
             for line in lines {
                 if line.startsWith("event:") {
-                    is_event = True;
+                    ev = line[6:].strip();
                 }
-            }
-            if is_event {
-                continue;
-            }
-            for line in lines {
                 if line.startsWith("data: ") {
-                    yield JSON.parse(line.slice(6));
+                    data = line[6:];
                 }
+            }
+            if ev == "end" {
+                feeding = False;
+                break;
+            }
+            if ev == "error" {
+                msg = "";
+                try {
+                    parsed = JSON.parse(data or "{}");
+                    msg = parsed.message or "";
+                } except Exception {
+                    ;
+                }
+                raise Exception(msg or "native stream error");
+            }
+            if not ev and data {
+                yield JSON.parse(data);
             }
         }
     }

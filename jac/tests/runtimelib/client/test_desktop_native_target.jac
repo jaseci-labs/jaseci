@@ -257,13 +257,11 @@ test "host source boots the fused runtime and bakes no build-machine state" {
     assert "JAC_DESKTOP_SCALE_SRC" not in src , "separate scale-source seam is gone (scale is folded into jaclang)";
 }
 
-"""host_boot prepends a sibling pydeps/ dir (build output) and still honors
-JAC_DESKTOP_DEPS as a dev override. Exercise both code paths."""
-test "host_boot applies bundled pydeps and the runtime extra-deps seam" {
+"""host_boot honors JAC_DESKTOP_DEPS as the extra-deps seam (project venv
+site-packages exported by the launch script). Entries join sys.path once."""
+test "host_boot applies the runtime extra-deps seam" {
     import os;
     import sys;
-    import tempfile;
-    import from pathlib { Path }
     import from jaclang.runtimelib.client.targets.desktop.native { host_boot }
 
     _saved_path = list(sys.path);
@@ -271,16 +269,6 @@ test "host_boot applies bundled pydeps and the runtime extra-deps seam" {
     fake_a = os.path.join(os.sep, "nonexistent-jac-deps-a");
     fake_b = os.path.join(os.sep, "nonexistent-jac-deps-b");
     try {
-        with tempfile.TemporaryDirectory() as app_root {
-            pydeps = os.path.join(app_root, "pydeps");
-            os.makedirs(pydeps);
-            (Path(pydeps) / "fastapi-0.0.0.dist-info").mkdir();
-            host_boot._apply_extra_deps(app_root);
-            assert pydeps in sys.path , "bundled pydeps/ must be prepended to sys.path";
-            assert sys.path.index(pydeps) < sys.path.index(fake_a)
-                if fake_a in sys.path
-                else True;
-        }
         os.environ["JAC_DESKTOP_DEPS"] = fake_a + os.pathsep + fake_b;
         host_boot._apply_extra_deps(os.sep);
         assert fake_a in sys.path , "first JAC_DESKTOP_DEPS entry must join sys.path";

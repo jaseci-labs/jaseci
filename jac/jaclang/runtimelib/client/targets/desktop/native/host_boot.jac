@@ -194,35 +194,7 @@ def _app_root -> str {
 }
 
 
-def _is_pydeps_dir(path: str) -> bool {
-    if not os.path.isdir(path) {
-        return False;
-    }
-    try {
-        for name in os.listdir(path) {
-            if name.endswith(".dist-info") {
-                return True;
-            }
-        }
-    } except OSError {
-        return False;
-    }
-    return False;
-}
-
-
-def _prepend_sys_path(path: str) {
-    if path and path not in sys.path {
-        sys.path.insert(0, path);
-    }
-}
-
-
 def _apply_extra_deps(app_dir: str) {
-    bundled = os.path.join(app_dir, "pydeps");
-    if _is_pydeps_dir(bundled) {
-        _prepend_sys_path(bundled);
-    }
     extra = os.environ.get("JAC_DESKTOP_DEPS", "");
     if not extra {
         return;
