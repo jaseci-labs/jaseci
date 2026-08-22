@@ -34,8 +34,14 @@ jaclang_source = "jac"   # dir CONTAINING jaclang/, relative to this file
 # in a test file declares that its cases are independent, and a case that
 # leans on one before it changes its verdict when the stride moves it. The
 # sealed-root audit qualifies by construction -- `parametrize` gives it one
-# case per root, and each compiles only its own root.
-test_shard = ["tests/compiler/passes/native/test_sealed_demotion_audit.jac"]
+# case per root, and each compiles only its own root. The native codegen
+# suite qualifies by check: its verdicts were compared against an unstrided
+# run at three worker counts, which is three different partitions, and all
+# three agreed.
+test_shard = [
+    "tests/compiler/passes/native/test_sealed_demotion_audit.jac",
+    "tests/compiler/passes/native/test_native_gen_pass.jac",
+]
 
 # `jac test` worker count. The generic default is sized from MemAvailable
 # assuming ~2 GB per worker, which suits an ordinary project. This repo's
