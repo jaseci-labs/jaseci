@@ -31,6 +31,7 @@ obj NaIRGenCore(NaIRGenState) {
         nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
     ) -> None;
 
+    def _ensure_dep_inference(dep_mod: uni.Module) -> None;
     def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _predemote_capability_unit(
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False

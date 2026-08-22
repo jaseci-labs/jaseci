@@ -659,6 +659,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         if imported_mod is None {
             continue;
         }
+        self._ensure_dep_inference(imported_mod);
         processed_modules.add(abs_key);
         _canon_src[abs_key] = src_mod_str;
         imported_mods.append((src_mod_str, imported_mod));
@@ -1193,6 +1194,30 @@ impl NaIRGenCore._forward_declare_imported_ability(
         }
     }
     self._maybe_declare_ability(nd);
+}
+
+impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
+    _provided = self.prog._analyses_run.get(id(dep_mod));
+    if _provided is None {
+        _provided = set();
+        self.prog._analyses_run[id(dep_mod)] = _provided;
+    }
+    if 'inference' in _provided {
+        return;
+    }
+    _provided.add('inference');
+    try {
+        import from jaclang.jac0core.compiler { run_pass }
+        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+        if 'cfg' not in _provided {
+            run_pass(CFGBuildPass, dep_mod, self.prog);
+            _provided.add('cfg');
+        }
+        run_pass(TypeCheckPass, dep_mod, self.prog);
+    } except Exception {
+        ;
+    }
 }
 
 impl NaIRGenCore._imported_function_demotions(

@@ -1472,12 +1472,14 @@ impl JacCompiler._compile_once(
         );
 
     if _analyze {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_analysis_sched(),
-            cancel_token=options.cancel_token
-        );
+        if 'inference' not in actual_program._analyses_run.get(id(mod_targ), set()) {
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=get_analysis_sched(),
+                cancel_token=options.cancel_token
+            );
+        }
     }
 
     if not had_blocking_errors
