@@ -1474,7 +1474,10 @@ impl JacCompiler._compile_once(
     is_native_mod = mod_targ is not None
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
 
+    _is_decl_stub = str(file_path).endswith('.pyi')
+        or (mod_targ is not None and mod_targ.stub_only);
     _analyze = _full_head
+        and not _is_decl_stub
         and (
             is_native_mod
             or actual_program is not self._internal_program

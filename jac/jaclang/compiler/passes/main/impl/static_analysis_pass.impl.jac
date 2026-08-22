@@ -6,6 +6,10 @@ impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     _fresh: set[int] = set();
     self._checked_scopes = _fresh;
 
+    if self.ir_in.is_raised_from_py {
+        return ir_in;
+    }
+
     self._check_unused_symbols(self.ir_in);
     self._check_undefined_names(self.ir_in);
     self._check_unreachable_code(self.ir_in);
@@ -76,6 +80,10 @@ impl StaticAnalysisPass._check_unused_symbols(scope: UniScopeNode) -> None {
             if scope.needs_impl or scope.is_genai_ability {
                 continue;
             }
+        }
+
+        if sym.sym_type == SymbolType.VAR and isinstance(scope, Archetype) {
+            continue;
         }
 
         if len(sym.uses) == 0 {
