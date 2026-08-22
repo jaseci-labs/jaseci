@@ -131,7 +131,6 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "    print('ok');\n"
             "}\n"
         ),
-        jacpython_capable=True,
         jacpython_capable=True
     ),
     LibtestSnippet(
@@ -165,6 +164,53 @@ glob LIBTEST_SNIPPETS: list[LibtestSnippet] = [
             "    assert isinstance(plat, str) and len(plat) > 0;\n"
             "    print('ok');\n"
             "}\n"
+        ),
+        jacpython_capable=True
+    ),
+    LibtestSnippet(
+        module_stem="_statmodule",
+        name="stat_filemode",
+        code=(
+            "import stat\n"
+            "assert stat.S_ISDIR(stat.S_IFDIR)\n"
+            "assert stat.S_ISREG(stat.S_IFREG)\n"
+            "assert not stat.S_ISREG(stat.S_IFDIR)\n"
+            "assert stat.S_IMODE(0o100755) == 0o755\n"
+            "assert stat.S_IFMT(0o100755) == stat.S_IFREG\n"
+            "assert stat.filemode(0o100755) == '-rwxr-xr-x'\n"
+            "dir_mode = stat.S_IFDIR | 0o640\n"
+            "assert stat.filemode(dir_mode) == 'drw-r-----'\n"
+            "print('ok')\n"
+        ),
+        jacpython_capable=True
+    ),
+    LibtestSnippet(
+        module_stem="_opcodemodule",
+        name="opcode_stack_effect",
+        code=(
+            # Host ``_opcode`` does not export opcode numbers; pin CPython 3.14
+            # values (same as jacpython/opcode_meta.jac) so host + JacPython
+            # legs share one snippet without an ``opcode`` shim.
+            "import _opcode\n"
+            "POP_TOP = 31\n"
+            "LOAD_CONST = 82\n"
+            "LOAD_FAST = 84\n"
+            "JUMP_FORWARD = 77\n"
+            "FOR_ITER = 70\n"
+            "SETUP_FINALLY = 264\n"
+            "assert _opcode.is_valid(POP_TOP)\n"
+            "assert not _opcode.is_valid(1000)\n"
+            "assert _opcode.has_arg(LOAD_CONST)\n"
+            "assert not _opcode.has_arg(POP_TOP)\n"
+            "assert _opcode.has_const(LOAD_CONST)\n"
+            "assert _opcode.has_local(LOAD_FAST)\n"
+            "assert not _opcode.has_free(LOAD_FAST)\n"
+            "assert _opcode.has_jump(JUMP_FORWARD)\n"
+            "assert _opcode.has_exc(SETUP_FINALLY)\n"
+            "assert _opcode.stack_effect(POP_TOP) == -1\n"
+            "assert _opcode.stack_effect(FOR_ITER, 0) == 1\n"
+            "assert _opcode.stack_effect(JUMP_FORWARD, 0) == 0\n"
+            "print('ok')\n"
         ),
         jacpython_capable=True
     ),

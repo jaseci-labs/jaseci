@@ -6,7 +6,7 @@
 # differential stays separate; this path exercises ``import platform`` (etc.)
 # through register_shim_module + exec_code.
 
-import from objects { PyObj, PyStr, PyError, PyList, PyInt, is_error, py_none, py_error, }
+import from objects { PyObj, PyStr, PyError, PyList, PyInt, PyBool, is_error, py_none, py_error, }
 import from getplatform { Py_GetPlatform }
 import from _bisectmodule {
     _p2_bisect_right,
@@ -15,6 +15,45 @@ import from _bisectmodule {
     _p2_insort_left,
 }
 import from _heapqmodule { _p2_heappush, _p2_heappop, _p2_heapify, }
+import from _statmodule {
+    _p2_S_ISDIR,
+    _p2_S_ISCHR,
+    _p2_S_ISBLK,
+    _p2_S_ISREG,
+    _p2_S_ISFIFO,
+    _p2_S_ISLNK,
+    _p2_S_ISSOCK,
+    _p2_S_IMODE,
+    _p2_S_IFMT,
+    _p2_filemode,
+    S_IFDIR,
+    S_IFCHR,
+    S_IFBLK,
+    S_IFREG,
+    S_IFIFO,
+    S_IFLNK,
+    S_IFSOCK,
+}
+import from _opcodemodule {
+    _p2_stack_effect,
+    _p2_is_valid,
+    _p2_has_arg,
+    _p2_has_const,
+    _p2_has_name,
+    _p2_has_jump,
+    _p2_has_free,
+    _p2_has_local,
+    _p2_has_exc,
+}
+import from opcode_meta {
+    OP_POP_TOP,
+    OP_LOAD_CONST,
+    OP_LOAD_FAST,
+    OP_LOAD_DEREF,
+    OP_JUMP_FORWARD,
+    OP_FOR_ITER,
+    OP_SETUP_FINALLY,
+}
 import from pyc_first {
     PyModule,
     register_shim_module,
@@ -206,6 +245,193 @@ obj P2LibtestHeapifyFn(PyObj) {
     }
 }
 
+def _p2_single_int_arg(args: list[PyObj]) -> PyObj {
+    if len(args) != 1 or not isinstance(args[0], PyInt) {
+        return py_error("TypeError", "expected exactly one int argument");
+    }
+    return args[0];
+}
+
+obj P2StatSIsDirFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISDIR((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsChrFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISCHR((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsBlkFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISBLK((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsRegFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISREG((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsFifoFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISFIFO((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsLnkFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISLNK((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSIsSockFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: bool = _p2_S_ISSOCK((arg as PyInt).val);
+        return PyBool(t="bool", val=got);
+    }
+}
+
+obj P2StatSImodeFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: int = _p2_S_IMODE((arg as PyInt).val);
+        return PyInt(t="int", val=got);
+    }
+}
+
+obj P2StatSIfmtFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: int = _p2_S_IFMT((arg as PyInt).val);
+        return PyInt(t="int", val=got);
+    }
+}
+
+obj P2StatFilemodeFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        arg: PyObj = _p2_single_int_arg(args);
+        if is_error(arg) { return arg; }
+        got: str = _p2_filemode((arg as PyInt).val);
+        return PyStr(t="str", val=got);
+    }
+}
+
+def _p2_opcode_pred_result(fn: any, args: list[PyObj]) -> PyObj {
+    arg: PyObj = _p2_single_int_arg(args);
+    if is_error(arg) { return arg; }
+    got: bool = fn((arg as PyInt).val);
+    return PyBool(t="bool", val=got);
+}
+
+obj P2OpcodeIsValidFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_is_valid, args);
+    }
+}
+
+obj P2OpcodeHasArgFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_arg, args);
+    }
+}
+
+obj P2OpcodeHasConstFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_const, args);
+    }
+}
+
+obj P2OpcodeHasNameFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_name, args);
+    }
+}
+
+obj P2OpcodeHasJumpFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_jump, args);
+    }
+}
+
+obj P2OpcodeHasFreeFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_free, args);
+    }
+}
+
+obj P2OpcodeHasLocalFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_local, args);
+    }
+}
+
+obj P2OpcodeHasExcFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return _p2_opcode_pred_result(_p2_has_exc, args);
+    }
+}
+
+obj P2OpcodeStackEffectFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 or not isinstance(args[0], PyInt) {
+            return py_error("TypeError", "stack_effect expected opcode int");
+        }
+        op = (args[0] as PyInt).val;
+        oparg: int | None = None;
+        if len(args) > 1 and isinstance(args[1], PyInt) {
+            oparg = (args[1] as PyInt).val;
+        } elif len(args) > 1 and args[1].t != "none" {
+            return py_error("TypeError", "stack_effect oparg must be int or None");
+        }
+        jump: int | None = None;
+        if len(args) > 2 {
+            j = args[2];
+            if j.t == "bool" {
+                if (j as PyBool).val {
+                    jump = 1;
+                } else {
+                    jump = 0;
+                }
+            } elif j.t != "none" {
+                return py_error(
+                    "ValueError", "stack_effect: jump must be False, True or None"
+                );
+            }
+        }
+        got = _p2_stack_effect(op, oparg, jump);
+        if got is None {
+            return py_error("ValueError", "invalid opcode or oparg");
+        }
+        return PyInt(t="int", val=got);
+    }
+}
+
 def p2_libtest_reset {
     clear_shim_modules();
     platform_attrs: dict[str, PyObj] = {
@@ -239,6 +465,50 @@ def p2_libtest_reset {
     };
     register_shim_module(
         "heapq", PyModule(t="module", name="heapq", attrs=heapq_attrs)
+    );
+    stat_attrs: dict[str, PyObj] = {
+        "S_ISDIR": P2StatSIsDirFn(t="function"),
+        "S_ISCHR": P2StatSIsChrFn(t="function"),
+        "S_ISBLK": P2StatSIsBlkFn(t="function"),
+        "S_ISREG": P2StatSIsRegFn(t="function"),
+        "S_ISFIFO": P2StatSIsFifoFn(t="function"),
+        "S_ISLNK": P2StatSIsLnkFn(t="function"),
+        "S_ISSOCK": P2StatSIsSockFn(t="function"),
+        "S_IMODE": P2StatSImodeFn(t="function"),
+        "S_IFMT": P2StatSIfmtFn(t="function"),
+        "filemode": P2StatFilemodeFn(t="function"),
+        "S_IFMT_": PyInt(t="int", val=0o170000),
+        "S_IFDIR": PyInt(t="int", val=S_IFDIR),
+        "S_IFCHR": PyInt(t="int", val=S_IFCHR),
+        "S_IFBLK": PyInt(t="int", val=S_IFBLK),
+        "S_IFREG": PyInt(t="int", val=S_IFREG),
+        "S_IFIFO": PyInt(t="int", val=S_IFIFO),
+        "S_IFLNK": PyInt(t="int", val=S_IFLNK),
+        "S_IFSOCK": PyInt(t="int", val=S_IFSOCK),
+    };
+    register_shim_module(
+        "stat", PyModule(t="module", name="stat", attrs=stat_attrs)
+    );
+    opcode_attrs: dict[str, PyObj] = {
+        "stack_effect": P2OpcodeStackEffectFn(t="function"),
+        "is_valid": P2OpcodeIsValidFn(t="function"),
+        "has_arg": P2OpcodeHasArgFn(t="function"),
+        "has_const": P2OpcodeHasConstFn(t="function"),
+        "has_name": P2OpcodeHasNameFn(t="function"),
+        "has_jump": P2OpcodeHasJumpFn(t="function"),
+        "has_free": P2OpcodeHasFreeFn(t="function"),
+        "has_local": P2OpcodeHasLocalFn(t="function"),
+        "has_exc": P2OpcodeHasExcFn(t="function"),
+        "POP_TOP": PyInt(t="int", val=OP_POP_TOP),
+        "LOAD_CONST": PyInt(t="int", val=OP_LOAD_CONST),
+        "LOAD_FAST": PyInt(t="int", val=OP_LOAD_FAST),
+        "LOAD_DEREF": PyInt(t="int", val=OP_LOAD_DEREF),
+        "JUMP_FORWARD": PyInt(t="int", val=OP_JUMP_FORWARD),
+        "FOR_ITER": PyInt(t="int", val=OP_FOR_ITER),
+        "SETUP_FINALLY": PyInt(t="int", val=OP_SETUP_FINALLY),
+    };
+    register_shim_module(
+        "_opcode", PyModule(t="module", name="_opcode", attrs=opcode_attrs)
     );
 }
 
@@ -354,6 +624,50 @@ test "layer_p2_libtest: heapq_heapify snippet prints ok on JacPython" {
         "parent_ok = all(data[(i - 1) >> 1] <= data[i] for i in range(1, len(data)))\n"
         "assert parent_ok\n"
         "assert sorted(data) == [1, 1, 2, 3, 4, 5, 6, 9]\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: stat_filemode snippet prints ok on JacPython" {
+    snippet = (
+        "import stat\n"
+        "assert stat.S_ISDIR(stat.S_IFDIR)\n"
+        "assert stat.S_ISREG(stat.S_IFREG)\n"
+        "assert not stat.S_ISREG(stat.S_IFDIR)\n"
+        "assert stat.S_IMODE(0o100755) == 0o755\n"
+        "assert stat.S_IFMT(0o100755) == stat.S_IFREG\n"
+        "assert stat.filemode(0o100755) == '-rwxr-xr-x'\n"
+        "dir_mode = stat.S_IFDIR | 0o640\n"
+        "assert stat.filemode(dir_mode) == 'drw-r-----'\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: opcode_stack_effect snippet prints ok on JacPython" {
+    snippet = (
+        "import _opcode\n"
+        "POP_TOP = 31\n"
+        "LOAD_CONST = 82\n"
+        "LOAD_FAST = 84\n"
+        "JUMP_FORWARD = 77\n"
+        "FOR_ITER = 70\n"
+        "SETUP_FINALLY = 264\n"
+        "assert _opcode.is_valid(POP_TOP)\n"
+        "assert not _opcode.is_valid(1000)\n"
+        "assert _opcode.has_arg(LOAD_CONST)\n"
+        "assert not _opcode.has_arg(POP_TOP)\n"
+        "assert _opcode.has_const(LOAD_CONST)\n"
+        "assert _opcode.has_local(LOAD_FAST)\n"
+        "assert not _opcode.has_free(LOAD_FAST)\n"
+        "assert _opcode.has_jump(JUMP_FORWARD)\n"
+        "assert _opcode.has_exc(SETUP_FINALLY)\n"
+        "assert _opcode.stack_effect(POP_TOP) == -1\n"
+        "assert _opcode.stack_effect(FOR_ITER, 0) == 1\n"
+        "assert _opcode.stack_effect(JUMP_FORWARD, 0) == 0\n"
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);

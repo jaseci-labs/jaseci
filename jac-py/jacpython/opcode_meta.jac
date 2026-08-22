@@ -881,7 +881,7 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_COPY {
-        return 1 + (oparg - 1);
+        return 1 + (oparg-1);
     }
     if op == OP_COPY_FREE_VARS {
         return 0;
@@ -1070,10 +1070,10 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_LIST_APPEND {
-        return 2 + (oparg - 1);
+        return 2 + (oparg-1);
     }
     if op == OP_LIST_EXTEND {
-        return 2 + (oparg - 1);
+        return 2 + (oparg-1);
     }
     if op == OP_LOAD_ATTR {
         return 1;
@@ -1289,13 +1289,13 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_SET_ADD {
-        return 2 + (oparg - 1);
+        return 2 + (oparg-1);
     }
     if op == OP_SET_FUNCTION_ATTRIBUTE {
         return 2;
     }
     if op == OP_SET_UPDATE {
-        return 2 + (oparg - 1);
+        return 2 + (oparg-1);
     }
     if op == OP_STORE_ATTR {
         return 2;
@@ -1343,7 +1343,7 @@ def _opcode_num_popped(op: int, oparg: int) -> int {
         return 3;
     }
     if op == OP_SWAP {
-        return 2 + (oparg - 2);
+        return 2 + (oparg-2);
     }
     if op == OP_TO_BOOL {
         return 1;
@@ -1599,7 +1599,7 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_COPY {
-        return 2 + (oparg - 1);
+        return 2 + (oparg-1);
     }
     if op == OP_COPY_FREE_VARS {
         return 0;
@@ -1788,13 +1788,13 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_LIST_APPEND {
-        return 1 + (oparg - 1);
+        return 1 + (oparg-1);
     }
     if op == OP_LIST_EXTEND {
-        return 1 + (oparg - 1);
+        return 1 + (oparg-1);
     }
     if op == OP_LOAD_ATTR {
-        return 1 + (oparg & 1);
+        return 1 + (oparg&1);
     }
     if op == OP_LOAD_ATTR_CLASS {
         return 1 + (oparg & 1);
@@ -2007,13 +2007,13 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 1;
     }
     if op == OP_SET_ADD {
-        return 1 + (oparg - 1);
+        return 1 + (oparg-1);
     }
     if op == OP_SET_FUNCTION_ATTRIBUTE {
         return 1;
     }
     if op == OP_SET_UPDATE {
-        return 1 + (oparg - 1);
+        return 1 + (oparg-1);
     }
     if op == OP_STORE_ATTR {
         return 0;
@@ -2061,7 +2061,7 @@ def _opcode_num_pushed(op: int, oparg: int) -> int {
         return 0;
     }
     if op == OP_SWAP {
-        return 2 + (oparg - 2);
+        return 2 + (oparg-2);
     }
     if op == OP_TO_BOOL {
         return 1;
@@ -2141,7 +2141,9 @@ def stack_effect(op: int, oparg: int, jump: int) -> int | None {
 }
 
 def is_block_push_opcode(op: int) -> bool {
-    if op == OP_SETUP_FINALLY or op == OP_SETUP_WITH or op == OP_SETUP_CLEANUP {
+    if op == OP_SETUP_FINALLY
+        or op == OP_SETUP_WITH
+        or op == OP_SETUP_CLEANUP {
         return True;
     }
     return False;
@@ -2182,15 +2184,16 @@ def is_unconditional_jump_opcode(op: int) -> bool {
         or op == OP_JUMP_NO_INTERRUPT
         or op == OP_JUMP_FORWARD
         or op == OP_JUMP_BACKWARD
-        or op == OP_JUMP_BACKWARD_NO_INTERRUPT
-        or op == OP_END_ASYNC_FOR {
+        or op == OP_JUMP_BACKWARD_NO_INTERRUPT {
         return True;
     }
     return False;
 }
 
 def is_scope_exit_opcode(op: int) -> bool {
-    if op == OP_RETURN_VALUE or op == OP_RAISE_VARARGS or op == OP_RERAISE {
+    if op == OP_RETURN_VALUE
+        or op == OP_RAISE_VARARGS
+        or op == OP_RERAISE {
         return True;
     }
     return False;
@@ -2200,6 +2203,1405 @@ def is_assembler_opcode(op: int) -> bool {
     if op == OP_JUMP_FORWARD
         or op == OP_JUMP_BACKWARD
         or op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+        return True;
+    }
+    return False;
+}
+
+def opcode_is_valid(op: int) -> bool {
+    if op == OP_CACHE {
+        return True;
+    }
+    if op == OP_BINARY_SLICE {
+        return True;
+    }
+    if op == OP_BUILD_TEMPLATE {
+        return True;
+    }
+    if op == OP_BINARY_OP_INPLACE_ADD_UNICODE {
+        return True;
+    }
+    if op == OP_CALL_FUNCTION_EX {
+        return True;
+    }
+    if op == OP_CHECK_EG_MATCH {
+        return True;
+    }
+    if op == OP_CHECK_EXC_MATCH {
+        return True;
+    }
+    if op == OP_CLEANUP_THROW {
+        return True;
+    }
+    if op == OP_DELETE_SUBSCR {
+        return True;
+    }
+    if op == OP_END_FOR {
+        return True;
+    }
+    if op == OP_END_SEND {
+        return True;
+    }
+    if op == OP_EXIT_INIT_CHECK {
+        return True;
+    }
+    if op == OP_FORMAT_SIMPLE {
+        return True;
+    }
+    if op == OP_FORMAT_WITH_SPEC {
+        return True;
+    }
+    if op == OP_GET_AITER {
+        return True;
+    }
+    if op == OP_GET_ANEXT {
+        return True;
+    }
+    if op == OP_GET_ITER {
+        return True;
+    }
+    if op == OP_RESERVED {
+        return True;
+    }
+    if op == OP_GET_LEN {
+        return True;
+    }
+    if op == OP_GET_YIELD_FROM_ITER {
+        return True;
+    }
+    if op == OP_INTERPRETER_EXIT {
+        return True;
+    }
+    if op == OP_LOAD_BUILD_CLASS {
+        return True;
+    }
+    if op == OP_LOAD_LOCALS {
+        return True;
+    }
+    if op == OP_MAKE_FUNCTION {
+        return True;
+    }
+    if op == OP_MATCH_KEYS {
+        return True;
+    }
+    if op == OP_MATCH_MAPPING {
+        return True;
+    }
+    if op == OP_MATCH_SEQUENCE {
+        return True;
+    }
+    if op == OP_NOP {
+        return True;
+    }
+    if op == OP_NOT_TAKEN {
+        return True;
+    }
+    if op == OP_POP_EXCEPT {
+        return True;
+    }
+    if op == OP_POP_ITER {
+        return True;
+    }
+    if op == OP_POP_TOP {
+        return True;
+    }
+    if op == OP_PUSH_EXC_INFO {
+        return True;
+    }
+    if op == OP_PUSH_NULL {
+        return True;
+    }
+    if op == OP_RETURN_GENERATOR {
+        return True;
+    }
+    if op == OP_RETURN_VALUE {
+        return True;
+    }
+    if op == OP_SETUP_ANNOTATIONS {
+        return True;
+    }
+    if op == OP_STORE_SLICE {
+        return True;
+    }
+    if op == OP_STORE_SUBSCR {
+        return True;
+    }
+    if op == OP_TO_BOOL {
+        return True;
+    }
+    if op == OP_UNARY_INVERT {
+        return True;
+    }
+    if op == OP_UNARY_NEGATIVE {
+        return True;
+    }
+    if op == OP_UNARY_NOT {
+        return True;
+    }
+    if op == OP_WITH_EXCEPT_START {
+        return True;
+    }
+    if op == OP_BINARY_OP {
+        return True;
+    }
+    if op == OP_BUILD_INTERPOLATION {
+        return True;
+    }
+    if op == OP_BUILD_LIST {
+        return True;
+    }
+    if op == OP_BUILD_MAP {
+        return True;
+    }
+    if op == OP_BUILD_SET {
+        return True;
+    }
+    if op == OP_BUILD_SLICE {
+        return True;
+    }
+    if op == OP_BUILD_STRING {
+        return True;
+    }
+    if op == OP_BUILD_TUPLE {
+        return True;
+    }
+    if op == OP_CALL {
+        return True;
+    }
+    if op == OP_CALL_INTRINSIC_1 {
+        return True;
+    }
+    if op == OP_CALL_INTRINSIC_2 {
+        return True;
+    }
+    if op == OP_CALL_KW {
+        return True;
+    }
+    if op == OP_COMPARE_OP {
+        return True;
+    }
+    if op == OP_CONTAINS_OP {
+        return True;
+    }
+    if op == OP_CONVERT_VALUE {
+        return True;
+    }
+    if op == OP_COPY {
+        return True;
+    }
+    if op == OP_COPY_FREE_VARS {
+        return True;
+    }
+    if op == OP_DELETE_ATTR {
+        return True;
+    }
+    if op == OP_DELETE_DEREF {
+        return True;
+    }
+    if op == OP_DELETE_FAST {
+        return True;
+    }
+    if op == OP_DELETE_GLOBAL {
+        return True;
+    }
+    if op == OP_DELETE_NAME {
+        return True;
+    }
+    if op == OP_DICT_MERGE {
+        return True;
+    }
+    if op == OP_DICT_UPDATE {
+        return True;
+    }
+    if op == OP_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_EXTENDED_ARG {
+        return True;
+    }
+    if op == OP_FOR_ITER {
+        return True;
+    }
+    if op == OP_GET_AWAITABLE {
+        return True;
+    }
+    if op == OP_IMPORT_FROM {
+        return True;
+    }
+    if op == OP_IMPORT_NAME {
+        return True;
+    }
+    if op == OP_IS_OP {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+        return True;
+    }
+    if op == OP_JUMP_FORWARD {
+        return True;
+    }
+    if op == OP_LIST_APPEND {
+        return True;
+    }
+    if op == OP_LIST_EXTEND {
+        return True;
+    }
+    if op == OP_LOAD_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_COMMON_CONSTANT {
+        return True;
+    }
+    if op == OP_LOAD_CONST {
+        return True;
+    }
+    if op == OP_LOAD_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FAST {
+        return True;
+    }
+    if op == OP_LOAD_FAST_AND_CLEAR {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_CHECK {
+        return True;
+    }
+    if op == OP_LOAD_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_GLOBALS {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL {
+        return True;
+    }
+    if op == OP_LOAD_NAME {
+        return True;
+    }
+    if op == OP_LOAD_SMALL_INT {
+        return True;
+    }
+    if op == OP_LOAD_SPECIAL {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR {
+        return True;
+    }
+    if op == OP_MAKE_CELL {
+        return True;
+    }
+    if op == OP_MAP_ADD {
+        return True;
+    }
+    if op == OP_MATCH_CLASS {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NOT_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_RAISE_VARARGS {
+        return True;
+    }
+    if op == OP_RERAISE {
+        return True;
+    }
+    if op == OP_SEND {
+        return True;
+    }
+    if op == OP_SET_ADD {
+        return True;
+    }
+    if op == OP_SET_FUNCTION_ATTRIBUTE {
+        return True;
+    }
+    if op == OP_SET_UPDATE {
+        return True;
+    }
+    if op == OP_STORE_ATTR {
+        return True;
+    }
+    if op == OP_STORE_DEREF {
+        return True;
+    }
+    if op == OP_STORE_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_STORE_FAST {
+        return True;
+    }
+    if op == OP_STORE_GLOBAL {
+        return True;
+    }
+    if op == OP_STORE_NAME {
+        return True;
+    }
+    if op == OP_SWAP {
+        return True;
+    }
+    if op == OP_UNPACK_EX {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE {
+        return True;
+    }
+    if op == OP_YIELD_VALUE {
+        return True;
+    }
+    if op == OP_RESUME {
+        return True;
+    }
+    if op == OP_BINARY_OP_ADD_FLOAT {
+        return True;
+    }
+    if op == OP_BINARY_OP_ADD_INT {
+        return True;
+    }
+    if op == OP_BINARY_OP_ADD_UNICODE {
+        return True;
+    }
+    if op == OP_BINARY_OP_EXTEND {
+        return True;
+    }
+    if op == OP_BINARY_OP_MULTIPLY_FLOAT {
+        return True;
+    }
+    if op == OP_BINARY_OP_MULTIPLY_INT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_DICT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_GETITEM {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_LIST_INT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_LIST_SLICE {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_STR_INT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBSCR_TUPLE_INT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBTRACT_FLOAT {
+        return True;
+    }
+    if op == OP_BINARY_OP_SUBTRACT_INT {
+        return True;
+    }
+    if op == OP_CALL_ALLOC_AND_ENTER_INIT {
+        return True;
+    }
+    if op == OP_CALL_BOUND_METHOD_EXACT_ARGS {
+        return True;
+    }
+    if op == OP_CALL_BOUND_METHOD_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_CLASS {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_FAST {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_FAST_WITH_KEYWORDS {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_O {
+        return True;
+    }
+    if op == OP_CALL_ISINSTANCE {
+        return True;
+    }
+    if op == OP_CALL_KW_BOUND_METHOD {
+        return True;
+    }
+    if op == OP_CALL_KW_NON_PY {
+        return True;
+    }
+    if op == OP_CALL_KW_PY {
+        return True;
+    }
+    if op == OP_CALL_LEN {
+        return True;
+    }
+    if op == OP_CALL_LIST_APPEND {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_FAST {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_NOARGS {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_O {
+        return True;
+    }
+    if op == OP_CALL_NON_PY_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_PY_EXACT_ARGS {
+        return True;
+    }
+    if op == OP_CALL_PY_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_STR_1 {
+        return True;
+    }
+    if op == OP_CALL_TUPLE_1 {
+        return True;
+    }
+    if op == OP_CALL_TYPE_1 {
+        return True;
+    }
+    if op == OP_COMPARE_OP_FLOAT {
+        return True;
+    }
+    if op == OP_COMPARE_OP_INT {
+        return True;
+    }
+    if op == OP_COMPARE_OP_STR {
+        return True;
+    }
+    if op == OP_CONTAINS_OP_DICT {
+        return True;
+    }
+    if op == OP_CONTAINS_OP_SET {
+        return True;
+    }
+    if op == OP_FOR_ITER_GEN {
+        return True;
+    }
+    if op == OP_FOR_ITER_LIST {
+        return True;
+    }
+    if op == OP_FOR_ITER_RANGE {
+        return True;
+    }
+    if op == OP_FOR_ITER_TUPLE {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_JIT {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_JIT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_CLASS {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_CLASS_WITH_METACLASS_CHECK {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_INSTANCE_VALUE {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_LAZY_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_NO_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_WITH_VALUES {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_MODULE {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_NONDESCRIPTOR_NO_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_PROPERTY {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_SLOT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_LOAD_CONST_IMMORTAL {
+        return True;
+    }
+    if op == OP_LOAD_CONST_MORTAL {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL_BUILTIN {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL_MODULE {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_METHOD {
+        return True;
+    }
+    if op == OP_RESUME_CHECK {
+        return True;
+    }
+    if op == OP_SEND_GEN {
+        return True;
+    }
+    if op == OP_STORE_ATTR_INSTANCE_VALUE {
+        return True;
+    }
+    if op == OP_STORE_ATTR_SLOT {
+        return True;
+    }
+    if op == OP_STORE_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_STORE_SUBSCR_DICT {
+        return True;
+    }
+    if op == OP_STORE_SUBSCR_LIST_INT {
+        return True;
+    }
+    if op == OP_TO_BOOL_ALWAYS_TRUE {
+        return True;
+    }
+    if op == OP_TO_BOOL_BOOL {
+        return True;
+    }
+    if op == OP_TO_BOOL_INT {
+        return True;
+    }
+    if op == OP_TO_BOOL_LIST {
+        return True;
+    }
+    if op == OP_TO_BOOL_NONE {
+        return True;
+    }
+    if op == OP_TO_BOOL_STR {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_LIST {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_TUPLE {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_TWO_TUPLE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_END_FOR {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_ITER {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_END_SEND {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_FOR_ITER {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_INSTRUCTION {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_JUMP_FORWARD {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_NOT_TAKEN {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_NONE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_NOT_NONE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_RESUME {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_RETURN_VALUE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_YIELD_VALUE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_LOAD_SUPER_ATTR {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_CALL {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_CALL_KW {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_CALL_FUNCTION_EX {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_JUMP_BACKWARD {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_LINE {
+        return True;
+    }
+    if op == OP_ENTER_EXECUTOR {
+        return True;
+    }
+    if op == OP_ANNOTATIONS_PLACEHOLDER {
+        return True;
+    }
+    if op == OP_JUMP {
+        return True;
+    }
+    if op == OP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_JUMP_NO_INTERRUPT {
+        return True;
+    }
+    if op == OP_LOAD_CLOSURE {
+        return True;
+    }
+    if op == OP_POP_BLOCK {
+        return True;
+    }
+    if op == OP_SETUP_CLEANUP {
+        return True;
+    }
+    if op == OP_SETUP_FINALLY {
+        return True;
+    }
+    if op == OP_SETUP_WITH {
+        return True;
+    }
+    if op == OP_STORE_FAST_MAYBE_NULL {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_arg(op: int) -> bool {
+    if op == OP_BINARY_OP {
+        return True;
+    }
+    if op == OP_BUILD_INTERPOLATION {
+        return True;
+    }
+    if op == OP_BUILD_LIST {
+        return True;
+    }
+    if op == OP_BUILD_MAP {
+        return True;
+    }
+    if op == OP_BUILD_SET {
+        return True;
+    }
+    if op == OP_BUILD_SLICE {
+        return True;
+    }
+    if op == OP_BUILD_STRING {
+        return True;
+    }
+    if op == OP_BUILD_TUPLE {
+        return True;
+    }
+    if op == OP_CALL {
+        return True;
+    }
+    if op == OP_CALL_INTRINSIC_1 {
+        return True;
+    }
+    if op == OP_CALL_INTRINSIC_2 {
+        return True;
+    }
+    if op == OP_CALL_KW {
+        return True;
+    }
+    if op == OP_COMPARE_OP {
+        return True;
+    }
+    if op == OP_CONTAINS_OP {
+        return True;
+    }
+    if op == OP_CONVERT_VALUE {
+        return True;
+    }
+    if op == OP_COPY {
+        return True;
+    }
+    if op == OP_COPY_FREE_VARS {
+        return True;
+    }
+    if op == OP_DELETE_ATTR {
+        return True;
+    }
+    if op == OP_DELETE_DEREF {
+        return True;
+    }
+    if op == OP_DELETE_FAST {
+        return True;
+    }
+    if op == OP_DELETE_GLOBAL {
+        return True;
+    }
+    if op == OP_DELETE_NAME {
+        return True;
+    }
+    if op == OP_DICT_MERGE {
+        return True;
+    }
+    if op == OP_DICT_UPDATE {
+        return True;
+    }
+    if op == OP_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_EXTENDED_ARG {
+        return True;
+    }
+    if op == OP_FOR_ITER {
+        return True;
+    }
+    if op == OP_GET_AWAITABLE {
+        return True;
+    }
+    if op == OP_IMPORT_FROM {
+        return True;
+    }
+    if op == OP_IMPORT_NAME {
+        return True;
+    }
+    if op == OP_IS_OP {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+        return True;
+    }
+    if op == OP_JUMP_FORWARD {
+        return True;
+    }
+    if op == OP_LIST_APPEND {
+        return True;
+    }
+    if op == OP_LIST_EXTEND {
+        return True;
+    }
+    if op == OP_LOAD_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_COMMON_CONSTANT {
+        return True;
+    }
+    if op == OP_LOAD_CONST {
+        return True;
+    }
+    if op == OP_LOAD_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FAST {
+        return True;
+    }
+    if op == OP_LOAD_FAST_AND_CLEAR {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_CHECK {
+        return True;
+    }
+    if op == OP_LOAD_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_GLOBALS {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL {
+        return True;
+    }
+    if op == OP_LOAD_NAME {
+        return True;
+    }
+    if op == OP_LOAD_SMALL_INT {
+        return True;
+    }
+    if op == OP_LOAD_SPECIAL {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR {
+        return True;
+    }
+    if op == OP_MAKE_CELL {
+        return True;
+    }
+    if op == OP_MAP_ADD {
+        return True;
+    }
+    if op == OP_MATCH_CLASS {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NOT_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_RAISE_VARARGS {
+        return True;
+    }
+    if op == OP_RERAISE {
+        return True;
+    }
+    if op == OP_SEND {
+        return True;
+    }
+    if op == OP_SET_ADD {
+        return True;
+    }
+    if op == OP_SET_FUNCTION_ATTRIBUTE {
+        return True;
+    }
+    if op == OP_SET_UPDATE {
+        return True;
+    }
+    if op == OP_STORE_ATTR {
+        return True;
+    }
+    if op == OP_STORE_DEREF {
+        return True;
+    }
+    if op == OP_STORE_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_STORE_FAST {
+        return True;
+    }
+    if op == OP_STORE_GLOBAL {
+        return True;
+    }
+    if op == OP_STORE_NAME {
+        return True;
+    }
+    if op == OP_SWAP {
+        return True;
+    }
+    if op == OP_UNPACK_EX {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE {
+        return True;
+    }
+    if op == OP_YIELD_VALUE {
+        return True;
+    }
+    if op == OP_RESUME {
+        return True;
+    }
+    if op == OP_CALL_ALLOC_AND_ENTER_INIT {
+        return True;
+    }
+    if op == OP_CALL_BOUND_METHOD_EXACT_ARGS {
+        return True;
+    }
+    if op == OP_CALL_BOUND_METHOD_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_CLASS {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_FAST {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_FAST_WITH_KEYWORDS {
+        return True;
+    }
+    if op == OP_CALL_BUILTIN_O {
+        return True;
+    }
+    if op == OP_CALL_ISINSTANCE {
+        return True;
+    }
+    if op == OP_CALL_KW_BOUND_METHOD {
+        return True;
+    }
+    if op == OP_CALL_KW_NON_PY {
+        return True;
+    }
+    if op == OP_CALL_KW_PY {
+        return True;
+    }
+    if op == OP_CALL_LIST_APPEND {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_FAST {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_NOARGS {
+        return True;
+    }
+    if op == OP_CALL_METHOD_DESCRIPTOR_O {
+        return True;
+    }
+    if op == OP_CALL_NON_PY_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_PY_EXACT_ARGS {
+        return True;
+    }
+    if op == OP_CALL_PY_GENERAL {
+        return True;
+    }
+    if op == OP_CALL_STR_1 {
+        return True;
+    }
+    if op == OP_CALL_TUPLE_1 {
+        return True;
+    }
+    if op == OP_CALL_TYPE_1 {
+        return True;
+    }
+    if op == OP_COMPARE_OP_FLOAT {
+        return True;
+    }
+    if op == OP_COMPARE_OP_INT {
+        return True;
+    }
+    if op == OP_COMPARE_OP_STR {
+        return True;
+    }
+    if op == OP_CONTAINS_OP_DICT {
+        return True;
+    }
+    if op == OP_CONTAINS_OP_SET {
+        return True;
+    }
+    if op == OP_FOR_ITER_GEN {
+        return True;
+    }
+    if op == OP_FOR_ITER_LIST {
+        return True;
+    }
+    if op == OP_FOR_ITER_RANGE {
+        return True;
+    }
+    if op == OP_FOR_ITER_TUPLE {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_JIT {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_JIT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_CLASS {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_CLASS_WITH_METACLASS_CHECK {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_INSTANCE_VALUE {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_LAZY_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_NO_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_METHOD_WITH_VALUES {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_MODULE {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_NONDESCRIPTOR_NO_DICT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_PROPERTY {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_SLOT {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_LOAD_CONST_IMMORTAL {
+        return True;
+    }
+    if op == OP_LOAD_CONST_MORTAL {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL_BUILTIN {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL_MODULE {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_METHOD {
+        return True;
+    }
+    if op == OP_SEND_GEN {
+        return True;
+    }
+    if op == OP_STORE_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_LIST {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_TUPLE {
+        return True;
+    }
+    if op == OP_UNPACK_SEQUENCE_TWO_TUPLE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_FOR_ITER {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_JUMP_FORWARD {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_NONE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_POP_JUMP_IF_NOT_NONE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_RESUME {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_YIELD_VALUE {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_LOAD_SUPER_ATTR {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_CALL {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_CALL_KW {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_JUMP_BACKWARD {
+        return True;
+    }
+    if op == OP_ENTER_EXECUTOR {
+        return True;
+    }
+    if op == OP_JUMP {
+        return True;
+    }
+    if op == OP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_JUMP_NO_INTERRUPT {
+        return True;
+    }
+    if op == OP_LOAD_CLOSURE {
+        return True;
+    }
+    if op == OP_SETUP_CLEANUP {
+        return True;
+    }
+    if op == OP_SETUP_FINALLY {
+        return True;
+    }
+    if op == OP_SETUP_WITH {
+        return True;
+    }
+    if op == OP_STORE_FAST_MAYBE_NULL {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_const(op: int) -> bool {
+    if op == OP_LOAD_CONST {
+        return True;
+    }
+    if op == OP_LOAD_CONST_IMMORTAL {
+        return True;
+    }
+    if op == OP_LOAD_CONST_MORTAL {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_name(op: int) -> bool {
+    if op == OP_DELETE_ATTR {
+        return True;
+    }
+    if op == OP_DELETE_GLOBAL {
+        return True;
+    }
+    if op == OP_DELETE_NAME {
+        return True;
+    }
+    if op == OP_IMPORT_FROM {
+        return True;
+    }
+    if op == OP_IMPORT_NAME {
+        return True;
+    }
+    if op == OP_LOAD_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_GLOBALS {
+        return True;
+    }
+    if op == OP_LOAD_GLOBAL {
+        return True;
+    }
+    if op == OP_LOAD_NAME {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR {
+        return True;
+    }
+    if op == OP_STORE_ATTR {
+        return True;
+    }
+    if op == OP_STORE_GLOBAL {
+        return True;
+    }
+    if op == OP_STORE_NAME {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN {
+        return True;
+    }
+    if op == OP_LOAD_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_ATTR {
+        return True;
+    }
+    if op == OP_LOAD_SUPER_ATTR_METHOD {
+        return True;
+    }
+    if op == OP_STORE_ATTR_WITH_HINT {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_LOAD_SUPER_ATTR {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_jump(op: int) -> bool {
+    if op == OP_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_FOR_ITER {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+        return True;
+    }
+    if op == OP_JUMP_FORWARD {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_NOT_NONE {
+        return True;
+    }
+    if op == OP_POP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_SEND {
+        return True;
+    }
+    if op == OP_FOR_ITER_LIST {
+        return True;
+    }
+    if op == OP_FOR_ITER_RANGE {
+        return True;
+    }
+    if op == OP_FOR_ITER_TUPLE {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_JIT {
+        return True;
+    }
+    if op == OP_JUMP_BACKWARD_NO_JIT {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_FOR_ITER {
+        return True;
+    }
+    if op == OP_INSTRUMENTED_END_ASYNC_FOR {
+        return True;
+    }
+    if op == OP_JUMP {
+        return True;
+    }
+    if op == OP_JUMP_IF_FALSE {
+        return True;
+    }
+    if op == OP_JUMP_IF_TRUE {
+        return True;
+    }
+    if op == OP_JUMP_NO_INTERRUPT {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_free(op: int) -> bool {
+    if op == OP_DELETE_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FROM_DICT_OR_DEREF {
+        return True;
+    }
+    if op == OP_MAKE_CELL {
+        return True;
+    }
+    if op == OP_STORE_DEREF {
+        return True;
+    }
+    return False;
+}
+
+def opcode_has_local(op: int) -> bool {
+    if op == OP_BINARY_OP_INPLACE_ADD_UNICODE {
+        return True;
+    }
+    if op == OP_DELETE_FAST {
+        return True;
+    }
+    if op == OP_LOAD_DEREF {
+        return True;
+    }
+    if op == OP_LOAD_FAST {
+        return True;
+    }
+    if op == OP_LOAD_FAST_AND_CLEAR {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW {
+        return True;
+    }
+    if op == OP_LOAD_FAST_CHECK {
+        return True;
+    }
+    if op == OP_LOAD_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_LOAD_FAST {
+        return True;
+    }
+    if op == OP_STORE_FAST_STORE_FAST {
+        return True;
+    }
+    if op == OP_LOAD_CLOSURE {
+        return True;
+    }
+    if op == OP_STORE_FAST_MAYBE_NULL {
         return True;
     }
     return False;

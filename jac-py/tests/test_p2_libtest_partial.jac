@@ -83,6 +83,26 @@ test "P2 libtest partial: platform basics match host CPython" {
 }
 
 
+test "P2 libtest partial: stat filemode matches host CPython" {
+    for host_case in LIBTEST_SNIPPETS {
+        if host_case.name != "stat_filemode" {
+            continue;
+        }
+        assert_host_matches_cpython(host_case);
+    }
+}
+
+
+test "P2 libtest partial: _opcode stack effect matches host CPython" {
+    for host_case in LIBTEST_SNIPPETS {
+        if host_case.name != "opcode_stack_effect" {
+            continue;
+        }
+        assert_host_matches_cpython(host_case);
+    }
+}
+
+
 def assert_jacpython_libtest(host_case: LibtestSnippet) -> None {
     (status, detail) = run_libtest_jacpython(host_case);
     if status == "skip" {
