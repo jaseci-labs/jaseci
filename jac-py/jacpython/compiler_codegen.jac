@@ -1424,11 +1424,17 @@ def compile_exec(
 
 # Late imports: the statement-dispatch above calls visitors that live in the
 # split-out sibling modules, while those modules import shared helpers
-# (visit_stmts, emit_name_store, ...) from THIS module. Jac executes imports
-# sequentially, so these must stay at the bottom: by the time they run, every
-# helper is already defined and the sibling modules can bind them.
-# Ordering contract: compiler_codegen must be imported before any of
-# compiler_exc / compiler_match / compiler_loops / compiler_defs.
+# (visit_stmts, emit_name_store, ...) from THIS module.
+# Ordering contract (VERIFIED 2026-08-22): this module must finish loading
+# before any sibling binds names FROM it, and sibling-first entry breaks:
+# importing e.g. compiler_defs directly pauses its body at its own codegen
+# import, so the late block below re-enters a PARTIALLY INITIALIZED module
+# and fails with "cannot import name 'visit_import' from partially
+# initialized module 'compiler_defs'". Entry points must go through this
+# module (or product_compile), never a bare sibling. Guarded by
+# jac-py/tests/test_split_ordering.jac. The codegen<->sibling IMPORT CYCLES
+# themselves are tracked by p3_import_cycle_gate.py (see TODO item on the
+# dispatch-glob inversion).
 import from compiler_match { visit_match }
 import from compiler_exc {
     emit_deferred_comp_handlers,
