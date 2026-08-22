@@ -54,7 +54,7 @@ def sv_module -> object {
 }
 
 """Assert native and sv agree on `name` over `inputs`, and return the values."""
-def congruent(eng: object, sv: object, name: str, inputs: list[int]) -> list[int] {
+def congruent(eng: any, sv: object, name: str, inputs: list[int]) -> list[int] {
     native_fn = get_func(eng, name);
     sv_fn = getattr(sv, name);
     out: list[int] = [];

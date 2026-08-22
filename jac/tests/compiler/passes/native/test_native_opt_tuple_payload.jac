@@ -42,7 +42,7 @@ def compile_fixture -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -50,7 +50,7 @@ def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> obje
 }
 
 """Call `name` with `args`, assert the value and the destruction count."""
-def check(eng: object, name: str, args: list[int], want: int, allocs: int) {
+def check(eng: any, name: str, args: list[int], want: int, allocs: int) {
     fn = get_func(eng, name, ctypes.c_int64, *[ctypes.c_int64 for _ in args]);
     drops = get_func(eng, "drop_count", ctypes.c_int64);
     before = drops();

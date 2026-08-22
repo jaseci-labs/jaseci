@@ -51,7 +51,7 @@ def compile_native(
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -202,7 +202,7 @@ test "drop hook fires under the default cycles collector" {
 
 # --- Tuple unpack across an optional store (PR #7982) ---
 """Call one fixture fn and return (result, drops it caused)."""
-def call_counting_drops(eng: object, name: str, a: int, b: int) -> tuple[int, int] {
+def call_counting_drops(eng: any, name: str, a: int, b: int) -> tuple[int, int] {
     fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     drops = get_func(eng, "drop_count", ctypes.c_int64);
     before = drops();
@@ -254,7 +254,7 @@ test "tuple unpack from an optional element costs no more than the plain one" {
 
 # --- Comprehension elements are owned by their container (issue #8088) ---
 """Call one fixture builder+reader and return the i64 it encodes."""
-def call_elem_fn(eng: object, name: str, n: int) -> int {
+def call_elem_fn(eng: any, name: str, n: int) -> int {
     fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64);
     return fn(n);
 }

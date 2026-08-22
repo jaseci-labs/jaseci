@@ -61,14 +61,14 @@ def _compile(fixture: str, options: object | None = None) -> tuple {
 }
 
 
-def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
 }
 
 
-def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get_s(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI variant of _get: a c_char_p spelling means a Jac
     # `str` (the by-value {root, data, len} descriptor at the native ABI);
     # delegates to the shared tests.support harness.

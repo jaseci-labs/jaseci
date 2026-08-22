@@ -64,7 +64,7 @@ def _fake_artifact(fullname: str) -> (tuple | None) {
     return None;
 }
 
-def _run_annex -> object {
+def _run_annex -> any {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 

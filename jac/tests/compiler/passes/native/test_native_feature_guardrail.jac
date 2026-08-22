@@ -90,7 +90,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
 """Call a no-argument int-returning function out of a compiled module's JIT
 engine. A guardrail that has become a lowering pin needs the native lane's
 answer, not just its layout membership."""
-def native_answer(eng: object, name: str) -> int {
+def native_answer(eng: any, name: str) -> int {
     assert eng is not None , f"no native engine produced for {name}";
     addr = eng.get_function_address(name);
     assert addr != 0 , f"'{name}' not found in the JIT engine";

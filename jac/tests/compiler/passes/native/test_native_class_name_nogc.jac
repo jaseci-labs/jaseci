@@ -61,7 +61,7 @@ def _headerless_opts -> object {
 
 
 """Compile a fixture and hand back the program and its module, errors and all."""
-def _compile(fixture: str, options: object) -> tuple {
+def _compile(fixture: str, options: any) -> tuple {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=options);
     return (prog, ir);
@@ -69,7 +69,7 @@ def _compile(fixture: str, options: object) -> tuple {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: object, name: str) -> object {
+def _get(eng: any, name: str) -> object {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);

@@ -32,9 +32,8 @@ glob BITS_1_5 = 4609434218613702656,  # 0x3FF8000000000000
      BITS_NEG_ZERO = -9223372036854775808;  # 0x8000000000000000
 
 
-def _native_opts(gc_mode: str | None = None) -> object {
+def _native_opts(gc_mode: str | None = None) -> any {
     kwargs: dict = {
-        "type_check": False,
         "force_codespace": "native",
         "force_target_program": True
     };
@@ -57,7 +56,7 @@ def _compile_src(source: str, gc_mode: str | None = None) -> tuple {
     }
 }
 
-def _get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function {name} not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);

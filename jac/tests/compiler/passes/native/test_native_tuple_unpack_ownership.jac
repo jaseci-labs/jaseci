@@ -41,7 +41,7 @@ def compile_fixture -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -49,7 +49,7 @@ def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> obje
 }
 
 """Call one fixture fn with (3, 4) and return (result, destructions it caused)."""
-def run_shape(eng: object, name: str) -> tuple[int, int] {
+def run_shape(eng: any, name: str) -> tuple[int, int] {
     fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     drops = get_func(eng, "drop_count", ctypes.c_int64);
     before = drops();
@@ -58,7 +58,7 @@ def run_shape(eng: object, name: str) -> tuple[int, int] {
 }
 
 """Assert a shape returns `want` and destroys exactly `allocs` objects."""
-def check(eng: object, name: str, want: int, allocs: int) {
+def check(eng: any, name: str, want: int, allocs: int) {
     (value, drops) = run_shape(eng, name);
     assert value == want , f"{name} returned {value}, expected {want}";
     assert drops == allocs , (
