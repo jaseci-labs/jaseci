@@ -20,7 +20,9 @@ _MEASURE = _HERE / "measure_tier_b.py"
 _LIFT_DRIVER = _HERE / "lift_p2_corpus_wave.py"
 _JAC = _REPO / ".venv" / "bin" / "jac"
 _MAX_DENSITY = 0.15
-_EXPECTED_COUNT = 4
+# Waves 2-11 carried four leaf extracts each; wave 12 is the single-module
+# itertools facade port.
+_EXPECTED_COUNTS = {**{w: 4 for w in range(2, 12)}, 12: 1}
 
 
 def _load(path: Path) -> dict:
@@ -34,7 +36,7 @@ class P2CorpusWavesGateTests(unittest.TestCase):
             raise unittest.SkipTest(f"missing {_JAC} - run from repo with .venv")
 
     def test_all_waves(self) -> None:
-        for wave in range(2, 12):
+        for wave in range(2, 13):
             with self.subTest(wave=wave):
                 self._check_wave(wave)
 
@@ -45,8 +47,9 @@ class P2CorpusWavesGateTests(unittest.TestCase):
         )
         self.assertTrue(baseline_path.is_file(), f"missing baseline {baseline_path}")
         baseline = _load(baseline_path)
-        self.assertEqual(len(manifest.get("files", [])), _EXPECTED_COUNT)
-        self.assertEqual(len(baseline.get("files", [])), _EXPECTED_COUNT)
+        expected = _EXPECTED_COUNTS[wave]
+        self.assertEqual(len(manifest.get("files", [])), expected)
+        self.assertEqual(len(baseline.get("files", [])), expected)
 
         proc = subprocess.run(
             [sys.executable, str(_LIFT_DRIVER), "--wave", str(wave)],

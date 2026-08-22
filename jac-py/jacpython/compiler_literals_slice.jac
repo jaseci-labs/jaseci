@@ -14,6 +14,7 @@
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
 import from objects { PyObj, PyCode, PyInt, PyFloat, PyComplex, is_error }
+import from opcode_meta { OP_BUILD_SET, OP_LOAD_CONST, OP_LOAD_NAME, OP_UNARY_NOT }
 import from product_compile { compile_source }
 import from parser { parse_eval_expr }
 import from ast_nodes { Constant }
@@ -107,6 +108,109 @@ test "literal frontier: int literals in function body match oracle recursively" 
         "def f():\n    a = 7\n    b = 900\n    return a + b\n",
         "fn-int-literals"
     );
+}
+
+# ---------------- collections / displays / calls ----------------
+#
+# Same source-vs-oracle differential, wider net. Shapes listed here are
+# byte-exact on HEAD; known deviations live in the gaps section below.
+
+test "differential: dict display matches oracle" {
+    assert_literal_parity("d = {'k': 1, 'j': 2}\n", "dict-display");
+}
+
+test "differential: attribute chains and stores match oracle" {
+    for src in [
+        "v = obj.attr.sub\n",
+        "u = m['k']['j']\n",
+        "obj.attr = 5\n",
+        "rows[0] = 7\n"
+    ] {
+        assert_literal_parity(src, "attr-subscript");
+    }
+}
+
+test "differential: call shapes match oracle" {
+    for src in [
+        "r = f()\n",
+        "r = f(1)\n",
+        "r = f(a=1, b=2)\n",
+        "r = obj.method(x)\n",
+        "r = chain(a)(b)(c)\n"
+    ] {
+        assert_literal_parity(src, "call-shape");
+    }
+}
+
+test "differential: unary/binary arithmetic matches oracle" {
+    for src in [
+        "r = a + b * c - d\n",
+        "q = -a // b % c\n",
+        "p = a ** b ** c\n",
+        "i = ~a & b | c ^ d\n",
+        "sh = a << 2 >> 1\n"
+    ] {
+        assert_literal_parity(src, "arith");
+    }
+}
+
+# ---------------- known frontend gaps (sentinels) ----------------
+#
+# Three codegen-side deviations found by the differential above. Each sentinel
+# pins CURRENT behavior and flips to assert_literal_parity when fixed.
+
+# Gap A (FIXED): const-pool ordering now matches CPython's late interning.
+# Former sentinels promoted to parity tests:
+test "differential: empty tuple display matches oracle" {
+    assert_literal_parity("e = ()\n", "empty-tuple");
+}
+
+test "differential: chained subscript matches oracle" {
+    assert_literal_parity("w = rows[0][1]\n", "chained-subscript");
+}
+
+# Gap B (FIXED by a48ab5359): constant-set displays now lower via the
+# frozenset intrinsic path. Parity test:
+test "differential: constant set display matches oracle" {
+    assert_literal_parity("s = {1, 2, 3}\n", "set-display");
+}
+
+# Gap C (FIXED by 46da75e83): boolean-not folds into inverted conditional
+# jumps. Parity test:
+test "differential: not in if-condition matches oracle" {
+    assert_literal_parity("if not flag:\n    r = 1\n", "bool-not-jump");
+}
+
+# Semantics guard for jump-folding (46da75e83): folding `not X` into inverted
+# branches is only correct if truthiness is still evaluated EXACTLY ONCE.
+test "bool-not semantics: condition truthiness evaluated exactly once" {
+    # Structural contract post-folding: ZERO UNARY_NOT opcodes and exactly one
+    # load of the condition.
+    pc = compile_literal_source("if not flag:\n    r = 1\n");
+    code = [b for b in pc.co_code];
+    unary_not_count = 0;
+    flag_idx = -1;
+    ni = 0;
+    for nm in pc.names {
+        if nm == "flag" {
+            flag_idx = ni;
+        }
+        ni = ni + 1;
+    }
+    assert flag_idx >= 0;
+    load_flag_count = 0;
+    i = 0;
+    while i < len(code) {
+        if code[i] == OP_LOAD_NAME and code[i + 1] == flag_idx {
+            load_flag_count = load_flag_count + 1;
+        }
+        if code[i] == OP_UNARY_NOT {
+            unary_not_count = unary_not_count + 1;
+        }
+        i = i + 2;
+    }
+    assert unary_not_count == 0;
+    assert load_flag_count == 1;
 }
 
 # ---------------- number spelling parsing ----------------

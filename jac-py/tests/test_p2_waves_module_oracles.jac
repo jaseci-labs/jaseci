@@ -99,6 +99,9 @@ def _expected_stems(wave: int) -> list {
     if wave == 11 {
         return ["math_popcount_u", "math_pow_mod", "pystr_cmp_c", "pystr_contains_c"];
     }
+    if wave == 12 {
+        return ["itertoolsmodule"];
+    }
     return [];
 }
 

@@ -1353,6 +1353,14 @@ def _pyset_richcompare_na(op: int, v: PySet, w: PySet) -> PyObj {
 obj PyExceptionType(PyObj) {
     has name: str;
 
+    def tp_getattro(name2: str) -> PyObj {
+        # Type-object identity surface: e.__class__.__name__ idioms.
+        if name2 == "__name__" or name2 == "__qualname__" {
+            return PyStr(t="str", val=self.name);
+        }
+        return py_error("AttributeError", name2);
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         # Exception(*args): keep the FULL args tuple (BaseException.args), not just
         # the first, so `e.args`, str(e), and repr(e) round-trip faithfully. The
@@ -1412,6 +1420,11 @@ obj PyException(PyObj) {
                 return self.cause as PyObj;
             }
             return py_none();
+        }
+        # Identity dunder: e.__class__ resolves to the exception type object
+        # (e.__class__.__name__ on caught exceptions is a core idiom).
+        if name == "__class__" {
+            return py_exception_type(self.type_name);
         }
         if name == "__context__"
             or name == "__traceback__"

@@ -1,0 +1,71 @@
+#+title: jac-python Decision Log
+#+subtitle: Every meaningful architecture choice: decision, context, options, tradeoff, reversal condition
+#+updated: <2026-08-22 Fri>
+
+Every meaningful architecture choice gets an entry here. Each entry has five
+fields:
+
+- *Decision* — what we chose, stated affirmatively.
+- *Context* — the forces and constraints that made this a real choice.
+- *Options considered* — the realistic alternatives (not strawmen).
+- *Tradeoff* — what we give up by choosing this.
+- *Reversal condition* — the observable evidence that would justify reopening
+  the decision. No reversal condition = not a decision, a preference.
+
+Entries are append-only; superseded entries stay with a =SUPERSEDED-BY= link.
+Format mirrors the Jackal decision log (=jackal/docs/decisions.org=); this
+file is the jac-python-native ledger. (Reviewer finding F1 pointed at
+Jackal's D23 as "the ledger BrightDragon used"; D23 is a Jackal layout-engine
+entry in that repo, so this native ledger was created instead of writing
+jac-python deviations into another project.)
+
+* Index
+
+| ID  | Decision                                                        | Status |
+|-----+-----------------------------------------------------------------+--------|
+| D01 | itertools combinatorics allocate one result tuple per next()    | Active |
+
+* D01 — itertools combinatorics allocate one result tuple per next()
+
+**Decision**
+The wave-12 product/permutations/combinations/combinations_with_replacement
+ports (~jac-py/jacpython/itertoolsmodule.jac~) build and return a *new
+tuple object* from every ~__next__~ call rather than reusing one result
+tuple. Behavior is pinned by =test "wave12 combinatorics results match host
+identity semantics"= in ~jac-py/tests/test_itertools_facade_parity.jac~.
+
+**Context**
+A reviewer finding claimed CPython mutates ONE result tuple in place across
+=next()= calls (held results silently rewritten), making fresh-tuple ports
+observably divergent. *That premise does not reproduce on the pinned host*
+(verified against itertools on 3.14): each iterator keeps its own reference
+to the current result tuple (~lz->result~ / ~co->result~ / &c.), so its
+=_PyObject_IsUniquelyReferenced= guard is never true while a caller holds a
+result, and CPython takes the copy path too. Observed on host:
+=t1 is t2 == False= for all four types, held tuples stay stable after
+further iteration. The port therefore matches host observable semantics
+with the simpler allocation strategy; the pin locks both sides agreeing.
+
+**Options considered**
+1. Fresh tuple per call — chosen: matches observed host behavior exactly;
+   simple; no unique-reference machinery needed.
+2. In-place reuse behind a VM-level unique-reference check — rejected for
+   now: needs ceval/object-core support (~_PyObject_IsUniquelyReferenced~
+   equivalent) that does not exist yet, for zero observable-behavior gain
+   over option 1 today.
+3. Treat the reviewer premise as fact and emulate in-place mutation in user
+   Jac — rejected: impossible without mutable tuples, and would have made
+   the port *diverge* from the verified host behavior.
+
+**Tradeoff**
+Allocation per element where CPython amortizes reuse when its guard ever
+does fire (e.g., intermediate frames where the caller drops its reference).
+Purely a memory/CPU profile difference; no observable semantics gap.
+
+**Reversal condition**
+If a differential test ever shows host handing out the same tuple identity
+across =next()= calls while a caller holds it (a CPython change to the
+stored-result refcounting), or if the VM gains mutable tuples plus a
+unique-reference primitive making zero-allocation reuse profitable,
+revisit: flip to guarded reuse, keep the pin asserting parity with whatever
+the host then does, and mark this entry =SUPERSEDED=.

@@ -14,7 +14,9 @@ import from objects {
     PyNoneType,
     PySlice,
     PyCode,
-    PyTuple
+    PyTuple,
+    PySet,
+    is_error
 }
 import from opcode_meta {
     OP_RESUME,
@@ -1135,7 +1137,13 @@ def visit_subscript_index(
         if isinstance(cv, PyInt) {
             kloc = expr_loc(key);
             if register_small_int {
-                g.u.add_const((key as Constant).value);
+                # CPython keeps the dead small-int slot ONLY when the pool is
+                # still empty (index 0), mirroring register_int_literal_const;
+                # later subscript keys are pure LOAD_SMALL_INT with no entry.
+                in_class_body = g.sym_top is not None and g.sym_top.block_type == "class";
+                if len(g.u.consts) == 0 and not in_class_body {
+                    g.u.add_const(cv);
+                }
             }
             emit_folded_int(g, (cv as PyInt).val, kloc);
             return;
@@ -1599,7 +1607,12 @@ def visit_expr(
             return None;
         }
         if display_all_constant(telts) {
-            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(telts)));
+            ti2 = 0;
+            while ti2 < len(telts) {
+                register_int_literal_const(g, telts[ti2], True);
+                ti2 = ti2 + 1;
+            }
+            cidx = g.u.stage_late_const(PyTuple(t="tuple", items=display_const_items(telts)));
             g.emit_op(OP_LOAD_CONST, cidx, dloc);
             return None;
         }
@@ -1623,10 +1636,15 @@ def visit_expr(
             return None;
         }
         if len(lelts) > 0 and display_all_constant(lelts) {
+            li2 = 0;
+            while li2 < len(lelts) {
+                register_int_literal_const(g, lelts[li2], True);
+                li2 = li2 + 1;
+            }
             # CPython packs an all-constant list as an empty list extended by a
             # folded const tuple: BUILD_LIST 0; LOAD_CONST (tuple); LIST_EXTEND 1.
             g.emit_op(OP_BUILD_LIST, 0, dloc);
-            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(lelts)));
+            cidx = g.u.stage_late_const(PyTuple(t="tuple", items=display_const_items(lelts)));
             g.emit_op(OP_LOAD_CONST, cidx, dloc);
             g.emit_op(OP_LIST_EXTEND, 1, dloc);
             return None;
@@ -1666,6 +1684,31 @@ def visit_expr(
                 }
                 si = si + 1;
             }
+            return None;
+        }
+        if len(selts) > 0 and display_all_constant(selts) {
+            si3 = 0;
+            while si3 < len(selts) {
+                register_int_literal_const(g, selts[si3], True);
+                si3 = si3 + 1;
+            }
+            # CPython packs an all-constant set as an empty set extended by a
+            # folded frozenset const: BUILD_SET 0; LOAD_CONST (frozenset);
+            # SET_UPDATE 1. Mirrors the all-constant list path above.
+            frozen = PySet(t="frozenset", items={}, frozen=True);
+            ci2 = 0;
+            const_items = display_const_items(selts);
+            while ci2 < len(const_items) {
+                added = frozen.set_add(const_items[ci2]);
+                if is_error(added) {
+                    break;
+                }
+                ci2 = ci2 + 1;
+            }
+            g.emit_op(OP_BUILD_SET, 0, dloc);
+            cidx_set = g.u.stage_late_const(frozen);
+            g.emit_op(OP_LOAD_CONST, cidx_set, dloc);
+            g.emit_op(OP_SET_UPDATE, 1, dloc);
             return None;
         }
         si = 0;
@@ -3045,13 +3088,33 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
 # POP_JUMP_IF_FALSE. IS_NONE / IS_NOT_NONE leave the bare operand on the stack;
 # the caller must consume it with POP_JUMP_IF_NOT_NONE / POP_JUMP_IF_NONE (the
 # CPython `x is None` jump peephole), via emit_branch_if_test_false.
+# The *_INV variants mean the test was compiled under a folded `not` (CPython's
+# compiler_jump_if_not): same stack shape, branch polarity flipped.
 glob TEST_NORMAL: int = 0,
      TEST_IS_NONE: int = 1,
-     TEST_IS_NOT_NONE: int = 2;
+     TEST_IS_NOT_NONE: int = 2,
+     TEST_NORMAL_INV: int = 3,
+     TEST_IS_NONE_INV: int = 4,
+     TEST_IS_NOT_NONE_INV: int = 5;
 
 def visit_test_expr(
-    g: cfg_builder, e: expr, test_loc: cloc, allow_none_peephole: bool = False
+    g: cfg_builder,
+    e: expr,
+    test_loc: cloc,
+    allow_none_peephole: bool = False,
+    invert: bool = False
 ) -> int {
+    # Fold `not <test>` into an inverted branch instead of emitting UNARY_NOT
+    # (CPython never materializes `not` in jump context). Double negation
+    # recurses naturally; value-context `not` still goes through visit_expr.
+    if isinstance(e, UnaryOp) {
+        un = e as UnaryOp;
+        if isinstance(un.op, Not) {
+            return visit_test_expr(
+                g, un.operand, test_loc, allow_none_peephole, not invert
+            );
+        }
+    }
     if isinstance(e, Compare) {
         c = e as Compare;
         if len(c.ops) == 1 {
@@ -3068,9 +3131,9 @@ def visit_test_expr(
                     # small-int slot at index 0).
                     g.u.add_const(py_none());
                     if isinstance(c.ops[0], Is) {
-                        return TEST_IS_NONE;
+                        return TEST_IS_NONE + (3 if invert else 0);
                     }
-                    return TEST_IS_NOT_NONE;
+                    return TEST_IS_NOT_NONE + (3 if invert else 0);
                 }
                 codegen_fail(
                     g, "NotImplementedError", "is-None jump peephole not supported"
@@ -3083,30 +3146,45 @@ def visit_test_expr(
                 codegen_fail(
                     g, "NotImplementedError", "unsupported comparison operator"
                 );
-                return TEST_NORMAL;
+                return TEST_NORMAL + (3 if invert else 0);
             }
-            return TEST_NORMAL;
+            return TEST_NORMAL + (3 if invert else 0);
         }
     }
     visit_expr(g, e);
     g.emit_op(OP_TO_BOOL, 0, test_loc);
-    return TEST_NORMAL;
+    return TEST_NORMAL + (3 if invert else 0);
 }
 
 # Emit the conditional branch taken when a visit_test_expr result is FALSE. For
 # the None-identity kinds this is the CPython jump peephole:
 #   `x is None`     -> POP_JUMP_IF_NOT_NONE  (branch away when x is NOT None)
 #   `x is not None` -> POP_JUMP_IF_NONE      (branch away when x IS None)
+# Inverted kinds flip the opcode polarity for a folded `not`:
+#   `not (x is None)` -> POP_JUMP_IF_NONE, etc.
 def emit_branch_if_test_false(g: cfg_builder, kind: int, target_id: int, loc: cloc) {
-    if kind == TEST_IS_NONE {
+    if kind == TEST_IS_NONE or kind == TEST_IS_NOT_NONE_INV {
         g.emit_jump(OP_POP_JUMP_IF_NOT_NONE, target_id, loc);
         return;
     }
-    if kind == TEST_IS_NOT_NONE {
+    if kind == TEST_IS_NOT_NONE or kind == TEST_IS_NONE_INV {
         g.emit_jump(OP_POP_JUMP_IF_NONE, target_id, loc);
         return;
     }
+    if kind == TEST_NORMAL_INV {
+        g.emit_jump(OP_POP_JUMP_IF_TRUE, target_id, loc);
+        return;
+    }
     g.emit_jump(OP_POP_JUMP_IF_FALSE, target_id, loc);
+}
+
+# Mirror of emit_branch_if_test_false branching on TRUE (e.g. assert jumps to
+# the raise path when the test is false, so its skip-jump branches on true).
+# CPython folds `assert not t` by double negation: the skip-jump keeps the
+# plain-false polarity of the operand.
+def emit_branch_if_test_true(g: cfg_builder, kind: int, target_id: int, loc: cloc) {
+    inv_kind = kind - 3 if kind >= 3 else kind + 3;
+    emit_branch_if_test_false(g, inv_kind, target_id, loc);
 }
 
 # Lower `lambda ...: expr` into nested PyCode + MAKE_FUNCTION (value on stack).

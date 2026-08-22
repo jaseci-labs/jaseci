@@ -332,6 +332,7 @@ import from compiler_emit {
     emit_await_send_loop_footer,
     emit_await_send_loop_header,
     emit_branch_if_test_false,
+    emit_branch_if_test_true,
     emit_call_instruction,
     emit_call_keyword_values,
     emit_cmp_link,
@@ -417,6 +418,13 @@ import from codegen_util {
     import_bind_name,
     class_effective_bases,
     class_effective_keywords
+}
+import from compiler_annotations {
+    ann_scope_plan,
+    collect_ann_plan,
+    emit_module_annotation_setup,
+    finish_module_annotations,
+    visit_ann_assign,
 }
 
 
@@ -724,6 +732,7 @@ def compile_eval(
     g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
     cleanup = visit_expr(g, e, false_shortcircuit_returns=True);
     if codegen_busy(g) {
+        u.flush_late_consts();
         return u;
     }
     eloc = top_loc(e);
@@ -745,6 +754,7 @@ def compile_eval(
             g.emit_op(OP_RETURN_VALUE, 0, eloc);
         }
     }
+    u.flush_late_consts();
     return u;
 }
 
@@ -1036,7 +1046,8 @@ def visit_try_finally(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
     nop_blk = g.new_block();
@@ -1053,12 +1064,12 @@ def visit_try_finally(
     if not try_follows and tail is not None and tail_idx < len(tail) {
         try_follows = True;
     }
-    body_cont = visit_stmts(g, t.body, 0, True);
+    body_cont = visit_stmts(g, t.body, 0, True, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
     g.use(protect_end);
-    finally_cont = visit_stmts(g, t.finalbody);
+    finally_cont = visit_stmts(g, t.finalbody, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -1073,7 +1084,7 @@ def visit_try_finally(
         if tail_idx + 1 < len(tail) {
             tail_more = exec_tail_emits_code(tail, tail_idx + 1);
         }
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=finally_cont.loc);
         }
@@ -1092,7 +1103,7 @@ def visit_try_finally(
     noloc = no_loc();
     g.use(finally_except);
     g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
-    finally_except_cont = visit_stmts(g, t.finalbody);
+    finally_except_cont = visit_stmts(g, t.finalbody, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -1158,13 +1169,14 @@ def emit_finally_inline_block(
     more_code_follows: bool,
     tail: list[stmt] | None,
     tail_idx: int,
-    tloc: cloc
+    tloc: cloc,
+    ann_ctx: ann_scope_plan | None = None
 ) {
     g.use(blk);
     if with_nop {
         g.emit_op(OP_NOP, 0, tloc);
     }
-    fc = visit_stmts(g, finalbody);
+    fc = visit_stmts(g, finalbody, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return;
     }
@@ -1177,7 +1189,7 @@ def emit_finally_inline_block(
         if tail is not None and tail_idx + 1 < len(tail) {
             tail_more = exec_tail_emits_code(tail, tail_idx + 1);
         }
-        tc = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tc = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         if codegen_busy(g) {
             return;
         }
@@ -1268,7 +1280,8 @@ def visit_try_except_finally(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
     nh = len(t.handlers);
@@ -1281,7 +1294,7 @@ def visit_try_except_finally(
     g.emit_op(OP_NOP, 0, tloc);
     g.use(try_body);
     protect_start = g.cur.id;
-    body_cont = visit_stmts(g, t.body, 0, True);
+    body_cont = visit_stmts(g, t.body, 0, True, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -1312,7 +1325,7 @@ def visit_try_except_finally(
             dead_nte = g.u.nested_try_except_end;
             g.use(g.new_block());
         }
-        else_cont = visit_stmts(g, t.orelse, 0, True);
+        else_cont = visit_stmts(g, t.orelse, 0, True, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
@@ -1487,7 +1500,7 @@ def visit_try_except_finally(
         g.handler_enclosing_unwind = inner_unwind.id;
         g.handler_fell_through = False;
         g.handler_nest_depth = saved_nd + 1;
-        hbody = visit_stmts(g, h.body);
+        hbody = visit_stmts(g, h.body, 0, False, None, 0, None, ann_ctx);
         nested_fell = g.handler_fell_through;
         g.handler_fallthrough_fin = saved_ffin;
         g.handler_fallthrough_backward = saved_fbwd;
@@ -1827,8 +1840,7 @@ def visit_try_except_finally(
             more_code_follows,
             tail,
             tail_idx,
-            tloc
-        );
+            tloc, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
@@ -1837,7 +1849,7 @@ def visit_try_except_finally(
     # Exceptional finally handler: run finalbody under PUSH_EXC_INFO, re-raise.
     g.use(fin_except);
     g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
-    fe_cont = visit_stmts(g, t.finalbody);
+    fe_cont = visit_stmts(g, t.finalbody, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -1872,16 +1884,16 @@ def visit_try(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
     if t.finalbody is not None and len(t.finalbody) > 0 {
         if t.handlers is not None and len(t.handlers) > 0 {
             return visit_try_except_finally(
-                g, t, more_code_follows, tail, tail_idx, tail_join
-            );
+                g, t, more_code_follows, tail, tail_idx, tail_join, ann_ctx);
         }
-        return visit_try_finally(g, t, more_code_follows, tail, tail_idx, tail_join);
+        return visit_try_finally(g, t, more_code_follows, tail, tail_idx, tail_join, ann_ctx);
     }
     if t.handlers is None or len(t.handlers) == 0 {
         codegen_fail(g, "NotImplementedError", "try without except");
@@ -1899,7 +1911,7 @@ def visit_try(
     if not try_follows and tail is not None and tail_idx < len(tail) {
         try_follows = True;
     }
-    body_cont = visit_stmts(g, t.body, 0, try_follows, tail, tail_idx, tail_join);
+    body_cont = visit_stmts(g, t.body, 0, try_follows, tail, tail_idx, tail_join, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -1909,7 +1921,7 @@ def visit_try(
     g.use(after_try_epilogue);
     normal_terminated = body_cont.terminated;
     if t.orelse is not None and len(t.orelse) > 0 and not body_cont.terminated {
-        else_cont = visit_stmts(g, t.orelse, 0, try_follows, tail, tail_idx, tail_join);
+        else_cont = visit_stmts(g, t.orelse, 0, try_follows, tail, tail_idx, tail_join, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
@@ -1946,7 +1958,7 @@ def visit_try(
             if tail is not None and tail_idx + 1 < len(tail) {
                 tail_more = exec_tail_emits_code(tail, tail_idx + 1);
             }
-            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
             }
@@ -2069,7 +2081,7 @@ def visit_try(
         }
         handler_body_start = handler_body_entries[hi].id;
         g.use(handler_body_entries[hi]);
-        hbody = visit_stmts(g, h.body);
+        hbody = visit_stmts(g, h.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
@@ -2267,7 +2279,8 @@ def visit_with(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     wloc = stmt_loc(w);
     if len(w.items) < 1 {
@@ -2315,7 +2328,7 @@ def visit_with(
     if not with_follows and tail is not None and tail_idx < len(tail) {
         with_follows = True;
     }
-    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join);
+    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
@@ -2340,7 +2353,7 @@ def visit_with(
         if tail is not None and tail_idx + 1 < len(tail) {
             tail_more = exec_tail_emits_code(tail, tail_idx + 1);
         }
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
@@ -2465,7 +2478,8 @@ def visit_async_with(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     wloc = stmt_loc(w);
     if len(w.items) != 1 {
@@ -2505,7 +2519,7 @@ def visit_async_with(
     if not with_follows and tail is not None and tail_idx < len(tail) {
         with_follows = True;
     }
-    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join);
+    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
@@ -2528,7 +2542,7 @@ def visit_async_with(
             if isinstance(ts, Return) {
                 visit_return_stmt(g, ts as Return, False, True);
             } else {
-                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
                 if codegen_busy(g) {
                     return stmt_cont(loc=body_cont.loc);
                 }
@@ -2537,7 +2551,7 @@ def visit_async_with(
                 }
             }
         } else {
-            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
             }
@@ -2673,12 +2687,12 @@ def visit_async_with(
 def visit_assert_stmt(g: cfg_builder, a: Assert) -> stmt_cont {
     aloc = nloc(a.lineno, a.end_lineno, a.col_offset, a.end_col_offset);
     test_loc = expr_loc(a.`test);
-    visit_test_expr(g, a.`test, test_loc);
+    kind = visit_test_expr(g, a.`test, test_loc);
     if codegen_busy(g) {
         return stmt_cont(loc=aloc);
     }
     ok = g.new_block();
-    g.emit_jump(OP_POP_JUMP_IF_TRUE, ok.id, test_loc);
+    emit_branch_if_test_true(g, kind, ok.id, test_loc);
     g.emit_op(OP_LOAD_COMMON_CONSTANT, 0, aloc);
     if a.msg is not None {
         visit_expr(g, a.msg);
@@ -2702,7 +2716,8 @@ def visit_stmts(
     more_follows_after: bool = False,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     if len(stmts) == 0 or from_idx >= len(stmts) {
         return stmt_cont(loc=loc(1, 1, 0, 0));
@@ -2718,7 +2733,7 @@ def visit_stmts(
         if not follow and tail is not None {
             follow = exec_tail_emits_code(tail, tail_idx);
         }
-        cont = visit_stmt(g, stmts[si], follow, tail, tail_idx, tail_join);
+        cont = visit_stmt(g, stmts[si], follow, tail, tail_idx, tail_join, ann_ctx);
         last = cont.loc;
         if cont.terminated {
             terminated = True;
@@ -2737,16 +2752,24 @@ def visit_stmts(
 
 # Lower a statement suffix once at the current block.
 def visit_stmt_tail(
-    g: cfg_builder, tail: list[stmt], from_idx: int, more_follows_after: bool = False
+    g: cfg_builder,
+    tail: list[stmt],
+    from_idx: int,
+    more_follows_after: bool = False,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
-    return visit_stmts(g, tail, from_idx, more_follows_after);
+    return visit_stmts(g, tail, from_idx, more_follows_after, 0, None, None, ann_ctx);
 }
 
 # Emit tail suffix and finish the module when CPython duplicates it per branch.
 def emit_tail_and_finish(
-    g: cfg_builder, tail: list[stmt], tail_idx: int, end_loc: cloc
+    g: cfg_builder,
+    tail: list[stmt],
+    tail_idx: int,
+    end_loc: cloc,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
-    tail_cont = visit_stmt_tail(g, tail, tail_idx);
+    tail_cont = visit_stmt_tail(g, tail, tail_idx, False, ann_ctx);
     if codegen_busy(g) {
         return tail_cont;
     }
@@ -3692,7 +3715,8 @@ def visit_match(
     more_code_follows: bool,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     mloc = stmt_loc(m);
     if len(m.cases) == 0 {
@@ -3755,16 +3779,16 @@ def visit_match(
         optimize_swap_range(g.cur, opt_lo);
         if arm.guard is not None {
             gloc = expr_loc(arm.guard);
-            visit_test_expr(g, arm.guard, gloc);
+            guard_kind = visit_test_expr(g, arm.guard, gloc);
             if codegen_busy(g) {
                 return stmt_cont(loc=mloc);
             }
-            g.emit_jump(OP_POP_JUMP_IF_FALSE, next_arm.id, gloc);
+            emit_branch_if_test_false(g, guard_kind, next_arm.id, gloc);
         }
         if ci != loop_end - 1 {
             g.emit_op(OP_POP_TOP, 0, ploc);
         }
-        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk);
+        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=mloc);
         }
@@ -3786,13 +3810,13 @@ def visit_match(
         }
         if arm.guard is not None {
             gloc = expr_loc(arm.guard);
-            visit_test_expr(g, arm.guard, gloc);
+            guard_kind = visit_test_expr(g, arm.guard, gloc);
             if codegen_busy(g) {
                 return stmt_cont(loc=mloc);
             }
-            g.emit_jump(OP_POP_JUMP_IF_FALSE, match_end.id, gloc);
+            emit_branch_if_test_false(g, guard_kind, match_end.id, gloc);
         }
-        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk);
+        body_cont = visit_stmts(g, arm.body, 0, body_follows, tail, tail_idx, join_blk, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=mloc);
         }
@@ -3810,7 +3834,7 @@ def visit_match(
     if owns_join and join_blk is not None {
         g.use(join_blk);
         tail_more = exec_tail_emits_code(tail, tail_idx);
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         return stmt_cont(
             loc=tail_cont.loc,
             next_si=len(tail),
@@ -3829,7 +3853,8 @@ def visit_if(
     more_code_follows: bool,
     tail: list[stmt],
     tail_idx: int,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
     test_loc = expr_loc(i.`test);
@@ -3845,7 +3870,7 @@ def visit_if(
             if tail_more {
                 join = g.new_block();
                 emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
-                body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
+                body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, None, ann_ctx);
                 if codegen_busy(g) {
                     return stmt_cont(loc=body_cont.loc);
                 }
@@ -3853,14 +3878,13 @@ def visit_if(
                     g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
                 }
                 g.use(false_blk);
-                else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
+                else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx, None, ann_ctx);
                 if codegen_busy(g) {
                     return stmt_cont(loc=else_cont.loc);
                 }
                 g.use(join);
                 tail_cont = visit_stmt_tail(
-                    g, tail, tail_idx, exec_tail_emits_code(tail, tail_idx + 1)
-                );
+                    g, tail, tail_idx, exec_tail_emits_code(tail, tail_idx + 1), ann_ctx);
                 return stmt_cont(
                     loc=tail_cont.loc,
                     next_si=len(tail),
@@ -3879,7 +3903,7 @@ def visit_if(
             # `if c: return; if d: ... else: ...; <more>`.
             join = g.new_block();
             emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
-            body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
+            body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
             }
@@ -3887,7 +3911,7 @@ def visit_if(
                 g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
             }
             g.use(false_blk);
-            else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
+            else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
@@ -3901,14 +3925,14 @@ def visit_if(
             owns_tail = True;
         }
         emit_branch_if_test_false(g, kind, join.id, test_loc);
-        body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, join);
+        body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, join, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
         if owns_tail {
             g.use(join);
             if tail_more {
-                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
                 return stmt_cont(
                     loc=tail_cont.loc,
                     next_si=len(tail),
@@ -3939,7 +3963,7 @@ def visit_if(
     #     there is dead code after a terminator ("Invalid CFG").
     if tail is None {
         emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
-        body_cont = visit_stmts(g, i.body);
+        body_cont = visit_stmts(g, i.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
@@ -3950,7 +3974,7 @@ def visit_if(
                 g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
             }
             g.use(false_blk);
-            else_cont = visit_stmts(g, i.orelse);
+            else_cont = visit_stmts(g, i.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
@@ -3964,7 +3988,7 @@ def visit_if(
         return stmt_cont(loc=iloc, terminated=False);
     }
     emit_branch_if_test_false(g, kind, false_blk.id, test_loc);
-    body_cont = visit_stmts(g, i.body);
+    body_cont = visit_stmts(g, i.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         return stmt_cont(loc=body_cont.loc);
     }
@@ -3973,7 +3997,7 @@ def visit_if(
     }
     g.use(false_blk);
     if has_else {
-        else_cont = visit_stmts(g, i.orelse);
+        else_cont = visit_stmts(g, i.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
@@ -3987,7 +4011,12 @@ def visit_if(
 }
 
 def visit_while(
-    g: cfg_builder, w: While, more_code_follows: bool, tail: list[stmt], tail_idx: int
+    g: cfg_builder,
+    w: While,
+    more_code_follows: bool,
+    tail: list[stmt],
+    tail_idx: int,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     wloc = nloc(w.lineno, w.end_lineno, w.col_offset, w.end_col_offset);
     test_loc = expr_loc(w.`test);
@@ -4003,7 +4032,7 @@ def visit_while(
         emit_branch_if_test_false(g, kind, exit_blk.id, test_loc);
         break_blk = g.new_block();
         g.push_loop(head, break_blk, has_break);
-        body_cont = visit_stmts(g, w.body);
+        body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
             return stmt_cont(loc=body_cont.loc);
@@ -4019,7 +4048,7 @@ def visit_while(
             if tail_more {
                 g.emit_jump(OP_JUMP_FORWARD, exit_blk.id, wloc);
             } else {
-                br_cont = emit_tail_and_finish(g, tail, tail_idx, wloc);
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, wloc, ann_ctx);
                 if codegen_busy(g) {
                     return br_cont;
                 }
@@ -4028,7 +4057,7 @@ def visit_while(
         g.use(exit_blk);
         else_terminated = False;
         if len(w.orelse) > 0 {
-            else_cont = visit_stmts(g, w.orelse);
+            else_cont = visit_stmts(g, w.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
@@ -4044,7 +4073,7 @@ def visit_while(
             # dead code after a terminator ("Invalid CFG").
             return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
         }
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         return stmt_cont(
             loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
         );
@@ -4058,7 +4087,7 @@ def visit_while(
         } else {
             g.push_loop(head, after_body, False);
         }
-        body_cont = visit_stmts(g, w.body);
+        body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
             return stmt_cont(loc=body_cont.loc);
@@ -4077,7 +4106,7 @@ def visit_while(
     emit_branch_if_test_false(g, kind, 0, test_loc);
     pop_false_ins = g.cur.instrs[len(g.cur.instrs) - 1];
     g.push_loop(head, head, False);
-    body_cont = visit_stmts(g, w.body);
+    body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         g.pop_loop();
         return stmt_cont(loc=body_cont.loc);
@@ -4090,7 +4119,7 @@ def visit_while(
     pop_false_ins.target_block = exit_blk.id;
     g.use(exit_blk);
     if len(w.orelse) > 0 {
-        else_cont = visit_stmts(g, w.orelse);
+        else_cont = visit_stmts(g, w.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
@@ -4103,7 +4132,12 @@ def visit_while(
 
 
 def visit_for(
-    g: cfg_builder, f: For, more_code_follows: bool, tail: list[stmt], tail_idx: int
+    g: cfg_builder,
+    f: For,
+    more_code_follows: bool,
+    tail: list[stmt],
+    tail_idx: int,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     floc = nloc(f.lineno, f.end_lineno, f.col_offset, f.end_col_offset);
     iter_loc = expr_loc(f.iter);
@@ -4125,7 +4159,7 @@ def visit_for(
             g.pop_loop();
             return stmt_cont(loc=store.loc);
         }
-        body_cont = visit_stmts(g, f.body);
+        body_cont = visit_stmts(g, f.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
             return stmt_cont(loc=body_cont.loc);
@@ -4141,7 +4175,7 @@ def visit_for(
             if tail_more {
                 g.emit_jump(OP_JUMP_FORWARD, after.id, iter_loc);
             } else {
-                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc);
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc, ann_ctx);
                 if codegen_busy(g) {
                     return br_cont;
                 }
@@ -4152,7 +4186,7 @@ def visit_for(
         g.emit_op(OP_POP_ITER, 0, iter_loc);
         else_terminated = False;
         if len(f.orelse) > 0 {
-            else_cont = visit_stmts(g, f.orelse);
+            else_cont = visit_stmts(g, f.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
@@ -4168,7 +4202,7 @@ def visit_for(
             # dead code after a terminator ("Invalid CFG").
             return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
         }
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         return stmt_cont(
             loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
         );
@@ -4185,7 +4219,7 @@ def visit_for(
         g.pop_loop();
         return stmt_cont(loc=store.loc);
     }
-    body_cont = visit_stmts(g, f.body);
+    body_cont = visit_stmts(g, f.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         g.pop_loop();
         return stmt_cont(loc=body_cont.loc);
@@ -4203,7 +4237,7 @@ def visit_for(
     g.emit_op(OP_END_FOR, 0, iter_loc);
     g.emit_op(OP_POP_ITER, 0, iter_loc);
     if len(f.orelse) > 0 {
-        else_cont = visit_stmts(g, f.orelse);
+        else_cont = visit_stmts(g, f.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
@@ -4219,7 +4253,8 @@ def visit_async_for(
     af: AsyncFor,
     more_code_follows: bool,
     tail: list[stmt],
-    tail_idx: int
+    tail_idx: int,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     floc = nloc(af.lineno, af.end_lineno, af.col_offset, af.end_col_offset);
     iter_loc = expr_loc(af.iter);
@@ -4245,7 +4280,7 @@ def visit_async_for(
             g.pop_loop();
             return stmt_cont(loc=store.loc);
         }
-        body_cont = visit_stmts(g, af.body);
+        body_cont = visit_stmts(g, af.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
             return stmt_cont(loc=body_cont.loc);
@@ -4277,7 +4312,7 @@ def visit_async_for(
             if tail_more {
                 g.emit_jump(OP_JUMP_FORWARD, after.id, iter_loc);
             } else {
-                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc);
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc, ann_ctx);
                 if codegen_busy(g) {
                     return br_cont;
                 }
@@ -4298,7 +4333,7 @@ def visit_async_for(
         g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
         g.use(after);
         if len(af.orelse) > 0 {
-            else_cont = visit_stmts(g, af.orelse);
+            else_cont = visit_stmts(g, af.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
@@ -4306,7 +4341,7 @@ def visit_async_for(
         if has_break and not tail_more {
             return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
         }
-        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
         return stmt_cont(
             loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
         );
@@ -4325,7 +4360,7 @@ def visit_async_for(
         g.pop_loop();
         return stmt_cont(loc=store.loc);
     }
-    body_cont = visit_stmts(g, af.body);
+    body_cont = visit_stmts(g, af.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         g.pop_loop();
         return stmt_cont(loc=body_cont.loc);
@@ -4370,7 +4405,7 @@ def visit_async_for(
     g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
     g.use(after);
     if len(af.orelse) > 0 {
-        else_cont = visit_stmts(g, af.orelse);
+        else_cont = visit_stmts(g, af.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
@@ -4458,7 +4493,8 @@ def visit_stmt(
     more_code_follows: bool = False,
     tail: list[stmt] | None = None,
     tail_idx: int = 0,
-    tail_join: basicblock | None = None
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
     if codegen_busy(g) {
         return stmt_cont(loc=stmt_loc(s));
@@ -4543,30 +4579,11 @@ def visit_stmt(
         }
         return stmt_cont(loc=last);
     }
-    # PEP 649 (3.14): function-local annotations are never evaluated at run
-    # time -- the host oracle emits only the assignment side (bare annotation
-    # emits nothing). Module/class scopes instead emit a deferred __annotate__
-    # code object plus __conditional_annotations__ bookkeeping; until that
-    # slice lands, fail loudly rather than emit silently-wrong bytes.
+    # PEP 649 (3.14): AnnAssign lowering lives in compiler_annotations.jac --
+    # function-local annotations reduce to the assignment side, module scope
+    # defers into the __annotate__ machinery, class scope still traps.
     if isinstance(s, AnnAssign) {
-        an = s as AnnAssign;
-        if g.sym_top is None or g.sym_top.block_type != "function" {
-            codegen_fail(
-                g,
-                "NotImplementedError",
-                "module/class-scope annotation (__annotate__) not yet supported"
-            );
-            return stmt_cont(loc=stmt_loc(s));
-        }
-        if an.value is None {
-            return stmt_cont(loc=stmt_loc(s));
-        }
-        visit_expr(g, an.value);
-        if codegen_busy(g) {
-            return stmt_cont(loc=stmt_loc(s));
-        }
-        emit = visit_store_target_tos(g, an.target);
-        return stmt_cont(loc=emit.loc);
+        return visit_ann_assign(g, s as AnnAssign, ann_ctx);
     }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
@@ -4683,28 +4700,28 @@ def visit_stmt(
         if t is None {
             t = [];
         }
-        return visit_if(g, s as If, more_code_follows, t, tail_idx, tail_join);
+        return visit_if(g, s as If, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, While) {
         t = tail;
         if t is None {
             t = [];
         }
-        return visit_while(g, s as While, more_code_follows, t, tail_idx);
+        return visit_while(g, s as While, more_code_follows, t, tail_idx, ann_ctx);
     }
     if isinstance(s, For) {
         t = tail;
         if t is None {
             t = [];
         }
-        return visit_for(g, s as For, more_code_follows, t, tail_idx);
+        return visit_for(g, s as For, more_code_follows, t, tail_idx, ann_ctx);
     }
     if isinstance(s, AsyncFor) {
         t = tail;
         if t is None {
             t = [];
         }
-        return visit_async_for(g, s as AsyncFor, more_code_follows, t, tail_idx);
+        return visit_async_for(g, s as AsyncFor, more_code_follows, t, tail_idx, ann_ctx);
     }
     if isinstance(s, Break) {
         b = s as Break;
@@ -4756,7 +4773,7 @@ def visit_stmt(
         if t is None {
             t = [];
         }
-        return visit_try(g, s as Try, more_code_follows, t, tail_idx, tail_join);
+        return visit_try(g, s as Try, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, Raise) {
         return visit_raise_stmt(g, s as Raise);
@@ -4766,7 +4783,7 @@ def visit_stmt(
         if t is None {
             t = [];
         }
-        return visit_with(g, s as With, more_code_follows, t, tail_idx, tail_join);
+        return visit_with(g, s as With, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, AsyncWith) {
         t = tail;
@@ -4774,15 +4791,14 @@ def visit_stmt(
             t = [];
         }
         return visit_async_with(
-            g, s as AsyncWith, more_code_follows, t, tail_idx, tail_join
-        );
+            g, s as AsyncWith, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, Match) {
         t = tail;
         if t is None {
             t = [];
         }
-        return visit_match(g, s as Match, more_code_follows, t, tail_idx, tail_join);
+        return visit_match(g, s as Match, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, Assert) {
         return visit_assert_stmt(g, s as Assert);
@@ -5187,6 +5203,7 @@ def compile_fn_cfg(
             terminated = True;
         }
         if codegen_busy(g) {
+            u.flush_late_consts();
             return u;
         }
         if cont.next_si >= 0 {
@@ -5204,6 +5221,7 @@ def compile_fn_cfg(
     if is_suspendable {
         emit_generator_except_handler(g, protect_start);
     }
+    u.flush_late_consts();
     return u;
 }
 
@@ -5228,26 +5246,55 @@ def compile_exec(
     firstlineno: int,
     sym_top: sym_block | None = None
 ) -> unverified_cfg {
-    u = unverified_cfg(
-        filename=filename, name=name, qualname=name, firstlineno=firstlineno
-    );
+    # PEP 649: module-scope annotated assignments defer into the __annotate__
+    # machinery. The plan is collected up front because the setup bytes emit
+    # at scope entry while the nested code object builds at end of unit.
+    ann_plan = collect_ann_plan(body);
+    if ann_plan.any_annotation {
+        u_cell = ["__conditional_annotations__"];
+        u = unverified_cfg(
+            filename=filename,
+            name=name,
+            qualname=name,
+            firstlineno=firstlineno,
+            cellvars=u_cell
+        );
+    } else {
+        u = unverified_cfg(
+            filename=filename, name=name, qualname=name, firstlineno=firstlineno
+        );
+    }
     if sym_top is not None {
         u.varnames = fast_varnames_from_sym(sym_top);
     }
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_top);
-    g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
+    ploc0 = loc(0, firstlineno, 0, 0);
+    if ann_plan.any_annotation {
+        g.emit_op(OP_MAKE_CELL, localsplus_index_u(u, "__conditional_annotations__"), no_loc());
+    }
+    g.emit_op(OP_RESUME, 0, ploc0);
+    if ann_plan.any_annotation {
+        sloc = ann_plan.head_loc;
+        if sloc is None {
+            sloc = ploc0;
+        }
+        emit_module_annotation_setup(g, ann_plan, sloc);
+    }
     last = loc(0, firstlineno, 0, 0);
     terminated = False;
     si = 0;
     while si < len(body) {
         s = body[si];
-        cont = visit_stmt(g, s, exec_tail_emits_code(body, si + 1), body, si + 1);
+        cont = visit_stmt(
+            g, s, exec_tail_emits_code(body, si + 1), body, si + 1, None, ann_plan
+        );
         last = cont.loc;
         if cont.terminated {
             terminated = True;
         }
         if codegen_busy(g) {
+            u.flush_late_consts();
             return u;
         }
         if cont.next_si >= 0 {
@@ -5256,12 +5303,21 @@ def compile_exec(
             si = si + 1;
         }
     }
+    if len(ann_plan.entries) > 0 {
+        finish_module_annotations(g, ann_plan);
+        if codegen_busy(g) {
+            u.flush_late_consts();
+            return u;
+        }
+    }
     if terminated {
+        u.flush_late_consts();
         return u;
     }
     none_idx = u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, last);
     g.emit_op(OP_RETURN_VALUE, 0, last);
     emit_deferred_comp_handlers(g);
+    u.flush_late_consts();
     return u;
 }
