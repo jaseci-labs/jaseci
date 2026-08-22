@@ -5395,6 +5395,7 @@ impl EsastGenPass._build_osp_tags_js -> str {
     tags = _model.tags;
     lines: list[str] = [];
     isa_parts: list[str] = [];
+    reg_parts: list[str] = [];
     for name in _model.arch_kind.keys() {
         tag = tags.get(name);
         if tag is None {
@@ -5403,6 +5404,7 @@ impl EsastGenPass._build_osp_tags_js -> str {
         lines.append(
             f'if (typeof {name} !== "undefined") {name}.prototype.__tag = {tag};'
         );
+        reg_parts.append(f'{repr(name)}: {str(tag)}');
         isa_members = ", ".join(
             [
                 str(tags[a])
@@ -5415,6 +5417,13 @@ impl EsastGenPass._build_osp_tags_js -> str {
     lines.append(
         "var __ospISA = Object.assign(globalThis.__jacOspIsa ??= {}, {"
             + ", ".join(isa_parts)
+            + "});"
+    );
+    # Name→tag registry so the bun host can restore __tag on hydrated nodes.
+    lines.append(
+        "globalThis.__jacOspTagByName = Object.assign("
+            + "globalThis.__jacOspTagByName ??= {}, {"
+            + ", ".join(reg_parts)
             + "});"
     );
     return "\n".join(lines);

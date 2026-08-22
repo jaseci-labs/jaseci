@@ -132,10 +132,6 @@ def _command_routes -> list[CommandMeta] {
                         'cef',
                         'react-native',
                         'bun',
-                        'web-worker',
-                        'service-worker',
-                        'edge',
-                        'cli-js',
                         'test'
                     ]
                 ),
@@ -1099,7 +1095,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='server',
                     typ='bool',
-                    default=False,
+                    `default=False,
                     help='With --npm: sync the Bun server npm root at .jac/server/ (for Bun-hosted sv services). Ignored without --npm.',
                     short=''
                 ),
@@ -1841,10 +1837,6 @@ def _command_routes -> list[CommandMeta] {
                         'cef',
                         'react-native',
                         'bun',
-                        'web-worker',
-                        'service-worker',
-                        'edge',
-                        'cli-js',
                         'test'
                     ]
                 ),
