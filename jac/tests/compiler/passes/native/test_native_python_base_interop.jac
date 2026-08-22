@@ -50,7 +50,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -58,7 +58,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 """Run the fixture's function in the plain Python lane."""
-def run_py_lane(fixture_stem: str, func_name: str) -> object {
+def run_py_lane(fixture_stem: str, func_name: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);
@@ -117,7 +117,7 @@ test "an inherited field store is visible on the Python shadow" {
     assert len(_pyb_shadows) == 1 , (
         f"expected one live shadow, found {len(_pyb_shadows)}"
     );
-    shadow = list(_pyb_shadows.values())[0];
+    shadow: any = list(_pyb_shadows.values())[0];
     assert type(shadow).__name__ == "Kid" , type(shadow).__name__;
     assert any(c.__name__ == "PyBase" for c in type(shadow).__mro__) , (
         "shadow is not an instance of the Python base"

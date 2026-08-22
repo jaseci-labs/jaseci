@@ -53,9 +53,7 @@ def compile_and_check(fixture_name: str) -> tuple {
     import from jaclang.jac0core.compile_options { CompileOptions }
     path = os.path.join(NEW_DIAG_FIXTURES, fixture_name);
     program = JacProgram();
-    mod = program.compile(
-        path, options=CompileOptions(type_check=True, default_codespace='server')
-    );
+    mod = program.compile(path, options=CompileOptions(default_codespace='server'));
     return (program, mod);
 }
 
@@ -1256,12 +1254,12 @@ with entry {
         "new reject",
         list(MUST_REJECT_NEW.items()),
         reject_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "new validate reject",
         list(MUST_VALIDATE_NEW.items()),
         validate_reject_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
 }

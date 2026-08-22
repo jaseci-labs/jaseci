@@ -2921,16 +2921,7 @@ impl Parser.parse_jsx_element -> JsxElement {
 
     open_kid.append(self.consume_uni(TokenKind.JSX_TAG_END));
 
-    opening = JsxElement(
-        name=elem_name,
-        attributes=attrs,
-        children=None,
-        is_self_closing=False,
-        is_fragment=False,
-        dynamic_tag=dyn_tag,
-        kid=open_kid
-    );
-    kid.append(opening);
+    kid.extend(open_kid);
 
     children = self.parse_jsx_children();
     kid.extend(children);
@@ -2956,15 +2947,7 @@ impl Parser.parse_jsx_element -> JsxElement {
         close_kid.append(close_elem_name);
     }
     close_kid.append(self.consume_uni(TokenKind.JSX_TAG_END));
-    closing = JsxElement(
-        name=close_elem_name,
-        attributes=[],
-        children=None,
-        is_self_closing=False,
-        is_fragment=False,
-        kid=close_kid
-    );
-    kid.append(closing);
+    kid.extend(close_kid);
     return JsxElement(
         name=elem_name,
         attributes=attrs,

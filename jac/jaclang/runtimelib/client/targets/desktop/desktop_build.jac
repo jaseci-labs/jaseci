@@ -5,6 +5,7 @@ import hashlib;
 import subprocess;
 import sys;
 import tarfile;
+import from http.client { HTTPResponse }
 import from urllib.request { urlopen, urlretrieve }
 import from pathlib { Path }
 import from jaclang.cli.console { console }
@@ -317,9 +318,10 @@ def _cef_plat_tag -> str {
 
 def _cef_index_sha1(plat_tag: str, archive: str) -> str {
     try {
-        with urlopen(
+        response: HTTPResponse = urlopen(
             "https://cef-builds.spotifycdn.com/index.json", timeout=30
-        ) as resp {
+        );
+        with response as resp {
             idx = json.loads(resp.read().decode("utf-8"));
         }
         versions = idx.get(plat_tag, {}).get("versions", []);

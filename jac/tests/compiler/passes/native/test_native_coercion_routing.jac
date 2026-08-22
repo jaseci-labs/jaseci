@@ -45,7 +45,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -53,7 +53,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 """Import the same fixture through the sv/bytecode pathway."""
-def sv_module -> object {
+def sv_module -> any {
     return JacRuntime.jac_import(
         target="coercion_routing", base_path=FIXTURES, override_name="cr_sv_mod"
     )[0];

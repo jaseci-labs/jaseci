@@ -429,7 +429,7 @@ def _safe_model_default(default_src: str) -> str {
     if isinstance(expr, ast.Call)
         and isinstance(expr.func, ast.Name)
         and (expr.func.id == "field") {
-        inner = None;
+        inner: (ast.expr | None) = None;
         for kw in expr.keywords {
             if (kw.arg in ["factory", "default_factory"])
                 and isinstance(kw.value, ast.Lambda) {

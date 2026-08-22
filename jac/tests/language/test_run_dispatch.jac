@@ -229,6 +229,7 @@ test "stale entry-point resolves by stem to the real language file" {
 test "missing entry yields no plan for runnable kinds" {
     d = _mk_project("kind = \"cli\"\nentry-point = \"nope.jac\"\n", "");
     cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
     assert plan_project_run(cfg, d) is None;
 }
 

@@ -81,8 +81,8 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=path,
         use_str=code,
         options=CompileOptions(
-            type_check=True,
             no_cgen=True,
+            native_parity=True,
             force_codespace="native",
             force_target_program=True
         )
@@ -93,7 +93,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
 """Call a no-argument int-returning function out of a compiled module's JIT
 engine. A guardrail that has become a lowering pin needs the native lane's
 answer, not just its layout membership."""
-def native_answer(eng: object, name: str) -> int {
+def native_answer(eng: any, name: str) -> int {
     assert eng is not None , f"no native engine produced for {name}";
     addr = eng.get_function_address(name);
     assert addr != 0 , f"'{name}' not found in the JIT engine";
@@ -436,7 +436,8 @@ test "checker: membership over an operand with no static type is refused (E1124)
         if e.code is not None and e.code.code == "E1124"
     ];
     for e in e1124 {
-        assert "annotate" in (e.code.help_text or "") , (
+        _help = e.code.help_text if e.code is not None else None;
+        assert "annotate" in (_help or "") , (
             f"E1124 must demand an annotation, got: {e}"
         );
     }

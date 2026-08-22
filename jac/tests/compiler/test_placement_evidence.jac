@@ -77,7 +77,10 @@ test "root-using archetypes keep the server anchor" {
         found = "";
         for el in mod.body {
             if type(el).__name__ == "Archetype" {
-                found = str(el.code_context);
+                # `body` elements are typed as the statement union; only the
+                # Archetype member carries `code_context`.
+                arch: any = el;
+                found = str(arch.code_context);
             }
         }
         assert "server" in found , f"persisted archetype should anchor server, got {found}";

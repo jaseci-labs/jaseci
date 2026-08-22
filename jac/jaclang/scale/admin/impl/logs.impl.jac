@@ -217,6 +217,11 @@ def _flatten_loki_response(payload: dict, ascending: bool = True) -> list[dict] 
 
 
 impl JacAPIServerLogs.register_logs_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def services_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -226,7 +231,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             content={"ok": True, "data": {"services": _microservice_services()}}
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/services",
@@ -331,7 +336,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs",
@@ -408,7 +413,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/trace/{trace_id}",

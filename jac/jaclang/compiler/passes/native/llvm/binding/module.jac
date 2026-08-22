@@ -18,7 +18,7 @@ import from jaclang.compiler.passes.native.llvm.binding.context { get_global_con
 """
     Create Module from a LLVM IR string
     """
-def parse_assembly(llvmir: any, context: any = None) -> object {
+def parse_assembly(llvmir: any, context: any = None) -> ModuleRef {
     if (context is None) {
         context = get_global_context();
     }
@@ -231,6 +231,8 @@ class _Iterator(ffi.ObjectRef) {
         self._parents = parents;
         assert (self.kind is not None);
     }
+
+    def _next(self: _Iterator) -> object abst;
 
     def __next__(self: _Iterator) -> object {
         vp = self._next();

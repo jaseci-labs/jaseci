@@ -62,9 +62,7 @@ def _registry -> any {
         return _REG_MEMO[0];
     }
     prog = JacProgram();
-    ir = prog.compile(
-        file_path=FIXTURE, options=CompileOptions(aot_mode=True, type_check=True)
-    );
+    ir = prog.compile(file_path=FIXTURE, options=CompileOptions(aot_mode=True));
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     reg = get_layout_registry(ir, prog);
     _REG_MEMO.append(reg);

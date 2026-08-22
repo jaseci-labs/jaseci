@@ -13,6 +13,11 @@ import from jaclang.runtimelib.testing { JacTestClient }
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
 def make_client(base_path: str) -> JacTestClient {
     return JacTestClient.from_file(
         str((Path(FIXTURES) / "abort_app.jac").resolve()), base_path=base_path
@@ -23,7 +28,7 @@ def make_client(base_path: str) -> JacTestClient {
 def count_items(client: JacTestClient) -> int {
     response = client.post("/walker/CountItems", json={});
     assert response.ok , f"CountItems failed: {response.json()}";
-    reports = response.data.get("reports", []);
+    reports = _as_any(response.data).get("reports", []);
     assert reports , f"CountItems returned no reports: {response.data}";
     return reports[0]["count"];
 }

@@ -322,16 +322,16 @@ impl _is_enum(tp: any) -> bool {
 }
 
 impl _is_namedtuple(tp: any) -> bool {
-    return (
+    return bool(
         isinstance(tp, type)
-        and issubclass(tp, tuple)
-        and tp?._fields
-        and tp?.__annotations__
+            and issubclass(tp, tuple)
+            and tp?._fields
+            and tp?.__annotations__
     );
 }
 
 impl _is_typed_dict(tp: any) -> bool {
-    return (isinstance(tp, type) and tp?.__annotations__ and tp?.__required_keys__);
+    return bool(isinstance(tp, type) and tp?.__annotations__ and tp?.__required_keys__);
 }
 
 impl _rand_str(n: int = 12) -> str {

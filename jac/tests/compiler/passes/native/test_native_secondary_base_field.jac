@@ -48,7 +48,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Call `name` in the JIT engine over the five fixture instances."""
-def probe(eng: object, name: str) -> list[int] {
+def probe(eng: any, name: str) -> list[int] {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     f = ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);

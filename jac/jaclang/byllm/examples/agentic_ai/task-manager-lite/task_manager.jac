@@ -1,5 +1,4 @@
 import from jaclang.byllm.llm { Model }
-import from jaclang.jac0core.archetype { Root }
 import time;
 
 glob llm = Model(model_name="gpt-4o");
@@ -32,10 +31,14 @@ node TaskHandling {
 
     can execute with task_manager entry {
         print("[TaskHandling Node Activated]");
-        response = self.route_and_run(visitor.cur_task.task);
+        cur = visitor.cur_task;
+        if cur is None {
+            return;
+        }
+        response = self.route_and_run(cur.task);
         print("→", response);
         report {
-            "utterance": visitor.cur_task.task,
+            "utterance": cur.task,
             "response": response,
             "node_type": self.__class__.__name__
         };
@@ -50,10 +53,14 @@ node EmailHandling {
 
     can execute with task_manager entry {
         print("[EmailHandling Node Activated]");
-        response = self.route_and_run(visitor.cur_task.task);
+        cur = visitor.cur_task;
+        if cur is None {
+            return;
+        }
+        response = self.route_and_run(cur.task);
         print("→", response);
         report {
-            "utterance": visitor.cur_task.task,
+            "utterance": cur.task,
             "response": response,
             "node_type": self.__class__.__name__
         };
@@ -64,10 +71,14 @@ node GeneralChat {
     def chat(utterance: str) -> str by llm();
     can execute with task_manager entry {
         print("[GeneralChat Node Activated]");
-        response = self.chat(visitor.cur_task.task);
+        cur = visitor.cur_task;
+        if cur is None {
+            return;
+        }
+        response = self.chat(cur.task);
         print("→", response);
         report {
-            "utterance": visitor.cur_task.task,
+            "utterance": cur.task,
             "response": response,
             "node_type": self.__class__.__name__
         };
@@ -91,7 +102,7 @@ sem TaskPartition.agent_type = "Type of the agent that should handle this Task";
 
 walker task_manager {
     has utterance: str = "",
-        cur_task: TaskPartition = None;
+        cur_task: TaskPartition | None = None;
 
     def route_to_node(utterance: str) -> RoutingNodes by llm();
     def plan_tasks(main_task: str) -> list[TaskPartition] by llm();
@@ -110,7 +121,8 @@ walker task_manager {
             node_type = node_map[subtask.agent_type];
             routed_node = [-->[?:node_type]];
             if not routed_node {
-                routed_node = here ++> node_type();
+                here ++> node_type();
+                routed_node = [-->[?:node_type]];
             }
             self.cur_task = subtask;
             visit routed_node;

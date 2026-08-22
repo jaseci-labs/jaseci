@@ -95,13 +95,14 @@ test "nav manifest and corpus files agree exactly" {
     }
     walk(manifest["nav"]);
 
-    on_disk = {
+    on_disk: set[str] = {
         str(f.relative_to(docs_dir())).replace("\\", "/")
         for f in docs_dir().rglob("*.md")
     };
-    assert set(pages) == on_disk , (
-        f"nav/corpus drift -- only in nav: {sorted(set(pages) - on_disk)}; "
-        f"only on disk: {sorted(on_disk - set(pages))}"
+    nav_set: set[str] = set(pages);
+    assert nav_set == on_disk , (
+        f"nav/corpus drift -- only in nav: {sorted(nav_set - on_disk)}; "
+        f"only on disk: {sorted(on_disk - nav_set)}"
     );
     assert len(pages) == len(set(pages)) , "duplicate pages in nav.json";
 }
