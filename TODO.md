@@ -109,6 +109,6 @@ Post-TODO queue is clear of the three axes above. Further work is opportunistic 
 ### Suggested parallel workstreams (distinct file ownership)
 
 1. ~~**Finish heapq/bisect product path**~~ ✓ - native jacpython facades (`_p2_*`, no `::py::`); Modules stay C-API hand oracles; staged-sync + facade parity gates.
-2. **Parser #8473** - `parser.jac` / grammar2jac kwargs gather only.
-3. **P2 leaf deepen / next module** - e.g. `_stat` / `_opcode` jacpython facades + libtest (not heapq files).
+2. ~~**Parser #8473**~~ ✓ - trailing `**` after named kwargs (`pa_join_sequences`); merged onto `jac-python`.
+3. ~~**P2 leaf deepen / `_stat` / `_opcode` facades**~~ ✓ - native `jacpython/_statmodule.jac` + `_opcodemodule.jac`; libtest shims + facade parity; `opcode_meta2jac` emits `OPCODE_HAS_*` classifiers.
 4. **Compiler deferral slice** - e.g. try/except/finally multi-handler or except-as-in-finally (`compiler_codegen` only; coordinate if Band 10 uncommitted).
