@@ -676,6 +676,53 @@ test "vm: WITH_EXCEPT_START handles context manager exit" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# Regression (TODO item 17): the exception type passed to __exit__ must carry
+# identity attrs (__name__/__qualname__) like a CPython class object.
+test "vm: __exit__ receives exception type with __name__" {
+    setup = "";
+    body = "seen = []\n"
+        + "class CM:\n"
+        + "    def __enter__(self):\n        return self\n"
+        + "    def __exit__(self, et, ev, tb):\n"
+        + "        seen.append((et.__name__, ev.__class__.__name__))\n"
+        + "        return True\n"
+        + "for ET in (ValueError, KeyError):\n"
+        + "    with CM():\n        raise ET('x')\n"
+        + "result = seen\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# Regression (TODO item 18): del on a property routes through fdel; a property
+# without a deleter raises AttributeError instead of silently deleting.
+test "vm: property deleter invoked by del attr" {
+    setup = "";
+    body = "gone = []\n"
+        + "class T1:\n"
+        + "    @property\n"
+        + "    def x(self): return 1\n"
+        + "    @x.deleter\n"
+        + "    def x(self): gone.append('del')\n"
+        + "o = T1()\n"
+        + "del o.x\n"
+        + "result = gone\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+test "vm: del on property without deleter raises AttributeError" {
+    setup = "";
+    body = "class T2:\n"
+        + "    @property\n"
+        + "    def x(self): return 1\n"
+        + "del T2().x\n";
+    host_exc = host_raises(setup, body);
+    assert host_exc is not None;
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == (host_exc[0] as str);
+}
+
 # vm-opcode: OP_LOAD_COMMON_CONSTANT
 test "vm: LOAD_COMMON_CONSTANT raises AssertionError on failed assert" {
     setup = "";
