@@ -1906,6 +1906,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                         self.emit_diag(E1010, expr, op=op_name, type=operand_type.name);
                         return UnknownType();
                     }
+                    if isinstance(operand_type, UnknownType)
+                        and not operand_type.is_diagnosed
+                        and not operand_type.is_incomplete {
+                        self.emit_diag(E1010, expr, op=op_name, type=str(operand_type));
+                        return UnknownType(is_diagnosed=True);
+                    }
                     return operand_type;
                 }
             }

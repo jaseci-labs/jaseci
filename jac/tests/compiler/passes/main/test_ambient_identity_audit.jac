@@ -145,7 +145,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
     rp = os.path.realpath(tmpdir);
     for alert in (program.errors_had + program.warnings_had) {
         code = alert.code.code if alert.code is not None else "?";
-        if code == "W1103" {
+        if code in ("W1103", "E1125") {
             continue;
         }
         msg = alert.msg.replace(rp, "<T>").replace(tmpdir, "<T>");

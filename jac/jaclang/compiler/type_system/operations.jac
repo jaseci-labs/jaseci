@@ -256,9 +256,17 @@ def get_type_of_binary_operation(
         and expr.op.name in BINARY_OPERATOR_MAP
         and expr.op.name != Tok.BW_OR {
         for operand_type in (left_type, right_type) {
-            if isinstance(operand_type, (UnknownType, AnyType))
-                or operand_type.is_any_instance() {
+            if isinstance(operand_type, AnyType) or operand_type.is_any_instance() {
                 return operand_type;
+            }
+            if isinstance(operand_type, UnknownType) {
+                if operand_type.is_diagnosed or operand_type.is_incomplete {
+                    return operand_type;
+                }
+                evaluator.emit_diag(
+                    E1055, expr, method=BINARY_OPERATOR_MAP[expr.op.name][0]
+                );
+                return UnknownType(is_diagnosed=True);
             }
         }
         if isinstance(left_type, TypeVarType) {
