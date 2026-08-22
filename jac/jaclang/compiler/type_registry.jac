@@ -1,3 +1,6 @@
+import from jaclang.jac0core.scalars { NUMERIC_SHAPES, ScalarShape }
+import jaclang.jac0core.scalars as scalars;
+
 enum NumericKind {
     NotNumeric = "not_numeric",
     IntKind = "int_kind",
@@ -7,8 +10,50 @@ enum NumericKind {
 obj JacTypeEntry {
     has name: str,
         emitter_suffix: str,
-        na_type_spec: str | None = None,
-        numeric_kind: NumericKind = NumericKind.NotNumeric;
+        numeric_kind: NumericKind = NumericKind.NotNumeric,
+        width: int = 0,
+        signed: bool = False,
+        is_float: bool = False,
+        sized: bool = False;
+
+    def size_bytes -> int {
+        return max(1, self.width // 8);
+    }
+
+    def align -> int {
+        return self.size_bytes();
+    }
+
+    def is_int_kind -> bool {
+        return self.numeric_kind == NumericKind.IntKind;
+    }
+
+    def is_float_kind -> bool {
+        return self.numeric_kind == NumericKind.FloatKind;
+    }
+}
+
+def _numeric_entry(shape: ScalarShape, emitter_suffix: str) -> JacTypeEntry {
+    return JacTypeEntry(
+        name=shape.name,
+        emitter_suffix=emitter_suffix,
+        numeric_kind=NumericKind.FloatKind if shape.is_float else NumericKind.IntKind,
+        width=shape.width,
+        signed=shape.signed,
+        is_float=shape.is_float,
+        sized=shape.sized
+    );
+}
+
+def _numeric_entries -> dict[str, JacTypeEntry] {
+    out: dict[str, JacTypeEntry] = {};
+    for shape in NUMERIC_SHAPES {
+        suffix = "BoolEmitter"
+            if shape.name == "bool"
+            else ("FloatEmitter" if shape.is_float else "IntEmitter");
+        out[shape.name] = _numeric_entry(shape, suffix);
+    }
+    return out;
 }
 
 obj JacTypeRegistry {
@@ -32,11 +77,11 @@ obj JacTypeRegistry {
         return [(e.name, e.emitter_suffix) for e in self._entries.values()];
     }
 
-    def na_type_entries -> list[tuple[str, str]] {
+    def scalar_entries -> list[JacTypeEntry] {
         return [
-            (e.name, e.na_type_spec)
+            e
             for e in self._entries.values()
-            if e.na_type_spec is not None
+            if e.width > 0
         ];
     }
 
@@ -54,6 +99,42 @@ obj JacTypeRegistry {
             return NumericKind.NotNumeric;
         }
         return `entry.numeric_kind;
+    }
+
+    def is_numeric(name: str) -> bool {
+        return self.numeric_kind_of(name) != NumericKind.NotNumeric;
+    }
+
+    def is_sized(name: str) -> bool {
+        return scalars.is_sized(name);
+    }
+
+    def sized_int_names -> list[str] {
+        return scalars.sized_int_names();
+    }
+
+    def sized_float_names -> list[str] {
+        return scalars.sized_float_names();
+    }
+
+    def sized_scalar_names -> list[str] {
+        return scalars.sized_scalar_names();
+    }
+
+    def range_of(name: str) -> tuple[int, int] {
+        return scalars.range_of(name);
+    }
+
+    def literal_fits(name: str, value: int | float) -> bool {
+        return scalars.literal_fits(name, value);
+    }
+
+    def widens_to(src: str, dst: str) -> bool {
+        return scalars.widens_to(src, dst);
+    }
+
+    def unify(a: str, b: str) -> str | None {
+        return scalars.unify(a, b);
     }
 
     def is_exception(name: str) -> bool {
@@ -97,100 +178,22 @@ obj JacTypeRegistry {
 }
 
 glob JAC_TYPE_REGISTRY = JacTypeRegistry(
-         _entries={
-             "int": JacTypeEntry(
-                 name="int",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "float": JacTypeEntry(
-                 name="float",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f64",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-             "bool": JacTypeEntry(
-                 name="bool",
-                 emitter_suffix="BoolEmitter",
-                 na_type_spec="i1",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "complex": JacTypeEntry(name="complex", emitter_suffix="ComplexEmitter"),
-             "str": JacTypeEntry(
-                 name="str", emitter_suffix="StrEmitter", na_type_spec="i8*"
-             ),
-             "bytes": JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter"),
-             "list": JacTypeEntry(name="list", emitter_suffix="ListEmitter"),
-             "dict": JacTypeEntry(name="dict", emitter_suffix="DictEmitter"),
-             "set": JacTypeEntry(name="set", emitter_suffix="SetEmitter"),
-             "frozenset": JacTypeEntry(
-                 name="frozenset", emitter_suffix="FrozensetEmitter"
-             ),
-             "tuple": JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter"),
-             "range": JacTypeEntry(name="range", emitter_suffix="RangeEmitter"),
-             "i8": JacTypeEntry(
-                 name="i8",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u8": JacTypeEntry(
-                 name="u8",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i16": JacTypeEntry(
-                 name="i16",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u16": JacTypeEntry(
-                 name="u16",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i32": JacTypeEntry(
-                 name="i32",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u32": JacTypeEntry(
-                 name="u32",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i64": JacTypeEntry(
-                 name="i64",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u64": JacTypeEntry(
-                 name="u64",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "f32": JacTypeEntry(
-                 name="f32",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f32",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-             "f64": JacTypeEntry(
-                 name="f64",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f64",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-
-         },
+         _entries=_numeric_entries()
+             | {
+                 "complex": JacTypeEntry(
+                     name="complex", emitter_suffix="ComplexEmitter"
+                 ),
+                 "str": JacTypeEntry(name="str", emitter_suffix="StrEmitter", width=64),
+                 "bytes": JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter"),
+                 "list": JacTypeEntry(name="list", emitter_suffix="ListEmitter"),
+                 "dict": JacTypeEntry(name="dict", emitter_suffix="DictEmitter"),
+                 "set": JacTypeEntry(name="set", emitter_suffix="SetEmitter"),
+                 "frozenset": JacTypeEntry(
+                     name="frozenset", emitter_suffix="FrozensetEmitter"
+                 ),
+                 "tuple": JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter"),
+                 "range": JacTypeEntry(name="range", emitter_suffix="RangeEmitter")
+             },
          _builtin_names=frozenset(
              {
                  "print",

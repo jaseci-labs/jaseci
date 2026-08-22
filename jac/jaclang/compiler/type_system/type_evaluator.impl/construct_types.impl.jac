@@ -358,22 +358,26 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
 
     if node_.find_parent_of_type(Import) is not None {
         extern_params: list[Parameter] = [];
+        ret_type: TypeBase = AnyType(is_foreign=True);
         if isinstance(node_.signature, FuncSignature) {
             for extern_param in node_.signature.get_parameters() {
                 extern_params.append(
                     Parameter(
                         name=extern_param.name.value,
                         category=_get_param_category(extern_param),
-                        param_type=AnyType(is_foreign=True),
+                        param_type=self._extern_scalar_type(
+                            extern_param.type_tag.tag if extern_param.type_tag else None
+                        ),
                         default_value=extern_param.value,
                         param_kind=_convert_param_kind(extern_param.param_kind),
                     )
                 );
             }
+            ret_type = self._extern_scalar_type(node_.signature.return_type);
         }
         extern_fn = FunctionType(
             func_name=node_.name_spec.sym_name,
-            return_type=AnyType(is_foreign=True),
+            return_type=ret_type,
             parameters=extern_params,
         );
         node_.name_spec.type = extern_fn;
@@ -690,4 +694,18 @@ impl TypeEvaluator._super_owner_for(
         }
     }
     return rest[0];
+}
+
+impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if isinstance(type_expr, Name) {
+        name = type_expr.sym_name;
+        if JAC_TYPE_REGISTRY.is_numeric(name) or name == "str" {
+            declared = self.get_type_of_expression(type_expr);
+            if isinstance(declared, ClassType) {
+                return self._convert_to_instance(declared);
+            }
+        }
+    }
+    return AnyType(is_foreign=True);
 }

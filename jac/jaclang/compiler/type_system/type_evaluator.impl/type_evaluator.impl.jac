@@ -1737,6 +1737,18 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
 
                 if op.name in BINARY_OPERATOR_MAP {
+                    if both_numeric(left_type, right_type) {
+                        unify_numeric_operands(
+                            self,
+                            left_type,
+                            right_type,
+                            expr.left if i == 0 else expr.rights[i - 1],
+                            expr.rights[i],
+                            expr,
+                            op.value
+                        );
+                        continue;
+                    }
                     (magic, rmagic) = BINARY_OPERATOR_MAP[op.name];
                     result = self.get_type_of_magic_method_call(
                         left_type, magic, [expr.rights[i]], None
@@ -1936,6 +1948,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                         and not operand_type.is_diagnosed
                         and not operand_type.is_incomplete {
                         self.emit_diag(E1010, expr, op=op_name, type=str(operand_type));
+                        return UnknownType(is_diagnosed=True);
+                    }
+                    if expr.op.name == Tok.MINUS and is_unsigned_type(operand_type) {
+                        self.emit_diag(E1129, expr, type=str(operand_type));
                         return UnknownType(is_diagnosed=True);
                     }
                     return operand_type;
@@ -2870,21 +2886,13 @@ impl TypeEvaluator._assign_class(
         return True;
     }
 
-    if src_type.is_builtin("int") and dest_type.is_builtin("float") {
-        return True;
-    }
-
     if src_type.is_builtin() and dest_type.is_builtin() {
-        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
-        src_kind = JAC_TYPE_REGISTRY.numeric_kind_of(src_type.shared.class_name);
-        dest_kind = JAC_TYPE_REGISTRY.numeric_kind_of(dest_type.shared.class_name);
-        if src_kind != NumericKind.NotNumeric and dest_kind != NumericKind.NotNumeric {
-            if src_kind == dest_kind {
-                return True;
-            }
-            if src_kind == NumericKind.IntKind and dest_kind == NumericKind.FloatKind {
-                return True;
-            }
+        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+        src_name = src_type.shared.class_name;
+        dest_name = dest_type.shared.class_name;
+        if JAC_TYPE_REGISTRY.is_numeric(src_name)
+            and JAC_TYPE_REGISTRY.is_numeric(dest_name) {
+            return JAC_TYPE_REGISTRY.widens_to(src_name, dest_name);
         }
     }
 
@@ -3200,6 +3208,16 @@ impl TypeEvaluator.is_type_var_tuple_class(ty: TypeBase) -> bool {
         return True;
     }
     return self._is_typing_special_form(ty, "TypeVarTuple");
+}
+
+impl TypeEvaluator.assign_expr(
+    expr: Expr | None, src_type: TypeBase, dest_type: TypeBase, strict: bool = False
+) -> AssignVerdict {
+    verdict = assign_numeric_expr(self, expr, src_type, dest_type);
+    if verdict is not None {
+        return verdict;
+    }
+    return AssignVerdict(ok=self.assign_type(src_type, dest_type, strict));
 }
 
 impl TypeEvaluator.assign_type(

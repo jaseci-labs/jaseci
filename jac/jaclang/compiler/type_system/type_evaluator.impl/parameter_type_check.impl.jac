@@ -35,9 +35,18 @@ impl TypeEvaluator.validate_arg_types(
             continue;
         }
 
-        if not self.assign_type(arg_type, expected, strict=self._is_strict_site(arg)) {
+        verdict = self.assign_expr(
+            value, arg_type, expected, strict=self._is_strict_site(arg)
+        )
+            if not checking_overload
+            else AssignVerdict(
+                ok=self.assign_type(
+                    arg_type, expected, strict=self._is_strict_site(arg)
+                )
+            );
+        if not verdict.ok {
             has_errors = True;
-            if not checking_overload {
+            if not checking_overload and not verdict.diagnosed {
                 self.emit_diag(
                     E1053,
                     arg,
@@ -69,6 +78,11 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         and caller_type.is_builtin("auto")
         and (not expr.params or len(expr.params) == 0) {
         return self.prefetch.int_class or UnknownType();
+    }
+
+    fw_type = fixed_width_call_type(self, expr, caller_type);
+    if fw_type is not None {
+        return fw_type;
     }
 
     if self._in_native_context() {
@@ -234,6 +248,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
 
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
+                    self.validate_arg_types(arg_param_match);
                     ret_type = overload.return_type;
 
                     if ret_type and _contains_unknown(ret_type) {
@@ -633,6 +648,7 @@ impl TypeEvaluator._validate_constructor_method(
 
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
+                    self.validate_arg_types(arg_param_match);
                     matched_overload = overload;
                     break;
                 }

@@ -38,7 +38,7 @@ def neg_fmod(a: f64, b: f64) -> f64 {
 }
 
 def f32_int_add(a: f32, n: int) -> f64 {
-    return a + n;
+    return f64(a) + n;
 }
 
 def cmp_mixed_lt(a: f32, b: f64) -> bool {
@@ -63,6 +63,6 @@ obj P {
 
 def field_aug(delta: f64) -> f64 {
     p = P();
-    p.x += delta;
+    p.x += f32(delta);
     return p.x;
 }
