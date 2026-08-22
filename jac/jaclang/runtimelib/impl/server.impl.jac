@@ -621,6 +621,9 @@ impl ModuleIntrospector.load(force_reload: bool = False) -> None {
     }
     module = Jac.loaded_modules.get(self.module_name);
     if (not module or ((self._module is module) and not needs_import)) {
+        if module is not None and self._module is module {
+            self._check_module_freshness();
+        }
         return;
     }
     self._module = module;
@@ -707,7 +710,6 @@ impl ModuleIntrospector._extract_access_levels -> None {
     main_mod = Jac.get_program().find_module(os.path.abspath(mod_path))
         if mod_path
         else None;
-
     if not main_mod and mod_path {
         try {
             main_mod = Jac.get_program().compile(os.path.abspath(mod_path));
@@ -780,6 +782,37 @@ impl ModuleIntrospector._extract_access_levels -> None {
             if name not in self._walker_access {
                 self._walker_access[name] = auth;
             }
+        }
+    }
+
+    import from jaclang.jac0core.archetype { WalkerArchetype as _WalkerArch }
+    _live_missing = False;
+    for _wname in dir(self._module) {
+        _wcls = getattr(self._module, _wname, None);
+        if (
+            isinstance(_wcls, type)
+            and issubclass(_wcls, _WalkerArch)
+            and getattr(_wcls, '__module__', '') == self._module?.__name__
+            and _wname not in self._walker_access
+        ) {
+            _live_missing = True;
+            break;
+        }
+    }
+    if _live_missing and mod_path {
+        try {
+            _fresh_mod = Jac.get_program().compile(os.path.abspath(mod_path));
+            _fman = _fresh_mod.gen.interop_manifest;
+            if _fman is not None {
+                for (name, auth) in _fman.func_access.items() {
+                    self._function_access[name] = auth;
+                }
+                for (name, auth) in _fman.walker_access.items() {
+                    self._walker_access[name] = auth;
+                }
+            }
+        } except Exception {
+            ;
         }
     }
 }
@@ -1098,6 +1131,12 @@ impl ModuleIntrospector._check_module_freshness -> None {
         if current_cls is not cached_cls {
             needs_refresh = True;
             break;
+        }
+    }
+    if not needs_refresh {
+        _fresh_walkers = self._collect_walkers();
+        if set(_fresh_walkers.keys()) != set(self._walkers.keys()) {
+            needs_refresh = True;
         }
     }
     if needs_refresh {

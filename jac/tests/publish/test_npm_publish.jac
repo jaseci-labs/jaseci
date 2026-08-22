@@ -278,7 +278,7 @@ test "NpmBuilder rejects modules that cross a server boundary" {
         );
         (pkg / "index.jac").write_text(
             'import from api { fetch_count }\n\n'
-            'def:pub show() -> int { return fetch_count(); }\n'
+            'async def:pub show() -> int { return await fetch_count(); }\n'
         );
         cfg = JacConfig.from_toml_str(
             '[project]\nname = "svlib"\nversion = "1.0.0"\n\n'

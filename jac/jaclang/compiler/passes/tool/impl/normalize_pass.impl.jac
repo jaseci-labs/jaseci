@@ -3,6 +3,39 @@ impl NormalizePass.enter_sub_tag(nd: uni.SubTag) -> None {
 }
 
 impl NormalizePass.enter_module(nd: uni.Module) -> None {
+    if nd.is_raised_from_py {
+        for imp in nd.get_all_sub_nodes(typ=uni.Import) {
+            if imp.from_loc is None or imp.from_loc.dot_path_str != "typing" {
+                continue;
+            }
+            _kept = [
+                i
+                for i in imp.items
+                if not (isinstance(i, uni.ModuleItem) and i.name.value == "Any")
+            ];
+            if not _kept and imp.parent is not None and imp in nd.body {
+                nd.body = [
+                    st
+                    for st in nd.body
+                    if st is not imp
+                ];
+            } elif len(_kept) != len(imp.items) {
+                imp.items = _kept;
+                imp.set_kids(
+                    nodes=[
+                        k
+                        for k in imp.kid
+                        if not (isinstance(k, uni.ModuleItem) and k.name.value == "Any")
+                    ]
+                );
+            }
+        }
+        for anm in nd.get_all_sub_nodes(typ=uni.Name) {
+            if anm.value == "Any" {
+                anm.value = "any";
+            }
+        }
+    }
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);

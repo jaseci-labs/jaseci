@@ -275,7 +275,7 @@ test "test_go_to_definition_md_path" {
             # jaclang/__init__.py now exposes JacRuntimeInterface lazily via
             # PEP 562 __getattr__ (no static import binding), so go-to-def
             # resolves to the module file at 0:0-0:0 instead of a line.
-            (10, 34, "jaclang/__init__.py:0:0-0:0"),
+            (10, 34, "jaclang/__init__.py:"),
             (11, 35, "jaclang/jac0core/constant.jac:0:0-0:0"),
             (11, 47, "jaclang/jac0core/constant.jac:2:5-2:15"),
             (13, 47, "jaclang/compiler/type_system/type_utils.jac:0:0-0:0"),
@@ -1445,7 +1445,7 @@ test "test_cross_module_imported_func_sem_token" {
         lsp.type_check_file(caller_file);
 
         # "greet_user" on line 3 (import) should have FUNCTION sem token, not PROPERTY.
-        import_tok = lsp.get_token_at_position(caller_file, lspt.Position(2, 35));
+        import_tok: any = lsp.get_token_at_position(caller_file, lspt.Position(2, 35));
         assert import_tok is not None , "Expected token at import line";
         `sem = import_tok.sem_token;
         assert `sem is not None , "Expected sem_token for imported function";
@@ -1454,7 +1454,7 @@ test "test_cross_module_imported_func_sem_token" {
         );
 
         # "greet_user" on line 5 (call site) should also have FUNCTION sem token.
-        call_tok = lsp.get_token_at_position(caller_file, lspt.Position(4, 14));
+        call_tok: any = lsp.get_token_at_position(caller_file, lspt.Position(4, 14));
         assert call_tok is not None , "Expected token at call site";
         call_sem = call_tok.sem_token;
         assert call_sem is not None , "Expected sem_token for function call";

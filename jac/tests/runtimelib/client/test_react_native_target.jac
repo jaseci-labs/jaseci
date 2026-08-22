@@ -251,7 +251,8 @@ test "ViteCompiler wires jac_client_compiler on init" {
         "targets can reach the bundler-agnostic compile layer."
     );
     # Both compilers must share one compiled dir (the engine owns it).
-    assert "self.compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "self.compiled_dir = compiled_dir" in impl_content;
 }
 
 test "react native target addresses the entry by project-relative module path" {

@@ -189,13 +189,13 @@ impl _suite_source(filepath: str) -> str {
             import from jaclang.jac0core.bccache { discover_base_file }
             base = discover_base_file(filepath);
             if base {
-                return os.path.abspath(base);
+                return os.path.realpath(base);
             }
         } except Exception {
             ;
         }
     }
-    return os.path.abspath(filepath);
+    return os.path.realpath(filepath);
 }
 
 impl _iter_candidate_files(start: str, ignore: (list[str] | None) = None) -> list[str] {
