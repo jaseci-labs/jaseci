@@ -42,7 +42,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable int -> int function from the JIT engine."""
-def get_func(eng: object, name: str) -> object {
+def get_func(eng: any, name: str) -> object {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);

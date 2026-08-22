@@ -2026,6 +2026,28 @@ impl TypeEvaluator._get_type_of_expression_core(
             if scope := self._resolution_scope_for(expr) {
                 symbol = lookup_symtab(scope, expr.value, self.builtins_module);
 
+                if (
+                    symbol is not None
+                    and symbol.decl is not None
+                    and isinstance(symbol.decl.name_of, ParamVar)
+                    and expr.find_parent_of_type(FuncSignature) is not None
+                ) {
+                    _ann_fn = symbol.decl.name_of.find_parent_of_type(Ability);
+                    _use_fn = expr.find_parent_of_type(Ability);
+                    if (
+                        _ann_fn is not None
+                        and _ann_fn is _use_fn
+                        and _use_fn.sym_tab is not None
+                        and _use_fn.sym_tab.parent_scope is not None
+                    ) {
+                        symbol = lookup_symtab(
+                            _use_fn.sym_tab.parent_scope,
+                            expr.value,
+                            self.builtins_module
+                        );
+                    }
+                }
+
                 if self._in_native_context()
                     and (symbol is None or symbol.parent_tab is self.builtins_module) {
                     na_sym = self.na_builtins_module.names_in_scope.get(expr.value);

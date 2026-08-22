@@ -182,7 +182,7 @@ obj GrammarExtractPass(UniPass) {
     def _walk_strict(rule_name: str, nd: uni.UniNode) -> None;
     def emit_diagnostics -> str;
     static def format_ebnf(expr: GExpr) -> str;
-    def simplify_expr(expr: GExpr) -> GExpr;
+    static def simplify_expr(expr: GExpr) -> GExpr;
     def interpret_stmts(stmts: list) -> GExpr | None;
     def interpret_stmt(stmt: uni.UniNode) -> GExpr | None;
     def interpret_call(call: uni.FuncCall) -> GExpr | None;

@@ -10,11 +10,11 @@ def create_new_function_pass_manager -> object {
     return FunctionPassManager();
 }
 
-def create_pass_builder(tm: any, pto: any) -> object {
+def create_pass_builder(tm: any, pto: any) -> PassBuilder {
     return PassBuilder(tm, pto);
 }
 
-def create_pipeline_tuning_options(speed_level: any = 2) -> object {
+def create_pipeline_tuning_options(speed_level: any = 2) -> PipelineTuningOptions {
     return PipelineTuningOptions(speed_level);
 }
 
@@ -694,7 +694,7 @@ class PassBuilder(ffi.ObjectRef) {
         self._time_passes_handler = None;
     }
 
-    def getModulePassManager(self: PassBuilder) -> object {
+    def getModulePassManager(self: PassBuilder) -> ModulePassManager {
         return ModulePassManager(
             ffi.lib.LLVMPY_buildPerModuleDefaultPipeline(self, self._pto.speed_level)
         );

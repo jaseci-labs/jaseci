@@ -143,7 +143,7 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
     if isinstance(expr, GSeq) {
         flat: list = [];
         for item in expr.items {
-            simplified = self.simplify_expr(item);
+            simplified = GrammarExtractPass.simplify_expr(item);
             if isinstance(simplified, GSeq) {
                 flat.extend(simplified.items);
             } else {
@@ -162,7 +162,7 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
         flat2: list = [];
         seen: set = set();
         for choice in expr.choices {
-            simplified = self.simplify_expr(choice);
+            simplified = GrammarExtractPass.simplify_expr(choice);
             if isinstance(simplified, GAlt) {
                 for inner_c in simplified.choices {
                     key = repr(inner_c);
@@ -225,7 +225,7 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
         return GAlt(choices=flat2);
     }
     if isinstance(expr, GOpt) {
-        simplified_opt = self.simplify_expr(expr.inner);
+        simplified_opt = GrammarExtractPass.simplify_expr(expr.inner);
 
         if isinstance(simplified_opt, GStar) {
             return simplified_opt;
@@ -233,7 +233,7 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
         return GOpt(inner=simplified_opt);
     }
     if isinstance(expr, GStar) {
-        simplified_inner = self.simplify_expr(expr.inner);
+        simplified_inner = GrammarExtractPass.simplify_expr(expr.inner);
 
         if isinstance(simplified_inner, GOpt) {
             simplified_inner = simplified_inner.inner;
@@ -252,7 +252,7 @@ impl GrammarExtractPass.simplify_expr(expr: GExpr) -> GExpr {
         return GStar(inner=simplified_inner);
     }
     if isinstance(expr, GPlus) {
-        return GPlus(inner=self.simplify_expr(expr.inner));
+        return GPlus(inner=GrammarExtractPass.simplify_expr(expr.inner));
     }
     return expr;
 }
@@ -356,7 +356,7 @@ impl GrammarExtractPass._compute_rule_firsts(rules: list) -> dict {
 impl GrammarExtractPass._stage_simplify(rules: list) -> list {
     result: list = [];
     for rule in rules {
-        result.append(GrammarRule(name=rule.name, body=self.simplify_expr(rule.body)));
+        result.append(GrammarRule(name=rule.name, body=GrammarExtractPass.simplify_expr(rule.body)));
     }
     return result;
 }

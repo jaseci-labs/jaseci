@@ -69,7 +69,7 @@ def compile_fixture(fixture: str) -> object {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: object, *argtypes: object) -> object {
+def get_func(eng: any, name: str, restype: object, *argtypes: object) -> object {
     import ctypes;
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";

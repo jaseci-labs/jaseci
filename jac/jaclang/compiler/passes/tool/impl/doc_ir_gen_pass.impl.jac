@@ -143,15 +143,16 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
         if name_node {
             parts.append(name_node.gen.doc_ir);
         } elif not nd.is_fragment {
-            for k in nd.kid {
-                if k is start_token or k is end_token {
-                    continue;
-                }
+            for k in nd.kid[1:] {
                 if (
                     isinstance(k, uni.JsxNormalAttribute)
                     or isinstance(k, uni.JsxSpreadAttribute)
+                    or (
+                        isinstance(k, uni.Token)
+                        and k.name in (Tok.JSX_TAG_END, Tok.JSX_SELF_CLOSE)
+                    )
                 ) {
-                    continue;
+                    break;
                 }
                 parts.append(k.gen.doc_ir);
             }
@@ -182,7 +183,7 @@ impl DocIRGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {
                 and _kn.name in (Tok.JSX_TAG_END, Tok.JSX_SELF_CLOSE) {
                 open_end_tok = _kn;
             }
-            if close_start_idx < 0 and _kn.value == "</" {
+            if _kn.value == "</" {
                 close_start_idx = _ki;
             }
         }
