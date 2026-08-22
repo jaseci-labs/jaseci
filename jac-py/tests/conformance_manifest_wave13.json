@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave13",
+  "description": "P2 wave-13 conformance manifest (structmodule facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "structmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_struct_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade archetypes mirroring pinned CPython algorithms; host-oracle parity tests"
+    }
+  ]
+}

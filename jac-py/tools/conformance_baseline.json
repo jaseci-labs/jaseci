@@ -2,7 +2,7 @@
   "schema": 1,
   "updated": "2026-08-22",
   "description": "Pinned D2 conformance pass-set (grow-only ratchet). Regenerate with: python3 tools/conformance_dashboard.py --update-baseline",
-  "entry_count": 50,
+  "entry_count": 53,
   "entries": {
     "_bisectmodule": {
       "wave": "p2_wave1",
@@ -27,6 +27,13 @@
     },
     "_stat": {
       "wave": "p2_wave2",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "arraymodule": {
+      "wave": "p2_wave14",
       "gate_type": "oracle",
       "status": "gated",
       "cases_passed": null,
@@ -59,6 +66,13 @@
       "status": "gated",
       "cases_passed": 1,
       "cases_total": 1
+    },
+    "itertoolsmodule": {
+      "wave": "p2_wave12",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
     },
     "math_abs_diff": {
       "wave": "p2_wave8",
@@ -349,6 +363,13 @@
     },
     "strhex_byte": {
       "wave": "p2_wave3",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "structmodule": {
+      "wave": "p2_wave13",
       "gate_type": "oracle",
       "status": "gated",
       "cases_passed": null,

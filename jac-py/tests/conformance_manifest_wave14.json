@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave14",
+  "description": "P2 wave-14 conformance manifest (arraymodule facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "arraymodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_array_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade archetypes mirroring pinned CPython algorithms; host-oracle parity tests"
+    }
+  ]
+}

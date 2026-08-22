@@ -22,7 +22,7 @@ _JAC = _REPO / ".venv" / "bin" / "jac"
 _MAX_DENSITY = 0.15
 # Waves 2-11 carried four leaf extracts each; wave 12 is the single-module
 # itertools facade port.
-_EXPECTED_COUNTS = {**{w: 4 for w in range(2, 12)}, 12: 1}
+_EXPECTED_COUNTS = {**{w: 4 for w in range(2, 12)}, 12: 1, 13: 1, 14: 1}
 
 
 def _load(path: Path) -> dict:
@@ -36,7 +36,7 @@ class P2CorpusWavesGateTests(unittest.TestCase):
             raise unittest.SkipTest(f"missing {_JAC} - run from repo with .venv")
 
     def test_all_waves(self) -> None:
-        for wave in range(2, 13):
+        for wave in range(2, 15):
             with self.subTest(wave=wave):
                 self._check_wave(wave)
 

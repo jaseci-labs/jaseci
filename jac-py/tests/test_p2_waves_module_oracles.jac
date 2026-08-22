@@ -102,6 +102,12 @@ def _expected_stems(wave: int) -> list {
     if wave == 12 {
         return ["itertoolsmodule"];
     }
+    if wave == 13 {
+        return ["structmodule"];
+    }
+    if wave == 14 {
+        return ["arraymodule"];
+    }
     return [];
 }
 
