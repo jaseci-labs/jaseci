@@ -820,7 +820,9 @@ def relative_js_specifier(target_path: str, importer_path: str) -> str {
         target = target[:-4];
     }
 
-    rel = os.path.relpath(target, os.path.dirname(importer_path));
+    rel = os.path.relpath(
+        os.path.realpath(target), os.path.dirname(os.path.realpath(importer_path))
+    );
     rel = rel.replace(os.sep, '/');
     if not rel.startswith('.') {
         rel = './' + rel;

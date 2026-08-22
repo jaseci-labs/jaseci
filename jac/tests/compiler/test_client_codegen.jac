@@ -74,7 +74,7 @@ test "type to typeof and spawn operator" {
     prog = JacProgram();
 
     # --- type to typeof conversion ---
-    typeof_code = '"""Test type() to typeof conversion."""\n\ndef check_types() {\n    x = 42;\n    y = "hello";\n    z = True;\n\n    t1 = type(x);\n    t2 = type(y);\n    t3 = type(z);\n    t4 = type("world");\n\n    return t1;\n}\n';
+    typeof_code = '"""Test type() to typeof conversion."""\n\ndef check_types() -> any {\n    x = 42;\n    y = "hello";\n    z = True;\n\n    t1 = type(x);\n    t2 = type(y);\n    t3 = type(z);\n    t4 = type("world");\n\n    return t1;\n}\n';
     mod = compile_inline(typeof_code, prog, client=True);
     assert mod.gen.js.strip() , "Expected JavaScript output for client code";
     assert "typeof" in mod.gen.js , "type() should be converted to typeof";
@@ -86,7 +86,7 @@ test "type to typeof and spawn operator" {
     assert 'typeof "world"' in mod.gen.js;
 
     # --- spawn operator supports positional and spread ---
-    spawn_code = "walker MixedWalker {\n    has label: str;\n    has count: int;\n    has meta: dict = {};\n    can execute with Root entry;\n}\n\ndef spawn_client() {\n    node_id = \"abcd\";\n    extra = {\"meta\": {\"source\": \"client\"}};\n    positional = node_id spawn MixedWalker(\"First\", 3);\n    spread = MixedWalker(\"Second\", 1, **extra) spawn root;\n    return {\"positional\": positional, \"spread\": spread};\n}\n";
+    spawn_code = "walker MixedWalker {\n    has label: str;\n    has count: int;\n    has meta: dict = {};\n    can execute with Root entry;\n}\n\ndef spawn_client() -> dict {\n    node_id = \"abcd\";\n    extra = {\"meta\": {\"source\": \"client\"}};\n    positional = node_id spawn MixedWalker(\"First\", 3);\n    spread = MixedWalker(\"Second\", 1, **extra) spawn root;\n    return {\"positional\": positional, \"spread\": spread};\n}\n";
     mod2 = compile_inline(spawn_code, prog, client=True);
     js = mod2.gen.js;
     assert '__jacSpawn("MixedWalker", node_id, {"label": "First", "count": 3})' in js;
@@ -98,10 +98,10 @@ test "client import local jac module gets relative path" {
     with TemporaryDirectory() as tmpdir {
         (Path(tmpdir) / "jac.toml").write_text('[placement.pins]\n"*" = "client"\n');
         local_module = Path(tmpdir) / "mymodule.jac";
-        local_module.write_text("def helper() { return 42; }");
+        local_module.write_text("def helper() -> int { return 42; }");
         main_file = Path(tmpdir) / "main.jac";
         main_file.write_text(
-            "import from mymodule { helper }\n\ndef:pub app() {\n    return helper();\n}\n"
+            "import from mymodule { helper }\n\ndef:pub app() -> int {\n    return helper();\n}\n"
         );
         prog = JacProgram();
         mod = prog.compile(str(main_file));
@@ -268,11 +268,12 @@ def:pub app -> JsxElement {
         items = items + [Task(label=\"direct\")];
     }
 
-    <div>
-        <button onClick={lambda { items = items + [Task(label=\"clicked\")]; }}>
-            add
-        </button>
-    </div>;
+    return
+        <div>
+            <button onClick={lambda { items = items + [Task(label=\"clicked\")]; }}>
+                add
+            </button>
+        </div>;
 }
 """;
     mod = compile_inline(code, client=True);
@@ -287,7 +288,7 @@ test "constructor as call argument in component-prop lambda emits new" {
 }
 
 def:pub Toolbar(onNew: any) -> JsxElement {
-    <button onClick={lambda { onNew(); }}>new</button>;
+    return <button onClick={lambda { onNew(); }}>new</button>;
 }
 
 def load_program(p: any) -> None {
@@ -295,9 +296,10 @@ def load_program(p: any) -> None {
 }
 
 def:pub app -> JsxElement {
-    <div>
-        <Toolbar onNew={lambda { load_program(Program(name=\"untitled\")); }}/>
-    </div>;
+    return
+        <div>
+            <Toolbar onNew={lambda { load_program(Program(name=\"untitled\")); }}/>
+        </div>;
 }
 """;
     mod = compile_inline(code, client=True);
@@ -350,7 +352,7 @@ def slow_op() -> int {
 }
 
 test "client generators lower to JS function* with yield" {
-    code = """def gen_vals(limit: int) {
+    code = """def gen_vals(limit: int) -> any {
     index = 0;
     while index < limit {
         yield index * 3;
