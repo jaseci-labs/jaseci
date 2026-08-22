@@ -1069,7 +1069,7 @@ def _renderSubmitButton(
     );
 }
 
-impl JacForm(props: dict) -> JsxElement {
+impl JacForm(props: dict[str, any]) -> JsxElement {
     schema = props["schema"];
     onSubmit = props["onSubmit"];
     validate_mode = props.get("validateMode", None) or "onTouched";

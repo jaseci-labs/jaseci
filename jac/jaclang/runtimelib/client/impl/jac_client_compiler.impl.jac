@@ -182,7 +182,7 @@ impl JacClientCompiler._output_path_for(
     self: JacClientCompiler, module_path: Path, source_root: Path
 ) -> Path {
     try {
-        relative_path = module_path.relative_to(source_root);
+        relative_path = module_path.resolve().relative_to(source_root.resolve());
         return self.compiled_dir / self._jac_path_to_js(str(relative_path));
     } except ValueError {
         return self.compiled_dir / self._jac_path_to_js(module_path.name);
@@ -218,6 +218,8 @@ impl JacClientCompiler.compile_dependencies_recursively(
     visited.add(module_path);
     if (source_root is None) {
         source_root = module_path.parent.resolve();
+    } else {
+        source_root = source_root.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
     self._collect_na_modules(mod);

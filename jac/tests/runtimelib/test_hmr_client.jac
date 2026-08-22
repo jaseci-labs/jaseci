@@ -469,7 +469,7 @@ test "jacjsx import added in real compilation" {
         compiled_dir.mkdir(parents=True, exist_ok=True);
         app_file = unique_dir / "app.jac";
         app_file.write_text(
-            "    def app() {\n" "        return <div>Hello</div>;\n" "    }\n"
+            "    def app() -> any {\n" "        return <div>Hello</div>;\n" "    }\n"
         );
         watcher = JacFileWatcher(watch_paths=[str(unique_dir)], _debounce_ms=50);
         reloader = HotReloader(
@@ -487,7 +487,7 @@ test "jacjsx import added in real compilation" {
         error_file = unique_dir / ".jac" / "client" / ".jac-build-error.json";
         bad_file = unique_dir / "app.jac";
         bad_file.write_text(
-            "    def app() {\n"
+            "    def app() -> any {\n"
             "        return <div UNCLOSED;\n"  # malformed JSX / syntax error
             "    }\n"
         );
@@ -501,7 +501,7 @@ test "jacjsx import added in real compilation" {
         assert reloader.build_status()["status"] == "error";
         # --- fix the error: recovery clears the mirrored error ---
         bad_file.write_text(
-            "    def app() {\n" "        return <div>Fixed</div>;\n" "    }\n"
+            "    def app() -> any {\n" "        return <div>Fixed</div>;\n" "    }\n"
         );
         reloader._recompile_client_code(str(bad_file));
         reloader.record_ok();  # _process_change settles to ok after a clean rebuild
@@ -522,7 +522,7 @@ test "client recompile preserves directory structure" {
         # Create a component file in the subdirectory
         component_file = components_dir / "Button.jac";
         component_file.write_text(
-            "    def Button() {\n"
+            "    def Button() -> any {\n"
             "        return <button>Click me</button>;\n"
             "    }\n"
         );
@@ -739,7 +739,7 @@ test "client impl file reloads base cl.jac file" {
             "        def get_label() -> str;\n"
             "    }\n"
             "\n"
-            "    def Button(props: ButtonProps) {\n"
+            "    def Button(props: ButtonProps) -> any {\n"
             "        label = props.get_label();\n"
             "        return <button>{label}</button>;\n"
             "    }\n"
@@ -786,13 +786,15 @@ test "dependency compiled when imported file recompiled" {
         # Button component in components/
         btn_file = unique_dir / "Button.jac";
         btn_file.write_text(
-            "    def Button() {\n" "        return <button>Click</button>;\n" "    }\n"
+            "    def Button() -> any {\n"
+            "        return <button>Click</button>;\n"
+            "    }\n"
         );
         # App imports Button
         app_file = unique_dir / "app.jac";
         app_file.write_text(
             "import from .Button { Button }\n"
-            "def App() {\n"
+            "def App() -> any {\n"
             "    return <div><Button /></div>;\n"
             "}\n"
         );
@@ -839,7 +841,7 @@ test "routing activates when pages are created after startup" {
         unique_dir.mkdir(parents=True, exist_ok=True);
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         main_file = unique_dir / "main.jac";
-        main_file.write_text("def app() {\n    return <div>App</div>;\n}\n");
+        main_file.write_text("def app() -> any {\n    return <div>App</div>;\n}\n");
         # No pages/ yet: a refresh must not fabricate routing artifacts
         reloader._refresh_routing(str(main_file));
         assert not (compiled_dir / "_routes.js").exists();
@@ -880,7 +882,7 @@ test "router entry survives an error then fix cycle" {
         unique_dir.mkdir(parents=True, exist_ok=True);
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         (unique_dir / "main.jac").write_text(
-            "def app() {\n    return <div>App</div>;\n}\n"
+            "def app() -> any {\n    return <div>App</div>;\n}\n"
         );
         pages_dir = unique_dir / "pages";
         pages_dir.mkdir();
@@ -924,7 +926,7 @@ test "asset deletion removes the copy without touching the entry" {
         unique_dir.mkdir(parents=True, exist_ok=True);
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         (unique_dir / "main.jac").write_text(
-            "def app() {\n    return <div>App</div>;\n}\n"
+            "def app() -> any {\n    return <div>App</div>;\n}\n"
         );
         pages_dir = unique_dir / "pages";
         pages_dir.mkdir();
@@ -958,7 +960,7 @@ test "no-op routing refresh does not rewrite entry or routes" {
         unique_dir.mkdir(parents=True, exist_ok=True);
         (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
         (unique_dir / "main.jac").write_text(
-            "def app() {\n    return <div>App</div>;\n}\n"
+            "def app() -> any {\n    return <div>App</div>;\n}\n"
         );
         pages_dir = unique_dir / "pages";
         pages_dir.mkdir();
@@ -989,7 +991,7 @@ test "deleted client module drops its stale compiled output" {
         components_dir.mkdir();
         footer_file = components_dir / "Footer.jac";
         footer_file.write_text(
-            "def:pub Footer() {\n    return <footer>hi</footer>;\n}\n"
+            "def:pub Footer() -> any {\n    return <footer>hi</footer>;\n}\n"
         );
         reloader._recompile_client_code(str(footer_file));
         footer_js = compiled_dir / "components" / "Footer.js";
@@ -1010,7 +1012,7 @@ def _routed_project(tmpdir: str, extra_pages: dict[str, str] = {}) -> tuple {
     unique_dir.mkdir(parents=True, exist_ok=True);
     (reloader, compiler, compiled_dir) = _make_unified_reloader(unique_dir);
     (unique_dir / "main.jac").write_text(
-        "def app() {\n    return <div>App</div>;\n}\n"
+        "def app() -> any {\n    return <div>App</div>;\n}\n"
     );
     pages_dir = unique_dir / "pages";
     pages_dir.mkdir();

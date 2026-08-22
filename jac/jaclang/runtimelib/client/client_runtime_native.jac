@@ -117,6 +117,6 @@ def:pub AuthGuard(
 
 def:pub ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement;
 def:pub errorOverlay(filePath: str, errors: str) -> JsxElement;
-def:pub JacForm(props: dict) -> JsxElement;
+def:pub JacForm(props: dict[str, any]) -> JsxElement;
 def:pub __jacInstallErrorHandlers -> None;
 def:pub __jacWirePlatformAdapters -> None;
