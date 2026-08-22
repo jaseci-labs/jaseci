@@ -109,7 +109,7 @@ def _tree(base: str) -> list {
 def _compile_native_forced(fixture: str) -> tuple {
     prog = JacProgram();
     opts = CompileOptions(
-        default_codespace="native", force_target_program=True, type_check=False
+        default_codespace="native", force_target_program=True
     );
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
