@@ -305,7 +305,7 @@ Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
 
-1. **[LOW-MED] float('inf') compared with huge int raises.** `inf > 10 ** 400`
+1. ~~[LOW-MED] float('inf') compared with huge int raises~~ FIXED 2026-08-22 (f2b244955: exact +-inf/overflow handling on both comparison sides; 7-case matrix verified). `inf > 10 ** 400`
    errors on jacpython (likely OverflowError converting the int to float);
    CPython compares exactly and returns True - no conversion overflow allowed.
 
@@ -342,12 +342,12 @@ per-protocol special cases.
     resolves **class** to its class object (and audit sibling identity dunders:
     **dict**, **module** on instances).
 
-6. **[LOW] callable() says False for user classes.** callable(C) where C is
+6. ~~[LOW] callable() says False for user classes~~ FIXED 2026-08-22 (ecaa2132e: native callable() over tp_call slots). callable(C) where C is
     a plain user class returns False (CPython: True - classes instantiate).
     callable(fn) works. Part of the type-slot family: tp_call presence isn't
     consulted for user types.
 
-7. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
+7. ~~[LOW-MED] Generator return value lost on manual next() exhaustion~~ FIXED 2026-08-22 (7325306ec: next() forwards PyGenStop payload; also fixed latent ann_collect_stmts None-block crash).
     def g(): yield 1; return 99 - after consuming via next(), the terminal
     StopIteration has .value == None instead of 99. Asymmetric: yield from
     DOES forward the inner gen's return correctly (yieldfrom-return-value
