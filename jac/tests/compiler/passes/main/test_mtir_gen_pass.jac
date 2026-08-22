@@ -137,7 +137,7 @@ test "mtir gen semstrings" {
     assert func_info.semstr is not None;
     assert "Analyze" in func_info.semstr;
     assert func_info.params is not None;
-    person_param = None;
+    person_param: any = None;
     for p in func_info.params {
         if p.name == "person" {
             person_param = p;
@@ -166,7 +166,7 @@ test "mtir gen class info extraction" {
     func_info = mtir_map[analyze_person_scope];
     assert isinstance(func_info, FunctionInfo);
     assert func_info.params is not None;
-    person_param = None;
+    person_param: any = None;
     for p in func_info.params {
         if p.name == "person" {
             person_param = p;

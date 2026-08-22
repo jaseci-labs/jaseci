@@ -183,7 +183,6 @@ def _program_tables(rel: str) -> tuple {
         file_path=str(PKG_PATH / rel),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             na_gc_mode='cycles',
@@ -318,7 +317,7 @@ def _walk_closure(
         return out;
     }
 
-    def attr_of(trailer: uni.UniNode) -> (str | None) {
+    def attr_of(trailer: uni.AtomTrailer) -> (str | None) {
         right = trailer.right if trailer?.right is not None else None;
         if isinstance(right, uni.Name) {
             return right.value;

@@ -31,10 +31,7 @@ glob FIXTURES = os.path.join(
 def compile_fixture -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
-        force_codespace='native',
-        force_target_program=True,
-        na_gc_mode="cycles"
+        force_codespace='native', force_target_program=True, na_gc_mode="cycles"
     );
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, FIXTURE)), options=opts);
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
@@ -45,7 +42,7 @@ def compile_fixture -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -53,7 +50,7 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 """Call `name` with `args`, assert the value and the destruction count."""
-def check(eng: object, name: str, args: list[int], want: int, allocs: int) {
+def check(eng: any, name: str, args: list[int], want: int, allocs: int) {
     fn = get_func(eng, name, ctypes.c_int64, *[ctypes.c_int64 for _ in args]);
     drops = get_func(eng, "drop_count", ctypes.c_int64);
     before = drops();

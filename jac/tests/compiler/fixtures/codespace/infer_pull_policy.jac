@@ -18,7 +18,7 @@ node Task {
 }
 
 def:pub add_task(title: str) -> Task {
-    t = root ++> Task(title=title);
+    t = root ++> [Task(title=title)];
     return t[0];
 }
 
@@ -32,5 +32,11 @@ def:pub app -> JsxElement {
 
     p = Panel(width=800);
     cls = clsx(TOKENS);
-    return <div class={cls}>{p.width}{for t in tasks { <p>{t.title}</p> }}</div>;
+    return
+        <div class={cls}>
+            {p.width}
+            {for t in tasks {
+                <p>{t.title}</p>
+            }}
+        </div>;
 }

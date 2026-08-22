@@ -43,6 +43,7 @@ def _assert_kind(kind: str, action: str) {
     assert f'kind = "{kind}"' in toml , f"[project] kind not stamped for {kind}";
     assert (proj / "main.jac").exists() , f"main.jac missing for {kind}";
     cfg = JacConfig.discover(start_path=proj);
+    assert cfg is not None;
     assert cfg.project.kind == kind;
     plan = plan_project_run(cfg, str(proj));
     assert plan is not None;

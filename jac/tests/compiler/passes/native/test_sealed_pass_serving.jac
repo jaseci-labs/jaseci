@@ -105,7 +105,7 @@ def _reset_serving_state {
     frontend._NATIVE_PARSE_MEMO.clear();
 }
 
-def _run_annex -> object {
+def _run_annex -> any {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 

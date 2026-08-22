@@ -151,7 +151,11 @@ impl S3Storage.get_url(
 
     client = self._public_client if self.public_read else self._client;
 
-    return client.generate_presigned_url(
-        "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=expires_in
+    return str(
+        client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": key},
+            ExpiresIn=expires_in
+        )
     );
 }

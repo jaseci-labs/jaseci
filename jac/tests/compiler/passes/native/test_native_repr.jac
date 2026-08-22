@@ -30,7 +30,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -38,8 +38,11 @@ def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> o
 }
 
 """Run a void JIT function and capture what it writes to fd 1 (C stdout)."""
-def capture_stdout(fn: object) -> bytes {
+def capture_stdout(fn: any) -> bytes {
     libc = ctypes.CDLL(None);
+    # Drain anything (e.g. the launcher's first-run banner) still sitting in
+    # libc's stdout buffer, or the JIT's own fflush dumps it into the capture.
+    libc.fflush(None);
     (r, w) = os.pipe();
     saved = os.dup(1);
     os.dup2(w, 1);

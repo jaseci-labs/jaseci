@@ -103,6 +103,19 @@ impl NaIRGenBuiltins._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             fmt_parts.append("%s");
             args.append(_opt_s);
+        } elif self?.jacval_type is not None and val.type == self.jacval_type {
+            _jv_s = self._str_jacval_fn();
+            if _jv_s is None {
+                self.emit(
+                    E5092,
+                    node_override=param,
+                    kind="print argument",
+                    name=type(param).__name__
+                );
+                return None;
+            }
+            fmt_parts.append("%s");
+            args.append(self.builder.call(_jv_s, [val], name="print.jv"));
         } elif isinstance(val.type, ir.LiteralStructType) {
             _tup_s = self._emit_container_repr(val, self._type_key_of(param));
             if _tup_s is None {
@@ -116,6 +129,14 @@ impl NaIRGenBuiltins._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
             }
             fmt_parts.append("%s");
             args.append(_tup_s);
+        } else {
+            self.emit(
+                E5092,
+                node_override=param,
+                kind="print argument",
+                name=type(param).__name__
+            );
+            return None;
         }
     }
 

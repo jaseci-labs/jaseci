@@ -33,13 +33,13 @@ glob PARSER_PATH = str(
      SPEC_PATH = os.path.join(JAC_ROOT, "jaclang", "jac.spec");
 
 """Helper: format a GExpr as EBNF."""
-def fmt(expr: object) -> str {
-    return GrammarExtractPass.format_ebnf(None, expr);
+def fmt(expr: any) -> str {
+    return GrammarExtractPass.format_ebnf(expr);
 }
 
 """Helper: simplify a GExpr."""
-def simplify(expr: object) -> object {
-    return GrammarExtractPass.simplify_expr(None, expr);
+def simplify(expr: any) -> any {
+    return GrammarExtractPass.simplify_expr(expr);
 }
 
 """Parse EBNF text into {rule_name: rule_body} dict."""

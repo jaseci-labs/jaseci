@@ -24,9 +24,7 @@ sorted diagnostic codes."""
 def enforced_codes(fixture: str) -> list[str] {
     path = os.path.join(FIXTURES, fixture);
     prog = JacProgram();
-    opts = CompileOptions(
-        aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
-    );
+    opts = CompileOptions(aot_mode=True, na_gc_mode="none", nogc_enforce_all=True);
     prog.compile(file_path=path, options=opts);
     codes: set[str] = set();
     for alert in list(prog.errors_had) {

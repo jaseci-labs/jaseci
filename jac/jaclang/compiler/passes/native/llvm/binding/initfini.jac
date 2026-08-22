@@ -70,7 +70,11 @@ with entry {
 
 def _version_info -> object {
     v = [];
-    x = ffi.lib.LLVMPY_GetVersionInfo();
+    try {
+        x = ffi.lib.LLVMPY_GetVersionInfo();
+    } except OSError {
+        return (0, 0, 0);
+    }
     while x {
         v.append((x & 255));
         x >>= 8;
