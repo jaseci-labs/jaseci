@@ -12,6 +12,23 @@ import from itertoolsmodule {
     _p2_repeat,
     _p2_chain,
     _p2_chain_from_iterable,
+    _p2_product,
+    _p2_combinations,
+    _p2_cwr,
+    _p2_permutations,
+    _p2_groupby,
+    _p2_tee,
+    _p2_islice_stop,
+    _p2_islice_full,
+    _p2_starmap,
+    _p2_accumulate,
+    _p2_compress,
+    _p2_dropwhile,
+    _p2_takewhile,
+    _p2_filterfalse,
+    _p2_pairwise,
+    _p2_batched,
+    _p2_zip_longest,
 }
 
 

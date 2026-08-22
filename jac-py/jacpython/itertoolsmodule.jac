@@ -26,24 +26,24 @@ obj _P2Count {
         long_step: any = None;
 
     def __next__ -> any {
-        cur: any = long_cnt;
+        cur: any = self.long_cnt;
         if cur is None {
-            current: int = cnt;
-            cnt = cnt + 1;
+            current: int = self.cnt;
+            self.cnt = self.cnt + 1;
             return current;
         }
-        long_cnt = cur + long_step;
+        self.long_cnt = cur + self.long_step;
         return cur;
     }
 
     def __repr__ -> str {
-        if long_cnt is None {
-            return "count(" + str(cnt) + ")";
+        if self.long_cnt is None {
+            return "count(" + str(self.cnt) + ")";
         }
-        if isinstance(long_step, int) and long_step == 1 {
-            return "count(" + str(long_cnt) + ")";
+        if isinstance(self.long_step, int) and self.long_step == 1 {
+            return "count(" + str(self.long_cnt) + ")";
         }
-        return "count(" + str(long_cnt) + ", " + str(long_step) + ")";
+        return "count(" + str(self.long_cnt) + ", " + str(self.long_step) + ")";
     }
 }
 
@@ -56,26 +56,26 @@ obj _P2Cycle {
         firstpass: bool = False;
 
     def __next__ -> any {
-        src: any = it;
+        src: any = self.it;
         while src is not None {
             try {
                 item: any = _advance(src);
-                if not firstpass {
-                    saved.append(item);
+                if not self.firstpass {
+                    self.saved.append(item);
                 }
                 return item;
             } except StopIteration {
-                it = None;
+                self.it = None;
                 src = None;
             }
         }
-        if len(saved) == 0 {
+        if len(self.saved) == 0 {
             raise StopIteration();
         }
-        item = saved[index];
-        index = index + 1;
-        if index >= len(saved) {
-            index = 0;
+        item = self.saved[self.index];
+        self.index = self.index + 1;
+        if self.index >= len(self.saved) {
+            self.index = 0;
         }
         return item;
     }
@@ -88,27 +88,27 @@ obj _P2Repeat {
         remaining: int = -1;
 
     def __next__ -> any {
-        if remaining == 0 {
+        if self.remaining == 0 {
             raise StopIteration();
         }
-        if remaining > 0 {
-            remaining = remaining - 1;
+        if self.remaining > 0 {
+            self.remaining = self.remaining - 1;
         }
-        return element;
+        return self.element;
     }
 
     def __repr__ -> str {
-        if remaining < 0 {
-            return "repeat(" + str(element) + ")";
+        if self.remaining < 0 {
+            return "repeat(" + str(self.element) + ")";
         }
-        return "repeat(" + str(element) + ", " + str(remaining) + ")";
+        return "repeat(" + str(self.element) + ", " + str(self.remaining) + ")";
     }
 
     def __length_hint__ -> int {
-        if remaining < 0 {
+        if self.remaining < 0 {
             raise TypeError("len() of unsized object");
         }
-        return remaining;
+        return self.remaining;
     }
 }
 
@@ -120,25 +120,25 @@ obj _P2Chain {
         active: any = None;
 
     def __next__ -> any {
-        src: any = source;
-        act: any = active;
+        src: any = self.source;
+        act: any = self.active;
         while src is not None {
             if act is None {
                 try {
                     iterable: any = _advance(src);
                     act = _get_iter(iterable);
                 } except StopIteration {
-                    source = None;
+                    self.source = None;
                     break;
                 }
             }
             try {
                 item: any = _advance(act);
-                active = act;
+                self.active = act;
                 return item;
             } except StopIteration {
                 act = None;
-                active = None;
+                self.active = None;
             }
         }
         raise StopIteration();
@@ -222,39 +222,39 @@ obj _P2Product {
         stopped: bool = False;
 
     def __next__ -> any {
-        if stopped {
+        if self.stopped {
             raise StopIteration();
         }
-        npools = len(pools);
-        if not started {
-            started = True;
+        npools = len(self.pools);
+        if not self.started {
+            self.started = True;
             out: list = [];
             for i in range(npools) {
-                if len(pools[i]) == 0 {
-                    stopped = True;
+                if len(self.pools[i]) == 0 {
+                    self.stopped = True;
                     raise StopIteration();
                 }
-                out.append(pools[i][0]);
+                out.append(self.pools[i][0]);
             }
             return tuple(out);
         }
         # Advance the odometer right-to-left; carry on roll-over.
         i = npools - 1;
         while i >= 0 {
-            indices[i] = indices[i] + 1;
-            if indices[i] < len(pools[i]) {
+            self.indices[i] = self.indices[i] + 1;
+            if self.indices[i] < len(self.pools[i]) {
                 break;
             }
-            indices[i] = 0;
+            self.indices[i] = 0;
             i = i - 1;
         }
         if i < 0 {
-            stopped = True;
+            self.stopped = True;
             raise StopIteration();
         }
         out = [];
         for k in range(npools) {
-            out.append(pools[k][indices[k]]);
+            out.append(self.pools[k][self.indices[k]]);
         }
         return tuple(out);
     }
@@ -270,27 +270,27 @@ obj _P2Combinations {
         stopped: bool = False;
 
     def __next__ -> any {
-        if stopped {
+        if self.stopped {
             raise StopIteration();
         }
-        n = len(pool);
-        if not started {
-            started = True;
-            return _index_tuple(pool, indices, r);
+        n = len(self.pool);
+        if not self.started {
+            self.started = True;
+            return _index_tuple(self.pool, self.indices, self.r);
         }
-        i = r - 1;
-        while i >= 0 and indices[i] == i + n - r {
+        i = self.r - 1;
+        while i >= 0 and self.indices[i] == i + n - self.r {
             i = i - 1;
         }
         if i < 0 {
-            stopped = True;
+            self.stopped = True;
             raise StopIteration();
         }
-        indices[i] = indices[i] + 1;
-        for j in range(i + 1, r) {
-            indices[j] = indices[j - 1] + 1;
+        self.indices[i] = self.indices[i] + 1;
+        for j in range(i + 1, self.r) {
+            self.indices[j] = self.indices[j - 1] + 1;
         }
-        return _index_tuple(pool, indices, r);
+        return _index_tuple(self.pool, self.indices, self.r);
     }
 }
 
@@ -304,27 +304,27 @@ obj _P2Cwr {
         stopped: bool = False;
 
     def __next__ -> any {
-        if stopped {
+        if self.stopped {
             raise StopIteration();
         }
-        n = len(pool);
-        if not started {
-            started = True;
-            return _index_tuple(pool, indices, r);
+        n = len(self.pool);
+        if not self.started {
+            self.started = True;
+            return _index_tuple(self.pool, self.indices, self.r);
         }
-        i = r - 1;
-        while i >= 0 and indices[i] == n - 1 {
+        i = self.r - 1;
+        while i >= 0 and self.indices[i] == n - 1 {
             i = i - 1;
         }
         if i < 0 {
-            stopped = True;
+            self.stopped = True;
             raise StopIteration();
         }
-        index = indices[i] + 1;
-        for j in range(i, r) {
-            indices[j] = index;
+        index = self.indices[i] + 1;
+        for j in range(i, self.r) {
+            self.indices[j] = index;
         }
-        return _index_tuple(pool, indices, r);
+        return _index_tuple(self.pool, self.indices, self.r);
     }
 }
 
@@ -340,42 +340,42 @@ obj _P2Permutations {
         stopped: bool = False;
 
     def __next__ -> any {
-        if stopped {
+        if self.stopped {
             raise StopIteration();
         }
-        n = len(pool);
-        if not started {
-            started = True;
-            return _index_tuple(pool, indices, r);
+        n = len(self.pool);
+        if not self.started {
+            self.started = True;
+            return _index_tuple(self.pool, self.indices, self.r);
         }
         if n == 0 {
-            stopped = True;
+            self.stopped = True;
             raise StopIteration();
         }
-        i = r - 1;
+        i = self.r - 1;
         while i >= 0 {
-            cycles[i] = cycles[i] - 1;
-            if cycles[i] == 0 {
-                index = indices[i];
+            self.cycles[i] = self.cycles[i] - 1;
+            if self.cycles[i] == 0 {
+                index = self.indices[i];
                 for j in range(i, n - 1) {
-                    indices[j] = indices[j + 1];
+                    self.indices[j] = self.indices[j + 1];
                 }
-                indices[n - 1] = index;
-                cycles[i] = n - i;
+                self.indices[n - 1] = index;
+                self.cycles[i] = n - i;
                 i = i - 1;
             } else {
-                j = cycles[i];
-                index = indices[i];
-                indices[i] = indices[n - j];
-                indices[n - j] = index;
+                j = self.cycles[i];
+                index = self.indices[i];
+                self.indices[i] = self.indices[n - j];
+                self.indices[n - j] = index;
                 break;
             }
         }
         if i < 0 {
-            stopped = True;
+            self.stopped = True;
             raise StopIteration();
         }
-        return _index_tuple(pool, indices, r);
+        return _index_tuple(self.pool, self.indices, self.r);
     }
 }
 
@@ -486,30 +486,30 @@ obj _P2Groupby {
 
     def step -> bool {
         try {
-            newvalue: any = _advance(it);
+            newvalue: any = _advance(self.it);
         } except StopIteration {
             return False;
         }
-        if keyfunc is None {
+        if self.keyfunc is None {
             newkey: any = newvalue;
         } else {
-            newkey = keyfunc(newvalue);
+            newkey = self.keyfunc(newvalue);
         }
-        currvalue = newvalue;
-        currkey = newkey;
-        has_curr = True;
+        self.currvalue = newvalue;
+        self.currkey = newkey;
+        self.has_curr = True;
         return True;
     }
 
     def __next__ -> any {
-        currgrouper = -1;
+        self.currgrouper = -1;
         need_step: bool = True;
         while need_step {
-            if not has_curr {
+            if not self.has_curr {
                 need_step = True;
-            } elif not has_tgt {
+            } elif not self.has_tgt {
                 need_step = False;
-            } elif tgtkey == currkey {
+            } elif self.tgtkey == self.currkey {
                 need_step = True;
             } else {
                 need_step = False;
@@ -521,12 +521,12 @@ obj _P2Groupby {
                 }
             }
         }
-        tk: any = currkey;
-        tgtkey = tk;
-        has_tgt = True;
-        last_serial = last_serial + 1;
-        serial: int = last_serial;
-        currgrouper = serial;
+        tk: any = self.currkey;
+        self.tgtkey = tk;
+        self.has_tgt = True;
+        self.last_serial = self.last_serial + 1;
+        serial: int = self.last_serial;
+        self.currgrouper = serial;
         return tuple([tk, _P2Grouper(parent=self, tgtkey=tk, serial=serial)]);
     }
 }
@@ -537,8 +537,8 @@ obj _P2Grouper {
         serial: int = 0;
 
     def __next__ -> any {
-        gbo = parent;
-        if gbo.currgrouper != serial {
+        gbo = self.parent;
+        if gbo.currgrouper != self.serial {
             raise StopIteration();
         }
         if not gbo.has_curr {
@@ -546,7 +546,7 @@ obj _P2Grouper {
                 raise StopIteration();
             }
         }
-        if not (tgtkey == gbo.currkey) {
+        if not (self.tgtkey == gbo.currkey) {
             raise StopIteration();
         }
         r: any = gbo.currvalue;
@@ -571,24 +571,24 @@ obj _P2Tee {
         index: int = 0;
 
     def __next__ -> any {
-        while len(buf) <= index {
-            if done {
+        while len(self.buf) <= self.index {
+            if self.done {
                 raise StopIteration();
             }
             try {
-                buf.append(_advance(src));
+                self.buf.append(_advance(self.src));
             } except StopIteration {
-                done = True;
+                self.done = True;
                 raise StopIteration();
             }
         }
-        item: any = buf[index];
-        index = index + 1;
+        item: any = self.buf[self.index];
+        self.index = self.index + 1;
         return item;
     }
 
     def copy -> _P2Tee {
-        t = _P2Tee(src=src, buf=buf, done=done, index=index);
+        t = _P2Tee(src=self.src, buf=self.buf, done=self.done, index=self.index);
         return t;
     }
 }
@@ -618,32 +618,32 @@ obj _P2Islice {
         cnt: int = 0;
 
     def __next__ -> any {
-        if it is None {
+        if self.it is None {
             raise StopIteration();
         }
-        while cnt < next_pos {
+        while self.cnt < self.next_pos {
             try {
-                skipped: any = _advance(it);
+                skipped: any = _advance(self.it);
             } except StopIteration {
-                it = None;
+                self.it = None;
                 raise StopIteration();
             }
-            cnt = cnt + 1;
+            self.cnt = self.cnt + 1;
         }
-        if stop != -1 and cnt >= stop {
-            it = None;
+        if self.stop != -1 and self.cnt >= self.stop {
+            self.it = None;
             raise StopIteration();
         }
         try {
-            item: any = _advance(it);
+            item: any = _advance(self.it);
         } except StopIteration {
-            it = None;
+            self.it = None;
             raise StopIteration();
         }
-        cnt = cnt + 1;
-        next_pos = next_pos + step;
-        if stop != -1 and next_pos > stop {
-            it = None;
+        self.cnt = self.cnt + 1;
+        self.next_pos = self.next_pos + self.step;
+        if self.stop != -1 and self.next_pos > self.stop {
+            self.it = None;
         }
         return item;
     }
@@ -703,8 +703,8 @@ obj _P2Starmap {
         it: any = None;
 
     def __next__ -> any {
-        args: any = _advance(it);
-        return func(*args);
+        args: any = _advance(self.it);
+        return self.func(*args);
     }
 }
 
@@ -720,18 +720,18 @@ obj _P2Accumulate {
         started: bool = False;
 
     def __next__ -> any {
-        if not started {
-            started = True;
-            total = _advance(it);
-            return total;
+        if not self.started {
+            self.started = True;
+            self.total = _advance(self.it);
+            return self.total;
         }
-        item: any = _advance(it);
-        if func is None {
-            total = total + item;
+        item: any = _advance(self.it);
+        if self.func is None {
+            self.total = self.total + item;
         } else {
-            total = func(total, item);
+            self.total = self.func(self.total, item);
         }
-        return total;
+        return self.total;
     }
 }
 
@@ -746,8 +746,8 @@ obj _P2Compress {
 
     def __next__ -> any {
         while True {
-            selector: any = _advance(sel_it);
-            datum: any = _advance(data_it);
+            selector: any = _advance(self.sel_it);
+            datum: any = _advance(self.data_it);
             if selector {
                 return datum;
             }
@@ -766,16 +766,16 @@ obj _P2Dropwhile {
         started: bool = False;
 
     def __next__ -> any {
-        if not started {
+        if not self.started {
             while True {
-                item: any = _advance(it);
-                if not func(item) {
-                    started = True;
+                item: any = _advance(self.it);
+                if not self.func(item) {
+                    self.started = True;
                     return item;
                 }
             }
         }
-        return _advance(it);
+        return _advance(self.it);
     }
 }
 
@@ -790,12 +790,12 @@ obj _P2Takewhile {
         stopped: bool = False;
 
     def __next__ -> any {
-        if stopped {
+        if self.stopped {
             raise StopIteration();
         }
-        item: any = _advance(it);
-        if not func(item) {
-            stopped = True;
+        item: any = _advance(self.it);
+        if not self.func(item) {
+            self.stopped = True;
             raise StopIteration();
         }
         return item;
@@ -813,12 +813,12 @@ obj _P2Filterfalse {
 
     def __next__ -> any {
         while True {
-            item: any = _advance(it);
-            if func is None {
+            item: any = _advance(self.it);
+            if self.func is None {
                 if not item {
                     return item;
                 }
-            } elif not func(item) {
+            } elif not self.func(item) {
                 return item;
             }
         }
@@ -836,13 +836,13 @@ obj _P2Pairwise {
         started: bool = False;
 
     def __next__ -> any {
-        if not started {
-            prev = _advance(it);
-            started = True;
+        if not self.started {
+            self.prev = _advance(self.it);
+            self.started = True;
         }
-        item: any = _advance(it);
-        oldprev: any = prev;
-        prev = item;
+        item: any = _advance(self.it);
+        oldprev: any = self.prev;
+        self.prev = item;
         return tuple([oldprev, item]);
     }
 }
@@ -859,12 +859,12 @@ obj _P2Batched {
 
     def __next__ -> any {
         batch: list = [];
-        while len(batch) < n {
+        while len(batch) < self.n {
             try {
-                batch.append(_advance(it));
+                batch.append(_advance(self.it));
             } except StopIteration {
                 if len(batch) > 0 {
-                    if strict and len(batch) < n {
+                    if self.strict and len(batch) < self.n {
                         raise ValueError("batched(): incomplete batch");
                     }
                     return tuple(batch);
@@ -893,25 +893,25 @@ obj _P2ZipLongest {
         numactive: int = 0;
 
     def __next__ -> any {
-        if numactive == 0 {
+        if self.numactive == 0 {
             raise StopIteration();
         }
         out: list = [];
         i = 0;
-        while i < len(iterators) {
-            src: any = iterators[i];
+        while i < len(self.iterators) {
+            src: any = self.iterators[i];
             if src is None {
-                out.append(fillvalue);
+                out.append(self.fillvalue);
             } else {
                 try {
                     out.append(_advance(src));
                 } except StopIteration {
-                    iterators[i] = None;
-                    numactive = numactive - 1;
-                    if numactive == 0 {
+                    self.iterators[i] = None;
+                    self.numactive = self.numactive - 1;
+                    if self.numactive == 0 {
                         raise StopIteration();
                     }
-                    out.append(fillvalue);
+                    out.append(self.fillvalue);
                 }
             }
             i = i + 1;
