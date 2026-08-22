@@ -1394,7 +1394,10 @@ obj PyUserObj(PyObj) {
             return py_none();
         }
         if self._has_base() {
-            return self._base_obj().mp_ass_subscript(index, value);
+            # Route through public dispatch so builtin-subclass storage shares
+            # the slice-assignment iterable normalization (a boxed list receives
+            # values of its own Python type, not just native PyList).
+            return py_store_subscript(self._base_obj(), index, value);
         }
         return py_error("TypeError", "object does not support item assignment");
     }

@@ -171,7 +171,7 @@ obj PyInt(PyObj) {
                 }
                 return PyFloat(t="float", val=float(a) ** float(b));
             }
-            return PyInt(t="int", val=a ** b);
+            return PyInt(t="int", val=(a ** b) as int);
         }
         return py_error("TypeError", "unsupported operand types");
     }
@@ -579,6 +579,11 @@ obj PyComplex(PyObj) {
 # the three bounds, .indices(n), and repr/type all resolve natively so the
 # subscript slots' isinstance(PySlice) checks are the ONLY gate a slice index
 # has to pass.
+#
+# Deliberate tradeoff: s.indices is a PySliceIndices wrapper object, not a
+# CPython-style bound method -- type(s.indices)/repr(s.indices) differ from
+# host. If a synthesis-at-exit-points sweep lands (cf. TODO item 21), add
+# PySlice.tp_getattro's __class__ there.
 obj PySliceIndices(PyObj) {
     has sl: PySlice;
 
@@ -595,7 +600,11 @@ obj PySliceIndices(PyObj) {
         }
         length_obj = args[0].to_index();
         if is_error(length_obj) {
-            return py_error("TypeError", "'str' object cannot be interpreted as an integer");
+            # CPython names the actual offending type in this message.
+            return py_error(
+                "TypeError",
+                "'" + args[0].t + "' object cannot be interpreted as an integer",
+            );
         }
         b = slice_indices(self.sl, (length_obj as PyInt).val);
         out: list[PyObj] = [];
@@ -624,7 +633,9 @@ obj PySlice(PyObj) {
         if name2 == "indices" {
             return PySliceIndices(t="slice_indices", sl=self);
         }
-        return py_error("AttributeError", name2);
+        return py_error(
+            "AttributeError", "'slice' object has no attribute '" + name2 + "'"
+        );
     }
 }
 

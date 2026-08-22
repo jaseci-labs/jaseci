@@ -301,6 +301,15 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
 
+21. **[LOW-MED] Exception attribute VALUES lack __class__ synthesis.**
+    Caught exception e: e.__class__.__name__ GREEN (item 12 fix covers the
+    instance). But r2.__cause__.__class__.__name__ / __context__ equivalents
+    raise AttributeError("__class__"): whatever py_getattr returns for
+    exception attributes skips the PyExceptionType synthesis path. Blocks
+    chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
+    Fix: route __cause__/__context__ (audit all exception attrs) through the
+    same type-synthesis as the instance itself.
+
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
@@ -354,6 +363,37 @@ per-protocol special cases.
     green), so the internal path carries it but the caller-facing
     StopIteration doesn't attach .value. Only affects explicit-iteration
     consumers (for loops ignore .value).
+
+
+### Widened-differential findings (QuickBear, 2026-08-22 afternoon)
+
+0b. **[COMPILER][HIGH] f-strings do not interpolate at all.**
+    `f'{a}+{b}'` compiles to a single LOAD_CONST of the literal text
+    "{a}+{b}" -- runtime produces that literal instead of "1+2". Root cause:
+    parser actions pa_joined_str / pa_formatted_value / pa_interpolation /
+    pa_template_str (parser_actions.jac ~1717+) are stubs returning None, so
+    JoinedStr never reaches codegen. Fix needs both sides: parse actions
+    building JoinedStr/FormattedValue AST, plus emit lowering
+    (FORMAT_SIMPLE=12 / BUILD_STRING=50 opcodes already exist with ceval
+    support). Every f-string in every program is silently wrong until fixed.
+
+0c. **[CODEGEN][HIGH] for/else with break/continue miscompiles control flow.**
+    Byte diff shows duplicated epilogues mid-stream and a JUMP_FORWARD 245
+    past program end; runtime: `done=0; for...break; else: done=99; r=done`
+    yields None instead of 0. while/else is byte-exact, so this is specific
+    to FOR + break/continue + else interaction. Semantic correctness bug,
+    not just parity.
+
+3b. **[CODEGEN-PARITY][MED] def with *args/**kw defaults: function-attribute
+    operand ordering differs from host.** Function BODY bytes match; module
+    frame emits defaults/kwdefaults consts in different intern order
+    (ours LOAD_CONST 1,2 vs host 4,1). Same family as fixed item 9A but for
+    MAKE_FUNCTION attribute wiring. Semantics-neutral.
+
+3c. **[CODEGEN-PARITY][MED] listcomp with if-filter byte-parity gap.**
+    Compiles, runs, but bytes differ from host oracle. Needs isolation
+    (comprehension inlining vs CPython's implicit function form).
+
 
 ## Runtime fix lane - HANDOFF BRIEF (for new worker agent)
 
@@ -473,7 +513,11 @@ Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
 (module top-level code isn't replayed); function decorators in-method are
 green. Class-decorator support needs pinning elsewhere.
 
-1. **[MED-HIGH] range() degrades to a list across the bridge.**
+1. **[MED-HIGH] range() degrades to a list across the bridge. UNOWNED -
+   needs design-first owner: grep confirms NO native PyRange obj exists in the
+   tree (the done-list "PyRange deepen" refers to host-adjacent helpers, not a
+   native type), so this is new-type work, not a bridge arm. WildRaven declined
+   folding it into the slice landing; correctly per handoff brief.**
     type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
     .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
     and LAZINESS IS LOST - range(10**9) presumably materializes 1e9 elements
@@ -491,6 +535,15 @@ green. Class-decorator support needs pinning elsewhere.
     as item 10 (slice assignment): one shared fix, mp_subscript/ass/del all
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
+
+21. **[LOW-MED] Exception attribute VALUES lack __class__ synthesis.**
+    Caught exception e: e.__class__.__name__ GREEN (item 12 fix covers the
+    instance). But r2.__cause__.__class__.__name__ / __context__ equivalents
+    raise AttributeError("__class__"): whatever py_getattr returns for
+    exception attributes skips the PyExceptionType synthesis path. Blocks
+    chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
+    Fix: route __cause__/__context__ (audit all exception attrs) through the
+    same type-synthesis as the instance itself.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
