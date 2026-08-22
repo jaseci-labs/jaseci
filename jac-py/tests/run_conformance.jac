@@ -235,6 +235,12 @@ def assert_all_modules_gated(manifest: dict) {
     for row in modules {
         row_spec = row as dict;
         assert row_spec["status"] == "gated" , row_spec;
+        oracle_tests = row_spec.get("oracle_tests", []);
+        assert len(oracle_tests) > 0 , f"{row_spec.get('stem', '?')}: missing oracle_tests";
+        for test_name in (oracle_tests as list) {
+            test_path = os.path.join(os.path.dirname(MANIFEST_PATH), test_name);
+            assert os.path.isfile(test_path) , f"oracle test not found: {test_path}";
+        }
     }
 }
 

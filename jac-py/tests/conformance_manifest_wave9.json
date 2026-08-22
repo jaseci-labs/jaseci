@@ -9,7 +9,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave9_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "math_max_u header-free extract"
@@ -19,7 +19,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave9_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pystr_len_c header-free extract"
@@ -29,7 +29,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave9_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pystr_find_char header-free extract"
@@ -39,7 +39,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave9_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pystr_count_char header-free extract"

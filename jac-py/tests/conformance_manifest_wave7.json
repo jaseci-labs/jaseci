@@ -9,7 +9,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave7_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pyctype_isgraph header-free extract"
@@ -19,7 +19,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave7_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pyctype_iscntrl header-free extract"
@@ -29,7 +29,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave7_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "pyctype_isblank header-free extract"
@@ -39,7 +39,7 @@
       "status": "gated",
       "gate_type": "oracle",
       "oracle_tests": [
-        "test_p2_wave7_module_oracles.jac"
+        "test_p2_waves_module_oracles.jac"
       ],
       "libtest_snippets": [],
       "note": "math_ilog2_small header-free extract"

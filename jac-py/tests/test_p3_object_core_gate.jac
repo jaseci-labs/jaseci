@@ -97,10 +97,9 @@ test "P3 manifest: Layer-1 entries gated with honest skip counts (P3.1b)" {
         assert (spec["status"] as str) == "gated";
         assert (spec["gate"] as str) == "P3.1b";
         baseline = spec["baseline"] as dict;
-        assert (baseline["failed"] as int) >= 0;
+        assert (baseline["failed"] as int) == 0;
         assert (baseline["errored"] as int) == 0;
         assert (baseline["passed"] as int) > 0;
-        assert (baseline["skipped"] as int) >= 0;
     }
     for stem in expected_stems {
         assert stem in seen;

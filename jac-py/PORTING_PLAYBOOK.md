@@ -19,18 +19,18 @@ Object-core conformance (P3) uses a separate Layer-0 replay ratchet; see **§P3*
 |------|-----------|---------|------|
 | P1 | `tools/p1_corpus/manifest.json` | 6 (c2jac proving) | `test_p1_corpus_gate.py` |
 | P2 | `tools/p2_corpus/manifest.json` | 10 (P1 six + four Python/*.c extracts) | `test_p2_corpus_gate.py` |
-| P2 wave 2 | `tools/p2_corpus_wave2/manifest.json` | 4 (`_stat`, `_opcode`, `math_gcd`, `pystrnicmp`) | `test_p2_corpus_wave2_gate.py` |
-| P2 wave 3 | `tools/p2_corpus_wave3/manifest.json` | 4 (`math_count_bits`, `math_lcm_long`, `strhex_byte`, `pyctype_digit`) | `test_p2_corpus_wave3_gate.py` |
-| P2 wave 4 | `tools/p2_corpus_wave4/manifest.json` | 4 (`pystricmp`, `pyctype_space`, `pyctype_alpha`, `math_factorial_small`) | `test_p2_corpus_wave4_gate.py` |
-| P2 wave 5 | `tools/p2_corpus_wave5/manifest.json` | 4 (`pyctype_xdigit`, `pyctype_alnum`, `pyctype_lower`, `math_isqrt_small`) | `test_p2_corpus_wave5_gate.py` |
-| P2 wave 6 | `tools/p2_corpus_wave6/manifest.json` | 4 (`pyctype_upper`, `pyctype_print`, `pyctype_punct`, `math_pow2_check`) | `test_p2_corpus_wave6_gate.py` |
-| P2 wave 7 | `tools/p2_corpus_wave7/manifest.json` | 4 (`pyctype_graph`, `pyctype_cntrl`, `pyctype_blank`, `math_ilog2_small`) | `test_p2_corpus_wave7_gate.py` |
-| P2 wave 8 | `tools/p2_corpus_wave8/manifest.json` | 4 (`math_ctz_small`, `math_clz32_small`, `math_abs_diff`, `math_min_u`) | `test_p2_corpus_wave8_gate.py` |
-| P2 wave 9 | `tools/p2_corpus_wave9/manifest.json` | 4 (`math_max_u`, `pystr_len_c`, `pystr_find_char`, `pystr_count_char`) | `test_p2_corpus_wave9_gate.py` |
-| P2 wave 10 | `tools/p2_corpus_wave10/manifest.json` | 4 (`math_gcd_iter`, `math_lcm_u`, `pystr_startswith_c`, `pystr_endswith_c`) | `test_p2_corpus_wave10_gate.py` |
-| P2 wave 11 | `tools/p2_corpus_wave11/manifest.json` | 4 (`math_pow_mod`, `math_popcount_u`, `pystr_contains_c`, `pystr_cmp_c`) | `test_p2_corpus_wave11_gate.py` |
+| P2 wave 2 | `tools/p2_corpus_wave2/manifest.json` | 4 (`_stat`, `_opcode`, `math_gcd`, `pystrnicmp`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 3 | `tools/p2_corpus_wave3/manifest.json` | 4 (`math_count_bits`, `math_lcm_long`, `strhex_byte`, `pyctype_digit`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 4 | `tools/p2_corpus_wave4/manifest.json` | 4 (`pystricmp`, `pyctype_space`, `pyctype_alpha`, `math_factorial_small`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 5 | `tools/p2_corpus_wave5/manifest.json` | 4 (`pyctype_xdigit`, `pyctype_alnum`, `pyctype_lower`, `math_isqrt_small`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 6 | `tools/p2_corpus_wave6/manifest.json` | 4 (`pyctype_upper`, `pyctype_print`, `pyctype_punct`, `math_pow2_check`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 7 | `tools/p2_corpus_wave7/manifest.json` | 4 (`pyctype_graph`, `pyctype_cntrl`, `pyctype_blank`, `math_ilog2_small`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 8 | `tools/p2_corpus_wave8/manifest.json` | 4 (`math_ctz_small`, `math_clz32_small`, `math_abs_diff`, `math_min_u`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 9 | `tools/p2_corpus_wave9/manifest.json` | 4 (`math_max_u`, `pystr_len_c`, `pystr_find_char`, `pystr_count_char`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 10 | `tools/p2_corpus_wave10/manifest.json` | 4 (`math_gcd_iter`, `math_lcm_u`, `pystr_startswith_c`, `pystr_endswith_c`) | `test_p2_corpus_waves_gate.py` |
+| P2 wave 11 | `tools/p2_corpus_wave11/manifest.json` | 4 (`math_pow_mod`, `math_popcount_u`, `pystr_contains_c`, `pystr_cmp_c`) | `test_p2_corpus_waves_gate.py` |
 
-Lift entire wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1), `python jac-py/tools/lift_p2_corpus_wave2.py` (wave 2), `python jac-py/tools/lift_p2_corpus_wave3.py` (wave 3), `python jac-py/tools/lift_p2_corpus_wave4.py` (wave 4), `python jac-py/tools/lift_p2_corpus_wave5.py` (wave 5), `python jac-py/tools/lift_p2_corpus_wave6.py` (wave 6), or `python jac-py/tools/lift_p2_corpus_wave7.py` (wave 7), or `python jac-py/tools/lift_p2_corpus_wave8.py` (wave 8), or `python jac-py/tools/lift_p2_corpus_wave9.py` (wave 9), or `python jac-py/tools/lift_p2_corpus_wave10.py` (wave 10), or `python jac-py/tools/lift_p2_corpus_wave11.py` (wave 11).
+Lift a wave: `python jac-py/tools/lift_p2_corpus.py` (wave 1) or `python jac-py/tools/lift_p2_corpus_wave.py --wave <N>` (waves 2-11). Conformance manifests are gated by `p2_conformance_waves_gate.py`.
 
 ## Staged modules (P2 wave 1)
 
