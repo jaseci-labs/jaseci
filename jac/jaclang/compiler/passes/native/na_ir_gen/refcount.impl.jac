@@ -1073,10 +1073,10 @@ impl NaIRGenRefcount._emit_str_desc_helpers -> None {
             self.str_wrap_raw_fn = wf;
         }
     }
-    b = self._new_fn_builder(
+    ub = self._new_fn_builder(
         "__jac_str_unwrap", ir.FunctionType(i8p, [desc]), "private", ("d", )
     );
-    uf = b.function;
+    uf = ub.function;
     _u_null = uf.append_basic_block("null");
     _u_probe = uf.append_basic_block("probe");
     _u_pass = uf.append_basic_block("pass");
