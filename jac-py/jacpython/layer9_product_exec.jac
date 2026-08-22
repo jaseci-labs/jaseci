@@ -1692,3 +1692,19 @@ test "layer9: class private attr executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 1;
 }
+
+# Band 11: function-local annotated assignment executes like a plain store in
+# ceval (PEP 649 drops the annotation at local scope).
+test "layer9: local AnnAssign stores and reads back in ceval" {
+    src = (
+        "def f():\n"
+        + "    q: int = 3\n"
+        + "    return q\n"
+        + "result = f()\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}

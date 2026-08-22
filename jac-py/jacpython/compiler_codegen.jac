@@ -6977,6 +6977,31 @@ def visit_stmt(
         }
         return stmt_cont(loc=last);
     }
+    # PEP 649 (3.14): function-local annotations are never evaluated at run
+    # time -- the host oracle emits only the assignment side (bare annotation
+    # emits nothing). Module/class scopes instead emit a deferred __annotate__
+    # code object plus __conditional_annotations__ bookkeeping; until that
+    # slice lands, fail loudly rather than emit silently-wrong bytes.
+    if isinstance(s, AnnAssign) {
+        an = s as AnnAssign;
+        if g.sym_top is None or g.sym_top.block_type != "function" {
+            codegen_fail(
+                g,
+                "NotImplementedError",
+                "module/class-scope annotation (__annotate__) not yet supported"
+            );
+            return stmt_cont(loc=stmt_loc(s));
+        }
+        if an.value is None {
+            return stmt_cont(loc=stmt_loc(s));
+        }
+        visit_expr(g, an.value);
+        if codegen_busy(g) {
+            return stmt_cont(loc=stmt_loc(s));
+        }
+        emit = visit_store_target_tos(g, an.target);
+        return stmt_cont(loc=emit.loc);
+    }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
         opid = inplace_binop_id(aa.op);

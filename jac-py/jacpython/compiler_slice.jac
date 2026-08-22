@@ -3568,3 +3568,49 @@ test "compiler_slice: fast-local load borrow/own strength reduction matches orac
         assert af.stacksize == ef.stacksize;
     }
 }
+
+# Band 11: function-local annotated assignment (PEP 649). The host oracle
+# emits ONLY the assignment side at local scope (annotations are deferred to
+# module/class __annotate__ plumbing, a separate slice); bare locals emit
+# nothing. Byte-exact against the oracle for value stores on name, attribute,
+# and subscript targets, plus the no-op bare form.
+test "compiler_slice: band-11 local AnnAssign matches oracle bytes" {
+    for src in [
+        "def f():\n    q: int = 3\n    return q\n",
+        "def f(o):\n    o.k: int = 1\n    return o\n",
+        "def f(d):\n    d['k']: int = 1\n    return d\n",
+        "def f(x):\n    (x): int = 4\n    return x\n",
+        "def f():\n    z: float\n",
+        # Annotation referencing an undefined name must not fail at compile
+        # time (laziness): the annotation is dropped locally.
+        "def f():\n    r: LaterAlias = Q()\n    return r\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert af.co_code == ef.co_code;
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}
+
+# Band 11 guard: module/class-scope annotated assignment still requires the
+# deferred __annotate__ machinery -- it must FAIL LOUDLY, never emit
+# silently-wrong bytes (missing annotations at runtime).
+test "compiler_slice: band-11 module/class AnnAssign traps until __annotate__ lands" {
+    m = parse_file("x: int = 5\n", "<f>");
+    assert m is not None;
+    body_m = (m as Module).body;
+    sr = build_module_symtable(body_m);
+    u = compile_exec(body_m, "<f>", "<module>", 1, sr.top);
+    assert u.diag is not None;
+    assert u.diag.kind == "NotImplementedError";
+
+    cls_src = parse_file("class C:\n    y: str = 'a'\n", "<f>");
+    assert cls_src is not None;
+    cdef = ((cls_src as Module).body[0] as ClassDef);
+    vr = validate_module_body([cdef]);
+    assert vr.diag is None;
+}
