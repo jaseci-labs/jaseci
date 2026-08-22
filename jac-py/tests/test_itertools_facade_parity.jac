@@ -103,18 +103,16 @@ test "wave12 count agrees with host itertools.count" {
 test "wave12 cycle agrees with host itertools.cycle" {
     sources: list = ["AB", [1], [], (1, 2, 3)];
     for src in sources {
+        if len(src) == 0 {
+            assert _take_until_stop(_p2_cycle(src)) == (
+                list(_take_until_stop(host_it.cycle(src)))
+            ) , "empty source exhausts";
+            continue;
+        }
         got = _take(_p2_cycle(src), 7);
         want = _take(host_it.cycle(src), 7);
         assert got == want , (src, got, want);
     }
-    # empty source exhausts immediately instead of spinning forever
-    exhausted = False;
-    try {
-        _advance(_p2_cycle([]));
-    } except StopIteration {
-        exhausted = True;
-    }
-    assert exhausted , "cycle([]) must raise StopIteration";
     # setstate restore resumes from the saved sequence without re-draining
     lz = _p2_cycle([]);
     _p2_cycle_setstate(lz, ["x", "y"], 1);
@@ -574,12 +572,14 @@ test "wave12 tee clones are independent after advancing either" {
 }
 
 
-# Tracked deviation from host-oracle identity semantics (jac-python
-# docs/decisions.org): CPython's product/permutations/combinations/cwr
-# mutate ONE result tuple in place across next() calls; this port returns
-# a fresh tuple each time. This pin freezes the fresh-tuple behavior so a
-# future VM-level mutable pseudo-tuple flips it deliberately.
-test "wave12 combinatorics results are stable fresh tuples per next" {
+# Identity-semantics pin. Reviewer finding claimed CPython's product/
+# permutations/combinations/cwr mutate ONE result tuple in place across
+# next() calls, diverging from this port's fresh tuples. NOT REPRODUCIBLE
+# on the pinned host: the iterator's own stored result reference keeps
+# refcount >= 2, so _PyObject_IsUniquelyReferenced is false and CPython
+# copies too -- held tuples are stable and ids differ on both sides.
+# This pin locks that parity (see jac-python docs/decisions.org D01).
+test "wave12 combinatorics results match host identity semantics" {
     mine = _p2_combinations("ABC", 2);
     m1 = _advance(mine);
     assert m1 == ("A", "B") , m1;
@@ -589,13 +589,35 @@ test "wave12 combinatorics results are stable fresh tuples per next" {
     prod = _p2_product(["ab"]);
     t1 = _advance(prod);
     t2 = _advance(prod);
-    assert t1 == ("a",) and t2 == ("a",);
+    assert len(t1) == 1 and t1[0] == "a";
+    assert len(t2) == 1 and t2[0] == "b";
     assert id(t1) != id(t2) , "fresh tuple object per __next__";
+
+    for mk in [_make_p2_combos, _make_host_combos] {
+        it: any = mk("ABC");
+        h1: any = _advance(it);
+        _advance(it);
+        assert list(h1) == ["A", "B"] , "held tuple stable on both sides";
+        it2: any = mk("ABC");
+        x1: any = _advance(it2);
+        x2: any = _advance(it2);
+        assert id(x1) != id(x2) , "distinct tuple ids per next on both sides";
+    }
 
     hc = host_it.combinations("ABC", 2);
     h1 = next(hc);
     next(hc);
-    assert list(h1) == ["A", "C"] , (
-        "host mutates the held tuple in place -- the divergence this pin tracks"
+    assert list(h1) == ["A", "B"] , (
+        "host held tuple is stable too (finding-1 premise does not reproduce)"
     );
+}
+
+
+def _make_p2_combos(seq: any) -> any {
+    return _p2_combinations(seq, 2);
+}
+
+
+def _make_host_combos(seq: any) -> any {
+    return host_it.combinations(seq, 2);
 }
