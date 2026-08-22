@@ -1531,9 +1531,11 @@ with entry {
 | `compaction` | The summarisation call that shrinks message history when auto-compaction fires |
 
 ```jac
-if event.event_type == "usage" {
-    print(event.data["requests"]);        # total LLM calls this invocation made
-    print(event.data["by_kind"]);         # e.g. {"react_iteration": {...}, "final_answer_restream": {...}}
+with entry {
+    if event.event_type == "usage" {
+        print(event.data["requests"]);        # total LLM calls this invocation made
+        print(event.data["by_kind"]);         # e.g. {"react_iteration": {...}, "final_answer_restream": {...}}
+    }
 }
 ```
 
