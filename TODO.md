@@ -247,36 +247,348 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 
 ### Open
 
-1. **[RESOLVED a13ba6a06] `repr()` drains native iterators**: py_repr now returns
-   '<iterator object>' for PyIter before any to_host path; repr is observational again.
-2. **[RESOLVED a13ba6a06] dedent sibling-clause residual (try/except/else)**: strip is
-   now exactly base_col per continuation line, so sibling clauses keep relative shape;
-   exc/else setup replays green end-to-end.
+### Open
 
-3. **[MED] `repr()` drains native iterators** (regression from `PyIter` to_host drain,
-   d5235d1d7). `py_repr` → host_convert → `to_host(PyIter)` exhausts the iterator.
-   Repro: `it = iter([1,2,3]); r = repr(it)` → `r == '[1, 2, 3]'` (CPython:
-   `<list_iterator object at ...>`) and `it` is exhausted. Fix: `py_repr` case for
-   `PyIter` returning a CPython-style `<list_iterator object>` string before the
-   host fallback; audit other accidental `to_host` paths over iterators.
+0. **[COMPILER][HIGH] Compiled-jac `del d[k]` on typed dicts pins the removed value.**
+   Found while implementing native weakref (workaround 4fc98bc13). An ObjectAnchor
+   gets cached in the removed object's __dict__ via cached_property `__jac__`; the
+   anchor is a strong root that gc.collect() cannot reach, so every object whose
+   last reference dies through compiled-jac dict deletion leaks forever.
+   Repro: ceval-interpreted `o = C(); del o` leaves o alive after exec returns;
+   deleting the same ns entry from pure python frees it immediately (refcount).
+   Affected: any compiled-jac `del self.items[...]` statement (dict subscript
+   delete, set pop/discard, list index del) plus ceval's DELETE_NAME/GLOBAL.
+   VM-side workaround: value-bearing delete sites routed through python-mode
+   `_py_container_del` in ceval.jac/objects.jac - revert once the del lowering
+   becomes refcount-clean. Owner: jac0 compiled lowering (unowned in mesh).
 
-4. **[HARNESS] `_dedent_segment` no-ops for sibling-clause statements.**
-   min-delta formula (`min(continuation) - base_col`) gives strip=0 for
-   try/except/else because except/else siblings sit AT base_col. Residual repro:
-   top-level try/except/else in setup still skips (IndentationError).
-   Exact fix: continuation lines always carry >= base_col, so strip exactly
-   base_col from every non-empty continuation line:
-   `[l[base_col:] if l[:base_col].strip()=='' else l for l in lines[1:]]`.
-   Partially fixed in 1d823f5d6 (def/class bodies work).
+1. **[MED] User-defined descriptor protocol not invoked on attribute access.**
+   A class attribute whose value defines `__get__` is returned RAW instead of
+   bound: `C().attr` yields the Ten() instance rather than calling
+   `__get__(obj, owner) -> 10`. Data descriptors (`__set__`) likewise ignored.
+   Native `property` works because it is special-cased; user descriptors are not.
+   Repro: class Ten with __get__ returning 10; class C: attr = Ten(); C().attr.
+   Fix direction: tp_getattro/attribute path must check class-dict values for
+   __get__/__set__ before returning (data-descr priority over instance dict).
 
-5. **[HIGH→ledger] unbound builtin-method silent no-op** — fixed d5235d1d7 ✓
-   (verified: list.append/dict.get route to native wrappers).
+2. **[LOW-MED] Exposed `__mro__` is not the C3 linearization.**
+   `A.__mro__` == `(A,)` — missing `object`; diamond classes expose immediate
+   bases only. Internal DISPATCH MRO is correct (diamond method resolution
+   verified green), so this is the introspection surface only.
+   Fix: expose the same linearized order dispatch uses, with object appended.
 
-6. **[LEDGER] remaining items**: to_host drops PyNativeBuiltin/bound methods
-   (type(len) gap); HARNESS A (setup-error should count errored not replay
-   partial ns); weakref probe lacks real API coverage.
+5. **[LEDGER, carried]** to_host wrapper gaps (PyNativeBuiltin/bound methods);
+   weakref API coverage debt. Single-branch workflow: fix in-branch, no GitHub issues.
+
+4. **[MED] User-class `__call__` not honored.** Calling an instance of a class
+   defining `__call__` raises TypeError("object is not callable"); type(f).__call__
+   is never consulted by the call path. Explicit f.__call__(x) presumably works.
+   Repro: Adder(10)(5) -> should be 15.
+
+5. **[MED] Iteration protocol ignores user dunders.** GET_ITER/FOR_ITER on a
+   user object does NOT look up __iter__/__next__: list(g) raises
+   TypeError("'NoneType' object is not iterable") even though g.__next__()
+   works when invoked explicitly. Same family as #1/#4: dunder lookup exists
+   for some protocols (__getitem__, __getattr__, __len__/__bool__, arithmetic,
+   __init_subclass__) but not callable/iterator/descriptor.
+
+9. **[CODEGEN-PARITY] three byte-parity gaps (from QuickBear's compiler
+   differential lane; sentinels exist in their working tree).**
+   a. CONST-POOL ORDERING: folded container consts interned eagerly at fold time;
+      CPython interns late, after the implicit epilogue None -> structurally equal
+      bytes, shifted const indices (`t = (1,2,3)`: ours LOAD_CONST 0 vs host 2).
+      Highest blast radius; interacts with band-11 nested-code consts.
+   b. CONSTANT-SET DISPLAYS: host emits BUILD_SET 0 + frozenset const +
+      SET_UPDATE 1; we emit element-wise loads + BUILD_SET N. Verified against
+      local CPython 3.14 by BrightTiger (intrinsic lowering applies to plain
+      assignments, not just membership tests).
+   c. BOOL-NOT IN JUMP CONTEXT: host folds `if not flag:` into inverted
+      PJUMP_IF_FALSE; we emit UNARY_NOT + COPY + TO_BOOL + PJUMP_IF_TRUE.
+   NOTE: all three are parity-only (semantics-neutral); they block codegen
+   differential harnesses, not runtime correctness. Sentinel for (c) should
+   include a user class whose __bool__ has side effects (evaluation-count check).
+
+10. **[MED] List slice ASSIGNMENT broken both paths.** `xs[::2] = [7, 8]`
+    raises TypeError("list indices must be integers") — STORE_SUBSCRIPT does
+    not accept PySlice. Direct xs.__setitem__(slice(0,4,2), [7,8]) returns
+    None but silently does NOT mutate (mp_ass_subscript slice branch missing/
+    no-op). Asymmetric: slice READ (xs[::2]) and slice DELETE (del xs[1:3])
+    both work. Same silent-noop family as the old unbound-method bug.
+    Repro: xs=[0,0,0,0]; xs[::2]=[7,8] -> expect [7,0,8,0].
+
+11. **[HARNESS] `_l1_flatten_seq` corrupts setup containing try/except —
+    can produce FALSE GREENS.** layer0_replay_harness.jac:110 expands ast.Try
+    into its inner statements at statement scope, discarding the try/except
+    wrapper: `try: f()\nexcept E as r: out.append(r)` becomes bare `f()` +
+    hoisted handler lines referencing undefined r. Two failure modes:
+    (a) honest-skip when host probe declines (NameError), silently losing ALL
+    try-in-setup coverage — every exc-chaining case so far never ran;
+    (b) WORSE: when the flattened sequence still executes (e.g.
+    `try: x=risky() except: x=0` -> `x=risky(); x=0`), both interpreters run
+    identical wrong code and the check PASSES — false conformance.
+    Docstring's claim that "control flow stays in setup" is untrue for Try.
+    Fix direction: keep the Try node intact in setup_src; lift ONLY
+    self.assertX Expr nodes found inside as extra checks AND mark the method
+    needs-capture (skip) since post-hoc expression eval can't see handler
+    scope. Never rewrite control flow into sibling statements.
+
+12. **[MED] `instance.__class__` AttributeError on user instances.**
+    a.__class__ -> AttributeError("__class__") for any user-class instance;
+    works for natives ([].__class__ == list). dir(a) lists __class__, so the
+    surface claims it but getattr misses it. Breaks common idiom
+    e.__class__.__name__ on caught exceptions too. Retroactively explains the
+    round-8 call-bisect failure attributed to __call__. Fix: PyUserObj getattr
+    resolves __class__ to its class object (and audit sibling identity dunders:
+    __dict__, __module__ on instances).
+
+13. **[LOW] callable() says False for user classes.** callable(C) where C is
+    a plain user class returns False (CPython: True — classes instantiate).
+    callable(fn) works. Part of the type-slot family: tp_call presence isn't
+    consulted for user types.
+
+14. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
+    def g(): yield 1; return 99 — after consuming via next(), the terminal
+    StopIteration has .value == None instead of 99. Asymmetric: yield from
+    DOES forward the inner gen's return correctly (yieldfrom-return-value
+    green), so the internal path carries it but the caller-facing
+    StopIteration doesn't attach .value. Only affects explicit-iteration
+    consumers (for loops ignore .value).
+
+### Root-cause synthesis (all findings collapse into 4 families)
+
+**A. No unified dunder dispatch** (items 1/4/5/12/13/15/17, +2 adjacent).
+Protocol resolution was built per-feature instead of through one shared
+type-MRO lookup: objects.jac has SIX separate tp_getattro impls; dunders work
+exactly where someone hand-wired a path (__getitem__/__add__/__eq__) and fail
+where nobody did (__call__/__iter__/descriptors/__getattr__/__class__).
+CPython's tp_* slot tables exist precisely to prevent this. Fix = unify via
+one MRO-walker core, two policy flavors (see GoldLion review thread).
+
+**B. Asymmetric slot coverage / half-wired features** (items 8/10/14/18).
+Each feature implemented against whichever test exposed one half first:
+sort has key= but sorted/max/min don't; slice read+del work but assign
+doesn't; gen return carried internally but StopIteration.value empty;
+property getter/setter without deleter. Fix = spec-driven completeness pass
+over builtin signatures and slot triples (get/set/del), not item patches.
+
+**C. Guest-host bridge marshaling ad hoc** (item 16, item 7, to_host ledger).
+Unknown shapes fall back to WRONG defaults (coro -> list) or raise where
+CPython compares exactly (inf vs bigint). Fix = typed conversion table at the
+boundary with explicit unknown-type policy.
+
+**D. Harness blind spots** (item 11 + coverage-map mis-claim lesson).
+Differential testing cannot see identical-wrong-on-both-sides; harness rewrites
+control flow. Mitigation already in place: pin corpus + sentinel pre-runs.
+
+Meta-root-cause: bottom-up conformance (make each observed test pass) instead
+of top-down architecture (slot table + single lookup). Explains why ~60 green
+domains coexist with these gaps: lifted-from-bytecode areas are solid,
+hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
+don't patch — individual fixes leave holes reopening under future features.
+
+**PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json — 16 cases:
+minimal repros for items 1/2/4/5/7/8/10/12/13/14 (red until fixed), descriptor
+precedence + instance-dict-inverse sentinels (guard the sweep), and
+healthy-behavior pins (exception chaining via nested-def) that must stay green.
+Not wired into CI; run manually via _fuzz_smoke.jac. Delete _fuzz_smoke.jac +
+_fuzz_introspect.jac before any upstream PR; the pin file itself should land.
+
+15. **[MED] `__getattr__` fallback never implemented.** Proxy().zzz raises
+    bare AttributeError('zzz') — type.__getattr__ is never consulted on lookup
+    failure. objects.jac has ZERO __getattr__ references (grep-verified).
+    Breaks lazy proxies/delegation idioms wholesale.
+    CORRECTION: early coverage-map entry listed __getattr__ green — that was
+    WRONG (mis-attributed from an unharvested case). Coverage map corrected.
+
+16. **[HIGH if async in scope] Coroutine/bridge integration broken.**
+    (a) asyncio.run(vm_coro()) -> "An asyncio.Future, a coroutine or an
+    awaitable is required": host event loop cannot recognize guest coroutines
+    across the bridge. (b) type(coro_obj) returns PyHostProxy(val=list) —
+    type() misreports coroutine objects as list (to_host wrapper gap family,
+    cf. carried ledger item). hasattr(c,'send') True, so the object exists;
+    identification/bridging is what fails.
+
+17. **[MED] Exception class passed to __exit__ lacks __name__.**
+    with-protocol suppression itself works (return True suppresses, exit args
+    flow), but reading et.__name__ inside __exit__ raises bare AttributeError
+    ("__name__"). The raised-exception CLASS object crossing into user code is
+    missing identity attrs — same family as item 12 (__class__ synthesis).
+    Repro: log.append(et.__name__ if et else None) inside __exit__.
+
+18. **[LOW-MED] property .deleter ignored.** del o.x on a property with
+    @x.deleter raises AttributeError('x'); getter/setter both work (verified
+    green separately). mp_del_subscript/del-attr path doesn't consult
+    property fdel. Same asymmetry shape as slice-assign (item 10).
+
+Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
+(module top-level code isn't replayed); function decorators in-method are
+green. Class-decorator support needs pinning elsewhere.
+
+Pattern note: user-class dunder support is piecemeal — consider one sweep that
+routes ALL protocols through a common type-slot/dunder lookup instead of
+per-protocol special cases.
+
+7. **[LOW-MED] float('inf') compared with huge int raises.** `inf > 10 ** 400`
+   errors on jacpython (likely OverflowError converting the int to float);
+   CPython compares exactly and returns True — no conversion overflow allowed.
+
+9. **[CODEGEN-PARITY] three byte-parity gaps (from QuickBear's compiler
+   differential lane; sentinels exist in their working tree).**
+   a. CONST-POOL ORDERING: folded container consts interned eagerly at fold time;
+      CPython interns late, after the implicit epilogue None -> structurally equal
+      bytes, shifted const indices (`t = (1,2,3)`: ours LOAD_CONST 0 vs host 2).
+      Highest blast radius; interacts with band-11 nested-code consts.
+   b. CONSTANT-SET DISPLAYS: host emits BUILD_SET 0 + frozenset const +
+      SET_UPDATE 1; we emit element-wise loads + BUILD_SET N. Verified against
+      local CPython 3.14 by BrightTiger (intrinsic lowering applies to plain
+      assignments, not just membership tests).
+   c. BOOL-NOT IN JUMP CONTEXT: host folds `if not flag:` into inverted
+      PJUMP_IF_FALSE; we emit UNARY_NOT + COPY + TO_BOOL + PJUMP_IF_TRUE.
+   NOTE: all three are parity-only (semantics-neutral); they block codegen
+   differential harnesses, not runtime correctness. Sentinel for (c) should
+   include a user class whose __bool__ has side effects (evaluation-count check).
+
+10. **[MED] List slice ASSIGNMENT broken both paths.** `xs[::2] = [7, 8]`
+    raises TypeError("list indices must be integers") — STORE_SUBSCRIPT does
+    not accept PySlice. Direct xs.__setitem__(slice(0,4,2), [7,8]) returns
+    None but silently does NOT mutate (mp_ass_subscript slice branch missing/
+    no-op). Asymmetric: slice READ (xs[::2]) and slice DELETE (del xs[1:3])
+    both work. Same silent-noop family as the old unbound-method bug.
+    Repro: xs=[0,0,0,0]; xs[::2]=[7,8] -> expect [7,0,8,0].
+
+11. **[HARNESS] `_l1_flatten_seq` corrupts setup containing try/except —
+    can produce FALSE GREENS.** layer0_replay_harness.jac:110 expands ast.Try
+    into its inner statements at statement scope, discarding the try/except
+    wrapper: `try: f()\nexcept E as r: out.append(r)` becomes bare `f()` +
+    hoisted handler lines referencing undefined r. Two failure modes:
+    (a) honest-skip when host probe declines (NameError), silently losing ALL
+    try-in-setup coverage — every exc-chaining case so far never ran;
+    (b) WORSE: when the flattened sequence still executes (e.g.
+    `try: x=risky() except: x=0` -> `x=risky(); x=0`), both interpreters run
+    identical wrong code and the check PASSES — false conformance.
+    Docstring's claim that "control flow stays in setup" is untrue for Try.
+    Fix direction: keep the Try node intact in setup_src; lift ONLY
+    self.assertX Expr nodes found inside as extra checks AND mark the method
+    needs-capture (skip) since post-hoc expression eval can't see handler
+    scope. Never rewrite control flow into sibling statements.
+
+12. **[MED] `instance.__class__` AttributeError on user instances.**
+    a.__class__ -> AttributeError("__class__") for any user-class instance;
+    works for natives ([].__class__ == list). dir(a) lists __class__, so the
+    surface claims it but getattr misses it. Breaks common idiom
+    e.__class__.__name__ on caught exceptions too. Retroactively explains the
+    round-8 call-bisect failure attributed to __call__. Fix: PyUserObj getattr
+    resolves __class__ to its class object (and audit sibling identity dunders:
+    __dict__, __module__ on instances).
+
+13. **[LOW] callable() says False for user classes.** callable(C) where C is
+    a plain user class returns False (CPython: True — classes instantiate).
+    callable(fn) works. Part of the type-slot family: tp_call presence isn't
+    consulted for user types.
+
+14. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
+    def g(): yield 1; return 99 — after consuming via next(), the terminal
+    StopIteration has .value == None instead of 99. Asymmetric: yield from
+    DOES forward the inner gen's return correctly (yieldfrom-return-value
+    green), so the internal path carries it but the caller-facing
+    StopIteration doesn't attach .value. Only affects explicit-iteration
+    consumers (for loops ignore .value).
+
+### Root-cause synthesis (all findings collapse into 4 families)
+
+**A. No unified dunder dispatch** (items 1/4/5/12/13/15/17, +2 adjacent).
+Protocol resolution was built per-feature instead of through one shared
+type-MRO lookup: objects.jac has SIX separate tp_getattro impls; dunders work
+exactly where someone hand-wired a path (__getitem__/__add__/__eq__) and fail
+where nobody did (__call__/__iter__/descriptors/__getattr__/__class__).
+CPython's tp_* slot tables exist precisely to prevent this. Fix = unify via
+one MRO-walker core, two policy flavors (see GoldLion review thread).
+
+**B. Asymmetric slot coverage / half-wired features** (items 8/10/14/18).
+Each feature implemented against whichever test exposed one half first:
+sort has key= but sorted/max/min don't; slice read+del work but assign
+doesn't; gen return carried internally but StopIteration.value empty;
+property getter/setter without deleter. Fix = spec-driven completeness pass
+over builtin signatures and slot triples (get/set/del), not item patches.
+
+**C. Guest-host bridge marshaling ad hoc** (item 16, item 7, to_host ledger).
+Unknown shapes fall back to WRONG defaults (coro -> list) or raise where
+CPython compares exactly (inf vs bigint). Fix = typed conversion table at the
+boundary with explicit unknown-type policy.
+
+**D. Harness blind spots** (item 11 + coverage-map mis-claim lesson).
+Differential testing cannot see identical-wrong-on-both-sides; harness rewrites
+control flow. Mitigation already in place: pin corpus + sentinel pre-runs.
+
+Meta-root-cause: bottom-up conformance (make each observed test pass) instead
+of top-down architecture (slot table + single lookup). Explains why ~60 green
+domains coexist with these gaps: lifted-from-bytecode areas are solid,
+hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
+don't patch — individual fixes leave holes reopening under future features.
+
+**PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json — 16 cases:
+minimal repros for items 1/2/4/5/7/8/10/12/13/14 (red until fixed), descriptor
+precedence + instance-dict-inverse sentinels (guard the sweep), and
+healthy-behavior pins (exception chaining via nested-def) that must stay green.
+Not wired into CI; run manually via _fuzz_smoke.jac. Delete _fuzz_smoke.jac +
+_fuzz_introspect.jac before any upstream PR; the pin file itself should land.
+
+15. **[MED] `__getattr__` fallback never implemented.** Proxy().zzz raises
+    bare AttributeError('zzz') — type.__getattr__ is never consulted on lookup
+    failure. objects.jac has ZERO __getattr__ references (grep-verified).
+    Breaks lazy proxies/delegation idioms wholesale.
+    CORRECTION: early coverage-map entry listed __getattr__ green — that was
+    WRONG (mis-attributed from an unharvested case). Coverage map corrected.
+
+16. **[HIGH if async in scope] Coroutine/bridge integration broken.**
+    (a) asyncio.run(vm_coro()) -> "An asyncio.Future, a coroutine or an
+    awaitable is required": host event loop cannot recognize guest coroutines
+    across the bridge. (b) type(coro_obj) returns PyHostProxy(val=list) —
+    type() misreports coroutine objects as list (to_host wrapper gap family,
+    cf. carried ledger item). hasattr(c,'send') True, so the object exists;
+    identification/bridging is what fails.
+
+17. **[MED] Exception class passed to __exit__ lacks __name__.**
+    with-protocol suppression itself works (return True suppresses, exit args
+    flow), but reading et.__name__ inside __exit__ raises bare AttributeError
+    ("__name__"). The raised-exception CLASS object crossing into user code is
+    missing identity attrs — same family as item 12 (__class__ synthesis).
+    Repro: log.append(et.__name__ if et else None) inside __exit__.
+
+18. **[LOW-MED] property .deleter ignored.** del o.x on a property with
+    @x.deleter raises AttributeError('x'); getter/setter both work (verified
+    green separately). mp_del_subscript/del-attr path doesn't consult
+    property fdel. Same asymmetry shape as slice-assign (item 10).
+
+Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
+(module top-level code isn't replayed); function decorators in-method are
+green. Class-decorator support needs pinning elsewhere.
+
+Pattern note: user-class dunder support is piecemeal — consider one sweep that
+routes ALL protocols through a common type-slot/dunder lookup instead of
+per-protocol special cases.
+
+6. **[MED] sorted()/max()/min() silently ignore key=.** sorted(['bbb','a','cc'],
+   key=len) -> ['a','bbb','cc'] (lexicographic, key dropped); max(same, key=len)
+   -> 'cc' (should be 'bbb'). Silent wrong answers, same severity family as the
+   unbound-method silent no-op. Note list.sort(key=) DOES work (ae82851a0), so
+   the decorate-sort-undecorate logic exists but isn't wired into these builtins.
+   Fix: forward key=/reverse= from sorted/max/min to the same machinery; also
+   audit any other builtin accepting key= (filter/map fine, but check
+   itertools-style helpers if lifted).
 
 ### Fixed & verified
+
+- [a13ba6a06] repr() drained native iterators → py_repr '<iterator object>' pre-to_host;
+  verified repr observational (next(it) after repr yields 1). Also py_type_of host-type
+  names for native wrappers (type(len) == 'builtin_function_or_method'); capsule
+  abs() workaround removed; HARNESS A strict setup errors count ERRORED.
+- [a13ba6a06] HARNESS C residual: _dedent_segment strips exactly base_col per
+  continuation line; try/except/else setups replay green end-to-end (exc-else verified).
+- [d5235d1d7] unbound builtin-method silent no-op — list.append/dict.get route to
+  native wrappers; PyIter.tp_iter + to_host drain for host consumers.
+- `list.sort()` missing entirely (silent no-op via host-copy mutation) — ae82851a0;
+  my 99-case stateful corpus went 77/99 → 99/99 post-fix; stability-under-key verified.
 
 - `list.sort()` missing entirely (silent no-op via host-copy mutation) — ae82851a0;
   my 99-case stateful corpus went 77/99 → 99/99 post-fix; stability-under-key verified.
@@ -297,7 +609,23 @@ floor/mod signs · gen yield/close/throw/yield-from/StopIteration→RuntimeError
 exception hierarchy/tuple-match/nested-finally/return-in-finally/reraise/NameError ·
 comprehension scoping (no-leak)/dict/set-comp/genexpr · f-strings/%-format/format() ·
 with enter/exit/suppression · operator overloads (**add**/**radd**/**eq**/**hash**/
-**len**/**bool**/**repr** fallback/**getattr**) · slice semantics · str methods.
+**len**/**bool**/**repr** fallback) · slice semantics · str methods ·
+loop for/while-else + break · set algebra (- ^ <= <) · dict setdefault/update(kw) ·
+bytes slice/concat/int-list · any/all over generators · enumerate/zip ·
+closures + nonlocal counters · *args/**kwargs/keyword-only/default-eval-once ·
+star-unpacking (a, *b, c) · dict views as sets · unbound builtin dispatch ·
+chained comparisons · subscript augmented assignment · pow-mod/negative bitops/
+~ · round/abs bigint · true-div semantics · nan equality · int() bases/whitespace ·
+exception type fidelity (IndexError/KeyError/AttributeError) · math module attrs ·
+unicode escapes/ord/chr · container repr nesting · ternary/boolop short-circuit ·
+utf-8/ascii/latin-1 codecs · dict get/pop defaults/fromkeys · map/filter(None) ·
+zip-shortest · list count/index/remove · chained/multi-target assignment ·
+tuple swap + immutable augassign · global stmt · complex numbers (real/imag/
+abs/conjugate/pow) · numeric-tower eq/hash/set-dedup · generator send/close/
+throw/yield-from nesting · self-referential containers · format_map ·
+nested/dict/set comprehensions · divmod negatives + banker's rounding ·
+int.to_bytes/from_bytes · str.maketrans/translate/expandtabs/ljust/rjust ·
+sum(start) incl. list concat · bool-as-int indexing · bytes.maketrans+delete.
 
 Known harness limits when writing new probes: asserts must be direct statements of a
 `test_*` method (no nesting inside try/with); avoid literal `self` tokens outside the
