@@ -466,3 +466,464 @@ def _p2_chain_from_iterable(iterable: any) -> _P2Chain {
     lz.active = None;
     return lz;
 }
+
+# ---- filtering / grouping / slicing types ---------------------------------
+
+obj _P2Groupby {
+    # Mirrors groupby_next + groupby_step. has_curr/has_tgt are explicit
+    # data flags (CPython uses NULL sentinels, but None can be a real key).
+    # currgrouper holds the serial of the live _P2Grouper; stale groupers
+    # raise StopIteration like C's currgrouper != igo check.
+    has it: any,
+        keyfunc: any = None,
+        tgtkey: any = None,
+        currkey: any = None,
+        currvalue: any = None,
+        has_curr: bool = False,
+        has_tgt: bool = False,
+        currgrouper: int = -1,
+        last_serial: int = 0;
+
+    def step -> bool {
+        try {
+            newvalue: any = _advance(it);
+        } except StopIteration {
+            return False;
+        }
+        if keyfunc is None {
+            newkey: any = newvalue;
+        } else {
+            newkey = keyfunc(newvalue);
+        }
+        currvalue = newvalue;
+        currkey = newkey;
+        has_curr = True;
+        return True;
+    }
+
+    def __next__ -> any {
+        currgrouper = -1;
+        need_step: bool = True;
+        while need_step {
+            if not has_curr {
+                need_step = True;
+            } elif not has_tgt {
+                need_step = False;
+            } elif tgtkey == currkey {
+                need_step = True;
+            } else {
+                need_step = False;
+            }
+            if need_step {
+                ok: bool = self.step();
+                if not ok {
+                    raise StopIteration();
+                }
+            }
+        }
+        tk: any = currkey;
+        tgtkey = tk;
+        has_tgt = True;
+        last_serial = last_serial + 1;
+        serial: int = last_serial;
+        currgrouper = serial;
+        return tuple([tk, _P2Grouper(parent=self, tgtkey=tk, serial=serial)]);
+    }
+}
+
+obj _P2Grouper {
+    has parent: any = None,
+        tgtkey: any = None,
+        serial: int = 0;
+
+    def __next__ -> any {
+        gbo = parent;
+        if gbo.currgrouper != serial {
+            raise StopIteration();
+        }
+        if not gbo.has_curr {
+            if not gbo.step() {
+                raise StopIteration();
+            }
+        }
+        if not (tgtkey == gbo.currkey) {
+            raise StopIteration();
+        }
+        r: any = gbo.currvalue;
+        gbo.currvalue = None;
+        gbo.has_curr = False;
+        gbo.currkey = None;
+        return r;
+    }
+}
+
+def _p2_groupby(iterable: any, keyfunc: any = None) -> _P2Groupby {
+    gbo = _P2Groupby(it=_get_iter(iterable), keyfunc=keyfunc);
+    return gbo;
+}
+
+obj _P2Tee {
+    # Shared-lookahead model of the teedataobject chain: every clone reads
+    # from one buffer; index tracks per-clone consumption.
+    has src: any = None,
+        buf: list = [],
+        done: bool = False,
+        index: int = 0;
+
+    def __next__ -> any {
+        while len(buf) <= index {
+            if done {
+                raise StopIteration();
+            }
+            try {
+                buf.append(_advance(src));
+            } except StopIteration {
+                done = True;
+                raise StopIteration();
+            }
+        }
+        item: any = buf[index];
+        index = index + 1;
+        return item;
+    }
+
+    def copy -> _P2Tee {
+        t = _P2Tee(src=src, buf=buf, done=done, index=index);
+        return t;
+    }
+}
+
+def _p2_tee(iterable: any, n: int = 2) -> any {
+    if n < 0 {
+        raise ValueError("n must be >= 0");
+    }
+    if n == 0 {
+        return tuple([]);
+    }
+    base = _P2Tee(src=_get_iter(iterable));
+    out: list = [base];
+    for i in range(1, n) {
+        out.append(base.copy());
+    }
+    return tuple(out);
+}
+
+obj _P2Islice {
+    # stop == -1 means "no stop" (CPython sentinel). next_pos counts by step
+    # from start; cnt is the absolute number of items consumed.
+    has it: any = None,
+        next_pos: int = 0,
+        stop: int = -1,
+        step: int = 1,
+        cnt: int = 0;
+
+    def __next__ -> any {
+        if it is None {
+            raise StopIteration();
+        }
+        while cnt < next_pos {
+            try {
+                skipped: any = _advance(it);
+            } except StopIteration {
+                it = None;
+                raise StopIteration();
+            }
+            cnt = cnt + 1;
+        }
+        if stop != -1 and cnt >= stop {
+            it = None;
+            raise StopIteration();
+        }
+        try {
+            item: any = _advance(it);
+        } except StopIteration {
+            it = None;
+            raise StopIteration();
+        }
+        cnt = cnt + 1;
+        next_pos = next_pos + step;
+        if stop != -1 and next_pos > stop {
+            it = None;
+        }
+        return item;
+    }
+}
+
+def _p2_islice_stop(seq: any, stop: any) -> _P2Islice {
+    lz = _P2Islice(it=_get_iter(seq));
+    if stop is not None {
+        if not isinstance(stop, int) or isinstance(stop, bool) or stop < 0 {
+            raise ValueError(
+                "Stop argument for islice() must be None or "
+                + "an integer: 0 <= x <= sys.maxsize."
+            );
+        }
+        lz.stop = stop;
+    }
+    return lz;
+}
+
+def _p2_islice_full(seq: any, start: any, stop: any, step: any) -> _P2Islice {
+    lz = _P2Islice(it=_get_iter(seq));
+    s: int = 0;
+    e: int = -1;
+    st: int = 1;
+    if start is not None {
+        if not isinstance(start, int) or isinstance(start, bool) or start < 0 {
+            raise ValueError(
+                "Indices for islice() must be None or "
+                + "an integer: 0 <= x <= sys.maxsize."
+            );
+        }
+        s = start;
+    }
+    if stop is not None {
+        if not isinstance(stop, int) or isinstance(stop, bool) or stop < 0 {
+            raise ValueError(
+                "Indices for islice() must be None or "
+                + "an integer: 0 <= x <= sys.maxsize."
+            );
+        }
+        e = stop;
+    }
+    if step is not None {
+        if not isinstance(step, int) or isinstance(step, bool) or step < 1 {
+            raise ValueError("Step for islice() must be a positive integer or None.");
+        }
+        st = step;
+    }
+    lz.next_pos = s;
+    lz.stop = e;
+    lz.step = st;
+    return lz;
+}
+
+obj _P2Starmap {
+    has func: any = None,
+        it: any = None;
+
+    def __next__ -> any {
+        args: any = _advance(it);
+        return func(*args);
+    }
+}
+
+def _p2_starmap(func: any, iterable: any) -> _P2Starmap {
+    lz = _P2Starmap(func=func, it=_get_iter(iterable));
+    return lz;
+}
+
+obj _P2Accumulate {
+    has it: any = None,
+        func: any = None,
+        total: any = None,
+        started: bool = False;
+
+    def __next__ -> any {
+        if not started {
+            started = True;
+            total = _advance(it);
+            return total;
+        }
+        item: any = _advance(it);
+        if func is None {
+            total = total + item;
+        } else {
+            total = func(total, item);
+        }
+        return total;
+    }
+}
+
+def _p2_accumulate(iterable: any, func: any = None) -> _P2Accumulate {
+    lz = _P2Accumulate(it=_get_iter(iterable), func=func);
+    return lz;
+}
+
+obj _P2Compress {
+    has data_it: any = None,
+        sel_it: any = None;
+
+    def __next__ -> any {
+        while True {
+            selector: any = _advance(sel_it);
+            datum: any = _advance(data_it);
+            if selector {
+                return datum;
+            }
+        }
+    }
+}
+
+def _p2_compress(data: any, selectors: any) -> _P2Compress {
+    lz = _P2Compress(data_it=_get_iter(data), sel_it=_get_iter(selectors));
+    return lz;
+}
+
+obj _P2Dropwhile {
+    has func: any = None,
+        it: any = None,
+        started: bool = False;
+
+    def __next__ -> any {
+        if not started {
+            while True {
+                item: any = _advance(it);
+                if not func(item) {
+                    started = True;
+                    return item;
+                }
+            }
+        }
+        return _advance(it);
+    }
+}
+
+def _p2_dropwhile(predicate: any, iterable: any) -> _P2Dropwhile {
+    lz = _P2Dropwhile(func=predicate, it=_get_iter(iterable));
+    return lz;
+}
+
+obj _P2Takewhile {
+    has func: any = None,
+        it: any = None,
+        stopped: bool = False;
+
+    def __next__ -> any {
+        if stopped {
+            raise StopIteration();
+        }
+        item: any = _advance(it);
+        if not func(item) {
+            stopped = True;
+            raise StopIteration();
+        }
+        return item;
+    }
+}
+
+def _p2_takewhile(predicate: any, iterable: any) -> _P2Takewhile {
+    lz = _P2Takewhile(func=predicate, it=_get_iter(iterable));
+    return lz;
+}
+
+obj _P2Filterfalse {
+    has func: any = None,
+        it: any = None;
+
+    def __next__ -> any {
+        while True {
+            item: any = _advance(it);
+            if func is None {
+                if not item {
+                    return item;
+                }
+            } elif not func(item) {
+                return item;
+            }
+        }
+    }
+}
+
+def _p2_filterfalse(predicate: any, iterable: any) -> _P2Filterfalse {
+    lz = _P2Filterfalse(func=predicate, it=_get_iter(iterable));
+    return lz;
+}
+
+obj _P2Pairwise {
+    has it: any = None,
+        prev: any = None,
+        started: bool = False;
+
+    def __next__ -> any {
+        if not started {
+            prev = _advance(it);
+            started = True;
+        }
+        item: any = _advance(it);
+        oldprev: any = prev;
+        prev = item;
+        return tuple([oldprev, item]);
+    }
+}
+
+def _p2_pairwise(iterable: any) -> _P2Pairwise {
+    lz = _P2Pairwise(it=_get_iter(iterable));
+    return lz;
+}
+
+obj _P2Batched {
+    has it: any = None,
+        n: int = 1,
+        strict: bool = False;
+
+    def __next__ -> any {
+        batch: list = [];
+        while len(batch) < n {
+            try {
+                batch.append(_advance(it));
+            } except StopIteration {
+                if len(batch) > 0 {
+                    if strict and len(batch) < n {
+                        raise ValueError("batched(): incomplete batch");
+                    }
+                    return tuple(batch);
+                }
+                raise StopIteration();
+            }
+        }
+        return tuple(batch);
+    }
+}
+
+def _p2_batched(iterable: any, n: int, strict: bool = False) -> _P2Batched {
+    if n < 1 {
+        raise ValueError("n must be at least one");
+    }
+    bo = _P2Batched(it=_get_iter(iterable), n=n, strict=strict);
+    return bo;
+}
+
+obj _P2ZipLongest {
+    # iterators[i] becomes None once exhausted (numactive decrements); a row
+    # where the LAST active iterator dies returns StopIteration immediately,
+    # dropping partially collected items exactly like C zip_longest_next.
+    has iterators: list = [],
+        fillvalue: any = None,
+        numactive: int = 0;
+
+    def __next__ -> any {
+        if numactive == 0 {
+            raise StopIteration();
+        }
+        out: list = [];
+        i = 0;
+        while i < len(iterators) {
+            src: any = iterators[i];
+            if src is None {
+                out.append(fillvalue);
+            } else {
+                try {
+                    out.append(_advance(src));
+                } except StopIteration {
+                    iterators[i] = None;
+                    numactive = numactive - 1;
+                    if numactive == 0 {
+                        raise StopIteration();
+                    }
+                    out.append(fillvalue);
+                }
+            }
+            i = i + 1;
+        }
+        return tuple(out);
+    }
+}
+
+def _p2_zip_longest(iterables: list, fillvalue: any = None) -> _P2ZipLongest {
+    lz = _P2ZipLongest(fillvalue=fillvalue, numactive=len(iterables));
+    for seq in iterables {
+        lz.iterators.append(_get_iter(seq));
+    }
+    return lz;
+}

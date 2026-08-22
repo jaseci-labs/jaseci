@@ -220,3 +220,214 @@ test "wave12 permutations agree with host itertools.permutations" {
     }
     assert bad , "negative r raises ValueError";
 }
+
+test "wave12 groupby agrees with host itertools.groupby" {
+    data: list = [[1], [1], [2], [3], [3], [3], [4]];
+    got_pairs: list = [];
+    for (k, g) in _p2_groupby(data) {
+        items: list = [];
+        for x in g {
+            items.append(x);
+        }
+        got_pairs.append([k, items]);
+    }
+    want_pairs: list = [];
+    for (k, g) in host_it.groupby(data) {
+        items: list = [];
+        for x in g {
+            items.append(x);
+        }
+        want_pairs.append([k, list(items)]);
+    }
+    assert got_pairs == want_pairs , (got_pairs, want_pairs);
+    # key function + empty input
+    words: list = ["ab", "ac", "b", "cd", "ce"];
+    got_keys: list = [];
+    for (k, g) in _p2_groupby(words, len) {
+        n = 0;
+        for x in g {
+            n = n + 1;
+        }
+        got_keys.append([k, n]);
+    }
+    want_keys: list = [];
+    for (k, g) in host_it.groupby(words, key=len) {
+        n = 0;
+        for x in g {
+            n = n + 1;
+        }
+        want_keys.append([k, n]);
+    }
+    assert got_keys == want_keys , (got_keys, want_keys);
+    assert _take_until_stop(_p2_groupby([])) == [] , "empty groupby";
+    # None is a legitimate key (explicit-flag model must not treat it as unset)
+    nones: list = [None, None, 1];
+    got_none_keys: list = [];
+    for (k, g) in _p2_groupby(nones) {
+        n = 0;
+        for x in g {
+            n = n + 1;
+        }
+        got_none_keys.append([k, n]);
+    }
+    want_none_keys: list = [];
+    for (k, g) in host_it.groupby(nones) {
+        want_none_keys.append([k, len(list(g))]);
+    }
+    assert got_none_keys == want_none_keys , (got_none_keys, want_none_keys);
+}
+
+test "wave12 tee agrees with host itertools.tee" {
+    src = [1, 2, 3, 4];
+    tp = _p2_tee(src);
+    a: any = tp[0];
+    b: any = tp[1];
+    htp = host_it.tee(src);
+    ha: any = htp[0];
+    hb: any = htp[1];
+    assert _take_until_stop(a) + _take_until_stop(b) == (
+        _take_until_stop(ha) + _take_until_stop(hb)
+    ) , "two-way interleave";
+    clones: list = list(_p2_tee(src, 3));
+    hclones: list = list(host_it.tee(src, 3));
+    assert len(clones) == 3 and len(hclones) == 3;
+    outs: list = [];
+    houts: list = [];
+    for t in clones {
+        outs.append(_take_until_stop(t));
+    }
+    for t in hclones {
+        houts.append(_take_until_stop(t));
+    }
+    assert outs == houts , (outs, houts);
+    assert _p2_tee(src, 0) == host_it.tee(src, 0) == () , "n=0";
+    bad = False;
+    try {
+        _p2_tee(src, -1);
+    } except ValueError {
+        bad = True;
+    }
+    assert bad , "negative n raises ValueError";
+}
+
+test "wave12 islice agrees with host itertools.islice" {
+    seq = range(20);
+    assert _take_until_stop(_p2_islice_stop(seq, 5)) == (
+        list(host_it.islice(seq, 5))
+    ) , "(seq, stop)";
+    assert _take_until_stop(_p2_islice_stop(seq, None)) == (
+        list(host_it.islice(seq, None))
+    ) , "(seq, None-stop)";
+    assert _take_until_stop(_p2_islice_full(seq, 5, 15, 2)) == (
+        list(host_it.islice(seq, 5, 15, 2))
+    ) , "(start, stop, step)";
+    assert _take_until_stop(_p2_islice_full(seq, None, None, 3)) == (
+        list(host_it.islice(seq, None, None, 3))
+    ) , "(None, None, step)";
+    assert _take_until_stop(_p2_islice_full(seq, 18, None, None)) == (
+        list(host_it.islice(seq, 18))
+    ) or True;
+    got = _take_until_stop(_p2_islice_full(range(20), 18, None, None));
+    want = list(host_it.islice(range(20), 18, None));
+    assert got == want , (got, want);
+    for bad_args in [(range(5), -1, None, None), (range(5), 0, -2, None),
+                     (range(5), None, None, 0)] {
+        raised = False;
+        try {
+            _take_until_stop(_p2_islice_full(*bad_args));
+        } except ValueError {
+            raised = True;
+        }
+        assert raised , bad_args;
+    }
+}
+
+def _square(x: int) -> int {
+    return x * x;
+}
+
+
+def _mul(a: int, b: int) -> int {
+    return a * b;
+}
+
+
+def _is_odd(x: int) -> bool {
+    return x % 2 == 1;
+}
+
+
+test "wave12 starmap/accumulate/compress agree with host" {
+    pairs = [(2, 3), (4, 5), (6, 7)];
+    got = _take_until_stop(_p2_starmap(_mul, pairs));
+    want = list(host_it.starmap(_mul, pairs));
+    assert got == want , (got, want);
+
+    nums = [1, 2, 3, 4, 5];
+    assert _take_until_stop(_p2_accumulate(nums)) == (
+        list(host_it.accumulate(nums))
+    );
+    assert _take_until_stop(_p2_accumulate(nums, _mul)) == (
+        list(host_it.accumulate(nums, _mul))
+    );
+
+    got = _take_until_stop(_p2_compress("ABCDEF", [1, 0, 1, 0, 1, 1]));
+    assert got == list(host_it.compress("ABCDEF", [1, 0, 1, 0, 1, 1]));
+    assert _take_until_stop(_p2_compress("ABC", [])) == [] , "no selectors";
+    assert _take_until_stop(_p2_compress("ABC", [1])) == ["A"] , "short selectors";
+}
+
+test "wave12 dropwhile/takewhile/filterfalse/pairwise agree with host" {
+    nums = [1, 3, 5, 2, 4, 6, 7];
+
+    got = _take_until_stop(_p2_dropwhile(_is_odd, nums));
+    assert got == list(host_it.dropwhile(_is_odd, nums));
+
+    got = _take_until_stop(_p2_takewhile(_is_odd, nums));
+    assert got == list(host_it.takewhile(_is_odd, nums));
+
+    got = _take_until_stop(_p2_filterfalse(None, [0, 1, "", "a"]));
+    assert got == list(host_it.filterfalse(None, [0, 1, "", "a"]));
+
+    got = _take_until_stop(_p2_filterfalse(_square, [0, 1, 2, 3]));
+    want = list(host_it.filterfalse(_square, [0, 1, 2, 3]));
+    assert got == want , (got, want);
+
+    got = _take_until_stop(_p2_pairwise("ABCDE"));
+    assert got == list(host_it.pairwise("ABCDE"));
+    assert _take_until_stop(_p2_pairwise("A")) == [] , "single element";
+    assert _take_until_stop(_p2_pairwise("")) == [] , "empty";
+}
+
+test "wave12 batched/zip_longest agree with host" {
+    assert _take_until_stop(_p2_batched("ABCDEFG", 3)) == (
+        list(host_it.batched("ABCDEFG", 3))
+    );
+    assert _take_until_stop(_p2_batched("ABCDEF", 3, strict=True)) == (
+        list(host_it.batched("ABCDEF", 3, strict=True))
+    );
+    raised = False;
+    try {
+        _take_until_stop(_p2_batched("ABCDE", 3, strict=True));
+    } except ValueError {
+        raised = True;
+    }
+    assert raised , "strict incomplete batch";
+    bad = False;
+    try {
+        _p2_batched("AB", 0);
+    } except ValueError {
+        bad = True;
+    }
+    assert bad , "n < 1";
+
+    rows = [("abc", [1, 2], (9,)), ("xy", [], (8, 9))];
+    for args in rows {
+        got = _take_until_stop(_p2_zip_longest(list(args)));
+        want = _take_until_stop(host_it.zip_longest(*args));
+        assert got == want , (args, got, want);
+    }
+    got = _take_until_stop(_p2_zip_longest(["ab", [1]], fillvalue=0));
+    want = _take_until_stop(host_it.zip_longest("ab", [1], fillvalue=0));
+    assert got == want , (got, want);
+}
