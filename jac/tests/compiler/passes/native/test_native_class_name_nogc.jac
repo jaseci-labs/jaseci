@@ -49,7 +49,7 @@ glob FIXTURES = os.path.join(
 
 
 """Headerless: `--gc none` with nogc enforced, the mode with no rc header."""
-def _headerless_opts -> object {
+def _headerless_opts -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     return CompileOptions(
         force_codespace='native',
@@ -69,7 +69,7 @@ def _compile(fixture: str, options: any) -> tuple {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: any, name: str) -> object {
+def _get(eng: any, name: str) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -77,7 +77,7 @@ def _get(eng: any, name: str) -> object {
 
 
 """True if the program emitted at least one alert with the given code."""
-def _has_code(prog: object, code: str) -> bool {
+def _has_code(prog: any, code: str) -> bool {
     for alrt in prog.errors_had {
         if alrt.code is not None and alrt.code.code == code {
             return True;
@@ -87,7 +87,7 @@ def _has_code(prog: object, code: str) -> bool {
 }
 
 
-def _ir_text(ir: object) -> str {
+def _ir_text(ir: any) -> str {
     return str(ir.gen.llvm_ir) if (ir is not None and ir.gen.llvm_ir) else "";
 }
 

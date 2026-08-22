@@ -433,7 +433,8 @@ test "checker: membership over an operand with no static type is refused (E1124)
         if e.code is not None and e.code.code == "E1124"
     ];
     for e in e1124 {
-        assert "annotate" in (e.code.help_text or "") , (
+        _help = e.code.help_text if e.code is not None else None;
+        assert "annotate" in (_help or "") , (
             f"E1124 must demand an annotation, got: {e}"
         );
     }

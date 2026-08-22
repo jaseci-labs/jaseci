@@ -79,7 +79,7 @@ def _call_lines(ir_text: str, name: str) -> list[str] {
 }
 
 """Probe source per dispatch kind; a new dispatch kind must add one here."""
-def _probe_source(intr: object) -> str {
+def _probe_source(intr: any) -> str {
     if intr.dispatch == IntrinsicDispatch.FLOAT_BITS {
         return "def probe(x: f64) -> i64 { return " + intr.name + "(x); }\n";
     }

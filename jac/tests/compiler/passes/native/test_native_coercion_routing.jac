@@ -53,7 +53,7 @@ def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any 
 }
 
 """Import the same fixture through the sv/bytecode pathway."""
-def sv_module -> object {
+def sv_module -> any {
     return JacRuntime.jac_import(
         target="coercion_routing", base_path=FIXTURES, override_name="cr_sv_mod"
     )[0];

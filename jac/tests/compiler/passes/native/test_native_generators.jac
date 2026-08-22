@@ -63,7 +63,7 @@ def get_sfunc(eng: any, name: str, restype: type | None, *argtypes: type) -> any
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {

@@ -47,7 +47,7 @@ glob FIXTURES = os.path.join(
 
 
 """JIT the fixture once; return its execution engine."""
-def engine -> object {
+def engine -> any {
     if _ENGINE {
         return _ENGINE[0];
     }

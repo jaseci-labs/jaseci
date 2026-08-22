@@ -23,7 +23,7 @@ glob FIXTURES = os.path.join(
      FIXTURE = "hetero_list_str.jac";
 
 
-def _compile(fixture: str) -> object {
+def _compile(fixture: str) -> any {
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
@@ -67,7 +67,7 @@ def _get_s(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {

@@ -14,7 +14,13 @@ on so the gate cannot silently drift from `NaIRGenPass.transform`'s own trigger:
 import os;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { get_py_code_gen }
+import from jaclang.jac0core.compiler {
+    get_analysis_sched,
+    get_boundary_analysis_sched,
+    get_ir_gen_sched,
+    get_py_code_gen,
+    providers_of
+}
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
 
@@ -31,7 +37,11 @@ test "get_py_code_gen omits the native passes when native=False" {
 
 
 test "get_py_code_gen schedules the native passes when native=True" {
-    with_native = get_py_code_gen(native=True);
+    # Codegen runs after the analysis stage in the single pipeline, so the
+    # standalone schedule is constructed against its provides.
+    with_native = get_py_code_gen(native=True, provided=providers_of(
+            get_ir_gen_sched() + get_analysis_sched() + get_boundary_analysis_sched()
+        ));
     assert NaIRGenPass in with_native;
     assert NativeCompilePass in with_native;
 }

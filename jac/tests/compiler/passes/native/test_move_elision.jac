@@ -28,7 +28,7 @@ glob FIXTURES = os.path.join(
      );
 
 """Stand-in for `_can_native_move_lower` that disables move-lowering (baseline)."""
-def _no_move_lower(pass_self: object, nd: object) -> bool {
+def _no_move_lower(pass_self: any, nd: any) -> bool {
     return False;
 }
 
@@ -49,7 +49,8 @@ def compile_fixture(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 def retain_calls(fixture: str, move_lower: bool) -> int {
     orig = NaIRGenPass._can_native_move_lower;
     if not move_lower {
-        NaIRGenPass._can_native_move_lower = _no_move_lower;
+        _napatch: any = NaIRGenPass;
+        _napatch._can_native_move_lower = _no_move_lower;
     }
     try {
         (eng, ir) = compile_fixture(fixture);

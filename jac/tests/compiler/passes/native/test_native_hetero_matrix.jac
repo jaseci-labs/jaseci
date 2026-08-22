@@ -33,7 +33,7 @@ glob FIXTURES = os.path.join(
      PROG = "hetero_matrix.jac";
 
 
-def _opts(gc_mode: str | None = None, enforce: bool = False) -> object {
+def _opts(gc_mode: str | None = None, enforce: bool = False) -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     if gc_mode is None {
         return native_force_opts();
@@ -47,7 +47,7 @@ def _opts(gc_mode: str | None = None, enforce: bool = False) -> object {
 }
 
 
-def _compile(fixture: str, options: object | None = None) -> tuple {
+def _compile(fixture: str, options: any | None = None) -> tuple {
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)),
@@ -172,7 +172,7 @@ def _inuse_probe -> (object | None) {
 
 
 """Warm `fn`, baseline in-use bytes, run a long churn window, return growth."""
-def _churn_growth(fn: object, inuse: object, arg: int = 2000, iters: int = 40) -> int {
+def _churn_growth(fn: any, inuse: any, arg: int = 2000, iters: int = 40) -> int {
     for _ in range(3) {
         fn(arg);
     }

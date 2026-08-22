@@ -72,7 +72,7 @@ def _seams_for(fixture: str, fn: str) -> list[str] {
 
 
 """The fixture's module through the sv/bytecode pathway."""
-def _sv_module(fixture: str) -> object {
+def _sv_module(fixture: str) -> any {
     prev = get_effective_default_codespace_override();
     set_effective_default_codespace("server");
     try {
