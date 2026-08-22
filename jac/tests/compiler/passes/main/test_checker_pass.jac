@@ -445,11 +445,14 @@ test "class_construct" {
     square_sym = mod.sym_tab.lookup("Square");
     assert square_sym is not None;
     assert square_sym.decl is not None;
-    assert square_sym.decl.type is not None;
-    assert square_sym.decl.type.shared is not None;
+    square_ty: any = square_sym.decl.type;
+    assert square_ty is not None;
+    assert square_ty.shared is not None;
+    square_shared: any = square_ty.shared;
+    square_mro: list = list(square_shared.mro);
     mro_class_names = [
         cls.shared.class_name
-        for cls in square_sym.decl.type.shared.mro
+        for cls in square_mro
         if cls.shared is not None
     ];
     assert "object" in mro_class_names , f"Expected 'object' in MRO, got: {mro_class_names}";
@@ -2345,7 +2348,7 @@ test "enum_member_declaration_resolves_to_enum_member_type" {
     assert category_sym is not None , "Category enum not found in sym_tab";
 
     # The enum has its own scope containing its members.
-    enum_scope = category_sym.decl.name_of;
+    enum_scope: any = category_sym.decl.name_of;
     expected_members = ["WORK", "PERSONAL", "SHOPPING", "HEALTH", "OTHER"];
     for member_name in expected_members {
         member_sym = enum_scope.lookup(member_name, deep=False);
@@ -2381,7 +2384,7 @@ test "enum_member_impl_declaration_resolves_to_enum_member_type" {
     color_sym = mod.sym_tab.lookup("Color");
     assert color_sym is not None , "Color enum not found in sym_tab";
 
-    enum_scope = color_sym.decl.name_of;
+    enum_scope: any = color_sym.decl.name_of;
     expected_members = ["RED", "GREEN", "BLUE"];
     for member_name in expected_members {
         member_sym = enum_scope.lookup(member_name, deep=False);
@@ -3926,16 +3929,12 @@ test "root_cause_6_stdlib_returns_unknown" {
         for e in program.errors_had
         if e.loc and 267 <= e.loc.first_line <= 305
     ];
-    # 11 (down from 15): `importlib.util` itself now resolves — ModuleType
-    # attribute access falls back to on-disk submodule resolution, so the four
-    # `.util`-on-Unknown errors are gone. spec_from_file_location still types
-    # Unknown because util.pyi only re-exports it (`from importlib.
-    # _bootstrap_external import spec_from_file_location as ...`) and aliased
-    # stub re-exports are not followed yet; its cascades remain.
-    # Cascade suppression handles chained AtomTrailer accesses but not Name targets.
-    assert len(rc6_errors) == 11 , f"Expected 11 stdlib-unknown errors, got {len(
-        rc6_errors
-    )}:\n"
+    # 1 (down from 11): aliased stub re-exports are followed now, so
+    # spec_from_file_location types as `ModuleSpec | None`, the truthiness
+    # guards narrow it, and the Unknown cascades are gone. The one remaining
+    # error is real fixture code: `exec_module(None)` passes NoneType where
+    # a ModuleType parameter is declared.
+    assert len(rc6_errors) == 1 , f"Expected 1 stdlib error, got {len(rc6_errors)}:\n"
         + "\n---\n".join(e.pretty_print() for e in rc6_errors);
 }
 
@@ -4145,7 +4144,12 @@ test "root_causes_total_error_count" {
         for e in program.errors_had
         if e.loc and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
     ];
-    assert len(_fixture_errors) == 24 , f"Expected 24 fixture errors, got {len(
+    # Down from 24 to 14: Root Cause 6's spec_from_file_location chain
+    # types as `ModuleSpec | None` now that aliased stub re-exports are
+    # followed, so its ten Unknown cascades are gone; the member-miss fix
+    # (inherited object.__getattribute__ no longer resolves every miss to
+    # Any) restored the E1030s the dynamic-attr root causes always expected.
+    assert len(_fixture_errors) == 14 , f"Expected 14 fixture errors, got {len(
         _fixture_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in _fixture_errors);
