@@ -132,6 +132,22 @@
   {
    "name": "pin-slice-subclass-generator-assign",
    "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class L(list): pass\n        xs = L([0, 0, 0, 0])\n        def gen():\n            yield 7\n            yield 8\n        xs[::2] = gen()\n        self.assertEqual(xs, [7, 0, 8, 0])\n"
+  },
+  {
+   "name": "pin-item8-default-empty-only",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(max([], default=5), 5)\n        self.assertEqual(max([None], default=5), None)\n        self.assertEqual(min([0], default=9), 0)\n"
+  },
+  {
+   "name": "pin-item8-multipos-key",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def neg(x): return -x\n        self.assertEqual(max(3, 7, 1, key=neg), 1)\n        self.assertEqual(min(3, 7, 1, key=neg), 7)\n"
+  },
+  {
+   "name": "pin-item8-sorted-stability-key",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        pairs = [('b', 1), ('a', 2), ('a', 1)]\n        srt = sorted(pairs, key=lambda p: p[0])\n        self.assertEqual(srt, [('a', 2), ('a', 1), ('b', 1)])\n"
+  },
+  {
+   "name": "pin-item8-key-raise-propagates",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def boom(x):\n            raise ValueError('kaboom')\n        with self.assertRaises(ValueError):\n            sorted([1, 2], key=boom)\n"
   }
  ]
 }

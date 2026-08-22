@@ -498,6 +498,12 @@ domains coexist with these gaps: lifted-from-bytecode areas are solid,
 hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
 don't patch - individual fixes leave holes reopening under future features.
 
+**PIN STATUS @ HEAD post-item8-merge (199be79f3 + GoldLion pins)**: corpus 37.
+Item-8 family fully green incl. default=-on-empty-only, multi-positional+key,
+key-stability, key-raise-propagation (4 new GoldLion pins, all green first run).
+Remaining reds: walker items (1 x3, 2, 15 x2), #21 chaining, consumer-matrix
+(in flight), item19 (unowned). Earlier statuses below.
+
 **PIN STATUS @ HEAD 276b1af4e** (WildRaven nit batch + list-subclass drain gap): 22 GREEN /
 11 RED. New pin-slice-subclass-generator-assign GREEN on first run (gap fix works). All other reds unchanged/owned.
 ATTRIBUTION NOTE: 276b1af4e carries WildRaven's code (objects.jac nits/E1053 + ceval PyUserObj forward reroute) under a docs-labeled message - concurrent committer absorbed staged edits mid-cycle (shared-tree hazard). Code authorship: WildRaven, slice lane. Content verified complete via git show; not rewriting shared history.
