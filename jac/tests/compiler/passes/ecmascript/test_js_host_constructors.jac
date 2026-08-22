@@ -110,3 +110,124 @@ test "new(TextEncoder) does not emit W6010" {
         "new(TextEncoder) must not warn W6010, got: " + str([str(w) for w in warnings])
     );
 }
+
+test "user-declared symbol shadowing a host name is not lowered" {
+    prog = JacProgram();
+    with NamedTemporaryFile(
+        mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
+    ) as f {
+        f.write(
+            "def Date() -> any { return 1; }\n"
+            "def:pub f() -> any { return Date(); }\n"
+        );
+        f.flush();
+        ir = prog.compile(f.name, type_check=True);
+    }
+    warnings = warnings_with_code(prog, "W6010");
+    assert len(warnings) == 0 , (
+        "A user-defined Date() must not warn W6010, got: "
+        + str([str(w) for w in warnings])
+    );
+    assert ir.gen.js and "Reflect.construct(Date" not in ir.gen.js , (
+        "A user-defined Date() must stay a plain call; got:\n"
+        + (ir.gen.js or "<no js>")
+    );
+}
+
+test "callable builtins stay plain calls" {
+    prog = JacProgram();
+    with NamedTemporaryFile(
+        mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
+    ) as f {
+        f.write(
+            "def:pub f() -> any { n = Number(\"42\"); s = String(n); b = BigInt(\"7\"); return s; }\n"
+        );
+        f.flush();
+        ir = prog.compile(f.name, type_check=True);
+    }
+    warnings = warnings_with_code(prog, "W6010");
+    assert len(warnings) == 0 , (
+        "Number/String/BigInt are callable without new and must not warn W6010, got: "
+        + str([str(w) for w in warnings])
+    );
+    assert not prog.errors_had , (
+        "Number/String/BigInt inline program must compile cleanly, got: "
+        + str([str(e) for e in prog.errors_had])
+    );
+    js = ir.gen.js or "";
+    for fn in ["Number", "String", "BigInt"] {
+        assert "Reflect.construct(" + fn not in js , (
+            fn + "() is callable without new and must stay a plain call; got:\n" + js
+        );
+    }
+}
+
+test "host constructor call with kwargs still lowers" {
+    prog = JacProgram();
+    with NamedTemporaryFile(
+        mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
+    ) as f {
+        f.write(
+            "def:pub k1() -> any {\n"
+            "    enc = TextEncoder();\n"
+            "    url = URL(\"https://example.com\", params=\"a=b\");\n"
+            "    ws = WebSocket(\"ws://example.com\");\n"
+            "    promise = Promise(lambda (resolve: any, reject: any) {\n"
+            "        resolve.call(None, \"done\");\n"
+            "    });\n"
+            "    return \"hi\";\n"
+            "}\n"
+        );
+        f.flush();
+        ir = prog.compile(f.name, type_check=True);
+    }
+    assert not prog.errors_had , (
+        "kwargs fixture must compile cleanly, got: "
+        + str([str(e) for e in prog.errors_had])
+    );
+    js = ir.gen.js or "";
+    assert "Reflect.construct(TextEncoder, [])" in js , (
+        "TextEncoder() must lower; got:\n" + js
+    );
+    assert 'Reflect.construct(URL, ["https://example.com", "a=b"])' in js , (
+        "URL(...) with kwargs must lower like new(URL, ...) -- positional args "
+        "plus kwarg values; got:\n"
+        + js
+    );
+    assert "URL(" not in js.replace("Reflect.construct(URL, ", "") , (
+        "No bare URL() call may remain; got:\n" + js
+    );
+}
+
+test "registry-derived ctors (Blob, Int8Array, WeakMap) lower and warn W6010" {
+    # Regression guard for the consolidated JS_HOST_GLOBAL_TAGS registry: these
+    # were missing from the original hand-written allowlist, so Blob() et al
+    # still lowered to invalid bare-call JS with no W6010 (issue #7651).
+    prog = compile_inline(
+        "def:pub f() -> any {\n"
+        "    b = Blob([]);\n"
+        "    a = Int8Array(4);\n"
+        "    m = WeakMap();\n"
+        "    return \"ok\";\n"
+        "}\n"
+    );
+    warnings = warnings_with_code(prog, "W6010");
+    warned = {w.loc.first_line for w in warnings};
+    js = prog.ir.gen.js or "";
+    for fn in ["Blob", "Int8Array", "WeakMap"] {
+        assert "Reflect.construct(" + fn in js , (
+            fn
+            + "() must lower to Reflect.construct now that it is in the "
+            "consolidated registry; got:\n"
+            + js
+        );
+        assert warned , (
+            fn
+            + "() must emit a W6010 portability warning; got: "
+            + str([str(w) for w in warnings])
+        );
+    }
+    assert len(warnings) == 3 , (
+        "Exactly three W6010 warnings expected, got: " + str([str(w) for w in warnings])
+    );
+}

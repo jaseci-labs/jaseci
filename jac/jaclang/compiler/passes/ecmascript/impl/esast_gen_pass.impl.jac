@@ -2158,7 +2158,12 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    host_ctor = self._try_lower_js_host_constructor_call(nd, callee_expr, args);
+    # call_args, not args: with kwargs it carries the props object the
+    # ordinary path would pass, so kwarg'd host calls still lower instead
+    # of falling through as bare constructor invocations.
+    host_ctor = self._try_lower_js_host_constructor_call(
+        nd, callee_expr, call_args
+    );
     if host_ctor is not None {
         nd.gen.es_ast = host_ctor;
         return;
