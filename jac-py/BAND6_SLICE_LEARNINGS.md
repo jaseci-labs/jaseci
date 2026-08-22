@@ -4,7 +4,7 @@
 (`2094513ce` through `21111b1ab`; logical slices below). Do not re-derive facts already
 captured here - verify against oracle fixtures and extend the patterns below.
 
-Last updated: 2026-08-21 (`jac-python`, Band 6 slice 7 multi-handler).
+Last updated: 2026-08-22 (`jac-python`, Band 6 slice 8 except-as in combined try/except/finally).
 
 ---
 
@@ -187,9 +187,27 @@ Key CPython-congruent behaviors (each cost a debugging round; do not re-derive):
 | Region depths inside a handler body | `handler_nest_depth` (+1 per active handler frame) is added to the nested try's own regions (body 1+n, match/unwind 3+n); the split spans (first POP -> enclosing unwind dl3, inline epi -> fin dl1) take no adjustment |
 | Nested handler span split | match+handler BODY are protected by the nested try's own unwind (up to the first POP_EXCEPT block); first POP maps to the enclosing unwind; epilogue to the fin handler; last-handler epilogue span ends at `reraise_blk` (not the empty block after) |
 
-Known remaining deferrals: `except ... as` in the combined finally path, bare
+### 2.13 Bound handlers in visit_try_except_finally (slice 8)
+
+Each `except E as e` handler gets its own deferred **as-cleanup unwind** block
+(`emit_except_as_cleanup` + `RERAISE 1`), placed immediately after its epilogue.
+CPython emits one per bound handler unconditionally - even when the body
+terminates (explicit raise/return).
+
+| Behavior | Rule |
+|----------|------|
+| Binding store placement | bound: STORE goes at the end of the MATCH block (before `use(body_blks)`), so body spans start after it; unbound: POP_TOP stays at the top of the body block (CPython's L5/L6 NOT_TAKEN / POP_TOP pair) |
+| Span split | match portion -> inner unwind; body portion -> as-cleanup block; the as-cleanup block itself -> inner unwind via `au_end` (next/reraise/inner), coalescing with the reraise span |
+| Terminated bound bodies | split entry->body->inner and body->as_unwind->as_unwind, plus the au span |
+| Inline epilogues | nested tries falling through clear an enclosing binding via `handler_fallthrough_bind` (cfg field) after POP_EXCEPT |
+| inner-unwind -> fin span | registered UNCONDITIONALLY (CPython keeps it even when no path reaches an inline finally copy); only `emit_finally_inline_block` is gated on `any_reaches_fin` |
+
+Known remaining deferrals: bare
 last handler with early inline finally layout (untested combination), statements
 after a module-level terminator (pre-existing len-0 co_code bug - see §4).
+Also pre-existing: `compile_parsed_exec`-style tests assert co_code/
+exceptiontable/stacksize but NOT linetable; linetable parity is known-broken on
+several already-committed band6 fixtures (flat except-as included).
 
 Registered in `EMISSION_OPCODES` + `# vm-opcode:` fixtures:
 
@@ -221,7 +239,7 @@ Registered in `EMISSION_OPCODES` + `# vm-opcode:` fixtures:
 | ~~bare `except`~~ | landed (slice 7, bare-last handler) |
 | ~~`try/else`~~ | landed (slice 7) |
 | ~~`try/except/finally` combined~~ | landed (slice 7; single-handler form earlier) |
-| `except ... as` in the combined finally path | `NotImplementedError` (flat try/except as-binding works, slice 3) |
+| ~~`except ... as` in the combined finally path~~ | landed (slice 8) |
 | `try` without except/finally | `NotImplementedError` |
 | `raise ... from cause` | `NotImplementedError` |
 | `with` without `as` | `NotImplementedError` |
