@@ -3456,6 +3456,10 @@ test "sys argv via nacompile" {
 
 test "native sys stream write returns count and hits the real fds" {
     (eng, _) = compile_native("sys_streams.jac");
+    # Same hazard as capture_stdout elsewhere in this suite: bytes an earlier
+    # test left in libc's buffers surface on the next flush, which would land
+    # them in the pipe below and make this assert depend on run order.
+    ctypes.CDLL(None).fflush(None);
     wout = get_func(eng, "write_out", ctypes.c_int64);
     (r, w) = os.pipe();
     saved = os.dup(1);

@@ -46,6 +46,11 @@ straight to the C runtime, so we redirect the OS-level file descriptor and
 flush libc's stdio buffer before restoring it."""
 def capture_stdout(fn: object) -> bytes {
     libc = ctypes.CDLL(None);
+    # Drain anything an earlier test left sitting in libc's stdout buffer, or
+    # the fflush below dumps it into this capture. Whether there is anything
+    # to drain depends on what shared this process first, so without it the
+    # test passes or fails on the order the runner happened to pick.
+    libc.fflush(None);
     (r, w) = os.pipe();
     saved = os.dup(1);
     os.dup2(w, 1);
