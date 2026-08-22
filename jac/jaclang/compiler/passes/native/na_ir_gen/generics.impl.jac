@@ -45,6 +45,22 @@ impl NaIRGenGenerics._syntactic_bind_type_params(
     }
     if (
         isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.target, uni.Name)
+        and nd.target.value == "type"
+        and isinstance(nd.right, uni.IndexSlice)
+        and len(nd.right.slices) == 1
+        and nd.right.slices[0].start is not None
+        and isinstance(actual, _SbCT)
+        and not actual.is_instance()
+        and actual.is_instantiable()
+    ) {
+        self._syntactic_bind_type_params(
+            nd.right.slices[0].start, actual.clone_as_instance(), tp_names, solution
+        );
+        return;
+    }
+    if (
+        isinstance(nd, uni.AtomTrailer)
         and isinstance(nd.right, uni.IndexSlice)
         and isinstance(actual, _SbCT)
     ) {
