@@ -228,6 +228,20 @@ def _jac_host_format(value, spec):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_unbound_method_info(value):
+    # (True, owner_type_name, method_name) when value is an unbound builtin
+    # method descriptor of a container type mirrored natively (list/dict/set).
+    try:
+        objclass = getattr(value, "__objclass__", None)
+        if objclass is None:
+            return (False, "", "")
+        name = getattr(value, "__name__", "")
+        if objclass in (list, dict, set):
+            return (True, objclass.__name__, name)
+        return (False, "", "")
+    except BaseException:
+        return (False, "", "")
+
 def _jac_host_same_object(a, b):
     return a is b
 
@@ -1797,6 +1811,18 @@ def to_host(value: PyObj) -> any {
             fset = to_host(value.fset as PyObj) if value.fset is not None else None;
             fdel = to_host(value.fdel as PyObj) if value.fdel is not None else None;
             return _jac_wrap_property(fget, fset, fdel);
+
+        case PyIter():
+            # A native iterator crossing the host boundary drains into a host
+            # list so host consumers (list()/tuple()/sum()/for-in via trampoline)
+            # see its remaining items instead of None. Laziness is already lost
+            # at this boundary.
+            iter_drained: list[any] = [];
+            while value.index < len(value.items) {
+                iter_drained.append(to_host(value.items[value.index]));
+                value.index = value.index + 1;
+            }
+            return iter_drained;
 
         case PyHostProxy():
             return value.val;
@@ -3519,6 +3545,31 @@ def py_raise_value(value: PyObj) -> PyObj {
 def py_call_host(
     fn: PyHostProxy, args: list[PyObj], kwargs: dict[str, PyObj]
 ) -> PyObj {
+    # An unbound builtin-method descriptor called with a NATIVE container as
+    # receiver (list.append(lst, x), dict.get(d, k)) must operate on the real
+    # native storage: marshaling through to_host hands the host a COPY, so the
+    # call would silently no-op for mutators. Dispatch natively instead.
+    info = _jac_host_unbound_method_info(fn.val);
+    if bool(info[0]) and len(args) > 0 {
+        owner = str(info[1]);
+        meth = str(info[2]);
+        recv = args[0];
+        rest: list[PyObj] = [];
+        i = 1;
+        while i < len(args) {
+            rest.append(args[i]);
+            i = i + 1;
+        }
+        if owner == "list" and isinstance(recv, PyList) and is_list_method(meth) {
+            return PyListMethod(t="list_method", target=(recv as PyList), name=meth).tp_call(rest, kwargs);
+        }
+        if owner == "dict" and isinstance(recv, PyDict) and is_dict_method(meth) {
+            return PyDictMethod(t="dict_method", target=(recv as PyDict), name=meth).tp_call(rest, kwargs);
+        }
+        if owner == "set" and isinstance(recv, PySet) and is_set_method(meth, (recv as PySet).frozen) {
+            return PySetMethod(t="set_method", target=(recv as PySet), name=meth).tp_call(rest, kwargs);
+        }
+    }
     raw_args: list[any] = [];
     for item in args {
         raw_args.append(to_host(item));

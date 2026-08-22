@@ -1439,6 +1439,12 @@ glob PY_NOT_IMPLEMENTED: PyNotImplementedSentinel = PyNotImplementedSentinel(
 obj PyIter(PyObj) {
     has items: list[PyObj],
         index: int;
+
+    # Iterators are their own iterable (CPython tp_iter returns self), so a
+    # native iterator works with GET_ITER / for-in instead of raising.
+    def tp_iter -> PyObj {
+        return self;
+    }
 }
 
 obj PyHandler(PyObj) {

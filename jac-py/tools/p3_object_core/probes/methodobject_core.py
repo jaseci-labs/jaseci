@@ -13,10 +13,8 @@ class TestMethodCore(unittest.TestCase):
         lst = []
         with self.assertRaises(AttributeError):
             list.append.__self__
-        # NOTE: the unbound form list.append(lst, 1) currently no-ops silently
-        # in jacpython (host-routed call mutates a to_host copy); tracked as a
-        # separate parity bug, so this asserts via the bound form.
-        lst.append(1)
+        # The unbound form must mutate the real native list (not a to_host copy).
+        list.append(lst, 1)
         self.assertEqual(lst, [1])
 
     def test_builtin_method_repr(self):
