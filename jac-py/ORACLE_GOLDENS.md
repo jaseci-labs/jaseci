@@ -1,8 +1,11 @@
 # CPython oracle goldens for Band 6 deferrals + Band 7 pre-work
 
-**Status:** generate-only pass complete. Nothing pasted into `compiler_slice.jac` yet.
-**Generated:** 2026-08-21 session, via 6 parallel subagents. Zero jac runtime used,
-zero repo files modified by the generators.
+**Status:** generate-only pass complete; dumps promoted into
+`jac-py/tools/oracle_goldens/`. Nothing pasted into `compiler_slice.jac` yet
+(that file is owned by the active try/except/finally codegen workstream - do
+not paste from here into it without coordinating).
+**Generated:** 2026-08-21 session, via 6 parallel subagents. Zero jac runtime used
+by the generators; promotion is additive files only.
 
 ## What this is
 
@@ -18,7 +21,7 @@ non-empty (see `BAND6_SLICE_LEARNINGS.md` §2.1).
 
 ## Streams
 
-| Dir under `/tmp/oracle_goldens/` | Feature | Fixtures |
+| Dir under `jac-py/tools/oracle_goldens/` | Feature | Fixtures |
 |---|---|---:|
 | `b6_try_except_finally/` | try/except/finally combined | 8: normal, raised-caught, no-match-reraise, except-as+finally, return-in-try, raise-in-handler unwind, nested, break/continue in try-finally |
 | `b6_bare_except_else/` | bare except, try/else | 8: bare handler, typed-then-bare chain, bare raise in handler, try/else normal, else-skipped-on-raise, except/else/finally combined, degenerate try, tuple-of-types handler |
@@ -73,6 +76,8 @@ Generators/coroutines that close over state will need `co_cellvars` /
   Re-run `dump.py` if the venv bumps Python minor versions.
 - Static compile goldens only - they do not validate VM runtime behavior
   (exception chaining, **exit** suppression, generator resume are runtime).
-- `/tmp/oracle_goldens/` is ephemeral; if wiped, regenerate by rerunning each
-  dir's `dump.py` with `.venv/bin/python` - but the scripts themselves are also
-  ephemeral, so promote any stream you are about to consume into the repo first.
+- Canonical copies live under `jac-py/tools/oracle_goldens/`. Regenerate a stream
+  with `.venv/bin/python jac-py/tools/oracle_goldens/<stream>/dump.py` if the
+  venv's CPython minor changes. Do not edit `compiler_codegen.jac` /
+  `compiler_slice.jac` / facade/libtest files from this tree without coordinating
+  with whoever currently owns those dirty paths.
