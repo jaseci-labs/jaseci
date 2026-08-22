@@ -1351,6 +1351,21 @@ obj PyUserObj(PyObj) {
         return py_error("TypeError", "object is not iterable");
     }
 
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        # A user-defined __call__ makes the instance callable: bind the MRO-
+        # resolved dunder to the instance and invoke it. A raised exception
+        # propagates verbatim (same path as every other dunder slot); no result
+        # check -- any object __call__ returns is the call's value.
+        if user_has_dunder(self, "__call__") {
+            method = class_lookup_attr(self.cls, "__call__");
+            return bind_attribute(method, self).tp_call(args, kwargs);
+        }
+        if self._has_base() {
+            return self._base_obj().tp_call(args, kwargs);
+        }
+        return py_error("TypeError", "object is not callable");
+    }
+
     def mp_subscript(index: PyObj) -> PyObj {
         if user_has_dunder(self, "__getitem__") {
             return call_user_dunder(self, "__getitem__", [index]);
