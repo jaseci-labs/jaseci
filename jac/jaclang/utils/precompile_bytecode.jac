@@ -2837,10 +2837,9 @@ def seal_native_roots(
         out_dir.mkdir(parents=True, exist_ok=True);
         lib_path.unlink(missing_ok=True);
         layout_path.unlink(missing_ok=True);
-        transitive = list(manifest.native_transitive_sources) if manifest else [];
         (ok, err) = emit_shared_library(
             str(ir.gen.llvm_ir),
-            transitive,
+            manifest,
             exports,
             str(lib_path),
             clib_paths=list(ir.gen._clib_paths or []),

@@ -31,6 +31,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _foreign_fns_nmods: int = -1,
         clib_fn_abi: dict[str, dict] = {},
         clib_vtable_structs: set[str] = set(),
+        clib_fnptr_str_ret: dict[str, set[str]] = {},
         clib_trampoline_funcs: dict[str, ir.Function] = {},
         enum_values: dict[str, ir.Constant] = {},
         enum_types: dict[str, ir.IntType] = {},

@@ -615,8 +615,10 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     _self_key = (
         os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
     );
+    import from jaclang.jac0core.codeinfo { native_module_key }
 
     _canon_src: dict = {};
+    _src_keys: dict[str, str] = {};
     dep_edges: dict = {};
     qi = 0;
     while qi < len(wq) {
@@ -663,6 +665,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         processed_modules.add(abs_key);
         _canon_src[abs_key] = src_mod_str;
         imported_mods.append((src_mod_str, imported_mod));
+        _src_keys[src_mod_str] = native_module_key(full_path);
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
         for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
@@ -707,6 +710,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
             and _canon_src[_nd] not in manifest.native_transitive_sources
         ) {
             manifest.native_transitive_sources.append(_canon_src[_nd]);
+            manifest.native_transitive_keys.append(_src_keys.get(_canon_src[_nd], ""));
         }
     }
 

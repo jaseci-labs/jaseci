@@ -112,7 +112,7 @@ jobs:
 
     - name: Vendor static-musl runtime
       working-directory: jac
-      run: zig build -Dno-ninja vendor-musl --summary all
+      run: zig build vendor-musl --summary all
 
     - name: Full suite against the sealed binary
       working-directory: jac

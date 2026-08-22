@@ -488,7 +488,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
                     _cf_fnty = isinstance(var?.type, _ClibFnType);
                 } except ImportError { }
                 if _cf_fnty {
-                    ftype = self._lower_function_type_raw(var.type);
+                    ftype = self._lower_clib_function_type(arch_name, fname, var.type);
                 } else {
                     ftype = self._resolve_jac_type(var.type_tag);
                 }
@@ -2590,12 +2590,17 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
                 );
                 _fnp = self.builder.load(_fld_ptr, name=f"{method_name}.fn");
                 _fn_ty = _fld_ty.pointee;
+                _is_clib = _fld_struct in self.clib_struct_names;
                 _cargs: list[ir.Value] = [];
                 for (_i, _p) in enumerate(nd.params or []) {
                     _pv = self._codegen_expr(_p);
                     if _pv is not None {
                         if _i < len(_fn_ty.args) {
-                            _pv = self._coerce_type(_pv, _fn_ty.args[_i]);
+                            _pv = (
+                                self._clib_fnptr_arg(_pv, _fn_ty.args[_i])
+                                    if _is_clib
+                                    else self._coerce_type(_pv, _fn_ty.args[_i])
+                            );
                         }
                         _cargs.append(_pv);
                     }
@@ -2603,6 +2608,9 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
                 _r = self.builder.call(_fnp, _cargs, name=f"icall.{method_name}");
                 if isinstance(_fn_ty.return_type, ir.VoidType) {
                     return None;
+                }
+                if _is_clib {
+                    return self._clib_fnptr_ret(_fld_struct, method_name, _r);
                 }
                 return _r;
             }
