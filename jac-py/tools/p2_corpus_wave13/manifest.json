@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave13",
+  "description": "P2 wave 13: _struct format/pack/unpack kernels (tables, alignment, prepare, endian pack/unpack, s/p fill)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave13",
+  "baseline_report": "jac-py/tools/p2_corpus_wave13/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "structmodule",
+      "source": "jac-py/tools/p2_corpus_wave13/corpus/structmodule.c",
+      "header_free": true
+    }
+  ]
+}

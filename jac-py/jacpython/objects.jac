@@ -171,7 +171,7 @@ obj PyInt(PyObj) {
                 }
                 return PyFloat(t="float", val=float(a) ** float(b));
             }
-            return PyInt(t="int", val=a ** b);
+            return PyInt(t="int", val=(a ** b) as int);
         }
         return py_error("TypeError", "unsupported operand types");
     }
@@ -574,10 +574,69 @@ obj PyComplex(PyObj) {
         imag: float;
 }
 
+# A dynamic slice value (slice(1, 7, 2) built at runtime, marshaled, or handed
+# back by from_host) must behave like its inline-syntax twin: attribute reads on
+# the three bounds, .indices(n), and repr/type all resolve natively so the
+# subscript slots' isinstance(PySlice) checks are the ONLY gate a slice index
+# has to pass.
+#
+# Deliberate tradeoff: s.indices is a PySliceIndices wrapper object, not a
+# CPython-style bound method -- type(s.indices)/repr(s.indices) differ from
+# host. If a synthesis-at-exit-points sweep lands (cf. TODO item 21), add
+# PySlice.tp_getattro's __class__ there.
+obj PySliceIndices(PyObj) {
+    has sl: PySlice;
+
+    # slice.indices(len) -> (start, stop, step) resolved against that length.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 or len(kwargs) > 0 {
+            return py_error(
+                "TypeError", "indices() takes exactly one argument (" + str(len(args)) + " given)"
+            );
+        }
+        err = _zero_step_error(self.sl);
+        if is_error(err) {
+            return err;
+        }
+        length_obj = args[0].to_index();
+        if is_error(length_obj) {
+            # CPython names the actual offending type in this message.
+            return py_error(
+                "TypeError",
+                "'" + args[0].t + "' object cannot be interpreted as an integer",
+            );
+        }
+        b = slice_indices(self.sl, (length_obj as PyInt).val);
+        out: list[PyObj] = [];
+        for v in b {
+            out.append(PyInt(t="int", val=v));
+        }
+        return PyTuple(t="tuple", items=out);
+    }
+}
+
 obj PySlice(PyObj) {
     has start: PyObj,
         stop: PyObj,
         step: PyObj;
+
+    def tp_getattro(name2: str) -> PyObj {
+        if name2 == "start" {
+            return self.start;
+        }
+        if name2 == "stop" {
+            return self.stop;
+        }
+        if name2 == "step" {
+            return self.step;
+        }
+        if name2 == "indices" {
+            return PySliceIndices(t="slice_indices", sl=self);
+        }
+        return py_error(
+            "AttributeError", "'slice' object has no attribute '" + name2 + "'"
+        );
+    }
 }
 
 obj PyTuple(PyObj) {
@@ -671,6 +730,82 @@ obj PyList(PyObj) {
     }
 
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        if isinstance(index, PySlice) {
+            # lst[a:b:c] = seq -- CPython list_ass_subscript: step 1 resizes
+            # freely; an extended step requires an equal-length sequence and
+            # fills the stepped positions in stepping order. The dispatcher
+            # (py_store_subscript) drains any iterable value into a PyList
+            # first, mirroring CPython's PySequence_Fast entry conversion.
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
+            if not isinstance(value, PyList) {
+                return py_error("TypeError", "can only assign an iterable");
+            }
+            vals = (value as PyList).items;
+            b = slice_indices(index as PySlice, len(self.items));
+            si = b[0];
+            stop = b[1];
+            step = b[2];
+            if step == 1 {
+                kept: list[PyObj] = [];
+                k = 0;
+                while k < si {
+                    kept.append(self.items[k]);
+                    k = k + 1;
+                }
+                kept.extend(vals);
+                k = stop;
+                while k < len(self.items) {
+                    kept.append(self.items[k]);
+                    k = k + 1;
+                }
+                self.items = kept;
+                return py_none();
+            }
+            count = 0;
+            probe = si;
+            if step > 0 {
+                while probe < stop {
+                    count = count + 1;
+                    probe = probe + step;
+                }
+            } else {
+                while probe > stop {
+                    count = count + 1;
+                    probe = probe + step;
+                }
+            }
+            if len(vals) != count {
+                return py_error(
+                    "ValueError",
+                    "attempt to assign sequence of size "
+                        + str(len(vals))
+                        + " to extended slice of size "
+                        + str(count),
+                );
+            }
+            new_items: list[PyObj] = [];
+            new_items.extend(self.items);
+            pos = si;
+            vi = 0;
+            if step > 0 {
+                while pos < stop {
+                    new_items[pos] = vals[vi];
+                    pos = pos + step;
+                    vi = vi + 1;
+                }
+            } else {
+                while pos > stop {
+                    new_items[pos] = vals[vi];
+                    pos = pos + step;
+                    vi = vi + 1;
+                }
+            }
+            self.items = new_items;
+            return py_none();
+        }
         idx = index.to_index();
         if is_error(idx) {
             return py_error("TypeError", "list indices must be integers");

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave13",
+  "description": "P2 wave 13 staging policy (_struct kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave13",
+  "modules": [
+    {
+      "stem": "structmodule",
+      "staging": "lift"
+    }
+  ]
+}

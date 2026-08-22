@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave14",
+  "description": "P2 wave 14: array module core control kernels (typecode table, resize policy, index/slice clamps, iterator advance)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave14",
+  "baseline_report": "jac-py/tools/p2_corpus_wave14/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "arraymodule",
+      "source": "jac-py/tools/p2_corpus_wave14/corpus/arraymodule.c",
+      "header_free": true
+    }
+  ]
+}
