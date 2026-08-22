@@ -73,7 +73,6 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None
         }
     }
 
-
     registry = self.prefetch.jsx_intrinsic_elements_class if self.prefetch else None;
     if registry is not None {
         member = self._lookup_class_member(registry, tag_name);
