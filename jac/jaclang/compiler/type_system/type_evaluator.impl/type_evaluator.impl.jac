@@ -12,7 +12,13 @@ impl TypeEvaluator._walk_compr_clauses(comprs: list[InnerCompr]) -> None {
     }
 }
 
-impl TypeEvaluator._null_ok_attr_type(expr: AtomTrailer) -> TypeBase {
+impl TypeEvaluator._null_ok_attr_type(
+    expr: AtomTrailer, base_type: (TypeBase | None) = None
+) -> TypeBase {
+    if base_type is not None and self.is_any_type(base_type) {
+        expr.right.type = AnyType();
+        return expr.right.type;
+    }
     none_type = self.prefetch.none_type_class;
     if none_type is not None {
         expr.right.type = self._convert_to_instance(none_type);
@@ -864,7 +870,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
                     }
                     if expr.is_null_ok {
-                        return self._null_ok_attr_type(expr);
+                        return self._null_ok_attr_type(expr, lookup_type);
                     }
                     if expr.right.value == "init" {
                         if dunder_init
@@ -1094,7 +1100,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return getattr_return;
                     }
                     if expr.is_null_ok {
-                        return self._null_ok_attr_type(expr);
+                        return self._null_ok_attr_type(expr, base_type);
                     }
                     if not self.is_any_type(base_type) {
                         _has_tvars = (
@@ -1194,7 +1200,18 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return expr.right.type;
                     }
                     if expr.is_null_ok {
-                        return self._null_ok_attr_type(expr);
+                        if member_types and self.prefetch.none_type_class is not None {
+                            with_none = list(member_types);
+                            with_none.append(
+                                self._convert_to_instance(self.prefetch.none_type_class)
+                            );
+                            uniq = list({str(t): t for t in with_none}.values());
+                            expr.right.type = uniq[0]
+                                if len(uniq) == 1
+                                else UnionType(types=uniq);
+                            return expr.right.type;
+                        }
+                        return self._null_ok_attr_type(expr, base_type);
                     }
                     missing_types: list[str] = [];
                     for union_member in base_type.types {
@@ -1348,7 +1365,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return UnknownType();
                 }
             } elif expr.is_null_ok {
-                return self._null_ok_attr_type(expr);
+                return self._null_ok_attr_type(expr, base_type);
             } elif isinstance(expr.right, AssignCompr) {
                 if not isinstance(base_type, ClassType) {
                     self.emit_diag(E1034, expr, type=str(base_type));
@@ -2031,6 +2048,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                     and symbol.decl is not None
                     and isinstance(symbol.decl.name_of, ParamVar)
                     and expr.find_parent_of_type(FuncSignature) is not None
+                    and expr.find_parent_of_type(FuncSignature)
+                        is symbol.decl.name_of.find_parent_of_type(FuncSignature)
                 ) {
                     _ann_fn = symbol.decl.name_of.find_parent_of_type(Ability);
                     _use_fn = expr.find_parent_of_type(Ability);

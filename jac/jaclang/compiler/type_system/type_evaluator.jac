@@ -501,7 +501,10 @@ obj TypeEvaluator {
     ) -> TypeBase;
 
     def _walk_compr_clauses(comprs: list[InnerCompr]) -> None;
-    def _null_ok_attr_type(expr: AtomTrailer) -> TypeBase;
+    def _null_ok_attr_type(
+        expr: AtomTrailer, base_type: (TypeBase | None) = None
+    ) -> TypeBase;
+
     def _set_module_item_symbol_and_type(node_: ModuleItem, sym: Symbol) -> TypeBase;
     def resolve_imported_symbols(sym: Symbol) -> Symbol;
     def _set_symbol_to_expr(expr: Expr, sym: Symbol) -> TypeBase;
