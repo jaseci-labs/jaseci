@@ -99,6 +99,20 @@ def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
     return diagnostic_policy_for(config, extra);
 }
 
+def _alert_in_internal_stub(loc_path: str) -> bool {
+    if not loc_path.endswith('.pyi') {
+        return False;
+    }
+    _p = os.path.realpath(loc_path);
+    _pkg = os.path.realpath(
+        os.path.dirname(os.path.dirname(os.path.abspath(str(__file__))))
+    );
+    if _p.startswith(_pkg + os.sep) {
+        return True;
+    }
+    return (os.sep + 'typeshed' + os.sep) in _p;
+}
+
 def deliver_alerts(
     errors: list,
     warnings: list,
@@ -110,10 +124,19 @@ def deliver_alerts(
         if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
             continue;
         }
+        if alrt.code is not None
+            and not alrt.code.code.startswith("E9")
+            and _alert_in_internal_stub(str(alrt.loc.mod_path or "")) {
+            continue;
+        }
         prog.errors_had.append(alrt);
     }
     for alrt in warnings {
         if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        if alrt.code is not None
+            and _alert_in_internal_stub(str(alrt.loc.mod_path or "")) {
             continue;
         }
         prog.warnings_had.append(alrt);

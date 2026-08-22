@@ -47,7 +47,10 @@ def _pyi_surface -> tuple[set[str], set[str]] {
         if isinstance(node, ast.Assign) {
             for target in node.targets {
                 if isinstance(target, ast.Name) and (target.id == "__all__") {
-                    for elt in node.value.elts {
+                    # The stub types `node.value` as the `expr` base; the
+                    # __all__ literal is a List of Constants at runtime.
+                    all_literal: any = node.value;
+                    for elt in all_literal.elts {
                         exported.add(elt.value);
                     }
                 }

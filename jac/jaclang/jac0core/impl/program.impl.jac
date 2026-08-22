@@ -303,7 +303,6 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
             }
         }
     }
-    self._inferred_mods.clear();
 }
 
 impl JacProgram.release_native_dep_units(self: JacProgram) -> None {

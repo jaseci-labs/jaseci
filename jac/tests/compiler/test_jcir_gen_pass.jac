@@ -214,7 +214,9 @@ with entry {
     assert_dump_equal(ref_tree, got_tree);
     exec_both(ref_tree, got_tree, "scaffold_fixture.jac", ["p", "b", "e"]);
     assert isinstance(got_tree.body[0], pyast.Expr);
-    assert got_tree.body[0].value.value == "Module docstring survives.";
+    # `Expr.value` is typed as the `expr` base; the docstring is a Constant.
+    docstring_expr: any = got_tree.body[0];
+    assert docstring_expr.value.value == "Module docstring survives.";
 }
 
 test "typed imports wrap in TYPE_CHECKING" {
@@ -488,7 +490,10 @@ with entry {
     missing: list = [];
     for node in pyast.walk(got_tree) {
         if "lineno" in node._attributes {
-            if (node?.lineno is None or node.lineno < 1) {
+            # `lineno` lives on concrete nodes, not the `AST` base the stub
+            # types here; the `_attributes` guard is the real check.
+            located: any = node;
+            if (located.lineno is None or located.lineno < 1) {
                 missing.append(pyast.dump(node)[:60]);
             }
         }

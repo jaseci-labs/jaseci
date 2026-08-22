@@ -2,9 +2,10 @@
 
 The move-lowerability proof is a core analysis on the shared dataflow
 framework; the native codegen schedule consumes the stamped
-`Assignment.na_move_lowerable` facts. These fixtures are plain `.jac` files compiled
-without the ownership checker running over the deliberate
-UAF channels), then we drive `RcFactsPass` directly over the CFG-built IR
+`Assignment.na_move_lowerable` facts. These fixtures are plain `.jac` files whose
+hazard sources are plain RC locals (the always-on ownership checker tracks `own`
+bindings, so a real `own` UAF no longer compiles), and we drive `RcFactsPass`
+directly over the CFG-built IR
 so the `na_move_lowerable` marks come purely from the core liveness proof. Each
 fixture function has a single `bN = a` candidate; we assert the mark per candidate
 by its target name.

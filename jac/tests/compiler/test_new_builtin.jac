@@ -181,7 +181,7 @@ test "server: new is auto-imported from runtimelib.builtin" {
 test "server: new(Cls, *args) returns Cls(*args) at runtime" {
     import from jaclang.runtimelib.builtin { new }
     class Box {
-        def init(self, x: int, y: int) {
+        def init(self: Box, x: int, y: int) {
             self.x = x;
             self.y = y;
         }

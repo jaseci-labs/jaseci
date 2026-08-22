@@ -29,7 +29,9 @@ test "python backend: anonymous open runs drop hooks LIFO at the brace" {
 
 test "python backend: named handle runs hooks when the handle dies" {
     log.clear();
-    r = Region();
+    # (Region | None): nulling the name is the idiomatic way to kill the last
+    # reference on the Python backend, so the annotation must admit None.
+    r: (Region | None) = Region();
     in r {
         c = Res(id=3);
     }

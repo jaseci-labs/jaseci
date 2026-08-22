@@ -884,6 +884,14 @@ impl JacCompiler.resolve_absorb_imports(
         module: (uni.Module | None) = None;
         if (resolved in target_program.mod.hub) {
             module = target_program.mod.hub[resolved];
+        } elif resolved.endswith('.pyi') {
+            try {
+                module = target_program.load_dependency_module(
+                    resolved, importer_path=mod.loc.mod_path
+                );
+            } except Exception {
+                module = None;
+            }
         } else {
             try {
                 module = target_program.compile(resolved, no_cgen=True);
@@ -1476,8 +1484,11 @@ impl JacCompiler._compile_once(
 
     _is_decl_stub = str(file_path).endswith('.pyi')
         or (mod_targ is not None and mod_targ.stub_only);
+    import from jaclang.jac0core.ext_registry { is_annex as _cc_is_annex }
+    _standalone_annex = _cc_is_annex(file_path);
     _analyze = _full_head
         and not _is_decl_stub
+        and not _standalone_annex
         and (
             is_native_mod
             or actual_program is not self._internal_program
