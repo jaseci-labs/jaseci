@@ -77,6 +77,43 @@ _L1_CHECKS = {
 }
 
 
+def _stmt_scope_nodes(stmt):
+    # ast.walk(stmt) minus nested function/class subtrees: names bound in an
+    # inner scope (e.g. a method parameter named `self`) are not fixture-state
+    # references of the enclosing test method.
+    stack = list(ast.iter_child_nodes(stmt))
+    while stack:
+        n = stack.pop()
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield n
+        stack.extend(ast.iter_child_nodes(n))
+
+
+def _dedent_segment(seg, base_col):
+    # ast.get_source_segment keeps ABSOLUTE indentation on continuation lines
+    # while the first line loses its own indent (base_col). Continuation lines
+    # therefore carry base_col too much: strip (min continuation indent -
+    # base_col) from every continuation line so the block's relative shape
+    # survives. Single-line segments pass through.
+    lines = seg.split("\n")
+    if len(lines) < 2:
+        return seg
+    cont_indents = [
+        len(l) - len(l.lstrip()) for l in lines[1:] if l.strip()
+    ]
+    if not cont_indents:
+        return seg
+    strip = min(cont_indents) - base_col
+    if strip <= 0:
+        return seg
+    fixed = [lines[0]] + [
+        l[strip:] if len(l) >= strip and l[:strip].strip() == "" else l
+        for l in lines[1:]
+    ]
+    return "\n".join(fixed)
+
+
 def _l1_harvest_methods(source):
     """Split each `test_*` method into (name, setup_src, checks).
 
@@ -129,22 +166,31 @@ def _l1_harvest_methods(source):
                 exc_src = ast.get_source_segment(
                     source, stmt.items[0].context_expr.args[0]
                 )
-                body_segs = [ast.get_source_segment(source, s) for s in stmt.body]
+                body_nodes = list(stmt.body)
+                body_segs = [ast.get_source_segment(source, s) for s in body_nodes]
                 if exc_src is None or any(s is None for s in body_segs) or any(
                     isinstance(n, ast.Name) and n.id == "self"
-                    for s in stmt.body for n in ast.walk(s)
+                    for s in stmt.body for n in _stmt_scope_nodes(s)
                 ):
                     ok = False
                     break
-                checks.append(("assertRaises", [exc_src, textwrap.dedent(
-                    "\n".join(body_segs))]))
+                body_fixed = "\n".join(
+                    _dedent_segment(seg, node.col_offset)
+                    for node, seg in zip(body_nodes, body_segs)
+                )
+                checks.append(("assertRaises", [exc_src, textwrap.dedent(body_fixed)]))
                 continue
             # A bare docstring/expression constant is inert setup.
             if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
                 continue
             # Anything referencing `self` (or an unharvestable segment) is out.
+            # The walk skips nested def/class subtrees: a method parameter named
+            # `self` inside a locally-defined class/function is its own scope,
+            # not fixture state (the host replayability probe still guards the
+            # remainder). Only Load-scope references at statement scope count.
             if any(
-                isinstance(n, ast.Name) and n.id == "self" for n in ast.walk(stmt)
+                isinstance(n, ast.Name) and n.id == "self"
+                for n in _stmt_scope_nodes(stmt)
             ):
                 ok = False
                 break
@@ -152,7 +198,7 @@ def _l1_harvest_methods(source):
             if seg is None:
                 ok = False
                 break
-            setup_stmts.append(seg)
+            setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
         if not ok or not checks:
             continue
         setup_src = textwrap.dedent("\n".join(setup_stmts)) if setup_stmts else ""

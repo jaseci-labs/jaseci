@@ -228,6 +228,15 @@ def _jac_host_format(value, spec):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_same_object(a, b):
+    return a is b
+
+def _jac_host_eq(a, b):
+    try:
+        return (True, bool(a == b))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_binop(kind, a, b):
     import operator
     _NB = {
@@ -898,6 +907,32 @@ def py_import_name(
 
 obj PyHostProxy(PyObj) {
     has val: any;
+
+    # Proxies follow the wrapped host object's identity/equality so dict/set
+    # bucketing by tp_hashkey (the host hash) stays consistent: same host
+    # object -> equal; distinct host objects defer to host ==. Non-proxy
+    # operands defer to the caller's fallback (PY_NOT_IMPLEMENTED).
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if kind != 2 and kind != 3 {
+            return PY_NOT_IMPLEMENTED;
+        }
+        if isinstance(other, PyHostProxy) {
+            mine = self.val;
+            theirs = (other as PyHostProxy).val;
+            if _jac_host_same_object(mine, theirs) {
+                return PyBool(t="bool", val=kind == 2);
+            }
+            res = _jac_host_eq(mine, theirs);
+            if not ((res[0] as bool)) {
+                return py_error(str(res[1]), str(res[2]));
+            }
+            if (res[1] as bool) {
+                return PyBool(t="bool", val=True);
+            }
+            return PY_NOT_IMPLEMENTED;
+        }
+        return PY_NOT_IMPLEMENTED;
+    }
 
     def tp_getattro(name: str) -> PyObj {
         # object.__new__ builds a plain in-VM instance (so a user class's __new__

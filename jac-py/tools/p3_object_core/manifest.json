@@ -349,7 +349,7 @@
       "runtime_probe": {
         "source": "jac-py/tools/p3_object_core/probes/descrobject_core.py",
         "baseline": {
-          "passed": 3,
+          "passed": 4,
           "failed": 0,
           "errored": 0,
           "skipped": 0
