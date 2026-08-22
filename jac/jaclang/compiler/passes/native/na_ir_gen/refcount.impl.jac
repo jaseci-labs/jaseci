@@ -1056,7 +1056,8 @@ impl NaIRGenRefcount._emit_str_desc_helpers -> None {
         wb = self._new_fn_builder(
             fname, ir.FunctionType(desc, [i8p]), "private", ("s", )
         );
-        wlen = wb.call(len_fn, [wb.function.args[0]], name="w.len");
+        wf = wb.function;
+        wlen = wb.call(len_fn, [wf.args[0]], name="w.len");
         slot = wb.alloca(desc, name="w.slot");
         if not _hl {
             wb.store(
