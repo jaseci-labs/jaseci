@@ -204,6 +204,13 @@ test "wave13 float packing is bit-exact" {
     # Non-floatable arguments fail with struct.error text.
     _expect_pack_error("str into d", "<d", "x",
                        "required argument is not a float");
+    # Complex codes F/D: two floats/doubles, real first (host-checked).
+    assert calcsize("<F") == 8 and calcsize("<D") == 16 , "complex sizes";
+    assert calcsize("@F") == 8 and calcsize("@D") == 16 , "native complex";
+    got_f = unpack("<F", pack("<F", complex(1.5, 2.0)));
+    assert str(got_f) == str((complex(1.5, 2.0),)) , got_f;
+    got_d = unpack(">D", pack(">D", complex(-0.5, 3.25)));
+    assert str(got_d) == "((-0.5+3.25j),)" , got_d;
 }
 
 

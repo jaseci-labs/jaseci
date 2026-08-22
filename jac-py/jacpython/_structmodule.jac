@@ -281,6 +281,7 @@ def _table_for(endian: str) -> list[_FmtDef] {
             ("x", 1), ("b", 1), ("B", 1), ("c", 1), ("s", 1), ("p", 1),
             ("h", 2), ("H", 2), ("i", 4), ("I", 4), ("l", 4), ("L", 4),
             ("q", 8), ("Q", 8), ("?", 1), ("e", 2), ("f", 4), ("d", 8),
+            ("F", 8), ("D", 16),
         ];
         for row in std_rows {
             t.append(_FmtDef(ch=row[0], size=row[1], align=0));
@@ -293,7 +294,7 @@ def _table_for(endian: str) -> list[_FmtDef] {
         ("p", 1, 0), ("h", 2, 2), ("H", 2, 2), ("i", 4, 4), ("I", 4, 4),
         ("l", 8, 8), ("L", 8, 8), ("n", 8, 8), ("N", 8, 8), ("q", 8, 8),
         ("Q", 8, 8), ("?", 1, 1), ("e", 2, 2), ("f", 4, 4), ("d", 8, 8),
-        ("P", 8, 8),
+        ("F", 8, 4), ("D", 16, 8), ("P", 8, 8),
     ];
     for row in native_rows {
         nt.append(_FmtDef(ch=row[0], size=row[1], align=row[2]));
@@ -463,10 +464,34 @@ obj _StructObj {
                 _struct_error("required argument is not a float");
             }
             fv = float(v);
+            fv = float(v);
             bits = _f64_bits(fv) if c == "d" else (
                 _f32_bits(fv) if c == "f" else _f16_bits(fv));
             nbytes = 8 if c == "d" else (4 if c == "f" else 2);
             _write_int_bits(buf, off, nbytes, bits, little);
+            return;
+        }
+        if c == "F" or c == "D" {
+            # Complex codes: two floats/doubles, real first. Accept any
+            # object exposing real/imag (complex at minimum).
+            if isinstance(v, complex) {
+                re_v = (v as complex).real;
+                im_v = (v as complex).imag;
+            } else {
+                try {
+                    re_v = v.real;
+                    im_v = v.imag;
+                } except Exception {
+                    _struct_error("required argument is not a complex");
+                }
+            }
+            half = cd.size // 2;
+            bits_re = _f64_bits(float(re_v)) if c == "D" else _f32_bits(
+                float(re_v));
+            bits_im = _f64_bits(float(im_v)) if c == "D" else _f32_bits(
+                float(im_v));
+            _write_int_bits(buf, off, half, bits_re, little);
+            _write_int_bits(buf, off + half, half, bits_im, little);
             return;
         }
         # Integer codes: b B h H i I l L n N q Q P
@@ -514,6 +539,17 @@ obj _StructObj {
                         out.append(_bits_f32(bits));
                     } else {
                         out.append(_bits_f16(bits));
+                    }
+                } elif c == "F" or c == "D" {
+                    half = cd.size // 2;
+                    bits_re = _read_int_bits(data, off, half, little);
+                    bits_im = _read_int_bits(data, off + half, half, little);
+                    if c == "D" {
+                        out.append(complex(_bits_f64(bits_re),
+                                           _bits_f64(bits_im)));
+                    } else {
+                        out.append(complex(_bits_f32(bits_re),
+                                           _bits_f32(bits_im)));
                     }
                 } else {
                     unsigned = c in ("B", "H", "I", "L", "N", "Q", "P");
