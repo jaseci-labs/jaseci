@@ -373,6 +373,15 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
 
+INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
+    own opcode body must route through recover_exception(co, err, offset, stack)
+    before any bare return - a bare `return py_error(...)` bypasses handler
+    dispatch and guest try/except cannot catch it. Errors returned from
+    virtual-slot methods (slice assign/del etc.) are safe: they dispatch at the
+    opcode boundary like called functions. Audited ~20 bare-return sites in
+    run_frame: only BUILD_MAP was a genuine escape; the rest are defensive-
+    unreachable or helper-dispatched.
+
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
@@ -685,6 +694,15 @@ green. Class-decorator support needs pinning elsewhere.
     (native leaf?) raises raw without conversion. Breaks harness errored-vs-
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
+
+INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
+    own opcode body must route through recover_exception(co, err, offset, stack)
+    before any bare return - a bare `return py_error(...)` bypasses handler
+    dispatch and guest try/except cannot catch it. Errors returned from
+    virtual-slot methods (slice assign/del etc.) are safe: they dispatch at the
+    opcode boundary like called functions. Audited ~20 bare-return sites in
+    run_frame: only BUILD_MAP was a genuine escape; the rest are defensive-
+    unreachable or helper-dispatched.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
