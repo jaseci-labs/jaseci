@@ -35,7 +35,8 @@ import from plugin_host { PluginHost }
 """A mock plugin that records calls and returns configurable results."""
 obj MockPlugin(DesktopPlugin) {
     has calls: list,
-        _responses: dict;
+        _responses: dict,
+        plugin_name: str = "mock";
 
     def init(name: str = "mock") {
         # DesktopPlugin now exposes plugin_name as a field (no-arg init), so set

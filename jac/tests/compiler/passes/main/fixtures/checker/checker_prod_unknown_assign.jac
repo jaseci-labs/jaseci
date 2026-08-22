@@ -5,8 +5,8 @@ variable should either error or warn — it should NOT silently pass.
 A production type checker must treat Unknown as a signal that type
 inference failed, not as a universal "any" type.
 
-Unknown source: magic method resolution on Any-typed values fails,
-producing genuine Unknown (e.g. Any + 1 -> Unknown).
+Unknown source: subscripting a non-subscriptable instance yields a
+genuine, undiagnosed Unknown.
 
 Expected errors: 5
   1. bad1: int = unknown_val     — Unknown should not assign to int silently
@@ -16,11 +16,13 @@ Expected errors: 5
   5. bad5: float = unknown_val   — Unknown should not assign to float silently
 """
 
+obj UnBox {
+    has v: int = 0;
+}
+
 with entry {
-    # Any + int -> Unknown (magic method __add__ unresolved on Any)
-    items: list = [1, 2, 3];
-    any_val = items.pop();
-    unknown_val = any_val + 1;
+    # Subscripting a plain object resolves to nothing: genuine Unknown.
+    unknown_val = UnBox()[0];
 
     # A production checker should flag these assignments rather than
     # silently accepting them.

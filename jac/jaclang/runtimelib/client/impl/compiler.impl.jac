@@ -31,7 +31,7 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     import from jaclang.jac0core.constant { CodeContext }
     import from jaclang { JacRuntime as Jac }
     has_na = False;
-    compiled = Jac.program.mod.hub.get(str(module_path.resolve()));
+    compiled = Jac.get_program().mod.hub.get(str(module_path.resolve()));
     if compiled is None {
         console.warning(
             f"'{module_path.name}' not found in the compile hub; cannot "
@@ -227,7 +227,10 @@ impl ViteCompiler.compile_desktop_sdk(self: ViteCompiler) {
     }
 
     desktop_exports = self.jac_compiler.extract_exports(desktop_manifest);
-    desktop_globals = self.jac_compiler.extract_globals(desktop_manifest, mod);
+    desktop_globals: dict[str, any] = {};
+    if mod is not None {
+        desktop_globals = self.jac_compiler.extract_globals(desktop_manifest, mod);
+    }
     all_names = sorted(set(desktop_exports + list(desktop_globals.keys())));
 
     if not all_names {
@@ -253,7 +256,7 @@ impl ViteCompiler.init(
     runtime_path: (Path | None) = None,
     compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
     extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])]
+    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])]
 ) {
     if (not vite_package_json or not vite_package_json.exists()) {
         raise ClientBundleError(
@@ -281,7 +284,11 @@ impl ViteCompiler.init(
         extract_exports_func=extract_exports_func,
         extract_globals_func=extract_globals_func
     );
-    self.compiled_dir = self.jac_client_compiler.compiled_dir;
+    compiled_dir = self.jac_client_compiler.compiled_dir;
+    if compiled_dir is None {
+        raise ClientBundleError('Client compiled directory could not be resolved');
+    }
+    self.compiled_dir = compiled_dir;
     self.jac_compiler = JacToJSCompiler(
         compile_to_js_func, extract_exports_func, extract_globals_func
     );

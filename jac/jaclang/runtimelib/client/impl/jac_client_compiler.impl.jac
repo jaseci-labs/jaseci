@@ -12,7 +12,7 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-def _atomic_write_text(path: Any, text: str) {
+def _atomic_write_text(path: Path, text: str) {
     import os;
     tmp = path.with_name(path.name + '.tmp');
     tmp.write_text(text, encoding='utf-8');
@@ -70,7 +70,7 @@ impl JacClientCompiler.compile(
         self.jac_compiler.extract_exports(module_manifest)
     );
     client_globals_map = self.jac_compiler.extract_globals(module_manifest, module);
-    collected_globals: dict[(str, Any)] = dict(client_globals_map);
+    collected_globals: dict[(str, any)] = dict(client_globals_map);
     visited: set[Path] = set();
     project_root = self.project_dir.resolve();
     entry_root = module_path.resolve().parent;
@@ -182,7 +182,7 @@ impl JacClientCompiler._output_path_for(
     self: JacClientCompiler, module_path: Path, source_root: Path
 ) -> Path {
     try {
-        relative_path = module_path.relative_to(source_root);
+        relative_path = module_path.resolve().relative_to(source_root.resolve());
         return self.compiled_dir / self._jac_path_to_js(str(relative_path));
     } except ValueError {
         return self.compiled_dir / self._jac_path_to_js(module_path.name);
@@ -194,7 +194,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     module_path: Path,
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
-    collected_globals: (dict[(str, Any)] | None) = None,
+    collected_globals: (dict[(str, any)] | None) = None,
     source_root: (Path | None) = None,
     target_name: str = "web",
     skip_existing: bool = False
@@ -218,12 +218,14 @@ impl JacClientCompiler.compile_dependencies_recursively(
     visited.add(module_path);
     if (source_root is None) {
         source_root = module_path.parent.resolve();
+    } else {
+        source_root = source_root.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
     self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
-    non_root_globals: dict[(str, Any)] = {};
+    non_root_globals: dict[(str, any)] = {};
     if manifest {
         for name in manifest.globals {
             non_root_globals[name] = manifest.globals_values.get(name);
@@ -249,7 +251,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
-        path_obj = Path(import_path).resolve();
+        path_obj = Path(str(import_path)).resolve();
         if target_name == "react-native" {
             path_obj = self._native_variant(path_obj);
         }
@@ -489,7 +491,7 @@ impl JacClientCompiler.compile_pwa_runtime(
 
 impl JacClientCompiler._write_source_map(
     self: JacClientCompiler,
-    mod: Any,
+    mod: any,
     source_file: str,
     output_path: Path,
     full_output: str
@@ -553,7 +555,7 @@ impl JacClientCompiler._scan_and_compile_pages(
     self: JacClientCompiler,
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
-    collected_globals: (dict[(str, Any)] | None) = None,
+    collected_globals: (dict[(str, any)] | None) = None,
     target_name: str = "web"
 ) -> bool {
     scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
@@ -622,6 +624,9 @@ impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
 
 impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> None {
     scanner = self._route_scanner;
+    if scanner is None {
+        return;
+    }
     routes = scanner._routes;
     layouts = scanner.get_layouts();
     lines: list[str] = [];
@@ -690,7 +695,7 @@ impl JacClientCompiler.init(
     runtime_path: (Path | None),
     compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
     extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])],
+    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])],
     compiled_dir: (Path | None) = None
 ) {
     self.project_dir = project_dir;
@@ -704,7 +709,7 @@ impl JacClientCompiler.init(
     self.import_processor = ImportProcessor();
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
-    self._route_scanner = None;
+    self._route_scanner: (RouteScanner | None) = None;
     self.na_wasm_modules = set();
 }
 

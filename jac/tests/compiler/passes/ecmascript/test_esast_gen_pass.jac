@@ -8,6 +8,7 @@ import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 """Signals-style test backend: wraps a reactive read as `name()` so the
 value-read seam (contract §4.1.1) can be audited without a real Solid backend.
@@ -31,6 +32,30 @@ obj _ThunkViewBackend(ReactBackend) {
 
 impl _ThunkViewBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
     return es.CallExpression(callee=es.Identifier(name="__view"), arguments=[expr]);
+}
+
+"""The react state lowering as it stood before #8224: the store cell and no
+setter. Standing in for the regression lets the free-identifier audit be tested
+on the exact shape it exists to catch, without reverting the fix."""
+obj _DropSetterBackend(ReactBackend) {
+    def lower_state_field(s: any) -> list[es.Statement];
+}
+
+impl _DropSetterBackend.lower_state_field(s: any) -> list[es.Statement] {
+    return [
+        es.VariableDeclaration(
+            declarations=[
+                es.VariableDeclarator(
+                    id=es.Identifier(name=self._state_cell_name(s.name)),
+                    init=es.CallExpression(
+                        callee=es.Identifier(name="useJacState"),
+                        arguments=[s.init_expr]
+                    )
+                )
+            ],
+            kind="const"
+        )
+    ];
 }
 
 glob FIXTURES = os.path.join(
@@ -64,6 +89,13 @@ def _fatal_errors(prog: JacProgram) -> list {
     ];
 }
 
+"""Body statements of a function declaration, asserting the block exists."""
+def _fn_stmts(fn: es.FunctionDeclaration) -> list[es.Statement] {
+    blk = fn.body;
+    assert blk is not None;
+    return blk.body;
+}
+
 """Compile Jac source to an ESTree program.
 
 type_check=True mirrors the real client codegen path: the backend consumes
@@ -72,14 +104,14 @@ stamps, so the fixture IR must be fact-stamped before EsastGenPass runs.
 """
 def compile_to_esast(filename: str) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
         f"Compilation errors in {filename}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     es_ir = es_pass.ir_out;
 
     assert hasattr(es_ir.gen, "es_ast") , "es_ast attribute missing";
@@ -90,14 +122,14 @@ def compile_to_esast(filename: str) -> es.Program {
 """Compile Jac source to an ESTree program with an explicit FrameworkBackend."""
 def compile_to_esast_with_backend(filename: str, backend: object) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
         f"Compilation errors in {filename}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=backend);
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=backend);
     es_ir = es_pass.ir_out;
 
     assert isinstance(es_ir.gen.es_ast, es.Program);
@@ -206,7 +238,7 @@ test "class separate impl file" {
     assert "ScientificCalculator" in class_names;
 
     # Check that methods from impl file are present
-    calculator_class = next(
+    calculator_class: any = next(
         (
             cls
             for cls in class_decls
@@ -315,83 +347,97 @@ test "reactive state generates use state" {
     es_ast = compile_to_esast(fixture_path("reactive_state.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useState is imported from @jac/runtime (auto-injected)
-    assert 'import { useState } from "@jac/runtime"' in js_code , (
-        "useState should be auto-imported from @jac/runtime"
+    # Check that the store hook is imported from @jac/runtime (auto-injected)
+    assert 'import { useJacState } from "@jac/runtime"' in js_code , (
+        "useJacState should be auto-imported from @jac/runtime"
     );
 
-    # Check that has declarations generate useState destructuring
-    # has count: int = 0; -> const [count, setCount] = useState(0);
-    assert "const [count, setCount] = useState(0)" in js_code , (
-        "has count should generate useState destructuring"
+    # Check that has declarations generate store cells
+    # has count: int = 0; -> const __jacS_count = useJacState(0);
+    assert "const __jacS_count = useJacState(0)" in js_code , (
+        "has count should generate a store cell"
     );
-    assert 'const [name, setName] = useState("test")' in js_code , (
-        "has name should generate useState destructuring"
+    assert 'const __jacS_name = useJacState("test")' in js_code , (
+        "has name should generate a store cell"
     );
 
     # Check that assignments to reactive vars generate setter calls
-    # count = count + 1; -> setCount(count + 1);
-    assert "setCount((count + 1))" in js_code , (
+    # count = count + 1; -> __jacS_count.set(__jacS_count.val + 1);
+    assert "__jacS_count.set((__jacS_count.val + 1))" in js_code , (
         "Assignment to reactive var should use setter"
     );
-    assert "setCount(42)" in js_code , "Direct assignment should use setter";
-    assert "setName(" in js_code , "Assignment to name should use setName";
+    assert "__jacS_count.set(42)" in js_code , "Direct assignment should use setter";
+    assert "__jacS_name.set(" in js_code , (
+        "Assignment to name should use its cell setter"
+    );
 }
 
 test "reactive state in cl jac file" {
     es_ast = compile_to_esast(fixture_path("reactive_state.jac"));
     js_code = es_to_js(es_ast);
 
-    # Check that useState is imported from @jac/runtime (auto-injected)
-    assert 'import { useState } from "@jac/runtime"' in js_code , (
-        "useState should be auto-imported from @jac/runtime in .jac files"
+    # Check that the store hook is imported from @jac/runtime (auto-injected)
+    assert 'import { useJacState } from "@jac/runtime"' in js_code , (
+        "useJacState should be auto-imported from @jac/runtime in .jac files"
     );
 
-    # Check that has declarations generate useState destructuring
-    # has count: int = 0; -> const [count, setCount] = useState(0);
-    assert "const [count, setCount] = useState(0)" in js_code , (
-        "has count should generate useState destructuring in .jac files"
+    # Check that has declarations generate store cells
+    # has count: int = 0; -> const __jacS_count = useJacState(0);
+    assert "const __jacS_count = useJacState(0)" in js_code , (
+        "has count should generate a store cell in .jac files"
     );
-    assert 'const [name, setName] = useState("test")' in js_code , (
-        "has name should generate useState destructuring in .jac files"
+    assert 'const __jacS_name = useJacState("test")' in js_code , (
+        "has name should generate a store cell in .jac files"
     );
 
-    # Check that assignments to reactive vars generate setter calls
-    # count = count + 1; -> setCount(count + 1);
-    assert "setCount((count + 1))" in js_code , (
-        "Assignment to reactive var should use setter in .jac files"
+    # Check that assignments to reactive vars generate cell setter calls
+    # count = count + 1; -> __jacS_count.set(__jacS_count.val + 1);
+    assert "__jacS_count.set((__jacS_count.val + 1))" in js_code , (
+        "Assignment to reactive var should use the cell setter in .jac files"
     );
-    assert "setCount(42)" in js_code , "Direct assignment should use setter";
-    assert "setName(" in js_code , "Assignment to name should use setName";
+    assert "__jacS_count.set(42)" in js_code , (
+        "Direct assignment should use the cell setter"
+    );
+    assert "__jacS_name.set(" in js_code , (
+        "Assignment to name should use its cell setter"
+    );
 }
 
 test "reactive state scoping across functions" {
     es_ast = compile_to_esast(fixture_path("reactive_state_scoping.jac"));
     js_code = es_to_js(es_ast);
 
-    assert "const [cart, setCart] = useState([])" in js_code;
-    assert "setCart(useCart())" not in js_code;
+    assert "const __jacS_cart = useJacState([])" in js_code;
+    assert "__jacS_cart.set(useCart())" not in js_code;
     assert "let cart = useCart()" in js_code;
 }
 
-test "react read seam lowers a reactive read to a bare identifier (#6677)" {
-    # The #6677 contract: lower_state_read(name) -> bare Identifier on hooks
-    # backends. This is the no-op that keeps React/Preact output byte-identical.
+test "react read seam lowers a reactive read to a store cell member" {
+    # The client state contract: lower_state_read(name) -> `__jacS_<name>.val`
+    # on hooks backends, a synchronous read of the latest written value.
     read_node = ReactBackend().lower_state_read("count");
-    assert isinstance(read_node, es.Identifier) , "react read seam must return an Identifier";
-    assert read_node.name == "count";
+    assert isinstance(read_node, es.MemberExpression) , (
+        "react read seam must return a MemberExpression"
+    );
+    read_obj = read_node.object;
+    assert isinstance(read_obj, es.Identifier);
+    assert read_obj.name == "__jacS_count";
+    read_prop = read_node.property;
+    assert isinstance(read_prop, es.Identifier);
+    assert read_prop.name == "val";
 }
 
-test "react read seam keeps reactive reads unwrapped (zero-diff)" {
-    # Under React the value-read seam must not alter reactive reads anywhere.
+test "react read seam routes every value position through the cell" {
+    # Under React every reactive value read is a synchronous cell read; write
+    # targets and dict string keys never route through the read seam.
     js_code = es_to_js(
         compile_to_esast_with_backend(
             fixture_path("reactive_read_audit.jac"), ReactBackend()
         )
     );
-    assert "let doubled = (count + count)" in js_code;
-    assert 'let info = {"count": count}' in js_code;
-    assert "[count]" in js_code , "JSX child read stays a bare identifier";
+    assert "let doubled = (__jacS_count.val + __jacS_count.val)" in js_code;
+    assert 'let info = {"count": __jacS_count.val}' in js_code;
+    assert "[__jacS_count.val]" in js_code , "JSX child read samples the cell";
     assert "count()" not in js_code , "React must never wrap a reactive read";
 }
 
@@ -414,7 +460,9 @@ test "read seam wraps only value positions under a signals backend" {
     assert 'let info = {"count": count()}' in js_code , "dict value wraps, key untouched";
 
     # Write target lowers to its setter — never an assignment to a call.
-    assert "setCount((count() + 1))" in js_code , "write target uses setter; RHS read wraps";
+    assert "__jacS_count.set((count() + 1))" in js_code , (
+        "write target uses the cell setter; RHS read routes through the read seam"
+    );
     assert "count() =" not in js_code , "a reactive write target must not be wrapped";
 
     # Member property keys and attribute string literals are reconstructed from
@@ -439,8 +487,10 @@ test "react view seam keeps dynamic JSX unwrapped (zero-diff)" {
         )
     );
     assert "__view(" not in js_code , "React must never thunk a dynamic JSX position";
-    assert '"value": count' in js_code , "dynamic attribute stays a bare read";
-    assert "[count]" in js_code , "dynamic JSX child stays a bare read";
+    assert '"value": __jacS_count.val' in js_code , (
+        "dynamic attribute samples the cell"
+    );
+    assert "[__jacS_count.val]" in js_code , "dynamic JSX child samples the cell";
 }
 
 test "view seam thunks only dynamic positions under a signals backend" {
@@ -454,8 +504,10 @@ test "view seam thunks only dynamic positions under a signals backend" {
     );
 
     # Dynamic attribute value and dynamic child route through the seam.
-    assert '"value": __view(count)' in js_code , "dynamic attribute value should thunk";
-    assert "[__view(count)]" in js_code , "dynamic JSX child should thunk";
+    assert '"value": __view(__jacS_count.val)' in js_code , (
+        "dynamic attribute value should thunk"
+    );
+    assert "[__view(__jacS_count.val)]" in js_code , "dynamic JSX child should thunk";
 
     # Event handler is emitted as-is — never view-wrapped.
     assert '"onClick":' in js_code , "event handler attribute is still emitted";
@@ -473,16 +525,18 @@ test "reactive writes transform inside nested and deferred closures" {
     js_code = es_to_js(es_ast);
 
     # Direct handler scope.
-    assert "setSeen(true)" in js_code , "direct handler write should use setter";
+    assert "__jacS_seen.set(true)" in js_code , (
+        "direct handler write should use the cell setter"
+    );
     # Inside a setTimeout(...) callback (deferred closure). If the write had not
     # transformed it would emit `armed = true` and `setArmed` would be absent.
     assert "setTimeout(" in js_code , "deferred fixture should emit setTimeout";
-    assert "setArmed(true)" in js_code , (
-        "write inside setTimeout closure should use setter"
+    assert "__jacS_armed.set(true)" in js_code , (
+        "write inside setTimeout closure should use the cell setter"
     );
     # Inside an immediately-invoked nested lambda.
-    assert "setFired(true)" in js_code , (
-        "write inside nested closure should use setter"
+    assert "__jacS_fired.set(true)" in js_code , (
+        "write inside nested closure should use the cell setter"
     );
     # The raw reactive assignment form must never leak through.
     assert "armed = true" not in js_code , "deferred write must not stay a bare assignment";
@@ -574,8 +628,8 @@ test "reactive effects with dependencies" {
     # Check that useEffect is called
     assert "useEffect(" in js_code , "useEffect should be called";
 
-    # Check that dependency array contains userId and loading (tuple syntax)
-    assert "[userId, loading])" in js_code , (
+    # Dependency array: `userId` is a prop (bare), `loading` samples the cell.
+    assert "[userId, __jacS_loading.val])" in js_code , (
         "Effect with (userId, loading) tuple should have both in dependency array"
     );
 }
@@ -661,9 +715,7 @@ test "stale has read emits W3041" {
     # Compile with type_check=True so the lint schedule (JacLintCheckPass)
     # runs and W3041 surfaces in prog.warnings_had.
     prog = JacProgram();
-    _ir = prog.compile(
-        file_path=fixture_path("stale_has_read.jac"), no_cgen=True, type_check=True
-    );
+    _ir = prog.compile(file_path=fixture_path("stale_has_read.jac"), no_cgen=True);
     assert not prog.errors_had , (
         "Compilation errors: " + str([str(e) for e in prog.errors_had])
     );
@@ -685,7 +737,7 @@ test "single-`props` component definition warns W5015" {
     assert not prog.errors_had , (
         f"Compilation errors in {fixture}: {[str(e) for e in prog.errors_had]}"
     );
-    EsastGenPass(ir_in=ir, prog=prog);
+    run_pass(EsastGenPass, ir, prog);
 
     w5015 = [
         w
@@ -729,14 +781,14 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(greeting.params[0], es.Identifier);
     assert greeting.params[0].name == "props";
 
-    direct_pos_ret = funcs["direct_pos"].body.body[0];
+    direct_pos_ret = _fn_stmts(funcs["direct_pos"])[0];
     assert isinstance(direct_pos_ret, es.ReturnStatement);
     direct_pos_call = direct_pos_ret.argument;
     assert isinstance(direct_pos_call, es.CallExpression);
     assert len(direct_pos_call.arguments) == 1;
     assert isinstance(direct_pos_call.arguments[0], es.ObjectExpression);
 
-    direct_single_ret = funcs["direct_single_object"].body.body[0];
+    direct_single_ret = _fn_stmts(funcs["direct_single_object"])[0];
     assert isinstance(direct_single_ret, es.ReturnStatement);
     direct_single_call = direct_single_ret.argument;
     assert isinstance(direct_single_call, es.CallExpression);
@@ -747,7 +799,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(direct_single_props[0].key, es.Identifier);
     assert direct_single_props[0].key.name == "payload";
 
-    direct_spread_ret = funcs["direct_spread"].body.body[0];
+    direct_spread_ret = _fn_stmts(funcs["direct_spread"])[0];
     assert isinstance(direct_spread_ret, es.ReturnStatement);
     direct_spread_call = direct_spread_ret.argument;
     assert isinstance(direct_spread_call, es.CallExpression);
@@ -757,7 +809,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert len(spread_elems) == 1;
     assert isinstance(spread_elems[0], es.SpreadElement);
 
-    direct_mixed_ret = funcs["direct_mixed_spread"].body.body[0];
+    direct_mixed_ret = _fn_stmts(funcs["direct_mixed_spread"])[0];
     assert isinstance(direct_mixed_ret, es.ReturnStatement);
     direct_mixed_call = direct_mixed_ret.argument;
     assert isinstance(direct_mixed_call, es.CallExpression);
@@ -767,13 +819,13 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(mixed_elems[0], es.Literal);
     assert isinstance(mixed_elems[1], es.SpreadElement);
 
-    passthrough_ret = funcs["passthrough_bundle"].body.body[0];
+    passthrough_ret = _fn_stmts(funcs["passthrough_bundle"])[0];
     assert isinstance(passthrough_ret, es.ReturnStatement);
     passthrough_call = passthrough_ret.argument;
     assert isinstance(passthrough_call, es.CallExpression);
     assert isinstance(passthrough_call.arguments[0], es.Identifier);
 
-    plain_spread_ret = funcs["plain_spread"].body.body[0];
+    plain_spread_ret = _fn_stmts(funcs["plain_spread"])[0];
     assert isinstance(plain_spread_ret, es.ReturnStatement);
     plain_spread_call = plain_spread_ret.argument;
     assert isinstance(plain_spread_call, es.CallExpression);
@@ -797,26 +849,26 @@ test "implicit JSX returns lower like explicit returns" {
     assert len(badge.params) == 1;
     assert isinstance(badge.params[0], es.Identifier);
     assert badge.params[0].name == "props";
-    badge_ret = badge.body.body[-1];
+    badge_ret = _fn_stmts(badge)[-1];
     assert isinstance(badge_ret, es.ReturnStatement) , (
         "implicit JSX tail must lower to a ReturnStatement"
     );
 
     # Statements before the tail expression are kept ahead of the return.
     after_stmts = funcs["ImplicitAfterStmts"];
-    after_ret = after_stmts.body.body[-1];
+    after_ret = _fn_stmts(after_stmts)[-1];
     assert isinstance(after_ret, es.ReturnStatement);
-    assert len(after_stmts.body.body) >= 2 , (
+    assert len(_fn_stmts(after_stmts)) >= 2 , (
         "leading statements must be preserved before the implicit return"
     );
 
     # An early explicit return can mix with an implicit tail return.
     guarded = funcs["GuardedImplicit"];
-    guarded_ret = guarded.body.body[-1];
+    guarded_ret = _fn_stmts(guarded)[-1];
     assert isinstance(guarded_ret, es.ReturnStatement);
 
     # Call sites wrap args into a props object, same as explicit-return components.
-    direct_ret = funcs["direct_call_implicit"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_implicit"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -847,7 +899,7 @@ test "conditional JSX returns still trigger props-destructure lowering" {
     assert match_greeting.params[0].name == "props";
 
     # Direct call site must wrap positional args into a props object.
-    direct_ret = funcs["direct_call_conditional"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_conditional"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -872,7 +924,7 @@ test "union JsxElement return type still triggers props-destructure lowering" {
     assert isinstance(error_banner.params[0], es.Identifier);
     assert error_banner.params[0].name == "props";
 
-    direct_ret = funcs["direct_call"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -907,12 +959,12 @@ test "components with JSX slots compile to function declarations" {
     );
     assert "__jacJsx" in js_code , "JSX should still lower to __jacJsx calls";
 
-    # `has` fields inside a component keep the existing auto-`useState` wiring.
-    assert 'const [heading, setHeading] = useState("Items")' in js_code , (
-        "has field in a component should generate useState"
+    # `has` fields inside a component lower to store cells.
+    assert 'const __jacS_heading = useJacState("Items")' in js_code , (
+        "has field in a component should generate a store cell"
     );
-    assert "setHeading(" in js_code , (
-        "assignment to a has-field should use the generated setter"
+    assert "__jacS_heading.set(" in js_code , (
+        "assignment to a has-field should use the cell setter"
     );
 
     # Public components are exported.
@@ -1229,20 +1281,95 @@ test "augmented reactive assignments do not double-apply the lhs" {
     es_ast = compile_to_esast(fixture_path("reactive_aug_assign.jac"));
     js = es_to_js(es_ast);
 
-    # Each setter call must appear exactly once as a simple binary: setCount((count op N)).
-    # gen_binary_expression always wraps in parens, so the argument is (count op N).
-    assert "setCount((count + 5))" in js , (
-        "expected setCount((count + 5)) but got:\n" + js
+    # Each setter call must appear exactly once as a simple binary:
+    # __jacS_count.set((__jacS_count.val op N)). gen_binary_expression always
+    # wraps in parens, so the argument is (….val op N).
+    assert "__jacS_count.set((__jacS_count.val + 5))" in js , (
+        "expected __jacS_count.set((__jacS_count.val + 5)) but got:\n" + js
     );
-    assert "setCount((count - 2))" in js , (
-        "expected setCount((count - 2)) but got:\n" + js
+    assert "__jacS_count.set((__jacS_count.val - 2))" in js , (
+        "expected __jacS_count.set((__jacS_count.val - 2)) but got:\n" + js
     );
-    assert "setCount((count * 3))" in js , (
-        "expected setCount((count * 3)) but got:\n" + js
+    assert "__jacS_count.set((__jacS_count.val * 3))" in js , (
+        "expected __jacS_count.set((__jacS_count.val * 3)) but got:\n" + js
     );
-    # Double-application fingerprint: with parens from gen_binary_expression the bug
-    # produces setCount((count + (count + 5))) — catch the nested `(count + (count` shape.
-    assert "setCount((count + (count" not in js , (
+    # Double-application fingerprint: with parens from gen_binary_expression the
+    # bug produces .set((__jacS_count.val + (__jacS_count.val + 5))) — catch the
+    # nested `(__jacS_count.val + (__jacS_count.val` shape.
+    assert "(__jacS_count.val + (__jacS_count.val" not in js , (
         "double-application bug detected in:\n" + js
+    );
+}
+
+"""Diagnostic code strings carried by a list of alerts."""
+def _codes_of(alerts: list) -> list[str] {
+    return [
+        a.code.code
+        for a in alerts
+        if a.code is not None
+    ];
+}
+
+"""Compile a fixture the whole way through client codegen, keeping its alerts."""
+def compile_fixture_reporting(filename: str) -> JacProgram {
+    prog = JacProgram();
+    prog.compile(file_path=fixture_path(filename));
+    return prog;
+}
+
+"""Run the ES pass with a backend and hand back the program's alerts."""
+def codegen_alerts(filename: str, backend: object) -> list {
+    prog = JacProgram();
+    ir = prog.compile(file_path=fixture_path(filename), no_cgen=True);
+    run_pass(EsastGenPass, ir, prog, backend=backend);
+    return list(prog.errors_had);
+}
+
+test "an emitted module may not reference a name it never binds" {
+    # The property behind #8072 and #8224, standing in for the lowering bug
+    # rather than describing it: _DropSetterBackend is the pre-fix react
+    # lowering, emitting the state cell and no setter. `setTheme` is a name the
+    # compiler resolved -- the checker registers it for every client `has`
+    # field -- so emitting it unbound is a ReferenceError the audit has to
+    # catch, and this test fails the moment the binding is dropped again.
+    errs = [
+        e
+        for e in codegen_alerts("state_setter_value_ref.jac", _DropSetterBackend())
+        if e.code is not None and e.code.code == "E5101"
+    ];
+    assert len(errs) == 1 , (
+        "dropping the setter binding must be an error, got "
+        f"{_codes_of(
+            codegen_alerts('state_setter_value_ref.jac', _DropSetterBackend())
+        )}"
+    );
+    assert "setTheme" in str(errs[0]) , (
+        f"E5101 must name the unbound identifier; got {errs[0]!s}"
+    );
+    assert "state_setter_value_ref.jac" in str(errs[0]) , (
+        f"E5101 must point at the Jac source that names it; got {errs[0]!s}"
+    );
+}
+
+test "the audit leaves ordinary client modules alone" {
+    # Ambient browser globals, runtime imports and the framework's own required
+    # globals are bindings the module legitimately does not declare.
+    prog = compile_fixture_reporting("state_setter_value_ref.jac");
+    assert "E5101" not in _codes_of(prog.errors_had) , (
+        "the audit must not fire on a module whose names are all bound: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+}
+
+test "a client state setter used as a value is bound by codegen" {
+    # #8224: `has theme` names both `theme` and `setTheme`; handing the setter
+    # to a constructor is the ordinary hook shape and must emit a real binding.
+    es_ast = compile_to_esast(fixture_path("state_setter_value_ref.jac"));
+    js = es_to_js(es_ast);
+    assert "const setTheme = " in js , (
+        f"the emitted module must declare setTheme; got:\n{js}"
+    );
+    assert "setTheme: setTheme" in js , (
+        f"the setter reference must stay an ordinary reference; got:\n{js}"
     );
 }

@@ -66,11 +66,11 @@ twine upload dist/*              # then the real index
 
 There is no `jac publish` command - use `twine` (separate pip install). In CI authenticate with a token: `twine upload dist/* -u __token__ -p "$PYPI_TOKEN"`. Consumers then install it into a project managed by the `jac` binary (`jac install greet`); the CLI command `greet` is on `PATH`, or `import greet` works for a library running under the `jac` binary.
 
-`jac build` runs the whole-program type-check gate first and refuses to emit an artifact on failure - `--no_typecheck` skips the gate, `--check_only` runs it and emits nothing. Pre-compiled `.jir` bytecode in the package dir is collected into the wheel (the default collection patterns include `**/*.jir`), so consumers with matching bytecode skip first-import compilation; if bytecode is missing or stale the runtime transparently falls back to compiling the bundled `.jac` source, so a mismatch never breaks the package.
+`jac build` runs the whole-program type-check gate first and refuses to emit an artifact on failure - the gate cannot be skipped; `--check_only` runs it and emits nothing. Pre-compiled `.jir` bytecode in the package dir is collected into the wheel (the default collection patterns include `**/*.jir`), so consumers with matching bytecode skip first-import compilation; if bytecode is missing or stale the runtime transparently falls back to compiling the bundled `.jac` source, so a mismatch never breaks the package.
 
 ## Publishing to npm
 
-`jac build --as npm` compiles the package's client modules (`.jac` files under the package dir - client placement is inferred from JSX or npm imports) to ES-module JavaScript, generates `package.json` + a `.d.ts` per module (TypeScript consumers get full type-checking), and packs `dist/<name>-<version>.tgz`. To produce both a wheel and an npm tarball, run both commands - there is no combined projection.
+`jac build --as npm` compiles the package's modules (`.jac` files under the package dir) to ES-module JavaScript - a `kind = "js-package"` project has no server, so every module is placed client by construction, `pub` or not, on every compile path (`jac build`, `jac tool jac2js`, `jac check`) - then generates `package.json` + a `.d.ts` per module (TypeScript consumers get full type-checking), and packs `dist/<name>-<version>.tgz`. To produce both a wheel and an npm tarball, run both commands - there is no combined projection.
 
 ```toml
 [npm]
@@ -101,7 +101,7 @@ jac install -e /path/to/lib # install a cloned library editable
 - **Entry-point path is the install-time module path**, e.g. `greet.cli:main` - it must match the package dir name, not the source folder you happened to develop in.
 - **First run of an installed Jac command prints `Jac setup complete! (N modules compiled and cached)`** while jaclang compiles its own cache. One-time and harmless (avoid by shipping `.jir` bytecode in the package).
 - **`jac build --as wheel` fails with `[project] name is missing`** if `jac.toml` has no `name` - it is required for the wheel filename and `.dist-info`.
-- **The type-check gate blocks the build** if the project fails `jac check` - fix the reported diagnostics or (as a last resort) pass `--no_typecheck`.
+- **The type-check gate blocks the build** if the project fails `jac check` - fix the reported diagnostics; the gate has no bypass flag.
 
 ## See also
 

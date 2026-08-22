@@ -1,4 +1,3 @@
-import from typing { Any }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
 import from jaclang.scale.models.progress { EventSink, NoopSink, ProgressEvent }
@@ -13,8 +12,6 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     delete_k8s_secret,
     delete_if_exists,
     delete_namespace,
-    check_K8s_status,
-    ensure_namespace_exists,
     get_cluster_provider,
     resize_pvc_if_needed
 }
@@ -99,13 +96,13 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
+    def _get_database_init_containers(app_name: str) -> list[dict[(str, any)]] {
         init_containers = [];
         wait_image = self.k8s_config.wait_image;
 
-        if self.k8s_config.postgres_enabled {
+        if self.k8s_config.database_enabled() {
             pg_provider = KubernetesPostgresProvider(
-                target=self, config={'app_name': app_name}
+                target=self, config=self.k8s_config.database_deploy_intent(app_name)
             );
             init_container = pg_provider.get_init_container(app_name, wait_image);
             if init_container {
@@ -116,16 +113,19 @@ obj KubernetesTargetBase(DeploymentTarget) {
         return init_containers;
     }
 
-    def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
-        if not self.k8s_config.postgres_enabled {
+    def _deploy_databases(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
+        if not self.k8s_config.database_enabled() {
             return;
         }
         pg_name = f"{app_name}-postgres";
         pg_service_name = f"{pg_name}-service";
         pg_provider = KubernetesPostgresProvider(
-            target=self, config={'app_name': app_name}
+            target=self, config=self.k8s_config.database_deploy_intent(app_name)
         );
         pg_result = pg_provider.deploy({});
+        if pg_result['mode'] == 'none' {
+            return;
+        }
         if pg_result['mode'] == 'external' {
             self.env_list.append(
                 {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
@@ -176,7 +176,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
             namespace,
             pg_pvc_name,
             str(
-                get_scale_config().get_database_config().get('postgres_storage')
+                get_scale_config().get_deploy_database_config().get('postgres_storage')
                     or '2Gi'
             )
         );
@@ -248,7 +248,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 }
             }
 
-            if self.k8s_config.postgres_enabled {
+            if self.k8s_config.database_enabled() {
                 pg_name = f"{app_name}-postgres";
                 try {
                     apps_v1.read_namespaced_stateful_set(
@@ -501,7 +501,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
             self._destroy_databases(app_name, namespace, apps_v1, core_v1);
 
             pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace);
-            for pvc in pvcs.items {
+            pvc_items: list[any] = pvcs.items;
+            for pvc in pvc_items {
                 if pvc.metadata.name.startswith(app_name) {
                     try {
                         core_v1.delete_namespaced_persistent_volume_claim(
@@ -672,6 +673,19 @@ obj KubernetesTargetBase(DeploymentTarget) {
         return None;
     }
 
+    def port_forward_hint -> str {
+        namespace = self.k8s_config.namespace;
+        target_port = self.k8s_config.container_port;
+        local_port = 8080;
+        return (
+            "No ingress is configured, so the gateway has no address outside "
+            "the cluster. Reach it with:\n"
+            f"  kubectl -n {namespace} port-forward svc/gateway-service "
+            f"{local_port}:{target_port}\n"
+            f"then open http://localhost:{local_port}"
+        );
+    }
+
     def get_service_url(app_name: str) -> (str | None) {
         try {
             self._load_cluster_config();
@@ -736,7 +750,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                     ingress = networking_v1.read_namespaced_ingress(
                         name=f"{app_name}-ingress", namespace=namespace
                     );
-                    ann = ingress.metadata.annotations or {};
+                    ann: dict[str, str] = ingress.metadata.annotations or {};
                     domain = ann.get('jac-scale/domain', '');
                 } except Exception as e {
                     if self.logger {
@@ -823,7 +837,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         dep_map = {};
         try {
-            for d in apps_v1.list_namespaced_deployment(namespace=namespace).items {
+            dep_items: list[any] = apps_v1.list_namespaced_deployment(
+                namespace=namespace
+            ).items;
+            for d in dep_items {
                 dep_map[d.metadata.name] = d;
             }
         } except Exception as e {
@@ -836,7 +853,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         sts_map = {};
         try {
-            for s in apps_v1.list_namespaced_stateful_set(namespace=namespace).items {
+            sts_items: list[any] = apps_v1.list_namespaced_stateful_set(
+                namespace=namespace
+            ).items;
+            for s in sts_items {
                 sts_map[s.metadata.name] = s;
             }
         } except Exception as e {
@@ -849,8 +869,11 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         restarting_apps = {};
         try {
-            for pod in core_v1.list_namespaced_pod(namespace=namespace).items {
-                pod_labels = pod.metadata.labels;
+            pod_items: list[any] = core_v1.list_namespaced_pod(
+                namespace=namespace
+            ).items;
+            for pod in pod_items {
+                pod_labels: (dict[str, str] | None) = pod.metadata.labels;
                 if pod_labels and 'app' in pod_labels {
                     pod_app = pod_labels['app'];
                     if pod.status and pod.status.container_statuses {

@@ -6,9 +6,8 @@ sealed runtime cache, not beside the tests. This module resolves the repo root
 from its OWN location inside `tests/`, so every test imports one stable anchor
 instead of re-deriving it with a `Path(__file__).resolve().parents` walk.
 
-Imported as `from tests.support`, which resolves identically under the binary's
-bundled pytest and an editable `pytest` run (same mechanism as
-`tests.fixtures_list`).
+Imported as `from tests.support`, which resolves identically under the single
+`jac` binary and a source checkout (same mechanism as `tests.fixtures_list`).
 """
 
 import ctypes;
@@ -29,9 +28,7 @@ like the old suffix.
 """
 def native_force_opts -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
-    return CompileOptions(
-        type_check=False, force_codespace='native', force_target_program=True
-    );
+    return CompileOptions(force_codespace='native', force_target_program=True);
 }
 
 
@@ -42,9 +39,7 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def native_str_func(
-    eng: object, name: str, restype: type | None, *argtypes: type
-) -> object {
+def native_str_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI JIT getter shared by native tests: a c_char_p
     # spelling means a Jac str (the by-value {root, data, len}
     # descriptor); LLVM decomposes the by-value param into three scalar
@@ -53,7 +48,7 @@ def native_str_func(
     # the payload NUL-bounded at data
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -114,4 +109,28 @@ def native_str_func(
         return r;
     }
     return _call;
+}
+
+
+"""Fetch an object's persisted state by id from a compiled Jac program.
+
+Runs under the system context (no user root), so access checks always pass.
+Previously lived in `tests/conftest.py`, which existed only for pytest.
+"""
+def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
+    import from jaclang.cli.commands.cli_helpers { proc_file }
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    (base, mod, mach) = proc_file(filename);
+    try {
+        Jac.jac_import(
+            target=mod, base_path=base, override_name=("__main__" if main else None)
+        );
+        found = Jac.get_object(id);
+        if not found {
+            raise ValueError(f"Object with id {id} not found.");
+        }
+        return found.__jac__.__getstate__();
+    } finally {
+        mach.close();
+    }
 }

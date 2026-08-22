@@ -3,9 +3,13 @@ import os;
 import sys;
 import types;
 import from pathlib { Path }
-import from jaclang.cli.console { console }
+import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
+import type from importlib.metadata { EntryPoint }
+import type from jaclang.compiler.passes.native.llvm.binding.executionengine {
+    ExecutionEngine
+}
 
 def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
@@ -46,11 +50,11 @@ def _default_codespace_is_native -> bool {
     return effective == 'native';
 }
 
-def _populate_native_argv(engine: object, argv: list[str]) -> None {
+def _populate_native_argv(engine: ExecutionEngine, argv: list[str]) -> None {
     import ctypes;
 
-    argc_addr = engine.get_global_value_address("__jac_argc");
-    argv_addr = engine.get_global_value_address("__jac_argv");
+    argc_addr = int(engine.get_global_value_address("__jac_argc"));
+    argv_addr = int(engine.get_global_value_address("__jac_argv"));
     if argc_addr == 0 or argv_addr == 0 {
         return;
     }
@@ -64,7 +68,7 @@ def _populate_native_argv(engine: object, argv: list[str]) -> None {
     argv_ptr = ctypes.cast(argv_addr, ctypes.POINTER(ctypes.c_void_p));
     argv_ptr[0] = ctypes.cast(c_argv, ctypes.c_void_p).value;
 
-    engine._jac_argv_refs = (c_strings, c_argv);
+    setattr(engine, "_jac_argv_refs", (c_strings, c_argv));
 }
 
 def _print_plan(plan: RunPlan) {
@@ -78,7 +82,7 @@ def _print_plan(plan: RunPlan) {
 }
 
 def _execute_plan(
-    plan: RunPlan, main: bool, cache: bool, diagnostics: str, args: list
+    plan: RunPlan, main: bool, cache: bool, diagnostics: str, args: list[str]
 ) -> int {
     if plan.action == "execute" {
         return run(
@@ -129,7 +133,9 @@ def _execute_plan(
     return 1;
 }
 
-def _run_jab(filename: str, port: (int | None), args: list, serve_only: bool) -> int {
+def _run_jab(
+    filename: str, port: (int | None), args: list[str], serve_only: bool
+) -> int {
     import from jaclang.runtimelib.jab { materialize_jab }
 
     try {
@@ -142,7 +148,7 @@ def _run_jab(filename: str, port: (int | None), args: list, serve_only: bool) ->
 }
 
 impl run_jab_image(
-    img_root: Path, port: (int | None), args: list, serve_only: bool, label: str
+    img_root: Path, port: (int | None), args: list[str], serve_only: bool, label: str
 ) -> int {
     import from jaclang.runtimelib.jab { jab_app_meta }
 
@@ -195,12 +201,12 @@ impl run_jab_image(
     return 1;
 }
 
-def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
+def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.runtimelib.sealed_serve { NATIVE_DIR_REL }
     try {
         import jaclang.compiler.passes.native.llvm.binding as llvm;
-        triple = llvm.get_default_triple();
+        triple = str(llvm.get_default_triple());
     } except Exception {
         return None;
     }
@@ -274,6 +280,7 @@ impl run(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
+    use_line_buffered_output();
     if debug_mode {
         if not filename {
             console.error("jac run --debug needs a file.");
@@ -343,11 +350,7 @@ impl run(
                 full_path = os.path.abspath(filename);
                 program = Jac.get_program();
                 _run_options = (
-                    _RunOpts(
-                        type_check=False,
-                        force_codespace='native',
-                        force_target_program=True
-                    )
+                    _RunOpts(force_codespace='native', force_target_program=True)
                         if _kind_forced
                         else None
                 );
@@ -402,12 +405,12 @@ impl run(
         }
     } except Exception as e {
         if diagnostics != "none" {
-            if Jac.program.errors_had {
-                for error in Jac.program.errors_had {
+            if Jac.get_program().errors_had {
+                for error in Jac.get_program().errors_had {
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.helpers { dump_traceback }
+                import from jaclang.jac0core.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -415,16 +418,16 @@ impl run(
         mach.close();
         return 1 if diagnostics != "none" else 0;
     }
-    n_errors = len(Jac.program.errors_had);
-    n_warnings = len(Jac.program.warnings_had);
+    n_errors = len(Jac.get_program().errors_had);
+    n_warnings = len(Jac.get_program().warnings_had);
     if diagnostics != "none" {
         if n_errors {
-            for error in Jac.program.errors_had {
+            for error in Jac.get_program().errors_had {
                 console.error(error.pretty_print());
             }
         }
         if diagnostics == "all" and n_warnings {
-            for warning in Jac.program.warnings_had {
+            for warning in Jac.get_program().warnings_had {
                 console.warning(f"{warning}");
             }
         }
@@ -437,7 +440,7 @@ impl run(
 impl enter(
     filename: str,
     entrypoint: str,
-    args: list = [],
+    args: list[str] = [],
     main: bool = True,
     `root: str = '',
     nd: str = ''
@@ -445,6 +448,7 @@ impl enter(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
+    use_line_buffered_output();
     if len(sys.argv) > 1 and sys.argv[1] == "enter" {
         console.print(
             "note: 'jac enter' is deprecated; use jac run <file> --entry <name>",
@@ -479,7 +483,7 @@ impl enter(
                 isinstance(archetype, WalkerArchetype)
                 and Jac.check_read_access(mach.entry_node)
             ) {
-                Jac.spawn(mach.entry_node.archetype, archetype);
+                Jac.`spawn(mach.entry_node.archetype, archetype);
             }
         }
     }
@@ -536,6 +540,7 @@ impl start(
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
 
+    use_line_buffered_output();
     set_effective_default_codespace('server');
 
     import from jaclang.runtimelib.client.cli { run_client_start }
@@ -588,20 +593,20 @@ impl start(
 
     try {
         Jac.jac_import(target=mod, base_path=base, lng=lng);
-        if Jac.program.errors_had {
-            for error in Jac.program.errors_had {
+        if Jac.get_program().errors_had {
+            for error in Jac.get_program().errors_had {
                 console.error(error.pretty_print());
             }
             mach.close();
             return 1;
         }
     } except Exception as e {
-        if Jac.program.errors_had {
-            for error in Jac.program.errors_had {
+        if Jac.get_program().errors_had {
+            for error in Jac.get_program().errors_had {
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
@@ -627,13 +632,13 @@ impl start(
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
             return 1;
         } finally {
-            svr = server?.server;
+            svr = server.server;
             if svr and hasattr(svr, 'server_close') {
                 svr.server_close();
             }
@@ -695,7 +700,7 @@ impl start(
             } except Exception as e {
                 console.warning(f"Initial client compilation failed: {e}");
 
-                if hot_reloader {
+                if hot_reloader is not None {
                     hot_reloader.record_error(str(filename), str(e));
                 }
             }
@@ -727,20 +732,20 @@ impl start(
         return 0;
     } except KeyboardInterrupt {
         console.print('\nShutting down');
-        if hot_reloader {
+        if hot_reloader is not None {
             hot_reloader.stop();
         }
         for started_vite in vite_holder {
             started_vite.terminate();
-            started_vite.wait(timeout=5);
+            started_vite.`wait(timeout=5);
         }
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.helpers { dump_traceback }
+        import from jaclang.jac0core.traceback_render { dump_traceback }
         console.error(f"Server error: {e}");
         console.error(dump_traceback(e));
-        if hot_reloader {
+        if hot_reloader is not None {
             hot_reloader.stop();
         }
         for started_vite in vite_holder {
@@ -802,13 +807,15 @@ def _ensure_watchdog_installed -> bool {
 
 def _get_network_ips -> list[str] {
     import socket;
-    ips = [];
+    ips: list[str] = [];
     try {
         hostname = socket.gethostname();
         addrs = socket.getaddrinfo(hostname, None);
         for addr in addrs {
             ip = addr[4][0];
-
+            if not isinstance(ip, str) {
+                continue;
+            }
             if not ip.startswith('127.') and ':' not in ip {
                 if ip not in ips {
                     ips.append(ip);
@@ -940,7 +947,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { debugger as db }
+    import from jaclang.jac0core.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"
@@ -972,10 +979,10 @@ impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     return 0;
 }
 
-def _tool_site_dirs(use_global: bool) -> list {
+def _tool_site_dirs(use_global: bool) -> list[tuple[str, Path]] {
     import from jaclang.project.tool_paths { python_project_site, python_global_site }
 
-    sites: list = [];
+    sites: list[tuple[str, Path]] = [];
     if not use_global {
         proj_site = python_project_site();
         if proj_site is not None {
@@ -989,10 +996,10 @@ def _tool_site_dirs(use_global: bool) -> list {
     return sites;
 }
 
-def _console_scripts_in(site_dir: object) -> list {
+def _console_scripts_in(site_dir: Path) -> list[tuple[str, str, EntryPoint]] {
     import from importlib.metadata { distributions }
 
-    found: list = [];
+    found: list[tuple[str, str, EntryPoint]] = [];
     if not site_dir.exists() {
         return found;
     }
@@ -1008,16 +1015,16 @@ def _console_scripts_in(site_dir: object) -> list {
     return found;
 }
 
-def _node_tools_in(bin_dir: object) -> list {
-    names: set = set();
+def _node_tools_in(bin_dir: Path | None) -> list[str] {
+    names: set[str] = set();
     if bin_dir is None or not bin_dir.exists() {
         return [];
     }
-    for entry in bin_dir.iterdir() {
-        if entry.is_dir() {
+    for `entry in bin_dir.iterdir() {
+        if `entry.is_dir() {
             continue;
         }
-        base = entry.name;
+        base = `entry.name;
         for suffix in [".cmd", ".ps1", ".exe", ".bat"] {
             if base.endswith(suffix) {
                 base = base[:-len(suffix)];
@@ -1031,7 +1038,7 @@ def _node_tools_in(bin_dir: object) -> list {
     return sorted(names);
 }
 
-def _find_node_tool(bin_dir: object, name: str) -> object {
+def _find_node_tool(bin_dir: Path | None, name: str) -> Path | None {
     if bin_dir is None or not bin_dir.exists() {
         return None;
     }
@@ -1050,7 +1057,9 @@ def _find_node_tool(bin_dir: object, name: str) -> object {
     return None;
 }
 
-def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int {
+def _run_entry_point(
+    name: str, ep: EntryPoint, site_dir: Path, args: list[str]
+) -> int {
     saved_path = list(sys.path);
     saved_argv = sys.argv;
     site_str = str(site_dir);
@@ -1084,7 +1093,7 @@ def _run_entry_point(name: str, ep: object, site_dir: object, args: list) -> int
     }
 }
 
-def _run_node_tool(name: str, bin_path: object, args: list) -> int {
+def _run_node_tool(name: str, bin_path: Path, args: list[str]) -> int {
     import subprocess;
     import from jaclang.project.config { get_config }
     import from jaclang.runtimelib.client.bun_installer { get_bun }
@@ -1103,7 +1112,7 @@ def _run_node_tool(name: str, bin_path: object, args: list) -> int {
     return result.returncode;
 }
 
-def _tool_tiers(use_global: bool, use_node: bool) -> list {
+def _tool_tiers(use_global: bool, use_node: bool) -> list[tuple[str, str, Path]] {
     import from jaclang.project.config { get_config }
     import from jaclang.project.tool_paths {
         python_project_site,
@@ -1113,7 +1122,7 @@ def _tool_tiers(use_global: bool, use_node: bool) -> list {
 
     config = get_config();
 
-    universe: list = [];
+    universe: list[tuple[str, str, Path]] = [];
     proj_py = python_project_site(config);
     if proj_py is not None {
         universe.append(("project", "py", proj_py));
@@ -1149,9 +1158,9 @@ def _tool_tiers(use_global: bool, use_node: bool) -> list {
     return tiers;
 }
 
-def _list_tools(tiers: list) -> int {
-    seen: set = set();
-    rows: list = [];
+def _list_tools(tiers: list[tuple[str, str, Path]]) -> int {
+    seen: set[str] = set();
+    rows: list[tuple[str, str, str]] = [];
     for (label, kind, loc) in tiers {
         if kind == "py" {
             for (script_name, dist_name, _ep) in _console_scripts_in(loc) {
@@ -1193,7 +1202,7 @@ impl x(
     use_global: bool = False,
     use_node: bool = False,
     list_tools: bool = False,
-    args: list = []
+    args: list[str] = []
 ) -> int {
     tiers = _tool_tiers(use_global, use_node);
 

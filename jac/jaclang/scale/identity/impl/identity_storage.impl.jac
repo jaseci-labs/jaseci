@@ -1,6 +1,6 @@
 impl IdentityStorage.hash_password(password: str) -> str {
     cost = get_scale_config().get_auth_config()['password_hash_cost'];
-    return _scrypt_hash(password, n=2 ** int(cost));
+    return _scrypt_hash(password, n=1 << int(cost));
 }
 
 impl IdentityStorage.verify_password(password: str, password_hash: str) -> bool {

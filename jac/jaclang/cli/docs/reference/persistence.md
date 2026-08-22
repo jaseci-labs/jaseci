@@ -24,7 +24,8 @@ walker create {
 
 **The store is Postgres, always.** There is exactly one persistence stack:
 
-- **Local development**: the runtime provisions an **embedded Postgres server** automatically, one database per project, under a shared data directory. No installation, no configuration, no daemon to manage -- `jac run` and `jac start` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down.
+- **Local development**: the runtime provisions an **embedded Postgres server** automatically. It is one cluster for the whole machine (`~/.cache/jac/pg/main`) holding one database per project, keyed to the project's absolute path. No installation, no configuration, no daemon to manage -- `jac run` and `jac start` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down. Because the key is the path, a project that moves or is deleted leaves its database behind: `jac db list` shows what the cluster holds and who owns it, and `jac db prune` reclaims the ones whose project is gone (see [Database Operations](cli/index.md#database-operations)).,
+- **Only when the graph is touched**: the embedded server boots on the first operation that actually reads or writes persistent state. A program that never dereferences `root` (a script that just prints, an HTTP proxy, a fixture server) starts no Postgres and runs no `initdb`, so it needs no database at all -- there is nothing to opt out of.
 - **External server**: set the `JAC_DB_URL` environment variable (or `[scale.database] url` in `jac.toml`) to a `postgresql://user:pass@host:port/db` URL and the runtime connects there instead. Kubernetes deploys provision a Postgres StatefulSet and inject `JAC_DB_URL` into every pod.
 
 Anchors live in an `anchors` table with `jsonb` payloads; the same database also carries the `quarantine` sidecar, a `kv_state` utility table, and (under jac-scale) the `jac_docs` table for scheduler jobs and webhook API keys. `jac db inspect` summarizes anchors by kind and archetype; `jac db sql "..."` runs one SQL statement against the project store when you need to look closer.
@@ -54,6 +55,8 @@ walker ensure_profile {
 Under concurrency this is a race: two requests against the same `root` can both read an empty `[-->[?:UserProfile]]`, both take the create branch, and both attach a profile -- a duplicate that was meant to be unique. The runtime closes this race with **the database transaction itself**, so the pattern above is safe without app-level locks.
 
 **How it works.** Each request runs its reads and writes inside one Postgres transaction at the `SERIALIZABLE` isolation level, and **the transaction is the single source of truth**: what commits is what happened. When two requests race on overlapping data, Postgres lets one commit and aborts the other with a serialization conflict before it can write a duplicate.
+
+**Reads that run before your code does not pay for that.** SERIALIZABLE detects the race above by taking a predicate lock per row read, and the database's pool of those locks is finite (`max_pred_locks_per_transaction` x `max_connections`). The runtime therefore reserves SERIALIZABLE for the unit of work that runs your walker or function, and runs the infrastructure reads that precede it -- resolving the root anchor for the request context, and health probes, which read nothing else -- in a declared read-only transaction at `REPEATABLE READ READ ONLY`, which takes no predicate locks at all. The tier is chosen from declared intent, never guessed: entering a unit of work restarts the transaction at SERIALIZABLE before anything can be written, and the read tier is `READ ONLY` at the server so a write cannot run under it even by mistake. Nothing about the convergence guarantee above changes.
 
 **Convergence (default).** A rejected request does not error. The server rolls back its uncommitted work, discards its in-memory view, and **replays the walker (or function) from the start**. The replay re-reads the graph -- now containing the winner's node -- takes the *find* branch, and returns normally. Two racing find-or-creates converge on one node; the client sees a normal `200`, not a duplicate and not an error.
 
@@ -190,6 +193,8 @@ A recoverable quarantine (say, a class-missing row) heals on a later load once t
 
 If you've used Jac before and remember "delete the data directory to run again after editing a node," that workflow is no longer required. Schema edits don't wipe data; they at worst quarantine rows until the fixed code loads them.
 
+The same contract governs whole databases: nothing on the write path ever drops one. Reclaiming disk is always an explicit act (`jac db prune`, `jac db drop`, both of which report and exit unless you pass `-y`), with one opt-in exception you have to configure yourself, `[database] retention_days`. The only deletions the runtime performs on its own are the throwaway scratch databases it creates for its own internal work, which never hold your data.
+
 ---
 
 ## Dangling references and read-path healing
@@ -306,7 +311,7 @@ Repaired-away values are never deleted. Removed fields (declared via `schema_dro
   "__jac_attic__": { "legacy_bio": { "value": "...", "reason": "dropped" } } }
 ```
 
-The attic round-trips through loads and saves -- including under `JAC_SCHEMA_REPAIR=off`, so an emergency rollback can never destroy previously preserved data. It persists until you explicitly clean it up (a future census-gated *contract* phase will automate this).
+The attic round-trips through loads and saves -- including under `JAC_SCHEMA_REPAIR=off`, so an emergency rollback can never destroy previously preserved data. It persists until you explicitly clean it up (a future *contract* phase, gated on no old-version reader remaining, will automate this).
 
 ### Rolling deploys: dual-write
 
@@ -442,7 +447,20 @@ jac db sql "SELECT count(*) FROM anchors WHERE kind = 'node'"
 # Run the embedded server in the foreground (pods/containers), stop it locally.
 jac db serve
 jac db stop
+
+# Pre-download the embedded distribution (air-gapped hosts, image builds).
+jac db fetch
 ```
+
+---
+
+## The embedded engine in containers
+
+The official `jaseci/jaclang` image already carries everything the embedded engine needs, so nothing here is required to run it. The rules matter when you build your own image or override the defaults:
+
+- **The distribution is baked, not downloaded.** The image ships the Postgres binaries and points `JAC_PG_DIST` at them. To do the same in your own image, run `jac db fetch` at build time and set `JAC_PG_DIST` to the resulting directory (the one holding `bin/postgres`); the runtime then never reaches the network. `JAC_PG_DIST` also lets an air-gapped host use a distribution copied in by hand.
+- **The cluster is not in `$HOME`.** `JAC_CACHE_HOME` decides where the cluster lives (default `~/.cache/jac`). The image pins it to a shared directory so the path does not change with the uid the pod runs as; that is also the one path to mount if you want the cluster to survive a restart.
+- **Postgres cannot run as root.** `initdb` refuses uid 0. The image therefore defaults to a real unprivileged account (uid 1000) rather than root, and because the account exists in `/etc/passwd`, an explicit `runAsUser: 1000` resolves too. If jac does run as root anyway, the embedded engine drops privileges for the server subprocess to the first resolvable unprivileged account (`JAC_PG_USER`, then `SUDO_USER`, then `jac` / `postgres` / `nobody`), handing it the data directory first. With no such account it fails with a message naming `JAC_PG_USER` and `JAC_DB_URL` instead of leaking `initdb`'s error.
 
 ---
 
@@ -450,7 +468,7 @@ jac db stop
 
 Currently out of scope (planned follow-on work):
 
-- **Contract phase** -- attic data and dual-written shadow fields persist indefinitely; the census-gated cleanup that strips them once no old-version reader remains is future work. Until then they cost a little storage but are harmless.
+- **Contract phase** -- attic data and dual-written shadow fields persist indefinitely; the version-gated cleanup that strips them once no old-version reader remains is future work. Until then they cost a little storage but are harmless.
 - **Rename auto-inference** -- the runtime won't guess that a removed field and an added field of the same type are a rename; you declare it with `schema_alias`. (A schema registry that proposes such inferences is future work.)
 - **Background sweep** -- repair is lazy (on read); cold rows that are never read stay at their old shape until touched. They repair correctly whenever that happens.
 - **Compiler enforcement** -- there's no build-time lint yet that detects an undeclared breaking change against a schema lockfile.

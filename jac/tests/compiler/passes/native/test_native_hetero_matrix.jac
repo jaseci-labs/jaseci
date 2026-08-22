@@ -33,13 +33,12 @@ glob FIXTURES = os.path.join(
      PROG = "hetero_matrix.jac";
 
 
-def _opts(gc_mode: str | None = None, enforce: bool = False) -> object {
+def _opts(gc_mode: str | None = None, enforce: bool = False) -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     if gc_mode is None {
         return native_force_opts();
     }
     return CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode=gc_mode,
@@ -48,7 +47,7 @@ def _opts(gc_mode: str | None = None, enforce: bool = False) -> object {
 }
 
 
-def _compile(fixture: str, options: object | None = None) -> tuple {
+def _compile(fixture: str, options: any | None = None) -> tuple {
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)),
@@ -62,14 +61,14 @@ def _compile(fixture: str, options: object | None = None) -> tuple {
 }
 
 
-def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
 }
 
 
-def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get_s(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI variant of _get: a c_char_p spelling means a Jac
     # `str` (the by-value {root, data, len} descriptor at the native ABI);
     # delegates to the shared tests.support harness.
@@ -94,7 +93,7 @@ test "hetero list slot overwrite and append/pop" {
     ann = _get_s(eng, "hl_annotated", ctypes.c_char_p, ctypes.c_char_p);
     assert ow(b"ow").decode("utf-8") == "ow-two";
     assert ap() == 6;
-    assert ann(b"q").decode("utf-8") == "q?";
+    assert ann(b"q").decode("utf-8") == "q?" , repr(ann(b"q"));
 }
 
 test "hetero list iteration dispatches isinstance by tag" {
@@ -173,7 +172,7 @@ def _inuse_probe -> (object | None) {
 
 
 """Warm `fn`, baseline in-use bytes, run a long churn window, return growth."""
-def _churn_growth(fn: object, inuse: object, arg: int = 2000, iters: int = 40) -> int {
+def _churn_growth(fn: any, inuse: any, arg: int = 2000, iters: int = 40) -> int {
     for _ in range(3) {
         fn(arg);
     }
@@ -299,13 +298,15 @@ test "hetero nogc fixture passes under headerless --gc none --enforce-nogc (AOT)
 
 test "mixed dict keys and mixed set elements are stable diagnostics" {
     import tempfile as _tf;
-    for (src_text, label) in [
+    for (src_text, fn_name, label) in [
         (
             "def bad_keys -> int { d: dict = {1: \"a\", \"b\": 2}; return len(d); }",
+            "bad_keys",
             "dict-mixed-keys"
         ),
         (
             "def bad_set -> int { s: set = {1, \"a\"}; return len(s); }",
+            "bad_set",
             "set-mixed-elems"
         )
     ] {
@@ -315,10 +316,18 @@ test "mixed dict keys and mixed set elements are stable diagnostics" {
         }
         try {
             prog = JacProgram();
-            prog.compile(file_path=path, options=native_force_opts());
-            msgs = " ".join([str(e) for e in prog.errors_had]);
-            assert prog.errors_had , f"{label}: expected a diagnostic, compiled silently";
-            assert "E5092" in msgs or "mixed" in msgs , f"{label}: unexpected diagnostics: {msgs}";
+            ir = prog.compile(file_path=path, options=native_force_opts());
+            assert not prog.errors_had , (
+                f"{label}: the refusal is owned by {fn_name}(), which must "
+                f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+            );
+            assert ir.gen.native_layout is not None , (
+                f"{label}: whole-module native compile aborted"
+            );
+            assert fn_name not in ir.gen.native_layout.functions , (
+                f"{label}: the refused container must demote its function "
+                f"out of the native layout, never lower silently"
+            );
         } finally {
             os.unlink(path);
         }

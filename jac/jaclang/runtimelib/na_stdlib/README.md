@@ -27,8 +27,13 @@ bundled one. A bundled module links through the existing cross-module machinery
 
 ## Shipped modules
 
-- **`os/path.jac`** (#6940 Phase 0) -- pure-string POSIX path helpers
-  (`normpath`, `dirname`, `basename`, `split`, `splitext`, `isabs`).
+- **`os/path.jac`** (#6940 Phase 0, extended #8201) -- pure-string POSIX path
+  helpers (`normpath`, `dirname`, `basename`, `split`, `splitext`, `isabs`,
+  `join`, `abspath`, plus `relpath` and `normcase`). `relpath` is CPython's
+  algorithm verbatim: absolutize both sides, drop empty components, walk off
+  the shared prefix with `..` for each remaining `start` component, and answer
+  `.` when nothing is left. `normcase` is the identity, which is what it is on
+  POSIX.
 - **`json.jac`** (#6940 Phase 1) -- a recursive-descent `loads` over boxed
   `any` (dict/list/str/int/float/bool/None) plus a `dumps` serializer matching
   CPython's default `(', ', ': ')` separators and insertion-ordered keys.
@@ -194,19 +199,180 @@ bundled one. A bundled module links through the existing cross-module machinery
   model). Construction/reduction (`Fraction(n, d)`), `numerator` /
   `denominator`, and `str()` match CPython exactly. Arithmetic and ordering are
   the CPython dunder methods (`__add__` / `__sub__` / `__mul__` / `__truediv__`
-  / `__eq__` / `__lt__`); since the native backend has no operator-overload
-  dispatch yet, the na fixture calls them directly (`a.__add__(b)`) where the sv
-  fixture uses `+` / `<`, and the resulting *values* are congruent.
+  / `__eq__` / `__lt__`). The na fixture calls them directly (`a.__add__(b)`)
+  where the sv fixture uses `+` / `<`, and the resulting *values* are
+  congruent; the operator spellings lower too, since the backend now routes a
+  binary operator over an archetype through `_emit_arch_dunder_binop`
+  (forward magic, then the reflected one) against
+  `type_system.operations.BINARY_OPERATOR_MAP`.
   Float/Decimal/string construction is out of scope. SCOPE: native `int` is a
   fixed-width i64, so the cross-multiplications in `__add__` / `__lt__` (and
   friends) silently overflow once intermediate products exceed 2^63, where
   CPython's bignum `Fraction` stays exact; keep components comfortably below
   ~3x10^9 (sqrt of i64 max).
 
+- **`pathlib.jac`** (#8201) -- a `Path` that carries one normalized POSIX
+  string and derives every member from it, which is CPython's `PurePosixPath`
+  value model: construction splits on `/`, drops empty and `.` components,
+  keeps `..` (collapsing one lexically is not symlink-safe), and preserves the
+  POSIX root -- `/`, or the special `//` a leading double slash denotes, which
+  `///` does not. An all-empty result renders as `.`, so `str(Path(""))` is
+  `"."`. Provided surface: `Path(str)`, `Path(Path)`, `str()` / f-string
+  interpolation, truthiness, `.name`, `.stem`, `.parent`, `/`, `.resolve()`,
+  `.exists()`, `.is_dir()`. Anything outside it does not exist on the type, so
+  a native compile that reaches for one fails with "Type `Path` has no
+  attribute ..." rather than silently answering wrong.
+  `.stem` follows `os.path.splitext`, which is what CPython's own `stem`
+  reduces to: the last `.` splits the name only when some non-`.` character
+  precedes it, so `.bashrc` and `..` are entirely stem, while a trailing dot
+  does split (`b.` has stem `b`) -- that last case is CPython **>= 3.14**
+  behavior (3.13 and earlier answered `b.`) and the bundled sv runtime is 3.14.
+  SCOPE: POSIX only (no Windows flavour, no drive letter, no
+  `PureWindowsPath`). `.resolve()` absolutizes against `os.getcwd()`, resolves
+  symlinks through the `realpath(3)` intercept, then collapses `.`/`..`
+  lexically -- byte-identical to CPython for a path that exists, but for a path
+  whose components do not all exist `realpath(3)` reports failure and the
+  answer falls back to the lexical collapse, so a symlink sitting on an
+  existing *prefix* of a missing path is not resolved the way CPython's
+  component walk resolves it. Comparison, hashing, iteration, `.parts`,
+  `.suffix`, `.glob`, `.open`, `.cwd()`, `.home()`, and the whole I/O surface
+  are not provided.
+
+- **`fnmatch.jac`** (#8201) -- `fnmatch` and `fnmatchcase` as a direct
+  backtracking glob matcher (`*`, `?`, `[seq]`, `[!seq]`, ranges), since the
+  native pathway has no regex engine to translate into. The bracket scanner
+  reproduces CPython's `translate` rules exactly: a `]` immediately after `[`
+  or `[!` is a literal member, an unterminated `[` degrades to a literal `[`,
+  and a `-` first or last in a class is a literal `-`. Pinned against CPython
+  over a 29-pattern by 14-name grid. `normcase` is the identity, which is what
+  it is on POSIX, so `fnmatch` and `fnmatchcase` agree here; on Windows
+  CPython's `fnmatch` would case-fold first. `filter` and `translate` are not
+  provided.
+
+- **`logging.jac`** (#8201) -- `basicConfig`, `getLogger(name)`, the level
+  constants, and `.debug`/`.info`/`.warning`/`.error`/`.critical` on both the
+  logger and the module. Records go to stderr, which is where CPython's
+  last-resort/`basicConfig` handler puts them, rendered through the
+  `%(levelname)s` / `%(name)s` / `%(message)s` fields of the active format
+  (default `BASIC_FORMAT`, i.e. `LEVEL:name:message`). The WARNING default
+  threshold is honored, so `.debug`/`.info` are dropped until `basicConfig`
+  lowers it, matching CPython. SCOPE: no handlers, formatters, filters, or
+  logger hierarchy -- there is one process-wide level and one format, so
+  `Logger.setLevel` sets *the* level rather than that logger's, and
+  `basicConfig` is not the once-only call it is on CPython (a second call
+  reconfigures). `%(asctime)s` and the other `%`-fields are left in the output
+  verbatim rather than substituted; `filename`/`filemode`/`stream`/`handlers`
+  are accepted and ignored, so file logging silently stays on stderr.
+  Lazy `%`-args (`log.info("x %s", y)`) and `exc_info` are not provided.
+
+- **`contextvars.jac`** (#8201, held back by #8220 until #8229 and #8230
+  landed) -- `ContextVar[T]` as a single process-wide cell: `ContextVar(name)`
+  and `` ContextVar(name, `default=...) ``, `.name`, `.get()`, `.get(default)`
+  and `.set(value)`. `get` walks CPython's precedence -- the value last `set`,
+  else the default the call passed, else the default the constructor took,
+  else `LookupError(name)`.
+  SCOPE: `None` is the sentinel for *both* "no value" and "no default", where
+  CPython keys the second step on whether the argument was **passed**, so an
+  explicit `get(None)` reads as an omitted argument: on an unset variable it
+  answers the constructor default, or raises, where CPython answers `None`.
+  (A variadic `get(*fallback: T)` would carry the presence bit exactly, but a
+  variadic parameter of the erased type segfaults the native binary, so this
+  waits on that gap.) `None` is likewise the unset marker in the value slot,
+  so `set(None)` on a `ContextVar[X | None]` reads back as unset.
+  There is also one cell per variable rather than one per context, because
+  the native pathway has neither asyncio tasks nor threads to separate them,
+  so `copy_context`, `Context.run`, and the `Token` that `set` returns
+  (with `reset`) are not provided -- `set` answers `None`. A reference type
+  argument (an archetype, `list`, `dict`) lowers; a **scalar** one
+  (`int`, `float`, `bool`, and `str`, which is a by-value descriptor
+  natively) is refused at the construction site with `E5092` naming the
+  instantiation, because a generic archetype is laid out once for every
+  instantiation and its `T` slot is a raw pointer (#8229).
+
+- **`io.jac`** (Mechanism B) -- `BytesIO` (the CPython `io.BytesIO` value
+  model: `read`/`read1`/`write`/`seek`/`tell`/`getvalue`/`seek`-relative
+  `whence`, growth-with-NUL-fill on a seek-past-end write, `close`, context
+  manager) plus a `BufferedIOBase` name whose abstract methods raise, and the
+  `SEEK_*` / `DEFAULT_BUFFER_SIZE` constants. On the sv pathway `import io`
+  binds CPython's real `io` (same source, different binding), so the API
+  names/semantics match. DIVERGENCE: `BytesIO` is a **standalone** class rather
+  than a `BufferedIOBase` subclass -- the native pathway does not yet support
+  cross-module vtable dispatch (calling an overridden method through a
+  base-typed reference defined in another module aborts at run time), so the
+  bundled readers avoid inheritance across the module boundary. SCOPE: binary
+  streams only (no text `StringIO`, no `BufferedReader`/`BufferedWriter`
+  wrappers).
+
+- **`compression/zstd.jac`** (Mechanism F) + **`_zstd_native.jac`** (FFI
+  floor over the bundled `libzstd`, zstd 1.5.7) -- the CPython 3.14
+  `compression.zstd` read subset: `compress(data, level=3)` (one-shot
+  `ZSTD_compress2` with `ZSTD_c_compressionLevel`; byte-identical to CPython at
+  the same level, both over the same library), `decompress(data)` (loops
+  `ZSTD_decompressStream` across MULTIPLE concatenated frames, exactly as
+  CPython does), `ZstdDecompressor` (`decompress(data, max_length=-1)`, `eof`,
+  `needs_input`, `unused_data` -- single-frame semantics with the remainder
+  surfaced as `unused_data`, `d_windowLogMax` raised to 27), read-mode
+  `ZstdFile(file: io.BytesIO, mode="rb")` that pulls 1 MiB compressed chunks
+  and decodes incrementally, continuing seamlessly across concatenated frames
+  (`read`/`read1`/`seek`/`tell`/`close`/context manager), `get_frame_info`
+  (`ZSTD_getFrameContentSize`), the `ZstdError` exception, and the
+  `zstd_version` string. A zstd error raises `ZstdError` (on sv the real one).
+  DIVERGENCES: `ZstdFile` is read-only and, being standalone (see `io.jac`),
+  types its source as a concrete `io.BytesIO` rather than a general file object
+  (a path variant is not accepted); write/append modes raise `ValueError`. The
+  floor also defines strong no-op `ZSTD_trace_{compress,decompress}_{begin,end}`
+  symbols: `libzstd` is built with `ZSTD_TRACE` and references those four hooks
+  weakly, which the dynamic loader binds to 0 (JIT path) but the AOT static
+  linker emits as hard dynamic-undefined symbols -- the stubs satisfy them so a
+  `jac nacompile` binary links and runs. Native-host only (wasm gets a clean
+  link error). Pinned sv<->na congruent by `test_zstd_equivalence.jac`.
+
+- **`tarfile.jac`** (Mechanism B) + **`_tarfile_native.jac`** (tiny libc FFI
+  floor: `chmod`/`symlink`/`link`/`utime`/`creat`/`write`) -- a streaming-read
+  subset of CPython 3.14 `tarfile`: `open(name=None, mode="r", fileobj=None)`
+  supporting `"r"`/`"r:"`/`"r|"`, `TarInfo`
+  (`name`/`size`/`mtime`/`mode`/`type`/`linkname`/`uid`/`gid`/`uname`/`gname`
+  plus `isfile`/`isdir`/`issym`/`islnk`/`isreg`), `TarFile`
+  (`next`/`__iter__`/`__next__`/`getmembers`/`extractfile` returning an
+  `io.BytesIO`/`extractall(path, filter="data")`/`close`/context manager).
+  Header parsing is full POSIX ustar 512-byte blocks: octal fields **and** the
+  GNU base-256 binary encoding for sizes > 8 GiB, unsigned+signed checksum
+  verification, two zero blocks (or a truncated end) terminate, typeflags
+  `0`/`\0`/`5`/`2`/`1`/`x` (pax `path`/`linkpath`/`size`/`mtime` records)/`g`
+  (global pax, skipped)/`L`/`K` (GNU long name/link), padding to 512-byte
+  blocks. `extractall` creates parent dirs, writes regular files, makes dirs,
+  and applies `mode & 0o777` via a libc `chmod` plus the CPython `data`-filter
+  permission rules (`mode & 0o755`, clear exec if not user-exec, `| 0o600` for
+  files; directories/symlinks keep the system mode). The `data` filter's path
+  containment, absolute-path, and absolute-link checks are enforced, raising the
+  CPython `FilterError` subclasses. DIVERGENCES: read-only (`w`/`a`/`x` raise);
+  the whole archive is materialized as `bytes` at `open()` (so `"r|"` diverges
+  from CPython's incremental stream in memory profile only -- the extracted tree
+  is identical); a compressed `fileobj` must be a `compression.zstd.ZstdFile`
+  (a plain `io.BytesIO` fileobj is not accepted on na -- use `name=` for an
+  uncompressed file), and it must be called **module-qualified**
+  (`import tarfile; tarfile.open(...)`) because a bare unqualified `open(...)`
+  collides with the native builtin `open`; GNU sparse members raise; hard/soft
+  links are created via libc `link`/`symlink` when trivial. Native-host only.
+  Pinned sv<->na congruent by `test_tarfile_equivalence.jac`.
+
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
-`mkdir`, `exists`, ...) are Mechanism-A/H compiler intercepts, reached via the
-flat `import os`, not bundled here (see
-`compiler/passes/native/na_ir_gen_pass.impl/os.impl.jac`).
+`mkdir`, `exists`, `getmtime`, `normcase`, ...) are Mechanism-A/H compiler
+intercepts, reached via the flat `import os`, not bundled here (see
+`compiler/passes/native/na_ir_gen/os.impl.jac`). `os.sep` and its
+sibling module attributes (`extsep`, `pardir`, `curdir`, `pathsep`, `linesep`,
+`devnull`) resolve the same way; `os.altsep` is `None` on POSIX and is not
+provided. Note that `getmtime` / `getsize` answer `-1` for a path that cannot
+be stat'd, where CPython raises `OSError` -- the established native behavior
+for this family.
+
+The **pure-string** members are the bundled `os/path.jac` above and are
+reached by importing them (`import from os.path { normpath, relpath }`).
+`abspath`, `splitext`, `relpath` and `normpath` are *only* reachable that way:
+they are not compiler intercepts, because each needs `normpath`'s component
+stack (or, for `splitext`, a tuple return), which is the sort of work
+Mechanism B exists to avoid writing twice. Reaching for one through the flat
+`import os` fails loudly naming the member rather than answering wrong.
 
 ## Adding a module
 

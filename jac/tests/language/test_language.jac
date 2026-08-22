@@ -347,6 +347,86 @@ test "implicit return" {
     assert lines[9] == "40" , f"multi-stmt lambda tail: {lines[9]}";
 }
 
+test "lambda decorator arg" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_decorator_arg.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "22" , f"multi-stmt lambda decorator arg (tail return): {lines[
+        0
+    ]}";
+    assert lines[1] == "29" , f"multi-stmt lambda decorator arg (explicit return): {lines[
+        1
+    ]}";
+    assert lines[2] == "110" , f"single-expr lambda decorator arg (parity): {lines[2]}";
+}
+
+test "lambda default arg" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_default_arg.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "HI!" , f"multi-stmt lambda default arg (tail return): {lines[
+        0
+    ]}";
+    assert lines[1] == "11" , f"multi-stmt lambda default arg (explicit return): {lines[
+        1
+    ]}";
+    assert lines[2] == "10" , f"single-expr lambda default arg (parity): {lines[2]}";
+}
+
+test "lambda has default" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_has_default.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "HI!" , f"obj has multi-stmt lambda default: {lines[0]}";
+    assert lines[1] == "BYE!" , f"node has multi-stmt lambda default: {lines[1]}";
+}
+
+test "lambda enum decorator" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_enum_decorator.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "200" , f"enum decorator multi-stmt lambda: {lines[0]}";
+    assert lines[1] == "500" , f"enum decorator multi-stmt lambda: {lines[1]}";
+}
+
+test "lambda compound header" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_compound_header.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "positive" , f"multi-stmt lambda in if-condition: {lines[0]}";
+    assert lines[1:4] == ["0", "1", "2"] , (
+        f"multi-stmt lambda in while-condition: {lines[1:4]}"
+    );
+}
+
+test "lambda decorator and has combo" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_decorator_has_combo.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "11" , (
+        f"decorator + has multi-stmt lambdas on one class: {lines[0]}"
+    );
+}
+
+test "lambda per-instance mutable default" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_per_instance_default.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "False" , (
+        f"compound has default must be per-instance: {lines[0]}"
+    );
+    assert lines[1] == "False" , (
+        f"mutation must not leak across instances: {lines[1]}"
+    );
+}
+
+test "lambda method body (no name mangling)" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_method_body.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "11" , f"multi-stmt lambda in method body: {lines[0]}";
+}
+
+test "lambda function decorator and body combo" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_func_deco_body_combo.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "6" , (
+        f"decorator + body multi-stmt lambdas on one function: {lines[0]}"
+    );
+}
+
 test "override walker inherit" {
     output = run_jac(os.path.join(FIXTURES, "walker_override.jac"));
     assert output == "baz\nbar\n";
@@ -934,16 +1014,21 @@ test "bidirectional edge traversal" {
     assert "Backward from e:\nDone." in output;
 }
 
-test "root keyword trigger raises TypeError at runtime" {
-    output = run_jac(os.path.join(FIXTURES, "root_keyword_trigger.jac"));
-    assert "GoodWalker: ok" in output , "GoodWalker with Root entry should run fine";
-    assert "BadWalker:" in output , "bare `root` keyword must raise TypeError";
-    assert "instance of `Root`" in output , "error must identify Root as the instance type";
-    assert "with Root entry" in output , "error must hint the correct fix for root";
-    assert "BadNodeInstance:" in output , "node instance as trigger must also raise TypeError";
-    assert "instance of `MyNode`" in output , "error must identify MyNode as the instance type";
-    assert "with MyNode entry" in output , "error must hint the correct fix for MyNode";
-    assert "should not reach here" not in output , "no bad walker body should execute";
+test "root keyword trigger is rejected at compile time" {
+    # Checking is on the critical path of every compilation, so the bare
+    # `root` (and node-instance) triggers that used to raise TypeError at
+    # runtime are now refused before the module ever runs (E1116).
+    err_text = "";
+    try {
+        run_jac(os.path.join(FIXTURES, "root_keyword_trigger_err.jac"));
+        assert False , "bare `root` trigger must be rejected at compile time";
+    } except AssertionError {
+        raise;
+    } except Exception as e {
+        err_text = str(e);
+    }
+    assert "E1116" in err_text , "the rejection must be E1116";
+    assert "root" in err_text , "the diagnostic must name the offending trigger";
 }
 
 test "native property getter/setter/deleter with impl separation" {

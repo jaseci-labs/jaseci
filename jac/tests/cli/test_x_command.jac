@@ -49,7 +49,7 @@ def exit_body(code: int) -> str {
 }
 
 """Find the entry point named `script` in `site_dir` (or None)."""
-def find_ep(site_dir: Path, script: str) -> object {
+def find_ep(site_dir: Path, script: str) -> any {
     for (n, d, ep) in exec_cmds._console_scripts_in(site_dir) {
         if n == script {
             return ep;

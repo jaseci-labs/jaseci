@@ -1,5 +1,7 @@
 import io;
 import os;
+import shutil;
+import subprocess;
 import sys;
 import tarfile;
 import tempfile;
@@ -187,6 +189,74 @@ test "an unrunnable pod binary fails the seal instead of shipping unsealed" {
         caught = True;
     }
     assert caught;
+}
+
+
+test "the seal and vendor subprocesses run without persistent storage (issue 8094)" {
+    import from jaclang.scale.injector.bundle { seal_step_env }
+    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    env = seal_step_env();
+    assert env.get(SCRATCH_ENV) == "1" , (
+        "the seal/vendor children stage the app under a fresh temp path, so a "
+        f"persistent store there is a permanent orphan; {SCRATCH_ENV} was "
+        f"{env.get(SCRATCH_ENV)!r}"
+    );
+    for banned in ["PYTHONPATH", "JAC_DEV_SOURCE"] {
+        assert banned not in env , f"{banned} must stay out of the seal env";
+    }
+}
+
+
+test "staging roots left by dead processes are reaped (issue 8094)" {
+    import from jaclang.scale.injector.bundle { reap_stale_stage_roots }
+    holder = tempfile.mkdtemp(prefix="jac-reap-");
+    dead = subprocess.Popen([sys.executable, "-c", "pass"]);
+    dead.`wait();
+    saved_tempdir = tempfile.tempdir;
+    tempfile.tempdir = holder;
+    try {
+        stale = Path(holder, f"jac-app-precompile-{dead.pid}-abcd");
+        stale.mkdir();
+        Path(stale, "app").mkdir();
+        mine = Path(holder, f"jac-app-precompile-{os.getpid()}-efgh");
+        mine.mkdir();
+        # Staging roots from releases that did not name their pid: only age
+        # can tell those apart, and a seal never runs for a day.
+        legacy_old = Path(holder, "jac-app-precompile-oldrelease");
+        legacy_old.mkdir();
+        os.utime(str(legacy_old), (0, 0));
+        legacy_new = Path(holder, "jac-app-precompile-newrelease");
+        legacy_new.mkdir();
+        removed = reap_stale_stage_roots();
+        assert not stale.exists() , (
+            f"a staging root owned by dead pid {dead.pid} must be reaped"
+        );
+        assert not legacy_old.exists() , (
+            "a day-old staging root with no pid in its name must be reaped"
+        );
+        assert mine.exists() , "a live process's staging root must be left alone";
+        assert legacy_new.exists() , (
+            "a fresh staging root with no pid in its name may still be in use"
+        );
+        assert removed == 2 , f"expected 2 reaped staging roots, got {removed}";
+    } finally {
+        tempfile.tempdir = saved_tempdir;
+        shutil.rmtree(holder, ignore_errors=True);
+    }
+}
+
+
+test "staging a project cleans up after itself" {
+    import from jaclang.scale.injector.bundle { stage_roots_in_use }
+    base = Path(_mini_app());
+    stage_root = _stage_app(base, sanitized_jac_toml(base));
+    assert stage_root.name.startswith(f"jac-app-precompile-{os.getpid()}-") , (
+        f"staging roots must carry their owning pid: {stage_root.name}"
+    );
+    assert str(stage_root) in stage_roots_in_use() , (
+        "a live staging root must be tracked so it is removed on exit"
+    );
+    shutil.rmtree(str(stage_root), ignore_errors=True);
 }
 
 

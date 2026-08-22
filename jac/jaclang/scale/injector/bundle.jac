@@ -7,6 +7,7 @@ import shutil;
 import subprocess;
 import tarfile;
 import tempfile;
+import time;
 import tomllib;
 import from pathlib { Path }
 
@@ -17,7 +18,13 @@ glob APP_VOLUME_NAME: str = "jac-app",
      JAC_HOME: str = "/app/.jachome",
      TOOLCHAIN_SUBDIR: str = ".jactoolchain",
      DEFAULT_SEAL_TIMEOUT_S: int = 1800,
-     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n";
+     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n",
+     STAGE_PREFIX: str = "jac-app-precompile-",
+     STAGE_REAP_AGE_S: int = 86400;
+
+glob _stage_roots: list[str] = [];
+
+glob _reported_prunes: set[str] = set();
 
 glob _EXCLUDE_DIRS: set[str] = {
          ".jac",
@@ -50,9 +57,16 @@ glob _EXCLUDE_SUFFIXES: tuple = (
          ".jks",
          ".keystore"
      );
+glob _EXCLUDE_ENV: set[str] = {
+         "PYTHONPATH",
+         "PYTHONHOME",
+         "JAC_LLVM_SHIM",
+         "JAC_DEV_SOURCE",
+         "JAC_NO_PRECOMPILE"
+     };
 
 
-def is_excluded(rel: Path) -> bool {
+def _is_bundle_required(rel: Path) -> bool {
     parts = rel.parts;
     if (
         len(parts) >= 3
@@ -60,31 +74,156 @@ def is_excluded(rel: Path) -> bool {
         and parts[1] == "client"
         and parts[2] == "dist"
     ) {
-        return False;
+        return True;
     }
 
     if len(parts) >= 2 and parts[0] == ".jac" and parts[1] == "admin" {
-        return False;
+        return True;
     }
-    if len(parts) == 2 and parts[0] == ".jac" and parts[1] == "serve_manifest.json" {
-        return False;
+    return len(parts) == 2 and parts[0] == ".jac" and parts[1] == "serve_manifest.json";
+}
+
+
+obj BundleSourceFilter {
+    has ignore_patterns: list[str];
+
+    def parks(rel: Path) -> bool {
+        import from jaclang.jac0core.helpers { path_matches_exclude }
+
+        return path_matches_exclude(rel.as_posix(), self.ignore_patterns);
     }
-    for part in parts {
-        if part in _EXCLUDE_DIRS {
+
+    def excludes_tree(rel: Path) -> bool {
+        for part in rel.parts {
+            if part in _EXCLUDE_DIRS {
+                return True;
+            }
+        }
+        return self.parks(rel);
+    }
+
+    def excludes(rel: Path) -> bool {
+        if _is_bundle_required(rel) {
+            return False;
+        }
+        if self.excludes_tree(rel) {
             return True;
         }
+        name = rel.name;
+        if name in _EXCLUDE_FILES {
+            return True;
+        }
+        if name == ".env" or name.startswith(".env.") {
+            return True;
+        }
+        return name.endswith(_EXCLUDE_SUFFIXES);
     }
-    name = rel.name;
-    if name in _EXCLUDE_FILES {
-        return True;
+}
+
+
+def source_filter_for(base: Path) -> BundleSourceFilter {
+    import from jaclang.jac0core.helpers { read_jacignore_patterns }
+
+    return BundleSourceFilter(ignore_patterns=read_jacignore_patterns(str(base)));
+}
+
+
+def entry_module_rel(project_dir: str) -> (Path | None) {
+    import from jaclang.project.config { get_config_for_path }
+
+    try {
+        config = get_config_for_path(Path(project_dir));
+    } except Exception as exc {
+        logger.warning(f"entry-point check skipped, jac.toml unparseable: {exc}");
+        return None;
     }
-    if name == ".env" or name.startswith(".env.") {
-        return True;
+    if config is None or not config.project.entry_point {
+        return None;
     }
-    if name.endswith(_EXCLUDE_SUFFIXES) {
-        return True;
+    return Path(config.project.entry_point);
+}
+
+
+def assert_entry_module_ships(base: Path, excluded: BundleSourceFilter) {
+    rel = entry_module_rel(str(base));
+    if rel is None or not (base / rel).is_file() or not excluded.parks(rel) {
+        return;
     }
-    return False;
+    raise ValueError(
+        f"The project entry module '{rel.as_posix()}' is parked by .jacignore, "
+        f"so the bundle would ship without an entry point and every pod would "
+        f"crash-loop on boot. Drop the .jacignore pattern that matches it, or "
+        f"point [project] entry-point at a module the bundle ships."
+    );
+}
+
+
+def _exclude_dir_root(rel: Path) -> (str | None) {
+    parts = rel.parts;
+    depth = 0;
+    for part in parts {
+        depth += 1;
+        if part in _EXCLUDE_DIRS {
+            return "/".join(parts[:depth]);
+        }
+    }
+    return None;
+}
+
+
+def partition_bundle_sources(base: Path) -> tuple[list[Path], list[str]] {
+    excluded = source_filter_for(base);
+    kept: list[Path] = [];
+    pruned: set[str] = set();
+    for path in sorted(base.rglob("*")) {
+        rel = path.relative_to(base);
+        if not excluded.excludes(rel) {
+            if path.is_file() {
+                kept.append(path);
+            }
+            continue;
+        }
+        pruned_tree = _exclude_dir_root(rel);
+        if pruned_tree is not None {
+            pruned.add(pruned_tree);
+        }
+    }
+    shipped: set[str] = set();
+    for path in kept {
+        parent = path.relative_to(base).parent;
+        while parent.as_posix() not in (".", "") {
+            shipped.add(parent.as_posix());
+            parent = parent.parent;
+        }
+    }
+    return (
+        kept,
+        sorted(
+            [
+                tree
+                for tree in pruned
+                if tree not in shipped
+            ]
+        )
+    );
+}
+
+
+def bundle_source_files(base: Path) -> list[Path] {
+    (kept, pruned) = partition_bundle_sources(base);
+    for pruned_tree in pruned {
+        key = f"{base}::{pruned_tree}";
+        if key in _reported_prunes {
+            continue;
+        }
+        _reported_prunes.add(key);
+        logger.info(
+            f"Bundle: nothing under '{pruned_tree}/' ships, because a path segment "
+            f"names a build output directory. Rename it if it holds source "
+            f"the pods need."
+        );
+    }
+    return kept;
 }
 
 
@@ -163,11 +302,19 @@ def open_det_tar(buf: io.BytesIO) -> tuple[tarfile.TarFile, any] {
 }
 
 
+def add_source_members(tar: tarfile.TarFile, base: Path) {
+    for path in bundle_source_files(base) {
+        tar.add(str(path), arcname=str(path.relative_to(base)), filter=det_tar_member);
+    }
+}
+
+
 def nested_sanitized_tomls(base: Path) -> dict[str, str] {
+    excluded = source_filter_for(base);
     out: dict[str, str] = {};
     for toml_path in sorted(base.rglob("jac.toml")) {
         rel = toml_path.relative_to(base);
-        if len(rel.parts) == 1 or any(part in _EXCLUDE_DIRS for part in rel.parts) {
+        if len(rel.parts) == 1 or excluded.excludes_tree(rel) {
             continue;
         }
         text = sanitized_jac_toml(toml_path.parent);
@@ -179,14 +326,118 @@ def nested_sanitized_tomls(base: Path) -> dict[str, str] {
 }
 
 
-def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
-    stage_root = Path(tempfile.mkdtemp(prefix="jac-app-precompile-"));
-    stage = stage_root / "app";
+def stage_roots_in_use -> list[str] {
+    return list(_stage_roots);
+}
+
+
+def _stage_root_prefix -> str {
+    return f"{STAGE_PREFIX}{os.getpid()}-";
+}
+
+
+def _stage_root_pid(name: str) -> int {
+    if not name.startswith(STAGE_PREFIX) {
+        return 0;
+    }
+    parts = name[len(STAGE_PREFIX):].split("-");
+    if len(parts) < 2 or not parts[0].isdigit() {
+        return 0;
+    }
+    return int(parts[0]);
+}
+
+
+def _pid_alive(pid: int) -> bool {
     try {
-        for path in sorted(base.rglob("*")) {
-            if not path.is_file() or is_excluded(path.relative_to(base)) {
+        os.kill(pid, 0);
+        return True;
+    } except ProcessLookupError {
+        return False;
+    } except OSError {
+        return True;
+    }
+}
+
+
+def _stage_root_expired(stage_root: Path) -> bool {
+    try {
+        return (time.time() - stage_root.stat().st_mtime) > STAGE_REAP_AGE_S;
+    } except OSError {
+        return False;
+    }
+}
+
+
+def reap_stale_stage_roots -> int {
+    removed = 0;
+    holder = Path(tempfile.gettempdir());
+    try {
+        entries = sorted(holder.iterdir());
+    } except OSError {
+        return 0;
+    }
+    for `entry in entries {
+        if not `entry.is_dir() or not `entry.name.startswith(STAGE_PREFIX) {
+            continue;
+        }
+        pid = _stage_root_pid(`entry.name);
+        if pid == 0 {
+            if not _stage_root_expired(`entry) {
                 continue;
             }
+        } elif _pid_alive(pid) {
+            continue;
+        }
+        shutil.rmtree(str(`entry), ignore_errors=True);
+        if not `entry.exists() {
+            removed += 1;
+        }
+    }
+    if removed {
+        logger.info(
+            f"removed {removed} deploy staging director(ies) left by dead runs"
+        );
+    }
+    return removed;
+}
+
+
+def remove_stage_root(stage_root: Path) {
+    shutil.rmtree(str(stage_root), ignore_errors=True);
+    if str(stage_root) in _stage_roots {
+        _stage_roots.remove(str(stage_root));
+    }
+}
+
+
+def _remove_stage_roots {
+    for path in list(_stage_roots) {
+        shutil.rmtree(path, ignore_errors=True);
+    }
+    _stage_roots.clear();
+}
+
+
+def seal_step_env -> dict[str, str] {
+    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    env = release_binary_env();
+    env[SCRATCH_ENV] = "1";
+    return env;
+}
+
+
+def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
+    reap_stale_stage_roots();
+    stage_root = Path(tempfile.mkdtemp(prefix=_stage_root_prefix()));
+    if not _stage_roots {
+        import atexit;
+        atexit.register(_remove_stage_roots);
+    }
+    _stage_roots.append(str(stage_root));
+    stage = stage_root / "app";
+    try {
+        for path in bundle_source_files(base) {
             dest = stage / path.relative_to(base);
             dest.parent.mkdir(parents=True, exist_ok=True);
             shutil.copy2(str(path), str(dest));
@@ -208,17 +459,17 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
         }
         return stage_root;
     } except Exception {
-        shutil.rmtree(str(stage_root), ignore_errors=True);
+        remove_stage_root(stage_root);
         raise;
     }
 }
 
 
-def _seal_subprocess_env -> dict[str, str] {
+def release_binary_env -> dict[str, str] {
     return {
         k: v
         for (k, v) in os.environ.items()
-        if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
+        if k not in _EXCLUDE_ENV
     };
 }
 
@@ -241,7 +492,7 @@ def _precompile_app(
             capture_output=True,
             text=True,
             timeout=timeout_s,
-            env=_seal_subprocess_env(),
+            env=seal_step_env(),
             cwd=str(stage_root)
         );
         jac_path.unlink();
@@ -261,7 +512,7 @@ def _precompile_app(
         }
         return stage;
     } except Exception {
-        shutil.rmtree(str(stage_root), ignore_errors=True);
+        remove_stage_root(stage_root);
         raise;
     }
 }
@@ -338,7 +589,12 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
     }
     try {
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=900, env=_seal_subprocess_env()
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=seal_step_env(),
+            cwd=str(stage.parent)
         );
     } finally {
         jac_path.unlink(missing_ok=True);
@@ -372,6 +628,14 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
             "the project tree; check the code_folder path."
         );
     }
+    excluded = source_filter_for(base);
+    assert_entry_module_ships(base, excluded);
+    if excluded.ignore_patterns {
+        logger.info(
+            f"Honoring {len(excluded.ignore_patterns)} .jacignore pattern(s) "
+            f"while staging the app bundle."
+        );
+    }
     sanitized = sanitized_jac_toml(base);
     staged = _precompile_app(
         base, seal_binary, sanitized, seal_timeout_setting(project_dir)
@@ -399,16 +663,7 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
         (tar, gz) = open_det_tar(buf);
         try {
             with tar {
-                for path in sorted(base.rglob("*")) {
-                    if not path.is_file() {
-                        continue;
-                    }
-                    rel = path.relative_to(base);
-                    if is_excluded(rel) {
-                        continue;
-                    }
-                    tar.add(str(path), arcname=str(rel), filter=det_tar_member);
-                }
+                add_source_members(tar, base);
                 pre = staged / "_precompiled";
                 count = 0;
                 for path in sorted(pre.rglob("*")) {
@@ -456,7 +711,7 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
         }
         return buf.getvalue();
     } finally {
-        shutil.rmtree(str(staged.parent), ignore_errors=True);
+        remove_stage_root(staged.parent);
     }
 }
 

@@ -4,17 +4,17 @@ obj _HostState {
         out2: str = "";
 }
 
-def _emit(st: any, fd: int, text: str) {
+def _emit(st: _HostState, fd: int, text: str) {
     if fd == 2 {
         st.out2 = st.out2 + text;
     } else {
         st.out1 = st.out1 + text;
     }
     buf = st.out2 if fd == 2 else st.out1;
-    idx = buf.lastIndexOf("\n");
+    idx = buf.rfind("\n");
     if idx >= 0 {
-        head = buf.slice(0, idx);
-        tail = buf.slice(idx + 1);
+        head = buf[:idx];
+        tail = buf[idx + 1:];
         if fd == 2 {
             console.error(head);
             st.out2 = tail;
@@ -25,7 +25,7 @@ def _emit(st: any, fd: int, text: str) {
     }
 }
 
-def _flush_all(st: any) {
+def _flush_all(st: _HostState) {
     if len(st.out1) > 0 {
         console.log(st.out1);
         st.out1 = "";
@@ -36,7 +36,7 @@ def _flush_all(st: any) {
     }
 }
 
-def _clock_gettime(st: any, clk: int, ts: int) -> int {
+def _clock_gettime(st: _HostState, clk: int, ts: int) -> int {
     dv = new(DataView, st.sh.mem.buffer);
     ms = Date.now() if clk == 0 else performance.now();
     sec = Math.floor(ms / 1000.0);

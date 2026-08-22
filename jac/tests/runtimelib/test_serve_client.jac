@@ -7,7 +7,6 @@ import io;
 import json;
 import logging;
 import os;
-import pytest;
 import re;
 import shutil;
 import uuid;
@@ -18,6 +17,10 @@ import from jaclang.runtimelib.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Skip a test unless client integration is explicitly enabled.
 
 Rendering a client page now runs the real Vite/Bun pipeline (bun + npm install
@@ -27,7 +30,7 @@ suite); core CI skips them.
 """
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "client render requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -69,7 +72,7 @@ def make_client_app_client(tmp_path: str) -> JacTestClient {
     module_name = f"client_app_{unique_id}";
     fixtures_dest = Path(tmp_path) / module_name;
     fixtures_dest.mkdir(parents=True, exist_ok=True);
-    for f in fixtures_src.glob("*.jac") {
+    for f in fixtures_src.`glob("*.jac") {
         if f.is_file() {
             dest_name = f.name;
             if f.name == "client_app.jac" {
@@ -229,7 +232,7 @@ def make_spa_client(tmp_path: str) -> JacTestClient {
     module_name = f"spa_app_{unique_id}";
     fixtures_dest = Path(tmp_path) / module_name;
     fixtures_dest.mkdir(parents=True, exist_ok=True);
-    for f in fixtures_src.glob("*.jac") {
+    for f in fixtures_src.`glob("*.jac") {
         if f.is_file() {
             dest_name = f.name;
             if f.name == "client_app.jac" {
@@ -604,13 +607,13 @@ test "serve spawn walker" {
         data = response.data;
         assert "result" in data or "reports" in data;
         # Get jid from response for later use
-        jid = data.get("reports", [{}])[0].get("_jac_id", "");
+        jid = _as_any(data).get("reports", [{}])[0].get("_jac_id", "");
         # Spawn ListTasks walker to verify task was created
         response2 = client.post("/walker/ListTasks", json={});
         assert response2.ok;
         data2 = response2.data;
         assert "result" in data2 or "reports" in data2;
-        rpt = data2.get("reports", "")[0];
+        rpt = _as_any(data2).get("reports", "")[0];
         assert "Test Task" in rpt[0].get("title", "");
         assert rpt[0].get("completed", False) is True;
         # Get Task node using GetTask walker
@@ -2106,12 +2109,13 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
                 exec_mgr.spawn_walker(walker_cls, {"sleep_s": 0.1}, uname)
                 for uname in users
             ];
-            return await asyncio.gather(*tasks);
+            gathered = await asyncio.gather(*tasks);
+            return _as_any(gathered);
         }
         # Async walker path - most sensitive: the await inside the walker
         # guarantees interleaving at the point a shared-ctx bug would
         # manifest. Each task must still observe its own user_root.
-        async_results = asyncio.run(run_probe(async_walker));
+        async_results = _as_any(asyncio.run(run_probe(async_walker)));
         for (uname, result) in zip(users, async_results) {
             assert "error" not in result , f"async whoami failed for {uname}: {result}";
             reports = result["reports"];
@@ -2130,7 +2134,7 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
         }
         # Sync walker path - proves isolation propagates across the
         # asyncio.to_thread boundary (ContextVars copy into the worker).
-        sync_results = asyncio.run(run_probe(sync_walker));
+        sync_results = _as_any(asyncio.run(run_probe(sync_walker)));
         for (uname, result) in zip(users, sync_results) {
             assert "error" not in result , f"sync whoami failed for {uname}: {result}";
             reports = result["reports"];
@@ -2230,7 +2234,7 @@ test "stdlib server answers health endpoints" {
 """A missing bun is an environmental precondition, cheap to re-check - the
 bundle layer must retry it on every request (so fetching bun fixes serving
 without a restart), while genuine build failures stay memoized."""
-test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
+test "ensure_bundle retries a missing-bun failure and a build error alike" {
     import from unittest.mock { MagicMock }
     import from jaclang.runtimelib.server { ModuleIntrospector }
     import from jaclang.runtimelib.client_bundle { ClientBundleError, MissingBunError }
@@ -2258,7 +2262,87 @@ test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
             assert False , "ensure_bundle should raise for a broken build";
         } except ClientBundleError { }
     }
-    assert broken.build.call_count == 1 , "a real build failure stays memoized until reload";
+    assert broken.build.call_count == 2 , (
+        "a build failure must be retried on the next call: the serving core builds "
+        "at boot and keeps serving when that fails, so memoizing the error left "
+        "every client page 503 until the process restarted"
+    );
+}
+
+"""A deliberately slow real builder: holds each build open long enough for
+other threads to pile in, then returns a distinct real bundle per call."""
+obj _SlowRealBuilder {
+    has hold: float = 0.4,
+        calls: int = 0;
+
+    def build(module: object, force: bool = False) -> object {
+        import time;
+        import from jaclang.runtimelib.client_bundle { ClientBundle }
+        self.calls += 1;
+        mine = self.calls;
+        time.sleep(self.hold);
+        return ClientBundle(
+            module_name="race_probe",
+            code=f"export const page = {mine};",
+            client_functions=[],
+            client_globals=[],
+            hash=f"hash-{mine}"
+        );
+    }
+}
+
+test "concurrent ensure_bundle callers share one build instead of each running their own" {
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    def _one(_i: int) -> str {
+        return intro.ensure_bundle();
+    }
+    executor = ThreadPoolExecutor(max_workers=6);
+    try {
+        results = list(executor.map(_one, range(6)));
+    } finally {
+        executor.shutdown(`wait=True);
+    }
+    assert builder.calls == 1 , (
+        f"the bundle was built {builder.calls} times for 6 concurrent callers; "
+        "unlocked entry runs parallel builds into the same client tree"
+    );
+    assert set(results) == {"hash-1"} , (
+        f"concurrent callers got different bundles: {sorted(set(results))}"
+    );
+}
+
+test "a module reload during a build wins over the build's result" {
+    import threading;
+    import time;
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    build_thread = threading.Thread(target=intro.ensure_bundle);
+    build_thread.start();
+    time.sleep(0.1);
+    # A reload arriving mid-build (load()/_check_module_freshness path) must not
+    # be overwritten when the in-flight build lands: it queues on the lock and
+    # then clears, so the next request rebuilds from the new module.
+    intro._invalidate_bundle();
+    build_thread.join(timeout=30);
+    assert not build_thread.is_alive() , "build thread never finished";
+
+    assert intro._bundle is None , (
+        "a bundle compiled from the pre-reload module survived the reload; "
+        "stale client code would be served until the next restart"
+    );
+    assert intro.ensure_bundle() == "hash-2" , (
+        "the request after the reload did not rebuild"
+    );
 }
 
 """/graph, /graph/data and /docs must be served by the stdlib server too -

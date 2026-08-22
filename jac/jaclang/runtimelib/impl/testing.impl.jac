@@ -233,12 +233,15 @@ impl JacTestClient._execute_request(
 
 impl JacTestClient.server.getter -> JacAPIServer {
     self._ensure_initialized();
-    return self._server;
+    server = self._server;
+    if server is None {
+        raise RuntimeError("JacTestClient failed to start its server");
+    }
+    return server;
 }
 
 impl JacTestClient.user_manager.getter -> any {
-    self._ensure_initialized();
-    return self._server.user_manager;
+    return self.server.user_manager;
 }
 
 impl JacTestClient.reload -> None {
@@ -271,9 +274,10 @@ impl JacTestClient.reload -> None {
 
     new_module = Jac.loaded_modules.get(mod);
     if new_module {
-        self._server.introspector._module = new_module;
-        self._server.introspector._functions = self._server.introspector._collect_functions();
-        self._server.introspector._walkers = self._server.introspector._collect_walkers();
+        introspector = self.server.introspector;
+        introspector._module = new_module;
+        introspector._functions = introspector._collect_functions();
+        introspector._walkers = introspector._collect_walkers();
     }
 
     server_ref: any = self._server;

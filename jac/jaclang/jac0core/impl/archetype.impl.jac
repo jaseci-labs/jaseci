@@ -2,7 +2,7 @@ impl Access.check(anchor: str) -> (AccessLevel | None) {
     return self.anchors.get(anchor);
 }
 
-impl PermissionDenied.to_dict -> dict[(str, Any)] {
+impl PermissionDenied.to_dict -> dict[(str, any)] {
     return {
         "operation": self.operation,
         "target_id": self.target_id,
@@ -62,7 +62,7 @@ impl Anchor.__getattr__(name: str) -> object {
     );
 }
 
-impl Anchor.__getstate__ -> dict[(str, Any)] {
+impl Anchor.__getstate__ -> dict[(str, any)] {
     if self.is_populated() {
         unlinked = object.__new__(self.archetype.__class__);
         unlinked.__dict__.update(self.archetype.__dict__);
@@ -79,7 +79,7 @@ impl Anchor.__getstate__ -> dict[(str, Any)] {
     }
 }
 
-impl Anchor.__setstate__(state: dict[(str, Any)]) -> None {
+impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
     self.__dict__.update(state);
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;
@@ -209,6 +209,53 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
         for hook in Archetype._subclass_hooks {
             hook(cls);
         }
+    }
+}
+
+impl Archetype._subclass_tree -> list[type] {
+    found: list[type] = [];
+    seen: set[type] = set();
+    pending: list[type] = list(Archetype.__subclasses__());
+    while pending {
+        cls = pending.pop();
+        if cls in seen {
+            continue;
+        }
+        seen.add(cls);
+        pending.extend(cls.__subclasses__());
+        if not cls.__dict__.get('__jac_base__', False) {
+            found.append(cls);
+        }
+    }
+    return found;
+}
+
+impl Archetype.install_subclass_hook(hook: Callable[[type], None]) -> None {
+    with _subclass_hook_lock {
+        if `any(installed is hook for installed in Archetype._subclass_hooks) {
+            return;
+        }
+        Archetype._subclass_hooks = Archetype._subclass_hooks + (hook, );
+    }
+    for cls in Archetype._subclass_tree() {
+        try {
+            hook(cls);
+        } except Exception as e {
+            logger.warning(
+                f"archetype subclass hook back-fill failed for "
+                f"{cls.__module__}.{cls.__name__}: {e}"
+            );
+        }
+    }
+}
+
+impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
+    with _subclass_hook_lock {
+        Archetype._subclass_hooks = tuple(
+            installed
+            for installed in Archetype._subclass_hooks
+            if installed is not hook
+        );
     }
 }
 

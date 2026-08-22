@@ -3,7 +3,9 @@ import from jaclang.compiler.passes.ecmascript { estree as es }
 obj JSCodeGenerator {
     def init(indent: str = '  ') -> None;
 
-    has line_map: list[tuple[int, int, int]] = [],
+    has indent_str: str = '  ',
+        indent_level: int = 0,
+        line_map: list[tuple[int, int, int]] = [],
         _current_line: int = 1,
         _line_to_src: dict[int, tuple[int, int]] = {};
 
@@ -80,3 +82,5 @@ def es_to_js(nd: (es.Node | None), indent: str = '  ') -> str;
 def es_to_js_with_map(
     nd: (es.Node | None), indent: str = '  '
 ) -> tuple[str, list[tuple[int, int, int]]];
+
+def template_element_raw(text: str) -> str;

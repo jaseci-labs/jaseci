@@ -324,18 +324,20 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
     sys.modules.pop(self.module_name, None);
-    for key in list(Jac.program.mod.hub.keys()) {
-        sys.modules.pop(self._path_to_module(key), None);
+    program = Jac.program;
+    if program is not None {
+        for key in list(program.mod.hub.keys()) {
+            sys.modules.pop(self._path_to_module(key), None);
+        }
     }
 
     try {
-        if file_path in Jac.program.mod.hub {
-            del Jac.program.mod.hub[file_path];
-        }
-
         resolved_path = str(Path(file_path).resolve());
-        if resolved_path in Jac.program.mod.hub {
-            del Jac.program.mod.hub[resolved_path];
+        for key in (file_path, resolved_path) {
+            if program is not None {
+                program.invalidate_module(key);
+                program.drop_module_alerts(key);
+            }
         }
     } except Exception as e {
         console.warning(f"Could not clear module hub: {e}");
@@ -383,11 +385,9 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
         program = Jac.program;
         if program is not None {
             for key in {file_path, str(source_path)} {
-                if key in program.mod.hub {
-                    del program.mod.hub[key];
-                }
+                program.invalidate_module(key);
+                program.drop_module_alerts(key);
             }
-            program.errors_had.clear();
         }
         jcc = self.client_compiler.jac_client_compiler;
         jcc.compile_dependencies_recursively(
@@ -501,26 +501,28 @@ impl HotReloader._recompile_client_code(
             return;
         }
 
-        Jac.program.errors_had.clear();
-
-        if source_key in Jac.program.mod.hub {
-            del Jac.program.mod.hub[source_key];
+        program = Jac.program;
+        if program is None {
+            return;
         }
+        program.invalidate_module(source_key);
+        program.drop_module_alerts(source_key);
 
-        mod = Jac.program.compile(source_key);
+        mark = len(program.errors_had);
+        mod = program.compile(source_key);
 
-        if Jac.program.errors_had {
+        new_errors = program.errors_had[mark:];
+        if new_errors {
             if force {
                 base_prefix = str(base_dir) + '/';
                 errors = '\n'.join(
-                    str(err).replace(base_prefix, '') for err in Jac.program.errors_had
+                    str(err).replace(base_prefix, '') for err in new_errors
                 );
                 console.error(f"Compile error in {file_path}:\n{errors}");
                 self.record_error(file_path, errors);
             } else {
                 console.warning(f"Errors compiling dependency {file_path}, skipping");
             }
-            Jac.program.errors_had.clear();
             return;
         }
 
@@ -582,8 +584,9 @@ impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
         mod = prog.compile(file_path, no_cgen=True);
 
         for nd in mod.body {
-            if nd?.code_context {
-                if nd.code_context == CodeContext.CLIENT {
+            nd_context = nd?.code_context;
+            if nd_context {
+                if nd_context == CodeContext.CLIENT {
                     has_client = True;
                 } else {
                     has_server = True;
@@ -632,7 +635,7 @@ impl HotReloader._copy_frontend_files(file_path: str) -> None {
         try {
             rel_path = source_path.relative_to(base_dir);
         } except ValueError {
-            rel_path = source_path.name;
+            rel_path = Path(source_path.name);
         }
         output_base = Path(self.base_path) / self._client_output_dir;
         output_path = output_base / rel_path;

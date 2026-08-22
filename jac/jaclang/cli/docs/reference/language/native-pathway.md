@@ -943,6 +943,21 @@ The codegen options carry a canonical identity string and a short hash of it, th
 | `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`, and prints the traceback behind a failed seal canary. |
 | `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
 
+### Sealed compiler artifacts (no switches)
+
+There is deliberately **no environment switch** over the sealed tier:
+sealed means served (#8139). A jaclang image records the native roots it
+sealed in its manifest, and `load_image` refuses any image that cannot
+serve them on this host -- a missing, corrupt, or wrong-platform artifact
+is a named startup error, never a silent downgrade to bytecode. The
+bytecode tier exists only where no image exists (a dev source tree, which
+is the build stage itself) or where the platform has no native backend
+(Windows, recorded in the manifest as `skip_reason`). The historical
+`JAC_NO_SEAL` / `JAC_SEAL_NO_NATIVE` overrides are gone; setting either
+against a sealed image is itself a startup error. The payload build runs
+unsealed by construction: it removes any seeded manifest before the staged
+jaclang can probe for it and regenerates the manifest as its final act.
+
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 
 `JAC_NO_GC` and `JAC_GC_CYCLES` are runtime switches read by the compiled binary itself, not by the compiler; the Memory Management section above describes them.
@@ -977,7 +992,7 @@ A demotion is only a speed cost while Python is still there to catch it. In a se
 
 ```jac
 glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/lexer.jac": ("jac0core/parser/lexer.jac::Lexer.debug_dump", )
+    "jac0core/parser/parser.jac": ("jac0core/unitree.jac::UniNode.gen.__get__", )
 };
 ```
 
@@ -988,7 +1003,7 @@ Each waived method is announced on every seal, and a waiver that no longer match
 The verdict must not depend on how warm the build cache is, so the gate is layered:
 
 - The seal compiles its closure with the native IR cache disabled. Transitive native imports are otherwise served straight from `<cache>/native/*.ir_cache`, which skips codegen for that module entirely, so its demotions would be recorded nowhere.
-- Independently of that, the seal scans the LLVM IR it is about to hand to the linker for the demotion stub signature (a function whose entire body is `call void @abort()` then `unreachable`) and refuses any it finds. This reads what actually ships, so it holds for every route into the artifact, not just the one the census knows about.
+- Independently of that, the seal scans the LLVM IR it is about to hand to the linker for the demotion stub signature (a function whose entire body is `call void @abort()` then `unreachable`) and refuses any it finds. This reads what actually ships, so it holds for every route into the artifact, not just the one the coverage report knows about.
 - A seal that refuses for any reason purges the native IR cache entries for its closure, so a failed build never leaves state that a later build could inherit. The cached IR itself is a faithful record of that compile, so it is not suppressed at write time -- a demoted method genuinely lowers to an abort stub in any native link, and skipping the cache write would silently disable caching for every module containing one.
 
 Before an artifact is written into `MANIFEST.json` it must also pass a load canary: the seal `dlopen`s the freshly linked library, checks that every export the layout advertises is really in it, runs `__jac_shared_init`, and calls a known-good runtime export. An artifact that cannot be loaded and called is deleted and the seal fails. The canary proves the artifact loads; it cannot prove the artifact is free of abort stubs, because an `abort()`-bodied function still resolves through `dlsym` and is never called. That is the scan's job.
@@ -1143,7 +1158,7 @@ with entry {
     args = sys.argv;
     if len(args) < 2 {
         print("Usage: greeter <name> [--shout]");
-        sys.exit(1);
+        sys.`exit(1);
     }
     name = args[1];
     shout = "--shout" in args;

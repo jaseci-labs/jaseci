@@ -5,13 +5,14 @@ import from jaclang.jac0core.ext_registry { base_stem, MODULE_SUFFIXES }
 obj KindSpec {
     has name: str,
         description: str,
-        entry: str,
+        `entry: str,
         action: str,
         verb: str,
         summary: str,
         flags: dict[str, any] = {},
         needs_entry: bool = True,
-        output_dir: str = "";
+        output_dir: str = "",
+        codespace: str = "";
 }
 
 glob KIND_SPECS: dict[str, KindSpec] = {
@@ -20,7 +21,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="cli",
                  description="Command-line Jac project",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="execute",
                  verb="run",
                  summary="Execute {kind} entry-point {entry}"
@@ -28,7 +29,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="cli-native",
                  description="Natively-compiled Jac program (compiled and run)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="execute",
                  verb="run",
                  summary="Execute {kind} entry-point {entry}"
@@ -36,7 +37,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-binary",
                  description="Natively-compiled standalone binary (built into dist/)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build native binary -> {output}",
@@ -45,7 +46,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-lib",
                  description="Natively-compiled shared library (.so / .dylib / .dll)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build shared library (.so / .dylib / .dll)",
@@ -54,7 +55,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="service",
                  description="Headless Jac API service (server walkers, no client)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve headless API service",
@@ -63,7 +64,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="service-mesh",
                  description="Jac microservice (server walkers; auto-starts providers)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve microservice consumer (auto-starts providers)"
@@ -71,7 +72,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="py-package",
                  description="Distributable Python package (built into a wheel)",
-                 entry="lib.jac",
+                 `entry="lib.jac",
                  action="build",
                  verb="build",
                  summary="Build PyPI wheel into dist/",
@@ -81,17 +82,18 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="js-package",
                  description="Distributable npm package (built into a tarball)",
-                 entry="lib.jac",
+                 `entry="lib.jac",
                  action="build",
                  verb="build",
                  summary="Build npm package into dist/",
                  flags={"as": "npm"},
-                 needs_entry=False
+                 needs_entry=False,
+                 codespace="client"
              ),
              KindSpec(
                  name="web-app",
                  description="Minimal full-stack Jac app (server walkers + client UI)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve full-stack app with client (dev mode)",
@@ -100,7 +102,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="web-static",
                  description="Client-only Jac app (runs in the browser, no backend)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve client-only app as a static page (no backend)"
@@ -108,7 +110,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="desktop",
                  description="Jac desktop app (OS webview + nacompile)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Run desktop app (OS webview)",
@@ -117,7 +119,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="mobile",
                  description="Jac mobile client app (Capacitor + Vite)",
-                 entry="main.jac",
+                 `entry="main.jac",
                  action="build",
                  verb="build",
                  summary="Build mobile app bundle",
@@ -133,7 +135,7 @@ def kind_spec(kind: str) -> KindSpec | None {
 
 def kind_entry(kind: str) -> str {
     spec = KIND_SPECS.get(kind);
-    return spec.entry if spec else "main.jac";
+    return spec.`entry if spec else "main.jac";
 }
 
 def is_valid_kind(kind: str) -> bool {
@@ -267,7 +269,7 @@ def plan_project_run(config: JacConfig, project_root: str) -> (RunPlan | None) {
         entry_path=entry_path,
         flags=flags,
         summary=spec.summary.format(
-            kind=spec.name, entry=os.path.basename(entry_path), output=output
+            kind=spec.name, `entry=os.path.basename(entry_path), output=output
         )
     );
 }

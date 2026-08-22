@@ -134,7 +134,7 @@ def _parse_log_body(body: str, pod_labels: dict, ts_nanos: str) -> dict {
         }
     }
 
-    trace_match = _TRACE_PREFIX_RE.match(body);
+    trace_match = _TRACE_PREFIX_RE.`match(body);
     if trace_match {
         out["trace_id"] = trace_match.group(1);
     }
@@ -201,12 +201,12 @@ def _flatten_loki_response(payload: dict, ascending: bool = True) -> list[dict] 
     data = payload.get("data") or {};
     for stream in (data.get("result") or []) {
         labels: dict = stream.get("stream") or {};
-        for entry in (stream.get("values") or []) {
-            if len(entry) < 2 {
+        for `entry in (stream.get("values") or []) {
+            if len(`entry) < 2 {
                 continue;
             }
-            ts_nanos = str(entry[0]);
-            body = str(entry[1]);
+            ts_nanos = str(`entry[0]);
+            body = str(`entry[1]);
             out.append(_parse_log_body(body, labels, ts_nanos));
         }
     }
@@ -217,6 +217,11 @@ def _flatten_loki_response(payload: dict, ascending: bool = True) -> list[dict] 
 
 
 impl JacAPIServerLogs.register_logs_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def services_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -226,7 +231,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             content={"ok": True, "data": {"services": _microservice_services()}}
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/services",
@@ -331,7 +336,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs",
@@ -408,7 +413,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/trace/{trace_id}",

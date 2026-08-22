@@ -1,6 +1,6 @@
 # CLI Reference
 
-The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac start`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, `pytest`, `black`, and `flask` into a single unified tool.
+The `jac` command is your primary interface for working with Jac projects. It handles the full development lifecycle: running programs (`jac run`), type-checking code (`jac check`), running tests (`jac test`), formatting and linting (`jac fmt`, `jac check --lint`), managing dependencies (`jac install`, `jac remove`, `jac update`), serving APIs (`jac start`), and even compiling to native binaries (`jac nacompile`, or `jac build --as native`). Think of it as combining the roles of `python`, `pip`, a test runner, `black`, and `flask` into a single unified tool.
 
 Every capability ships built into the core binary. The `scale` subsystem (formerly the `jac-scale` plugin) provides deployment commands and flags -- for example, `jac start --scale` for Kubernetes deployment. The full-stack client framework (formerly the `jac-client` / `jac-desktop` plugins) contributes others, such as `jac build --client desktop` for desktop app packaging. byLLM likewise ships built in, contributing `jac model` and the AI language features.
 
@@ -26,7 +26,6 @@ A task-first index into the commands below. The full alphabetical list follows i
 | Type-check, format, or lint | `jac check` · `jac fmt` · `jac check --lint` · `jac precommit` |
 | Run tests | `jac test` |
 | Debug or visualize a graph | `jac run --debug` · `jac dot` · `jac browse` |
-| Have an AI agent write or edit code in my project | `jac ai` |
 | Query code structure (definitions, uses, walkers) | `jac code` |
 | Inspect or manage the project's Postgres store | `jac db` |
 | Manage config or profiles | `jac config` |
@@ -54,7 +53,6 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac purge` | Purge global bytecode cache (works even if corrupted) |
 | `jac dot` | Generate graph visualization |
 | `jac browse` | Automate a headless browser over CDP (navigate, click, snapshot, screenshot) |
-| `jac ai` | Launch an interactive Jac coding agent (works with local models, no API key) |
 | `jac code` | Query code structure via the compiler (symbols, uses, walkers, slices) |
 | `jac mcp` | Start the MCP server so AI assistants can use the live Jac compiler |
 | `jac completions` | Generate (and optionally install) shell completions |
@@ -70,7 +68,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac guide` | Show curated Jac reference guides |
 | `jac lsp` | Language server |
 | `jac setup` | Setup client build target (jac-client) |
-| `jac db` | Manage the project's Postgres store (embedded or external): status, inspect, sql, serve, stop |
+| `jac db` | Manage the project's Postgres store (embedded or external): status, inspect, sql, serve, stop, fetch |
 
 ---
 
@@ -238,7 +236,7 @@ import argparse;
 
 with entry {
     parser = argparse.ArgumentParser();
-    parser.add_argument("--name", default="World");
+    parser.add_argument("--name", `default="World");
     args = parser.parse_args();
     print(f"Hello, {args.name}!");
 }
@@ -255,7 +253,7 @@ jac run greet.jac --name Alice
 Start a Jac application as an HTTP API server. Use `--scale` to deploy to Kubernetes (handled by the built-in `scale` subsystem; the first `--scale` run resolves its deploy deps via `jac install`). Use `--dev` for Hot Module Replacement (HMR) during development; live-reload is powered by the `watchdog` library bundled in the `jac` binary, so no extra install is needed.
 
 ```bash
-jac start [-h] [-p PORT] [-m] [--no-main] [-f] [--no-faux] [-d] [--no-dev] [-a API_PORT] [-n] [--no-no-client] [--profile PROFILE] [--client {web,pwa,static,mobile,desktop,cef,react-native}] [--host HOST] [--platform {auto,android,ios}] [--scale] [--no-scale] [-t TARGET] [--enable-tls] [--no-enable-tls] [--dry-run] [--no-dry-run] [--show-yaml] [--no-show-yaml] [--takeover] [--no-takeover] [filename]
+jac start [-h] [-p PORT] [-m | --main | --no-main] [-f | --faux | --no-faux] [-d | --dev | --no-dev] [-a API_PORT] [-n] [--profile PROFILE] [--client {web,pwa,static,mobile,desktop,cef,react-native}] [--host HOST] [--platform {auto,android,ios}] [--scale | --no-scale] [-t TARGET] [--enable-tls | --no-enable-tls] [--dry-run | --no-dry-run] [--show-yaml | --no-show-yaml] [--takeover | --no-takeover] [filename]
 ```
 
 | Option | Description | Default |
@@ -493,7 +491,7 @@ See the full [Errors & Warnings](../diagnostics.md) reference for all diagnostic
 
 Run tests in Jac files.
 
-> **Note:** `jac test` runs through pytest bundled in the `jac` binary -- there is no separate `pytest` install needed.
+> **Note:** `jac test` uses the runner built into the `jac` binary. There is no external test framework to install, and no plugin configuration to write.
 
 ```bash
 jac test [-h] [-t TEST_NAME] [-f FILTER] [-x] [-m MAXFAIL] [-d DIRECTORY] [-v] [filepath]
@@ -835,40 +833,7 @@ jac browse close
 
 ## AI-Assisted Development
 
-Three commands make Jac projects legible to (and drivable by) AI agents -- including Jac's own built-in coding agent. See also [Agent Skills & MCP](../agent-skills-and-mcp.md) for the workflow overview.
-
-### jac ai
-
-Launch an interactive Jac coding agent in your project. Runs against your configured byLLM model -- including fully local models, so it works without an API key.
-
-```bash
-jac ai [prompt] [-m MODEL] [--n_ctx N] [--safe] [-q] [--ui]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `prompt` | Optional one-shot request; omit for an interactive session | interactive |
-| `-m, --model` | Model to use, e.g. `local:gemma-4-e4b` or `openai/gpt-4o` | from `jac.toml` |
-| `-n, --n_ctx` | Context-window size for local models (tokens) | model default |
-| `-s, --safe` | Confirm every file write and code execution | off |
-| `-q, --quiet` | Compact output: hide live reasoning, timings, and step detail | off |
-| `-u, --ui` | Open the agent in a web UI with a live phase-graph visualizer | off |
-
-**Examples:**
-
-```bash
-# Interactive session using the project's configured model
-jac ai
-
-# One-shot request
-jac ai "add a walker that lists all Todo nodes"
-
-# Fully local, no API key
-jac ai -m local:gemma-4-e4b
-
-# Web UI with live phase-graph visualization
-jac ai --ui
-```
+Two commands make Jac projects legible to (and drivable by) AI agents. See also [Agent Skills & MCP](../agent-skills-and-mcp.md) for the workflow overview.
 
 ### jac code
 
@@ -970,7 +935,9 @@ Local model cache: /home/you/.cache/jac/models
 
 ## Database Operations
 
-The `jac db` command group manages the project's Postgres store -- the embedded per-project server the runtime provisions automatically, or the external database `JAC_DB_URL` / `[scale.database].url` points at.
+The `jac db` command group manages the project's Postgres store -- a database inside the embedded cluster the runtime provisions automatically, or the external database `JAC_DB_URL` / `[scale.database].url` points at.
+
+The embedded cluster is **shared by the whole machine**, not per project: one PostgreSQL instance lives at `$JAC_CACHE_HOME/pg/main` (default `~/.cache/jac/pg/main`) and holds one database per project, named `jac_<project>_<digest of the project's absolute path>`. Two projects therefore share a server but never a database, and moving or deleting a project directory leaves its database behind (`jac db list` shows it as `orphaned`; `jac db prune` reclaims it).
 
 For the architectural background (fingerprints, drift detection, quarantine philosophy, alias decorator), see [Persistence & Schema Migration](../persistence.md).
 
@@ -1001,6 +968,72 @@ jac db sql "SELECT count(*) FROM anchors"
 jac db sql "SELECT * FROM quarantine"
 ```
 
+### jac db list
+
+List every jac database in the cluster with its size, kind, state and owning project directory.
+
+```bash
+jac db list
+```
+
+```text
+data dir : /home/you/.cache/jac/pg/main
+databases: 3 (23.1 MB)
+
+NAME                              SIZE  KIND     STATE         LAST USED            OWNER
+jac_myapp_1a2b3c4d              7.9 MB  project  live          2026-08-12 21:14:03  /home/you/myapp
+jac_scratch_3142_9f1c           7.7 MB  scratch  dead scratch  2026-08-12 20:02:55  /tmp/jac-test-base-x1y2
+jac_oldapp_5e6f7a8b             7.6 MB  project  orphaned      2026-07-30 11:48:12  /home/you/deleted-app
+```
+
+The states are `live` (the owning directory still exists), `orphaned` (it does not), `scratch` / `silent scratch` / `dead scratch` (a throwaway store for internal work, see below), and `unattributed` (no owner recorded, e.g. created before the runtime tracked owners). Listing never creates a database, so it is safe to run for a look around.
+
+### jac db prune
+
+Drop databases that nothing owns any more. **Prune reports and exits without dropping anything unless you pass `-y`**, and it never drops a database whose owning directory still exists.
+
+```bash
+jac db prune             # report what would go
+jac db prune -y          # drop it
+jac db prune --empty -y  # also drop unattributed databases that hold no data
+```
+
+Candidates are scratch databases whose owning process is gone, and project databases whose recorded owning path has been deleted. "Gone" means one of two things: the recorded pid is checkable from here and no longer exists, or an earlier prune already found the database silent and unused and it still is (see [Scratch stores](#scratch-stores)), which is why reclaiming a scratch database left by another host takes two runs of prune rather than one. Databases with no recorded owner at all (created before the runtime recorded owners, or by tooling that opened the cluster directly) cannot be attributed; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
+
+### jac db drop
+
+Drop one database by name (from `jac db list`). Also a no-op report without `-y`.
+
+```bash
+jac db drop jac_oldapp_5e6f7a8b -y
+```
+
+Only `jac_*` databases can be dropped, and a database another process is connected to is refused rather than forced.
+
+### Retention
+
+By default the runtime never deletes a project database: it is created on first contact and stays until you drop it. A cluster start always reaps scratch databases whose owning process is gone, and, if you opt in, sweeps stale project databases too:
+
+```toml
+[database]
+retention_days = 30
+```
+
+With `retention_days` set (or `JAC_DB_RETENTION_DAYS` in the environment), starting the embedded cluster drops every database that has not been opened for that many days. Unset or `0` means never. Be conservative: this deletes data, `jac db list` shows exactly which databases are how old, and the database being opened is never swept.
+
+### Scratch stores
+
+Work that keeps nothing across invocations should not leave a database behind. A process launched with `JAC_DB_SCRATCH=1` opens a single scratch database (`jac_scratch_<pid>_<nonce>`) instead of one per project path, and drops it when the process exits. The test runner and the deploy seal / vendor steps use this, which is why running tests or deploying no longer grows the cluster.
+
+A process that dies without running its exit handler (a `SIGKILL`, an OOM, a container that is replaced) cannot drop its own scratch database, so the next scratch store to open reclaims it. Deciding that its owner is really gone takes more than the recorded pid, which is only meaningful on the host that recorded it. While a scratch database is open its registry record is heartbeated once a minute, and a record is reclaimed only when one of these holds:
+
+- the recorded pid is checkable from this host and no longer exists, or
+- nothing is connected to the database, its heartbeat has been silent for 30 minutes (24 hours when the pid answers, which is what a recycled pid looks like), **and** an earlier pass at least an hour before already found it in that state.
+
+The second rule needs two separated observations because the signals behind it are not independent: one partition, one saturated connection pool or one rotated credential stops the heartbeat and drops the store's connection at the same moment and for the same reason, so a single silent window is one opinion, not two. Any heartbeat clears the mark, so an owner that comes back starts from a clean slate, and a database condemned by the first pass shows up as `silent scratch` in `jac db list` in the meantime. A heartbeat that has been failing for five minutes is logged as a warning by the owner itself, so the condition that precedes a reclamation is visible in its logs.
+
+Only a pid confirmed gone from this host justifies a forced drop; a heartbeat-grounded drop is unforced, so an owner that has reconnected vetoes it at the server rather than being terminated by it, and the reaper re-reads the record immediately before dropping so it never acts on a stale snapshot. A record with no heartbeat information at all is never reclaimed. Every one of those signals fails towards leaving the database alone, which is the bias you want from something that drops databases; `jac db list` shows every scratch database either way, and `jac db drop` handles the rest.
+
 ### jac db serve
 
 Run Postgres in the foreground. This is how pods and containers host the database when `[scale.database].deploy_mode = "embedded"` -- the app's own image runs `jac db serve`.
@@ -1011,11 +1044,21 @@ jac db serve --port 5432 --data_dir /var/lib/jac/pgdata
 
 ### jac db stop
 
-Stop the project's embedded server.
+Stop the shared embedded server.
 
 ```bash
 jac db stop
 ```
+
+### jac db fetch
+
+Download the embedded Postgres distribution into the cache and print where it landed. The runtime does this on demand, so this command exists for the cases where "on demand" is too late: baking the binaries into a container image, or priming a host that will later run offline.
+
+```bash
+jac db fetch
+```
+
+Set `JAC_PG_DIST` to an already-populated distribution directory (one containing `bin/postgres`) to use it instead of the cache -- that is how the official image ships the binaries. See [Persistence & Schema Migration](../persistence.md#the-embedded-engine-in-containers) for the container rules.
 
 ## Configuration Management
 
@@ -1485,7 +1528,7 @@ jac purge
 
 ### jac build
 
-Run the whole-program **type-check gate** (fail-closed; reuses [`jac check`](#jac-check)), then emit **one** artifact. By default `jac build` produces a `.jab` -- a single self-describing sealed app bundle. Use `--as` to select a different projection. `jac build` is now the single front door that the former `jac bundle` (wheel/npm), `jac eject` (source), and project-level `jac nacompile` (native/binary) folded into.
+Emit **one** artifact. Type checking runs on the critical path of every compilation, so the artifact compile is itself the gate: a program that does not type-check produces no artifact. By default `jac build` produces a `.jab` -- a single self-describing sealed app bundle. Use `--as` to select a different projection. `jac build` is now the single front door that the former `jac bundle` (wheel/npm), `jac eject` (source), and project-level `jac nacompile` (native/binary) folded into.
 
 ```bash
 jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-n] [-c] [-f]
@@ -1497,7 +1540,6 @@ jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-
 | `filename` | Entry `.jac` file (omit to use the project entry) | (project) |
 | `--as` | Artifact projection: `jab`, `sealed`, `binary`, `wheel`, `npm`, `source`, `native` | `jab` |
 | `-o, --output` | Output directory | `dist` |
-| `-n, --no_typecheck` | Skip the type-check gate | `False` |
 | `-c, --check_only` | Run the gate only; emit nothing | `False` |
 | `-f, --fat` | Vendor the Python dependency closure into the bundle (`jab` / `binary` only) so it materializes offline | `False` |
 | `--client` | Build a client shell (`web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native`) | None |
@@ -1515,7 +1557,7 @@ jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-
 | `source` | An editable FastAPI + JavaScript source tree (zero `.jac` files) | `jac eject` |
 | `native` | A standalone native binary | project-level `jac nacompile` |
 
-**The type-check gate.** `jac build` refuses to emit an artifact if the program fails the whole-program type check. Pass `--no_typecheck` to skip the gate, or `--check_only` to run the gate and emit nothing (useful in CI).
+**The type-check gate.** `jac build` refuses to emit an artifact if the program fails type checking, and there is no flag that skips it. Because every compilation type-checks, the artifact compile *is* the gate rather than a separate pass over the project. Use `--check_only` to run the whole-project check and emit nothing (useful in CI).
 
 **The `.jab` artifact.** A `.jab` is a single self-describing sealed app bundle: client dist, serve manifest, and native binaries are baked in and hash-verified at load, so [`jac run app.jab`](#jac-run) / [`jac start app.jab`](#jac-start) execute or serve it with **zero live compilation**. It is kind-aware: `cli` kinds execute, servable kinds production-serve, and attachable packages refuse to run standalone.
 
@@ -1694,7 +1736,7 @@ Editors normally launch this for you; configure your editor's LSP client to run 
 
 Compile a `.jac` file to a standalone native ELF executable, forcing the whole module into the native codespace (so anything that cannot lower is a loud error rather than a demotion to the server codespace). No external compiler, assembler, or linker is required. The entire pipeline runs in pure Python using llvmlite and a built-in ELF linker.
 
-> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`), which runs the type-check gate first. `jac nacompile` remains the file-level tool for compiling an individual `.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
+> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`). `jac nacompile` remains the file-level tool for compiling an individual `.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
 
 ```bash
 jac nacompile filename [-o OUTPUT] [--gc MODE] [--enforce-nogc] [--assert-no-rc] [--shared] [-t TARGET] [-g] [--scrub]
@@ -1793,7 +1835,7 @@ The built-in full-stack client framework contributes these commands and flags. T
 
 ### jac build --client
 
-Build a **client shell** for a specific target. This is the `--client` mode of [`jac build`](#jac-build); see that section for the artifact projections (`.jab`, wheel, npm, source, native). A bare `jac build` (no `--client`) runs the type-check gate and emits a `.jab`, not a client shell.
+Build a **client shell** for a specific target. This is the `--client` mode of [`jac build`](#jac-build); see that section for the artifact projections (`.jab`, wheel, npm, source, native). A bare `jac build` (no `--client`) emits a `.jab`, not a client shell. Client builds type-check like every other compilation.
 
 ```bash
 jac build [filename] --client TARGET [-p PLATFORM]

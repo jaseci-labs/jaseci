@@ -11,7 +11,7 @@ This monorepo contains:
 
 ## Common Workflows
 
-`jaclang` ships as the single `jac` binary (Zig launcher + bundled CPython) -- there is no pip-installed jaclang. Build it and put it on PATH with `./scripts/fresh_env.sh` (see CONTRIBUTING.md).
+`jaclang` ships as the single `jac` binary (a Jac launcher + bundled CPython) -- there is no pip-installed jaclang. Build it and put it on PATH with `./scripts/fresh_env.sh` (see CONTRIBUTING.md).
 
 Run tests through the binary's bundled runner (`JAC_TEST_JOBS=auto` runs them in parallel):
 
@@ -32,7 +32,7 @@ jac precommit
 - Grammar: `jac/jaclang/compiler/jac.lark`
 - IR: `unitree.py` (UniTree nodes)
 - Passes: `jac/jaclang/compiler/passes/main/`
-- Codegen: `pyast_gen_pass.py`, `pybc_gen_pass.py`
+- Codegen: `jcir_gen_pass.jac`, `jcir_bc_gen_pass.jac`
 - Compiler passes subclass `Transform`/`UniPass` with `enter_*`/`exit_*` hooks
 - Test fixtures: `jac/jaclang/compiler/**/tests/fixtures/`
 - For type system work, see `.github/agents/type-system-agent.md`

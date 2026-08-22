@@ -1,5 +1,7 @@
 import from jaclang.scale.config.base_config { BaseConfig }
 
+glob DATABASE_MODES = ('auto', 'provision', 'external', 'none');
+
 def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     import re;
     lowered = (name or '').strip().lower();
@@ -9,9 +11,30 @@ def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     return slug or fallback;
 }
 
+def normalize_database_mode(raw: any) -> str {
+    mode = str(raw or '').strip().lower() or 'auto';
+    if mode not in DATABASE_MODES {
+        raise ValueError(
+            "[scale.kubernetes] database_mode must be one of "
+            f"{', '.join(DATABASE_MODES)}, got {raw!r}."
+        );
+    }
+    return mode;
+}
+
+def resolve_database_mode(config: dict[str, any]) -> str {
+    mode = normalize_database_mode(config.get('database_mode'));
+    if mode == 'auto' and config.get('postgres_enabled') is False {
+        return 'none';
+    }
+    return mode;
+}
+
 obj KubernetesConfig(BaseConfig) {
     has container_port: int = 8000,
-        postgres_enabled: bool = True,
+        database_mode: str = 'auto',
+        database_url: str = '',
+        database_namespace: str = '',
         cpu_request: (str | None) = None,
         cpu_limit: (str | None) = None,
         memory_request: (str | None) = None,
@@ -23,6 +46,7 @@ obj KubernetesConfig(BaseConfig) {
         liveness_failure_threshold: int = 80,
         min_replicas: int = 1,
         max_replicas: int = 3,
+        revision_history_limit: int = 10,
         cpu_utilization_target: int = 50,
         memory_utilization_target: int = 80,
         autoscaler_engine: str = "hpa",
@@ -70,12 +94,32 @@ obj KubernetesConfig(BaseConfig) {
         kubeconfig: str = "",
         labels: dict[str, str] = {};
 
+    def postinit {
+        self.database_mode = normalize_database_mode(self.database_mode);
+    }
+
+    def database_enabled -> bool {
+        return self.database_mode != 'none';
+    }
+
+    def database_deploy_intent(app_name: str) -> dict[str, any] {
+        return {
+            'app_name': app_name,
+            'namespace': self.namespace,
+            'database_mode': self.database_mode,
+            'database_url': self.database_url,
+            'database_namespace': self.database_namespace
+        };
+    }
+
     override def to_dict -> dict[str, any] {
         base = super.to_dict();
         base.update(
             {
                 'container_port': self.container_port,
-                'postgres_enabled': self.postgres_enabled,
+                'database_mode': self.database_mode,
+                'database_url': self.database_url,
+                'database_namespace': self.database_namespace,
                 'cpu_request': self.cpu_request,
                 'cpu_limit': self.cpu_limit,
                 'memory_request': self.memory_request,
@@ -87,6 +131,7 @@ obj KubernetesConfig(BaseConfig) {
                 'liveness_failure_threshold': self.liveness_failure_threshold,
                 'min_replicas': self.min_replicas,
                 'max_replicas': self.max_replicas,
+                'revision_history_limit': self.revision_history_limit,
                 'cpu_utilization_target': self.cpu_utilization_target,
                 'memory_utilization_target': self.memory_utilization_target,
                 'autoscaler_engine': self.autoscaler_engine,
@@ -143,7 +188,9 @@ obj KubernetesConfig(BaseConfig) {
             app_name=config.get('app_name', 'jaseci'),
             namespace=config.get('namespace', 'default'),
             container_port=config.get('container_port', 8000),
-            postgres_enabled=config.get('postgres_enabled', True),
+            database_mode=resolve_database_mode(config),
+            database_url=str(config.get('database_url') or ''),
+            database_namespace=str(config.get('database_namespace') or ''),
             cpu_request=config.get('cpu_request'),
             cpu_limit=config.get('cpu_limit'),
             memory_request=config.get('memory_request'),
@@ -155,6 +202,7 @@ obj KubernetesConfig(BaseConfig) {
             liveness_failure_threshold=config.get('liveness_failure_threshold', 80),
             min_replicas=config.get('min_replicas', 1),
             max_replicas=config.get('max_replicas', 3),
+            revision_history_limit=config.get('revision_history_limit', 10),
             cpu_utilization_target=config.get('cpu_utilization_target', 50),
             memory_utilization_target=config.get('memory_utilization_target', 80),
             autoscaler_engine=config.get('autoscaler_engine', 'hpa'),

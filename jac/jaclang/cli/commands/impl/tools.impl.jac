@@ -63,6 +63,7 @@ impl tool(tool: str, args: list = []) -> int {
 
 impl dot(
     filename: str,
+    session: str = "",
     initial: str = "",
     depth: int = -1,
     traverse: bool = False,
@@ -128,33 +129,6 @@ impl lsp -> int {
     }
 }
 
-impl ninja -> int {
-    import os;
-    import sys;
-
-    exe = os.environ.get('JAC_EXECUTABLE');
-    reexec_guard = os.environ.get('JAC_NINJA_REEXEC');
-    if exe and os.path.exists(exe) and not reexec_guard {
-        os.environ['JAC_NINJA_REEXEC'] = '1';
-        os.execv(exe, [exe, 'ninja'] + sys.argv[2:]);
-    }
-    if reexec_guard {
-        console.error(
-            "This jac binary's launcher predates the fused editor "
-            "(it did not intercept 'ninja'). Rebuild the binary "
-            "(zig build) to get jac ninja."
-        );
-    } else {
-        console.error(
-            "jac ninja is fused into the self-contained jac binary "
-            "(the launcher dispatches it before Python ever starts). "
-            "This jaclang is running as a plain Python package, which has "
-            "no bundled editor -- install the jac binary release to use it."
-        );
-    }
-    return 1;
-}
-
 impl completions(shell: str = "bash", install: bool = False) -> int {
     import from jaclang.cli.jaccomplete { static_shellcode as shellcode }
     import from jaclang.cli.registry { get_registry }
@@ -178,7 +152,9 @@ def _extract_commands(registry: any) -> list {
             short = f"-{arg.short}" if arg.short else None;
             if arg.kind == ArgKind.FLAG or arg.typ == bool {
                 flags.append((f"--{arg.name}", short, arg.help or ""));
-                flags.append((f"--no-{arg.name}", None, f"Disable {arg.name}"));
+                if not arg.name.startswith("no-") {
+                    flags.append((f"--no-{arg.name}", None, f"Disable {arg.name}"));
+                }
             } elif arg.kind == ArgKind.OPTION {
                 if arg.choices {
                     value_opts.append(
@@ -284,67 +260,6 @@ def _install_completion(shell: str, code: str) -> int {
         console.error(f"Error writing config: {e}");
         return 1;
     }
-}
-
-impl gen_jir_registry(verify: bool = False) -> int {
-    import from jaclang.jac0core.gen_jir_registry { generate }
-    import from pathlib { Path }
-    import tempfile;
-    import subprocess;
-    import sys;
-    import jaclang;
-
-    registry_path = Path(jaclang.__file__).parent / "jac0core" / "jir_registry.jac";
-
-    try {
-        content = generate();
-    } except Exception as e {
-        console.error(f"Failed to generate registry: {e}");
-        return 1;
-    }
-
-    import os;
-    try {
-        with tempfile.TemporaryDirectory() as fmt_dir {
-            tmp_path = os.path.join(fmt_dir, "jir_registry.jac");
-            with open(tmp_path, 'w', encoding='utf-8') as tmp {
-                tmp.write(content);
-            }
-            with open(
-                os.path.join(fmt_dir, "jac.toml"), 'w', encoding='utf-8'
-            ) as cfg {
-                cfg.write("[check.lint]\nselect = [\"all\"]\n");
-            }
-            subprocess.run(
-                [sys.executable, '-m', 'jaclang', 'fmt', '--lintfix', tmp_path],
-                capture_output=True,
-                cwd=fmt_dir
-            );
-            content = Path(tmp_path).read_text(encoding="utf-8");
-        }
-    } except Exception {
-        ;
-    }
-
-    if verify {
-        current = registry_path.read_text(encoding="utf-8")
-            if registry_path.exists()
-            else "";
-        if current == content {
-            console.print("jir_registry.jac is up to date.");
-            return 0;
-        } else {
-            console.error(
-                "jir_registry.jac is OUT OF DATE. "
-                "Run `jac gen-jir-registry` to update."
-            );
-            return 1;
-        }
-    }
-
-    registry_path.write_text(content);
-    console.print(f"Generated {registry_path} ({len(content)} bytes)");
-    return 0;
 }
 
 impl gen_uni_dispatch(verify: bool = False) -> int {

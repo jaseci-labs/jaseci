@@ -50,7 +50,7 @@ def emit_shared_object(fixture: str, triple: str) -> tuple {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
@@ -251,6 +251,7 @@ test "ELF shared object initializes a global clib struct on dlopen" {
         if sys.platform.startswith("linux")
             and ("x86_64" in llvm.get_default_triple()) {
             import ctypes;
+            lib: ctypes.CDLL | None = None;
             try {
                 lib = ctypes.CDLL(out);  # __jac_shared_init runs here (CTOR)
             } except OSError as _e {
@@ -260,7 +261,6 @@ test "ELF shared object initializes a global clib struct on dlopen" {
                 # fix: the build + inject + link above already exercised the
                 # codegen path, and the unit test locks the injection itself.
                 print(f"[skip-dlopen] host refuses execstack load: {_e}");
-                lib = None;
             }
             if lib is not None {
                 lib.read_struct_field.restype = ctypes.c_int64;
@@ -350,6 +350,70 @@ test "Mach-O arm64 dylib is ad-hoc signed with execSegFlags == 0" {
     assert info["exec_seg_flags"] == 0 , f"dylib execSegFlags must be 0, got {info[
         'exec_seg_flags'
     ]}";
+}
+
+
+test "Mach-O link refuses a relocation it cannot apply" {
+    # A relocation this linker has no arm applied to be silently dropped: the
+    # instruction kept whatever immediate the assembler left in it, so the
+    # artifact linked clean and pointed at whatever else landed nearby. That
+    # is how the macos-aarch64 seal shipped an artifact whose module-init
+    # read its string constants out of a merged floor archive and aborted on
+    # an uncaught exception inside __jac_shared_init (#8313). Retype one real
+    # relocation to ARM64_RELOC_TLVP_LOAD_PAGE21 (8), which this linker does
+    # not implement, and require the link to refuse by name.
+    (relobj, exports) = emit_shared_object(
+        "shared_export_scalar.jac", "arm64-apple-darwin"
+    );
+    raw = bytearray(relobj);
+    ncmds = struct.unpack_from("<I", raw, 16)[0];
+    off = 32;
+    patched = False;
+    for _i in range(ncmds) {
+        (cmd, cmdsize) = struct.unpack_from("<II", raw, off);
+        if cmd == 0x19 and not patched {
+            nsects = struct.unpack_from("<I", raw, off + 64)[0];
+            so = off + 72;
+            for _j in range(nsects) {
+                (reloff, nreloc) = struct.unpack_from("<II", raw, so + 56);
+                if nreloc > 0 {
+                    r_info = struct.unpack_from("<I", raw, reloff + 4)[0];
+                    struct.pack_into(
+                        "<I", raw, reloff + 4, (r_info & 0x0FFFFFFF) | (8 << 28)
+                    );
+                    patched = True;
+                    break;
+                }
+                so += 80;
+            }
+        }
+        off += cmdsize;
+    }
+    assert patched , "the fixture object carries no relocation to retype";
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d {
+        out = os.path.join(d, "librefuse.dylib");
+        raised = "";
+        try {
+            MachOLinker.link(
+                obj_bytes=bytes(raw),
+                output_path=out,
+                needed_libs=["/usr/lib/libSystem.B.dylib"],
+                shared=True,
+                export_symbols=exports,
+                init_funcs=["__jac_shared_init"],
+                soname="librefuse.dylib"
+            );
+        } except Exception as exc {
+            raised = str(exc);
+        }
+        assert raised , (
+            "MachOLinker linked an object carrying a relocation it cannot "
+            "apply; that instruction ships unpatched and the artifact is "
+            "wrong at run time"
+        );
+        assert "relocation type 8" in raised , raised;
+        assert not os.path.exists(out) , "a refused link must leave no artifact";
+    }
 }
 
 

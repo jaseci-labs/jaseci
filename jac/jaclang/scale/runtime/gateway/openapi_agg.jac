@@ -48,31 +48,66 @@ async def fetch_service_spec(
 
 
 async def aggregate_openapi(registry: ServiceRegistry) -> dict {
+    import asyncio;
+
+    candidates: list[tuple[str, ServiceEntry]] = [
+        (name, `entry)
+        for (name, `entry) in registry.entries.items()
+        if `entry.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
+            and `entry.url
+    ];
+    tasks = [
+        asyncio.ensure_future(fetch_service_spec(`entry)) for (_, `entry) in candidates
+    ];
+    docs: list[dict | None | BaseException] = [];
+    for task in tasks {
+        try {
+            docs.append(await task);
+        } except BaseException as task_err {
+            docs.append(task_err);
+        }
+    }
+
     merged_paths: dict = {};
     merged_schemas: dict = {};
-
-    for (name, entry) in registry.entries.items() {
-        if entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STARTING) {
+    for ((name, `entry), doc) in zip(candidates, docs) {
+        if isinstance(doc, BaseException) {
+            _agg_logger.warning(f"openapi aggregate: {name} failed: {doc}");
             continue;
         }
-        if not entry.url {
-            continue;
-        }
-        doc = await fetch_service_spec(entry);
-        if doc is None {
+        if not isinstance(doc, dict) {
             _agg_logger.warning(f"openapi aggregate: skipping {name}");
             continue;
         }
 
-        paths: dict = doc.get("paths") or {};
-        merged_paths.update(_prefixed_paths(paths, entry.prefix));
-
-        comps: dict = doc.get("components") or {};
-        schemas: dict = comps.get("schemas") or {};
-        for (schema_name, schema_def) in schemas.items() {
-            if schema_name not in merged_schemas {
-                merged_schemas[schema_name] = schema_def;
+        raw_paths = doc.get("paths");
+        paths: dict = raw_paths if isinstance(raw_paths, dict) else {};
+        for (path, op) in _prefixed_paths(paths, `entry.prefix).items() {
+            if path in merged_paths {
+                _agg_logger.warning(
+                    f"openapi aggregate: path collision on {path}; keeping the "
+                    f"first operation seen, dropping {name}'s"
+                );
+                continue;
             }
+            merged_paths[path] = op;
+        }
+
+        raw_comps = doc.get("components");
+        comps: dict = raw_comps if isinstance(raw_comps, dict) else {};
+        raw_schemas = comps.get("schemas");
+        schemas: dict = raw_schemas if isinstance(raw_schemas, dict) else {};
+        for (schema_name, schema_def) in schemas.items() {
+            if schema_name in merged_schemas {
+                if merged_schemas[schema_name] != schema_def {
+                    _agg_logger.warning(
+                        f"openapi aggregate: schema collision on {schema_name}; "
+                        f"keeping the first definition, dropping {name}'s"
+                    );
+                }
+                continue;
+            }
+            merged_schemas[schema_name] = schema_def;
         }
     }
 

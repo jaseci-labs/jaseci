@@ -1,4 +1,5 @@
 import json;
+import json as json_lib;
 import from jaclang.runtimelib { sv_client }
 import from jaclang.runtimelib.serving.sse {
     consume_sse_events as consume_sse_stream,
@@ -14,7 +15,7 @@ obj _StubResp {
     has text: str { getter; }
 
     def json -> any {
-        return json.loads(self.body_text);
+        return json_lib.loads(self.body_text);
     }
 
     def headers_obj -> any {

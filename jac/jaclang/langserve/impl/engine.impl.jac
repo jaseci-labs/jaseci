@@ -1,3 +1,13 @@
+impl _uri_of(path: str) -> str {
+    return uris.from_fs_path(path) or "";
+}
+
+impl _path_of(uri: str) -> str {
+    return uris.to_fs_path(uri) or "";
+}
+
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl Task.postinit -> None {
     self.task_id = Task._task_id;
     self.cancel_token = threading.Event();
@@ -116,15 +126,35 @@ impl JacLangServer.type_check_file(
         }
 
         import from jaclang.jac0core.compile_options { CompileOptions }
-        main_doc = self.workspace.get_text_document(uris.from_fs_path(main_path));
+        main_doc = self.workspace.get_text_document(_uri_of(main_path));
+
+        import from jaclang.jac0core.parser.frontend { parse_diags, _replay_diags }
+        import from jaclang.jac0core.parser.lexer { Lexer as _Lexer }
+        import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
+        import from jaclang.jac0core.unitree { Source as _Src }
+        (_syn_had, _pd, _ld) = parse_diags(main_doc.source, main_path);
+        if _pd or _ld {
+            _dsrc = _Src(main_doc.source, mod_path=main_path);
+            _replay_diags(_ld, _Lexer, self, _dsrc);
+            _replay_diags(_pd, _SyntaxParser, self, _dsrc);
+            _syn_errors = list(self.errors_had);
+            _syn_warnings = list(self.warnings_had);
+            self.publish_diagnostics(
+                _uri_of(main_path),
+                utils.gen_diagnostics(main_path, _syn_errors, _syn_warnings)
+            );
+            for f in files_to_check {
+                self._clear_alerts_for_file(f);
+            }
+        }
+        if cancel_token and cancel_token.is_set() {
+            return False;
+        }
         build = self.compile(
             file_path=main_path,
             use_str=main_doc.source,
             options=CompileOptions(
-                type_check=True,
-                no_cgen=True,
-                force_target_program=True,
-                cancel_token=cancel_token
+                no_cgen=True, force_target_program=True, cancel_token=cancel_token
             )
         );
 
@@ -137,7 +167,7 @@ impl JacLangServer.type_check_file(
         all_warnings = list(self.warnings_had);
         for f in files_to_check {
             self.publish_diagnostics(
-                uris.from_fs_path(f), utils.gen_diagnostics(f, all_errors, all_warnings)
+                _uri_of(f), utils.gen_diagnostics(f, all_errors, all_warnings)
             );
         }
     } except Exception as e {
@@ -152,7 +182,7 @@ impl JacLangServer.dispatcher -> None {
         start_time = time.time();
         self.debug("Dispatcher waiting for work...");
 
-        self._work_event.wait();
+        self._work_event.`wait();
 
         task: Task | None = None;
         should_exit = False;
@@ -247,7 +277,7 @@ impl JacLangServer.log_error(message: str) -> None {
 }
 
 impl JacLangServer.get_semantic_tokens(file_path: str) -> lspt.SemanticTokens {
-    fs_path = uris.to_fs_path(file_path);
+    fs_path = _path_of(file_path);
     with self._state_lock.read_lock() {
         sem_mgr = self.sem_managers.get(fs_path);
         if not sem_mgr {
@@ -264,7 +294,7 @@ impl JacLangServer.rename_symbol(
     if node_selected and node_selected.sym {
         changes: dict[(str, list[lspt.TextEdit])] = {};
         for nd in [*node_selected.sym.uses, node_selected.sym.defn[0]] {
-            key = uris.from_fs_path(nd.loc.mod_path);
+            key = _uri_of(nd.loc.mod_path);
             new_edit = lspt.TextEdit(
                 range=utils.create_range(nd.loc), new_text=new_name
             );
@@ -282,7 +312,7 @@ impl JacLangServer.get_references(
     if node_selected and node_selected.sym {
         list_of_references: list[lspt.Location] = [
             lspt.Location(
-                uri=uris.from_fs_path(cur_node.loc.mod_path),
+                uri=_uri_of(cur_node.loc.mod_path),
                 range=utils.create_range(cur_node.loc)
             ) for cur_node in [*node_selected.sym.defn, *node_selected.sym.uses]
         ];
@@ -297,7 +327,12 @@ impl JacLangServer.get_definition(
     import from pathlib { Path }
 
     def make_location(node_: uni.UniNode, is_module: bool = False) -> lspt.Location {
-        mod_path = node_.type.file_uri if is_module else node_.loc.mod_path;
+        mod_path: str = node_.loc.mod_path;
+        if is_module
+            and isinstance(node_, uni.Expr)
+            and isinstance(node_.type, ModuleType) {
+            mod_path = str(node_.type.file_uri);
+        }
         decl_range = (
             utils.create_range(node_.loc)
                 if not is_module
@@ -306,11 +341,11 @@ impl JacLangServer.get_definition(
                     end=lspt.Position(line=0, character=0)
                 )
         );
-        return lspt.Location(uri=uris.from_fs_path(str(mod_path)), range=decl_range);
+        return lspt.Location(uri=_uri_of(str(mod_path)), range=decl_range);
     }
     def make_module_location(file_path_str: str) -> lspt.Location {
         return lspt.Location(
-            uri=uris.from_fs_path(file_path_str),
+            uri=_uri_of(file_path_str),
             range=lspt.Range(
                 start=lspt.Position(line=0, character=0),
                 end=lspt.Position(line=0, character=0)
@@ -321,12 +356,15 @@ impl JacLangServer.get_definition(
     if not node_selected {
         return self._string_import_definition(file_path, position);
     }
-    node_type = node_selected.type;
+    node_type: (TypeBase | None) = (
+        node_selected.type if isinstance(node_selected, uni.Expr) else None
+    );
     parent = node_selected.parent;
 
     if isinstance(parent, uni.AstImplNeedingNode) and parent.body {
-        if isinstance(parent.body, uni.ImplDef) {
-            return make_location(parent.body.sym.decl);
+        body_nd = parent.body;
+        if isinstance(body_nd, uni.ImplDef) and body_nd.sym {
+            return make_location(body_nd.sym.decl);
         }
     }
 
@@ -338,9 +376,13 @@ impl JacLangServer.get_definition(
         import_node = parent.parent_of_type(uni.Import) if parent else None;
         if import_node and parent.path {
             try {
-                idx = `list(parent.path).index(node_selected);
+                idx = (
+                    `list(parent.path).index(node_selected)
+                        if isinstance(node_selected, (uni.Name, uni.String))
+                        else -1
+                );
                 path_list = parent.resolve_relative_path_list();
-                if idx < len(path_list) {
+                if idx >= 0 and idx < len(path_list) {
                     resolved = path_list[idx];
                     if Path(resolved).exists() {
                         return make_module_location(resolved);
@@ -413,7 +455,10 @@ impl JacLangServer.get_definition(
         return None;
     }
     if isinstance(parent, uni.ImplDef) and parent.decl_link {
-        return make_location(parent.decl_link.sym.decl);
+        decl_link = parent.decl_link;
+        if isinstance(decl_link, uni.AstSymbolNode) and decl_link.sym {
+            return make_location(decl_link.sym.decl);
+        }
     }
 
     if node_selected.sym and node_selected.sym.defn {
@@ -528,15 +573,15 @@ impl JacLangServer._npm_item_location(
     if dts {
         return at_file(dts, utils.find_dts_decl_range(dts, item_name));
     }
-    entry = resolve_client_npm_package(spec, src_path);
-    if entry {
-        return at_file(entry, None);
+    `entry = resolve_client_npm_package(spec, src_path);
+    if `entry {
+        return at_file(`entry, None);
     }
     return None;
 }
 
 impl JacLangServer.get_outline(file_path: str) -> list[lspt.DocumentSymbol] {
-    fs_path = uris.to_fs_path(file_path);
+    fs_path = _path_of(file_path);
     with self._state_lock.read_lock() {
         if fs_path in self.mod.hub and (root_node := self.mod.hub[fs_path].sym_tab) {
             return utils.get_symbols_for_outline(root_node);
@@ -550,7 +595,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
     try {
         if isinstance(sym_node, uni.NameAtom) {
             if sym_node.is_getattr_resolved {
-                return f"(dynamic attribute) {sym_node.value}: {sym_node.type}";
+                return f"(dynamic attribute) {sym_node?.value}: {sym_node.type}";
             }
             sym_node = sym_node.name_of;
         }
@@ -558,8 +603,8 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
         node_info = f"({(access or '')}{sym_node.sym_category.value}) {sym_node.sym_name}";
 
         if not isinstance(sym_node, uni.Ability) {
-            if sym_node?.type and sym_node.type {
-                node_info += f": {sym_node.type}";
+            if sym_node?.type {
+                node_info += f": {sym_node?.type}";
             } elif sym_node.name_spec.clean_type {
                 node_info += f": {sym_node.name_spec.clean_type}";
             } elif (
@@ -573,7 +618,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
             node_info += f"\n{doc}";
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
-            node_info += f"\n{sym_node.signature.unparse()}";
+            node_info += f"\n{unparse_node(sym_node.signature)}";
         }
         try {
             top: (uni.UniNode | None) = sym_node;
@@ -696,7 +741,7 @@ impl JacLangServer.get_completion_items_of(
         items.append(
             lspt.CompletionItem(
                 label=item.label,
-                kind=item.kind,
+                kind=lspt.CompletionItemKind(item.kind.value),
                 label_details=detail,
                 documentation=documentation,
             )
@@ -752,7 +797,10 @@ impl JacLangServer.get_scope_at_position(
 
 impl JacLangServer.get_node_type(n: uni.UniNode) -> Optional[TypeBase] {
     if isinstance(n, uni.Expr) {
-        typ = self.get_type_evaluator().get_type_of_expression(n);
+        typ = n.type;
+        if typ is None {
+            typ = self.get_type_evaluator().get_type_of_expression(n);
+        }
         self.debug("found type " + str(typ) + " for expr " + str(n));
         return typ;
     }
@@ -812,7 +860,7 @@ impl JacLangServer.wait_till_idle_sync(file_uri: str) -> None {
     self._do_type_check(file_uri);
 
     while True {
-        self._idle_event.wait();
+        self._idle_event.`wait();
         with self._state_lock.read_lock() {
             has_pending_work = bool(
                 self.pipe or self.dirty_files or self._debounce_timer
@@ -844,7 +892,7 @@ impl JacLangServer._position_in_string_or_comment(
     co = col + 1;
     try {
         text_doc = self.workspace.get_text_document(file_uri);
-        result = tokenize_full(text_doc.source, uris.to_fs_path(file_uri));
+        result = tokenize_full(text_doc.source, _path_of(file_uri));
         tokens = result[0];
         comments = result[1];
         for t in tokens {
@@ -906,7 +954,7 @@ impl JacLangServer.get_completion(
             self.debug("completion suppressed (cursor in string or comment)");
             return lspt.CompletionList(is_incomplete=False, items=[]);
         }
-        file_path = uris.to_fs_path(file_uri);
+        file_path = _path_of(file_uri);
         look_col = position.character - 1 if position.character > 0 else 0;
         node_at_pos = self.get_node_at_position(file_path, position.line, look_col);
 
@@ -967,8 +1015,8 @@ impl JacLangServer.debug(msg: str) -> None {
 
 impl JacLangServer.get_token_at_position(
     file_path: str, position: lspt.Position
-) -> Optional[uni.UniNode] {
-    fs_path = uris.to_fs_path(file_path);
+) -> Optional[uni.AstSymbolNode] {
+    fs_path = _path_of(file_path);
     with self._state_lock.read_lock() {
         sem_mgr = self.sem_managers.get(fs_path);
         if not sem_mgr {

@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.compiler.passes.tool.doc_ir as doc;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok, is_mut_kind }
@@ -52,7 +51,7 @@ obj DocIRGenPass(UniPass) {
     def _assign_compr_doc_ir(nd: uni.UniNode) -> None;
     def _assign_else_doc_ir(nd: uni.UniNode, body: Sequence[uni.UniNode]) -> None;
     def _emit_keyword_block(nd: uni.UniNode, kw: Tok) -> None;
-    def _assign_case_block_doc_ir(nd: uni.UniNode, case_cls: type) -> None;
+    def _assign_case_block_doc_ir(nd: (uni.SwitchStmt | uni.MatchStmt)) -> None;
     def intersperse(
         items: list[doc.DocType], separator: doc.DocType
     ) -> list[doc.DocType];

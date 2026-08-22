@@ -59,7 +59,7 @@ def _dispatch_request(request: dict) -> dict {
     }
     # starlette/fastapi route handling calls the deprecated
     # `asyncio.iscoroutinefunction` on Python 3.14 (removed in 3.16); the repo's
-    # `pytest.ini` escalates warnings to errors, which would turn an `sv` function
+    # The runner escalates warnings to errors, which would turn an `sv` function
     # call into a 500 here. It is a transitional third-party deprecation,
     # unrelated to the in-process transport under test (the real host, which does
     # not escalate warnings, returns the result fine), so suppress just that
@@ -344,7 +344,7 @@ test "handle() copies the call id, dispatches off the UI thread, and replies off
     ipd.handle(call_id, req_ptr, 0);  # must return immediately, never block
 
     # The single worker drained the queue and replied.
-    assert _CAP_DONE.wait(timeout=10.0);
+    assert _CAP_DONE.`wait(timeout=10.0);
     # The id was copied byte-for-byte on the UI thread (the P0-A finding) and
     # round-tripped back to webview_return -- NOT the stale freed pointer.
     assert _CAP["id"] == b"call-42";
@@ -396,7 +396,7 @@ test "handle() times out a slow call and drops the late reply (P1-A)" {
         ipd.handle(call_id, req_ptr, 0);  # returns immediately
 
         # The timer rejected the JS promise with the timeout code.
-        assert _CAP_DONE.wait(timeout=5.0);
+        assert _CAP_DONE.`wait(timeout=5.0);
         assert _error_code_for(b"timeout-call") == "NATIVE_DISPATCH_TIMEOUT";
         # The slow dispatch's late completion (~0.6s) is dropped: after it has
         # surely finished there is STILL exactly one reply for this id.
@@ -441,7 +441,7 @@ test "handle() replies BUSY when the dispatch queue is saturated (P1-A)" {
 
         ipd.handle(call_id, req_ptr, 0);
 
-        assert _CAP_DONE.wait(timeout=5.0);
+        assert _CAP_DONE.`wait(timeout=5.0);
         assert _error_code_for(b"busy-call") == "NATIVE_DISPATCH_BUSY";
         assert _replies_for(b"busy-call") == 1;
     } finally {
@@ -992,7 +992,7 @@ test "_worker_loop replies NATIVE_DISPATCH_ERROR when dispatch() raises" {
                 state
             )
         );
-        assert _CAP_DONE.wait(timeout=10.0) , "worker must reply on dispatch() exception";
+        assert _CAP_DONE.`wait(timeout=10.0) , "worker must reply on dispatch() exception";
         assert _error_code_for(b"exc-call") == "NATIVE_DISPATCH_ERROR" , (
             "worker must produce NATIVE_DISPATCH_ERROR when dispatch() raises"
         );

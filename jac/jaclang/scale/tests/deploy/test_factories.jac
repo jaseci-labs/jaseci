@@ -13,6 +13,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes { kubernetes_target as kt_module }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "deployment target factory creates kubernetes target" {
     config = {"app_name": "test-app", "namespace": "default", "container_port": 8000};
 
@@ -121,7 +125,70 @@ test "kubernetes config from dict" {
     assert config.namespace == "test-ns";
     assert config.container_port == 9000;
     assert config.ingress_node_port == 30082;
-    assert config.postgres_enabled is False;
+    # The retired boolean migrates onto the tri-state it could only half express.
+    assert config.database_mode == "none";
+    assert config.database_enabled() is False;
+}
+
+test "kubernetes config database_mode survives a to_dict round trip" {
+    config = KubernetesConfig.from_dict(
+        KubernetesConfig,
+        {
+            "app_name": "my-app",
+            "namespace": "test-ns",
+            "database_mode": "external",
+            "database_url": "postgresql://u@db.other-ns.svc.cluster.local:5432/app",
+            "database_namespace": "other-ns"
+        }
+    );
+    round_tripped = KubernetesConfig.from_dict(KubernetesConfig, config.to_dict());
+
+    assert round_tripped.database_mode == "external";
+    assert round_tripped.database_url
+        == "postgresql://u@db.other-ns.svc.cluster.local:5432/app";
+    assert round_tripped.database_namespace == "other-ns";
+    assert round_tripped.database_enabled() is True;
+}
+
+test "kubernetes config rejects an unknown database_mode" {
+    raised = False;
+    try {
+        KubernetesConfig.from_dict(
+            KubernetesConfig, {"app_name": "my-app", "database_mode": "maybe"}
+        );
+    } except ValueError as e {
+        raised = True;
+        assert "database_mode" in str(e);
+    }
+    assert raised , "Expected ValueError for an unknown database_mode";
+}
+
+test "direct construction rejects an unknown database_mode too" {
+    # from_dict is not the only way in: a platform service builds the config
+    # object itself, and an unvalidated mode would sail past database_enabled().
+    raised = False;
+    try {
+        KubernetesConfig(app_name="my-app", database_mode="maybe");
+    } except ValueError as e {
+        raised = True;
+        assert "database_mode" in str(e);
+    }
+    assert raised , "Expected ValueError constructing KubernetesConfig with an unknown database_mode";
+}
+
+test "direct construction canonicalizes a non-canonical database_mode" {
+    # ' NONE ' asks for no database; without normalization database_enabled()
+    # answered True and the deploy gate ran backwards.
+    config = KubernetesConfig(app_name="my-app", database_mode=" NONE ");
+
+    assert config.database_mode == "none";
+    assert config.database_enabled() is False;
+    assert config.database_deploy_intent("my-app")["database_mode"] == "none";
+    assert config.to_dict()["database_mode"] == "none";
+
+    mixed_case = KubernetesConfig(app_name="my-app", database_mode="External");
+    assert mixed_case.database_mode == "external";
+    assert mixed_case.database_enabled() is True;
 }
 
 test "app config creation" {
@@ -154,7 +221,7 @@ test "deployment target with logger" {
 test "deployment target factory register and create custom target" {
     mock_target = unittest.mock.MagicMock();
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         mock_target.config = config;
         mock_target.logger = logger;
         return mock_target;
@@ -172,7 +239,7 @@ test "deployment target factory register and create custom target" {
 test "deployment target factory custom target with logger" {
     calls: list = [];
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         calls.append({"config": config, "logger": logger});
         return unittest.mock.MagicMock();
     }
@@ -191,7 +258,7 @@ test "deployment target factory custom target with logger" {
 test "deployment target factory custom target overrides builtin" {
     mock_target = unittest.mock.MagicMock();
 
-    def override_factory(config: dict, logger: object = None) -> object {
+    def override_factory(config: dict, logger: any = None) -> any {
         return mock_target;
     }
 
@@ -226,7 +293,7 @@ test "autoscaler factory raises for unsupported engine" {
 test "autoscaler factory register and create custom engine" {
     mock_autoscaler = unittest.mock.MagicMock();
 
-    def custom_factory(config: dict, logger: object = None) -> object {
+    def custom_factory(config: dict, logger: any = None) -> any {
         return mock_autoscaler;
     }
 
@@ -242,7 +309,7 @@ test "autoscaler factory register and create custom engine" {
 test "autoscaler factory custom engine overrides builtin" {
     mock_autoscaler = unittest.mock.MagicMock();
 
-    def override_factory(config: dict, logger: object = None) -> object {
+    def override_factory(config: dict, logger: any = None) -> any {
         return mock_autoscaler;
     }
 
@@ -374,7 +441,9 @@ test "hpa apply deletes competing ScaledObject when switching from keda engine" 
                 status=404
             );
             HPAAutoscaler().apply(spec);
-            mock_client.CustomObjectsApi.return_value.delete_namespaced_custom_object.assert_called_once_with(
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.delete_namespaced_custom_object.assert_called_once_with(
                 group="keda.sh",
                 version="v1alpha1",
                 namespace="default",
@@ -401,7 +470,9 @@ test "hpa apply engine-switch ScaledObject deletion is a no-op when no ScaledObj
             mock_v2_cls.return_value.read_namespaced_horizontal_pod_autoscaler.side_effect = ApiException(
                 status=404
             );
-            mock_client.CustomObjectsApi.return_value.delete_namespaced_custom_object.side_effect = ApiException(
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.delete_namespaced_custom_object.side_effect = ApiException(
                 status=404
             );
             result = HPAAutoscaler().apply(spec);
@@ -417,11 +488,15 @@ test "hpa destroy collection also sweeps competing KEDA resources" {
         with unittest.mock.patch(
             "jaclang.scale.deploy.autoscale.hpa_autoscaler.client"
         ) as mock_client {
-            mock_client.CustomObjectsApi.return_value.list_namespaced_custom_object.return_value = {
+            _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.list_namespaced_custom_object.return_value = {
                 "items": []
             };
             HPAAutoscaler().destroy_collection("default", "managed=jac-scale");
-            assert mock_client.CustomObjectsApi.return_value.list_namespaced_custom_object.call_count
+            assert _as_any(
+                mock_client
+            ).CustomObjectsApi.return_value.list_namespaced_custom_object.call_count
                 == 2;
         }
     }

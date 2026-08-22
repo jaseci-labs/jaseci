@@ -1,3 +1,4 @@
+import threading;
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client { get_bun }
 import from jaclang.runtimelib.client.bun_installer { bun_unavailable_message }
@@ -19,15 +20,15 @@ def _build_vite_command(build_dir: Path, args: list[str]) -> list[str] {
     }
 
     bun = _require_bun();
-    entry = resolve_node_tool_entry(build_dir, 'vite');
-    if entry is None {
+    `entry = resolve_node_tool_entry(build_dir, 'vite');
+    if `entry is None {
         raise ClientBundleError(
             f"Vite is not installed under {build_dir / 'node_modules'}. "
             "Dependencies are installed before every build, so an absent "
             "vite means that install did not complete."
         ) from None;
     }
-    return [bun, str(entry)] + args;
+    return [bun, str(`entry)] + args;
 }
 
 impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
@@ -147,7 +148,10 @@ impl ViteBundler.create_tsconfig(self: ViteBundler) -> Path {
     user_include = user_ts_config.get('include', []);
     user_exclude = user_ts_config.get('exclude', []);
 
-    merged_compiler_options = {** default_compiler_options, ** user_compiler_options};
+    merged_compiler_options: dict[str, str | bool | list[str] | dict[str, list[str]]] = {
+        ** default_compiler_options,
+        ** user_compiler_options
+    };
 
     paths_config = self.config_loader.get_paths_config();
     if paths_config {
@@ -1088,7 +1092,7 @@ impl ViteBundler.find_css(self: ViteBundler) -> Optional[Path] {
 }
 
 impl ViteBundler.find_bundle(self: ViteBundler) -> Optional[Path] {
-    for file in self.output_dir.glob('client.*.js') {
+    for file in self.output_dir.`glob('client.*.js') {
         return file;
     }
     return None;
@@ -1283,10 +1287,18 @@ def _is_vite_url_line(line: str) -> bool {
 }
 
 def _forward_vite_output(
-    proc: any, ready_event: "threading.Event", sys_module: any, output_buffer: list[str]
+    proc: subprocess.Popen[str],
+    ready_event: threading.Event,
+    sys_module: any,
+    output_buffer: list[str]
 ) {
+    stream = proc.stdout;
+    if stream is None {
+        return;
+    }
     try {
-        for line in iter(proc.stdout.readline, '') {
+        while True {
+            line = stream.readline();
             if not line {
                 break;
             }
@@ -1603,7 +1615,7 @@ impl ViteBundler._start_vite_with_output_capture(
     );
     output_thread.start();
 
-    is_ready = ready_event.wait(timeout=VITE_READY_TIMEOUT_SECONDS);
+    is_ready = ready_event.`wait(timeout=VITE_READY_TIMEOUT_SECONDS);
     if is_ready {
         port_file = build_dir / '.dev-port';
         for _ in range(40) {

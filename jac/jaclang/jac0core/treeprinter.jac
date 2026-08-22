@@ -125,6 +125,26 @@ glob id_bag: dict = {},
          'Semi': '#f1cfc4'
      };
 
+def node_to_dict(nd: UniNode) -> dict[(str, str)] {
+    ret = {
+        'node': str(`type(nd).__name__),
+        'kid': str(
+            [
+                node_to_dict(x)
+                for x in nd.kid
+                if x
+            ]
+        ),
+        'line': str(nd.loc.first_line),
+        'col': str(nd.loc.col_start)
+    };
+    if isinstance(nd, uni.Token) {
+        ret['name'] = nd.name;
+        ret['value'] = nd.value;
+    }
+    return ret;
+}
+
 def printgraph_ast_tree(
     root_node: UniNode, dot_lines: (list[str] | None) = None
 ) -> str {
@@ -197,7 +217,7 @@ def print_ast_tree(
         sym_table_link = f"SymbolTable: {nd.type_sym_tab.scope_name}"
             if (isinstance(nd, AstSymbolNode) and nd.type_sym_tab)
             else 'SymbolTable: None' if isinstance(nd, AstSymbolNode) else '';
-        if (isinstance(nd, Token) and isinstance(nd, AstSymbolNode)) {
+        if (isinstance(nd, AstSymbolNode) and isinstance(nd, Token)) {
             type_str = str(nd.type) if (isinstance(nd, uni.Expr) and nd.type) else '';
             out = f"{nd.__class__.__name__} - {nd.value} - Type: {type_str}, {access} {sym_table_link}";
             return out;
@@ -211,6 +231,7 @@ def print_ast_tree(
             name_str = nd.name.sym_name
                 if isinstance(nd.name, uni.Name)
                 else nd.name.value;
+            resolved_path: (str | None) = None;
             try {
                 resolved_path = nd.resolve_relative_path();
             } except Exception {
@@ -219,14 +240,15 @@ def print_ast_tree(
             out = f"{nd.__class__.__name__} - {name_str} - abs_path: {resolved_path}";
             return out;
         } elif isinstance(nd, uni.ModulePath) {
+            path_str: (str | None) = None;
             try {
-                resolved_path = nd.resolve_relative_path();
+                path_str = nd.resolve_relative_path();
             } except Exception {
-                resolved_path = nd.abs_path;
+                path_str = nd.abs_path;
             }
             out = f"{nd.__class__.__name__} - {'.'.join(
                 [n.value for n in nd.path] if nd.path else []
-            )} - abs_path: {resolved_path}";
+            )} - abs_path: {path_str}";
             return out;
         } elif isinstance(nd, AstSymbolNode) {
             type_str = str(nd.name_spec.type)
@@ -251,7 +273,7 @@ def print_ast_tree(
         } elif isinstance(nd, ast3.Name) {
             return f"{nd.__class__.__name__} - {nd.id}";
         } elif isinstance(
-            nd, ast3.FunctionDef | ast3.ClassDef | ast3.AsyncFunctionDef
+            nd, (ast3.FunctionDef, ast3.ClassDef, ast3.AsyncFunctionDef)
         ) {
             return f"{nd.__class__.__name__} - {nd.name}";
         } elif isinstance(nd, ast3.Import) {
@@ -279,7 +301,22 @@ def print_ast_tree(
         }
     }
     def get_location_info(nd: ast3.AST) -> str {
-        if (nd?.lineno and nd?.col_offset and nd?.end_lineno and nd?.end_col_offset) {
+        if not isinstance(
+            nd,
+            (
+                ast3.stmt,
+                ast3.expr,
+                ast3.excepthandler,
+                ast3.arg,
+                ast3.keyword,
+                ast3.alias,
+                ast3.pattern,
+                ast3.type_param
+            )
+        ) {
+            return '-:- - -:-';
+        }
+        if (nd.lineno and nd.col_offset and nd.end_lineno and nd.end_col_offset) {
             start_pos = f"{nd.lineno}:{(nd.col_offset + 1)}";
             end_pos = f"{nd.end_lineno}:{(nd.end_col_offset + 1)
                 if nd.end_col_offset
@@ -312,7 +349,7 @@ def print_ast_tree(
             and root_node.is_raised_from_py
             and not print_py_raise
         ) {
-            kids: list[UniNode] = [
+            kids: Sequence[UniNode] = [
                 x
                 for x in root_node.get_all_sub_nodes(uni.Module)
                 if x.is_raised_from_py

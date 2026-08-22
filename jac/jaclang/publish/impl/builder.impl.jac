@@ -93,8 +93,7 @@ def _module_is_client_source(source_path: Path) -> bool {
     import from jaclang.jac0core.program { JacProgram as JacProgramRt }
     try {
         mod = JacProgramRt().compile(
-            str(source_path),
-            options=CompileOptions(symtab_ir_only=True, type_check=False)
+            str(source_path), options=CompileOptions(symtab_ir_only=True)
         );
         return mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=str(source_path));
@@ -286,7 +285,7 @@ def _primary_package(tops: list[str], pkg_name: str) -> str {
 impl WheelBuilder._vendor_runtime_into(
     src_data: dict[str, bytes], codes: list[str]
 ) -> None {
-    needed: set = set();
+    needed: set[str] = set();
     for code in codes {
         needed |= scan_jaclang_imports(code);
     }

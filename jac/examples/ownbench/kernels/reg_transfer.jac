@@ -57,7 +57,7 @@ def run_move(n: int, reps: int) -> tuple[int, int] {
     moved_ns = 0;
     for rep in range(reps) {
         r: own Region = Region();
-        e: Spot | None = None;
+        vals: list[int] = [];
         in r {
             first = Spot(v=1);
             prev = first;
@@ -66,15 +66,9 @@ def run_move(n: int, reps: int) -> tuple[int, int] {
                 prev ++> b;
                 prev = b;
             }
-            e = first;
-        }
-        vals: list[int] = [];
-        if e is not None {
-            in r {
-                w = e spawn Collect(want=1);
-                for v in w.vals {
-                    vals.append(v);
-                }
+            w = first spawn Collect(want=1);
+            for v in w.vals {
+                vals.append(v);
             }
         }
         digest = checksum_of(vals);

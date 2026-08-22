@@ -38,7 +38,7 @@ glob FIXTURES = os.path.join(
 
 
 """Return a callable reading glibc `mallinfo2().uordblks`, or None if unavailable."""
-def _inuse_probe -> (object | None) {
+def _inuse_probe -> (any | None) {
     if not sys.platform.startswith("linux") {
         return None;
     }
@@ -71,7 +71,7 @@ def _inuse_probe -> (object | None) {
 """JIT-compile `fixture` and drive its `make_cycle`/`__rc_collect_cycles` hooks,
 returning in-use-heap growth (bytes) across a build/drop loop with cycle
 collection `enable`d or not."""
-def _cycle_growth(fixture: str, enable: bool, inuse: object) -> int {
+def _cycle_growth(fixture: str, enable: bool, inuse: any) -> int {
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
@@ -82,7 +82,7 @@ def _cycle_growth(fixture: str, enable: bool, inuse: object) -> int {
     eng = ir.gen.native_engine;
     assert eng is not None , f"no native engine for {fixture}";
 
-    def _fn(name: str) -> object {
+    def _fn(name: str) -> any {
         addr = eng.get_function_address(name);
         assert addr , f"symbol '{name}' not found in {fixture}";
         return ctypes.CFUNCTYPE(None)(addr);
@@ -91,7 +91,7 @@ def _cycle_growth(fixture: str, enable: bool, inuse: object) -> int {
     collect = _fn("__rc_collect_cycles");
 
     if enable {
-        gaddr = eng.get_global_value_address("__rc_cycles_enabled");
+        gaddr: any = eng.get_global_value_address("__rc_cycles_enabled");
         assert gaddr , "could not locate __rc_cycles_enabled global";
         ctypes.cast(gaddr, ctypes.POINTER(ctypes.c_uint8))[0] = 1;
     }

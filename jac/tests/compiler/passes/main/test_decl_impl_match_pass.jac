@@ -6,6 +6,7 @@ and impl body symbols are resolved.
 """
 
 import io;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import sys;
 import os;
 import from pathlib { Path }
@@ -117,7 +118,7 @@ test "single impl annex" {
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "circle_pure.jac"));
     # The impl annex is spliced once into the head; its ImplDef appears exactly
     # once in the unified tree.
-    assert mypass.pp().count("ImplDef - impl.Circle.area") == 1;
+    assert print_ast_tree(mypass).count("ImplDef - impl.Circle.area") == 1;
 }
 
 test "impl decl resolution fix" {
@@ -153,7 +154,7 @@ test "inner mod impl" {
 
 test "impl body symbol resolution" {
     state = (out := JacProgram()).compile(
-        os.path.join(FIXTURES, "impl_symbol_resolution.jac"), type_check=True
+        os.path.join(FIXTURES, "impl_symbol_resolution.jac")
     );
     assert not out.errors_had , f"Compilation errors: {out.errors_had}";
 

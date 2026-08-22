@@ -49,9 +49,9 @@ def cluster_node_archs -> list[str] {
 
 
 def node_arch -> str {
-    override = os.environ.get("JAC_NODE_ARCH", "");
-    if override {
-        return release_arch(override);
+    `override = os.environ.get("JAC_NODE_ARCH", "");
+    if `override {
+        return release_arch(`override);
     }
     archs = cluster_node_archs();
     if len(archs) == 1 {
@@ -238,16 +238,35 @@ glob _deploy_version_memo: dict = {};
 
 def resolve_deploy_version(project_dir: str, channel: str) -> str {
     import from jaclang.scale.config.dev_config { Channel }
-    import from jaclang.project.config { JacConfig, find_project_root }
     if channel != Channel.STABLE.value {
         return "";
     }
+    return resolve_pinned_version(project_dir);
+}
+
+
+def resolve_console_version(
+    project_dir: str, channel: str, deploy_version: str
+) -> str {
+    import from jaclang.scale.config.dev_config { Channel }
+    if deploy_version {
+        return deploy_version;
+    }
+    if channel == Channel.LOCAL.value {
+        return resolve_pinned_version(project_dir);
+    }
+    return "";
+}
+
+
+def resolve_pinned_version(project_dir: str) -> str {
+    import from jaclang.project.config { JacConfig, find_project_root }
     found = find_project_root(Path(project_dir));
     if found is None {
         return "";
     }
     toml = found[1];
-    prefix = f"{toml}|{channel}|";
+    prefix = f"{toml}||";
 
     stamp = hashlib.sha256(toml.read_bytes()).hexdigest();
     key = prefix + stamp;
@@ -457,6 +476,32 @@ def _fetch_verified_asset(
 }
 
 
+def host_toolchain_path(project_dir: str, channel: str = "") -> str {
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+    import from jaclang.scale.config.dev_config { resolve_dev_channel }
+
+    channel = channel or resolve_dev_channel(project_dir).value;
+    version = resolve_deploy_version(project_dir, channel);
+    if not version or version == resolve_cli_version().strip() {
+        return "";
+    }
+    plat = host_seal_platform();
+    arch = host_arch();
+    payload = download_release_binary(channel, arch, version, plat);
+    path = _binary_cache_path(channel, arch, plat, version);
+    if not path.is_file() {
+        path.parent.mkdir(parents=True, exist_ok=True);
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp");
+        tmp.write_bytes(payload);
+        tmp.chmod(0o755);
+        tmp.replace(path);
+    }
+    path.chmod(0o755);
+    logger.info(f"Host build steps for this deploy run the pinned jac {version}.");
+    return str(path);
+}
+
+
 glob OFFICIAL_IMAGE: str = "jaseci/jaclang";
 
 
@@ -572,14 +617,26 @@ def pack_binary_bytes(binary_bytes: bytes) -> bytes {
 }
 
 
+def admin_dist_source(channel: str, version: str) -> str {
+    if channel == "dev" {
+        return "dev";
+    }
+    if channel == "local" and not version {
+        return "";
+    }
+    return "release";
+}
+
+
 def _admin_dist_urls(channel: str, version: str = "") -> tuple[str, str] {
     repo = GH_REPO;
     suffix = "-admin-dist.tar.gz";
-    if channel == "dev" {
+    source = admin_dist_source(channel, version);
+    if source == "dev" {
         url = f"https://github.com/{repo}/releases/download/dev/jac-dev{suffix}";
         return (url, url + ".sha256");
     }
-    if channel == "local" {
+    if not source {
         return ("", "");
     }
 

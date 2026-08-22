@@ -36,7 +36,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -56,8 +56,7 @@ test "clib sext: negative C int return stays negative through int and any" {
 test "clib SysV: by-value float structs pass and return in SSE registers" {
     cc = shutil.which("cc") or shutil.which("gcc");
     if not cc {
-        import pytest;
-        pytest.skip("no C compiler available for the reference library");
+        testskip("no C compiler available for the reference library");
     }
     with tempfile.TemporaryDirectory() as tmpdir {
         csrc = os.path.join(tmpdir, "ref.c");
@@ -120,13 +119,11 @@ test "clib SysV: by-value float structs pass and return in SSE registers" {
 test "clib rpath: emitted dynamic executables carry DT_RUNPATH $ORIGIN" {
     readelf = shutil.which("readelf");
     if not readelf {
-        import pytest;
-        pytest.skip("readelf not available");
+        testskip("readelf not available");
     }
     fixture = str(os.path.join(FIXTURES, "clib_import.jac"));
     if not os.path.exists("/usr/lib/libm.so.6") {
-        import pytest;
-        pytest.skip("/usr/lib/libm.so.6 not present");
+        testskip("/usr/lib/libm.so.6 not present");
     }
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "rpath_probe");

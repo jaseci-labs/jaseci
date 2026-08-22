@@ -5,12 +5,15 @@ import os;
 import time;
 import uuid;
 import from threading { Thread, Event as _ThreadStop }
-import from typing { Any, Callable, cast }
+import from typing { cast }
+import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.scale.events.broker {
     EventStreamBroker,
     Event,
     RetryPolicy,
-    HealthStatus
+    HealthStatus,
+    StreamPosition,
+    starts_at_earliest
 }
 
 def _jsonable(o: any) -> str {
@@ -46,12 +49,13 @@ glob _logger = logging.getLogger(__name__),
 
 obj PgEventStream(EventStreamBroker) {
     has config: dict[str, any] = {},
-        _store: Any = None,
+        _store: any = None,
         _consumer_name: str = "",
         _default_group: str = "jac-scale",
         _default_retry: RetryPolicy = RetryPolicy(),
         _stop_event: _ThreadStop = _ThreadStop(),
-        _threads: list[Thread] = [];
+        _threads: list[Thread] = [],
+        _positioned: set[str] = set();
 
     def postinit {
         self._consumer_name = (
@@ -59,7 +63,7 @@ obj PgEventStream(EventStreamBroker) {
         );
     }
 
-    def _ensure_store -> Any {
+    def _ensure_store -> any {
         if self._store is None {
             import from jaclang.runtimelib.session { conninfo_from_url }
             import from jaclang.runtimelib.store { PgStore }
@@ -85,6 +89,7 @@ obj PgEventStream(EventStreamBroker) {
             t.join(timeout=5.0);
         }
         self._threads = [];
+        self._positioned = set();
         if self._store is not None {
             self._store.close();
             self._store = None;
@@ -104,13 +109,41 @@ obj PgEventStream(EventStreamBroker) {
             INSERT INTO jac_events (topic, payload)
             VALUES (:t, CAST(:p AS jsonb))
             """,
-            {'t': topic, 'p': json.dumps(payload, default=_jsonable)}
+            {'t': topic, 'p': json.dumps(payload, `default=_jsonable)}
         );
+    }
+
+    def _ensure_offset(topic: str, group: str, start_from: str) -> None {
+        key = f"{topic}::{group}";
+        if key in self._positioned {
+            return;
+        }
+        store = self._ensure_store();
+        if starts_at_earliest(start_from) {
+            store.rows(
+                """
+                INSERT INTO jac_event_offsets (topic, grp, last_id)
+                VALUES (:t, :g, 0) ON CONFLICT DO NOTHING
+                """,
+                {'t': topic, 'g': group}
+            );
+        } else {
+            store.rows(
+                """
+                INSERT INTO jac_event_offsets (topic, grp, last_id)
+                SELECT :t, :g, COALESCE(max(id), 0) FROM jac_events
+                WHERE topic = :t
+                ON CONFLICT DO NOTHING
+                """,
+                {'t': topic, 'g': group}
+            );
+        }
+        self._positioned.add(key);
     }
 
     def _claim(topic: str, group: str, max_messages: int) -> list {
         store = self._ensure_store();
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         try {
             store.rows(
                 """
@@ -168,9 +201,11 @@ obj PgEventStream(EventStreamBroker) {
         topic: str,
         group: str | None = None,
         max_messages: int = 1,
-        timeout_seconds: float = 0.0
+        timeout_seconds: float = 5.0,
+        start_from: str = StreamPosition.LATEST.value
     ) -> list[Event] {
         grp = group or self._default_group;
+        self._ensure_offset(topic, grp, start_from);
         deadline = time.monotonic() + timeout_seconds;
         while True {
             rows = self._claim(topic, grp, max_messages);
@@ -195,9 +230,9 @@ obj PgEventStream(EventStreamBroker) {
     }
 
     def _handle_with_retry(
-        topic: str, event: Event, handler: Callable, retry: RetryPolicy
+        topic: str, group: str, event: Event, handler: Callable, retry: RetryPolicy
     ) {
-        h: Any = handler;
+        h: any = handler;
         for attempt in range(retry.max_attempts) {
             try {
                 h(event);
@@ -221,22 +256,11 @@ obj PgEventStream(EventStreamBroker) {
         handler: Callable[[Event], any],
         group: str | None = None,
         retry: RetryPolicy | None = None,
-        start_from: str = 'latest'
+        start_from: str = StreamPosition.LATEST.value
     ) {
         grp = group or self._default_group;
         pol = retry or self._default_retry;
-        store = self._ensure_store();
-        if start_from == 'latest' {
-            store.rows(
-                """
-                INSERT INTO jac_event_offsets (topic, grp, last_id)
-                SELECT :t, :g, COALESCE(max(id), 0) FROM jac_events
-                WHERE topic = :t
-                ON CONFLICT DO NOTHING
-                """,
-                {'t': topic, 'g': grp}
-            );
-        }
+        self._ensure_offset(topic, grp, start_from);
 
         def _loop {
             while not self._stop_event.is_set() {
@@ -245,7 +269,7 @@ obj PgEventStream(EventStreamBroker) {
                     if rows {
                         for r in rows {
                             self._handle_with_retry(
-                                topic, self._to_event(r[1]), handler, pol
+                                topic, grp, self._to_event(r[1]), handler, pol
                             );
                         }
                         self._advance(topic, grp, int(rows[-1][0]));
@@ -254,7 +278,7 @@ obj PgEventStream(EventStreamBroker) {
                 } except Exception as e {
                     _logger.warning(f"PgEventStream consume error on {topic}: {e}");
                 }
-                self._stop_event.wait(_POLL_SECONDS);
+                self._stop_event.`wait(_POLL_SECONDS);
             }
         }
         t = Thread(target=_loop, daemon=True, name=f"jac-events-{topic}");

@@ -10,6 +10,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.bccache { discover_annex_files, discover_base_file }
+import from jaclang.jac0core.treeprinter { node_to_dict }
 import from jaclang.cli.commands { execution }
 
 glob FIXTURES = os.path.join(
@@ -21,11 +22,11 @@ test "pygen jac cli" {
     out.compile(os.path.join(FIXTURES, "base.jac"));
     assert not out.errors_had;
     mod = out.mod.hub[os.path.join(FIXTURES, "impl", "imps.jac")];
-    assert "56" in str(mod.to_dict());
+    assert "56" in str(node_to_dict(mod));
 }
 
 """Basenames of the annex files whose statements were spliced into a module."""
-def _merged_annex_files(mod: object) -> set[str] {
+def _merged_annex_files(mod: any) -> set[str] {
     return {
         os.path.basename(st.loc.mod_path)
         for st in mod.body

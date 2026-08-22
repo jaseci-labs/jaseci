@@ -1,5 +1,12 @@
 import re;
-import from jaclang.jac0core.unitree { Module, Ability }
+import from jaclang.jac0core.unitree {
+    Module,
+    Ability,
+    FuncSignature,
+    ParamVar,
+    UniNode
+}
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 glob _SCALAR_MAP: dict[str, str] = {
          "int": "number",
@@ -84,8 +91,8 @@ def _map_type(type_str: str, is_return: bool, ts: bool) -> str {
         return "void" if is_return else "null";
     }
     if s in _SCALAR_MAP {
-        mapped = _SCALAR_MAP[s];
-        return "any" if (ts and mapped == "*") else mapped;
+        scalar = _SCALAR_MAP[s];
+        return "any" if (ts and scalar == "*") else scalar;
     }
     if s in ("list", "List") {
         return f"Array<{any_t}>";
@@ -105,31 +112,32 @@ impl jac_type_to_ts(type_str: str, is_return: bool = False) -> str {
     return _map_type(type_str, is_return, True);
 }
 
-def _param_type(param: any) -> str | None {
-    tag = param?.type_tag;
+def _param_type(param: ParamVar) -> str | None {
+    tag = param.type_tag;
     if tag is None {
         return None;
     }
     inner = tag?.tag;
-    if inner is None or not hasattr(inner, "unparse") {
+    if not isinstance(inner, UniNode) {
         return None;
     }
     try {
-        return inner.unparse();
+        return unparse_node(inner);
     } except Exception {
         return None;
     }
 }
 
 def _block_for_ability(ability: Ability) -> str | None {
-    sig = ability?.signature;
+    sig = ability.signature;
+    fsig = sig if isinstance(sig, FuncSignature) else None;
     lines: list[str] = ["/**"];
     has_content = False;
 
-    params = sig?.params if sig else None;
+    params = fsig.params if fsig else None;
     if params {
         for p in params {
-            pname = p?.sym_name or p?.name;
+            pname = p.sym_name or p.name.sym_name;
             if pname is None {
                 continue;
             }
@@ -140,10 +148,10 @@ def _block_for_ability(ability: Ability) -> str | None {
         }
     }
 
-    ret = sig?.return_type if sig else None;
-    if ret is not None and hasattr(ret, "unparse") {
+    ret = fsig.return_type if fsig else None;
+    if isinstance(ret, UniNode) {
         try {
-            rt_str = ret.unparse();
+            rt_str = unparse_node(ret);
         } except Exception {
             rt_str = "";
         }
@@ -190,7 +198,7 @@ impl inject_jsdoc(js: str, blocks: dict[str, str]) -> str {
         );
 
         def _repl(m: any) -> str {
-            indent = m.group(1);
+            indent: str = m.group(1);
             indented = "\n".join(
                 (indent + line) if line else line for line in block.split("\n")
             );

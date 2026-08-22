@@ -408,6 +408,7 @@ class TypeAliasDef:
     name: str = ""
     type_params: str = ""
     value: str = ""
+    is_distinct: bool = False
 
 
 @dataclass
@@ -1331,10 +1332,16 @@ class Parser:
         if self._match(TT.LBRACKET):
             type_params = self._collect_until(TT.RBRACKET)
             self._expect(TT.RBRACKET)
-        self._expect(TT.OP, "=")
+        # `:=` declares an erased branded alias: the brand is check-time
+        # only, so the bootstrap lowers it to a plain runtime alias.
+        is_distinct = self._match(TT.OP, ":=") is not None
+        if not is_distinct:
+            self._expect(TT.OP, "=")
         value = self._collect_until(TT.SEMI)
         self._match(TT.SEMI)
-        return TypeAliasDef(name=name, type_params=type_params, value=value)
+        return TypeAliasDef(
+            name=name, type_params=type_params, value=value, is_distinct=is_distinct
+        )
 
     def _parse_enum(self, decorators: list[str]) -> EnumDef:
         self._expect(TT.NAME, "enum")
@@ -2103,6 +2110,10 @@ class CodeGen:
 
     def _emit_type_alias(self, node: TypeAliasDef) -> None:
         tp_str = f"[{node.type_params}]" if node.type_params else ""
+        if node.is_distinct:
+            # Erased: the runtime name IS the base type; X(v) is identity.
+            self._line(f"{node.name} = {node.value}")
+            return
         self._line(f"type {node.name}{tp_str} = {node.value}")
 
     def _emit_enum(self, node: EnumDef) -> None:

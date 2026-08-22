@@ -5,6 +5,7 @@ native machine code, and produce correct results when executed via ctypes.
 """
 
 import ctypes;
+import from _ctypes { CFuncPtr }
 import io;
 import os;
 import subprocess;
@@ -36,7 +37,9 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> CFuncPtr {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -56,7 +59,9 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(
+    eng: ExecutionEngine, name: str, restype: (type | None), *argtypes: type
+) -> Callable[..., any] {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -66,7 +71,7 @@ def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> 
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -293,6 +298,7 @@ test "native partial class: un-lowerable method skipped, sibling stays native" {
     assert measure(b"hello") == 5;
     assert measure(b"") == 0;
     layout = ir.gen.native_layout;
+    assert layout is not None , "native layout missing";
     # The native-eligible method is exported; the eval-using one is skipped.
     assert "Literal.length" in layout.methods;
     assert "Literal.evaluate" not in layout.methods;
@@ -323,8 +329,10 @@ test "native partial class: demotion warns on the terminal by default (#6934)" {
 
 test "native partial class: native caller of a demoted method errors, not silent" {
     # A method demoted to Python-only is not callable from native code: the
-    # native pathway cannot fall back to Python mid-stream. A native call site
-    # must surface E5090 (loud) instead of silently dropping to a null result.
+    # native pathway cannot fall back to Python mid-stream. The free function
+    # that calls it cascades into a seam of its own (granular demotion), and
+    # the module entry that calls THAT function stays a loud E5092 naming its
+    # call site instead of silently dropping to a null result.
     prog = JacProgram();
     prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_native_caller.jac")),
@@ -336,21 +344,23 @@ test "native partial class: native caller of a demoted method errors, not silent
         if e.code
     ];
     assert "E5092" in codes , (
-        f"expected E5092 for native call to a demoted method, got {codes}"
+        f"expected E5092 for the native call chain into a demoted method, "
+        f"got {codes}"
     );
-    # The diagnostic names the call site (the method), not the discarded
-    # eval body that was demoted away.
+    # The diagnostic names the demoted callable at the surviving call site,
+    # not the discarded eval body that was demoted away.
     msgs = " ".join(str(e) for e in (prog.errors_had or []));
-    assert "Box.evaluate" in msgs , f"E5092 should name Box.evaluate, got: {msgs}";
+    assert "call_evaluate" in msgs , (f"E5092 should name call_evaluate, got: {msgs}");
 }
 
-test "native partial class: un-lowerable virtual method stays a hard error" {
-    # `render` is virtual (Base + Derived override -> vtable slot). A virtual
-    # method the backend cannot lower must NOT be demoted: native polymorphic
-    # dispatch cannot fall back to Python, and demoting it would leave a
-    # dangling vtable index / abort-stub slot. So the eval gap stays E5090.
+test "native partial class: un-lowerable virtual method demotes to a stub slot" {
+    # `render` is virtual (Base + Derived override -> vtable slot). An
+    # un-lowerable virtual now demotes like any other method: its vtable
+    # slot keeps the abort() stub so native dispatch that reaches it fails
+    # loudly, the function is excluded from the exported layout, and the
+    # module still lowers (#6930 W4).
     prog = JacProgram();
-    prog.compile(
+    ir_mod = prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_virtual.jac")),
         options=native_force_opts()
     );
@@ -359,9 +369,14 @@ test "native partial class: un-lowerable virtual method stays a hard error" {
         for e in (prog.errors_had or [])
         if e.code
     ];
-    assert "E5092" in codes , (
-        f"expected E5092 for un-lowerable virtual method, got {codes}"
+    assert codes == [] , (f"virtual demotion must not leave hard errors, got {codes}");
+    assert ir_mod is not None and ir_mod.gen.llvm_ir is not None;
+    layout = ir_mod.gen.native_layout;
+    assert layout is not None;
+    assert "Derived.render" not in layout.methods , (
+        "demoted virtual must not be exported in the layout"
     );
+    assert "Base.render" in layout.methods;
 }
 
 test "arithmetic negate" {
@@ -2264,7 +2279,7 @@ test "py interop native calls python function" {
     assert eng is not None;
     # Register the Python function in the interop callback table
     py_func_table = ir.gen.interop_py_funcs;
-    py_func_table["py_double"] = lambda (x) { x * 2; };
+    py_func_table["py_double"] = lambda (x: int) { x * 2; };
     # Now call the native function
     f = get_func(eng, "native_add_one_to_doubled", ctypes.c_int64, ctypes.c_int64);
     assert f(5) == 11;  # py_double(5) = 10, + 1 = 11
@@ -2744,7 +2759,7 @@ test "clib extensionless import resolves per platform (issue #6387)" {
         ] {
             _os.environ["JAC_NATIVE_TARGET"] = tgt;
             prog = JacProgram();
-            ir = prog.compile(_fix, options=CompileOptions(type_check=False));
+            ir = prog.compile(_fix, options=CompileOptions());
             assert not prog.errors_had , f"{tgt}: {prog.errors_had}";
             assert list(ir.gen._clib_paths) == [want] , f"{tgt}: got {ir.gen._clib_paths}, want [{want}]";
         }
@@ -2767,10 +2782,10 @@ test "clib dotted logical import maps to origin-relative subdir (issue #6387)" {
     _fix = str(os.path.join(FIXTURES, "clib_logical_dotted.jac"));
     try {
         _os.environ["JAC_NATIVE_TARGET"] = "x86_64-unknown-linux-gnu";
-        ir = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir.gen._clib_paths) == ["$ORIGIN/libs/libraylib.so"] , f"ELF: {ir.gen._clib_paths}";
         _os.environ["JAC_NATIVE_TARGET"] = "arm64-apple-darwin";
-        ir2 = JacProgram().compile(_fix, options=CompileOptions(type_check=False));
+        ir2 = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir2.gen._clib_paths) == ["@loader_path/libs/libraylib.dylib"] , f"Mach-O: {ir2.gen._clib_paths}";
     } finally {
         if _saved is None {
@@ -2866,13 +2881,11 @@ test "jac run loads a transitive imported-module clib (issue #6687)" {
     import shutil;
     import tempfile;
     if "x86_64" not in platform.machine() and "AMD64" not in platform.machine() {
-        import pytest;
-        pytest.skip("x86_64-only shared-library build");
+        testskip("x86_64-only shared-library build");
     }
     cc = shutil.which("cc") or shutil.which("gcc");
     if not cc {
-        import pytest;
-        pytest.skip("no C compiler available to build the test shared library");
+        testskip("no C compiler available to build the test shared library");
     }
     with tempfile.TemporaryDirectory() as tmpdir {
         os.makedirs(os.path.join(tmpdir, "libs"));
@@ -2925,8 +2938,7 @@ test "clib AArch64 AAPCS ABI lowering" {
     try {
         prog = JacProgram();
         ir = prog.compile(
-            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")),
-            options=CompileOptions(type_check=False)
+            str(os.path.join(FIXTURES, "clib_sysv_abi.jac")), options=CompileOptions()
         );
         assert not prog.errors_had , f"Errors: {prog.errors_had}";
         assert ir.gen.llvm_ir is not None , "No LLVM IR generated";
@@ -3207,8 +3219,7 @@ def compile_auto_native(file_path: str) -> tuple[uni.Module, JacProgram] {
     prog = JacProgram();
     try {
         ir = prog.compile(
-            file_path=file_path,
-            options=CompileOptions(default_codespace='native', type_check=False)
+            file_path=file_path, options=CompileOptions(default_codespace='native')
         );
     } finally {
         set_effective_default_codespace('');
@@ -3668,8 +3679,7 @@ test "aarch64 standalone binary runs (issue #6366)" {
     ld_prefix = "/usr/aarch64-linux-gnu";
     loader = os.path.join(ld_prefix, "lib", "ld-linux-aarch64.so.1");
     if not qemu or not os.path.exists(loader) {
-        import pytest;
-        pytest.skip("aarch64 qemu-user + cross libc not installed");
+        testskip("aarch64 qemu-user + cross libc not installed");
     }
     fixture = str(os.path.join(FIXTURES, "aarch64_global_roundtrip.jac"));
     with tempfile.TemporaryDirectory() as tmpdir {
@@ -3728,8 +3738,7 @@ test "aarch64 static-musl binary runs (cross vendor-musl, #7626 C1)" {
             "libc.a"
         );
     if not qemu or not os.path.exists(musl_a64) {
-        import pytest;
-        pytest.skip(
+        testskip(
             "aarch64 qemu-user or cross vendored musl not present "
             "(run `zig build vendor-musl-linux-aarch64`, or set "
             "JAC_NATIVE_MUSL_DIR)"
@@ -3801,7 +3810,8 @@ test "elf linker rejects unhandled relocation (issue #6366 guard)" {
         }
     }
     assert target is not None , "no .text relocation found to corrupt";
-    target.rtype = 9999;
+    _corrupt: any = target;
+    _corrupt.rtype = 9999;
     raised = False;
     try {
         linker.build_executable();
@@ -4011,8 +4021,8 @@ test "enum_import cross module function call" {
 # --- Switch statement tests ---
 test "switch int match" {
     (eng, _ir) = compile_native("switch_stmt.jac");
-    entry = get_func(eng, "jac_entry", None);
-    entry();
+    `entry = get_func(eng, "jac_entry", None);
+    `entry();
     f = get_func(eng, "switch_int", ctypes.c_int64, ctypes.c_int64);
     assert f(1) == 10 , f"switch_int(1) should be 10, got {f(1)}";
     assert f(2) == 20 , f"switch_int(2) should be 20, got {f(2)}";
@@ -4022,8 +4032,8 @@ test "switch int match" {
 
 test "switch enum" {
     (eng, _ir) = compile_native("switch_stmt.jac");
-    entry = get_func(eng, "jac_entry", None);
-    entry();
+    `entry = get_func(eng, "jac_entry", None);
+    `entry();
     f = get_func(eng, "switch_enum", ctypes.c_int64, ctypes.c_int64);
     assert f(0) == 100 , f"switch_enum(RED=0) should be 100, got {f(0)}";
     assert f(1) == 200 , f"switch_enum(GREEN=1) should be 200, got {f(1)}";
@@ -4032,8 +4042,8 @@ test "switch enum" {
 
 test "switch string" {
     (eng, _ir) = compile_native("switch_stmt.jac");
-    entry = get_func(eng, "jac_entry", None);
-    entry();
+    `entry = get_func(eng, "jac_entry", None);
+    `entry();
     f = get_sfunc(eng, "switch_str", ctypes.c_int64, ctypes.c_char_p);
     assert f(b"(") == 1 , f"switch_str('(') should be 1, got {f(b'(')}";
     assert f(b")") == 2 , f"switch_str(')') should be 2, got {f(b')')}";
@@ -4044,8 +4054,8 @@ test "switch string" {
 
 test "switch no default" {
     (eng, _ir) = compile_native("switch_stmt.jac");
-    entry = get_func(eng, "jac_entry", None);
-    entry();
+    `entry = get_func(eng, "jac_entry", None);
+    `entry();
     f = get_func(eng, "switch_no_default", ctypes.c_int64, ctypes.c_int64);
     assert f(10) == 100 , f"switch_no_default(10) should be 100, got {f(10)}";
     assert f(20) == 200 , f"switch_no_default(20) should be 200, got {f(20)}";
@@ -4105,6 +4115,7 @@ test "jir bitcode cache round-trip" {
     # Step 5: Verify native engine was restored via get_native_interop_setup
     (engine, _) = compiler2.get_native_interop_setup(fixture, prog2);
     assert engine is not None , "Native engine should be restored from bitcode cache";
+    assert isinstance(engine, ExecutionEngine) , "restored engine has the wrong type";
     add = get_func(engine, "add", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert add(17, 25) == 42 , f"add(17,25) via cached engine should be 42, got {add(
         17, 25
@@ -4325,8 +4336,7 @@ test "clib vtable structs allocate flat without RC header (issue #6571)" {
 test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
     import shutil;
     if not shutil.which("gcc") {
-        import pytest;
-        pytest.skip("gcc not installed");
+        testskip("gcc not installed");
     }
     td = tempfile.mkdtemp();
     c_src_path = os.path.join(td, "cbtest.c");
@@ -4545,8 +4555,8 @@ test "native_safe_sym disambiguates flat vs dotted path collision" {
     );
     # LLVM identifier safety: only [a-zA-Z0-9_].
     valid = re.compile(r'^[a-zA-Z0-9_]+$');
-    assert valid.match(sym_flat) , f"unsafe symbol: {sym_flat!r}";
-    assert valid.match(sym_dotted) , f"unsafe symbol: {sym_dotted!r}";
+    assert valid.`match(sym_flat) , f"unsafe symbol: {sym_flat!r}";
+    assert valid.`match(sym_dotted) , f"unsafe symbol: {sym_dotted!r}";
     # Deterministic: same input → same output (emit and lookup sides agree).
     assert native_safe_sym(flat) == sym_flat , "native_safe_sym must be deterministic";
     # The full glob-init symbols built from these must also differ.
@@ -4992,6 +5002,20 @@ test "lambda closure as scaler" {
     assert f(7, -2) == -14 , f"Expected -14, got {f(7, -2)}";
 }
 
+# --- Multi-statement lambda callback parity (P2 cross-target probe) ---
+test "multi-statement lambda map callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "map_multi_stmt_callback", ctypes.c_int64);
+    assert f() == 18 , f"Expected 18 from sum of (x+1)*2 over [1,2,3], got {f()}";
+}
+
+test "multi-statement lambda sort key callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "sort_multi_stmt_key", ctypes.c_int64);
+    # keys: 31->1, 12->2, 23->3 => sorted order [31, 12, 23]
+    assert f() == 3243 , f"Expected 3243 (31*100+12*10+23), got {f()}";
+}
+
 # ─── Symbol Collision Detection ───────────────────────────────────────────────
 # Before the fix, when two imported native modules both exported a symbol with
 # the same name, link_in() would silently merge them and produce a binary that
@@ -5219,7 +5243,7 @@ test "finding 2 guard: int-to-obj escape hatch does not leak into the sv pathway
     # is the assignability error.
     sv_prog = JacProgram();
     sv_path = os.path.join(FIXTURES, "_finding2_guard.jac");
-    sv_prog.compile(file_path=sv_path, use_str=code, type_check=True);
+    sv_prog.compile(file_path=sv_path, use_str=code);
     assert sv_prog.errors_had , (
         "sv pathway must reject `w: Wrapper = raw` (int → obj). The native "
         "pointer-bitcast escape hatch must not apply outside native modules."
@@ -5544,7 +5568,9 @@ test "a failing native test must not abort the host process" {
     # and the no-handler abort() path -- calling the failing test twice in
     # one process proves the handler is popped/re-armed correctly too.
     (eng, ir) = compile_native("test_blocks.jac");
-    by_name = {t.name: t for t in ir.gen.native_layout.tests};
+    blocks_layout = ir.gen.native_layout;
+    assert blocks_layout is not None , "native layout missing";
+    by_name = {t.name: t for t in blocks_layout.tests};
     failing = get_func(eng, by_name["test_deliberate_failure"].symbol, ctypes.c_char_p);
     assert failing() is not None;
     assert failing() is not None;
@@ -5552,11 +5578,10 @@ test "a failing native test must not abort the host process" {
 
 test "jac test runs .jac test blocks end to end" {
     fixture = os.path.join(FIXTURES, "test_blocks.jac");
-    # Pure .jac (native) test blocks are run by the native runner; the pytest
-    # collector handles .jac (incl. inline na) but not standalone .jac yet, so
-    # force the native runner here. 3 tests, exactly 1 deliberate failure.
+    # The fixture holds 3 native `test` blocks, exactly 1 of them a deliberate
+    # failure. Serial so the summary is not interleaved by worker output.
     env = dict(os.environ);
-    env["JAC_TEST_NATIVE"] = "1";
+    env["JAC_TEST_JOBS"] = "0";
     result = subprocess.run(
         [sys.executable, "-m", "jaclang", "test", fixture],
         capture_output=True,
@@ -5565,12 +5590,9 @@ test "jac test runs .jac test blocks end to end" {
         env=env
     );
     output = result.stdout + result.stderr;
-    assert "Ran 3 tests" in output , (
-        f"expected 3 tests to run.\nstdout: {result.stdout[-800:]}\n"
+    assert "2 passed, 1 failed" in output , (
+        f"expected 3 tests to run with 1 failure.\nstdout: {result.stdout[-800:]}\n"
         f"stderr: {result.stderr[-800:]}"
-    );
-    assert "FAILED (failures=1)" in output , (
-        f"expected exactly the deliberate failure.\noutput tail: {output[-800:]}"
     );
     assert "test_blocks.jac:23" in output , (
         f"failure report must point at the failing assert.\noutput tail: {output[-800:]}"
@@ -5588,7 +5610,7 @@ test "jac test runs test blocks inside inline na blocks (no false green)" {
     );
     output = result.stdout + result.stderr;
     assert "no tests ran" not in output , "inline na-block tests were silently dropped";
-    # jac test routes through pytest: 2 tests, exactly 1 deliberate failure.
+    # jac test reports 2 tests, exactly 1 deliberate failure.
     assert "1 passed" in output and "1 failed" in output , (
         f"expected 2 tests to run with 1 failure.\nstdout: {result.stdout[-800:]}\n"
         f"stderr: {result.stderr[-800:]}"
@@ -5780,4 +5802,22 @@ test "native positional construction maps has fields (parity with sv)" {
     assert vec_mix(1.5, 3.25) == 153.25 , f"Expected 153.25, got {vec_mix(1.5, 3.25)}";
     label_count = get_func(eng, "label_count", ctypes.c_int64, ctypes.c_int64);
     assert label_count(9) == 12 , f"Expected 12, got {label_count(9)}";
+}
+
+# ─── #8090: inherited postinit must run on cross-module construction ─────────
+# `Leaf` inherits its postinit from `Mid` in an imported module (the unitree
+# `ElseIf(IfStmt)` shape). The constructor resolves the postinit owner along
+# the MRO exactly like an inherited `init`; before the fix the exact-name
+# lookup missed in the importing module, the chain never ran, and the
+# postinit-set field read back as its zero default.
+test "cross-module construction runs an inherited postinit chain" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_leaf = get_func(eng, "make_leaf", ctypes.c_int64);
+    assert make_leaf() == 42 , f"Expected 42, got {make_leaf()}";
+}
+
+test "cross-module construction runs an own postinit" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_mid = get_func(eng, "make_mid", ctypes.c_int64);
+    assert make_mid() == 42 , f"Expected 42, got {make_mid()}";
 }

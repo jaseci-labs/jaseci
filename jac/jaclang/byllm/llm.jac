@@ -6,13 +6,14 @@ import json;
 import random;
 import time;
 
-import from typing { Callable, Generator }
+import from typing { AsyncGenerator, Generator }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm._optdeps.litellm { litellm, _disable_debugging }
 import from jaclang.byllm._optdeps.openai { openai, OpenAI, AsyncOpenAI }
 import from jaclang.project.capabilities { require_optional }
 import from jaclang.byllm.exceptions {
     AuthenticationError,
+    FinishToolError,
     OutputConversionError,
     RateLimitError,
     ModelNotFoundError,
@@ -58,6 +59,10 @@ with entry {
     }
 }
 
+glob _TOOL_DELTA_MIN_CHARS = 48,
+     _TOOL_DELTA_MIN_INTERVAL_S = 0.15,
+     _TOOL_DELTA_MAX_PER_CALL = 200;
+
 glob DEFAULT_BASE_URL = "http://localhost:4000",
      MODEL_MOCK = "mockllm";
 
@@ -72,8 +77,8 @@ obj BaseLLM {
         _usage_history: list = [];
 
     def __call__(**kwargs: object) -> BaseLLM;
-    def invoke(mt_run: MTRuntime) -> object;
-    async def ainvoke(mt_run: MTRuntime) -> object;
+    def invoke(mt_run: MTRuntime) -> any;
+    async def ainvoke(mt_run: MTRuntime) -> any;
     def _resolve_output_attempts(mt_run: MTRuntime) -> int;
     def _resolve_stream_retries(mt_run: MTRuntime) -> int;
     def _should_retry_stream(
@@ -121,9 +126,12 @@ obj BaseLLM {
     async def adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult;
     async def adispatch_streaming(mt_run: MTRuntime);
     def model_call_no_stream(params: dict) -> dict;
-    def model_call_with_stream(params: dict) -> Generator[str, None, None];
+    def model_call_with_stream(params: dict) -> Generator[object, None, None];
     async def model_call_no_stream_async(params: dict) -> dict;
-    async def model_call_with_stream_async(params: dict);
+    async def model_call_with_stream_async(
+        params: dict
+    ) -> AsyncGenerator[object, None];
+
     def _stream_final_answer(mt_run: MTRuntime) -> Generator[str, None, None];
     def _force_final_answer(mt_run: MTRuntime) -> object;
     def _attempt_recovery(mt_run: MTRuntime) -> CompletionResult | None;
@@ -180,7 +188,7 @@ obj ModelPool(BaseLLM) {
 
     def postinit -> None;
     override def model_call_no_stream(params: dict) -> dict;
-    override def model_call_with_stream(params: dict) -> Generator[str, None, None];
+    override def model_call_with_stream(params: dict) -> Generator[object, None, None];
     override def _get_ctx_window(call_params: dict) -> int;
 }
 
@@ -192,17 +200,17 @@ obj Model(BaseLLM) {
         _async_proxy_client: AsyncOpenAI | None = None;
 
     def postinit -> None;
-    override def invoke(mt_run: MTRuntime) -> object;
+    override def invoke(mt_run: MTRuntime) -> any;
     def _raise_mapped_provider_error(e: Exception) -> None;
     def model_call_no_stream(params: dict) -> dict;
     async def model_call_no_stream_async(params: dict) -> dict;
     def model_call_with_stream(params: dict);
     async def model_call_with_stream_async(params: dict);
     def model_call_http(
-        url: str, token: str, payload: dict, ca_bundle: str | bool
+        url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
     ) -> object;
 
     async def model_call_http_async(
-        url: str, token: str, payload: dict, ca_bundle: str | bool
+        url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
     ) -> object;
 }

@@ -321,7 +321,10 @@ impl KEDAAutoscaler.destroy_collection{
                 plural=plural,
                 label_selector=label_selector
             );
-            for item in items.get("items", []) {
+            listing: dict[str, list[dict[str, any]]] = items
+                if isinstance(items, dict)
+                else {};
+            for item in listing.get("items", []) {
                 item_name = item["metadata"]["name"];
                 try {
                     api.delete_namespaced_custom_object(
@@ -558,17 +561,17 @@ impl KEDAAutoscaler._build_routing_rules{
 
         paths = rule.paths or [None];
         for path in paths {
-            entry: dict[str, any] = {};
+            `entry: dict[str, any] = {};
             if rule.hosts {
-                entry["hosts"] = rule.hosts;
+                `entry["hosts"] = rule.hosts;
             }
             if path is not None {
-                entry["path"] = {"value": path.value};
+                `entry["path"] = {"value": path.value};
             }
             if header_matches {
-                entry["headers"] = header_matches;
+                `entry["headers"] = header_matches;
             }
-            result.append(entry);
+            result.append(`entry);
         }
     }
     return result;
