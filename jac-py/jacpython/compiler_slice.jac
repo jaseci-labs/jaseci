@@ -3614,3 +3614,53 @@ test "compiler_slice: band-11 module/class AnnAssign traps until __annotate__ la
     vr = validate_module_body([cdef]);
     assert vr.diag is None;
 }
+
+# Codegen-parity gap (c): `not` in jump context must fold into an inverted
+# conditional jump (CPython compiler_jump_if_not); UNARY_NOT only survives in
+# value context. Double negation cancels; the `x is None` peephole survives
+# under a folded not with flipped polarity.
+test "compiler_slice: if/while not-test folds to inverted jump matching oracle" {
+    for src in [
+        "if not flag:\n    r = 1\nelse:\n    r = 2\n",
+        "while not flag:\n    flag = g()\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+    }
+}
+
+test "compiler_slice: folded-not None-identity peephole matches oracle" {
+    src = "if not (x is None):\n    r = 1\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: double negation in test context matches oracle" {
+    src = "if not not flag:\n    r = 1\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: value-context not keeps UNARY_NOT" {
+    src = "r = not flag\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+}

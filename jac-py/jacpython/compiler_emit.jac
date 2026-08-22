@@ -3045,13 +3045,33 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
 # POP_JUMP_IF_FALSE. IS_NONE / IS_NOT_NONE leave the bare operand on the stack;
 # the caller must consume it with POP_JUMP_IF_NOT_NONE / POP_JUMP_IF_NONE (the
 # CPython `x is None` jump peephole), via emit_branch_if_test_false.
+# The *_INV variants mean the test was compiled under a folded `not` (CPython's
+# compiler_jump_if_not): same stack shape, branch polarity flipped.
 glob TEST_NORMAL: int = 0,
      TEST_IS_NONE: int = 1,
-     TEST_IS_NOT_NONE: int = 2;
+     TEST_IS_NOT_NONE: int = 2,
+     TEST_NORMAL_INV: int = 3,
+     TEST_IS_NONE_INV: int = 4,
+     TEST_IS_NOT_NONE_INV: int = 5;
 
 def visit_test_expr(
-    g: cfg_builder, e: expr, test_loc: cloc, allow_none_peephole: bool = False
+    g: cfg_builder,
+    e: expr,
+    test_loc: cloc,
+    allow_none_peephole: bool = False,
+    invert: bool = False
 ) -> int {
+    # Fold `not <test>` into an inverted branch instead of emitting UNARY_NOT
+    # (CPython never materializes `not` in jump context). Double negation
+    # recurses naturally; value-context `not` still goes through visit_expr.
+    if isinstance(e, UnaryOp) {
+        un = e as UnaryOp;
+        if isinstance(un.op, Not) {
+            return visit_test_expr(
+                g, un.operand, test_loc, allow_none_peephole, not invert
+            );
+        }
+    }
     if isinstance(e, Compare) {
         c = e as Compare;
         if len(c.ops) == 1 {
@@ -3068,9 +3088,9 @@ def visit_test_expr(
                     # small-int slot at index 0).
                     g.u.add_const(py_none());
                     if isinstance(c.ops[0], Is) {
-                        return TEST_IS_NONE;
+                        return TEST_IS_NONE + (3 if invert else 0);
                     }
-                    return TEST_IS_NOT_NONE;
+                    return TEST_IS_NOT_NONE + (3 if invert else 0);
                 }
                 codegen_fail(
                     g, "NotImplementedError", "is-None jump peephole not supported"
@@ -3083,30 +3103,45 @@ def visit_test_expr(
                 codegen_fail(
                     g, "NotImplementedError", "unsupported comparison operator"
                 );
-                return TEST_NORMAL;
+                return TEST_NORMAL + (3 if invert else 0);
             }
-            return TEST_NORMAL;
+            return TEST_NORMAL + (3 if invert else 0);
         }
     }
     visit_expr(g, e);
     g.emit_op(OP_TO_BOOL, 0, test_loc);
-    return TEST_NORMAL;
+    return TEST_NORMAL + (3 if invert else 0);
 }
 
 # Emit the conditional branch taken when a visit_test_expr result is FALSE. For
 # the None-identity kinds this is the CPython jump peephole:
 #   `x is None`     -> POP_JUMP_IF_NOT_NONE  (branch away when x is NOT None)
 #   `x is not None` -> POP_JUMP_IF_NONE      (branch away when x IS None)
+# Inverted kinds flip the opcode polarity for a folded `not`:
+#   `not (x is None)` -> POP_JUMP_IF_NONE, etc.
 def emit_branch_if_test_false(g: cfg_builder, kind: int, target_id: int, loc: cloc) {
-    if kind == TEST_IS_NONE {
+    if kind == TEST_IS_NONE or kind == TEST_IS_NOT_NONE_INV {
         g.emit_jump(OP_POP_JUMP_IF_NOT_NONE, target_id, loc);
         return;
     }
-    if kind == TEST_IS_NOT_NONE {
+    if kind == TEST_IS_NOT_NONE or kind == TEST_IS_NONE_INV {
         g.emit_jump(OP_POP_JUMP_IF_NONE, target_id, loc);
         return;
     }
+    if kind == TEST_NORMAL_INV {
+        g.emit_jump(OP_POP_JUMP_IF_TRUE, target_id, loc);
+        return;
+    }
     g.emit_jump(OP_POP_JUMP_IF_FALSE, target_id, loc);
+}
+
+# Mirror of emit_branch_if_test_false branching on TRUE (e.g. assert jumps to
+# the raise path when the test is false, so its skip-jump branches on true).
+# CPython folds `assert not t` by double negation: the skip-jump keeps the
+# plain-false polarity of the operand.
+def emit_branch_if_test_true(g: cfg_builder, kind: int, target_id: int, loc: cloc) {
+    inv_kind = kind - 3 if kind >= 3 else kind + 3;
+    emit_branch_if_test_false(g, inv_kind, target_id, loc);
 }
 
 # Lower `lambda ...: expr` into nested PyCode + MAKE_FUNCTION (value on stack).
