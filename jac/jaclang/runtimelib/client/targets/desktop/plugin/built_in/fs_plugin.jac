@@ -2,7 +2,7 @@ import os;
 import stat;
 import from pathlib { Path }
 import from desktop_plugin { PluginError, ErrorCode, DesktopPlugin }
-import from path_plugin { PathPlugin }
+import from .path_plugin { PathPlugin }
 import from manifest { PluginManifest, PluginContext }
 
 

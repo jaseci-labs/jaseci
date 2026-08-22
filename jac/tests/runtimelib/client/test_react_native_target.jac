@@ -1394,7 +1394,7 @@ test "compiler resolves .native.jac when target is react-native" {
         entry_file = project_dir / "main.jac";
         # Compile with target_name="react-native".
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        builder = Jac.get_client_bundle_builder();
+        builder: any = Jac.get_client_bundle_builder();
         vite_compiler = builder._get_compiler();
         jac_compiler = vite_compiler.jac_client_compiler;
         compiled_dir = jac_compiler.compiled_dir;
