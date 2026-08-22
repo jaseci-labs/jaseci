@@ -2,17 +2,11 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/setobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/setobject_core.jac``).
-import from objects { PyObj, PySet, PyBool, PyInt, is_error, _pyset_richcompare_na, }
+import from objects { PyObj, PySet, PyBool, PyInt, is_error, _pyset_richcompare_na, _signed_hash, Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
 import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_HashNotImplemented,
     PyObject_RichCompare,
-    Py_LT,
-    Py_LE,
-    Py_EQ,
-    Py_NE,
-    Py_GT,
-    Py_GE,
 }
 
 glob _PySet_MASK: int = 0xFFFFFFFFFFFFFFFF;
@@ -20,13 +14,6 @@ glob _PySet_MASK: int = 0xFFFFFFFFFFFFFFFF;
 
 def _shuffle_bits(h: int) -> int {
     return (((h ^ 89869747) ^ ((h << 16) & _PySet_MASK)) * 3644798167) & _PySet_MASK;
-}
-
-def _signed_hash(acc: int) -> int {
-    if acc >= 0x8000000000000000 {
-        return acc - 0x10000000000000000;
-    }
-    return acc;
 }
 
 # CPython ``frozenset_hash_impl`` — member XOR path (order-independent; matches

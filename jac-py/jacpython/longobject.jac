@@ -5,8 +5,7 @@
 #
 # Runtime ``ceval`` uses ``PyInt.val`` for bignum ops; ``long_hash_obj`` is wired.
 # Digit-vector helpers below are c2jac reference until Layer-1 replay needs them.
-import from objects { PyObj, PyInt, PyStr, PyBool, is_error, }
-import from abstract_protocol { Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
+import from objects { PyObj, PyInt, PyStr, is_error, _bool_from_cmp, }
 
 glob PyLong_SHIFT: int = 30,
      PyLong_MASK: int = 1073741823,
@@ -296,36 +295,14 @@ def long_compare(a: int, b: int) -> int {
     return 0;
 }
 
-def _richcompare_from_sign(cmp: int, op: int) -> PyObj {
-    if op == Py_LT {
-        return PyBool(t="bool", val=cmp < 0);
-    }
-    if op == Py_LE {
-        return PyBool(t="bool", val=cmp <= 0);
-    }
-    if op == Py_EQ {
-        return PyBool(t="bool", val=cmp == 0);
-    }
-    if op == Py_NE {
-        return PyBool(t="bool", val=cmp != 0);
-    }
-    if op == Py_GT {
-        return PyBool(t="bool", val=cmp > 0);
-    }
-    if op == Py_GE {
-        return PyBool(t="bool", val=cmp >= 0);
-    }
-    return PyBool(t="bool", val=False);
-}
-
 def long_richcompare(op: int, a: PyInt, b: PyInt) -> PyObj {
     av = a.val;
     bv = b.val;
     if av == bv {
-        return _richcompare_from_sign(0, op);
+        return _bool_from_cmp(0, op);
     }
     cmp = long_compare(av, bv);
-    return _richcompare_from_sign(cmp, op);
+    return _bool_from_cmp(cmp, op);
 }
 
 # CPython ``long_hash`` — compact fast path + digit rotation for bignums.

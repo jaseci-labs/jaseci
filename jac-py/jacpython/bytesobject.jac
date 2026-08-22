@@ -2,31 +2,8 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/bytesobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/bytesobject_core.jac``).
-import from objects { PyObj, PyBytes, PyInt, PyStr, PyBool, is_error, py_error, }
-import from abstract_protocol { Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
+import from objects { PyObj, PyBytes, PyInt, PyStr, PyBool, is_error, py_error, _cmp3, _bool_from_cmp, }
 import from pyhash { bytes_hash_data, }
-
-def _compare_ints(a: int, b: int, op: int) -> PyObj {
-    if op == Py_LT {
-        return PyBool(t="bool", val=a < b);
-    }
-    if op == Py_LE {
-        return PyBool(t="bool", val=a <= b);
-    }
-    if op == Py_EQ {
-        return PyBool(t="bool", val=a == b);
-    }
-    if op == Py_NE {
-        return PyBool(t="bool", val=a != b);
-    }
-    if op == Py_GT {
-        return PyBool(t="bool", val=a > b);
-    }
-    if op == Py_GE {
-        return PyBool(t="bool", val=a >= b);
-    }
-    return PyBool(t="bool", val=False);
-}
 
 def _bytes_compare_eq(a: list[int], b: list[int]) -> bool {
     if len(a) != len(b) {
@@ -91,9 +68,9 @@ def bytes_richcompare(op: int, a: PyBytes, b: PyBytes) -> PyObj {
         }
     }
     if c != 0 {
-        return _compare_ints(c, 0, op);
+        return _bool_from_cmp(_cmp3(c, 0), op);
     }
-    return _compare_ints(len_a, len_b, op);
+    return _bool_from_cmp(_cmp3(len_a, len_b), op);
 }
 
 # CPython ``_Py_bytes_contains`` — int subscript only (core slice scope).

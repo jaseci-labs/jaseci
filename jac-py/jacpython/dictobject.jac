@@ -5,14 +5,10 @@
 #
 # Runtime dicts use hashkey-backed ``dict[str, DictEntry]`` in ``objects.jac``.
 # Open-addressing helpers below are c2jac reference for a future native table.
-import from objects { PyObj, PyDict, PyBool, PyStr, is_error, py_error, expect_str, }
+import from objects { PyObj, PyDict, PyBool, PyStr, is_error, py_error, expect_str, _object_is_true, Py_EQ, Py_NE, }
 import from abstract_protocol {
     PyObject_RichCompareBool,
-    _object_is_true,
-    Py_EQ,
-    Py_NE,
 }
-
 glob PERTURB_SHIFT: int = 5,
      DKIX_EMPTY: int = -1,
      DKIX_ERROR: int = -3;
@@ -99,10 +95,6 @@ def dictkeys_generic_lookup(
     }
 }
 
-def _richcompare_true(res: PyObj) -> bool {
-    return _object_is_true(res);
-}
-
 # CPython dict equality adapted to PyDict hashkey buckets (``dict_equal_lock_held``).
 # ``compare_fn`` is ``py_compare`` from ceval (element-wise dispatch + user slots).
 def dict_equal(a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
@@ -122,7 +114,7 @@ def dict_equal(a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
             if is_error(keq) {
                 return keq;
             }
-            if not _richcompare_true(keq) {
+            if not _object_is_true(keq) {
                 return PyBool(t="bool", val=False);
             }
         }
@@ -131,7 +123,7 @@ def dict_equal(a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
             if is_error(veq) {
                 return veq;
             }
-            if not _richcompare_true(veq) {
+            if not _object_is_true(veq) {
                 return PyBool(t="bool", val=False);
             }
         }
@@ -152,7 +144,7 @@ def dict_richcompare(op: int, a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
     if op == Py_EQ {
         return eq;
     }
-    return PyBool(t="bool", val=not _richcompare_true(eq));
+    return PyBool(t="bool", val=not _object_is_true(eq));
 }
 
 # CPython ``dict_repr_lock_held`` — insertion-order walk with strong refs.

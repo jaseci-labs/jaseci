@@ -2,37 +2,22 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/listobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/listobject_core.jac``).
-import from objects { PyObj, PyList, PyBool, PyStr, is_error, expect_str, }
-import from abstract_protocol {
+import from objects {
+    PyObj,
+    PyList,
+    PyBool,
+    PyStr,
+    is_error,
+    expect_str,
+    _cmp3,
+    _bool_from_cmp,
     _object_is_true,
-    Py_EQ,
-    Py_NE,
     Py_LT,
     Py_LE,
+    Py_EQ,
+    Py_NE,
     Py_GT,
     Py_GE,
-}
-
-def _compare_sizes(a: int, b: int, op: int) -> PyObj {
-    if op == Py_LT {
-        return PyBool(t="bool", val=a < b);
-    }
-    if op == Py_LE {
-        return PyBool(t="bool", val=a <= b);
-    }
-    if op == Py_EQ {
-        return PyBool(t="bool", val=a == b);
-    }
-    if op == Py_NE {
-        return PyBool(t="bool", val=a != b);
-    }
-    if op == Py_GT {
-        return PyBool(t="bool", val=a > b);
-    }
-    if op == Py_GE {
-        return PyBool(t="bool", val=a >= b);
-    }
-    return PyBool(t="bool", val=False);
 }
 
 # CPython ``list_richcompare_impl`` — EQ/NE length shortcut, live size re-fetch.
@@ -66,7 +51,7 @@ def list_richcompare(op: int, vl: PyList, wl: PyList, compare_fn: any) -> PyObj 
     vlen = len(vl.items);
     wlen = len(wl.items);
     if i >= vlen or i >= wlen {
-        return _compare_sizes(vlen, wlen, op);
+        return _bool_from_cmp(_cmp3(vlen, wlen), op);
     }
     if op == Py_EQ {
         return PyBool(t="bool", val=False);

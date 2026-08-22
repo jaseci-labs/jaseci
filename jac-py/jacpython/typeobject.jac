@@ -5,8 +5,7 @@
 #
 # ``type_ready`` / ``type_hash_unimplemented`` are reference stubs until heap
 # types (P5) wire ``PyType_Ready`` into class construction.
-import from objects { PyObj, PyStr, PyBool, is_error, py_error, }
-import from abstract_protocol { Py_EQ, Py_NE, }
+import from objects { PyObj, PyStr, PyBool, is_error, py_error, Py_EQ, Py_NE, }
 
 glob Py_TPFLAGS_READY: int = 4096,
      Py_TPFLAGS_READYING: int = 8192;

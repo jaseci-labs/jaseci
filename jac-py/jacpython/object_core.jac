@@ -1,7 +1,6 @@
 # P3.2e — object identity richcompare helpers.
 # Lift: Objects/_lifted/object_core.jac
-import from objects { PyObj, }
-import from abstract_protocol { Py_EQ, Py_NE, }
+import from objects { PyObj, Py_EQ, Py_NE, }
 
 def object_richcompare_is(a: PyObj, b: PyObj) -> bool {
     return a is b;

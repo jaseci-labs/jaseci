@@ -12,6 +12,18 @@
 # tables as overridable methods -> na vtable, no function-pointer indirection).
 # The `t` tag is a tp_name label (isinstance / exception matching), NOT a
 # behavior selector -- selection is virtual dispatch on the receiver.
+# CPython Py_LT..Py_GE richcompare op kinds (shared by abstract_protocol and
+# every tp_richcompare implementation).
+glob Py_LT: int = 0,
+     Py_LE: int = 1,
+     Py_EQ: int = 2,
+     Py_NE: int = 3,
+     Py_GT: int = 4,
+     Py_GE: int = 5;
+
+# Reflected comparison kind: < <-> >, <= <-> >=, ==/!= are self-reflected.
+glob _PY_SWAPPED_OP: list[int] = [4, 5, 2, 3, 0, 1];
+
 obj PyObj {
     has t: str;
 
@@ -172,25 +184,7 @@ obj PyInt(PyObj) {
             } elif (other as PyBool).val {
                 b = 1;
             }
-            if kind == 0 {
-                return PyBool(t="bool", val=a < b);
-            }
-            if kind == 1 {
-                return PyBool(t="bool", val=a <= b);
-            }
-            if kind == 2 {
-                return PyBool(t="bool", val=a == b);
-            }
-            if kind == 3 {
-                return PyBool(t="bool", val=a != b);
-            }
-            if kind == 4 {
-                return PyBool(t="bool", val=a > b);
-            }
-            if kind == 5 {
-                return PyBool(t="bool", val=a >= b);
-            }
-            return PyBool(t="bool", val=False);
+            return _bool_from_cmp(_cmp3(a, b), kind);
         }
         # int-on-left vs float-on-right: CPython returns NotImplemented from
         # int.__cmp__ and runs the reflected float comparison. py_compare has no
@@ -257,25 +251,7 @@ obj PyStr(PyObj) {
         }
         a = self.val;
         b = (other as PyStr).val;
-        if kind == 0 {
-            return PyBool(t="bool", val=a < b);
-        }
-        if kind == 1 {
-            return PyBool(t="bool", val=a <= b);
-        }
-        if kind == 2 {
-            return PyBool(t="bool", val=a == b);
-        }
-        if kind == 3 {
-            return PyBool(t="bool", val=a != b);
-        }
-        if kind == 4 {
-            return PyBool(t="bool", val=a > b);
-        }
-        if kind == 5 {
-            return PyBool(t="bool", val=a >= b);
-        }
-        return PyBool(t="bool", val=False);
+        return _bool_from_cmp(_cmp3_str(a, b), kind);
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
@@ -511,25 +487,7 @@ obj PyBool(PyObj) {
             } elif (other as PyBool).val {
                 b = 1;
             }
-            if kind == 0 {
-                return PyBool(t="bool", val=a < b);
-            }
-            if kind == 1 {
-                return PyBool(t="bool", val=a <= b);
-            }
-            if kind == 2 {
-                return PyBool(t="bool", val=a == b);
-            }
-            if kind == 3 {
-                return PyBool(t="bool", val=a != b);
-            }
-            if kind == 4 {
-                return PyBool(t="bool", val=a > b);
-            }
-            if kind == 5 {
-                return PyBool(t="bool", val=a >= b);
-            }
-            return PyBool(t="bool", val=False);
+            return _bool_from_cmp(_cmp3(a, b), kind);
         }
         if kind == 2 {
             return PyBool(t="bool", val=False);
@@ -1151,26 +1109,92 @@ obj PySet(PyObj) {
 
 # Shared set/set richcompare (na-clean). ``setobject.set_richcompare`` and ceval
 # ``py_compare`` both route here; keeps one implementation for subset algebra.
-def _richcompare_truth(res: PyObj) -> int {
+# Truth of a comparison/protocol result: errors are silently false, none and
+# zero are false, everything else is true.
+def _object_is_true(res: PyObj) -> bool {
+    if is_error(res) {
+        return False;
+    }
+    if isinstance(res, PyBool) {
+        return (res as PyBool).val;
+    }
+    if res.t == "none" {
+        return False;
+    }
+    if res.t == "int" {
+        return (res as PyInt).val != 0;
+    }
+    return True;
+}
+
+# Tri-state truth of a comparison result: 1 true, 0 false, -1 error
+# (matches the C API convention; shared by dict/list/set membership and
+# PyObject_RichCompareBool).
+def _richcompare_to_bool(res: PyObj) -> int {
     if is_error(res) {
         return -1;
     }
-    if isinstance(res, PyBool) {
-        if (res as PyBool).val {
-            return 1;
-        }
-        return 0;
+    if _object_is_true(res) {
+        return 1;
     }
-    if res.t == "none" {
-        return 0;
+    return 0;
+}
+
+# Three-way integer compare (-1 / 0 / +1). Only for NaN-free values:
+# float richcompare keeps its direct-operator ladder because every IEEE
+# comparison against NaN is false, which a three-way fold would misreport.
+def _cmp3(a: int, b: int) -> int {
+    if a < b {
+        return -1;
     }
-    if res.t == "int" {
-        if (res as PyInt).val != 0 {
-            return 1;
-        }
-        return 0;
+    if a > b {
+        return 1;
     }
-    return 1;
+    return 0;
+}
+
+# Three-way lexicographic string compare (-1 / 0 / +1).
+def _cmp3_str(a: str, b: str) -> int {
+    if a < b {
+        return -1;
+    }
+    if a > b {
+        return 1;
+    }
+    return 0;
+}
+
+# Map a three-way cmp plus a Py_LT..Py_GE op to its PyBool result. One
+# implementation replaces the op->bool ladder copy-pasted across the numeric,
+# str, bytes, list, tuple, and set comparators.
+def _bool_from_cmp(cmp: int, op: int) -> PyObj {
+    if op == Py_LT {
+        return PyBool(t="bool", val=cmp < 0);
+    }
+    if op == Py_LE {
+        return PyBool(t="bool", val=cmp <= 0);
+    }
+    if op == Py_EQ {
+        return PyBool(t="bool", val=cmp == 0);
+    }
+    if op == Py_NE {
+        return PyBool(t="bool", val=cmp != 0);
+    }
+    if op == Py_GT {
+        return PyBool(t="bool", val=cmp > 0);
+    }
+    if op == Py_GE {
+        return PyBool(t="bool", val=cmp >= 0);
+    }
+    return PyBool(t="bool", val=False);
+}
+
+# Two's-complement wrap of an unsigned 64-bit accumulator to signed.
+def _signed_hash(acc: int) -> int {
+    if acc >= 0x8000000000000000 {
+        return acc - 0x10000000000000000;
+    }
+    return acc;
 }
 
 # Tri-state ``==`` for set membership (1 true, 0 false, -1 error).
@@ -1183,14 +1207,14 @@ def _obj_eq_bool(a: PyObj, b: PyObj) -> int {
         return -1;
     }
     if res is not PY_NOT_IMPLEMENTED {
-        return _richcompare_truth(res);
+        return _richcompare_to_bool(res);
     }
     res = b.tp_richcompare(2, a);
     if is_error(res) {
         return -1;
     }
     if res is not PY_NOT_IMPLEMENTED {
-        return _richcompare_truth(res);
+        return _richcompare_to_bool(res);
     }
     return 0;
 }
@@ -1252,25 +1276,17 @@ def _pyset_richcompare_na(op: int, v: PySet, w: PySet) -> PyObj {
         }
     }
     eq = v_sub and w_sub;
-    if op == 2 {
-        return PyBool(t="bool", val=eq);
+    # Subset algebra folds onto the shared op->bool map: equal sets compare
+    # three-way-equal, a proper subset is "less", a proper superset "greater".
+    cmp = 0;
+    if not eq {
+        if v_sub {
+            cmp = -1;
+        } else {
+            cmp = 1;
+        }
     }
-    if op == 3 {
-        return PyBool(t="bool", val=not eq);
-    }
-    if op == 1 {
-        return PyBool(t="bool", val=v_sub);
-    }
-    if op == 0 {
-        return PyBool(t="bool", val=v_sub and not eq);
-    }
-    if op == 5 {
-        return PyBool(t="bool", val=w_sub);
-    }
-    if op == 4 {
-        return PyBool(t="bool", val=w_sub and not eq);
-    }
-    return PyBool(t="bool", val=False);
+    return _bool_from_cmp(cmp, op);
 }
 
 obj PyExceptionType(PyObj) {

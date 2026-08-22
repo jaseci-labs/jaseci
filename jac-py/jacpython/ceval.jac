@@ -377,14 +377,16 @@ def host_compile_marshal(source: str) -> list[int] {
 # because those slots re-enter the interpreter or the host and so cannot live in
 # the acyclic leaf. See PLAN.md §4 (module-boundary constraint).
 import from hash_dispatch { hash_element, }
+import from objects {
+    Py_EQ,
+    Py_LE,
+    Py_GE,
+}
 import from abstract_protocol {
     PyObject_GetIter,
     PyObject_HashNotImplemented,
     PyObject_RichCompare,
     PyObject_RichCompareBool,
-    Py_EQ,
-    Py_LE,
-    Py_GE,
 }
 import from tupleobject { tuple_hash, tuple_richcompare, }
 import from longobject { long_hash_obj, int_repr, }

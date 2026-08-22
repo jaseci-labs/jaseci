@@ -2,17 +2,11 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/tupleobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/tupleobject_core.jac``).
-import from objects { PyObj, PyTuple, PyBool, PyInt, is_error, }
+import from objects { PyObj, PyTuple, PyBool, PyInt, is_error, _cmp3, _bool_from_cmp, _signed_hash, Py_EQ, Py_NE, }
 import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_RichCompare,
     PyObject_RichCompareBool,
-    Py_EQ,
-    Py_NE,
-    Py_LT,
-    Py_LE,
-    Py_GT,
-    Py_GE,
 }
 
 glob _PyTuple_HASH_XXPRIME_1: int = 11400714785074694791,
@@ -23,35 +17,6 @@ glob _PyTuple_HASH_XXPRIME_1: int = 11400714785074694791,
 
 def _tuple_xxrotate(acc: int) -> int {
     return ((acc << 31) | (acc >> 33)) & _PyTuple_MASK;
-}
-
-def _compare_sizes(a: int, b: int, op: int) -> PyObj {
-    if op == Py_LT {
-        return PyBool(t="bool", val=a < b);
-    }
-    if op == Py_LE {
-        return PyBool(t="bool", val=a <= b);
-    }
-    if op == Py_EQ {
-        return PyBool(t="bool", val=a == b);
-    }
-    if op == Py_NE {
-        return PyBool(t="bool", val=a != b);
-    }
-    if op == Py_GT {
-        return PyBool(t="bool", val=a > b);
-    }
-    if op == Py_GE {
-        return PyBool(t="bool", val=a >= b);
-    }
-    return PyBool(t="bool", val=False);
-}
-
-def _signed_hash(acc: int) -> int {
-    if acc >= 0x8000000000000000 {
-        return acc - 0x10000000000000000;
-    }
-    return acc;
 }
 
 # CPython ``tuple_hash`` (xxHash-style lane mixing from ``tupleobject.c``).
@@ -94,7 +59,7 @@ def tuple_richcompare(op: int, vl: PyTuple, wl: PyTuple) -> PyObj {
         i = i + 1;
     }
     if i >= vlen or i >= wlen {
-        return _compare_sizes(vlen, wlen, op);
+        return _bool_from_cmp(_cmp3(vlen, wlen), op);
     }
     if op == Py_EQ {
         return PyBool(t="bool", val=False);
