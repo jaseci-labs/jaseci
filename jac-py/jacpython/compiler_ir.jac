@@ -100,9 +100,14 @@ obj cfg_builder {
         # regions carry the extra exception stack depth (CPython per-instruction
         # depths); handler_enclosing_unwind is the enclosing try's cleanup block
         # for retargeting nested handler-body regions.
+        # handler_fallthrough_bind is the enclosing handler's `except ... as`
+        # binding (None when unbound): inline epilogues must clear it
+        # (LOAD_CONST None / store / delete) after POP_EXCEPT, matching CPython's
+        # duplicated cleanup on every handler exit path.
         handler_fallthrough_fin: basicblock | None = None,
         handler_fallthrough_backward: bool = False,
         handler_fallthrough_fin_handler: int = -1,
+        handler_fallthrough_bind: str | None = None,
         handler_enclosing_unwind: int = -1,
         handler_fell_through: bool = False,
         handler_nest_depth: int = 0;

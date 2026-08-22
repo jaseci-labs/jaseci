@@ -1174,6 +1174,34 @@ test "layer9: band6 two handlers finally uncaught propagates in ceval" {
     assert expect_int(ns["marker"]) == 9;
 }
 
+test "layer9: band6 try except as finally caught matches oracle" {
+    _layer9_parity(
+        "try:\n"
+        + "    result = 10 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "layer9: band6 try except as finally caught executes in ceval" {
+    src = (
+        "try:\n"
+        + "    result = 10 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "division by zero";
+    assert expect_int(ns["marker"]) == 9;
+}
+
 # ---------------- Band 7 slice 1: generator yield ----------------
 
 test "layer9: band7 generator yield matches oracle" {

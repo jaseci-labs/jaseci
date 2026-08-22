@@ -2702,6 +2702,82 @@ test "compiler_slice: band6 assert failure parsed raises AssertionError in ceval
     assert err.exception.message == "fail";
 }
 
+# -------- Band 6 slice 8: except-as binding in combined try/except/finally --------
+
+test "compiler_slice: band6 try except as finally caught parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+        + "    result = 10 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except as finally caught executes in ceval" {
+    src = (
+        "try:\n"
+        + "    result = 10 // 0\n"
+        + "except ZeroDivisionError as e:\n"
+        + "    result = str(e)\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "division by zero";
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 try except as finally handler raises parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('v')\n"
+        + "except ValueError as e:\n"
+        + "    result = str(e)\n"
+        + "    raise KeyError('k')\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except as finally handler raises propagates in ceval" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('v')\n"
+        + "except ValueError as e:\n"
+        + "    result = str(e)\n"
+        + "    raise KeyError('k')\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "KeyError";
+    assert expect_str(ns["result"]) == "v";
+    assert expect_int(ns["marker"]) == 9;
+}
+
 # ---------------- Band 7 slice 1: generator yield ----------------
 
 test "compiler_slice: band7 generator yield parsed matches oracle nested gen co_code" {

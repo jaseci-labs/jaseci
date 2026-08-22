@@ -3558,7 +3558,8 @@ def emit_finally_inline_block(
 
 # Lower flat try/except[/else]/finally by forward-nesting the finally around the
 # try/except (CPython compiles them identically). Multiple handlers chained after
-# one try, optional else and finally. No except-as binding yet.
+# one try, optional else and finally. Handlers may bind via `except E as e`;
+# each bound handler gets its own as-cleanup unwind block.
 
 # Coalesce spans that share handler/depth/lasti into maximal runs (CPython's
 # exception-table builder merges contiguous same-target ranges; overlapping
@@ -3638,19 +3639,6 @@ def visit_try_except_finally(
 ) -> stmt_cont {
     tloc = stmt_loc(t);
     nh = len(t.handlers);
-    hi = 0;
-    while hi < nh {
-        h = t.handlers[hi] as ExceptHandler;
-        if h.name is not None {
-            codegen_fail(
-                g,
-                "NotImplementedError",
-                "try/except/finally: except-as binding not supported"
-            );
-            return stmt_cont(loc=tloc);
-        }
-        hi = hi + 1;
-    }
     noloc = no_loc();
     last_is_bare = t.handlers[nh - 1].type is None;
 
@@ -3716,11 +3704,15 @@ def visit_try_except_finally(
     body_blks: list[basicblock] = [];
     epi_blks: list[basicblock] = [];
     next_blks: list[basicblock] = [];
+    as_unwind_blks: list[basicblock] = [];
+    binds: list[str | None] = [];
     hi = 0;
     while hi < nh {
         nt_blks.append(g.new_deferred_block());
         body_blks.append(g.new_deferred_block());
         epi_blks.append(g.new_deferred_block());
+        as_unwind_blks.append(g.new_deferred_block());
+        binds.append((t.handlers[hi] as ExceptHandler).name);
         if hi < nh - 1 {
             next_blks.append(g.new_deferred_block());
         }
@@ -3833,21 +3825,32 @@ def visit_try_except_finally(
                 g.emit_op(OP_NOT_TAKEN, 0, noloc);
             }
         }
-        g.use(body_blks[hi]);
-        g.emit_op(OP_POP_TOP, 0, hloc);
+        # Binding store belongs to the MATCH block (CPython splits the
+        # exception-table body region AFTER the store, matching slice-3 flat
+        # lowering). Unbound handlers keep POP_TOP at the top of the body
+        # block, exactly as CPython's L5/L6 NOT_TAKEN / POP_TOP block pair.
+        if binds[hi] is not None {
+            emit_name_store(g, binds[hi] as str, hloc);
+            g.use(body_blks[hi]);
+        } else {
+            g.use(body_blks[hi]);
+            g.emit_op(OP_POP_TOP, 0, hloc);
+        }
         # While emitting this handler body, advertise the inline success
-        # epilogue (POP_EXCEPT + jump to fin) and the enclosing cleanup block
-        # so a nested try falling through finishes the handler exactly the way
-        # CPython duplicates the epilogue per path.
+        # epilogue (POP_EXCEPT [+ except-as cleanup] + jump to fin) and the
+        # enclosing cleanup block so a nested try falling through finishes the
+        # handler exactly the way CPython duplicates the epilogue per path.
         saved_ffin = g.handler_fallthrough_fin;
         saved_fbwd = g.handler_fallthrough_backward;
         saved_ffh = g.handler_fallthrough_fin_handler;
+        saved_fbind = g.handler_fallthrough_bind;
         saved_feu = g.handler_enclosing_unwind;
         saved_fell = g.handler_fell_through;
         saved_nd = g.handler_nest_depth;
         g.handler_fallthrough_fin = fin_inline;
         g.handler_fallthrough_backward = fin_early;
         g.handler_fallthrough_fin_handler = fin_except.id;
+        g.handler_fallthrough_bind = binds[hi];
         g.handler_enclosing_unwind = inner_unwind.id;
         g.handler_fell_through = False;
         g.handler_nest_depth = saved_nd + 1;
@@ -3856,6 +3859,7 @@ def visit_try_except_finally(
         g.handler_fallthrough_fin = saved_ffin;
         g.handler_fallthrough_backward = saved_fbwd;
         g.handler_fallthrough_fin_handler = saved_ffh;
+        g.handler_fallthrough_bind = saved_fbind;
         g.handler_enclosing_unwind = saved_feu;
         g.handler_fell_through = saved_fell;
         g.handler_nest_depth = saved_nd;
@@ -3869,11 +3873,23 @@ def visit_try_except_finally(
             falls[hi] = True;
             g.use(epi_blks[hi]);
             g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+            if binds[hi] is not None {
+                emit_except_as_cleanup(g, binds[hi] as str, hbody.loc);
+            }
             if fin_early {
                 g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, fin_inline.id, hbody.loc);
             } else {
                 g.emit_jump(OP_JUMP_FORWARD, fin_inline.id, hbody.loc);
             }
+        }
+        if binds[hi] is not None {
+            # Per-handler as-cleanup unwind: an exception raised inside a bound
+            # handler's body clears the binding before re-raising (CPython emits
+            # one such block per bound handler, laid out after its epilogue,
+            # regardless of whether the body terminates).
+            g.use(as_unwind_blks[hi]);
+            emit_except_as_cleanup(g, binds[hi] as str, noloc);
+            g.emit_op(OP_RERAISE, 1, noloc);
         }
         hi = hi + 1;
     }
@@ -3904,6 +3920,7 @@ def visit_try_except_finally(
             if inner_start < 0 {
                 inner_start = entry_id;
             }
+            # Match portion -> shared unwind.
             spans.append(
                 except_region(
                     start_block=entry_id,
@@ -3921,17 +3938,54 @@ def visit_try_except_finally(
                     after_id = reraise_blk.id;
                 }
             }
+            # Body portion -> as-cleanup unwind when bound (clears binding
+            # before re-raise), shared unwind otherwise.
+            body_handler = inner_unwind.id;
+            if binds[hi] is not None {
+                body_handler = as_unwind_blks[hi].id;
+                spans.append(
+                    except_region(
+                        start_block=as_unwind_blks[hi].id,
+                        end_block=after_id,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            }
             spans.append(
                 except_region(
                     start_block=g.u.nested_try_except_end,
                     end_block=after_id,
-                    handler_block=inner_unwind.id,
+                    handler_block=body_handler,
                     stack_depth=3,
                     preserve_lasti=True
                 )
             );
         } elif typed and falls[hi] {
-            if hi == 0 {
+            if binds[hi] is not None {
+                # Bound handler: CPython splits at the body boundary - match
+                # code unwinds via the shared COPY 3 / POP_EXCEPT / RERAISE 1
+                # chain, body exceptions clear the binding first.
+                spans.append(
+                    except_region(
+                        start_block=entry_id,
+                        end_block=body_blks[hi].id,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+                spans.append(
+                    except_region(
+                        start_block=body_blks[hi].id,
+                        end_block=epi_blks[hi].id,
+                        handler_block=as_unwind_blks[hi].id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            } elif hi == 0 {
                 spans.append(
                     except_region(
                         start_block=entry_id,
@@ -3961,6 +4015,27 @@ def visit_try_except_finally(
                     )
                 );
             }
+            # Exceptions while clearing the binding unwind via the shared chain
+            # (coalesces with the following reraise span when present).
+            if binds[hi] is not None {
+                au_end = inner_unwind.id;
+                if hi < nh - 1 {
+                    au_end = next_blks[hi].id;
+                } else {
+                    if not last_is_bare {
+                        au_end = reraise_blk.id;
+                    }
+                }
+                spans.append(
+                    except_region(
+                        start_block=as_unwind_blks[hi].id,
+                        end_block=au_end,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            }
         } else {
             end_id = inner_unwind.id;
             if hi < nh - 1 {
@@ -3975,15 +4050,58 @@ def visit_try_except_finally(
                     end_id = epi_blks[hi].id;
                 }
             }
-            spans.append(
-                except_region(
-                    start_block=entry_id,
-                    end_block=end_id,
-                    handler_block=inner_unwind.id,
-                    stack_depth=3,
-                    preserve_lasti=True
-                )
-            );
+            if binds[hi] is not None {
+                # Terminated bound handler body (explicit raise/return): CPython
+                # still splits - match portion via the shared chain, everything
+                # from the body start through the as-cleanup block itself.
+                spans.append(
+                    except_region(
+                        start_block=entry_id,
+                        end_block=body_blks[hi].id,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+                spans.append(
+                    except_region(
+                        start_block=body_blks[hi].id,
+                        end_block=as_unwind_blks[hi].id,
+                        handler_block=as_unwind_blks[hi].id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+                # The as-cleanup block itself unwinds via the shared chain
+                # (merges with the following reraise span when present).
+                au_end = inner_unwind.id;
+                if hi < nh - 1 {
+                    au_end = next_blks[hi].id;
+                } else {
+                    if not last_is_bare {
+                        au_end = reraise_blk.id;
+                    }
+                }
+                spans.append(
+                    except_region(
+                        start_block=as_unwind_blks[hi].id,
+                        end_block=au_end,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            } else {
+                spans.append(
+                    except_region(
+                        start_block=entry_id,
+                        end_block=end_id,
+                        handler_block=inner_unwind.id,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            }
         }
         if falls[hi] {
             fe_end = fin_except.id;
@@ -3998,6 +4116,11 @@ def visit_try_except_finally(
                     # finally's leading NOP (merges with the inner-unwind span).
                     fe_end = fin_inline.id;
                 }
+            }
+            if binds[hi] is not None {
+                # The epilogue span ends where the as-cleanup block begins:
+                # cleanup failures unwind via the fin handler from base depth.
+                fe_end = as_unwind_blks[hi].id;
             }
             spans.append(
                 except_region(
@@ -4044,21 +4167,25 @@ def visit_try_except_finally(
                 fi = fi + 1;
             }
         }
-        # Inner unwind chain -> exceptional finally handler. With a late inline
-        # copy the range ends at the copy's leading NOP (unprotected, like
-        # CPython); with an early copy it runs to the handler itself.
-        iu_span_end = fin_except.id;
-        if not fin_early {
-            iu_span_end = fin_inline.id;
-        }
-        spans.append(
-            except_region(
-                start_block=inner_unwind.id,
-                end_block=iu_span_end,
-                handler_block=fin_except.id,
-                stack_depth=1
-            )
-        );
+    }
+    # Inner unwind chain -> exceptional finally handler. With a late inline
+    # copy the range ends at the copy's leading NOP (unprotected, like
+    # CPython); otherwise it runs to the fin handler itself. Registered
+    # even when no path reaches an inline copy - CPython keeps this entry
+    # defensively (the COPY/POP_EXCEPT/RERAISE sequence can itself fault).
+    iu_span_end = fin_except.id;
+    if not fin_early and any_reaches_fin {
+        iu_span_end = fin_inline.id;
+    }
+    spans.append(
+        except_region(
+            start_block=inner_unwind.id,
+            end_block=iu_span_end,
+            handler_block=fin_except.id,
+            stack_depth=1
+        )
+    );
+    if any_reaches_fin {
         emit_finally_inline_block(
             g,
             t.finalbody,
@@ -4167,6 +4294,11 @@ def visit_try(
             g.handler_fell_through = True;
             body_fini_region_start = g.cur.id;
             g.emit_op(OP_POP_EXCEPT, 0, body_cont.loc);
+            if g.handler_fallthrough_bind is not None {
+                emit_except_as_cleanup(
+                    g, g.handler_fallthrough_bind as str, body_cont.loc
+                );
+            }
             if g.handler_fallthrough_backward {
                 g.emit_jump(
                     OP_JUMP_BACKWARD_NO_INTERRUPT,
@@ -4323,6 +4455,11 @@ def visit_try(
                 # (second POP_EXCEPT + jump to finally) instead of returning.
                 g.handler_fell_through = True;
                 g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+                if g.handler_fallthrough_bind is not None {
+                    emit_except_as_cleanup(
+                        g, g.handler_fallthrough_bind as str, hbody.loc
+                    );
+                }
                 if g.handler_fallthrough_backward {
                     g.emit_jump(
                         OP_JUMP_BACKWARD_NO_INTERRUPT,
