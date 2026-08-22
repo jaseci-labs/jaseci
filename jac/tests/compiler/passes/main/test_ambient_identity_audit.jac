@@ -67,7 +67,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { run_pass }
 import from jaclang.compiler.type_system.types { ClassType, FunctionType, UnionType }
 
-glob NO_TC = CompileOptions(type_check=False, default_codespace='server');
+glob NO_TC = CompileOptions(default_codespace='server');
 
 def fingerprint(t: object, base_dir: str, depth: int = 0) -> str {
     if depth > 5 {
@@ -122,7 +122,6 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
     }
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    run_pass(TypeCheckPass, mod, program);
     evaluator = program.get_type_evaluator();
     result = ProbeResult();
     for name in probe_syms {
@@ -131,7 +130,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
             parts = name.split("::");
             cls_sym = mod.sym_tab.lookup(parts[0]);
             if cls_sym is not None {
-                scope = cls_sym.decl.name_of;
+                scope: any = cls_sym.decl.name_of;
                 sym = scope.lookup(parts[1], deep=False);
             }
         } else {
@@ -146,7 +145,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
     rp = os.path.realpath(tmpdir);
     for alert in (program.errors_had + program.warnings_had) {
         code = alert.code.code if alert.code is not None else "?";
-        if code == "W1103" {
+        if code in ("W1103", "E1125") {
             continue;
         }
         msg = alert.msg.replace(rp, "<T>").replace(tmpdir, "<T>");

@@ -2129,16 +2129,12 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         return;
     }
 
-    _emit_new = _call_kind == "instantiation";
-    if not _emit_new {
-        _target_type = nd.target?.type;
-        if (
-            _target_type is not None
-            and _target_type.is_instantiable_class()
-            and not _target_type.shared.is_builtin_class
-        ) {
-            _emit_new = True;
-        }
+    _target_type = nd.target?.type;
+    if _target_type is not None {
+        _emit_new = _target_type.is_instantiable_class()
+            and not _target_type.shared.is_builtin_class;
+    } else {
+        _emit_new = _call_kind == "instantiation";
     }
     if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
@@ -2535,7 +2531,7 @@ impl EsastGenPass._try_primitive_op(
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
 
     import from jaclang.compiler.type_system.type_utils { expr_primitive_name }
-    _type_name = expr_primitive_name(self.prog, expr_node);
+    _type_name = expr_primitive_name(expr_node);
     if not _type_name {
         return None;
     }
@@ -2576,7 +2572,7 @@ impl EsastGenPass._operand_str(unparser: object, es_node: es.Expression) -> str 
 
 impl EsastGenPass._expr_type_name(expr_node: uni.UniNode) -> str {
     import from jaclang.compiler.type_system.type_utils { expr_primitive_name }
-    return expr_primitive_name(self.prog, expr_node);
+    return expr_primitive_name(expr_node);
 }
 
 impl EsastGenPass._is_collection_expr(expr_node: uni.UniNode) -> bool {
@@ -3781,6 +3777,24 @@ impl EsastGenPass._jac_exc_ref(
     );
 }
 
+def _raised_exc_identity(cause: (uni.Expr | None)) -> tuple[bool, (str | None)] {
+    if cause is None {
+        return (False, None);
+    }
+    target = cause.target if isinstance(cause, uni.FuncCall) else cause;
+    ty = target?.type;
+    if ty is None {
+        return (False, None);
+    }
+    shared = ty?.shared;
+    if shared is None or not shared.is_builtin_class {
+        return (True, None);
+    }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    name = shared.class_name;
+    return (True, name if JAC_TYPE_REGISTRY.is_exception(name) else None);
+}
+
 impl EsastGenPass.exit_raise_stmt(nd: uni.RaiseStmt) -> None {
     argument: es.Expression = cast(es.Expression, nd.cause.gen.es_ast)
         if (nd.cause and nd.cause.gen.es_ast)
@@ -3797,8 +3811,12 @@ impl EsastGenPass.exit_raise_stmt(nd: uni.RaiseStmt) -> None {
     }
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     if callee is not None and isinstance(callee, es.Identifier) {
-        if JAC_TYPE_REGISTRY.is_exception(callee.name) {
-            exc_ref = self._jac_exc_ref(callee.name, nd);
+        (ty_known, exc_name) = _raised_exc_identity(nd.cause);
+        if not ty_known and JAC_TYPE_REGISTRY.is_exception(callee.name) {
+            exc_name = callee.name;
+        }
+        if exc_name is not None {
+            exc_ref = self._jac_exc_ref(exc_name, nd);
             argument = self.sync_loc(
                 es.NewExpression(callee=exc_ref, arguments=call_args or []), jac_node=nd
             );
@@ -3967,6 +3985,10 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
             }
             import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
+            (ex_ty_known, ex_builtin) = _raised_exc_identity(except_node.ex_type);
+            if ex_ty_known {
+                exc_type_name = ex_builtin;
+            }
             test_expr: (es.Expression | None) = None;
             if exc_type_name and JAC_TYPE_REGISTRY.is_exception(exc_type_name) {
                 test_expr = self.sync_loc(
@@ -6187,11 +6209,16 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
         base = nd.base_classes[0];
         if base.gen.es_ast {
             super_class = cast(es.Expression, base.gen.es_ast);
-            if (
-                isinstance(super_class, es.Identifier)
-                and JAC_TYPE_REGISTRY.is_exception(super_class.name)
-            ) {
-                super_class = self._jac_exc_ref(super_class.name, base);
+            (base_ty_known, base_builtin) = _raised_exc_identity(base);
+            if isinstance(super_class, es.Identifier) {
+                if base_builtin is not None {
+                    super_class = self._jac_exc_ref(base_builtin, base);
+                } elif (
+                    not base_ty_known
+                    and JAC_TYPE_REGISTRY.is_exception(super_class.name)
+                ) {
+                    super_class = self._jac_exc_ref(super_class.name, base);
+                }
             }
         }
     }

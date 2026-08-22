@@ -85,7 +85,8 @@ impl AuthTokenStore._persist(record: dict[str, any]) -> None {
     if self._db is not None {
         try {
             import json;
-            ttl = record['expires_at'] - datetime.now(UTC);
+            expires_at: datetime = record['expires_at'];
+            ttl = expires_at - datetime.now(UTC);
             self._db.rows(
                 """
                 INSERT INTO kv_state (key, value, expires_at)
@@ -182,16 +183,20 @@ impl AuthTokenStore._delete_user(user_id: str, purpose: str) -> int {
 }
 
 def _is_expired(record: dict[str, any]) -> bool {
-    expires_at = record.get('expires_at');
-    if expires_at is None {
+    raw_expires = record.get('expires_at');
+    if raw_expires is None {
         return False;
     }
-    if isinstance(expires_at, str) {
+    if isinstance(raw_expires, str) {
         try {
-            expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'));
+            expires_at: datetime = datetime.fromisoformat(
+                raw_expires.replace('Z', '+00:00')
+            );
         } except Exception {
             return False;
         }
+    } else {
+        expires_at = raw_expires;
     }
     if expires_at.tzinfo is None {
         expires_at = expires_at.replace(tzinfo=UTC);

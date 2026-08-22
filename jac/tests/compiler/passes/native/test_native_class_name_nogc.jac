@@ -49,10 +49,9 @@ glob FIXTURES = os.path.join(
 
 
 """Headerless: `--gc none` with nogc enforced, the mode with no rc header."""
-def _headerless_opts -> object {
+def _headerless_opts -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     return CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode="none",
@@ -62,7 +61,7 @@ def _headerless_opts -> object {
 
 
 """Compile a fixture and hand back the program and its module, errors and all."""
-def _compile(fixture: str, options: object) -> tuple {
+def _compile(fixture: str, options: any) -> tuple {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=options);
     return (prog, ir);
@@ -70,7 +69,7 @@ def _compile(fixture: str, options: object) -> tuple {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: object, name: str) -> object {
+def _get(eng: any, name: str) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -78,7 +77,7 @@ def _get(eng: object, name: str) -> object {
 
 
 """True if the program emitted at least one alert with the given code."""
-def _has_code(prog: object, code: str) -> bool {
+def _has_code(prog: any, code: str) -> bool {
     for alrt in prog.errors_had {
         if alrt.code is not None and alrt.code.code == code {
             return True;
@@ -88,7 +87,7 @@ def _has_code(prog: object, code: str) -> bool {
 }
 
 
-def _ir_text(ir: object) -> str {
+def _ir_text(ir: any) -> str {
     return str(ir.gen.llvm_ir) if (ir is not None and ir.gen.llvm_ir) else "";
 }
 

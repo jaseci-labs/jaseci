@@ -119,21 +119,21 @@ glob:pub Router = SolidRouter,
 
 glob __JacOutletContext = solidCreateContext(None);
 
-def:pub Routes(props: dict) -> JsxElement;
-def:pub Route(props: dict) -> JsxElement;
-def:pub Link(props: dict) -> JsxElement;
-def:pub Navigate(props: dict) -> JsxElement;
-def:pub Outlet(props: dict = {}) -> JsxElement;
+def:pub Routes(props: dict[str, any]) -> JsxElement;
+def:pub Route(props: dict[str, any]) -> JsxElement;
+def:pub Link(props: dict[str, any]) -> JsxElement;
+def:pub Navigate(props: dict[str, any]) -> JsxElement;
+def:pub Outlet(props: dict[str, any] = {}) -> JsxElement | None;
 def:pub useRouter -> dict;
 def:pub AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement;
 
 def:pub __jacMakeLayoutRoot(layout_component: any) -> any;
 
-def:pub JacClientErrorBoundary(props: dict) -> JsxElement;
-def:pub JacAwaiting(props: dict) -> JsxElement;
+def:pub JacClientErrorBoundary(props: dict[str, any]) -> JsxElement;
+def:pub JacAwaiting(props: dict[str, any]) -> JsxElement;
 
 def:pub useJacForm(
     form_mode: str = "onTouched", schema: any, onSubmit: any = None
 ) -> any;
 
-def:pub JacForm(props: dict) -> JsxElement;
+def:pub JacForm(props: dict[str, any]) -> JsxElement;

@@ -150,7 +150,7 @@ def linearize_tool_messages(messages: list) -> list {
             continue;
         }
         tool_calls = _field(m, "tool_calls");
-        if tool_calls {
+        if isinstance(tool_calls, list) and tool_calls {
             text = str(_field(m, "content") or "").strip();
             parts: list = [text] if text else [];
             for tc in tool_calls {

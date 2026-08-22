@@ -98,6 +98,7 @@ def bind_stream(img: bytes) -> bytes {
         off += cmdsize;
     }
     assert False , "no LC_DYLD_INFO_ONLY load command";
+    return b"";
 }
 
 
@@ -179,7 +180,7 @@ def emit_large_object(ir_txt: str, triple: str) -> bytes {
 def got_slot_strings(img: bytes) -> set[str] {
     ncmds = struct.unpack_from("<I", img, 16)[0];
     off = 32;
-    secs: list[tuple] = [];
+    secs: list[tuple[str, int, int, int]] = [];
     for _i in range(ncmds) {
         (cmd, cmdsize) = struct.unpack_from("<II", img, off);
         if cmd == 0x19 {

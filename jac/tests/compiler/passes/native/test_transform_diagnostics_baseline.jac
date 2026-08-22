@@ -130,7 +130,6 @@ def _coverage -> tuple {
             file_path=TRANSFORM_JAC,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

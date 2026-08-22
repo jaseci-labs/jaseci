@@ -590,10 +590,11 @@ impl JSCodeGenerator.gen_block_statement(nd: es.BlockStatement) -> str {
     self.indent_level += 1;
     self._current_line += 1;
     parts: list[str] = [];
-    for (i, stmt) in enumerate(nd.body) {
-        if i > 0 {
+    for stmt in nd.body {
+        if parts {
             self._current_line += 1;
         }
+        assert isinstance(stmt, es.Node);
         code = self.generate(stmt);
         parts.append(code);
     }

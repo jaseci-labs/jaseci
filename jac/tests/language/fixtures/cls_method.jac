@@ -6,7 +6,7 @@ class MyClass {
     }
 
     @classmethod
-    def my_method(cls: Type[MyClass]) -> str {
+    def my_method(cls: type[MyClass]) -> str {
         x = cls.__name__;
         print(x);
         return "Hello, World2!";
@@ -22,7 +22,7 @@ with entry {
 class MyClass2 {
     def Ability_1(self: MyClass2) -> str;
     @classmethod
-    def Ability_2(cls: Type[MyClass2]) -> str;
+    def Ability_2(cls: type[MyClass2]) -> str;
 }
 
 impl MyClass2.Ability_1(self: MyClass2) -> str {

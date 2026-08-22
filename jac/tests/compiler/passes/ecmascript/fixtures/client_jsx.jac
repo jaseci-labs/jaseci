@@ -3,15 +3,15 @@
 glob:pub API_URL: str = "https://api.example.com";
 
 obj:pub ButtonProps {
-    has label: str = "Hello";
-    has count: int = 0;
+    has label: str = "Hello",
+        count: int = 0;
 }
 
 walker:pub MyComponent {
     has title: str = "My Component";
 }
 
-def:pub component() {
+def:pub component -> any {
     return
         <div class="box">
             <h1>Hello</h1>
@@ -19,26 +19,27 @@ def:pub component() {
         </div>;
 }
 
-def server_only() -> str {
+def server_only -> str {
     return "not included";
 }
 
-def:pub jsx_bug_tests() {
+def:pub jsx_bug_tests {
     # Constructor calls in JSX
     component = MyComponent(title="Custom Title");
 }
 
-with entry {
-    # Common values used across scenarios
-    name = "World";
-    age = 30;
-    count = 42;
-    props = "dummy_props";
-    extraProps = "extra_props";
+glob
+     # Common values used across scenarios
+     name = "World",
+     age = 30,
+     count = 42,
+     props = {"id": "dummy_props"},
+     extraProps = {"role": "extra_props"},
+     # Basic JSX shapes
+     basic_div = <div/>,
+     basic_component = <MyComponent/>;
 
-    # Basic JSX shapes
-    basic_div = <div/>;
-    basic_component = <MyComponent/>;
+with entry {
     attribute_button = <button id="submit" disabled/>;
     attr_with_expr = <div id={name} data-age={age}>User Info</div>;
 
@@ -53,47 +54,47 @@ with entry {
         <p>{"Description"}</p>
         <button>{"Click"}</button>
     </div>;
-
-    layout = <div>
-        <header>
-            <nav>
-                <a>{"Home"}</a>
-                <a>{"About"}</a>
-            </nav>
-        </header>
-        <main>
-            <article>{"Content here"}</article>
-        </main>
-    </div>;
-
-    # Components and namespaces
-    comp_props = <Button color="blue" size="large">Submit</Button>;
-    comp_namespaced = <UI.Button/>;
-    comp_deep_namespace = <Form.Input.Text/>;
-    app = <App>
-        <Header/>
-        <Main>
-            <Sidebar/>
-            <Content/>
-        </Main>
-        <Footer/>
-    </App>;
-
-    # Fragments
-    empty_fragment = <></>;
-    fragment_with_children = <>
-        <h1>{"Title"}</h1>
-        <p>{"Paragraph"}</p>
-    </>;
-    mixed_fragment = <>
-        {"Some text"}
-        <div>{"Element"}</div>
-        {"More text"}
-        <span>{"Inline"}</span>
-    </>;
-
-    # Spread attributes
-    spread_div = <div {...props}/>;
-    spread_button = <button {...props} {...extraProps}>{"Click"}</button>;
-    spread_input = <input type="text" {...props} disabled/>;
 }
+
+glob layout = <div>
+         <header>
+             <nav>
+                 <a>{"Home"}</a>
+                 <a>{"About"}</a>
+             </nav>
+         </header>
+         <main>
+             <article>{"Content here"}</article>
+         </main>
+     </div>,
+     # Components and namespaces
+     comp_props = <Button color="blue" size="large">Submit</Button>,
+     comp_namespaced = <UI.Button/>,
+     comp_deep_namespace = <Form.Input.Text/>,
+     app = <App>
+         <Header/>
+         <Main>
+             <Sidebar/>
+             <Content/>
+         </Main>
+         <Footer/>
+     </App>,
+     # Fragments
+     empty_fragment = <></>,
+     fragment_with_children = <>
+         <h1>{"Title"}</h1>
+         <p>{"Paragraph"}</p>
+     </>,
+     mixed_fragment = <>
+         {"Some text"}
+         <div>{"Element"}</div>
+         {"More text"}
+         <span>{"Inline"}</span>
+     </>,
+     # Spread attributes
+     spread_div = <div {...props}/>;
+
+with entry {
+    spread_button = <button {...props} {...extraProps}>{"Click"}</button>;
+}
+glob spread_input = <input type="text" {...props} disabled/>;

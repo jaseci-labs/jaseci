@@ -212,7 +212,8 @@ test "no compiler pass reads the environment directly" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for pat in patterns {
                         if pat.search(line) {
                             rel = os.path.relpath(fpath, passes_dir);
@@ -297,7 +298,8 @@ test "no cycle counter or stack validity channel in the type system" {
                 }
                 fpath = os.path.join(dirpath, fname);
                 with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                    for (lineno, line) in enumerate(f, 1) {
+                    lines: list[str] = f.readlines();
+                    for (lineno, line) in enumerate(lines, 1) {
                         for token in tokens {
                             if token in line {
                                 rel = os.path.relpath(fpath, compiler_dir);
@@ -355,7 +357,8 @@ test "native type identity never reads walk-time registration maps" {
             fpath = os.path.join(dirpath, fname);
             rel = os.path.relpath(fpath, native_dir);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in dead_tokens {
                         if token in line {
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");
@@ -454,7 +457,8 @@ test "container lifecycle emission lives only in the shared emitters" {
         fpath = os.path.join(impl_dir, fname);
         assert os.path.isfile(fpath) , f"expected impl file missing: {fpath}";
         with open(fpath, "r", encoding="utf-8") as f {
-            for (lineno, line) in enumerate(f, 1) {
+            lines: list[str] = f.readlines();
+            for (lineno, line) in enumerate(lines, 1) {
                 for token in forbidden {
                     if token in line {
                         offenders.append(f"{fname}:{lineno}: {line.strip()}");
@@ -488,7 +492,8 @@ test "no numeric header offsets outside the HDR_* constants" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     if hdr_pat.search(line) {
                         rel = os.path.relpath(fpath, native_dir);
                         offenders.append(f"{rel}:{lineno}: {line.strip()}");
@@ -521,7 +526,8 @@ test "one static-string constructor" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     if marker in line.replace(" ", "") {
                         rel = os.path.relpath(fpath, native_dir);
                         hits.append(f"{rel}:{lineno}");
@@ -602,7 +608,8 @@ test "hetero container band-aids are deleted; one element-storage authority" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in banned {
                         if token in line {
                             rel = os.path.relpath(fpath, pkg_root);
@@ -661,7 +668,8 @@ test "no consumer-site NULL guards on string operands" {
             fpath = os.path.join(dirpath, fname);
             rel = os.path.relpath(fpath, native_dir);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in banned {
                         if token in line {
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");

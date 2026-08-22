@@ -81,7 +81,7 @@ def _already_exported(js: str) -> set[str] {
                 continue;
             }
 
-            tokens = re.split(r"\s+as\s+", piece);
+            tokens: list[str] = re.split(r"\s+as\s+", piece);
             names.add(tokens[-1].strip());
         }
     }

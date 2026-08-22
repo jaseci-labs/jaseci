@@ -1,5 +1,5 @@
 import from .models { double }
 
-def use_double -> int {
-    return double(2);
+async def use_double -> int {
+    return await double(2);
 }

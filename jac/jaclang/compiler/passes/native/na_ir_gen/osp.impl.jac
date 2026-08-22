@@ -16,7 +16,6 @@ def _load_native_osp_kernel_module -> (uni.Module | None) {
                 no_cgen=True,
                 symtab_ir_only=True,
                 aot_mode=True,
-                type_check=False,
                 default_codespace='native',
                 force_codespace='native',
                 force_target_program=True

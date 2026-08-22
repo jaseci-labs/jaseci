@@ -365,6 +365,7 @@ def run_npm_add_global(packages: list, dev: bool) -> int {
         return 1;
     }
     dest = node_root("global");
+    assert dest is not None , "the global npm root is always resolvable";
     dest.mkdir(parents=True, exist_ok=True);
     pkg_json = dest / "package.json";
     if not pkg_json.exists() {

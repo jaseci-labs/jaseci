@@ -42,19 +42,19 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable int -> int function from the JIT engine."""
-def get_func(eng: object, name: str) -> object {
+def get_func(eng: any, name: str) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
 }
 
 """Import the same fixture on the sv/bytecode path for congruence."""
-def sv_module -> object {
+def sv_module -> any {
     return JacRuntime.jac_import(target=FIXTURE[:-4], base_path=FIXTURES)[0];
 }
 
 """Assert native and sv agree on `name` over `inputs`, and return the values."""
-def congruent(eng: object, sv: object, name: str, inputs: list[int]) -> list[int] {
+def congruent(eng: any, sv: object, name: str, inputs: list[int]) -> list[int] {
     native_fn = get_func(eng, name);
     sv_fn = getattr(sv, name);
     out: list[int] = [];
@@ -90,7 +90,7 @@ def func_ir(llvm_ir: str, name: str) -> str {
 }
 
 """Stand-in for `_narrowed_flow_type` that disables narrowing (baseline)."""
-def _no_narrowing(pass_self: object, nd: object) -> object {
+def _no_narrowing(pass_self: any, nd: any) -> any {
     return None;
 }
 
@@ -258,7 +258,8 @@ test "narrowing removes the tag check from the proven use" {
     # optional_scalar.jac lowers with and without narrowing, so the checked
     # unwrap the guard makes unnecessary is directly measurable as an A/B.
     orig = NaIRGenPass._narrowed_flow_type;
-    NaIRGenPass._narrowed_flow_type = _no_narrowing;
+    _napatch: any = NaIRGenPass;
+    _napatch._narrowed_flow_type = _no_narrowing;
     try {
         (_, base_ir) = compile_native("optional_scalar.jac");
         base = str(base_ir.gen.llvm_ir);

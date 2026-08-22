@@ -3,6 +3,7 @@ import logging;
 import threading;
 import from urllib.request { urlopen, Request as URLRequest }
 import from urllib.error { URLError }
+import from jaclang.scale.deploy.target.service_deployer { ServiceDeployer }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
@@ -13,7 +14,7 @@ glob logger = logging.getLogger(__name__);
 
 obj ServiceProcessManager {
     has registry: ServiceRegistry,
-        deployer: (any | None) = None,
+        deployer: (ServiceDeployer | None) = None,
         processes: dict[str, subprocess.Popen] = {},
         _health_check_timeout: int = 3,
         _max_failures: int = 3,
