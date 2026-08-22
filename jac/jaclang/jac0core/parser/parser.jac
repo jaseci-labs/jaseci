@@ -378,6 +378,36 @@ glob _AUG_ASSIGN_KINDS: frozenset[TokenKind] = frozenset({
     TokenKind.BW_XOR_EQ, TokenKind.LSHIFT_EQ, TokenKind.RSHIFT_EQ
 });
 
+glob _COMPARE_KINDS: frozenset[TokenKind] = frozenset({
+    TokenKind.EE, TokenKind.NE, TokenKind.LT, TokenKind.GT,
+    TokenKind.LTE, TokenKind.GTE, TokenKind.KW_IN, TokenKind.KW_IS,
+    TokenKind.KW_NIN, TokenKind.KW_ISN
+});
+
+glob _FSTRING_START_KINDS: frozenset[TokenKind] = frozenset({
+    TokenKind.F_DQ_START, TokenKind.F_SQ_START, TokenKind.F_TDQ_START,
+    TokenKind.F_TSQ_START, TokenKind.RF_DQ_START, TokenKind.RF_SQ_START,
+    TokenKind.RF_TDQ_START, TokenKind.RF_TSQ_START
+});
+
+glob _SYNC_BOUNDARY_KINDS: frozenset[TokenKind] = frozenset({
+    TokenKind.KW_IF, TokenKind.KW_WHILE, TokenKind.KW_FOREVER,
+    TokenKind.KW_FOR, TokenKind.KW_DEF, TokenKind.KW_CAN,
+    TokenKind.KW_OBJECT, TokenKind.KW_NODE, TokenKind.KW_EDGE,
+    TokenKind.KW_WALKER, TokenKind.KW_CLASS, TokenKind.KW_ENUM,
+    TokenKind.KW_IMPORT, TokenKind.KW_INCLUDE, TokenKind.KW_RETURN,
+    TokenKind.KW_TEST, TokenKind.KW_GLOBAL, TokenKind.KW_IMPL,
+    TokenKind.KW_ASYNC, TokenKind.KW_WITH, TokenKind.KW_TRY,
+    TokenKind.KW_PUB, TokenKind.KW_PRIV, TokenKind.KW_PROT,
+    TokenKind.DECOR_OP, TokenKind.RBRACE, TokenKind.SEMI
+});
+
+glob _IMPL_SPECIAL_NAME_KINDS: frozenset[TokenKind] = frozenset({
+    TokenKind.KW_ENTRY, TokenKind.KW_EXIT, TokenKind.KW_DEFAULT,
+    TokenKind.KW_GETTER, TokenKind.KW_SETTER, TokenKind.KW_DELETER,
+    TokenKind.KW_RETURN
+});
+
 def _string_lit_text(raw: str) -> str {
     v = raw;
     while v and v[0] in "rbfRBF" {
@@ -444,6 +474,8 @@ obj Parser {
     def check_peek_any(*kinds: TokenKind) -> bool;
     def at_aug_assign_op -> bool;
     def peek_at_aug_assign_op -> bool;
+    def at_comparison_op -> bool;
+    def at_fstring_start -> bool;
     def check_name -> bool;
     def is_keyword_token -> bool;
     def is_name_usable_token -> bool;
