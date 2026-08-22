@@ -1592,12 +1592,33 @@ impl JacCompiler._compile_once(
         }
         actual_program._compile_options = options;
     }
-    if (not had_parse_errors and not had_blocking_errors and not options.no_cgen) {
+    if (
+        not had_parse_errors
+        and not had_blocking_errors
+        and not options.no_cgen
+        and not options.symtab_ir_only
+    ) {
         actual_program._compile_options = options;
 
         import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
         needs_native = is_native_mod
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
+        # The analysis carve-out (bootstrap-in-flight internal modules) can
+        # skip a module whose nativeness is only inferred later, once
+        # placement stamps exist. Native codegen requires the analysis
+        # facts, so run them now for those escapees; without this the
+        # schedule ICEs on the missing 'cfg' and the module silently
+        # demotes to server.
+        if needs_native
+            and 'inference'
+            not in actual_program._analyses_run.get(id(mod_targ), set()) {
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=get_analysis_sched(),
+                cancel_token=options.cancel_token
+            );
+        }
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
