@@ -2,7 +2,7 @@
 # Test-free module: regression tests in layer0_replay.jac; P3 ratchet in
 # layer0_replay_p3_gate.jac. Import this, not layer0_replay, when you need a
 # clean ceval slate.
-import from objects { PyObj, PyError, is_error }
+import from objects { PyObj, PyStr, PyError, is_error }
 import from pyc_first { unmarshal, exec_code, exec_module, to_host, build_copy_module }
 
 ::py::
@@ -92,23 +92,16 @@ def _stmt_scope_nodes(stmt):
 
 def _dedent_segment(seg, base_col):
     # ast.get_source_segment keeps ABSOLUTE indentation on continuation lines
-    # while the first line loses its own indent (base_col). Continuation lines
-    # therefore carry base_col too much: strip (min continuation indent -
-    # base_col) from every continuation line so the block's relative shape
-    # survives. Single-line segments pass through.
+    # while the first line loses its own indent (base_col). Every non-blank
+    # continuation line therefore carries >= base_col leading columns: strip
+    # exactly base_col so the block's RELATIVE shape survives. (Stripping a
+    # min-delta would no-op whenever sibling clauses sit at base_col, e.g.
+    # try/except/else.) Single-line segments pass through.
     lines = seg.split("\n")
-    if len(lines) < 2:
-        return seg
-    cont_indents = [
-        len(l) - len(l.lstrip()) for l in lines[1:] if l.strip()
-    ]
-    if not cont_indents:
-        return seg
-    strip = min(cont_indents) - base_col
-    if strip <= 0:
+    if len(lines) < 2 or base_col <= 0:
         return seg
     fixed = [lines[0]] + [
-        l[strip:] if len(l) >= strip and l[:strip].strip() == "" else l
+        l[base_col:] if len(l) >= base_col and l[:base_col].strip() == "" else l
         for l in lines[1:]
     ]
     return "\n".join(fixed)
@@ -342,7 +335,14 @@ def layer0_replay_source(source: str) -> ReplayResult {
 # `copy.copy(gen)` check raises CPython's TypeError natively rather than draining
 # the generator to a host list; a setup that binds `copy` itself takes precedence.
 def layer1_run_setup(setup_src: str) -> dict[str, PyObj] {
-    ns = exec_module(unmarshal(_l1_compile_setup(setup_src) as list[int]));
+    ns: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    # Strict: a setup that raises must surface here, so the caller counts the
+    # method as ERRORED — replaying asserts against a partial namespace yields
+    # misleading FAILED verdicts (HARNESS A). exec_module discards the outcome.
+    outcome = exec_code(unmarshal(_l1_compile_setup(setup_src) as list[int]), [], ns);
+    if is_error(outcome) {
+        raise RuntimeError((outcome as PyError).exception.message);
+    }
     if not ("copy" in ns) {
         ns["copy"] = build_copy_module();
     }

@@ -6,7 +6,4 @@ class TestCapsuleCore(unittest.TestCase):
         self.assertEqual('sys' in sys.modules, True)
 
     def test_builtin_type(self):
-        # len() is a native PyNativeBuiltin in jacpython; to_host() drops it to
-        # None so type(len).__name__ diverges (escalated). Use abs(), which
-        # round-trips as a host builtin, for the typing check.
-        self.assertEqual(type(abs).__name__, 'builtin_function_or_method')
+        self.assertEqual(type(len).__name__, 'builtin_function_or_method')

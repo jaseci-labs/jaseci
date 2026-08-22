@@ -242,6 +242,23 @@ def _jac_host_unbound_method_info(value):
     except BaseException:
         return (False, "", "")
 
+def _jac_bound_method_type():
+    # CPython: a bound method of a Python function is exactly `method`.
+    class _M:
+        def m(self):
+            return None
+    return type(_M().m)
+
+def _jac_list_iterator_type():
+    # Native PyIter mirrors list iteration; use the host list_iterator type.
+    return type(iter([]))
+
+def _jac_builtin_function_or_method_type():
+    import builtins
+    # CPython: type(len) is builtin_function_or_method; grab the type object
+    # itself so isinstance/name checks on native callables answer correctly.
+    return type(builtins.len)
+
 def _jac_host_same_object(a, b):
     return a is b
 
@@ -1975,6 +1992,21 @@ def py_type_of(o: PyObj) -> PyObj {
         }
         return host_builtin("type");
     }
+    # Native callable wrappers have no faithful host object (to_host drops
+    # them), so answer with the matching HOST callable type instead of NoneType
+    # via the to_host fallthrough. CPython distinguishes builtin_function_or_
+    # method (builtins/bound builtins), method (bound user functions), and the
+    # concrete iterator types.
+    if isinstance(o, PyNativeBuiltin) or isinstance(o, PyListMethod)
+        or isinstance(o, PyDictMethod) or isinstance(o, PySetMethod) {
+        return from_host(_jac_builtin_function_or_method_type());
+    }
+    if isinstance(o, PyBoundMethod) or isinstance(o, PyGenMethod) {
+        return from_host(_jac_bound_method_type());
+    }
+    if isinstance(o, PyIter) {
+        return from_host(_jac_list_iterator_type());
+    }
     return from_host(_jac_host_type(to_host(o)));
 }
 
@@ -2180,6 +2212,11 @@ def py_repr(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyNativeBuiltin) {
         return PyStr(t="str", val="<built-in function " + (value as PyNativeBuiltin).name + ">");
+    }
+    if isinstance(value, PyIter) {
+        # repr is observational: it must NOT route through to_host, whose drain
+        # would exhaust the iterator as a side effect.
+        return PyStr(t="str", val="<iterator object>");
     }
     result = host_convert(value, 2);
     if is_error(result) {
