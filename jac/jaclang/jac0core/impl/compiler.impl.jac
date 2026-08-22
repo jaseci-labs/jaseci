@@ -720,13 +720,6 @@ impl JacCompiler.parse_str(
         }
         import from jaclang.jac0core.prefix_flip { parse_with_prefix }
         _p_opts_pre = target_program._compile_options;
-        (mod, had_error) = parse_with_prefix(
-            source_str,
-            file_path,
-            target_program,
-            kind=prefix_kind,
-            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False
-        );
         codespace = '';
         import from jaclang.jac0core.codeinfo {
             is_client_by_location as _cbl,
@@ -772,6 +765,14 @@ impl JacCompiler.parse_str(
                 codespace = _kind_space;
             }
         }
+        (mod, had_error) = parse_with_prefix(
+            source_str,
+            file_path,
+            target_program,
+            kind=prefix_kind,
+            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False,
+            codespace=codespace
+        );
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
@@ -950,7 +951,17 @@ impl JacCompiler.stamp_boundary_facts(
     if mod.loc {
         base_dir = os.path.dirname(mod.loc.mod_path);
     }
-    in_native_mod = mod.loc is not None and mod.decided_codespace == 'native';
+    _sb_opts = target_program._compile_options;
+    in_native_mod = mod.loc is not None
+        and (
+            mod.decided_codespace == 'native'
+            or (
+                _sb_opts is not None
+                and _sb_opts.aot_mode
+                and target_program is not self._internal_program
+                and _default_codespace_for(target_program) == 'native'
+            )
+        );
 
     def resolve_native(module_name: str, inferred_ok: bool) -> (str | None) {
         (src_mod_str, _full_path) = resolve_native_module(
