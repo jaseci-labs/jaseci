@@ -762,13 +762,15 @@ impl NativeCapabilityCheckPass._check_str_nul_concat(mod: Module) -> None {
             }
             _concat = _call.find_parent_of_type(BinaryExpr);
             if _concat is not None
-            and isinstance(_concat.op, Token)
-            and _concat.op.name == Tok.PLUS {
+                and isinstance(_concat.op, Token)
+                and _concat.op.name == Tok.PLUS {
                 self.emit(W6005, node_override=_call);
             }
         }
     }
 }
+
+impl ClientCapabilityCheckPass.postinit -> None {
     super.postinit();
 }
 
