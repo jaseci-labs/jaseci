@@ -280,149 +280,17 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 3. **[LEDGER, carried]** to_host wrapper gaps (PyNativeBuiltin/bound methods);
    weakref API coverage debt. Single-branch workflow: fix in-branch, no GitHub issues.
 
-4. **[MED] User-class `__call__` not honored.** Calling an instance of a class
-   defining `__call__` raises TypeError("object is not callable"); type(f).**call**
-   is never consulted by the call path. Explicit f.**call**(x) presumably works.
-   Repro: Adder(10)(5) -> should be 15.
-
-5. **[MED] Iteration protocol ignores user dunders.** GET_ITER/FOR_ITER on a
-   user object does NOT look up **iter**/**next**: list(g) raises
-   TypeError("'NoneType' object is not iterable") even though g.**next**()
-   works when invoked explicitly. Same family as #1/#4: dunder lookup exists
-   for some protocols (**getitem**, **getattr**, **len**/**bool**, arithmetic,
-   **init_subclass**) but not callable/iterator/descriptor.
-
-6. **[CODEGEN-PARITY] three byte-parity gaps (from QuickBear's compiler
-   differential lane; sentinels exist in their working tree).**
-   a. CONST-POOL ORDERING: folded container consts interned eagerly at fold time;
-      CPython interns late, after the implicit epilogue None -> structurally equal
-      bytes, shifted const indices (`t = (1,2,3)`: ours LOAD_CONST 0 vs host 2).
-      Highest blast radius; interacts with band-11 nested-code consts.
-   b. CONSTANT-SET DISPLAYS: host emits BUILD_SET 0 + frozenset const +
-      SET_UPDATE 1; we emit element-wise loads + BUILD_SET N. Verified against
-      local CPython 3.14 by BrightTiger (intrinsic lowering applies to plain
-      assignments, not just membership tests).
-   c. BOOL-NOT IN JUMP CONTEXT: host folds `if not flag:` into inverted
-      PJUMP_IF_FALSE; we emit UNARY_NOT + COPY + TO_BOOL + PJUMP_IF_TRUE.
-   NOTE: all three are parity-only (semantics-neutral); they block codegen
-   differential harnesses, not runtime correctness. Sentinel for (c) should
-   include a user class whose **bool** has side effects (evaluation-count check).
-
-7. **[MED] List slice ASSIGNMENT broken both paths.** `xs[::2] = [7, 8]`
-    raises TypeError("list indices must be integers") — STORE_SUBSCRIPT does
-    not accept PySlice. Direct xs.**setitem**(slice(0,4,2), [7,8]) returns
-    None but silently does NOT mutate (mp_ass_subscript slice branch missing/
-    no-op). Asymmetric: slice READ (xs[::2]) and slice DELETE (del xs[1:3])
-    both work. Same silent-noop family as the old unbound-method bug.
-    Repro: xs=[0,0,0,0]; xs[::2]=[7,8] -> expect [7,0,8,0].
-
-8. **[HARNESS] `_l1_flatten_seq` corrupts setup containing try/except —
-    can produce FALSE GREENS.** layer0_replay_harness.jac:110 expands ast.Try
-    into its inner statements at statement scope, discarding the try/except
-    wrapper: `try: f()\nexcept E as r: out.append(r)` becomes bare `f()` +
-    hoisted handler lines referencing undefined r. Two failure modes:
-    (a) honest-skip when host probe declines (NameError), silently losing ALL
-    try-in-setup coverage — every exc-chaining case so far never ran;
-    (b) WORSE: when the flattened sequence still executes (e.g.
-    `try: x=risky() except: x=0` -> `x=risky(); x=0`), both interpreters run
-    identical wrong code and the check PASSES — false conformance.
-    Docstring's claim that "control flow stays in setup" is untrue for Try.
-    Fix direction: keep the Try node intact in setup_src; lift ONLY
-    self.assertX Expr nodes found inside as extra checks AND mark the method
-    needs-capture (skip) since post-hoc expression eval can't see handler
-    scope. Never rewrite control flow into sibling statements.
-
-9. **[MED] `instance.__class__` AttributeError on user instances.**
-    a.**class** -> AttributeError("**class**") for any user-class instance;
-    works for natives ([].**class** == list). dir(a) lists **class**, so the
-    surface claims it but getattr misses it. Breaks common idiom
-    e.**class**.**name** on caught exceptions too. Retroactively explains the
-    round-8 call-bisect failure attributed to **call**. Fix: PyUserObj getattr
-    resolves **class** to its class object (and audit sibling identity dunders:
-    **dict**, **module** on instances).
-
-10. **[LOW] callable() says False for user classes.** callable(C) where C is
-    a plain user class returns False (CPython: True — classes instantiate).
-    callable(fn) works. Part of the type-slot family: tp_call presence isn't
-    consulted for user types.
-
-11. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
-    def g(): yield 1; return 99 — after consuming via next(), the terminal
-    StopIteration has .value == None instead of 99. Asymmetric: yield from
-    DOES forward the inner gen's return correctly (yieldfrom-return-value
-    green), so the internal path carries it but the caller-facing
-    StopIteration doesn't attach .value. Only affects explicit-iteration
-    consumers (for loops ignore .value).
-
-### Root-cause synthesis (all findings collapse into 4 families)
-
-**A. No unified dunder dispatch** (items 1/4/5/12/13/15/17, +2 adjacent).
-Protocol resolution was built per-feature instead of through one shared
-type-MRO lookup: objects.jac has SIX separate tp_getattro impls; dunders work
-exactly where someone hand-wired a path (**getitem**/**add**/**eq**) and fail
-where nobody did (**call**/**iter**/descriptors/**getattr**/**class**).
-CPython's tp_* slot tables exist precisely to prevent this. Fix = unify via
-one MRO-walker core, two policy flavors (see GoldLion review thread).
-
-**B. Asymmetric slot coverage / half-wired features** (items 8/10/14/18).
-Each feature implemented against whichever test exposed one half first:
-sort has key= but sorted/max/min don't; slice read+del work but assign
-doesn't; gen return carried internally but StopIteration.value empty;
-property getter/setter without deleter. Fix = spec-driven completeness pass
-over builtin signatures and slot triples (get/set/del), not item patches.
-
-**C. Guest-host bridge marshaling ad hoc** (item 16, item 7, to_host ledger).
-Unknown shapes fall back to WRONG defaults (coro -> list) or raise where
-CPython compares exactly (inf vs bigint). Fix = typed conversion table at the
-boundary with explicit unknown-type policy.
-
-**D. Harness blind spots** (item 11 + coverage-map mis-claim lesson).
-Differential testing cannot see identical-wrong-on-both-sides; harness rewrites
-control flow. Mitigation already in place: pin corpus + sentinel pre-runs.
-
-Meta-root-cause: bottom-up conformance (make each observed test pass) instead
-of top-down architecture (slot table + single lookup). Explains why ~60 green
-domains coexist with these gaps: lifted-from-bytecode areas are solid,
-hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
-don't patch — individual fixes leave holes reopening under future features.
-
-**PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json — 16 cases:
-minimal repros for items 1/2/4/5/7/8/10/12/13/14 (red until fixed), descriptor
-precedence + instance-dict-inverse sentinels (guard the sweep), and
-healthy-behavior pins (exception chaining via nested-def) that must stay green.
-Not wired into CI; run manually via _fuzz_smoke.jac. Delete _fuzz_smoke.jac +
-_fuzz_introspect.jac before any upstream PR; the pin file itself should land.
-
-1. **[MED] `__getattr__` fallback never implemented.** Proxy().zzz raises
-    bare AttributeError('zzz') — type.**getattr** is never consulted on lookup
-    failure. objects.jac has ZERO **getattr** references (grep-verified).
-    Breaks lazy proxies/delegation idioms wholesale.
-    CORRECTION: early coverage-map entry listed **getattr** green — that was
-    WRONG (mis-attributed from an unharvested case). Coverage map corrected.
-
-2. **[HIGH if async in scope] Coroutine/bridge integration broken.**
-    (a) asyncio.run(vm_coro()) -> "An asyncio.Future, a coroutine or an
-    awaitable is required": host event loop cannot recognize guest coroutines
-    across the bridge. (b) type(coro_obj) returns PyHostProxy(val=list) —
-    type() misreports coroutine objects as list (to_host wrapper gap family,
-    cf. carried ledger item). hasattr(c,'send') True, so the object exists;
-    identification/bridging is what fails.
-
-3. **[MED] Exception class passed to **exit** lacks **name**.**
-    with-protocol suppression itself works (return True suppresses, exit args
-    flow), but reading et.**name** inside **exit** raises bare AttributeError
-    ("**name**"). The raised-exception CLASS object crossing into user code is
-    missing identity attrs — same family as item 12 (**class** synthesis).
-    Repro: log.append(et.**name** if et else None) inside **exit**.
-
-4. **[LOW-MED] property .deleter ignored.** del o.x on a property with
-    @x.deleter raises AttributeError('x'); getter/setter both work (verified
-    green separately). mp_del_subscript/del-attr path doesn't consult
-    property fdel. Same asymmetry shape as slice-assign (item 10).
-
-Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
-(module top-level code isn't replayed); function decorators in-method are
-green. Class-decorator support needs pinning elsewhere.
+4. ~~[MED] User-class `__call__` not honored~~ FIXED 2026-08-22 (0694fda4d PyUserObj.tp_call override).
+5. ~~[MED] list()-family builtins bypass tp_iter via to_host~~ FIXED 2026-08-22 (4beb645eb ctor drains VM iterables pre-bridge).
+6. **[MED-HIGH] range() degrades to a list across the bridge.**
+    type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
+    .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
+    and LAZINESS IS LOST — range(10**9) presumably materializes 1e9 elements
+    (memory/time bomb). All my earlier range greens (len/in/iteration) passed
+    coincidentally through list semantics. Root cause family C: from_host has
+    no range branch so host range lands as PyHostProxy/list. Fix: native
+    PyRange with start/stop/step + O(1) len/contains/index/slice arithmetic,
+    or at minimum preserve the host range object through the bridge.
 
 Pattern note: user-class dunder support is piecemeal — consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
@@ -432,21 +300,12 @@ per-protocol special cases.
    errors on jacpython (likely OverflowError converting the int to float);
    CPython compares exactly and returns True — no conversion overflow allowed.
 
-2. **[CODEGEN-PARITY] three byte-parity gaps (from QuickBear's compiler
-   differential lane; sentinels exist in their working tree).**
-   a. CONST-POOL ORDERING: folded container consts interned eagerly at fold time;
-      CPython interns late, after the implicit epilogue None -> structurally equal
-      bytes, shifted const indices (`t = (1,2,3)`: ours LOAD_CONST 0 vs host 2).
-      Highest blast radius; interacts with band-11 nested-code consts.
-   b. CONSTANT-SET DISPLAYS: host emits BUILD_SET 0 + frozenset const +
-      SET_UPDATE 1; we emit element-wise loads + BUILD_SET N. Verified against
-      local CPython 3.14 by BrightTiger (intrinsic lowering applies to plain
-      assignments, not just membership tests).
-   c. BOOL-NOT IN JUMP CONTEXT: host folds `if not flag:` into inverted
-      PJUMP_IF_FALSE; we emit UNARY_NOT + COPY + TO_BOOL + PJUMP_IF_TRUE.
-   NOTE: all three are parity-only (semantics-neutral); they block codegen
-   differential harnesses, not runtime correctness. Sentinel for (c) should
-   include a user class whose **bool** has side effects (evaluation-count check).
+2. **~~[CODEGEN-PARITY] three byte-parity gaps~~ FIXED 2026-08-22.**
+   All three landed and sentinel-flipped-to-parity in the literals differential
+   suite (compiler_literals_slice.jac, 58/58):
+   a. const-pool late interning: d3532d6b8
+   b. constant-set frozenset lowering: a48ab5359
+   c. bool-not jump folding: 46da75e83 (+ consumer wiring 903423308)
 
 3. **[MED] List slice ASSIGNMENT broken both paths.** `xs[::2] = [7, 8]`
     raises TypeError("list indices must be integers") — STORE_SUBSCRIPT does
@@ -456,23 +315,16 @@ per-protocol special cases.
     both work. Same silent-noop family as the old unbound-method bug.
     Repro: xs=[0,0,0,0]; xs[::2]=[7,8] -> expect [7,0,8,0].
 
-4. **[HARNESS] `_l1_flatten_seq` corrupts setup containing try/except —
-    can produce FALSE GREENS.** layer0_replay_harness.jac:110 expands ast.Try
-    into its inner statements at statement scope, discarding the try/except
-    wrapper: `try: f()\nexcept E as r: out.append(r)` becomes bare `f()` +
-    hoisted handler lines referencing undefined r. Two failure modes:
-    (a) honest-skip when host probe declines (NameError), silently losing ALL
-    try-in-setup coverage — every exc-chaining case so far never ran;
-    (b) WORSE: when the flattened sequence still executes (e.g.
-    `try: x=risky() except: x=0` -> `x=risky(); x=0`), both interpreters run
-    identical wrong code and the check PASSES — false conformance.
-    Docstring's claim that "control flow stays in setup" is untrue for Try.
-    Fix direction: keep the Try node intact in setup_src; lift ONLY
-    self.assertX Expr nodes found inside as extra checks AND mark the method
-    needs-capture (skip) since post-hoc expression eval can't see handler
-    scope. Never rewrite control flow into sibling statements.
+4. **~~[HARNESS] `_l1_flatten_seq` corrupts setup containing try/except~~ FIXED 2026-08-22 (85a1e4f98).**
+    Try stays intact in setup source; nested checks harvested for post-hoc eval
+    (never from handler bodies). Verified with 5-case unit battery.
+    NOTE: layer0_replay_p3_gate has a PRE-EXISTING failure unrelated to the fix:
+    test_set/test_keywords_in_subclass fails at every commit back through at least
+    00c9ead4e - user-class subclass(set) instantiation family (cf. items 4/12/13).
+    Needs an owner.
 
-5. **[MED] `instance.__class__` AttributeError on user instances.**
+5. ~~[MED] `instance.__class__` AttributeError on user instances~~ FIXED 2026-08-22 (11fa28f58: PyUserObj + PyException + PyExceptionType surfaces; caught-handler idiom verified).
+
     a.**class** -> AttributeError("**class**") for any user-class instance;
     works for natives ([].**class** == list). dir(a) lists **class**, so the
     surface claims it but getattr misses it. Breaks common idiom
@@ -494,15 +346,55 @@ per-protocol special cases.
     StopIteration doesn't attach .value. Only affects explicit-iteration
     consumers (for loops ignore .value).
 
+## Runtime fix lane — HANDOFF BRIEF (for new worker agent)
+
+You own VM RUNTIME fixes in jac-py/jacpython (ceval.jac/objects.jac family).
+BrightTiger is reviewer/fuzzer — do NOT edit their files (_fuzz_smoke.jac,
+_fuzz_introspect.jac, TODO.md live-log section); they verify your landings
+against jac-py/tools/fuzz_corpus_pinned.json (26 pins) after each landing.
+QuickBear owns compiler_codegen/compiler_emit/compiler_annotations — don't touch.
+
+FIX ORDER (cheapest-green-first, per GoldLion review):
+
+1. Item 4: add PyUserObj.tp_call override (ceval.jac ~1235 block) mirroring
+   tp_iter EXACTLY: user_has_dunder(self,"**call**") -> bind_attribute to
+   instance -> invoke; propagate dunder exceptions same path; no result check.
+2. Item 5: rewire list() ctor to py_iter(arg)-first with host_iter fallback
+   ONLY on error (copy members_of()'s pattern, ceval.jac ~4705). Audit every
+   consumer in pin-item5-consumers-matrix: sorted/tuple/dict.fromkeys/sum/
+   any/all/max/min/enumerate/zip + UNPACK/CALL_FUNCTION_EX (already green).
+3. Item 19 (design first): range degrades to list across bridge (from_host has
+   no range branch). Either native PyRange or preserve host range object.
+   Discuss design with BrightTiger/GoldLion before landing.
+4. Branch-closing sweep AFTER the above: **class**/**dict**/**module**
+   synthesis (item 12), **getattr** tail hook (15), generic descriptors (1).
+   GoldLion's two-flavor walker review governs this phase — send them the
+   walker diff BEFORE merging anything.
+
+DISCIPLINE:
+
+- Shared tree: 2+ agents active. Stage surgically (git add <your paths only>);
+  commit within minutes of verifying; NEVER git stash here.
+- Re-grep dispatch lines on FRESH HEAD immediately before editing (file shifts
+  under concurrent commits).
+- Local gate: .venv/bin/jac check <file> (~5s). Never run long jac test suites.
+- After each landing: report HEAD sha to BrightTiger for pin re-run.
+
 ### Root-cause synthesis (all findings collapse into 4 families)
 
-**A. No unified dunder dispatch** (items 1/4/5/12/13/15/17, +2 adjacent).
-Protocol resolution was built per-feature instead of through one shared
-type-MRO lookup: objects.jac has SIX separate tp_getattro impls; dunders work
-exactly where someone hand-wired a path (**getitem**/**add**/**eq**) and fail
-where nobody did (**call**/**iter**/descriptors/**getattr**/**class**).
-CPython's tp_* slot tables exist precisely to prevent this. Fix = unify via
-one MRO-walker core, two policy flavors (see GoldLion review thread).
+**A. Incomplete dunder dispatch wiring** (items 1/4/5/12/13/15/17, +2 adjacent).
+REVISED after code reading (was overstated as "no unified lookup"): the
+machinery EXISTS — PyUserObj.tp_getattro walks the class MRO via
+class_lookup_attr/descriptor_get/bind_attribute (ceval.jac ~1395);
+user_has_dunder/call_user_dunder helpers exist (~2632); iter(g) correctly
+consults tp_iter. Actual gaps are TWO kinds:
+  (i) missing branches: no **getattr** tail hook after MRO miss; no **class**
+      synthesis; descriptor_get handles PyProperty but not generic **get**;
+  (ii) BRIDGE-FIRST CALL SITES: builtins push args across to_host BEFORE
+      consulting local slots — list(g) does to_host(g)->None then "NoneType
+      not iterable" while iter(g) works (same object, verified same session).
+Fix = close branch gaps + make builtin call sites consult tp_* before
+bridging. Consistent with GoldLion's walker-core review.
 
 **B. Asymmetric slot coverage / half-wired features** (items 8/10/14/18).
 Each feature implemented against whichever test exposed one half first:
@@ -525,6 +417,14 @@ of top-down architecture (slot table + single lookup). Explains why ~60 green
 domains coexist with these gaps: lifted-from-bytecode areas are solid,
 hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
 don't patch — individual fixes leave holes reopening under future features.
+
+**PIN STATUS @ HEAD 0694fda4d** (full 30-pin run post item-4 fix + 9A):
+11 GREEN (item4 family x5, inverse sentinels x3, iter-half,
+property-precedence, unpack-star) / 19 RED — every red maps to an open item,
+zero unexplained drift (9A const-pool landing caused none, as predicted for
+parity-only work). NOTE: pin-ok-exc-chaining-nesteddef is RED because its
+asserts resolve r2.**cause**.**class**.**name** — blocked on item 12, not a
+chaining regression; mislabeled 'ok-' at creation, will flip with item 12.
 
 **PIN CORPUS FROZEN**: jac-py/tools/fuzz_corpus_pinned.json — 16 cases:
 minimal repros for items 1/2/4/5/7/8/10/12/13/14 (red until fixed), descriptor
@@ -563,6 +463,16 @@ _fuzz_introspect.jac before any upstream PR; the pin file itself should land.
 Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
 (module top-level code isn't replayed); function decorators in-method are
 green. Class-decorator support needs pinning elsewhere.
+
+1. **[MED-HIGH] range() degrades to a list across the bridge.**
+    type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
+    .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
+    and LAZINESS IS LOST — range(10**9) presumably materializes 1e9 elements
+    (memory/time bomb). All my earlier range greens (len/in/iteration) passed
+    coincidentally through list semantics. Root cause family C: from_host has
+    no range branch so host range lands as PyHostProxy/list. Fix: native
+    PyRange with start/stop/step + O(1) len/contains/index/slice arithmetic,
+    or at minimum preserve the host range object through the bridge.
 
 Pattern note: user-class dunder support is piecemeal — consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
