@@ -20,6 +20,7 @@ def _project_config -> any {
 obj CompileOptions {
     has symtab_ir_only: bool = False,
         no_cgen: bool = False,
+        native_parity: bool = False,
         skip_native_engine: bool = False,
         no_ir_cache: bool = False,
         resolve_annex_parent: bool = False,

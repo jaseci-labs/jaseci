@@ -128,6 +128,7 @@ impl check(
                     file_path=file_path,
                     options=CompileOptions(
                         no_cgen=not native_coverage,
+                        native_parity=True,
                         force_target_program=True,
                         suppress_codes=suppressed_codes
                     )

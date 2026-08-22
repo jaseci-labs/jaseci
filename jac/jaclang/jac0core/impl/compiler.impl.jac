@@ -1526,6 +1526,7 @@ impl JacCompiler._compile_once(
 
     if (
         options.no_cgen
+        and options.native_parity
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
