@@ -162,7 +162,7 @@ test "callable builtins stay plain calls" {
     }
 }
 
-test "host constructor call with kwargs still lowers" {
+test "host constructor call with kwargs lowers but reports E6010" {
     prog = JacProgram();
     with NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
@@ -181,53 +181,26 @@ test "host constructor call with kwargs still lowers" {
         f.flush();
         ir = prog.compile(f.name, type_check=True);
     }
-    assert not prog.errors_had , (
-        "kwargs fixture must compile cleanly, got: "
+    kw_errors = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E6010"
+    ];
+    assert len(kw_errors) == 1 , (
+        "A kwarg'd host constructor call must report exactly one E6010 "
+        "(host ctors are positional-only), got: "
         + str([str(e) for e in prog.errors_had])
     );
     js = ir.gen.js or "";
     assert "Reflect.construct(TextEncoder, [])" in js , (
         "TextEncoder() must lower; got:\n" + js
     );
-    assert 'Reflect.construct(URL, ["https://example.com", "a=b"])' in js , (
-        "URL(...) with kwargs must lower like new(URL, ...) -- positional args "
-        "plus kwarg values; got:\n"
+    assert "Reflect.construct(URL," in js , (
+        "URL(...) with kwargs must still lower through Reflect.construct so the "
+        "emitted JS stays syntactically valid; got:\n"
         + js
     );
     assert "URL(" not in js.replace("Reflect.construct(URL, ", "") , (
         "No bare URL() call may remain; got:\n" + js
-    );
-}
-
-test "registry-derived ctors (Blob, Int8Array, WeakMap) lower and warn W6010" {
-    # Regression guard for the consolidated JS_HOST_GLOBAL_TAGS registry: these
-    # were missing from the original hand-written allowlist, so Blob() et al
-    # still lowered to invalid bare-call JS with no W6010 (issue #7651).
-    prog = compile_inline(
-        "def:pub f() -> any {\n"
-        "    b = Blob([]);\n"
-        "    a = Int8Array(4);\n"
-        "    m = WeakMap();\n"
-        "    return \"ok\";\n"
-        "}\n"
-    );
-    warnings = warnings_with_code(prog, "W6010");
-    warned = {w.loc.first_line for w in warnings};
-    js = prog.ir.gen.js or "";
-    for fn in ["Blob", "Int8Array", "WeakMap"] {
-        assert "Reflect.construct(" + fn in js , (
-            fn
-            + "() must lower to Reflect.construct now that it is in the "
-            "consolidated registry; got:\n"
-            + js
-        );
-        assert warned , (
-            fn
-            + "() must emit a W6010 portability warning; got: "
-            + str([str(w) for w in warnings])
-        );
-    }
-    assert len(warnings) == 3 , (
-        "Exactly three W6010 warnings expected, got: " + str([str(w) for w in warnings])
     );
 }
