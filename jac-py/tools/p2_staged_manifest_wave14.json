@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave14",
+  "description": "P2 wave 14 staging policy (array accelerator)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave14",
+  "modules": [
+    {
+      "stem": "arraymodule",
+      "staging": "lift"
+    }
+  ]
+}
