@@ -301,11 +301,53 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
 
+8. **[LOW-MED] Exception attribute VALUES lack **class** synthesis.**
+    Caught exception e: e.**class**.**name** GREEN (item 12 fix covers the
+    instance). But r2.**cause**.**class**.**name** / **context** equivalents
+    raise AttributeError("**class**"): whatever py_getattr returns for
+    exception attributes skips the PyExceptionType synthesis path. Blocks
+    chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
+    Fix: route **cause**/**context** (audit all exception attrs) through the
+    same type-synthesis as the instance itself.
+
+9. **[LOW] Native method-descriptor TypeErrors lack qualname prefix.**
+    slice(1,2).indices() zero-arg: jacpython says "indices() takes exactly one
+    argument (0 given)"; CPython says "slice.indices() takes ...". Method-
+    descriptor error formatting uses **name** where CPython uses the qualname
+    (owner-prefixed) form. RESOLVES the suspected harness bug: layer1 harvest/
+    replay is EXONERATED - a side-by-side namespace diff showed both sides
+    faithfully report their own messages; the divergence is real VM behavior.
+    WildRaven's earlier 'direct drive byte-exact' check compared against a
+    mis-transcribed host string (prefix dropped). Fix lives in whichever slot
+    raises (PySliceIndices.indices first; audit sibling method descriptors).
+    Guard: pin-item22-methoddesc-qualname-msg.
+
+10. **[LOW] Builtin arg-check messages: missing count suffix + got-N.**
+    WildRaven sibling audit (item 22 follow-through). In ceval.jac native-
+    builtin block (~4600s): len()/hash()/repr() say "takes exactly one
+    argument" without CPython's "(N given)" suffix; isinstance/issubclass/
+    getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
+    builtin functions - only suffixes missing. classmethod/staticmethod text
+    needs host-oracle check. Owner: WildRaven, in flight.
+    **FIXED by WildRaven**: count suffixes + got-N landed; oracle texts:
+    len/hash/repr "takes exactly one argument (N given)", callable() same,
+    id() takes exactly one argument (0 given), isinstance/issubclass/hasattr
+    "expected 2 arguments, got N", getattr "expected at least 2 arguments,
+    got N", classmethod/staticmethod "expected 1 argument, got N".
+
+11. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+    ("object of type 'int' has no len()").** Found by split-codegen subagent,
+    reproduced identically on pre-split base commit: exec_tail_emits_code
+    (codegen_util.jac:926) receives an int instead of the stmt list when an
+    if/try/with sits in tail position after a return inside a function.
+    Compiler lane (QuickBear or successor). Needs confirming probe with valid
+    jac test-case syntax before fix.
+
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
 
-1. **[LOW-MED] float('inf') compared with huge int raises.** `inf > 10 ** 400`
+1. ~~[LOW-MED] float('inf') compared with huge int raises~~ FIXED 2026-08-22 (f2b244955: exact +-inf/overflow handling on both comparison sides; 7-case matrix verified). `inf > 10 ** 400`
    errors on jacpython (likely OverflowError converting the int to float);
    CPython compares exactly and returns True - no conversion overflow allowed.
 
@@ -342,18 +384,47 @@ per-protocol special cases.
     resolves **class** to its class object (and audit sibling identity dunders:
     **dict**, **module** on instances).
 
-6. **[LOW] callable() says False for user classes.** callable(C) where C is
+6. ~~[LOW] callable() says False for user classes~~ FIXED 2026-08-22 (ecaa2132e: native callable() over tp_call slots). callable(C) where C is
     a plain user class returns False (CPython: True - classes instantiate).
     callable(fn) works. Part of the type-slot family: tp_call presence isn't
     consulted for user types.
 
-7. **[LOW-MED] Generator return value lost on manual next() exhaustion.**
+7. ~~[LOW-MED] Generator return value lost on manual next() exhaustion~~ FIXED 2026-08-22 (7325306ec: next() forwards PyGenStop payload; also fixed latent ann_collect_stmts None-block crash).
     def g(): yield 1; return 99 - after consuming via next(), the terminal
     StopIteration has .value == None instead of 99. Asymmetric: yield from
     DOES forward the inner gen's return correctly (yieldfrom-return-value
     green), so the internal path carries it but the caller-facing
     StopIteration doesn't attach .value. Only affects explicit-iteration
     consumers (for loops ignore .value).
+
+### Widened-differential findings (QuickBear, 2026-08-22 afternoon)
+
+0b. **\[COMPILER\]\[HIGH\] f-strings do not interpolate at all.**
+    `f'{a}+{b}'` compiles to a single LOAD_CONST of the literal text
+    "{a}+{b}" -- runtime produces that literal instead of "1+2". Root cause:
+    parser actions pa_joined_str / pa_formatted_value / pa_interpolation /
+    pa_template_str (parser_actions.jac ~1717+) are stubs returning None, so
+    JoinedStr never reaches codegen. Fix needs both sides: parse actions
+    building JoinedStr/FormattedValue AST, plus emit lowering
+    (FORMAT_SIMPLE=12 / BUILD_STRING=50 opcodes already exist with ceval
+    support). Every f-string in every program is silently wrong until fixed.
+
+0c. **\[CODEGEN\]\[HIGH\] for/else with break/continue miscompiles control flow.**
+    Byte diff shows duplicated epilogues mid-stream and a JUMP_FORWARD 245
+    past program end; runtime: `done=0; for...break; else: done=99; r=done`
+    yields None instead of 0. while/else is byte-exact, so this is specific
+    to FOR + break/continue + else interaction. Semantic correctness bug,
+    not just parity.
+
+3b. **\[CODEGEN-PARITY\]\[MED\] def with *args/**kw defaults: function-attribute
+    operand ordering differs from host.** Function BODY bytes match; module
+    frame emits defaults/kwdefaults consts in different intern order
+    (ours LOAD_CONST 1,2 vs host 4,1). Same family as fixed item 9A but for
+    MAKE_FUNCTION attribute wiring. Semantics-neutral.
+
+3c. **\[CODEGEN-PARITY\]\[MED\] listcomp with if-filter byte-parity gap.**
+    Compiles, runs, but bytes differ from host oracle. Needs isolation
+    (comprehension inlining vs CPython's implicit function form).
 
 ## Runtime fix lane - HANDOFF BRIEF (for new worker agent)
 
@@ -427,6 +498,17 @@ domains coexist with these gaps: lifted-from-bytecode areas are solid,
 hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
 don't patch - individual fixes leave holes reopening under future features.
 
+**PIN STATUS @ HEAD 276b1af4e** (WildRaven nit batch + list-subclass drain gap): 22 GREEN /
+11 RED. New pin-slice-subclass-generator-assign GREEN on first run (gap fix works). All other reds unchanged/owned.
+ATTRIBUTION NOTE: 276b1af4e carries WildRaven's code (objects.jac nits/E1053 + ceval PyUserObj forward reroute) under a docs-labeled message - concurrent committer absorbed staged edits mid-cycle (shared-tree hazard). Code authorship: WildRaven, slice lane. Content verified complete via git show; not rewriting shared history.
+Harness note: WildRaven reported layer1 try/except replay mis-replaying zero-arg native-callable messages; NOT reproducible at this HEAD (probe returns byte-exact CPython message) - likely shadowed by their own indices() message fix; no action.
+
+**PIN STATUS @ HEAD e1c668204** (post slice-family landing): 21 GREEN /
+11 RED. Newly flipped: item10-slice-assign + item20-dynamic-slice-read-del
+(WildRaven). Remaining reds all owned: item1 x3 + item2 + item15 x2 (walker),
+item8 x2 (subagent), consumers-matrix (worker), item19 (unowned), chaining-
+nesteddef (blocked on item21). Earlier status below.
+
 **PIN STATUS @ HEAD 0694fda4d** (full 30-pin run post item-4 fix + 9A):
 11 GREEN (item4 family x5, inverse sentinels x3, iter-half,
 property-precedence, unpack-star) / 19 RED - every red maps to an open item,
@@ -473,7 +555,11 @@ Note: module-level @class-decorators are UNTESTABLE by the layer1 harness
 (module top-level code isn't replayed); function decorators in-method are
 green. Class-decorator support needs pinning elsewhere.
 
-1. **[MED-HIGH] range() degrades to a list across the bridge.**
+1. **[MED-HIGH] range() degrades to a list across the bridge. UNOWNED -
+   needs design-first owner: grep confirms NO native PyRange obj exists in the
+   tree (the done-list "PyRange deepen" refers to host-adjacent helpers, not a
+   native type), so this is new-type work, not a bridge arm. WildRaven declined
+   folding it into the slice landing; correctly per handoff brief.**
     type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
     .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
     and LAZINESS IS LOST - range(10**9) presumably materializes 1e9 elements
@@ -491,6 +577,48 @@ green. Class-decorator support needs pinning elsewhere.
     as item 10 (slice assignment): one shared fix, mp_subscript/ass/del all
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
+
+3. **[LOW-MED] Exception attribute VALUES lack **class** synthesis.**
+    Caught exception e: e.**class**.**name** GREEN (item 12 fix covers the
+    instance). But r2.**cause**.**class**.**name** / **context** equivalents
+    raise AttributeError("**class**"): whatever py_getattr returns for
+    exception attributes skips the PyExceptionType synthesis path. Blocks
+    chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
+    Fix: route **cause**/**context** (audit all exception attrs) through the
+    same type-synthesis as the instance itself.
+
+4. **[LOW] Native method-descriptor TypeErrors lack qualname prefix.**
+    slice(1,2).indices() zero-arg: jacpython says "indices() takes exactly one
+    argument (0 given)"; CPython says "slice.indices() takes ...". Method-
+    descriptor error formatting uses **name** where CPython uses the qualname
+    (owner-prefixed) form. RESOLVES the suspected harness bug: layer1 harvest/
+    replay is EXONERATED - a side-by-side namespace diff showed both sides
+    faithfully report their own messages; the divergence is real VM behavior.
+    WildRaven's earlier 'direct drive byte-exact' check compared against a
+    mis-transcribed host string (prefix dropped). Fix lives in whichever slot
+    raises (PySliceIndices.indices first; audit sibling method descriptors).
+    Guard: pin-item22-methoddesc-qualname-msg.
+
+5. **[LOW] Builtin arg-check messages: missing count suffix + got-N.**
+    WildRaven sibling audit (item 22 follow-through). In ceval.jac native-
+    builtin block (~4600s): len()/hash()/repr() say "takes exactly one
+    argument" without CPython's "(N given)" suffix; isinstance/issubclass/
+    getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
+    builtin functions - only suffixes missing. classmethod/staticmethod text
+    needs host-oracle check. Owner: WildRaven, in flight.
+    **FIXED by WildRaven**: count suffixes + got-N landed; oracle texts:
+    len/hash/repr "takes exactly one argument (N given)", callable() same,
+    id() takes exactly one argument (0 given), isinstance/issubclass/hasattr
+    "expected 2 arguments, got N", getattr "expected at least 2 arguments,
+    got N", classmethod/staticmethod "expected 1 argument, got N".
+
+6. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+    ("object of type 'int' has no len()").** Found by split-codegen subagent,
+    reproduced identically on pre-split base commit: exec_tail_emits_code
+    (codegen_util.jac:926) receives an int instead of the stmt list when an
+    if/try/with sits in tail position after a return inside a function.
+    Compiler lane (QuickBear or successor). Needs confirming probe with valid
+    jac test-case syntax before fix.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of

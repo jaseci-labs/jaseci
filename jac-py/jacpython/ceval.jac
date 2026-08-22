@@ -1394,7 +1394,10 @@ obj PyUserObj(PyObj) {
             return py_none();
         }
         if self._has_base() {
-            return self._base_obj().mp_ass_subscript(index, value);
+            # Route through public dispatch so builtin-subclass storage shares
+            # the slice-assignment iterable normalization (a boxed list receives
+            # values of its own Python type, not just native PyList).
+            return py_store_subscript(self._base_obj(), index, value);
         }
         return py_error("TypeError", "object does not support item assignment");
     }
@@ -1533,7 +1536,9 @@ obj PyNoOpInit(PyObj) {
 obj PyClassMethodCtor(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
-            return py_error("TypeError", "classmethod expected 1 argument");
+            return py_error(
+                "TypeError", "classmethod expected 1 argument, got " + str(len(args))
+            );
         }
         return PyClassMethod(t="classmethod", func=args[0]);
     }
@@ -1542,7 +1547,9 @@ obj PyClassMethodCtor(PyObj) {
 obj PyStaticMethodCtor(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
-            return py_error("TypeError", "staticmethod expected 1 argument");
+            return py_error(
+                "TypeError", "staticmethod expected 1 argument, got " + str(len(args))
+            );
         }
         return PyStaticMethod(t="staticmethod", func=args[0]);
     }
@@ -1737,6 +1744,18 @@ def from_host(raw: any) -> PyObj {
             range_values.append(PyInt(t="int", val=item));
         }
         return PyList(t="list", items=range_values);
+    }
+    if isinstance(raw, slice) {
+        # A dynamic host slice (slice(1, 7, 2) built by bridged guest code)
+        # materializes as a native PySlice: the subscript slots' slice branches
+        # key on isinstance(PySlice), and a PyHostProxy here would make xs[s]
+        # raise "list indices must be integers" while inline xs[1:7:2] works.
+        return PySlice(
+            t="slice",
+            start=from_host(raw.start),
+            stop=from_host(raw.stop),
+            step=from_host(raw.step),
+        );
     }
     if isinstance(raw, list) {
         list_values: list[PyObj] = [];
@@ -2725,6 +2744,17 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
 }
 
 def py_store_subscript(container: PyObj, index: PyObj, value: PyObj) -> PyObj {
+    # Slice assignment accepts ANY iterable as its value; CPython runs it
+    # through PySequence_Fast before list_ass_subscript. members_of() is that
+    # conversion (py_iter-first, host fallback), so user generators/iterables
+    # drain in-VM instead of dying inside the na-clean leaf slot.
+    if isinstance(container, PyList) and isinstance(index, PySlice) {
+        seq = members_of(value);
+        if is_error(seq) {
+            return seq;
+        }
+        return container.mp_ass_subscript(index, seq);
+    }
     return container.mp_ass_subscript(index, value);
 }
 
@@ -2885,6 +2915,20 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
+        # A property with a deleter is a data descriptor: deletion routes through
+        # fdel instead of removing an instance-dict entry (mirror of tp_setattro).
+        classattr = class_lookup_attr(u.cls, name);
+        if isinstance(classattr, PyProperty) {
+            p = classattr as PyProperty;
+            if p.fdel is not None {
+                res = py_invoke(p.fdel as PyObj, [u as PyObj], {});
+                if is_error(res) {
+                    return res;
+                }
+                return py_none();
+            }
+            return py_error("AttributeError", "can't delete attribute '" + name + "'");
+        }
         if name in u.attrs {
             _py_container_del(u.attrs, name);
             return py_none();
@@ -3962,7 +4006,9 @@ obj PyBuiltinSuperMethod(PyObj) {
             return py_none();
         }
         if n == "__setitem__" {
-            return b.mp_ass_subscript(args[0], args[1]);
+            # Route through the public dispatch (not the raw slot) so slice
+            # assignment shares the iterable-value normalization above.
+            return py_store_subscript(b, args[0], args[1]);
         }
         if n == "__getitem__" {
             return b.mp_subscript(args[0]);
@@ -4565,43 +4611,58 @@ obj PyNativeBuiltin(PyObj) {
         }
         if self.name == "id" {
             if len(args) == 0 {
-                return py_error("TypeError", "id expected 1 argument");
+                return py_error("TypeError", "id() takes exactly one argument (0 given)");
             }
             return PyInt(t="int", val=py_id(args[0]));
         }
         if self.name == "len" {
             if len(args) != 1 {
-                return py_error("TypeError", "len() takes exactly one argument");
+                return py_error(
+                    "TypeError", "len() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_len(args[0]);
         }
         if self.name == "hash" {
             if len(args) != 1 {
-                return py_error("TypeError", "hash() takes exactly one argument");
+                return py_error(
+                    "TypeError", "hash() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_hash(args[0]);
         }
         if self.name == "repr" {
             if len(args) != 1 {
-                return py_error("TypeError", "repr() takes exactly one argument");
+                return py_error(
+                    "TypeError", "repr() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_repr(args[0]);
         }
         if self.name == "isinstance" {
             if len(args) < 2 {
-                return py_error("TypeError", "isinstance expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "isinstance expected 2 arguments, got " + str(len(args)),
+                );
             }
             return PyBool(t="bool", val=py_isinstance(args[0], args[1]));
         }
         if self.name == "issubclass" {
             if len(args) < 2 {
-                return py_error("TypeError", "issubclass expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "issubclass expected 2 arguments, got " + str(len(args)),
+                );
             }
             return PyBool(t="bool", val=py_issubclass(args[0], args[1]));
         }
         if self.name == "callable" {
-            if len(args) < 1 {
-                return py_error("TypeError", "callable expected 1 argument");
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    "callable() takes exactly one argument (" + str(len(args)) + " given)",
+                );
             }
             return PyBool(t="bool", val=obj_is_callable(args[0]));
         }
@@ -4609,7 +4670,10 @@ obj PyNativeBuiltin(PyObj) {
             # getattr(obj, name[, default]): native attribute access, honoring a
             # 3rd-arg default on AttributeError (CPython only swallows that one).
             if len(args) < 2 {
-                return py_error("TypeError", "getattr expected at least 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "getattr expected at least 2 arguments, got " + str(len(args)),
+                );
             }
             attr = py_attr(args[0], expect_str(args[1]));
             if is_error(attr)
@@ -4621,7 +4685,10 @@ obj PyNativeBuiltin(PyObj) {
         }
         if self.name == "hasattr" {
             if len(args) < 2 {
-                return py_error("TypeError", "hasattr expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "hasattr expected 2 arguments, got " + str(len(args)),
+                );
             }
             probe = py_attr(args[0], expect_str(args[1]));
             return PyBool(t="bool", val=not is_error(probe));
