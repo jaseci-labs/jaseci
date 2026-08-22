@@ -5,7 +5,6 @@ import re;
 import shutil;
 import socket;
 import time;
-import pytest;
 import from pathlib { Path }
 import from subprocess { Popen }
 import from tempfile { TemporaryDirectory }
@@ -15,10 +14,14 @@ import from jaclang.runtimelib.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Skip unless the Vite/Bun client toolchain is available."""
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "Preact E2E requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -100,10 +103,10 @@ def _start_preact_server(project_dir: Path) -> tuple {
 def _stop_server(proc: Popen) {
     proc.terminate();
     try {
-        proc.wait(timeout=20);
+        proc.`wait(timeout=20);
     } except Exception {
         proc.kill();
-        proc.wait(timeout=5);
+        proc.`wait(timeout=5);
     }
 }
 
@@ -154,7 +157,7 @@ test "preact counter increments in browser" {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
-        pytest.skip("playwright not installed (pip install playwright)");
+        testskip("playwright not installed (pip install playwright)");
     }
     with TemporaryDirectory() as tmpdir {
         project = Path(tmpdir) / "preact_browser";
@@ -163,16 +166,15 @@ test "preact counter increments in browser" {
         proc = started[0];
         url = started[2];
         try {
-            with sync_playwright() as p {
+            with _as_any(sync_playwright()) as p {
                 browser = p.chromium.launch(headless=True);
                 context = browser.new_context();
                 page = context.new_page();
                 try {
                     page.goto(f"{url}/cl/app", wait_until="load", timeout=120000);
                     page.wait_for_selector('[data-testid="count"]', timeout=60000);
-                    assert "Count: 0" in page.locator(
-                        '[data-testid="count"]'
-                    ).inner_text();
+                    assert "Count: 0"
+                        in page.locator('[data-testid="count"]').inner_text();
                     page.locator('[data-testid="inc"]').click();
                     page.wait_for_function(
                         """() => {
@@ -181,9 +183,8 @@ test "preact counter increments in browser" {
                         }""",
                         timeout=15000,
                     );
-                    assert "Count: 1" in page.locator(
-                        '[data-testid="count"]'
-                    ).inner_text();
+                    assert "Count: 1"
+                        in page.locator('[data-testid="count"]').inner_text();
                 } finally {
                     context.close();
                     browser.close();

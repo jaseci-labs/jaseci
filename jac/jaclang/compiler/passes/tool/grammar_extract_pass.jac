@@ -2,6 +2,19 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.parser.tokens { TokenKind }
 
+def is_nil_expr(nd: object) -> bool {
+    if isinstance(nd, uni.CfgExpr) {
+        return is_nil_expr(nd.expr);
+    }
+    if isinstance(nd, uni.Null) {
+        return True;
+    }
+    if isinstance(nd, uni.Name) {
+        return nd.value == "NIL";
+    }
+    return False;
+}
+
 obj GExpr {
     def __eq__(other: object) -> bool;
     def __repr__ -> str;
@@ -168,8 +181,8 @@ obj GrammarExtractPass(UniPass) {
     def _collect_strict_diags(rule_name: str, stmts: list) -> None;
     def _walk_strict(rule_name: str, nd: uni.UniNode) -> None;
     def emit_diagnostics -> str;
-    def format_ebnf(expr: GExpr) -> str;
-    def simplify_expr(expr: GExpr) -> GExpr;
+    static def format_ebnf(expr: GExpr) -> str;
+    static def simplify_expr(expr: GExpr) -> GExpr;
     def interpret_stmts(stmts: list) -> GExpr | None;
     def interpret_stmt(stmt: uni.UniNode) -> GExpr | None;
     def interpret_call(call: uni.FuncCall) -> GExpr | None;
@@ -212,7 +225,7 @@ obj GrammarExtractPass(UniPass) {
     def extract_token_kind(expr: uni.Expr) -> str | None;
     def get_self_method(nd: uni.Expr) -> str | None;
     def get_token_args(call: uni.FuncCall) -> list;
-    def get_call_from_expr(expr: uni.Expr) -> uni.FuncCall | None;
+    def get_call_from_expr(expr: (uni.Expr | uni.KWPair)) -> uni.FuncCall | None;
     def get_impl_target_names(nd: uni.ImplDef) -> list;
     def format_rule_pretty(
         rule: GrammarRule, sep: str = "::=", max_line: int = 88

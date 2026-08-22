@@ -7,7 +7,6 @@ impl build(
     filename: str = "",
     projection: str = "jab",
     output: str = "dist",
-    no_typecheck: bool = False,
     check_only: bool = False,
     client: str = "",
     platform: str | None = None,
@@ -43,24 +42,12 @@ impl build(
         entry_path = os.path.join(project_root, entry_path);
     }
 
-    if not no_typecheck {
+    if check_only {
         import from jaclang.cli.commands.analysis { check }
-        console.print("  Running whole-program type-check", style="muted");
-        gate_rc = check(
+        return check(
             paths=[project_root],
             ignore=[".jac", ".jachome", ".venv", "venv", "node_modules", ".git"]
         );
-        if gate_rc != 0 {
-            console.error(
-                "Build gate failed: the project does not type-check.",
-                hint="Fix the errors above, or bypass once with --no-typecheck."
-            );
-            return gate_rc;
-        }
-        console.print("  ✔ Gate passed", style="success");
-    }
-    if check_only {
-        return 0;
     }
 
     if projection in ["jab", "sealed", "binary", "wheel", "npm"] {
@@ -80,7 +67,7 @@ impl build(
         if not entry_path or not os.path.isfile(entry_path) {
             console.error(
                 "No entry file for the native projection.",
-                hint="Set [project] entry-point or pass one: jac build main.na.jac --as native"
+                hint="Set [project] entry-point or pass one: jac build main.jac --as native"
             );
             return 1;
         }

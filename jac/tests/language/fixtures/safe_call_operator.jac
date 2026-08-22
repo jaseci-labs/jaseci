@@ -10,7 +10,7 @@ obj Name {
 obj User {
     has name: Name;
 
-    def greet {
+    def greet -> str {
         return "Hello, " + self.name.value;
     }
 }

@@ -5,10 +5,12 @@ class NameScope(object) {
         self._useset = `set(['']);
         self._basenamemap = defaultdict(int);
     }
-    def is_used(self: NameScope, name: Any) -> object {
+
+    def is_used(self: NameScope, name: any) -> object {
         return (name in self._useset);
     }
-    def register(self: NameScope, name: Any, deduplicate: Any = False) -> object {
+
+    def register(self: NameScope, name: any, deduplicate: any = False) -> object {
         if deduplicate {
             name = self.deduplicate(name);
         } elif self.is_used(name) {
@@ -17,7 +19,8 @@ class NameScope(object) {
         self._useset.add(name);
         return name;
     }
-    def deduplicate(self: NameScope, name: Any) -> object {
+
+    def deduplicate(self: NameScope, name: any) -> object {
         basename = name;
         while self.is_used(name) {
             ident = self._basenamemap[basename] + 1;
@@ -27,7 +30,14 @@ class NameScope(object) {
         return name;
     }
 }
+
 class _StrCaching(object) {
+    has __cached_str: str;
+
+    def _to_string(self: _StrCaching) -> object {
+        raise NotImplementedError;
+    }
+
     def _clear_string_cache(self: _StrCaching) -> object {
         try {
             del self.__cached_str;
@@ -35,6 +45,7 @@ class _StrCaching(object) {
             ;
         }
     }
+
     def __str__(self: _StrCaching) -> object {
         try {
             return self.__cached_str;
@@ -44,8 +55,15 @@ class _StrCaching(object) {
         }
     }
 }
+
 class _StringReferenceCaching(object) {
-    def get_reference(self: _StringReferenceCaching) -> object {
+    has __cached_refstr: str;
+
+    def _get_reference(self: _StringReferenceCaching) -> str {
+        raise NotImplementedError;
+    }
+
+    def get_reference(self: _StringReferenceCaching) -> str {
         try {
             return self.__cached_refstr;
         } except AttributeError {
@@ -54,16 +72,19 @@ class _StringReferenceCaching(object) {
         }
     }
 }
+
 class _HasMetadata(object) {
+    has metadata: dict[str, _StringReferenceCaching];
+
     """
         Attach unnamed metadata *node* to the metadata slot *name* of this
         value.
         """
-    def set_metadata(self: _HasMetadata, name: Any, `node: Any) -> object {
+    def set_metadata(self: _HasMetadata, name: any, `node: any) -> object {
         self.metadata[name] = `node;
     }
 
-    def _stringify_metadata(self: _HasMetadata, leading_comma: Any = False) -> object {
+    def _stringify_metadata(self: _HasMetadata, leading_comma: any = False) -> object {
         if self.metadata {
             buf = [];
             if leading_comma {
@@ -79,4 +100,3 @@ class _HasMetadata(object) {
         }
     }
 }
-

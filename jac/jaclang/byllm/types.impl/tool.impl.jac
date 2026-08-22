@@ -8,39 +8,49 @@ impl Tool.postinit -> None {
         self.func.__annotations__ = annotations;
     }
     self.description = Tool.get_func_description(self.func);
-    if self.func?._jac_semstr_inner {
-        self.params_desc = self.func._jac_semstr_inner;
+    semstr_inner = getattr(self.func, "_jac_semstr_inner", {});
+    if semstr_inner {
+        self.params_desc = semstr_inner;
     } else {
         self.params_desc = {name: str(type) for (name, type) in annotations.items()};
     }
 
-    if self.func?._serialize is not None {
-        self.serialize = self.func._serialize;
+    serialize_flag = getattr(self.func, "_serialize", self.serialize);
+    if serialize_flag is not None {
+        self.serialize = serialize_flag;
     }
-    if self.func?._timeout_sec is not None {
-        self.timeout_sec = self.func._timeout_sec;
+    timeout_override = getattr(self.func, "_timeout_sec", self.timeout_sec);
+    if timeout_override is not None {
+        self.timeout_sec = timeout_override;
     }
 }
 
-impl Tool.__call__(*args: list, **kwargs: dict) -> object {
+impl Tool.__call__(*args: any, **kwargs: any) -> any {
     if self.is_finish_tool() {
-        return self.func(*args, **kwargs);
+        try {
+            return self.func(*args, **kwargs);
+        } except FinishToolError {
+            raise;
+        } except Exception as e {
+            raise FinishToolError(f"finish_tool failed: {e}");
+        }
     }
     try {
         return self.func(*args, **kwargs);
     } except Exception as e {
-        logger.exception("Tool execution failed");
+        logger.warning("Tool %s failed: %s", self.get_name(), e);
         return f"Tool error: {e}";
     }
 }
 
 impl Tool.get_name -> str {
-    return self.func.__name__;
+    return getattr(self.func, "__name__", type(self.func).__name__);
 }
 
 impl Tool.get_func_description(func: Callable) -> str {
-    if func?._jac_semstr {
-        return func._jac_semstr;
+    semstr = getattr(func, "_jac_semstr", "");
+    if semstr {
+        return semstr;
     }
     return func.__doc__ or func.__name__;
 }
@@ -65,25 +75,107 @@ impl Tool.make_finish_tool(resp_type: type) -> Tool {
 }
 
 impl Tool.is_finish_tool -> bool {
-    return self.get_name() == "finish_tool";
+    return (
+        self.get_name() == "finish_tool"
+        and not getattr(self.func, "_is_error_tool", False)
+    );
 }
 
 impl Tool.get_json_schema -> dict[str, object] {
-    return tool_to_schema(self.func, self.description, self.params_desc, self.info);
+    return tool_to_schema(
+        self.func, self.description, self.params_desc or {}, self.info
+    );
 }
 
-impl Tool.parse_arguments(args_json: dict) -> dict {
-    args = {};
+impl Tool.parse_arguments(args_json: dict | str) -> dict {
     annotations: dict = {};
     try {
         annotations = self.func.__annotations__;
     } except AttributeError {
         annotations = get_type_hints(self.func);
     }
+    params = {
+        name: ty
+        for (name, ty) in annotations.items()
+        if name != "return"
+    };
+    if self.is_finish_tool() {
+        if not isinstance(args_json, dict) {
+            args_json = {"final_output": args_json};
+        }
+        return self._parse_finish_arguments(args_json, params);
+    }
+    if not isinstance(args_json, dict) {
+        raise ValueError(
+            f"tool '{self.get_name()}' arguments must be a JSON object; "
+            f"got {type(args_json).__name__}"
+        );
+    }
+    args = {};
     for (arg_name, arg_json) in args_json.items() {
-        if arg_type := annotations.get(arg_name) {
+        if arg_type := params.get(arg_name) {
             args[arg_name] = TypeAdapter(arg_type).validate_python(arg_json);
         }
     }
+    missing = [
+        name
+        for name in self._required_params(params)
+        if name not in args
+    ];
+    if missing {
+        raise ValueError(
+            f"missing required argument(s) {missing} for tool "
+            f"'{self.get_name()}'; received argument name(s) "
+            f"{list(args_json.keys())}"
+        );
+    }
     return args;
+}
+
+impl Tool._parse_finish_arguments(args_json: dict, params: dict) -> dict {
+    resp_type = params.get("final_output", object);
+
+    candidates: list = [];
+    if "final_output" in args_json {
+        candidates.append(args_json["final_output"]);
+    } elif len(args_json) == 1 {
+        candidates.append(list(args_json.values())[0]);
+    }
+    if args_json {
+        candidates.append(args_json);
+    }
+    for candidate in candidates {
+        try {
+            return {"final_output": TypeAdapter(resp_type).validate_python(candidate)};
+        } except Exception {
+            continue;
+        }
+    }
+    raise ValueError(
+        "finish_tool requires a 'final_output' argument matching the declared "
+        f"output schema; received argument name(s) {list(args_json.keys())}"
+    );
+}
+
+impl Tool._required_params(params: dict) -> list {
+    try {
+        sig = inspect.signature(self.func);
+    } except (TypeError, ValueError) {
+        return list(params.keys());
+    }
+    required: list = [];
+    for (name, param) in sig.parameters.items() {
+        if (
+            name in params
+            and param.`default is inspect.Parameter.empty
+            and param.kind
+                in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY
+                )
+        ) {
+            required.append(name);
+        }
+    }
+    return required;
 }

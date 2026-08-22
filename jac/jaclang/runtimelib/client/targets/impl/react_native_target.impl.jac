@@ -4,7 +4,7 @@ import subprocess;
 import platform as platform_mod;
 import from typing { Optional }
 import from jaclang.cli.console { console }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.watcher { FileChangeEvent }
 import from jaclang.runtimelib.client.targets.react_native.common {
     DEFAULT_APP_ID,
@@ -26,6 +26,7 @@ import from jaclang.runtimelib.client.targets.react_native.build {
     run_eas_update_opt_in,
     run_xcodebuild_ios,
     stage_native_image_assets,
+    entry_module_for,
     stage_compiled_entry,
     strip_css_imports,
     write_native_entry
@@ -170,7 +171,7 @@ impl ReactNativeTarget.build(
     lint_native_incompatible_usage(compiled_dir, sources=js_sources);
     strip_css_imports(compiled_dir);
 
-    entry_module: str = entry_file.stem;
+    entry_module: str = entry_module_for(entry_file, project_dir);
     stage_compiled_entry(compiled_dir, rn_dir, entry_module);
     stage_native_image_assets(rn_dir / "jac-src", rn_dir);
     write_native_entry(rn_dir);
@@ -223,12 +224,12 @@ impl ReactNativeTarget.build(
         console.print("\nInstall with: adb install -r " + str(artifact), style="muted");
     } else {
         console.print(
-            "\nInstall on a booted simulator with: " "xcrun simctl install booted " + str(
-                artifact
-            ) + "\n"
-            "For signing/provisioning and real-device distribution, follow "
-            "Expo iOS build docs:\n"
-            "  https://docs.expo.dev/build-reference/ios-builds/",
+            "\nInstall on a booted simulator with: " "xcrun simctl install booted "
+                + str(artifact)
+                + "\n"
+                "For signing/provisioning and real-device distribution, follow "
+                "Expo iOS build docs:\n"
+                "  https://docs.expo.dev/build-reference/ios-builds/",
             style="muted"
         );
     }
@@ -273,7 +274,7 @@ impl ReactNativeTarget.dev(
     lint_native_incompatible_usage(compiled_dir, sources=js_sources);
     strip_css_imports(compiled_dir);
 
-    entry_module: str = entry_file.stem;
+    entry_module: str = entry_module_for(entry_file, project_dir);
     stage_compiled_entry(compiled_dir, rn_dir, entry_module);
     stage_native_image_assets(rn_dir / "jac-src", rn_dir);
     write_native_entry(rn_dir);
@@ -321,7 +322,7 @@ impl ReactNativeTarget.dev(
             f"\n📱 React Native dev ready.\n"
             f"   Metro     : http://{visible_host}:{metro_port}\n"
             f"   API       : {dev_api_url}\n"
-            f"   Edit .cl.jac files — Metro will Fast Refresh on save.\n",
+            f"   Edit client .jac files — Metro will Fast Refresh on save.\n",
             style="bold green"
         );
 
@@ -343,8 +344,9 @@ impl ReactNativeTarget._compile_native_jac_modules(
 ) -> tuple[(any, Path)] {
     console.print("  Step 1: Compiling Jac modules + native runtime...", style="muted");
 
+    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
     builder = Jac.get_client_bundle_builder();
-    if builder is None {
+    if not isinstance(builder, ViteClientBundleBuilder) {
         raise RuntimeError(
             "Client bundle builder is unavailable — the jac-client compiler "
             "stack is required for react-native builds. Ensure "
@@ -487,7 +489,7 @@ def _start_ios(artifact_path: Path, project_dir: Path) {
     );
     import json as json_mod;
     sim_data = json_mod.loads(sim_result.stdout);
-    devices = sim_data.get("devices", {});
+    devices: dict[str, list[dict[str, any]]] = sim_data.get("devices", {});
 
     booted_udid: str | None = None;
     for (runtime_key, device_list) in devices.items() {
@@ -545,7 +547,7 @@ def _start_ios(artifact_path: Path, project_dir: Path) {
             payload_dir = temp_root / "Payload";
             app_candidates = [
                 f
-                for f in payload_dir.glob("*.app")
+                for f in payload_dir.`glob("*.app")
                 if f.is_dir()
             ];
             if not app_candidates {

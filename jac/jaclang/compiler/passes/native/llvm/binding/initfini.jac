@@ -10,7 +10,7 @@ import from jaclang.compiler.passes.native.llvm.binding { ffi }
     Raises:
         RuntimeError: Always raised as this function is no longer needed.
     """
-def initialize() -> object {
+def initialize -> object {
     raise RuntimeError(
         "jaclang.compiler.passes.native.llvm.binding.initialize() is deprecated and will be removed. "
         "LLVM initialization is now handled automatically. "
@@ -23,7 +23,7 @@ def initialize() -> object {
     Initialize all targets. Necessary before targets can be looked up
     via the :class:`Target` class.
     """
-def initialize_all_targets() -> object {
+def initialize_all_targets -> object {
     ffi.lib.LLVMPY_InitializeAllTargetInfos();
     ffi.lib.LLVMPY_InitializeAllTargets();
     ffi.lib.LLVMPY_InitializeAllTargetMCs();
@@ -34,7 +34,7 @@ def initialize_all_targets() -> object {
     any assembly or machine code via the :meth:`TargetMachine.emit_object`
     and :meth:`TargetMachine.emit_assembly` methods.
     """
-def initialize_all_asmprinters() -> object {
+def initialize_all_asmprinters -> object {
     ffi.lib.LLVMPY_InitializeAllAsmPrinters();
 }
 
@@ -42,40 +42,46 @@ def initialize_all_asmprinters() -> object {
     Initialize the native (host) target.  Necessary before doing any
     code generation.
     """
-def initialize_native_target() -> object {
+def initialize_native_target -> object {
     ffi.lib.LLVMPY_InitializeNativeTarget();
 }
 
 """
     Initialize the native ASM printer.
     """
-def initialize_native_asmprinter() -> object {
+def initialize_native_asmprinter -> object {
     ffi.lib.LLVMPY_InitializeNativeAsmPrinter();
 }
 
 """
     Initialize the native ASM parser.
     """
-def initialize_native_asmparser() -> object {
+def initialize_native_asmparser -> object {
     ffi.lib.LLVMPY_InitializeNativeAsmParser();
 }
 
-def shutdown() -> object {
+def shutdown -> object {
     ffi.lib.LLVMPY_Shutdown();
 }
+
 with entry {
     ffi.lib.LLVMPY_GetVersionInfo.restype = c_uint;
 }
-def _version_info() -> object {
+
+def _version_info -> object {
     v = [];
-    x = ffi.lib.LLVMPY_GetVersionInfo();
+    try {
+        x = ffi.lib.LLVMPY_GetVersionInfo();
+    } except OSError {
+        return (0, 0, 0);
+    }
     while x {
         v.append((x & 255));
         x >>= 8;
     }
     return `tuple(reversed(v));
 }
+
 with entry {
     llvm_version_info = _version_info();
 }
-
