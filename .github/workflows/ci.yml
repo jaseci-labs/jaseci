@@ -9,7 +9,8 @@ name: CI
 # PR-time failure) and the jobs that validate the sealed artifact itself
 # consume it. Both producers publish the same five-path kit, so every consumer
 # is checkout -> jac-kit -> run. Deep/exotic sweeps (including the full suite
-# against the sealed binary) live in nightly.yml.
+# against the sealed binary, and the whole darwin native lane) live in
+# nightly.yml; `macos-native` below reruns the darwin lane on a `macos` label.
 
 on:
   workflow_dispatch:
@@ -68,9 +69,10 @@ jobs:
               # runs must run it -- same reasoning as `native` listing ci.yml.
               # Without this an edit to the installer test ships unexercised.
               - '.github/workflows/_installer.yml'
-            # Narrowing filter: the macOS and aarch64 lanes only run when a
-            # path that can move them changes (or on push/dispatch), and the
-            # native suite takes the sealed kit instead of the host kit.
+            # Narrowing filter: the aarch64 lane only runs when a path that
+            # can move it changes (or on push/dispatch), and the native suite
+            # takes the sealed kit instead of the host kit. The darwin lane no
+            # longer reads this filter -- it is nightly + `macos`-label only.
             native:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
@@ -283,49 +285,6 @@ jobs:
             jac/jaclang/vendor/typeshed/stdlib
             jac/.pbs-build/linux-x86_64/musl/lib
             jac/.pbs-build/linux-aarch64/musl/lib
-            jac/.pbs-build/wasm32/libc
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: error
-
-  build-kit-macos:
-    needs: changes
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Build the jac binary (cached)
-        uses: ./.github/actions/setup-jac
-
-      - name: Set up Zig 0.16.0
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0
-          use-cache: false
-
-      - name: Materialize typeshed + wasm libc floor
-        working-directory: jac
-        run: |
-          zig build fetch-typeshed --summary all
-          zig build vendor-wasm-libc --summary all
-
-      - name: Verify the kit is complete
-        working-directory: jac
-        run: |
-          set -euo pipefail
-          for p in zig-out/bin/jac jaclang/vendor/typeshed/stdlib \
-                   .pbs-build/wasm32/libc; do
-            [ -e "$p" ] || { echo "::error::kit is missing $p"; exit 1; }
-          done
-
-      - name: Upload the kit
-        uses: actions/upload-artifact@v4
-        with:
-          name: jac-kit-macos
-          path: |
-            jac/zig-out/bin/jac
-            jac/jaclang/vendor/typeshed/stdlib
             jac/.pbs-build/wasm32/libc
           include-hidden-files: true
           retention-days: 1
@@ -1046,34 +1005,6 @@ jobs:
       - name: Fused-runtime boot of a fresh na host
         run: jac test jac/tests/runtimelib/client/test_fused_runtime_boot.jac
 
-  test-native-macos:
-    needs: [changes, build-kit-macos]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
-    runs-on: macos-latest
-    env:
-      JAC_NO_DEV_SOURCE: "1"
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-kit-macos
-      - name: Run native Mach-O linker regression tests
-        run: |
-          jac test jac/tests/compiler/passes/native/test_shared_lib.jac
-          jac test jac/tests/compiler/passes/native/test_exec_link.jac
-      - name: Run na->wasm floor + import-contract tests
-        run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
-      - name: Run bundled-stdlib equivalence pins (darwin)
-        env:
-          JAC_TEST_JOBS: "0"
-        # Pure-compute na modules that must agree on darwin; str/bytes guard
-        # the libc-binding divergence (musl static vs libSystem).
-        run: >-
-          jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
-          -f "shutil or path or textwrap or keyword or str or bytes"
-
   # Bootstrap unit tests: the Zig seed that fetches the pbs CPython before any
   # Python exists (bootstrap/fetch_pbs.zig). Cross-platform on purpose. The
   # launcher itself is Jac; its trailer codec, payload tool and boot path are
@@ -1380,6 +1311,17 @@ jobs:
     with:
       shellcheck: true
 
+  # The darwin native lane (sealed macOS kit + Mach-O / wasm-floor /
+  # libSystem-equivalence tests) lives in nightly.yml; see _macos-native.yml
+  # for why. It stays one label away here: add `macos` to a PR that touches
+  # Mach-O linking or the musl-vs-libSystem binding and it gates that PR like
+  # any other job. Not gated on the `native` path filter -- that filter fires
+  # on ordinary compiler churn, which is what put a 44-68 min leg on the
+  # critical path of every native PR to begin with.
+  macos-native:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'macos')) }}
+    uses: ./.github/workflows/_macos-native.yml
+
   # Aggregate gate: branch protection requires only this context. A NEW job
   # must be added to needs below by hand; always() so failures upstream fail
   # the gate instead of skipping it (skipped required checks count as passing).
@@ -1390,7 +1332,7 @@ jobs:
       - changes
       - host-kit
       - build-kit
-      - build-kit-macos
+      - macos-native
       - jac-check
       - contribution-checks
       - test-compiler
@@ -1405,7 +1347,6 @@ jobs:
       - test-scale
       - test-scale-k8s
       - test-native-aarch64
-      - test-native-macos
       - test-bootstrap
       - test-cef-build
       - test-jac-pack-smoke
