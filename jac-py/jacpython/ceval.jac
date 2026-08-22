@@ -2412,10 +2412,16 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         }
     }
     if isinstance(lhs, PyUserObj) and (lhs as PyUserObj)._has_base() {
-        return (lhs as PyUserObj)._base_obj().tp_richcompare(kind, unwrap_base(rhs));
+        res = (lhs as PyUserObj)._base_obj().tp_richcompare(kind, unwrap_base(rhs));
+        if not is_notimplemented(res) {
+            return res;
+        }
     }
     if isinstance(rhs, PyUserObj) and (rhs as PyUserObj)._has_base() {
-        return unwrap_base(lhs).tp_richcompare(kind, (rhs as PyUserObj)._base_obj());
+        res = unwrap_base(lhs).tp_richcompare(kind, (rhs as PyUserObj)._base_obj());
+        if not is_notimplemented(res) {
+            return res;
+        }
     }
     if kind == 2 {
         return PyBool(t="bool", val=lhs is rhs);

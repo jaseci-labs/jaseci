@@ -32,16 +32,19 @@ obj PyObj {
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # CPython ``object_richcompare``: == and != are identity tests. A
+        # non-identical operand yields PY_NOT_IMPLEMENTED so the caller
+        # (PyObject_RichCompare / user_compare) runs its own identity fallback
+        # after trying any overridden reflected slot; ordering is unsupported.
+        # NEVER compare type tags here -- two distinct instances of the same
+        # type would otherwise compare equal.
         if kind == 2 {
-            return PyBool(t="bool", val=self.t == other.t);
+            return PyBool(t="bool", val=self is other);
         }
         if kind == 3 {
-            return PyBool(t="bool", val=self.t != other.t);
+            return PyBool(t="bool", val=self is not other);
         }
-        if self.t != other.t {
-            return PY_NOT_IMPLEMENTED;
-        }
-        return PyBool(t="bool", val=False);
+        return PY_NOT_IMPLEMENTED;
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
