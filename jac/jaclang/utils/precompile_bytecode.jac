@@ -2154,106 +2154,123 @@ def seal_native_roots(
             }
         }
         console.print(f"  Building {rel}: {why}.");
-        prog = JacProgram();
-        na_coverage_begin();
-        try {
-            ir = prog.compile(
-                file_path=str(src),
-                options=CompileOptions(
-                    aot_mode=True,
-                    force_codespace='native',
-                    force_target_program=True,
-                    na_gc_mode='cycles',
-                    no_ir_cache=True
-                )
-            );
-        } finally {
-            coverage = na_coverage_end();
-        }
-        closure_deps: list[str] = [];
-        if ir is not None and ir.gen.interop_manifest is not None {
-            closure_deps = list(ir.gen.interop_manifest.native_transitive_sources);
-        }
-        if prog.errors_had {
-            for _err in prog.errors_had {
-                console.error(f"NATIVE SEAL: {_err.pretty_print()}");
+        for _seal_attempt in range(2) {
+            prog = JacProgram();
+            na_coverage_begin();
+            try {
+                ir = prog.compile(
+                    file_path=str(src),
+                    options=CompileOptions(
+                        aot_mode=True,
+                        force_codespace='native',
+                        force_target_program=True,
+                        na_gc_mode='cycles',
+                        no_ir_cache=True
+                    )
+                );
+            } finally {
+                coverage = na_coverage_end();
             }
-            purge_native_ir_cache(str(src), closure_deps);
-            return None;
-        }
-        if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
-            console.error(f"NATIVE SEAL: no native IR/layout for {rel}");
-            purge_native_ir_cache(str(src), closure_deps);
-            return None;
-        }
-        manifest = ir.gen.interop_manifest;
-        if manifest is not None and manifest.native_imports {
-            console.error(
-                f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
-                "need in-process callbacks and cannot be sealed AOT."
-            );
-            purge_native_ir_cache(str(src), closure_deps);
-            return None;
-        }
-        (demotion_error, waived, stale_waivers) = seal_demotion_report(
-            rel, coverage, waivers, pkg_path
-        );
-        if demotion_error {
-            console.error(demotion_error);
-            purge_native_ir_cache(str(src), closure_deps);
-            return None;
-        }
-        for name in waived {
-            console.warning(
-                f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
-                "NATIVE_SEAL_DEMOTION_WAIVERS. Calling it in a sealed build "
-                "aborts the process."
-            );
-        }
-        for name in stale_waivers {
-            console.warning(
-                f"NATIVE SEAL: {rel} waives {name}, which did not demote; drop "
-                "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
-            );
-        }
-        llvm_ir_text = str(ir.gen.llvm_ir);
-
-        (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
-
-        allowed_stub_names: set[str] = set(allowed_bare);
-        reg = ir.gen.layout_registry;
-        if reg is not None {
-            for bare in allowed_bare {
-                (owner, dot, meth) = bare.partition(".");
-                if not dot {
-                    continue;
+            closure_deps: list[str] = [];
+            if ir is not None and ir.gen.interop_manifest is not None {
+                closure_deps = list(ir.gen.interop_manifest.native_transitive_sources);
+            }
+            if prog.errors_had {
+                for _err in prog.errors_had {
+                    console.error(f"NATIVE SEAL: {_err.pretty_print()}");
                 }
-                for (cls, mro) in reg.mro_order.items() {
-                    if owner in mro {
-                        allowed_stub_names.add(f"{cls}.{meth}");
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+            if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
+                console.error(f"NATIVE SEAL: no native IR/layout for {rel}");
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+            manifest = ir.gen.interop_manifest;
+            if manifest is not None and manifest.native_imports {
+                console.error(
+                    f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
+                    "need in-process callbacks and cannot be sealed AOT."
+                );
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+            (demotion_error, waived, stale_waivers) = seal_demotion_report(
+                rel, coverage, waivers, pkg_path
+            );
+            if demotion_error {
+                console.error(demotion_error);
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+            for name in waived {
+                console.warning(
+                    f"NATIVE SEAL: {rel} ships {name} as an abort stub -- waived by "
+                    "NATIVE_SEAL_DEMOTION_WAIVERS. Calling it in a sealed build "
+                    "aborts the process."
+                );
+            }
+            for name in stale_waivers {
+                console.warning(
+                    f"NATIVE SEAL: {rel} waives {name}, which did not demote; drop "
+                    "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
+                );
+            }
+            llvm_ir_text = str(ir.gen.llvm_ir);
+
+            (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
+
+            allowed_stub_names: set[str] = set(allowed_bare);
+            reg = ir.gen.layout_registry;
+            if reg is not None {
+                for bare in allowed_bare {
+                    (owner, dot, meth) = bare.partition(".");
+                    if not dot {
+                        continue;
+                    }
+                    for (cls, mro) in reg.mro_order.items() {
+                        if owner in mro {
+                            allowed_stub_names.add(f"{cls}.{meth}");
+                        }
                     }
                 }
             }
-        }
-        shipped_stubs = [
-            s
-            for s in seal_abort_stubs(llvm_ir_text)
-            if s not in allowed_stub_names
-        ];
-        if shipped_stubs {
+            shipped_stubs = [
+                s
+                for s in seal_abort_stubs(llvm_ir_text)
+                if s not in allowed_stub_names
+            ];
+            if not shipped_stubs {
+                break;
+            }
+            purge_native_ir_cache(str(src), closure_deps);
+            if _seal_attempt == 0 {
+                console.warning(
+                    f"NATIVE SEAL: {rel} would link abort stub(s) "
+                    f"({', '.join(shipped_stubs)}) served from cached "
+                    "dependency IR compiled outside the seal; the cached IR "
+                    "for this closure has been purged and the closure "
+                    "recompiles fresh."
+                );
+                continue;
+            }
             console.error(
                 f"NATIVE SEAL: {rel} would link {len(shipped_stubs)} abort "
-                f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This is "
-                "read off the IR that actually ships, so it holds even when the "
-                "native coverage recorded nothing (a stale native IR cache serves "
-                "a demoted dependency without re-running codegen). The cached IR "
-                "for this closure has been purged; re-run the seal to recompile "
-                "it and get the per-method diagnostic."
+                f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This "
+                "is read off the IR that actually ships, and it held even "
+                "after the closure's cached IR was purged and recompiled "
+                "fresh, so the demotion is deterministic; fix the backend "
+                "gap or waive it in NATIVE_SEAL_DEMOTION_WAIVERS."
             );
-            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         layout = ir.gen.native_layout;
+        if layout is None {
+            console.error(f"NATIVE SEAL: no native layout for {rel}");
+            purge_native_ir_cache(str(src), closure_deps);
+            return None;
+        }
 
         _clib_syms = set((ir.gen._clib_symbol_lib or {}).keys());
         exports = sorted(
