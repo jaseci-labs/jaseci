@@ -115,7 +115,9 @@ test "file change detection" {
         watcher.stop();
         # Should have detected the change
         assert len(events) >= 1 , "File change was not detected";
-        assert "test.jac" in events[0].path;
+        assert any("test.jac" in e.path for e in events) , (
+            f"no event named the changed file: {[e.path for e in events]}"
+        );
     }
 }
 

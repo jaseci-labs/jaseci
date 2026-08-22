@@ -248,6 +248,9 @@ test "no production module runs first-use schema DDL outside the gate" {
     owner = {"runtimelib/store.jac", "runtimelib/impl/store.impl.jac"};
     offenders: list[str] = [];
     for path in sorted(src.rglob("*.jac")) {
+        if not path.is_file() {
+            continue;
+        }
         rel = path.relative_to(src).as_posix();
         if rel in owner or "tests/" in rel {
             continue;

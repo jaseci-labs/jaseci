@@ -161,13 +161,14 @@ test "a raw append cannot install a hook that skips the back-fill" {
         seen.append(cls);
     }
     installed = False;
+    hooks: any = Archetype._subclass_hooks;
     try {
-        Archetype._subclass_hooks.append(recorder);
+        hooks.append(recorder);
         installed = True;
     } except AttributeError { } finally {
         if installed {
             try {
-                Archetype._subclass_hooks.remove(recorder);
+                hooks.remove(recorder);
             } except Exception { }
         }
     }
