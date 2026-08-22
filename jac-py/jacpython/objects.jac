@@ -193,8 +193,26 @@ obj PyInt(PyObj) {
         # int.__cmp__ and runs the reflected float comparison. py_compare has no
         # NotImplemented plumbing, so promote self to float and reuse PyFloat's
         # coercion + NaN rules directly (the reflected result is identical).
+        # Overflow (|int| beyond float range) and infinities compare exactly:
+        # a finite int is strictly ordered against +-inf and lies beyond every
+        # finite float, so no lossy conversion is needed (inf > 10**400 works).
         if other.t == "float" {
-            return PyFloat(t="float", val=float(self.val)).tp_richcompare(kind, other);
+            of = other as PyFloat;
+            if of.val == float("inf") {
+                return _bool_from_cmp(-1, kind);
+            }
+            if of.val == float("-inf") {
+                return _bool_from_cmp(1, kind);
+            }
+            try {
+                fself = float(self.val);
+            } except OverflowError {
+                if self.val > 0 {
+                    return _bool_from_cmp(1, kind);
+                }
+                return _bool_from_cmp(-1, kind);
+            }
+            return PyFloat(t="float", val=fself).tp_richcompare(kind, other);
         }
         # Non-numeric right operand: identity-tag (in)equality only.
         if kind == 2 {
@@ -398,6 +416,28 @@ obj PyFloat(PyObj) {
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # int operand: compare exactly. A finite float is strictly ordered
+        # against +-inf and lies within every huge int's reach: when the int
+        # overflows float conversion it is strictly beyond this float (sign
+        # decides), so no lossy coercion is needed (10**400 vs inf works).
+        if other.t == "int" {
+            iv = (other as PyInt).val;
+            if self.val == float("inf") {
+                return _bool_from_cmp(1, kind);
+            }
+            if self.val == float("-inf") {
+                return _bool_from_cmp(-1, kind);
+            }
+            try {
+                other = PyFloat(t="float", val=float(iv)) as PyObj;
+            } except OverflowError {
+                # |int| beyond float range: strictly beyond every finite float.
+                if iv > 0 {
+                    return _bool_from_cmp(-1, kind);
+                }
+                return _bool_from_cmp(1, kind);
+            }
+        }
         (ok, b) = self._coerce(other);
         if not ok {
             if kind == 2 {
