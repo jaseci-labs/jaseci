@@ -213,9 +213,12 @@ test "the sized names, widths and signedness are defined in one table only" {
     pkg = Path(jaclang.__file__).parent;
     # The lexer and parser own the keyword spellings; the jac0core scalar
     # table owns the types and the registry is built from it. Everything
-    # else must query the registry (or, below the compiler, the table).
+    # else must query the registry (or, below the compiler, the table). The
+    # runtime's `__all__` is an export manifest, not a type list: the parity
+    # test pins it to the checker stub and the emitter registry.
     owners = {
         "jac0core/scalars.jac",
+        "runtimelib/builtin.jac",
         "jac0core/constant.jac",
         "jac0core/parser/tokens.jac",
         "jac0core/parser/parser.jac",

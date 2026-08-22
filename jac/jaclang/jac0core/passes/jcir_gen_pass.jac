@@ -346,6 +346,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _flatten_ast_list(items: list[CgItem | list[CgItem] | None]) -> list[CgItem];
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
+    def _apply_coercion(nd: Expr) -> None;
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
