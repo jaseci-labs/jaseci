@@ -4,7 +4,7 @@
 (`2094513ce` through `21111b1ab`; logical slices below). Do not re-derive facts already
 captured here - verify against oracle fixtures and extend the patterns below.
 
-Last updated: 2026-08-17 (`jac-python` through `21111b1ab`).
+Last updated: 2026-08-21 (`jac-python`, Band 6 slice 7 multi-handler).
 
 ---
 
@@ -167,6 +167,30 @@ that do not terminate must emit `POP_EXCEPT` (+ except-as cleanup) then
 
 ### 2.11 VM opcode fixtures added (Band 6)
 
+### 2.12 Multi-handler try/except/finally (slice 7) - span model
+
+`visit_try_except_finally` lowers `try/except+/else/finally` by forward-nesting
+the finally around the try/except chain. Spans are collected in a local list and
+coalesced by `merge_except_spans` **in layout position, not block id**
+(`pos_of` from `g.u.blocks`) - deferred blocks are placed at first `use()`, so
+id order != layout order. Overlapping spans with identical handler/depth/lasti
+fold into the covering range.
+
+Key CPython-congruent behaviors (each cost a debugging round; do not re-derive):
+
+| Behavior | Rule |
+|----------|------|
+| Dead `else` after terminated body | CPython still registers its names/consts first (compile body -> orelse -> handlers), then strips the code. We emit into throwaway blocks (snapshot len of blocks/regions/pending + nested_* fields) and truncate after; `u.add_name` registers at emit time |
+| Nested try/except as the whole outer try body | Inner publishes `nested_try_except_end` (its unwind block); outer body span starts there so entries never overlap. `body_is_try_except_only` gates it (finally-only variant pre-existed) |
+| Bare last handler + late inline finally | handler-epilogue span ends at `fin_inline` (leading NOP), merging with the inner-unwind span; typed last ends at `reraise_blk` |
+| Nested try in a handler body | Enclosing advertises `handler_fallthrough_fin/backward/fin_handler` + `handler_enclosing_unwind`; the nested try emits the enclosing epilogue inline per path (POP_EXCEPT + jump fin) instead of `emit_module_return`, gated on `not try_follows` (last statement only) |
+| Region depths inside a handler body | `handler_nest_depth` (+1 per active handler frame) is added to the nested try's own regions (body 1+n, match/unwind 3+n); the split spans (first POP -> enclosing unwind dl3, inline epi -> fin dl1) take no adjustment |
+| Nested handler span split | match+handler BODY are protected by the nested try's own unwind (up to the first POP_EXCEPT block); first POP maps to the enclosing unwind; epilogue to the fin handler; last-handler epilogue span ends at `reraise_blk` (not the empty block after) |
+
+Known remaining deferrals: `except ... as` in the combined finally path, bare
+last handler with early inline finally layout (untested combination), statements
+after a module-level terminator (pre-existing len-0 co_code bug - see §4).
+
 Registered in `EMISSION_OPCODES` + `# vm-opcode:` fixtures:
 
 `PUSH_EXC_INFO`, `CHECK_EXC_MATCH`, `POP_EXCEPT`, `RAISE_VARARGS`, `DELETE_FAST`,
@@ -186,6 +210,7 @@ Registered in `EMISSION_OPCODES` + `# vm-opcode:` fixtures:
 | 4 | `bd846d67d` | try/finally |
 | 5 | `f42db58ef` | with |
 | 6 | `21111b1ab` | assert |
+| 7 | (this commit) | multi-handler try/except/finally (typed + bare chain, else, nested try in body/handler) |
 
 ---
 
@@ -193,14 +218,16 @@ Registered in `EMISSION_OPCODES` + `# vm-opcode:` fixtures:
 
 | Feature | Status |
 |---------|--------|
-| bare `except` | `NotImplementedError` |
-| `try/else` | `NotImplementedError` |
-| `try/except/finally` combined | `NotImplementedError` |
+| ~~bare `except`~~ | landed (slice 7, bare-last handler) |
+| ~~`try/else`~~ | landed (slice 7) |
+| ~~`try/except/finally` combined~~ | landed (slice 7; single-handler form earlier) |
+| `except ... as` in the combined finally path | `NotImplementedError` (flat try/except as-binding works, slice 3) |
 | `try` without except/finally | `NotImplementedError` |
 | `raise ... from cause` | `NotImplementedError` |
 | `with` without `as` | `NotImplementedError` |
 | multiple `with` items | `NotImplementedError` |
 | delete cell/free in except-as cleanup | `NotImplementedError` |
+| statements after a module-level terminator | pre-existing bug: co_code becomes EMPTY (len 0) - names register, all blocks dropped. Repro: `raise ValueError('x')\nresult = 2\n`. Fix on a separate branch (touches module epilogue + dead-block stripping), not part of any Band 6 slice |
 
 ---
 

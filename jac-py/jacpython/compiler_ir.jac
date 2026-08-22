@@ -91,7 +91,21 @@ obj cfg_builder {
         # Suspendable function (generator/coroutine) PEP 479 protect start block id.
         generator_protect_start: int = -1,
         # END_ASYNC_FOR handler block id (async-for PEP 479 unwind region).
-        async_for_end_async_block: int = -1;
+        async_for_end_async_block: int = -1,
+        # While emitting an except handler body: the enclosing handler's inline
+        # success epilogue = POP_EXCEPT + jump to fin (fin_inline block, backward
+        # flag, and the fin handler block id for region targeting). A nested try
+        # falling through emits that epilogue inline (CPython duplicates it per
+        # path); handler_nest_depth counts active handler frames so nested try
+        # regions carry the extra exception stack depth (CPython per-instruction
+        # depths); handler_enclosing_unwind is the enclosing try's cleanup block
+        # for retargeting nested handler-body regions.
+        handler_fallthrough_fin: basicblock | None = None,
+        handler_fallthrough_backward: bool = False,
+        handler_fallthrough_fin_handler: int = -1,
+        handler_enclosing_unwind: int = -1,
+        handler_fell_through: bool = False,
+        handler_nest_depth: int = 0;
 
     def emit(ins: cinstr) {
         self.cur.instrs.append(ins);
@@ -252,7 +266,15 @@ obj unverified_cfg {
         # Inner try/finally success-path bounds for outer try/except wrapping.
         nested_try_finally_success_start: int = -1,
         nested_try_finally_success_end: int = -1,
-        nested_try_finally_unwind_start: int = -1;
+        nested_try_finally_unwind_start: int = -1,
+        # Last block of a nested try/except statement inside an outer try body;
+        # the outer body span starts here so entries never overlap the inner
+        # try's own regions (CPython table is per-instruction innermost).
+        nested_try_except_end: int = -1,
+        # First block (leading NOP) of the most recent nested try/except; the
+        # enclosing handler's match span ends here when the nested try's own
+        # regions carve out its body/handler coverage.
+        nested_try_except_start: int = -1;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

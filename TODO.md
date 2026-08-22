@@ -111,4 +111,4 @@ Post-TODO queue is clear of the three axes above. Further work is opportunistic 
 1. ~~**Finish heapq/bisect product path**~~ ✓ - native jacpython facades (`_p2_*`, no `::py::`); Modules stay C-API hand oracles; staged-sync + facade parity gates.
 2. ~~**Parser #8473**~~ ✓ - trailing `**` after named kwargs (`pa_join_sequences`); merged onto `jac-python`.
 3. ~~**P2 leaf deepen / `_stat` / `_opcode` facades**~~ ✓ - native `jacpython/_statmodule.jac` + `_opcodemodule.jac`; libtest shims + facade parity; `opcode_meta2jac` emits `OPCODE_HAS_*` classifiers.
-4. **Compiler deferral slice** - e.g. try/except/finally multi-handler or except-as-in-finally (`compiler_codegen` only; coordinate if Band 10 uncommitted).
+4. ~~**Compiler deferral slice: try/except/finally multi-handler**~~ ✓ - `visit_try_except_finally` chains N handlers (typed/bare), else, finally; nested try in body/handler publishes extents + inline enclosing epilogues; oracle-parity gates in `compiler_slice` / `layer9` (247 + 188). Except-as binding in the finally path remains deferred.

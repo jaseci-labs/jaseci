@@ -1070,6 +1070,110 @@ test "layer9: band6 assert failure raises AssertionError in ceval" {
     assert err.exception.message == "fail";
 }
 
+# ---------------- Band 6 slice 7: multi-handler try/except[/else]/finally ----------------
+
+def _layer9_parity(src: str) {
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 two handlers finally caught by first matches oracle" {
+    _layer9_parity(
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "layer9: band6 two handlers finally caught by first executes in ceval" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "layer9: band6 three handlers else finally no-exception matches oracle" {
+    _layer9_parity(
+        "try:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+}
+
+test "layer9: band6 three handlers else finally no-exception executes in ceval" {
+    src = (
+        "try:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 6;
+}
+
+test "layer9: band6 two handlers finally uncaught propagates in ceval" {
+    src = (
+        "try:\n"
+        + "    raise TypeError('t')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert is_error(out);
+    assert (out as PyError).exception.type_name == "TypeError";
+    assert expect_int(ns["marker"]) == 9;
+}
+
 # ---------------- Band 7 slice 1: generator yield ----------------
 
 test "layer9: band7 generator yield matches oracle" {

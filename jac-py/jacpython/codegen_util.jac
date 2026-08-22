@@ -1037,6 +1037,26 @@ def body_is_try_finally_only(body: list[stmt]) -> bool {
     return True;
 }
 
+# Single try/except statement (no finally) as the whole body of an outer try.
+# The nested try publishes its last block so the outer body span starts after
+# the inner regions instead of overlapping them.
+def body_is_try_except_only(body: list[stmt]) -> bool {
+    if len(body) != 1 {
+        return False;
+    }
+    if not isinstance(body[0], Try) {
+        return False;
+    }
+    inner = body[0] as Try;
+    if inner.handlers is None or len(inner.handlers) == 0 {
+        return False;
+    }
+    if inner.finalbody is not None and len(inner.finalbody) > 0 {
+        return False;
+    }
+    return True;
+}
+
 def match_pattern_loc(p: pattern) -> cloc {
     return nloc(p.lineno, p.end_lineno, p.col_offset, p.end_col_offset);
 }

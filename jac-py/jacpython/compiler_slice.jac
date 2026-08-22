@@ -2173,6 +2173,335 @@ test "compiler_slice: band6 try except else finally executes in ceval" {
     assert expect_int(ns["result"]) == 3;
 }
 
+# -------- Band 6 slice 7: multi-handler try/except[/else]/finally --------
+
+def _parity(src: str) {
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 two handlers finally caught by first parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 two handlers finally caught by first executes in ceval" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 two handlers finally caught by second parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
+    );
+}
+
+test "compiler_slice: band6 two handlers finally caught by second executes in ceval" {
+    src = (
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    result = 3\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band6 two handlers finally uncaught parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise TypeError('t')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 two handlers finally uncaught propagates but runs finally in ceval" {
+    src = (
+        "try:\n"
+        + "    raise TypeError('t')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except KeyError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "TypeError";
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 three handlers else finally no-exception parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+}
+
+test "compiler_slice: band6 three handlers else finally no-exception runs else then finally in ceval" {
+    src = (
+        "try:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 6;
+}
+
+test "compiler_slice: band6 three handlers else finally exception skips else parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+}
+
+test "compiler_slice: band6 three handlers else finally exception skips else in ceval" {
+    src = (
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "except KeyError:\n"
+        + "    result = 3\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "else:\n"
+        + "    result = 5\n"
+        + "finally:\n"
+        + "    result = 6\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 6;
+}
+
+test "compiler_slice: band6 typed bare chain finally parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 typed bare chain finally executes in ceval" {
+    src = (
+        "try:\n"
+        + "    raise KeyError('k')\n"
+        + "except ValueError:\n"
+        + "    result = 1\n"
+        + "except:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 2;
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 handler raise reaches finally then propagates parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise KeyError('k')\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 handler raise reaches finally then propagates in ceval" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    raise KeyError('k')\n"
+        + "except TypeError:\n"
+        + "    result = 4\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "KeyError";
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 nested try inside handler parsed matches oracle co_code" {
+    _parity(
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    try:\n"
+        + "        1 // 0\n"
+        + "    except ZeroDivisionError:\n"
+        + "        result = 7\n"
+        + "except TypeError:\n"
+        + "    result = 8\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 nested try inside handler executes in ceval" {
+    src = (
+        "try:\n"
+        + "    raise ValueError('x')\n"
+        + "except ValueError:\n"
+        + "    try:\n"
+        + "        1 // 0\n"
+        + "    except ZeroDivisionError:\n"
+        + "        result = 7\n"
+        + "except TypeError:\n"
+        + "    result = 8\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+    assert expect_int(ns["marker"]) == 9;
+}
+
+test "compiler_slice: band6 first handler re-raises second catches parsed matches oracle co_code" {
+    _parity(
+        "err = ValueError('v')\n"
+        + "try:\n"
+        + "    try:\n"
+        + "        raise err\n"
+        + "    except ValueError:\n"
+        + "        raise\n"
+        + "except KeyError:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+}
+
+test "compiler_slice: band6 first handler re-raises second catches in ceval" {
+    src = (
+        "err = ValueError('v')\n"
+        + "try:\n"
+        + "    try:\n"
+        + "        raise err\n"
+        + "    except ValueError:\n"
+        + "        raise\n"
+        + "except KeyError:\n"
+        + "    result = 1\n"
+        + "except ValueError:\n"
+        + "    result = 2\n"
+        + "finally:\n"
+        + "    marker = 9\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 2;
+    assert expect_int(ns["marker"]) == 9;
+}
+
 # ---------------- Band 6 slice 5: with ----------------
 
 test "compiler_slice: band6 with parsed matches oracle co_code" {
