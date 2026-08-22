@@ -55,7 +55,7 @@ impl NaIRGenExceptions._emit_exc_push_helper -> None {
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     fnty = ir.FunctionType(ir.VoidType(), [exc_state_ptr]);
-    b = self._new_fn_builder("__jac_exc_push", fnty, "private", ("state",));
+    b = self._new_fn_builder("__jac_exc_push", fnty, "private", ("state", ));
     func = b.function;
     state = func.args[0];
 
