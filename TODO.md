@@ -280,18 +280,8 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 3. **[LEDGER, carried]** to_host wrapper gaps (PyNativeBuiltin/bound methods);
    weakref API coverage debt. Single-branch workflow: fix in-branch, no GitHub issues.
 
-4. **[MED] User-class `__call__` not honored.** Calling an instance of a class
-   defining `__call__` raises TypeError("object is not callable"); type(f).**call**
-   is never consulted by the call path. Explicit f.**call**(x) presumably works.
-   Repro: Adder(10)(5) -> should be 15.
-
-5. **[MED] list()-family builtins bypass tp_iter via to_host.**
-   NARROWED: iter(g) WORKS (tp_iter consulted, returns real PyIter over the
-   right items); hasattr(g,'**iter**') True. The bug: list()/similar consuming
-   builtins do to_host(arg) -> None FIRST, then raise "'NoneType' object is
-   not iterable" (the NoneType in the message IS the bridged-away object).
-   Fix: consuming builtins call arg.tp_iter() in-VM before any bridge attempt.
-
+4. ~~[MED] User-class `__call__` not honored~~ FIXED 2026-08-22 (0694fda4d PyUserObj.tp_call override).
+5. ~~[MED] list()-family builtins bypass tp_iter via to_host~~ FIXED 2026-08-22 (4beb645eb ctor drains VM iterables pre-bridge).
 6. **[MED-HIGH] range() degrades to a list across the bridge.**
     type(range(3)) -> 'list'; repr -> '[0, 1, 2]'. Consequences: no
     .start/.stop/.step; range slicing fails; isinstance/type checks wrong;
@@ -333,7 +323,8 @@ per-protocol special cases.
     00c9ead4e - user-class subclass(set) instantiation family (cf. items 4/12/13).
     Needs an owner.
 
-5. **[MED] `instance.__class__` AttributeError on user instances.**
+5. ~~[MED] `instance.__class__` AttributeError on user instances~~ FIXED 2026-08-22 (11fa28f58: PyUserObj + PyException + PyExceptionType surfaces; caught-handler idiom verified).
+
     a.**class** -> AttributeError("**class**") for any user-class instance;
     works for natives ([].**class** == list). dir(a) lists **class**, so the
     surface claims it but getattr misses it. Breaks common idiom
