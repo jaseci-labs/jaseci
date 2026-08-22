@@ -1,8 +1,8 @@
 import asyncio;
 import logging;
-import from fastapi { Request }
-import from fastapi.responses { JSONResponse }
-import from jaclang.scale.jserver.jserver { HTTPMethod, JEndPoint }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
 import from jaclang.scale.admin.k8s_ops {
     apps_api,
     core_api,
@@ -33,7 +33,7 @@ def _rollout_status(dep: dict) -> dict {
 
     for c in conditions {
         if c.get("type") == "Progressing"
-        and str(c.get("reason", "")) == "ProgressDeadlineExceeded" {
+            and str(c.get("reason", "")) == "ProgressDeadlineExceeded" {
             return {
                 "status": "stuck",
                 "reason": "ProgressDeadlineExceeded",
@@ -60,7 +60,7 @@ def summarize_deployment(dep: dict) -> dict {
     containers = ((spec.get("template", {}) or {}).get("spec", {}) or {}).get(
         "containers", []
     )
-    or [];
+        or [];
     images: list = [];
     for c in containers {
         img = c.get("image");
@@ -97,12 +97,12 @@ def _container_state(cs: dict) -> dict {
 }
 
 
-def summarize_pod(pod: dict) -> dict {
-    meta = pod.get("metadata", {}) or {};
-    spec = pod.get("spec", {}) or {};
-    status = pod.get("status", {}) or {};
-    labels = meta.get("labels", {}) or {};
-    cstatuses = status.get("container_statuses", []) or [];
+def summarize_pod(pod: dict[str, any]) -> dict[str, any] {
+    meta: dict[str, any] = pod.get("metadata", {}) or {};
+    spec: dict[str, any] = pod.get("spec", {}) or {};
+    status: dict[str, any] = pod.get("status", {}) or {};
+    labels: dict[str, any] = meta.get("labels", {}) or {};
+    cstatuses: list[any] = status.get("container_statuses", []) or [];
 
     ready_count = 0;
     restart_total = 0;
@@ -193,7 +193,11 @@ impl JacAPIServerDeployHealth.register_deploy_health_endpoints -> None {
         }
         return JSONResponse(content={"ok": True, "data": data});
     }
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/ops/deploy",

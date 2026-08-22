@@ -1,5 +1,6 @@
 impl __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement {
-    return globalThis.__jacGetRenderer__().create(tag, props, children);
+    renderer: any = globalThis.__jacGetRenderer__();
+    return renderer.create(tag, props, children);
 }
 
 impl __jacRegisterRenderer(renderer: any) -> None {
@@ -8,12 +9,12 @@ impl __jacRegisterRenderer(renderer: any) -> None {
 
 impl JacAwaiting(props: dict) -> JsxElement {
     return React.createElement(
-        React.Suspense, {"fallback": props.fallback}, props.children
+        React.Suspense, {"fallback": props["fallback"]}, props["children"]
     );
 }
 
 async def _awaitPlatformReady {
-    ready = globalThis.__jacPlatformReady__;
+    ready: any = globalThis.__jacPlatformReady__;
     if ready {
         await ready;
     }
@@ -33,27 +34,27 @@ impl __createJacSchema(zodLib: any) -> any {
 }
 
 impl __getEndpointEffects -> dict {
-    if not globalThis.__jacEndpointEffects__ {
-        seed_fn = globalThis.__jacSeedEndpointEffects__;
-        if seed_fn {
-            globalThis.__jacEndpointEffects__ = seed_fn();
-        } else {
-            globalThis.__jacEndpointEffects__ = {};
-        }
+    effects: any = globalThis.__jacEndpointEffects__;
+    if not effects {
+        seed_fn: any = globalThis.__jacSeedEndpointEffects__;
+        effects = seed_fn() if seed_fn else {};
+        globalThis.__jacEndpointEffects__ = effects;
     }
-    return globalThis.__jacEndpointEffects__;
+    return effects;
 }
 
 impl __getCacheState -> dict {
-    if not globalThis.__jacCacheState__ {
-        globalThis.__jacCacheState__ = {
+    state: any = globalThis.__jacCacheState__;
+    if not state {
+        state = {
             "cache": {},
             "order": [],
             "pending": {},
             "config": {"maxEntries": 500, "defaultTtlMs": 60000}
         };
+        globalThis.__jacCacheState__ = state;
     }
-    return globalThis.__jacCacheState__;
+    return state;
 }
 
 impl __isFresh(`entry: dict) -> bool {
@@ -64,10 +65,10 @@ impl __isFresh(`entry: dict) -> bool {
     return age < `entry["ttl"];
 }
 
-impl __cacheGet(key: str) -> dict {
+impl __cacheGet(key: str) -> dict | None {
     state = __getCacheState();
-    entry = state["cache"][key];
-    if not entry {
+    `entry = state["cache"][key];
+    if not `entry {
         return None;
     }
     idx = state["order"].indexOf(key);
@@ -75,7 +76,7 @@ impl __cacheGet(key: str) -> dict {
         state["order"].splice(idx, 1);
     }
     state["order"].push(key);
-    return entry;
+    return `entry;
 }
 
 impl __cacheSet(key: str, data: any, ttl: int) -> None {
@@ -103,9 +104,9 @@ impl __evictOldest -> None {
     }
 }
 
-impl __overlaps(list1: list, list2: list) -> bool {
+impl __overlaps(list1: list[str], list2: list[str]) -> bool {
     for item in list1 {
-        if list2.includes(item) {
+        if item in list2 {
             return True;
         }
     }
@@ -116,8 +117,8 @@ impl __invalidateEndpoint(endpoint_key: str) -> None {
     state = __getCacheState();
     keys_to_delete = [];
     for key in Object.keys(state["cache"]) {
-        if key.startsWith(endpoint_key) {
-            keys_to_delete.push(key);
+        if key.startswith(endpoint_key) {
+            keys_to_delete.append(key);
         }
     }
     for key in keys_to_delete {
@@ -174,6 +175,14 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
         {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
     );
     if not response.ok {
+        if response.status == 401 {
+            globalThis.__jacRemoveLocalStorage__("jac_token");
+            handler = globalThis.__jacHandleWalkerUnauthorized__;
+            if handler {
+                handler();
+            }
+            return {};
+        }
         error_text = await response.text();
         raise Exception(f"Function {function_name} failed: {error_text}");
     }
@@ -222,7 +231,7 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
             reader_info = effects[endpoint_name];
             if reader_info and not reader_info["is_writer"] {
                 if writer_touches.includes("*")
-                or __overlaps(reader_info["touches"], writer_touches) {
+                    or __overlaps(reader_info["touches"], writer_touches) {
                     __invalidateEndpoint(endpoint_name);
                 }
             }
@@ -234,9 +243,9 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
 
 impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
     if left == "login"
-    or left == "signup"
-    or left == "logout"
-    or left == "refresh_token" {
+        or left == "signup"
+        or left == "logout"
+        or left == "refresh_token" {
         return await __doWalkerFetch(left, right, fields);
     }
     endpoint_key = f"walker:{left}";

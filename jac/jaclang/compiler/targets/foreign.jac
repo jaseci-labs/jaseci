@@ -1,6 +1,6 @@
 import jaclang.jac0core.unitree as uni;
 
-glob FOREIGN_SCALARS: dict[str, tuple] = {
+glob FOREIGN_SCALARS: dict[str, tuple[int, int, bool, int]] = {
          "u8": (1, 1, False, 8),
          "i8": (1, 1, False, 8),
          "bool": (1, 1, False, 8),
@@ -34,12 +34,7 @@ def collect_foreign_structs(modules: list) -> dict {
                     for var in decl.get_has_vars() {
                         tname: (str | None) = None;
                         if var.type_tag is not None and var.type_tag.tag is not None {
-                            tag = var.type_tag.tag;
-                            if isinstance(tag, uni.Name) {
-                                tname = tag.value;
-                            } elif tag?.value and isinstance(tag.value, str) {
-                                tname = tag.value;
-                            }
+                            tname = declared_type_name(var.type_tag.tag);
                         }
                         fields.append((var.sym_name, tname));
                     }
@@ -80,7 +75,7 @@ def collect_foreign_fns(modules: list) -> dict {
                     continue;
                 }
                 if decl.signature is None
-                or not isinstance(decl.signature, uni.FuncSignature) {
+                    or not isinstance(decl.signature, uni.FuncSignature) {
                     continue;
                 }
                 fname = decl.name_ref.sym_name if decl.name_ref else None;
@@ -107,15 +102,17 @@ def collect_foreign_fns(modules: list) -> dict {
     return out;
 }
 
-def foreign_struct_layout(structs: dict, name: str) -> tuple {
+def foreign_struct_layout(
+    structs: dict, name: str
+) -> tuple[int, int, list[tuple[int, bool, int]]] {
     fields = structs.get(name, []);
     offset = 0;
     max_align = 1;
-    scalars: list = [];
+    scalars: list[tuple[int, bool, int]] = [];
     for (fname, tname) in fields {
-        if tname is not None and tname in structs {
+        if isinstance(tname, str) and tname in structs {
             (sz, al, subs) = foreign_struct_layout(structs, tname);
-        } elif tname is not None and tname in FOREIGN_SCALARS {
+        } elif isinstance(tname, str) and tname in FOREIGN_SCALARS {
             (sz, al, isf, bits) = FOREIGN_SCALARS[tname];
             subs = [(0, isf, bits)];
         } else {

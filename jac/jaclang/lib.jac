@@ -8,5 +8,5 @@ def __getattr__(name: str) -> object {
 }
 
 def __dir__ -> list[str] {
-    return _jaclib.__dir__();
+    return list(_jaclib.__dir__());
 }

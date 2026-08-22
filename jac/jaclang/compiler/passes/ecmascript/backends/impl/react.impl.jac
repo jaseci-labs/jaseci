@@ -31,7 +31,7 @@ impl ReactBackend.required_globals -> list[str] {
 }
 
 impl ReactBackend.runtime_source_basename -> str {
-    return "client_runtime.cl.jac";
+    return "client_runtime.jac";
 }
 
 impl ReactBackend.vite_aliases -> dict[str, str] {
@@ -77,10 +77,10 @@ impl ReactBackend.vite_plugin_lines -> (tuple[str, str] | None) {
 }
 
 impl ReactBackend._get_setter_name(var_name: str) -> str {
-    if not var_name {
-        return "";
+    import from jaclang.compiler.passes.ecmascript.framework_backend {
+        state_setter_name
     }
-    return f"set{var_name[0].upper()}{var_name[1:]}";
+    return state_setter_name(var_name);
 }
 
 impl ReactBackend._jsx_fragment(children: list[es.Expression]) -> es.CallExpression {
@@ -95,7 +95,20 @@ impl ReactBackend._jsx_fragment(children: list[es.Expression]) -> es.CallExpress
 }
 
 impl ReactBackend.state_field_symbols(s: StateField) -> list[str] {
-    return ["useState"];
+    return ["useJacState"];
+}
+
+impl ReactBackend._state_cell_name(var_name: str) -> str {
+    return f"__jacS_{var_name}";
+}
+
+impl ReactBackend._state_cell_member(var_name: str, member: str) -> es.Expression {
+    return es.MemberExpression(
+        object=es.Identifier(name=self._state_cell_name(var_name)),
+        property=es.Identifier(name=member),
+        computed=False,
+        optional=False
+    );
 }
 
 impl ReactBackend.ref_field_symbols(r: RefField) -> list[str] {
@@ -119,16 +132,30 @@ impl ReactBackend.view_runtime_symbols(view: ViewElement) -> list[str] {
 }
 
 impl ReactBackend.lower_state_field(s: StateField) -> list[es.Statement] {
+    hook_call = es.CallExpression(
+        callee=es.Identifier(name='useJacState'), arguments=[s.init_expr]
+    );
+    declarator = es.VariableDeclarator(
+        id=es.Identifier(name=self._state_cell_name(s.name)), init=hook_call
+    );
+    statements: list[es.Statement] = [
+        es.VariableDeclaration(declarations=[declarator], kind='const')
+    ];
     setter_name = self._get_setter_name(s.name);
-    array_pattern = es.ArrayPattern(
-        elements=[es.Identifier(name=s.name), es.Identifier(name=setter_name)]
-    );
-    use_state_call = es.CallExpression(
-        callee=es.Identifier(name='useState'), arguments=[s.init_expr]
-    );
-    declarator = es.VariableDeclarator(id=array_pattern, init=use_state_call);
-    decl_stmt = es.VariableDeclaration(declarations=[declarator], kind='const');
-    return [decl_stmt];
+    if (s.bind_setter and setter_name) {
+        statements.append(
+            es.VariableDeclaration(
+                declarations=[
+                    es.VariableDeclarator(
+                        id=es.Identifier(name=setter_name),
+                        init=self._state_cell_member(s.name, 'set')
+                    )
+                ],
+                kind='const'
+            )
+        );
+    }
+    return statements;
 }
 
 impl ReactBackend.lower_ref_field(r: RefField) -> list[es.Statement] {
@@ -142,7 +169,7 @@ impl ReactBackend.lower_ref_field(r: RefField) -> list[es.Statement] {
 }
 
 impl ReactBackend.lower_state_read(name: str) -> es.Expression {
-    return es.Identifier(name=name);
+    return self._state_cell_member(name, 'val');
 }
 
 impl ReactBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
@@ -152,16 +179,16 @@ impl ReactBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
 impl ReactBackend._view_attr_property(attr: any, sync_loc: any) -> es.Property {
     import from jaclang.compiler.passes.ecmascript.view_ir { DynamicAttr, EventAttr }
     if isinstance(attr, DynamicAttr) {
-        name = attr.name;
+        attr_name = attr.name;
         value = sync_loc(self.lower_view_expr(attr.value), jac_node=attr.jac_node);
     } elif isinstance(attr, EventAttr) {
-        name = attr.name;
+        attr_name = attr.name;
         value = attr.handler;
     } else {
-        name = attr.name;
+        attr_name = attr.name;
         value = attr.value;
     }
-    key_expr = sync_loc(es.Literal(value=name), jac_node=attr.jac_node);
+    key_expr = sync_loc(es.Literal(value=attr_name), jac_node=attr.jac_node);
     return sync_loc(
         es.Property(
             key=key_expr,
@@ -288,16 +315,14 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
 }
 
 impl ReactBackend.lower_state_update(u: StateUpdate) -> es.Expression {
-    setter_name = self._get_setter_name(u.name);
+    setter_arg: es.Expression = u.value;
     if u.aug_op {
         setter_arg = es.BinaryExpression(
-            operator=u.aug_op, left=es.Identifier(name=u.name), right=u.value
+            operator=u.aug_op, left=self.lower_state_read(u.name), right=u.value
         );
-    } else {
-        setter_arg = u.value;
     }
     return es.CallExpression(
-        callee=es.Identifier(name=setter_name), arguments=[setter_arg]
+        callee=self._state_cell_member(u.name, 'set'), arguments=[setter_arg]
     );
 }
 

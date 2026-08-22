@@ -155,7 +155,7 @@ test "tool extraction from compiled code" {
     assert JacRuntime.program is not None;
     mtir_map = JacRuntime.program.mtir_map;
 
-    func_with_tools = None;
+    func_with_tools: FunctionInfo | None = None;
     for (scope, info) in mtir_map.items() {
         if (
             isinstance(info, FunctionInfo)
@@ -190,7 +190,7 @@ test "method tool in class" {
     assert JacRuntime.program is not None;
     mtir_map = JacRuntime.program.mtir_map;
 
-    method_scope = None;
+    method_scope: str | None = None;
     for scope in mtir_map {
         if "eval_expression" in scope and "tool_method" in scope {
             method_scope = scope;
@@ -269,8 +269,6 @@ test "mtir roundtrip via jir cache" {
         HEADER_SIZE,
         SEC_MTIR
     }
-    import from jaclang.jac0core.jir_passes { JirWriter }
-    import from jaclang.jac0core.unitree { Module }
 
     tmp_path = Path(tempfile.mkdtemp());
     test_file = tmp_path / "test.jac";
@@ -292,7 +290,7 @@ test "mtir roundtrip via jir cache" {
     section_blob = write_sections(secs);
 
     # Read back the sections from the blob (skip the SECTIONS_MAGIC header)
-    magic: object = SECTIONS_MAGIC;
+    magic: any = SECTIONS_MAGIC;
     start = len(magic);
     recovered = read_sections(section_blob, start);
 
@@ -350,7 +348,7 @@ test "scope name with trailing a" {
         mtir_map.keys()
     )}";
 
-    matching_scope = None;
+    matching_scope: str | None = None;
     for scope in scopes_with_generate_data {
         if "test_schema.generate_data" in scope {
             matching_scope = scope;
@@ -382,7 +380,7 @@ test "scope name with trailing c" {
         mtir_map.keys()
     )}";
 
-    matching_scope = None;
+    matching_scope: str | None = None;
     for scope in scopes_with_get_basic {
         if "basic.get_basic" in scope {
             matching_scope = scope;
@@ -412,7 +410,7 @@ test "scope name with trailing j" {
         mtir_map.keys()
     )}";
 
-    matching_scope = None;
+    matching_scope: str | None = None;
     for scope in scopes_with_create_proj {
         if "proj.create_proj" in scope {
             matching_scope = scope;
@@ -543,7 +541,7 @@ test "enum with int values extraction" {
     assert JacRuntime.program is not None;
     mtir_map = JacRuntime.program.mtir_map;
 
-    func_scope = None;
+    func_scope: str | None = None;
     for scope in mtir_map {
         if "get_person_info" in scope and "enum_with_semstr" in scope {
             func_scope = scope;
@@ -558,7 +556,7 @@ test "enum with int values extraction" {
     assert isinstance(func_info.return_type, ClassInfo);
     person_class = func_info.return_type;
 
-    personality_field = None;
+    personality_field: FieldInfo | None = None;
     for field in person_class.fields {
         if field.name == "personality" {
             personality_field = field;
@@ -594,7 +592,7 @@ test "enum with string values extraction" {
     assert JacRuntime.program is not None;
     mtir_map = JacRuntime.program.mtir_map;
 
-    func_scope = None;
+    func_scope: str | None = None;
     for scope in mtir_map {
         if "get_person_info" in scope and "enum_with_semstr" in scope {
             func_scope = scope;
@@ -609,7 +607,7 @@ test "enum with string values extraction" {
 
     person_class = func_info.return_type;
 
-    status_field = None;
+    status_field: FieldInfo | None = None;
     for field in person_class.fields {
         if field.name == "status" {
             status_field = field;
@@ -642,7 +640,7 @@ test "enum without values extraction" {
     assert JacRuntime.program is not None;
     mtir_map = JacRuntime.program.mtir_map;
 
-    func_scope = None;
+    func_scope: str | None = None;
     for scope in mtir_map {
         if "yes_or_no" in scope and "enum_no_value" in scope {
             func_scope = scope;
@@ -703,11 +701,12 @@ test "enum semstrings are extracted" {
         None
     );
     assert personality_field is not None;
-    assert isinstance(personality_field.type_info, EnumInfo);
+    _pf: FieldInfo = personality_field;
+    assert isinstance(_pf.type_info, EnumInfo);
 
-    personality_enum = personality_field.type_info;
+    personality_enum: EnumInfo = _pf.type_info;
 
-    introvert = next(
+    introvert: FieldInfo | None = next(
         (
             m
             for m in personality_enum.members
@@ -722,7 +721,7 @@ test "enum semstrings are extracted" {
         or "reflective" in introvert.semstr.lower()
     );
 
-    extrovert = next(
+    extrovert: FieldInfo | None = next(
         (
             m
             for m in personality_enum.members
@@ -821,8 +820,12 @@ test "same function name different files resolve distinctly" {
 
     assert isinstance(alpha_info, FunctionInfo);
     assert isinstance(beta_info, FunctionInfo);
-    assert alpha_info.return_type.name == "AlphaResult";
-    assert beta_info.return_type.name == "BetaResult";
+    assert isinstance(alpha_info.return_type, ClassInfo);
+    assert isinstance(beta_info.return_type, ClassInfo);
+    _alpha_rt: ClassInfo = alpha_info.return_type;
+    _beta_rt: ClassInfo = beta_info.return_type;
+    assert _alpha_rt.name == "AlphaResult";
+    assert _beta_rt.name == "BetaResult";
 }
 
 test "submodule MTIR keyed by import fullname" {

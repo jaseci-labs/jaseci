@@ -14,7 +14,13 @@ on so the gate cannot silently drift from `NaIRGenPass.transform`'s own trigger:
 import os;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { get_py_code_gen }
+import from jaclang.jac0core.compiler {
+    get_analysis_sched,
+    get_boundary_analysis_sched,
+    get_ir_gen_sched,
+    get_py_code_gen,
+    providers_of
+}
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
 
@@ -31,15 +37,26 @@ test "get_py_code_gen omits the native passes when native=False" {
 
 
 test "get_py_code_gen schedules the native passes when native=True" {
-    with_native = get_py_code_gen(native=True);
+    # Codegen runs after the analysis stage in the single pipeline, so the
+    # standalone schedule is constructed against its provides.
+    with_native = get_py_code_gen(
+        native=True,
+        provided=providers_of(
+            get_ir_gen_sched() + get_analysis_sched() + get_boundary_analysis_sched()
+        )
+    );
     assert NaIRGenPass in with_native;
     assert NativeCompilePass in with_native;
 }
 
 
 test "plain Python module carries no native-context statements" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
     prog = JacProgram();
-    ir = prog.compile(file_path=os.path.join(FIXTURES, "gate_python_only.jac"));
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "gate_python_only.jac"),
+        options=CompileOptions(default_codespace='server')
+    );
     assert not ModuleCodegenPass.has_native_context_stmts(ir);
 }
 
