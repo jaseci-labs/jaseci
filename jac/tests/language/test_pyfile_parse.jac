@@ -43,6 +43,6 @@ with entry {
         "python file parses with pyast build pass",
         JACLANG_PYTHON_FILES,
         pyfile_parse_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }

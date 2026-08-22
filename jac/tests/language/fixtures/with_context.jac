@@ -23,7 +23,7 @@ impl init{
 }
 
 with entry {
-    x = ["apple", "banana", "cherry"];
+    fruits = ["apple", "banana", "cherry"];
     nums = [1, 2, 3, 4, 5, 6];
-    print({fruit: nums[0:3] for (i, fruit) in enumerate(x)});
+    print({fruit: nums[0:3] for (i, fruit) in enumerate(fruits)});
 }

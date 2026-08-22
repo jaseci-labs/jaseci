@@ -26,8 +26,8 @@ obj HotReloader {
         _build_error: str = "",
         _reload_nonce: int = 0;
 
-    static has _active: any = None,
-        _build_lock: any = threading.Lock();
+    static has _active: (HotReloader | None) = None,
+        _build_lock: threading.Lock = threading.Lock();
 
     def start -> None;
     def stop -> None;

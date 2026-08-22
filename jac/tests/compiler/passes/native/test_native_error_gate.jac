@@ -103,8 +103,7 @@ test "import of a natively-unlowerable module demotes and succeeds" {
     # Marker-era pin was "import fails loudly": with placement inferred, the
     # import instead lands on the server fallback and must succeed.
     src = write_module("gate_bad_import.jac", BAD_NA_SOURCE);
-    (mod, _) = (None, None);
-    mod = JacRuntime.jac_import(
+    mod: any = JacRuntime.jac_import(
         target="gate_bad_import", base_path=os.path.dirname(src)
     );
     assert mod is not None , "demoted module must import cleanly";
@@ -117,8 +116,8 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
     prog.compile(
         file_path=src,
         options=CompileOptions(
-            type_check=True,
             no_cgen=True,
+            native_parity=True,
             force_codespace="native",
             force_target_program=True
         )

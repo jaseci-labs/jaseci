@@ -39,7 +39,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Import the fixture on the sv/bytecode pathway and hand back its module."""
-def sv_module(stem: str) -> object {
+def sv_module(stem: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);

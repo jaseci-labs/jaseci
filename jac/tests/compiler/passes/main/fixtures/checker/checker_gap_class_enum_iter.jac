@@ -57,12 +57,16 @@ with entry {
         for i in JacSemTokenModifier
         if i.name
     ];
+}
 
-    # Case 3: comprehension over StrEnum, .value yields str.
-    open_strs: list[str] = [t.value for t in TokenStr];
+glob
+     # Case 3: comprehension over StrEnum, .value yields str.
+     open_strs: list[str] = [t.value for t in TokenStr],
+     # Case 4: comprehension over plain Enum, .name yields str.
+     plain_names: list[str] = [p.name for p in Plain];
 
-    # Case 4: comprehension over plain Enum, .name yields str.
-    plain_names: list[str] = [p.name for p in Plain];
+with entry {
+    print(type_names, mod_names, open_strs, plain_names);
 
     # Case 5: simple for-loop with .name / .value access in body.
     for tok in JacSemTokenType {

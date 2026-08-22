@@ -53,7 +53,7 @@ def _write_copy(base: str) -> Path {
     return pkg;
 }
 
-def _with_shadow_copy(body: callable) {
+def _with_shadow_copy(body: Callable[[Path, str], None]) {
     home = tempfile.mkdtemp();
     shadow = tempfile.mkdtemp();
     home_pkg = _write_copy(home);
@@ -87,9 +87,7 @@ test "type check holds one identity per class across a self-import cycle" {
         prog = JacProgram();
         prog.compile(
             file_path=str(home_pkg / 'app.jac'),
-            options=CompileOptions(
-                type_check=True, no_cgen=True, force_target_program=True
-            )
+            options=CompileOptions(no_cgen=True, force_target_program=True)
         );
         errs = [str(e) for e in prog.errors_had];
         assert not errs , f"identity split across package copies: {errs}";

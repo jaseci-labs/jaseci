@@ -251,7 +251,8 @@ test "ViteCompiler wires jac_client_compiler on init" {
         "targets can reach the bundler-agnostic compile layer."
     );
     # Both compilers must share one compiled dir (the engine owns it).
-    assert "self.compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "self.compiled_dir = compiled_dir" in impl_content;
 }
 
 test "react native target addresses the entry by project-relative module path" {
@@ -845,7 +846,7 @@ test "resolve_rn_port_or_next_available skips reserved ports" {
         return;
     }
     s.bind(("127.0.0.1", 0));
-    base_port = s.getsockname()[1];
+    base_port: int = s.getsockname()[1];
     s.close();
 
     chosen = resolve_port_or_next_available(
@@ -1394,7 +1395,7 @@ test "compiler resolves .native.jac when target is react-native" {
         entry_file = project_dir / "main.jac";
         # Compile with target_name="react-native".
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        builder = Jac.get_client_bundle_builder();
+        builder: any = Jac.get_client_bundle_builder();
         vite_compiler = builder._get_compiler();
         jac_compiler = vite_compiler.jac_client_compiler;
         compiled_dir = jac_compiler.compiled_dir;
