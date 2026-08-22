@@ -50,6 +50,14 @@ impl Parser.check_peek_any(*kinds: TokenKind) -> bool {
     return self.peek().kind in kinds;
 }
 
+impl Parser.at_aug_assign_op -> bool {
+    return self.current().kind in _AUG_ASSIGN_KINDS;
+}
+
+impl Parser.peek_at_aug_assign_op -> bool {
+    return self.peek().kind in _AUG_ASSIGN_KINDS;
+}
+
 impl Parser.postinit{
     self.source = Source(self.source_code, self.file_path);
 }
@@ -3513,22 +3521,7 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
 
     if self.is_keyword_token()
         and not self.is_name_usable_token()
-        and self.check_peek_any(
-            TokenKind.EQ,
-            TokenKind.ADD_EQ,
-            TokenKind.SUB_EQ,
-            TokenKind.MUL_EQ,
-            TokenKind.DIV_EQ,
-            TokenKind.FLOOR_DIV_EQ,
-            TokenKind.MOD_EQ,
-            TokenKind.STAR_POW_EQ,
-            TokenKind.MATMUL_EQ,
-            TokenKind.BW_AND_EQ,
-            TokenKind.BW_OR_EQ,
-            TokenKind.BW_XOR_EQ,
-            TokenKind.LSHIFT_EQ,
-            TokenKind.RSHIFT_EQ
-        ) {
+        and (self.check_peek(TokenKind.EQ) or self.peek_at_aug_assign_op()) {
         kw_target = self.make_name(self.expect_name("variable"));
         return self.parse_assignment_with_target(kw_target);
     }
@@ -3714,21 +3707,7 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
     expr = self.parse_expression();
     if self.check(TokenKind.EQ)
         or self.check(TokenKind.COLON)
-        or self.check_any(
-            TokenKind.ADD_EQ,
-            TokenKind.SUB_EQ,
-            TokenKind.MUL_EQ,
-            TokenKind.DIV_EQ,
-            TokenKind.FLOOR_DIV_EQ,
-            TokenKind.MOD_EQ,
-            TokenKind.STAR_POW_EQ,
-            TokenKind.MATMUL_EQ,
-            TokenKind.BW_AND_EQ,
-            TokenKind.BW_OR_EQ,
-            TokenKind.BW_XOR_EQ,
-            TokenKind.LSHIFT_EQ,
-            TokenKind.RSHIFT_EQ
-        ) {
+        or self.at_aug_assign_op() {
         return self.parse_assignment_with_target(expr);
     }
 
@@ -4717,36 +4696,8 @@ impl Parser.parse_assignment_with_target(
                 value = self.parse_expression();
             }
         }
-    } elif self.check_any(
-        TokenKind.ADD_EQ,
-        TokenKind.SUB_EQ,
-        TokenKind.MUL_EQ,
-        TokenKind.DIV_EQ,
-        TokenKind.FLOOR_DIV_EQ,
-        TokenKind.MOD_EQ,
-        TokenKind.STAR_POW_EQ,
-        TokenKind.MATMUL_EQ,
-        TokenKind.BW_AND_EQ,
-        TokenKind.BW_OR_EQ,
-        TokenKind.BW_XOR_EQ,
-        TokenKind.LSHIFT_EQ,
-        TokenKind.RSHIFT_EQ
-    ) {
-        aug_tok = self.expect_any(
-            TokenKind.ADD_EQ,
-            TokenKind.SUB_EQ,
-            TokenKind.MUL_EQ,
-            TokenKind.DIV_EQ,
-            TokenKind.FLOOR_DIV_EQ,
-            TokenKind.MOD_EQ,
-            TokenKind.STAR_POW_EQ,
-            TokenKind.MATMUL_EQ,
-            TokenKind.BW_AND_EQ,
-            TokenKind.BW_OR_EQ,
-            TokenKind.BW_XOR_EQ,
-            TokenKind.LSHIFT_EQ,
-            TokenKind.RSHIFT_EQ
-        );
+    } elif self.at_aug_assign_op() {
+        aug_tok = self.advance();
         aug_op = self.make_uni_token(aug_tok);
         if self.check(TokenKind.KW_YIELD) {
             value = self.parse_yield_stmt();

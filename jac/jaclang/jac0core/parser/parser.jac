@@ -371,6 +371,13 @@ glob _KEYWORD_KINDS: frozenset[TokenKind] = frozenset({
     TokenKind.KW_SUPER
 }) | _BUILTIN_TYPE_KINDS;
 
+glob _AUG_ASSIGN_KINDS: frozenset[TokenKind] = frozenset({
+    TokenKind.ADD_EQ, TokenKind.SUB_EQ, TokenKind.MUL_EQ, TokenKind.DIV_EQ,
+    TokenKind.FLOOR_DIV_EQ, TokenKind.MOD_EQ, TokenKind.STAR_POW_EQ,
+    TokenKind.MATMUL_EQ, TokenKind.BW_AND_EQ, TokenKind.BW_OR_EQ,
+    TokenKind.BW_XOR_EQ, TokenKind.LSHIFT_EQ, TokenKind.RSHIFT_EQ
+});
+
 def _string_lit_text(raw: str) -> str {
     v = raw;
     while v and v[0] in "rbfRBF" {
@@ -435,6 +442,8 @@ obj Parser {
     def check_any(*kinds: TokenKind) -> bool;
     def check_peek(kind: TokenKind) -> bool;
     def check_peek_any(*kinds: TokenKind) -> bool;
+    def at_aug_assign_op -> bool;
+    def peek_at_aug_assign_op -> bool;
     def check_name -> bool;
     def is_keyword_token -> bool;
     def is_name_usable_token -> bool;
