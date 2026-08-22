@@ -520,6 +520,9 @@ jobs:
       - name: Phase 6 VM opcode fixture coverage gate
         run: python3 jac-py/tools/vm_opcode_fixtures.py --check
 
+      - name: Band 6/7 CPython oracle goldens round-trip check
+        run: python3 jac-py/tools/check_oracle_goldens.py
+
       - name: Phase 6 VM opcode fixture gate tests
         run: python3 -m unittest jac-py/tools/test_vm_opcode_fixtures.py
 
