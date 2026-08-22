@@ -1,0 +1,68 @@
+#+title: jac-python Decision Log
+#+subtitle: Every meaningful architecture choice: decision, context, options, tradeoff, reversal condition
+#+updated: <2026-08-22 Fri>
+
+Every meaningful architecture choice gets an entry here. Each entry has five
+fields:
+
+- *Decision* — what we chose, stated affirmatively.
+- *Context* — the forces and constraints that made this a real choice.
+- *Options considered* — the realistic alternatives (not strawmen).
+- *Tradeoff* — what we give up by choosing this.
+- *Reversal condition* — the observable evidence that would justify reopening
+  the decision. No reversal condition = not a decision, a preference.
+
+Entries are append-only; superseded entries stay with a =SUPERSEDED-BY= link.
+Format mirrors the Jackal decision log (=jackal/docs/decisions.org=); this
+file is the jac-python-native ledger (the Jackal D23 entry that inspired the
+format lives in that repo, not here).
+
+* Index
+
+| ID  | Decision                                                     | Status |
+|-----+--------------------------------------------------------------+--------|
+| D01 | itertools combinatorics return fresh tuples per next()       | Active |
+
+* D01 — itertools combinatorics return fresh tuples per next()
+
+**Decision**
+The wave-12 product/permutations/combinations/combinations_with_replacement
+ports (~jac-py/jacpython/itertoolsmodule.jac~) return a *new tuple object*
+from every ~__next__~ call. They do not reuse one result tuple and mutate it
+in place the way CPython's accelerators do
+(~Modules/itertoolsmodule.c~, product_next &c.). The behavior is pinned by
+=test "wave12 combinatorics results are stable fresh tuples per next"= in
+~jac-py/tests/test_itertools_facade_parity.jac~.
+
+**Context**
+CPython's in-place reuse is observable: holding a previously returned result
+and pulling more elements silently rewrites the held object
+(=next(c) == ('A','B')= becomes ==('A','C')== after further advancing). A
+faithful port needs a mutable pseudo-tuple at the VM level plus
+unique-reference tracking (~_PyObject_IsUniquelyReferenced~ semantics) so
+the shared-tuple optimization only fires when safe. Neither primitive exists
+in the current product path; emulating them in user-level Jac is impossible
+(tuples are immutable) and emulating them VM-side was out of scope for the
+wave.
+
+**Options considered**
+1. Fresh tuple per call — chosen: value-correct on all single-reference
+   consumption patterns (the overwhelming majority), simple, allocation-safe.
+2. VM mutable pseudo-tuple + refcount-gated reuse — rejected for now:
+   requires ceval/object-core support (tracked below), not a module-level
+   concern.
+3. Document-only, no pin test — rejected: unpinned deviations rot into
+   accidental behavior changes.
+
+**Tradeoff**
+Programs that rely on host identity semantics (holding old results while
+iterating) observe stale-but-stable values instead of CPython's rewritten
+ones; =id()= differs per call where CPython's is stable across calls. Memory
+allocation per element is higher than CPython's amortized zero-allocation
+reuse.
+
+**Reversal condition**
+When the VM gains mutable tuples (or an equivalent unique-reference-tracked
+result buffer), flip the four combinatorial iterators to in-place reuse,
+invert the pin test to assert identity semantics, and mark this entry
+=SUPERSEDED=.
