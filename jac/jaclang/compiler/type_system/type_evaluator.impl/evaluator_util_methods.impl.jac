@@ -434,7 +434,8 @@ impl TypeEvaluator._get_getattr_return_type(base_type: ClassType) -> TypeBase | 
     }
 
     if member := self._lookup_class_member(base_type, "__getattribute__") {
-        if member.class_type.shared.class_name != "object" {
+        _ga_decl = self.declaring_class_of(member.symbol, base_type);
+        if _ga_decl is not None and _ga_decl.shared.class_name != "object" {
             getattr_type = self.get_type_of_symbol(member.symbol);
             if isinstance(getattr_type, FunctionType) {
                 return getattr_type.return_type or UnknownType();
