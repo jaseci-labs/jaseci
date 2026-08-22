@@ -343,6 +343,36 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     Compiler lane (QuickBear or successor). Needs confirming probe with valid
     jac test-case syntax before fix.
 
+25. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
+    _cmp_int_vs_float in objects.jac used by BOTH polarities; truncation +
+    fractional tie-break is exact host arithmetic; NaN/inf rules both ways.
+    Pin pin-item25-float-int-eq-boundary GREEN (verified at origin HEAD).
+
+26. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
+    TypeError("unhashable type: '<t>'") for list/dict/set keys, left-to-right;
+    raw-host-exception escape gone. Design note: not-yet-natively-hashed but
+    host-hashable types (slice) keep opaque-host-map fallback - full strictness
+    deferred to native-hashkey coverage. Pin pin-item22b-unhashable-display-
+    typerror GREEN after 94892ac40 (BrightTiger residual fix: BUILD_MAP raise
+    now routes through recover_exception frame unwinding - bare `return
+    py_error` bypassed handler dispatch so guest try/except couldn't catch it;
+    mirrors UNPACK_EX pattern).
+
+25. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
+    (2**53 + 1) == float(2**53 + 1) -> True on jacpython; CPython says False
+    (exact comparison: 2**53+1 > 9007199254740992.0). Equality path converts
+    int->float before comparing; f2b244955 fixed ordered compares/inf paths
+    but not ==/!=. Fix: route float/int eq through the same exact machinery.
+    Guard: pin-item25-float-int-eq-boundary.
+
+26. **[LOW-MED] Dict-display literal with unhashable key escapes the error
+    channel.** {[]: 'nope'} raises in a way that propagates OUT of exec_code
+    (kills the caller) instead of returning PyError - while d[[]] = v (setitem
+    form) correctly yields TypeError. Something in the BUILD_MAP/display path
+    (native leaf?) raises raw without conversion. Breaks harness errored-vs-
+    failed classification and any guest try/except around display literals.
+    Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
+
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
@@ -625,6 +655,36 @@ green. Class-decorator support needs pinning elsewhere.
     if/try/with sits in tail position after a return inside a function.
     Compiler lane (QuickBear or successor). Needs confirming probe with valid
     jac test-case syntax before fix.
+
+25. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
+    _cmp_int_vs_float in objects.jac used by BOTH polarities; truncation +
+    fractional tie-break is exact host arithmetic; NaN/inf rules both ways.
+    Pin pin-item25-float-int-eq-boundary GREEN (verified at origin HEAD).
+
+26. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
+    TypeError("unhashable type: '<t>'") for list/dict/set keys, left-to-right;
+    raw-host-exception escape gone. Design note: not-yet-natively-hashed but
+    host-hashable types (slice) keep opaque-host-map fallback - full strictness
+    deferred to native-hashkey coverage. Pin pin-item22b-unhashable-display-
+    typerror GREEN after 94892ac40 (BrightTiger residual fix: BUILD_MAP raise
+    now routes through recover_exception frame unwinding - bare `return
+    py_error` bypassed handler dispatch so guest try/except couldn't catch it;
+    mirrors UNPACK_EX pattern).
+
+25. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
+    (2**53 + 1) == float(2**53 + 1) -> True on jacpython; CPython says False
+    (exact comparison: 2**53+1 > 9007199254740992.0). Equality path converts
+    int->float before comparing; f2b244955 fixed ordered compares/inf paths
+    but not ==/!=. Fix: route float/int eq through the same exact machinery.
+    Guard: pin-item25-float-int-eq-boundary.
+
+26. **[LOW-MED] Dict-display literal with unhashable key escapes the error
+    channel.** {[]: 'nope'} raises in a way that propagates OUT of exec_code
+    (kills the caller) instead of returning PyError - while d[[]] = v (setitem
+    form) correctly yields TypeError. Something in the BUILD_MAP/display path
+    (native leaf?) raises raw without conversion. Breaks harness errored-vs-
+    failed classification and any guest try/except around display literals.
+    Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
