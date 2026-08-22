@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave15",
+  "description": "P2 wave 15 staging policy (_json scanner/encoder kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave15",
+  "modules": [
+    {
+      "stem": "jsonmodule",
+      "staging": "lift"
+    }
+  ]
+}
