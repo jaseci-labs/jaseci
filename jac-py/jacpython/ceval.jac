@@ -4649,7 +4649,9 @@ obj PyNativeBuiltin(PyObj) {
             if len(args) > 1 {
                 return args[1];
             }
-            return stop_iteration(py_none());
+            # Forward the generator's return value as StopIteration.value
+            # (CPython: next() exhaustion surfaces `return x` as .value).
+            return stop_iteration((step as PyGenStop).val);
         }
         return step;
     }

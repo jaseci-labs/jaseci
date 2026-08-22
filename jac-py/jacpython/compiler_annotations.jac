@@ -156,6 +156,11 @@ def collect_ann_plan(body: list[stmt]) -> ann_scope_plan {
 }
 
 def ann_collect_stmts(plan: ann_scope_plan, stmts: list[stmt]) {
+    # Try.orelse/finalbody (and other optional blocks) arrive as None when the
+    # source omits them; nothing to collect.
+    if stmts is None {
+        return;
+    }
     si = 0;
     while si < len(stmts) {
         ann_collect_stmt(plan, stmts[si]);
