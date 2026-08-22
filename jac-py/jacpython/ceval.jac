@@ -4631,7 +4631,7 @@ obj PyNativeBuiltin(PyObj) {
             return py_repr(args[0]);
         }
         if self.name == "isinstance" {
-            if len(args) < 2 {
+            if len(args) != 2 {
                 return py_error(
                     "TypeError",
                     "isinstance expected 2 arguments, got " + str(len(args)),
@@ -4640,7 +4640,7 @@ obj PyNativeBuiltin(PyObj) {
             return PyBool(t="bool", val=py_isinstance(args[0], args[1]));
         }
         if self.name == "issubclass" {
-            if len(args) < 2 {
+            if len(args) != 2 {
                 return py_error(
                     "TypeError",
                     "issubclass expected 2 arguments, got " + str(len(args)),
@@ -4675,7 +4675,7 @@ obj PyNativeBuiltin(PyObj) {
             return attr;
         }
         if self.name == "hasattr" {
-            if len(args) < 2 {
+            if len(args) != 2 {
                 return py_error(
                     "TypeError",
                     "hasattr expected 2 arguments, got " + str(len(args)),
