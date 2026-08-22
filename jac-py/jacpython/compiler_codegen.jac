@@ -2758,7 +2758,9 @@ def visit_stmt_tail(
     more_follows_after: bool = False,
     ann_ctx: ann_scope_plan | None = None
 ) -> stmt_cont {
-    return visit_stmts(g, tail, from_idx, more_follows_after, 0, None, None, ann_ctx);
+    return visit_stmts(
+        g, tail, from_idx, more_follows_after, None, 0, None, ann_ctx
+    );
 }
 
 # Emit tail suffix and finish the module when CPython duplicates it per branch.
