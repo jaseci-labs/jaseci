@@ -13,6 +13,10 @@ import from tests.support { get_object }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "runtimelib", "fixtures");
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def capture_start -> io.StringIO {
     captured = io.StringIO();
     sys.stdout = captured;
@@ -39,14 +43,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[1], 0, via_all],
+        args=_as_any([roots[1], 0, via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[0], 0, via_all],
+        args=_as_any([roots[0], 0, via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -54,14 +58,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[20],
+        args=_as_any([20]),
         **{"root": roots[0]},
         nd=nodes[1]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[10],
+        args=_as_any([10]),
         **{"root": roots[1]},
         nd=nodes[0]
     );
@@ -69,14 +73,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_target_node",
-        args=[20, nodes[1]],
+        args=_as_any([20, nodes[1]]),
         **{"root": roots[0]}
     );
 
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_target_node",
-        args=[10, nodes[0]],
+        args=_as_any([10, nodes[0]]),
         **{"root": roots[1]}
     );
 
@@ -106,14 +110,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[1], via_all],
+        args=_as_any([roots[1], via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[0], via_all],
+        args=_as_any([roots[0], via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -141,14 +145,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[1], "WRITE", via_all],
+        args=_as_any([roots[1], "WRITE", via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[0], "WRITE", via_all],
+        args=_as_any([roots[0], "WRITE", via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -156,14 +160,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[200],
+        args=_as_any([200]),
         **{"root": roots[0]},
         nd=nodes[1]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[100],
+        args=_as_any([100]),
         **{"root": roots[1]},
         nd=nodes[0]
     );
@@ -194,14 +198,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[1], via_all],
+        args=_as_any([roots[1], via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[0], via_all],
+        args=_as_any([roots[0], via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -228,14 +232,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[1],
+        args=_as_any([1]),
         **{"root": roots[0]},
         nd=nodes[0]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[2],
+        args=_as_any([2]),
         **{"root": roots[1]},
         nd=nodes[1]
     );
@@ -577,13 +581,13 @@ test "other root access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[1],
+            args=_as_any([1]),
             **{"root": root1}
         );
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[2],
+            args=_as_any([2]),
             **{"root": root2}
         );
         nodes = capture_get(captured).strip().split("\n");
@@ -676,7 +680,7 @@ test "get object read access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[1],
+            args=_as_any([1]),
             **{"root": root1}
         );
         node_id = capture_get(captured).strip();
@@ -705,7 +709,7 @@ test "get object read access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="allow_other_root_access",
-            args=[root2, 0],
+            args=_as_any([root2, 0]),
             **{"root": root1},
             nd=node_id
         );
@@ -927,7 +931,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["READ", None],
+            args=_as_any(["READ", None]),
             nd=nd_str
         );
 
@@ -951,7 +955,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 1],
+            args=_as_any([None, 1]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -976,7 +980,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["WRITE", None],
+            args=_as_any(["WRITE", None]),
             nd=nd_str
         );
 
@@ -984,7 +988,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 2],
+            args=_as_any([None, 2]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -1009,7 +1013,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["NO_ACCESS", None],
+            args=_as_any(["NO_ACCESS", None]),
             nd=nd_str
         );
 
@@ -1017,7 +1021,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 5],
+            args=_as_any([None, 5]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -1151,7 +1155,7 @@ test "user isolation via set user root" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[100],
+            args=_as_any([100]),
             **{"root": user1_root}
         );
         user1_node = capture_get(captured).strip();
@@ -1161,7 +1165,7 @@ test "user isolation via set user root" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[200],
+            args=_as_any([200]),
             **{"root": user2_root}
         );
         user2_node = capture_get(captured).strip();

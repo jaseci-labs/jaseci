@@ -184,13 +184,15 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
     return dest;
 }
 
-def stage_native_image_assets(js_tree_dir: Path, rn_dir: Path) {
+def stage_native_image_assets(
+    js_tree_dir: Path, rn_dir: Path
+) -> dict[str, (list[str] | int)] {
     import hashlib;
 
     img_src_pattern = _IMG_SRC_PATTERN;
-    replacements_by_file = {};
-    token_to_asset = {};
-    unresolved = set();
+    replacements_by_file: dict[Path, list[dict[str, (int | str)]]] = {};
+    token_to_asset: dict[str, Path] = {};
+    unresolved: set[str] = set();
     rewritten_refs = 0;
 
     for js_file in _iter_user_js_files(js_tree_dir) {

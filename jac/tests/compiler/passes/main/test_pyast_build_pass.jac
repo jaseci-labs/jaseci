@@ -36,7 +36,7 @@ test "synced to latest py ast" {
     # `ast._Unparser` lazily on the first `unparse()` call; trigger that so the
     # introspection works on 3.13 and 3.14+ alike.
     py_ast.unparse(py_ast.parse(""));
-    unparser_cls = py_ast._Unparser;
+    unparser_cls: any = py_ast._Unparser;
     visit_methods = (
         [
             method

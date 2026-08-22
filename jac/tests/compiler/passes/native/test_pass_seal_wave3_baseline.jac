@@ -243,7 +243,7 @@ grows new seams is a regression, and one that loses them is progress the
 next wave should collect. Neither may pass unnoticed.
 """
 glob REFUSED_OWN_SEAMS: dict[(str, int)] = {
-         "compiler/passes/main/static_analysis_pass.jac": 5,
+         "compiler/passes/main/static_analysis_pass.jac": 4,
          "compiler/passes/main/ownership_check_pass.jac": 12
      };
 
@@ -278,7 +278,6 @@ def _root_coverage(rel: str) -> tuple {
             file_path=str(PKG_PATH / rel),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

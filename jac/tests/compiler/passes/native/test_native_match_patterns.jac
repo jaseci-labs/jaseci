@@ -31,7 +31,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -43,7 +43,7 @@ type_check on, codegen off) so check-time capability behavior is pinned."""
 def check_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES, f"_check_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code, type_check=True, no_cgen=True);
+    prog.compile(file_path=path, use_str=code, no_cgen=True);
     return prog;
 }
 

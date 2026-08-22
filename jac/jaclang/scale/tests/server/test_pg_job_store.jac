@@ -185,5 +185,7 @@ test "api key create, list, resolve shape, and revoke over SQL" {
     assert revoked.ok;
     assert mgr.list_api_keys('user-w').data['api_keys'] == [];
     refused = mgr.revoke_api_key('someone-else', key_id);
-    assert refused.error.code == 'FORBIDDEN';
+    refused_error = refused.error;
+    assert refused_error is not None , 'refusal must carry an error';
+    assert refused_error.code == 'FORBIDDEN';
 }

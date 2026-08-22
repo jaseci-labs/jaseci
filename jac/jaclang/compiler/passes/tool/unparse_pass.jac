@@ -4,7 +4,7 @@ import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { OwnershipKind, is_mut_kind }
 
 obj UnparsePass(UniPass) {
-    def _comma_sep(nodes: list) -> str;
+    def _comma_sep(nodes: Sequence[uni.UniNode]) -> str;
     def _call_target_needs_parens(target: uni.Expr) -> bool;
     def exit_node(nd: uni.UniNode) -> None;
     def default_exit(nd: uni.UniNode) -> None;
@@ -20,7 +20,7 @@ obj UnparsePass(UniPass) {
     def exit_builtin_type(nd: uni.BuiltinType) -> None;
     def exit_special_var_ref(nd: uni.SpecialVarRef) -> None;
     def exit_module(nd: uni.Module) -> None;
-    def exit_sub_tag(nd: uni.SubTag) -> None;
+    def exit_sub_tag(nd: uni.SubTag[uni.UniNode]) -> None;
     def exit_type_alias(nd: uni.TypeAlias) -> None;
     def exit_type_param(nd: uni.TypeParam) -> None;
     def exit_global_vars(nd: uni.GlobalVars) -> None;

@@ -570,7 +570,11 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    struct_type.set_body(*field_types);
+    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
+        ;
+    } else {
+        struct_type.set_body(*field_types);
+    }
     self.struct_field_indices[arch_name] = field_index_map;
     self.struct_field_order[arch_name] = [f.name for f in layout.fields];
     self.struct_field_types[arch_name] = field_type_map;
@@ -826,7 +830,10 @@ impl NaIRGenObjects._method_slot_name(
 }
 
 impl NaIRGenObjects._forward_declare_method(
-    arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
+    arch_name: str,
+    method: uni.Ability,
+    field: (uni.HasVar | None) = None,
+    imported: bool = False
 ) -> None {
     method_name = self._method_slot_name(method, field);
     full_name = f"{arch_name}.{method_name}";
@@ -918,7 +925,8 @@ impl NaIRGenObjects._forward_declare_method(
             full_name,
             func,
             _sig_mark,
-            keep_func=method_name in self.vtable_method_indices.get(arch_name, {})
+            keep_func=method_name in self.vtable_method_indices.get(arch_name, {}),
+            stub_body=not imported
         );
     }
 }
@@ -1093,7 +1101,11 @@ impl NaIRGenObjects._codegen_method(
 }
 
 impl NaIRGenObjects._demote_method_if_unlowerable(
-    full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
+    full_name: str,
+    func: ir.Function,
+    local_mark: int,
+    keep_func: bool = False,
+    stub_body: bool = True
 ) -> bool {
     if len(self.errors_had) <= local_mark {
         return False;
@@ -1116,22 +1128,27 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
             sys.stderr.write(f"NA_DEBUG   {_diag.pretty_print()}\n");
         }
     }
-    try {
-        import from jaclang.jac0core.compiler { na_coverage_seam }
-        _first_code = _own[0].code.code if _own[0].code is not None else "";
-        _code_tag = f"[{_first_code}] " if _first_code else "";
-        na_coverage_seam(
-            self.ir_in.loc.mod_path,
-            f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
-        );
-    } except Exception { }
+    if stub_body {
+        try {
+            import from jaclang.jac0core.compiler { na_coverage_seam }
+            _first_code = _own[0].code.code if _own[0].code is not None else "";
+            _code_tag = f"[{_first_code}] " if _first_code else "";
+            na_coverage_seam(
+                self.ir_in.loc.mod_path,
+                f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
+            );
+        } except Exception { }
+    }
     del self.errors_had[local_mark:];
-    func.blocks.clear();
-    blk = func.append_basic_block(name="entry");
-    b = ir.IRBuilder(blk);
-    self._get_or_declare_extern("abort", ir.VoidType(), []);
-    b.call(self.extern_funcs["abort"], []);
-    b.unreachable();
+
+    if stub_body {
+        func.blocks.clear();
+        blk = func.append_basic_block(name="entry");
+        b = ir.IRBuilder(blk);
+        self._get_or_declare_extern("abort", ir.VoidType(), []);
+        b.call(self.extern_funcs["abort"], []);
+        b.unreachable();
+    }
     if not keep_func {
         self.method_funcs.pop(full_name, None);
     }

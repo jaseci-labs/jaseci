@@ -1895,7 +1895,9 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if _alias_arch is not None and _alias_arch in self.struct_types {
         return self._codegen_instantiation(nd, type_name_override=_alias_arch);
     }
-    if func_name in self._native_skipped_methods {
+    if (
+        func_name in self._native_skipped_methods and func_name not in self.generic_fns
+    ) {
         self.emit(
             E5092,
             node_override=nd,
@@ -2391,6 +2393,35 @@ impl NaIRGenCalls._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
             return "NoneType";
         }
         return None;
+    }
+    _mn_nd = nd;
+    while isinstance(_mn_nd, uni.AtomUnit) and _mn_nd.value is not None {
+        _mn_nd = _mn_nd.value;
+    }
+    if self._mono_mangle_map
+        and isinstance(_mn_nd, uni.Name)
+        and _mn_nd.sym is not None {
+        nd = _mn_nd;
+        _mn_decl = nd.sym.decl.name_of if nd.sym.decl is not None else None;
+        if isinstance(_mn_decl, uni.ParamVar) and _mn_decl.type_tag is not None {
+            _mn_tag = _mn_decl.type_tag.tag;
+            while isinstance(_mn_tag, uni.AtomUnit) and _mn_tag.value is not None {
+                _mn_tag = _mn_tag.value;
+            }
+            if (
+                isinstance(_mn_tag, uni.AtomTrailer)
+                and isinstance(_mn_tag.target, uni.Name)
+                and _mn_tag.target.value == "type"
+                and isinstance(_mn_tag.right, uni.IndexSlice)
+                and len(_mn_tag.right.slices) == 1
+            ) {
+                _mn_inner = _mn_tag.right.slices[0].start;
+                if isinstance(_mn_inner, uni.Name)
+                    and _mn_inner.value in self._mono_mangle_map {
+                    return self._mono_mangle_map[_mn_inner.value];
+                }
+            }
+        }
     }
     _alias_nm = self._arch_alias_target(nd);
     if _alias_nm is not None {

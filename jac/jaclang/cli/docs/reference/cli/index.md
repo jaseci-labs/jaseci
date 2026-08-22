@@ -1528,7 +1528,7 @@ jac purge
 
 ### jac build
 
-Run the whole-program **type-check gate** (fail-closed; reuses [`jac check`](#jac-check)), then emit **one** artifact. By default `jac build` produces a `.jab` -- a single self-describing sealed app bundle. Use `--as` to select a different projection. `jac build` is now the single front door that the former `jac bundle` (wheel/npm), `jac eject` (source), and project-level `jac nacompile` (native/binary) folded into.
+Emit **one** artifact. Type checking runs on the critical path of every compilation, so the artifact compile is itself the gate: a program that does not type-check produces no artifact. By default `jac build` produces a `.jab` -- a single self-describing sealed app bundle. Use `--as` to select a different projection. `jac build` is now the single front door that the former `jac bundle` (wheel/npm), `jac eject` (source), and project-level `jac nacompile` (native/binary) folded into.
 
 ```bash
 jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-n] [-c] [-f]
@@ -1540,7 +1540,6 @@ jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-
 | `filename` | Entry `.jac` file (omit to use the project entry) | (project) |
 | `--as` | Artifact projection: `jab`, `sealed`, `binary`, `wheel`, `npm`, `source`, `native` | `jab` |
 | `-o, --output` | Output directory | `dist` |
-| `-n, --no_typecheck` | Skip the type-check gate | `False` |
 | `-c, --check_only` | Run the gate only; emit nothing | `False` |
 | `-f, --fat` | Vendor the Python dependency closure into the bundle (`jab` / `binary` only) so it materializes offline | `False` |
 | `--client` | Build a client shell (`web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native`) | None |
@@ -1558,7 +1557,7 @@ jac build [-h] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-
 | `source` | An editable FastAPI + JavaScript source tree (zero `.jac` files) | `jac eject` |
 | `native` | A standalone native binary | project-level `jac nacompile` |
 
-**The type-check gate.** `jac build` refuses to emit an artifact if the program fails the whole-program type check. Pass `--no_typecheck` to skip the gate, or `--check_only` to run the gate and emit nothing (useful in CI).
+**The type-check gate.** `jac build` refuses to emit an artifact if the program fails type checking, and there is no flag that skips it. Because every compilation type-checks, the artifact compile *is* the gate rather than a separate pass over the project. Use `--check_only` to run the whole-project check and emit nothing (useful in CI).
 
 **The `.jab` artifact.** A `.jab` is a single self-describing sealed app bundle: client dist, serve manifest, and native binaries are baked in and hash-verified at load, so [`jac run app.jab`](#jac-run) / [`jac start app.jab`](#jac-start) execute or serve it with **zero live compilation**. It is kind-aware: `cli` kinds execute, servable kinds production-serve, and attachable packages refuse to run standalone.
 
@@ -1739,7 +1738,7 @@ Editors normally launch this for you; configure your editor's LSP client to run 
 
 Compile a `.jac` file to a standalone native ELF executable, forcing the whole module into the native codespace (so anything that cannot lower is a loud error rather than a demotion to the server codespace). No external compiler, assembler, or linker is required. The entire pipeline runs in pure Python using llvmlite and a built-in ELF linker.
 
-> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`), which runs the type-check gate first. `jac nacompile` remains the file-level tool for compiling an individual `.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
+> **Project-level vs. file-level.** For a whole-project native build, use [`jac build --as native`](#jac-build) (or `--as binary`). `jac nacompile` remains the file-level tool for compiling an individual `.jac` file, building `--shared` C-ABI libraries, and cross-compiling with `--target wasm32`.
 
 ```bash
 jac nacompile filename [-o OUTPUT] [--gc MODE] [--enforce-nogc] [--assert-no-rc] [--shared] [-t TARGET] [-g] [--scrub]
@@ -1838,7 +1837,7 @@ The built-in full-stack client framework contributes these commands and flags. T
 
 ### jac build --client
 
-Build a **client shell** for a specific target. This is the `--client` mode of [`jac build`](#jac-build); see that section for the artifact projections (`.jab`, wheel, npm, source, native). A bare `jac build` (no `--client`) runs the type-check gate and emits a `.jab`, not a client shell.
+Build a **client shell** for a specific target. This is the `--client` mode of [`jac build`](#jac-build); see that section for the artifact projections (`.jab`, wheel, npm, source, native). A bare `jac build` (no `--client`) emits a `.jab`, not a client shell. Client builds type-check like every other compilation.
 
 ```bash
 jac build [filename] --client TARGET [-p PLATFORM]

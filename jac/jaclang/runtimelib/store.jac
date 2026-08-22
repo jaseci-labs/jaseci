@@ -117,6 +117,7 @@ obj PgStore(Store) {
         ensure_cb: (any | None) = None,
         promotions: dict[str, list[str]] = {},
         auto_schema: bool = False,
+        pending_reset: bool = False,
         _conn: (any | None) postinit,
         _side_conn: (any | None) postinit,
         _lock: threading.RLock postinit,

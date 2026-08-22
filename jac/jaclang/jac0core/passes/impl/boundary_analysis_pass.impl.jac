@@ -761,7 +761,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     for mod in search_mods {
         sym = mod.sym_tab.lookup(type_name, deep=True) if mod.sym_tab else None;
         if sym and sym.defn {
-            candidate = sym.defn[0];
+            candidate: (UniNode | None) = sym.defn[0];
             if isinstance(candidate, NameAtom) and candidate.parent {
                 candidate = candidate.parent;
             }

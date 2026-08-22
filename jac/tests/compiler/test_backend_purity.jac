@@ -100,7 +100,7 @@ glob FORBIDDEN: dict[str, str] = {
              "annotation is the consumed fact, not a resolved type"
          ),
          ("native/na_ir_gen/generics.impl.jac", "type_tag.tag"): (
-             3,
+             5,
              "generic-template declared-annotation reads where the "
              "declaration IS the fact: (1) the _solve_generic_call fallback "
              "(a bundled/imported template compiled symtab_ir_only has no "
@@ -153,12 +153,22 @@ glob FORBIDDEN: dict[str, str] = {
              "declared annotation the adjacent _resolve_jac_type consumes"
          ),
          ("native/na_ir_gen/calls.impl.jac", "type_tag.tag"): (
-             1,
+             2,
              "declaration-surface read of foreign extern signatures: the "
              "clib membrane needs the DECLARED str params/returns of a "
              "foreign call to route them through the JacStr wrap/unwrap "
              "shims (#7870 strings step 2) - the C membrane always "
-             "trafficks NUL-terminated char*"
+             "trafficks NUL-terminated char*. Plus the mono isinstance "
+             "substitution: inside a stamped monomorph body a type[X] "
+             "parameter names its concrete mangle through its own declared "
+             "tag - the declaration is the binding surface"
+         ),
+         ("native/na_ir_gen/types.impl.jac", "type_tag.tag"): (
+             2,
+             "declared-annotation resolution for has/param vars: "
+             "_resolve_jac_type maps the declared tag to its IR type - the "
+             "annotation is the input to layout resolution, not a re-run "
+             "of analysis"
          ),
          ("native/na_ir_gen/func.impl.jac", "type_tag.tag"): (
              4,

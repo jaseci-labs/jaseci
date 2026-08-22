@@ -30,7 +30,7 @@ def _proj -> str {
             "import from .storage { save_doc, count_docs }\n\n"
                 + "def:pub app -> JsxElement {\n"
                 + "    has n: int = 0;\n"
-                + "    <button onClick={lambda { save_doc(\"x\"); }}>save {n}</button>;\n"
+                + "    return <button onClick={lambda { save_doc(\"x\"); }}>save {n}</button>;\n"
                 + "}\n"
         );
     }
