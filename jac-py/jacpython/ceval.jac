@@ -1889,6 +1889,17 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
     return py_error(str(result[1]), str(result[2]));
 }
 
+# LOAD_GLOBAL/LOAD_NAME fallthrough after locals/globals: builtins resolve
+# here. A miss must surface as CPython's NameError, not the AttributeError the
+# host getattr inside _jac_host_builtin would raise.
+def load_name_fallback(name: str) -> PyObj {
+    value = host_builtin(name);
+    if is_error(value) {
+        return py_error("NameError", "name '" + name + "' is not defined");
+    }
+    return value;
+}
+
 # type(obj): the object's type. A native user instance answers with its own
 # PyClass; a class answers with its metaclass (or the host `type` for the default);
 # everything else (scalars, proxied host values) round-trips through host type().
@@ -4762,6 +4773,7 @@ def is_list_method(name: str) -> bool {
         or name == "index"
         or name == "count"
         or name == "reverse"
+        or name == "sort"
         or name == "copy";
 }
 
@@ -4784,6 +4796,88 @@ def iterable_items(src: PyObj) -> list[PyObj] {
         return (it as PyIter).items;
     }
     return [];
+}
+
+# CPython list.sort(): stable merge sort driven by py_compare(<). key= uses
+# decorate-sort-undecorate; reverse= flips the comparison (NOT the tie-break),
+# so equal elements keep insertion order in both directions. Mutates lst in
+# place; returns an error from a failing comparison, else None.
+def list_sort_inplace(lst: PyList, key_fn: PyObj, do_reverse: bool) -> PyObj {
+    n_count = len(lst.items);
+    if n_count <= 1 {
+        return py_none();
+    }
+    pairs: list[PyObj] = [];
+    idx = 0;
+    while idx < n_count {
+        v = lst.items[idx];
+        k = v;
+        if not (key_fn.t == "none") {
+            res = key_fn.tp_call([v], {});
+            if is_error(res) {
+                return res;
+            }
+            k = res;
+        }
+        pairs.append(PyTuple(t="tuple", items=[k, v]));
+        idx = idx + 1;
+    }
+    width = 1;
+    while width < n_count {
+        merged: list[PyObj] = [];
+        i = 0;
+        while i < n_count {
+            mid = i + width;
+            hi = i + 2 * width;
+            if mid > n_count {
+                mid = n_count;
+            }
+            if hi > n_count {
+                hi = n_count;
+            }
+            a = i;
+            b = mid;
+            while a < mid and b < hi {
+                ka = ((pairs[a] as PyTuple).items[0]);
+                kb = ((pairs[b] as PyTuple).items[0]);
+                # Normal order takes b when kb < ka; reverse takes b when
+                # ka < kb. Ties always take a, which is what keeps the sort
+                # stable in both directions.
+                if do_reverse {
+                    lt = py_compare(0, ka, kb);
+                } else {
+                    lt = py_compare(0, kb, ka);
+                }
+                if is_error(lt) {
+                    return lt;
+                }
+                if (lt as PyBool).val {
+                    merged.append(pairs[b]);
+                    b = b + 1;
+                } else {
+                    merged.append(pairs[a]);
+                    a = a + 1;
+                }
+            }
+            while a < mid {
+                merged.append(pairs[a]);
+                a = a + 1;
+            }
+            while b < hi {
+                merged.append(pairs[b]);
+                b = b + 1;
+            }
+            i = i + 2 * width;
+        }
+        pairs = merged;
+        width = width * 2;
+    }
+    sorted_items: list[PyObj] = [];
+    for p in pairs {
+        sorted_items.append((p as PyTuple).items[1]);
+    }
+    lst.items = sorted_items;
+    return py_none();
 }
 
 obj PyListMethod(PyObj) {
@@ -4906,6 +5000,23 @@ obj PyListMethod(PyObj) {
             }
             lst.items = rev;
             return py_none();
+        }
+        if n == "sort" {
+            if len(args) != 0 {
+                return py_error("TypeError", "sort() takes no positional arguments");
+            }
+            key_fn = py_none();
+            do_reverse = False;
+            for kw in kwargs {
+                if kw == "key" {
+                    key_fn = kwargs[kw];
+                } elif kw == "reverse" {
+                    do_reverse = py_truth(kwargs[kw]);
+                } else {
+                    return py_error("TypeError", "'" + kw + "' is an invalid keyword argument for sort()");
+                }
+            }
+            return list_sort_inplace(lst, key_fn, do_reverse);
         }
         if n == "copy" {
             dup: list[PyObj] = [];
@@ -6042,7 +6153,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             if name in globals {
                 value = globals[name];
             } else {
-                value = host_builtin(name);
+                value = load_name_fallback(name);
             }
             if is_error(value) {
                 target = recover_exception(co, value, offset, stack);
@@ -6066,7 +6177,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             } elif name in globals {
                 value = globals[name];
             } else {
-                value = host_builtin(name);
+                value = load_name_fallback(name);
             }
             if is_error(value) {
                 target = recover_exception(co, value, offset, stack);
