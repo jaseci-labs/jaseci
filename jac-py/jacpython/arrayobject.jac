@@ -817,6 +817,120 @@ obj Array {
         return self.__mul__(n);
     }
 
+    def tobytes -> bytes {
+        return bytes(self.data);
+    }
+
+    def frombytes(buf: any) {
+        if len(buf) % self.itemsize != 0 {
+            raise ValueError("bytes length not a multiple of item size");
+        }
+        self.data += bytearray(buf);
+    }
+
+    def fromfile(f: any, n: any) {
+        count = _require_int(n);
+        want = count * self.itemsize;
+        chunk = f.read(want);
+        got = len(chunk);
+        if got % self.itemsize != 0 {
+            raise ValueError("bytes length not a multiple of item size");
+        }
+        if got > 0 {
+            self.data += bytearray(chunk);
+        }
+        if got != want {
+            raise EOFError("read() didn't return enough bytes");
+        }
+    }
+
+    def tofile(f: any) {
+        f.write(self.tobytes());
+    }
+
+    def fromlist(lst: any) {
+        # Validate every item before mutating (all-or-nothing like CPython).
+        tc = self.typecode;
+        packed: list[bytes] = [];
+        i: int = 0;
+        while i < len(lst) {
+            packed.append(self._pack_item(lst[i]));
+            i += 1;
+        }
+        i = 0;
+        while i < len(packed) {
+            self.data += packed[i];
+            i += 1;
+        }
+    }
+
+    def tolist -> list {
+        out: list = [];
+        i: int = 0;
+        n = self._n_items();
+        while i < n {
+            out.append(self._unpack_at(i));
+            i += 1;
+        }
+        return out;
+    }
+
+    def fromunicode(s: str) {
+        if not _tc_is_char(self.typecode) {
+            raise ValueError("fromunicode() may only be called on unicode type arrays ('u' or 'w')");
+        }
+        i: int = 0;
+        while i < len(s) {
+            self._append_value(s[i]);
+            i += 1;
+        }
+    }
+
+    def tounicode -> str {
+        if not _tc_is_char(self.typecode) {
+            raise ValueError("tounicode() may only be called on unicode type arrays ('u' or 'w')");
+        }
+        text = "";
+        i: int = 0;
+        n = self._n_items();
+        while i < n {
+            text += self._unpack_at(i);
+            i += 1;
+        }
+        return text;
+    }
+
+    def byteswap() {
+        if self.itemsize == 1 {
+            return;
+        }
+        n = self._n_items();
+        swapped = bytearray();
+        half = self.itemsize // 2;
+        i: int = 0;
+        while i < n {
+            chunk = self._chunk(i);
+            j: int = 0;
+            while j < half {
+                tmp = chunk[j];
+                end = self.itemsize - 1 - j;
+                chunk[j] = chunk[end];
+                chunk[end] = tmp;
+                j += 1;
+            }
+            swapped += chunk;
+            i += 1;
+        }
+        self.data = swapped;
+    }
+
+    def buffer_info -> tuple {
+        # Divergence note: element 0 is a real address in CPython; under the
+        # Jac runtime there is no stable raw pointer to expose, so it is 0.
+        # Element 1 (item count) matches the host contract.
+        return (0, self._n_items());
+    }
+
     def _pack_item(v: any) -> bytes {
         tc = self.typecode;
         if _tc_is_int(tc) {
