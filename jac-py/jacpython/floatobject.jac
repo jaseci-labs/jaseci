@@ -92,11 +92,3 @@ def float_hash_obj(v: PyFloat) -> PyObj {
 # P3.2c — float core helpers (hash entry + EQ lane).
 # Lift: Objects/_lifted/floatobject_core.jac
 # Full shortest-repr / SipHash live in floatobject.jac + pyhash.jac already.
-
-def float_eq_doubles(a: float, b: float) -> bool {
-    return a == b;
-}
-
-def float_ne_doubles(a: float, b: float) -> bool {
-    return a != b;
-}
