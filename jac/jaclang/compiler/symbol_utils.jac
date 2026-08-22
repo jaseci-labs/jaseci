@@ -287,6 +287,57 @@ def collect_method_names(arch: Archetype) -> set[str] {
     return names;
 }
 
+glob JS_HOST_CONSTRUCTORS: frozenset[str] = frozenset(
+         {
+             "Array",
+             "ArrayBuffer",
+             "CustomEvent",
+             "DataView",
+             "Date",
+             "Error",
+             "Float32Array",
+             "Float64Array",
+             "Headers",
+             "Int32Array",
+             "Map",
+             "PopStateEvent",
+             "Promise",
+             "Proxy",
+             "ReadableStream",
+             "ReadableStreamDefaultReader",
+             "ReadableStreamReadResult",
+             "RegExp",
+             "Response",
+             "Set",
+             "TextDecoder",
+             "TextEncoder",
+             "TypeError",
+             "URL",
+             "URLSearchParams",
+             "Uint32Array",
+             "Uint8Array",
+             "WebSocket"
+         }
+     );
+
+def is_js_host_constructor_call(nd: FuncCall) -> bool {
+    if not nd.in_client_context() {
+        return False;
+    }
+    if not isinstance(nd.target, Name) {
+        return False;
+    }
+    if nd.target.sym_name == "new" {
+        return False;
+    }
+
+    if nd.target.sym is not None and _is_user_symbol(nd.target.sym) {
+        return False;
+    }
+
+    return nd.target.sym_name in JS_HOST_CONSTRUCTORS;
+}
+
 def resolve_importer_path_from_node(nd: UniNode) -> (str | None) {
     importer_mod = nd.find_parent_of_type(Module);
     if (
