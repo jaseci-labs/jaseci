@@ -3596,23 +3596,82 @@ test "compiler_slice: band-11 local AnnAssign matches oracle bytes" {
     }
 }
 
-# Band 11 guard: module/class-scope annotated assignment still requires the
-# deferred __annotate__ machinery -- it must FAIL LOUDLY, never emit
-# silently-wrong bytes (missing annotations at runtime).
-test "compiler_slice: band-11 module/class AnnAssign traps until __annotate__ lands" {
-    m = parse_file("x: int = 5\n", "<f>");
-    assert m is not None;
-    body_m = (m as Module).body;
-    sr = build_module_symtable(body_m);
-    u = compile_exec(body_m, "<f>", "<module>", 1, sr.top);
-    assert u.diag is not None;
-    assert u.diag.kind == "NotImplementedError";
+# Band 11 slice 2: MODULE-scope annotated assignments lower into the PEP 649
+# deferred machinery (cellvar __conditional_annotations__, synthetic
+# __annotate__(format) code object, per-statement SET_ADD registration).
+# Byte-parity against the host oracle for code, tables, stack, name/const
+# pools and scope tables, on the module object and its nested __annotate__.
+test "compiler_slice: band-11 module AnnAssign matches oracle bytes" {
+    for src in [
+        "x: int = 5\n",
+        "x: list\n",
+        "T = int\n\nx: int = 5\ny: list[int]\n",
+        "a = 's'\nx: list\n",
+        "# c\nx: int = 5\n",
+        'x: "int" = 5\n',
+        "x: int = 5\nx: str = 'a'\n",
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+        assert actual.names == exp.names;
+        assert actual.varnames == exp.varnames;
+        assert actual.cellvars == exp.cellvars;
+        assert consts_equal(actual.consts, exp.consts);
+        ann_a = nested_code_by_name(actual, "__annotate__");
+        ann_e = nested_code_by_name(exp, "__annotate__");
+        assert ann_a.co_code == ann_e.co_code;
+        assert ann_a.exceptiontable == ann_e.exceptiontable;
+        assert ann_a.stacksize == ann_e.stacksize;
+        assert ann_a.names == ann_e.names;
+        assert ann_a.varnames == ann_e.varnames;
+        assert ann_a.freevars == ann_e.freevars;
+        assert consts_equal(ann_a.consts, ann_e.consts);
+    }
+}
 
+# Attribute/subscript annotated targets never join the annotation dict; they
+# keep plain assignment semantics (bare forms evaluate the target object and
+# discard it). The scope still gains the conditional-annotation set.
+test "compiler_slice: band-11 module attr/subscript AnnAssign matches oracle" {
+    for src in [
+        "o.k: int = 1\n",
+        "d['k']: int = 1\n",
+        "o.k: int\n",
+        "if p:\n    x: int = 5\n",
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+        assert actual.names == exp.names;
+        assert actual.cellvars == exp.cellvars;
+        assert consts_equal(actual.consts, exp.consts);
+    }
+}
+
+# Band 11 guard: CLASS-scope annotated assignment still requires the
+# __classdict__/__annotate_func__ closure plumbing -- it must FAIL LOUDLY,
+# never emit silently-wrong bytes (missing annotations at runtime). Module
+# scope lowered in the tests above; function locals were always assignment-only.
+test "compiler_slice: band-11 class AnnAssign traps until classdict closure lands" {
     cls_src = parse_file("class C:\n    y: str = 'a'\n", "<f>");
     assert cls_src is not None;
     cdef = ((cls_src as Module).body[0] as ClassDef);
     vr = validate_module_body([cdef]);
     assert vr.diag is None;
+    sr = build_module_symtable([cdef]);
+    assert sr.diag is None;
+    u = compile_exec([cdef], "<f>", "<module>", 1, sr.top);
+    assert u.diag is not None;
+    assert u.diag.kind == "NotImplementedError";
 }
 
 # Codegen-parity gap (c): `not` in jump context must fold into an inverted

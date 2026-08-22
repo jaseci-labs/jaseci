@@ -19,7 +19,7 @@
 #     names...]; body is a format>2 guard raising NotImplementedError, then
 #     BUILD_MAP 0 plus one guarded COPY/STORE_SUBSCR entry per annotation.
 
-import from objects { PyStr, PyInt }
+import from objects { PyStr, PyInt, py_none }
 import from opcode_meta {
     OP_RESUME,
     OP_LOAD_FAST,
@@ -52,6 +52,8 @@ import from ast_nodes {
     stmt,
     expr,
     AnnAssign,
+    AugAssign,
+    ClassDef,
     Name,
     Attribute,
     Subscript,
@@ -82,6 +84,21 @@ import from ast_nodes {
     Match,
     ExceptHandler,
     match_case,
+    Assign,
+    Expr,
+    Return,
+    Delete,
+    Raise,
+    Assert,
+    Global,
+    Nonlocal,
+    Import,
+    ImportFrom,
+    Pass,
+    Break,
+    Continue,
+    FunctionDef,
+    AsyncFunctionDef,
     Lambda,
     ListComp,
     SetComp,
@@ -99,8 +116,9 @@ import from compiler_ir {
     unverified_cfg,
     loc,
     new_cfg_builder,
+    stmt_cont,
 }
-import from codegen_util { expr_loc, stmt_loc }
+import from codegen_util { expr_loc, stmt_loc, nloc, no_loc }
 import from compiler_symtable {
     sym_block,
     sym_dict_get,
@@ -126,7 +144,10 @@ obj ann_entry {
         annotation: expr,
         owner_lineno: int,
         owner_col: int,
-        index: int;
+        index: int,
+        # Full span of the owning AnnAssign (CPython's location for the
+        # registration and __annotate__ entry instructions).
+        owner_loc: cloc | None = None;
 }
 
 # Per-scope plan shared by the setup emitter, the per-statement visitor, and
@@ -137,6 +158,9 @@ obj ann_scope_plan {
     has entries: list[ann_entry] = [],
         any_annotation: bool = False,
         body_first_lineno: int = 1,
+        # Full span of the scope's first statement: CPython attributes the
+        # annotation setup bytes and the __annotate__ guard/epilogue to it.
+        head_loc: cloc | None = None,
         load_const_ins: cinstr | None = None,
         store_name_ins: cinstr | None = None;
 }
@@ -149,10 +173,121 @@ obj ann_scope_plan {
 def collect_ann_plan(body: list[stmt]) -> ann_scope_plan {
     plan = ann_scope_plan();
     if len(body) > 0 {
-        plan.body_first_lineno = stmt_loc(body[0]).lineno;
+        plan.body_first_lineno = ann_stmt_span(body[0]).lineno;
+        plan.head_loc = ann_stmt_span(body[0]);
     }
     ann_collect_stmts(plan, body);
     return plan;
+}
+
+def ann_stmt_span(s: stmt) -> cloc {
+    # Full source span of a statement. Every concrete stmt subclass carries
+    # the four position fields; the shared base does not, so dispatch per type.
+    if isinstance(s, Assign) {
+        a = s as Assign;
+        return nloc(a.lineno, a.end_lineno, a.col_offset, a.end_col_offset);
+    }
+    if isinstance(s, AugAssign) {
+        aa = s as AugAssign;
+        return nloc(aa.lineno, aa.end_lineno, aa.col_offset, aa.end_col_offset);
+    }
+    if isinstance(s, AnnAssign) {
+        an2 = s as AnnAssign;
+        return nloc(an2.lineno, an2.end_lineno, an2.col_offset, an2.end_col_offset);
+    }
+    if isinstance(s, Return) {
+        r = s as Return;
+        return nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
+    }
+    if isinstance(s, Delete) {
+        d = s as Delete;
+        return nloc(d.lineno, d.end_lineno, d.col_offset, d.end_col_offset);
+    }
+    if isinstance(s, Expr) {
+        x = s as Expr;
+        return nloc(x.lineno, x.end_lineno, x.col_offset, x.end_col_offset);
+    }
+    if isinstance(s, Raise) {
+        rr = s as Raise;
+        return nloc(rr.lineno, rr.end_lineno, rr.col_offset, rr.end_col_offset);
+    }
+    if isinstance(s, Assert) {
+        asrt = s as Assert;
+        return nloc(asrt.lineno, asrt.end_lineno, asrt.col_offset, asrt.end_col_offset);
+    }
+    if isinstance(s, Import) {
+        im = s as Import;
+        return nloc(im.lineno, im.end_lineno, im.col_offset, im.end_col_offset);
+    }
+    if isinstance(s, ImportFrom) {
+        imf = s as ImportFrom;
+        return nloc(imf.lineno, imf.end_lineno, imf.col_offset, imf.end_col_offset);
+    }
+    if isinstance(s, Global) {
+        gl = s as Global;
+        return nloc(gl.lineno, gl.end_lineno, gl.col_offset, gl.end_col_offset);
+    }
+    if isinstance(s, Nonlocal) {
+        nl = s as Nonlocal;
+        return nloc(nl.lineno, nl.end_lineno, nl.col_offset, nl.end_col_offset);
+    }
+    if isinstance(s, Pass) {
+        ps = s as Pass;
+        return nloc(ps.lineno, ps.end_lineno, ps.col_offset, ps.end_col_offset);
+    }
+    if isinstance(s, Break) {
+        br = s as Break;
+        return nloc(br.lineno, br.end_lineno, br.col_offset, br.end_col_offset);
+    }
+    if isinstance(s, Continue) {
+        cn = s as Continue;
+        return nloc(cn.lineno, cn.end_lineno, cn.col_offset, cn.end_col_offset);
+    }
+    if isinstance(s, FunctionDef) {
+        fd = s as FunctionDef;
+        return nloc(fd.lineno, fd.end_lineno, fd.col_offset, fd.end_col_offset);
+    }
+    if isinstance(s, AsyncFunctionDef) {
+        afd = s as AsyncFunctionDef;
+        return nloc(afd.lineno, afd.end_lineno, afd.col_offset, afd.end_col_offset);
+    }
+    if isinstance(s, ClassDef) {
+        cd = s as ClassDef;
+        return nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
+    }
+    if isinstance(s, If) {
+        ii = s as If;
+        return nloc(ii.lineno, ii.end_lineno, ii.col_offset, ii.end_col_offset);
+    }
+    if isinstance(s, While) {
+        ww = s as While;
+        return nloc(ww.lineno, ww.end_lineno, ww.col_offset, ww.end_col_offset);
+    }
+    if isinstance(s, For) {
+        ff = s as For;
+        return nloc(ff.lineno, ff.end_lineno, ff.col_offset, ff.end_col_offset);
+    }
+    if isinstance(s, AsyncFor) {
+        af2 = s as AsyncFor;
+        return nloc(af2.lineno, af2.end_lineno, af2.col_offset, af2.end_col_offset);
+    }
+    if isinstance(s, Try) {
+        tt = s as Try;
+        return nloc(tt.lineno, tt.end_lineno, tt.col_offset, tt.end_col_offset);
+    }
+    if isinstance(s, With) {
+        wwi = s as With;
+        return nloc(wwi.lineno, wwi.end_lineno, wwi.col_offset, wwi.end_col_offset);
+    }
+    if isinstance(s, AsyncWith) {
+        awi = s as AsyncWith;
+        return nloc(awi.lineno, awi.end_lineno, awi.col_offset, awi.end_col_offset);
+    }
+    if isinstance(s, Match) {
+        mm = s as Match;
+        return nloc(mm.lineno, mm.end_lineno, mm.col_offset, mm.end_col_offset);
+    }
+    return loc(1, 1, 0, 0);
 }
 
 def ann_collect_stmts(plan: ann_scope_plan, stmts: list[stmt]) {
@@ -180,7 +315,10 @@ def ann_collect_stmt(plan: ann_scope_plan, s: stmt) {
                     annotation=an.annotation,
                     owner_lineno=an.lineno,
                     owner_col=an.col_offset,
-                    index=len(plan.entries)
+                    index=len(plan.entries),
+                    owner_loc=nloc(
+                        an.lineno, an.end_lineno, an.col_offset, an.end_col_offset
+                    )
                 )
             );
         }
@@ -322,11 +460,15 @@ def visit_ann_assign(
         last = ann_store_target_tos(g, an.target);
     }
     rloc = aloc;
+    if ent.owner_loc is not None {
+        rloc = ent.owner_loc;
+    }
     cond_idx = g.u.add_name("__conditional_annotations__");
     g.emit_op(OP_LOAD_NAME, cond_idx, rloc);
     ann_emit_index_int(g, ent.index, rloc);
     g.emit_op(OP_SET_ADD, 1, rloc);
     g.emit_op(OP_POP_TOP, 0, rloc);
+    last = rloc;
     return stmt_cont(loc=last);
 }
 
@@ -449,7 +591,41 @@ def finish_module_annotations(g: cfg_builder, plan: ann_scope_plan) {
     }
     co = assemble(cfg_fn);
     g.u.nested_code_emitted = True;
-    ci = g.u.add_const(co);
+    # Insert the code object after all statement-produced consts but before
+    # any None the control-flow duplication enqueued mid-loop (host defers
+    # the shared return-None to scope finalization, we cannot). Literal-None
+    # predecessors remain a documented divergence.
+    ci = len(g.u.consts);
+    none_key = py_none().tp_hashkey();
+    ni2 = 0;
+    while ni2 < len(g.u.consts) {
+        if g.u.consts[ni2].tp_hashkey() == none_key {
+            ci = ni2;
+            break;
+        }
+        ni2 = ni2 + 1;
+    }
+    bi = 0;
+    while bi < len(g.u.blocks) {
+        ii2 = 0;
+        blk = g.u.blocks[bi];
+        while ii2 < len(blk.instrs) {
+            ins = blk.instrs[ii2];
+            if ins.opcode == OP_LOAD_CONST and ins.oparg >= ci
+                and ins != plan.load_const_ins {
+                ins.oparg = ins.oparg + 1;
+            }
+            ii2 = ii2 + 1;
+        }
+        bi = bi + 1;
+    }
+    g.u.consts.append(co);
+    ri = len(g.u.consts) - 1;
+    while ri > ci {
+        g.u.consts[ri] = g.u.consts[ri - 1];
+        ri = ri - 1;
+    }
+    g.u.consts[ci] = co;
     ni = g.u.add_name("__annotate__");
     lci.oparg = ci;
     sni = plan.store_name_ins;
@@ -476,26 +652,39 @@ def build_annotate_fn_cfg(
     u.posonlyargcount = 1;
     u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
     u.varnames = ["format"];
+    hloc = plan.head_loc;
+    if hloc is None {
+        hloc = no_loc();
+    }
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym);
-    ploc = loc(0, plan.body_first_lineno, 0, 0);
+    ploc = loc(
+        plan.body_first_lineno,
+        plan.body_first_lineno,
+        0,
+        0
+    );
     g.emit_op(OP_RESUME, 0, ploc);
     # format guard: raise NotImplementedError when format > 2 (formats 0 and
-    # 1 are the only ones PEP 749 defines today).
-    g.emit_op(OP_LOAD_FAST, 0, ploc);
-    ann_emit_index_int(g, 2, ploc);
-    g.emit_op(OP_COMPARE_OP, compare_oparg(CMP_GT), ploc);
+    # 1 are the only ones PEP 749 defines today). Guard, BUILD_MAP,
+    # STORE_SUBSCR and RETURN_VALUE all carry the scope-head location; only
+    # the annotation expression's own instructions carry their spans.
+    g.emit_op(OP_LOAD_FAST, 0, hloc);
+    ann_emit_index_int(g, 2, hloc);
+    g.emit_op(OP_COMPARE_OP, compare_oparg(CMP_GT), hloc);
     after = g.new_block();
-    g.emit_jump(OP_POP_JUMP_IF_FALSE, after.id, ploc);
-    g.emit_op(OP_LOAD_COMMON_CONSTANT, 1, ploc);
-    g.emit_op(OP_RAISE_VARARGS, 1, ploc);
+    g.emit_jump(OP_POP_JUMP_IF_FALSE, after.id, hloc);
+    g.emit_op(OP_LOAD_COMMON_CONSTANT, 1, hloc);
+    g.emit_op(OP_RAISE_VARARGS, 1, hloc);
     g.use(after);
-    g.emit_op(OP_BUILD_MAP, 0, ploc);
+    g.emit_op(OP_BUILD_MAP, 0, hloc);
     ei = 0;
-    last_loc = ploc;
     while ei < len(plan.entries) {
         e = plan.entries[ei];
-        eloc = expr_loc(e.annotation);
+        eloc = e.owner_loc;
+        if eloc is None {
+            eloc = expr_loc(e.annotation);
+        }
         g.emit_op(OP_LOAD_SMALL_INT, e.index, eloc);
         cond_idx = u.add_name("__conditional_annotations__");
         g.emit_op(OP_LOAD_GLOBAL, cond_idx << 1, eloc);
@@ -509,12 +698,11 @@ def build_annotate_fn_cfg(
         g.emit_op(OP_COPY, 2, eloc);
         tidx = u.add_const(PyStr(t="str", val=e.target));
         g.emit_op(OP_LOAD_CONST, tidx, eloc);
-        g.emit_op(OP_STORE_SUBSCR, 0, eloc);
-        last_loc = eloc;
+        g.emit_op(OP_STORE_SUBSCR, 0, hloc);
         g.use(nb);
         ei = ei + 1;
     }
-    g.emit_op(OP_RETURN_VALUE, 0, last_loc);
+    g.emit_op(OP_RETURN_VALUE, 0, hloc);
     return u;
 }
 

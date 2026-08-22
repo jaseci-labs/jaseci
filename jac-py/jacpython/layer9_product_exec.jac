@@ -19,6 +19,8 @@ import from objects {
     PyCode,
     PyInt,
     PyBool,
+    PyDict,
+    PySet,
     expect_int,
     expect_str,
     is_error,
@@ -244,6 +246,34 @@ test "layer9: chained assignment executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["x"]) == 5;
     assert expect_int(ns["y"]) == 5;
+}
+
+# ---------------- Band 11: PEP 649 module annotations ----------------
+
+# Module-scope annotated assignments execute under ceval: MAKE_CELL on the
+# module cellvar, the synthetic __annotate__ function object, and its
+# format-guarded dict construction all run for real.
+test "layer9: band-11 module annotations execute in ceval" {
+    co = product_exec("x: int = 5\nann = __annotate__(0)\ncond = __conditional_annotations__\n");
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["x"]) == 5;
+    assert isinstance(ns["ann"], PyDict);
+    ann = ns["ann"] as PyDict;
+    assert "x" in ann.items;
+    assert isinstance(ns["cond"], PySet);
+    cond = ns["cond"] as PySet;
+    assert cond.set_contains(PyInt(t="int", val=0));
+}
+
+test "layer9: band-11 bare annotation registers without inline store" {
+    co = product_exec("y: list\nann = __annotate__(1)\n");
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert "y" not in ns;
+    assert isinstance(ns["ann"], PyDict);
 }
 
 # ---------------- Band 4: thin function slice ----------------

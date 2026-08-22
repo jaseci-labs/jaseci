@@ -1152,8 +1152,18 @@ def visit_try(
     nop_blk = g.new_block();
     g.u.nested_try_except_start = nop_blk.id;
     try_body = g.new_block();
+    # CPython's flowgraph drops a NOP whose line equals the previous
+    # instruction's line; after PEP 649 annotation setup bytes that is
+    # exactly the case for a Try opening the scope's body. Read the previous
+    # line before switching to the (still empty) nop block.
+    prev_line = -1;
+    if len(g.cur.instrs) > 0 {
+        prev_line = g.cur.instrs[len(g.cur.instrs) - 1].loc.lineno;
+    }
     g.use(nop_blk);
-    g.emit_op(OP_NOP, 0, tloc);
+    if prev_line != tloc.lineno {
+        g.emit_op(OP_NOP, 0, tloc);
+    }
     g.use(try_body);
     protect_start = g.cur.id;
     try_follows = more_code_follows;
