@@ -66,4 +66,5 @@ obj MachOLinker {
     def _resolve_crossrefs -> None;
     def build_executable -> bytes;
     def build_shared_object -> bytes;
+    def _build_macho_image(is_dylib: bool) -> bytes;
 }
