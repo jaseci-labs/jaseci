@@ -1,9 +1,8 @@
 # CPython oracle goldens for Band 6 deferrals + Band 7 pre-work
 
 **Status:** generate-only pass complete; dumps promoted into
-`jac-py/tools/oracle_goldens/`. Nothing pasted into `compiler_slice.jac` yet
-(that file is owned by the active try/except/finally codegen workstream - do
-not paste from here into it without coordinating).
+`jac-py/tools/oracle_goldens/`. Band 6 try/except/finally, raise-from, and multi-with
+fixtures, plus Band 7 generator/async fixtures, are now covered in `compiler_slice.jac`.
 **Generated:** 2026-08-21 session, via 6 parallel subagents. Zero jac runtime used
 by the generators; promotion is additive files only.
 
