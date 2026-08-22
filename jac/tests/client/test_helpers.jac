@@ -185,7 +185,7 @@ def start_app_server(project_path: any, extra_args: list | None = None) -> tuple
 }
 
 """Signal a whole process group, tolerating an already-dead group."""
-def _signal_group(server: any, sig: int) -> bool {
+def _signal_group(server: any, sig: any) -> bool {
     try {
         pgid = os.getpgid(server.pid);
     } except Exception {

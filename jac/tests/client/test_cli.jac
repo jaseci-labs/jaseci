@@ -1124,7 +1124,6 @@ test "start dev with client does initial compilation" {
             f"jac create failed: {create.stderr or create.stdout}"
         );
         project_path = os.path.join(temp_dir, test_project_name);
-        server: Popen | None = None;
         try {
             (server, port) = start_app_server(project_path, extra_args=["--dev"]);
             body = request_endpoint(f"http://127.0.0.1:{port}/").decode(

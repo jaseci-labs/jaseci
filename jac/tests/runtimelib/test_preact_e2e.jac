@@ -102,7 +102,7 @@ def _start_preact_server(project_dir: Path) -> tuple {
 Returns False if the group is gone so the caller can fall back to the lone
 process.
 """
-def _signal_group(proc: Popen, sig: int) -> bool {
+def _signal_group(proc: Popen, sig: any) -> bool {
     try {
         os.killpg(os.getpgid(proc.pid), sig);
         return True;

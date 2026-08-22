@@ -50,7 +50,10 @@ def _compile_with_backend(path: str, backend: any) -> str {
     ];
     assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
     es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=backend);
-    return es_to_js(es_pass.ir_out.gen.es_ast);
+    ast = es_pass.ir_out.gen.es_ast;
+    import jaclang.compiler.passes.ecmascript.estree as es;
+    assert isinstance(ast, es.Node) , (f"expected a single ES AST root for {path}");
+    return es_to_js(ast);
 }
 
 """Write inline Jac to a temp file and return its path."""
@@ -179,11 +182,15 @@ test "build_runtime_tarball React runtime does not self-import @jac/runtime" {
     import json;
     import tarfile;
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
-        index_js = tf.extractfile("package/index.js").read().decode();
+        index_fh = tf.extractfile("package/index.js");
+        assert index_fh is not None , "runtime tarball must contain package/index.js";
+        index_js = index_fh.read().decode();
         assert "@jac/runtime" not in index_js , (
             "runtime package must not import from itself"
         );
-        pj = json.loads(tf.extractfile("package/package.json").read().decode());
+        pj_fh = tf.extractfile("package/package.json");
+        assert pj_fh is not None , "runtime tarball must contain package/package.json";
+        pj = json.loads(pj_fh.read().decode());
         assert "@jac/runtime" not in pj.get("peerDependencies", {}) , (
             "runtime package must not list itself as a peer dependency"
         );
@@ -198,11 +205,15 @@ test "build_runtime_tarball Solid runtime does not self-import @jac/runtime" {
     import json;
     import tarfile;
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf {
-        index_js = tf.extractfile("package/index.js").read().decode();
+        index_fh = tf.extractfile("package/index.js");
+        assert index_fh is not None , "runtime tarball must contain package/index.js";
+        index_js = index_fh.read().decode();
         assert "@jac/runtime" not in index_js , (
             "Solid runtime package must not import from itself"
         );
-        pj = json.loads(tf.extractfile("package/package.json").read().decode());
+        pj_fh = tf.extractfile("package/package.json");
+        assert pj_fh is not None , "runtime tarball must contain package/package.json";
+        pj = json.loads(pj_fh.read().decode());
         assert "@jac/runtime" not in pj.get("peerDependencies", {}) , (
             "Solid runtime package must not list itself as a peer dependency"
         );

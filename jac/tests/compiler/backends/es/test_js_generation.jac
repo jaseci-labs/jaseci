@@ -3465,8 +3465,14 @@ test "a state setter handed out as a value loads without a ReferenceError" {
     );
     body = js_code;
     for (decl, names_src) in decls {
-        names = [n.strip() for n in names_src.split(",") if n.strip()];
-        body = body.replace(decl, "const { " + ", ".join(names) + " } = __jacRuntimeStub;", 1);
+        names = [
+            n.strip()
+            for n in names_src.split(",")
+            if n.strip()
+        ];
+        body = body.replace(
+            decl, "const { " + ", ".join(names) + " } = __jacRuntimeStub;", 1
+        );
     }
     prologue = (
         "const __mkStub = () => new Proxy(function () {}, { "
@@ -3474,7 +3480,8 @@ test "a state setter handed out as a value loads without a ReferenceError" {
         "apply: () => __mkStub(), construct: () => __mkStub(), set: () => true });\n"
         "const __jacRuntimeStub = __mkStub();\n"
     );
-    wrapper = prologue + body
+    wrapper = prologue
+        + body
         + (
             "\nconst box = useThing();\n"
             'box.setTheme("light");\n'
