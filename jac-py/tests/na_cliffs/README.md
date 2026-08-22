@@ -69,7 +69,8 @@ delegation -- with cliff-6 truth `310610 / 3150101`. Two real na-codegen finding
 fell out and are worked around in-fixture (never in the leaf): the **dict-literal
 subclass-upcast ICE** (build empty + subscript-store) and na's **lexically-
 structured exceptions** (no mid-`try` resume). Runtime legs verified on the
-bytecode backend now; the na-linked legs remain CI (musl link, as above).
+bytecode backend now; the na-linked legs remain **unwired** (no CI leg exists
+yet -- they need a musl/system-cc link environment; see "Two gates" above).
 
 **Dynamism surface widened (2026-07-18, cliffs 7--10).** Four more shapes the
 port depends on now compile na-clean with bytecode-backend truth pinned: (7)

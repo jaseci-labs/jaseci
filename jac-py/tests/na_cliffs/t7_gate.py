@@ -4,7 +4,8 @@
 Each cliff fixture must nacompile through capability-check + IR-gen + object-emit
 with no E5090 and no ICE. The final static-musl link is expected to fail locally
 (env, not code) -- reaching "Object code emitted" is the pass condition here.
-Full link+run is the CI leg.
+Runtime-correctness legs (musl link + run, diffed against na_cliffs_ref.jac)
+are NOT wired into CI yet; see README.md "Two gates".
 
 Python shim (not Jac): the na compiler is driven as a subprocess, which the Jac
 runtime does not host. Run from anywhere:
