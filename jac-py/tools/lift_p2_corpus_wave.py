@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lift a P2 wave corpus with ``jac tool c2jac`` (waves 2-11).
+"""Lift a P2 wave corpus with ``jac tool c2jac`` (waves 2+).
 
 Reads ``jac-py/tools/p2_corpus_wave<N>/manifest.json``. Run from repo root:
 
@@ -125,8 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         "--wave",
         type=int,
         required=True,
-        choices=range(2, 12),
-        help="P2 wave number (2-11)",
+        choices=range(2, 13),
+        help="P2 wave number",
     )
     args = parser.parse_args(argv)
     return lift_wave(args.wave)

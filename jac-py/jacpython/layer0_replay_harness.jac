@@ -107,6 +107,26 @@ def _dedent_segment(seg, base_col):
     return "\n".join(fixed)
 
 
+def _l1_flatten_seq(stmts):
+    """Flatten a statement sequence, expanding Try blocks into their inner
+    statements (body, handlers, orelse, finally) so nested self.assert* checks
+    are harvested as checks instead of being silently swallowed by the
+    whole-block drop rule (HARNESS B). Control flow itself stays in setup:
+    non-assert statements keep their source shape and still execute there;
+    only the checks are lifted out. Recurses through nested Try blocks."""
+    out = []
+    for s in stmts:
+        if isinstance(s, ast.Try):
+            out.extend(_l1_flatten_seq(s.body))
+            for h in s.handlers:
+                out.extend(_l1_flatten_seq(h.body))
+            out.extend(_l1_flatten_seq(s.orelse))
+            out.extend(_l1_flatten_seq(s.finalbody))
+        else:
+            out.append(s)
+    return out
+
+
 def _l1_harvest_methods(source):
     """Split each `test_*` method into (name, setup_src, checks).
 
@@ -127,7 +147,7 @@ def _l1_harvest_methods(source):
         if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test")):
             continue
         setup_stmts, checks, ok = [], [], True
-        for stmt in node.body:
+        for stmt in _l1_flatten_seq(node.body):
             # A `self.assertX(...)` check statement.
             if (
                 isinstance(stmt, ast.Expr)
