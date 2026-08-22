@@ -1536,7 +1536,9 @@ obj PyNoOpInit(PyObj) {
 obj PyClassMethodCtor(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
-            return py_error("TypeError", "classmethod expected 1 argument");
+            return py_error(
+                "TypeError", "classmethod expected 1 argument, got " + str(len(args))
+            );
         }
         return PyClassMethod(t="classmethod", func=args[0]);
     }
@@ -1545,7 +1547,9 @@ obj PyClassMethodCtor(PyObj) {
 obj PyStaticMethodCtor(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
-            return py_error("TypeError", "staticmethod expected 1 argument");
+            return py_error(
+                "TypeError", "staticmethod expected 1 argument, got " + str(len(args))
+            );
         }
         return PyStaticMethod(t="staticmethod", func=args[0]);
     }
@@ -4598,43 +4602,58 @@ obj PyNativeBuiltin(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if self.name == "id" {
             if len(args) == 0 {
-                return py_error("TypeError", "id expected 1 argument");
+                return py_error("TypeError", "id() takes exactly one argument (0 given)");
             }
             return PyInt(t="int", val=py_id(args[0]));
         }
         if self.name == "len" {
             if len(args) != 1 {
-                return py_error("TypeError", "len() takes exactly one argument");
+                return py_error(
+                    "TypeError", "len() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_len(args[0]);
         }
         if self.name == "hash" {
             if len(args) != 1 {
-                return py_error("TypeError", "hash() takes exactly one argument");
+                return py_error(
+                    "TypeError", "hash() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_hash(args[0]);
         }
         if self.name == "repr" {
             if len(args) != 1 {
-                return py_error("TypeError", "repr() takes exactly one argument");
+                return py_error(
+                    "TypeError", "repr() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return py_repr(args[0]);
         }
         if self.name == "isinstance" {
             if len(args) < 2 {
-                return py_error("TypeError", "isinstance expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "isinstance expected 2 arguments, got " + str(len(args)),
+                );
             }
             return PyBool(t="bool", val=py_isinstance(args[0], args[1]));
         }
         if self.name == "issubclass" {
             if len(args) < 2 {
-                return py_error("TypeError", "issubclass expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "issubclass expected 2 arguments, got " + str(len(args)),
+                );
             }
             return PyBool(t="bool", val=py_issubclass(args[0], args[1]));
         }
         if self.name == "callable" {
-            if len(args) < 1 {
-                return py_error("TypeError", "callable expected 1 argument");
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    "callable() takes exactly one argument (" + str(len(args)) + " given)",
+                );
             }
             return PyBool(t="bool", val=obj_is_callable(args[0]));
         }
@@ -4642,7 +4661,10 @@ obj PyNativeBuiltin(PyObj) {
             # getattr(obj, name[, default]): native attribute access, honoring a
             # 3rd-arg default on AttributeError (CPython only swallows that one).
             if len(args) < 2 {
-                return py_error("TypeError", "getattr expected at least 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "getattr expected at least 2 arguments, got " + str(len(args)),
+                );
             }
             attr = py_attr(args[0], expect_str(args[1]));
             if is_error(attr)
@@ -4654,7 +4676,10 @@ obj PyNativeBuiltin(PyObj) {
         }
         if self.name == "hasattr" {
             if len(args) < 2 {
-                return py_error("TypeError", "hasattr expected 2 arguments");
+                return py_error(
+                    "TypeError",
+                    "hasattr expected 2 arguments, got " + str(len(args)),
+                );
             }
             probe = py_attr(args[0], expect_str(args[1]));
             return PyBool(t="bool", val=not is_error(probe));

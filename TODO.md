@@ -329,8 +329,13 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
     builtin functions - only suffixes missing. classmethod/staticmethod text
     needs host-oracle check. Owner: WildRaven, in flight.
+    **FIXED by WildRaven**: count suffixes + got-N landed; oracle texts:
+    len/hash/repr "takes exactly one argument (N given)", callable() same,
+    id() takes exactly one argument (0 given), isinstance/issubclass/hasattr
+    "expected 2 arguments, got N", getattr "expected at least 2 arguments,
+    got N", classmethod/staticmethod "expected 1 argument, got N".
 
-24. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+11. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
     ("object of type 'int' has no len()").** Found by split-codegen subagent,
     reproduced identically on pre-split base commit: exec_tail_emits_code
     (codegen_util.jac:926) receives an int instead of the stmt list when an
@@ -601,8 +606,13 @@ green. Class-decorator support needs pinning elsewhere.
     getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
     builtin functions - only suffixes missing. classmethod/staticmethod text
     needs host-oracle check. Owner: WildRaven, in flight.
+    **FIXED by WildRaven**: count suffixes + got-N landed; oracle texts:
+    len/hash/repr "takes exactly one argument (N given)", callable() same,
+    id() takes exactly one argument (0 given), isinstance/issubclass/hasattr
+    "expected 2 arguments, got N", getattr "expected at least 2 arguments,
+    got N", classmethod/staticmethod "expected 1 argument, got N".
 
-24. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+6. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
     ("object of type 'int' has no len()").** Found by split-codegen subagent,
     reproduced identically on pre-split base commit: exec_tail_emits_code
     (codegen_util.jac:926) receives an int instead of the stmt list when an
