@@ -82,14 +82,14 @@ impl ModelPool.postinit -> None {
 }
 
 impl ModelPool._get_ctx_window(call_params: dict) -> int {
-    override = int(
+    `override = int(
         call_params.get("ctx_window")
-        or self.ctx_window
-        or get_byllm_config().get_compaction_config().get("ctx_window", 0)
-        or 0
+            or self.ctx_window
+            or get_byllm_config().get_compaction_config().get("ctx_window", 0)
+            or 0
     );
-    if override > 0 {
-        return override;
+    if `override > 0 {
+        return `override;
     }
     windows: list = [];
     for m in self.models {
@@ -114,7 +114,7 @@ impl ModelPool.model_call_no_stream(params: dict) -> dict {
     return self._router.completion(**params);
 }
 
-impl ModelPool.model_call_with_stream(params: dict) -> Generator[str, None, None] {
+impl ModelPool.model_call_with_stream(params: dict) -> Generator[object, None, None] {
     if self.strategy == "cost-based-routing" {
         async def _collect_stream -> list {
             result = await self._router.acompletion(stream=True, **params);
@@ -132,7 +132,7 @@ impl ModelPool.model_call_with_stream(params: dict) -> Generator[str, None, None
     if self.strategy == "fallback" {
         model_names: list = self._fallback_model_names;
         router = self._router;
-        def _fallback_gen -> Generator {
+        def _fallback_gen -> Generator[object, None, None] {
             for (idx, name) in enumerate(model_names) {
                 yielded: bool = False;
                 try {

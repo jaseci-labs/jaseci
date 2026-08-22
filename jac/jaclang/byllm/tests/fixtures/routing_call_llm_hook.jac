@@ -41,13 +41,14 @@ walker router {
     }
 }
 
-with entry {
-    _orig_call_llm = Jac.call_llm;
+glob _orig_call_llm = Jac.call_llm;
 
-    def _counting_call_llm(model: object, mt_run: MTRuntime) -> object {
-        hook_calls.append(1);
-        return _orig_call_llm(model, mt_run);
-    }
+def _counting_call_llm(model: any, mt_run: MTRuntime) -> any {
+    hook_calls.append(1);
+    return _orig_call_llm(model, mt_run);
+}
+
+with entry {
     Jac.call_llm = _counting_call_llm;
     try {
         desk = root ++> Desk();

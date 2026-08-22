@@ -3,12 +3,8 @@ import shutil;
 import json;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.ext_registry {
-    base_stem,
-    is_client_module,
-    is_native_module,
-    is_annex
-}
+import from jaclang.jac0core.ext_registry { base_stem, is_annex }
+import type from jaclang.project.config { JacConfig }
 
 glob _SKIP_DIRS: set = {
          ".jac",
@@ -29,7 +25,7 @@ def load_eject_project_metadata(src: Path) -> dict {
     if not toml_path.exists() {
         raise FileNotFoundError(f"No jac.toml found in {src}");
     }
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     toml_data = read_toml_with_encoding(str(toml_path));
     project_section = toml_data.get("project", {});
     raw_name = project_section.get("name", "") or "";
@@ -123,7 +119,7 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         f
         for f in _collect_jac_files(src)
         if (out not in Path(str(f)).parents)
-        and not _under_any(Path(str(f)), eject_roots)
+            and not _under_any(Path(str(f)), eject_roots)
     ];
     if not jac_files {
         console.error("No .jac source files found to eject.");
@@ -177,8 +173,8 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
 
             stem = str(_strip_jac_suffix(rel.name));
             if (len(rel.parent.parts) == 0)
-            and (stem == entry_module)
-            and _js_exports_app(js_code) {
+                and (stem == entry_module)
+                and _js_exports_app(js_code) {
                 entry_has_app = True;
             }
         }
@@ -191,14 +187,22 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         } else {
             bmod = ".".join(parent_parts + [stem]);
         }
-        is_client = is_client_module(rel.name);
-        is_native = is_native_module(rel.name);
-        server = _is_meaningful_python(py_code) and (not is_client) and (not is_native);
+
+        is_client = ir.decided_codespace == 'client';
+        server = _is_meaningful_python(py_code) and (not is_client);
 
         if server {
+            import from jaclang.jac0core.constant { CodeContext }
+            mod_is_native = ir.decided_codespace == 'native';
             for item in ir.body {
+                if item?.code_context == CodeContext.CLIENT {
+                    continue;
+                }
+                if (not mod_is_native and item?.code_context == CodeContext.NATIVE) {
+                    continue;
+                }
                 if isinstance(item, uni.Archetype)
-                and item.sym_category == SymbolType.WALKER_ARCH {
+                    and item.sym_category == SymbolType.WALKER_ARCH {
                     walkers.append(
                         {
                             "name": str(item.name.sym_name),
@@ -265,7 +269,8 @@ impl eject(source: str = ".", output: str = "", force: bool = False) -> int {
         if dropped {
             console.print(
                 "  ○ not imported by the entry module (kept as plain modules, "
-                "no endpoints): " + ", ".join(sorted(dropped)),
+                "no endpoints): "
+                    + ", ".join(sorted(dropped)),
                 style="muted"
             );
         }
@@ -428,18 +433,18 @@ def _js_exports_app(js_code: str) -> bool {
         }
         compact = line.replace(" ", "");
         if ("{app}" in compact)
-        or ("{app," in compact)
-        or (",app}" in compact)
-        or (",app," in compact)
-        or ("asapp}" in compact)
-        or ("asapp," in compact) {
+            or ("{app," in compact)
+            or (",app}" in compact)
+            or (",app," in compact)
+            or ("asapp}" in compact)
+            or ("asapp," in compact) {
             return True;
         }
         if compact.startswith("exportconstapp=")
-        or compact.startswith("exportfunctionapp(")
-        or compact.startswith("exportletapp=")
-        or compact.startswith("exportvarapp=")
-        or compact.startswith("exportasyncfunctionapp(") {
+            or compact.startswith("exportfunctionapp(")
+            or compact.startswith("exportletapp=")
+            or compact.startswith("exportvarapp=")
+            or compact.startswith("exportasyncfunctionapp(") {
             return True;
         }
     }
@@ -546,8 +551,8 @@ def _is_meaningful_python(py_code: str) -> bool {
             continue;
         }
         if isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str) {
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str) {
             continue;
         }
         return True;
@@ -556,7 +561,7 @@ def _is_meaningful_python(py_code: str) -> bool {
 }
 
 
-def _eject_config(src: Path, project_name: str) -> object {
+def _eject_config(src: Path, project_name: str) -> JacConfig {
     import from jaclang.project.config { JacConfig }
     config = JacConfig.load(src / "jac.toml");
     if (not config.project.name) or ("{{" in config.project.name) {
@@ -674,7 +679,7 @@ def _copy_client_runtime(src: Path, frontend_root: Path) -> bool {
         }
     }
 
-    for sibling in sorted(runtime_src.parent.glob("client_runtime*")) {
+    for sibling in sorted(runtime_src.parent.`glob("client_runtime*")) {
         if sibling.name in ["client_runtime.js", "client_runtime.js.map"] {
             continue;
         }
@@ -884,23 +889,23 @@ def _entry_reachable_modules(compiled: list, entry_module: str) -> (dict | None)
     for unit in compiled {
         units_by_orig[str(unit["orig"])] = unit;
     }
-    entry = "";
+    `entry = "";
     if entry_module in units_by_orig {
-        entry = entry_module;
+        `entry = entry_module;
     } else {
         for name in sorted(units_by_orig.keys()) {
             if name.endswith("." + entry_module) {
-                entry = name;
+                `entry = name;
                 break;
             }
         }
     }
-    if not entry {
+    if not `entry {
         return None;
     }
     known: set = set(units_by_orig.keys());
     reachable: set = set();
-    queue: list = [entry];
+    queue: list = [`entry];
     while queue {
         cur = str(queue.pop(0));
         if cur in reachable {
@@ -914,7 +919,7 @@ def _entry_reachable_modules(compiled: list, entry_module: str) -> (dict | None)
             }
         }
     }
-    return {"reachable": reachable, "entry": entry};
+    return {"reachable": reachable, "entry": `entry};
 }
 
 
@@ -933,7 +938,7 @@ def _py_import_targets(py_code: str, mod_name: str, known: set) -> set {
                 if keep < 0 {
                     continue;
                 }
-                base_parts = list(pkg_parts[:keep]);
+                base_parts = [str(part) for part in pkg_parts[:keep]];
                 if node.module {
                     base_parts.append(str(node.module));
                 }

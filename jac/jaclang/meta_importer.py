@@ -11,6 +11,8 @@ import hashlib
 import importlib.abc
 import importlib.machinery
 import importlib.util
+from importlib.abc import Loader, MetaPathFinder
+from importlib.machinery import ModuleSpec
 import logging
 import marshal
 import os
@@ -87,7 +89,7 @@ def _bootstrap_compile(
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         # Process-unique temp + atomic replace so concurrent bootstraps (e.g.
-        # parallel xdist workers) can't read a half-written cache file.
+        # parallel test workers) can't read a half-written cache file.
         tmp_file = cache_file.with_suffix(cache_file.suffix + f".{os.getpid()}.tmp")
         try:
             tmp_file.write_bytes(marshal.dumps(code))
@@ -100,20 +102,47 @@ def _bootstrap_compile(
     return code
 
 
+class JacSourceCompileError(ImportError):
+    """A .jac module was found on disk but its source failed to compile.
+
+    Distinct from a module that is simply absent (``ModuleNotFoundError``) or
+    only partially initialized mid-bootstrap (``cannot import name ...``): the
+    file resolved, so this is a defect in that file, never a condition to
+    degrade around silently. It subclasses ``ImportError`` so existing handlers
+    keep their behavior; callers that must not degrade -- the compiler's own
+    pass-schedule builders -- opt in by inspecting ``jac_source_path``.
+    """
+
+    def __init__(self, message: str, jac_source_path: str) -> None:
+        """Record the .jac file whose compile produced this failure."""
+        super().__init__(message)
+        self.jac_source_path = jac_source_path
+
+
+def _retained_failure_details(file_path: str) -> str:
+    """Recover diagnostics the internal compile closure already evicted."""
+    try:
+        from jaclang.jac0core.compiler import compiler_source_failure_details
+
+        return compiler_source_failure_details(file_path) or ""
+    except Exception:
+        return ""
+
+
 def _module_scoped_alerts(program: object, file_path: str) -> list:
     """Collect compile alerts recorded against file_path (or its annexes).
 
-    `foo.na.jac` -> prefix `foo.na.` also matches annex paths such as
-    `foo.na.impl.jac` and `foo.na.impl/bar.jac`, so errors reported against
+    `foo.jac` -> prefix `foo.` also matches annex paths such as
+    `foo.impl.jac` and `foo.impl/bar.jac`, so errors reported against
     an impl file count as the module's own.
     """
-    norm = os.path.normpath(file_path)
+    norm = os.path.realpath(file_path)
     stem = norm[:-4] if norm.endswith(".jac") else norm
     prefix = stem + "."
     alerts = []
     for alert in getattr(program, "errors_had", []):
         try:
-            alert_path = os.path.normpath(alert.loc.mod_path)
+            alert_path = os.path.realpath(alert.loc.mod_path)
         except Exception:
             continue
         if alert_path == norm or alert_path.startswith(prefix):
@@ -147,7 +176,7 @@ sys.modules["jaclang.jac0core.modresolver"] = _modresolver
 get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
-class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+class JacMetaImporter(MetaPathFinder, Loader):
     """Meta path importer to load .jac modules via Python's import system."""
 
     # Directory containing the jaclang package (for bootstrap detection)
@@ -172,7 +201,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         fullname: str,
         path: Sequence[str] | None = None,
         target: ModuleType | None = None,
-    ) -> importlib.machinery.ModuleSpec | None:
+    ) -> ModuleSpec | None:
         """Find the spec for the module."""
         # Sealed image is authoritative: a sealed binary resolves its modules
         # from the manifest by name, with no filesystem probing for .jac. This
@@ -228,6 +257,16 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                     return importlib.util.spec_from_file_location(
                         fullname, module_file, loader=self
                     )
+            # Migration guard: the .na.jac marker was retired in 0.35. A
+            # leftover file must fail loudly with the rename, not as a bare
+            # module-not-found.
+            retired = candidate_path + ext_registry.RETIRED_NATIVE_SUFFIX
+            if os.path.isfile(retired):
+                raise ImportError(
+                    f"{retired}: the .na.jac marker was retired in 0.35 -- "
+                    "rename the file to .jac; native placement is inferred "
+                    "(or forced by 'jac nacompile' / 'jac build --as native')."
+                )
 
         return None
 
@@ -330,10 +369,16 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 internal = getattr(compiler, "internal_program", None)
                 if internal is not None:
                     alerts = _module_scoped_alerts(internal, file_path)
-            if alerts:
-                details = "\n".join(a.pretty_print() for a in alerts)
-                raise ImportError(f"{file_path} failed to compile:\n{details}")
-            raise ImportError(f"No bytecode found for {file_path}")
+            details = "\n".join(a.pretty_print() for a in alerts)
+            if not details:
+                details = _retained_failure_details(file_path)
+            if details:
+                raise JacSourceCompileError(
+                    f"{file_path} failed to compile:\n{details}", file_path
+                )
+            raise JacSourceCompileError(
+                f"No bytecode found for {file_path}", file_path
+            )
 
         # MTIR is written keyed by file stem but byllm looks up by func.__module__;
         # re-key to the fullname so submodule imports resolve. __main__ is already
@@ -368,28 +413,11 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         # Execute the bytecode directly in the module's namespace
         exec(codeobj, module.__dict__)
 
-        # Auto-install native wrappers if native engine is available
-        if native_engine is not None:
-            layout = compiler.get_native_layout(file_path, program)
-            if layout is not None:
-                try:
-                    from jaclang.jac0core.native_marshal import (
-                        install_native_wrappers,
-                    )
-
-                    count = install_native_wrappers(module, native_engine, layout)
-                    if count > 0:
-                        import logging
-
-                        logging.getLogger(__name__).debug(
-                            f"Installed {count} native wrappers for {file_path}"
-                        )
-                except Exception as e:
-                    import logging
-
-                    logging.getLogger(__name__).debug(
-                        f"Native wrapper install failed for {file_path}: {e}"
-                    )
+        # An inferred-native module keeps its plain python side for python
+        # callers (the preference must not route sv-side calls through the
+        # marshal bridge); sv->na calls go through the interop stubs the
+        # manifest generates. Sealed compiler-native modules bind through
+        # the AOT artifact instead (see _exec_bootstrap).
 
     def get_source(self, fullname: str) -> str | None:
         """Return module source text when available.

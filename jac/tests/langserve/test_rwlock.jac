@@ -26,7 +26,7 @@ def _clear_jac_modules {
         k
         for k in list(sys.modules.keys())
         if not k.startswith(("jaclang", "test", "_"))
-        and hasattr(sys.modules.get(k), "__jac_mod__")
+            and hasattr(sys.modules.get(k), "__jac_mod__")
     ];
     for mod_name in jac_modules_to_clear {
         sys.modules.pop(mod_name, None);
@@ -70,7 +70,7 @@ test "rwlock concurrent readers and exclusive writer" {
         def reader_work(reader_id: int) {
             with lock.read_lock() {
                 # All readers should be able to enter concurrently
-                barrier.wait(timeout=5);  # Would deadlock if readers blocked each other
+                barrier.`wait(timeout=5);  # Would deadlock if readers blocked each other
                 results.append(f"reader_{reader_id}_in");
                 time.sleep(0.05);  # Hold lock briefly
                 results.append(f"reader_{reader_id}_out");
@@ -106,7 +106,7 @@ test "rwlock concurrent readers and exclusive writer" {
 
         def reader_after_writer {
             # Wait until writer has started, then try to read
-            writer_entered.wait(timeout=5);
+            writer_entered.`wait(timeout=5);
             time.sleep(0.02);  # Small delay to ensure writer is holding lock
             with lock.read_lock() {
                 reader_entered.set();
@@ -134,7 +134,7 @@ test "rwlock concurrent readers and exclusive writer" {
         def holding_reader {
             with lock.read_lock() {
                 results.append("hold_reader_in");
-                hold_read.wait(timeout=5);  # Hold read lock until signaled
+                hold_read.`wait(timeout=5);  # Hold read lock until signaled
                 results.append("hold_reader_out");
             }
         }
@@ -147,7 +147,7 @@ test "rwlock concurrent readers and exclusive writer" {
         }
 
         def late_reader {
-            writer_waiting.wait(timeout=5);
+            writer_waiting.`wait(timeout=5);
             time.sleep(0.05);  # Ensure writer is queued first
             with lock.read_lock() {
                 results.append("late_reader");
@@ -185,7 +185,9 @@ test "concurrent queries during type checking" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # First, type check the file so hub is populated
         lsp.type_check_file(circle_uri);
@@ -279,7 +281,9 @@ test "shutdown under active dispatch" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # Kick off a type check via the dispatcher
         lsp.type_check_file(circle_uri);
@@ -297,7 +301,7 @@ test "shutdown under active dispatch" {
 
         t = threading.Thread(target=do_shutdown);
         t.start();
-        completed = shutdown_done.wait(timeout=15);
+        completed = shutdown_done.`wait(timeout=15);
         assert completed , "Shutdown deadlocked — did not complete within 15s";
         t.join(timeout=5);
 

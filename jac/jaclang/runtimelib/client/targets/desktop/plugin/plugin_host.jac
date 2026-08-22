@@ -22,9 +22,9 @@ obj PluginHost {
         _wv_handle: int = 0,
         _wv_lib: ctypes.CDLL | None = None,
         _cef: bool = False,
-        _subscribers: list = [],
-        _sub_lock: object = None,
-        _cef_lib: object = None;
+        _subscribers: list[queue.Queue] = [],
+        _sub_lock: threading.Lock = threading.Lock(),
+        _cef_lib: ctypes.CDLL | None = None;
 
     def init {
         self.plugins = {};
@@ -56,14 +56,16 @@ obj PluginHost {
         }
     }
 
-    def _load_cef_lib -> object {
+    def _load_cef_lib -> (ctypes.CDLL | None) {
         try {
             lib_path = os.path.join(_binary_dir(), "libcef_dispatch.so");
             lib = ctypes.CDLL(lib_path);
 
-            lib.cef_dispatch_window_set_title.argtypes = [ctypes.c_char_p];
+            title_argtypes: list[type[ctypes.c_char_p]] = [ctypes.c_char_p];
+            size_argtypes: list[type[ctypes.c_long]] = [ctypes.c_long, ctypes.c_long];
+            lib.cef_dispatch_window_set_title.argtypes = title_argtypes;
             lib.cef_dispatch_window_set_title.restype = ctypes.c_int;
-            lib.cef_dispatch_window_set_size.argtypes = [ctypes.c_long, ctypes.c_long];
+            lib.cef_dispatch_window_set_size.argtypes = size_argtypes;
             lib.cef_dispatch_window_set_size.restype = ctypes.c_int;
             return lib;
         } except Exception as e {
@@ -181,9 +183,11 @@ obj PluginHost {
         if self._wv_lib is None or self._wv_handle == 0 {
             return;
         }
-        js = "window.__jac.__emit__(" + json.dumps(event) + ", " + json.dumps(
-            payload
-        ) + ")";
+        js = "window.__jac.__emit__("
+            + json.dumps(event)
+            + ", "
+            + json.dumps(payload)
+            + ")";
 
         self._wv_lib.webview_eval(ctypes.c_void_p(self._wv_handle), js.encode("utf-8"));
     }

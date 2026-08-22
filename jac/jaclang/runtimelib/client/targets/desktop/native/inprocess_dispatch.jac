@@ -8,9 +8,9 @@ import queue;
 import uuid;
 
 obj CallState {
-    has lock: any,
+    has lock: threading.Lock,
         done: bool = False,
-        timer: any = None;
+        timer: (threading.Timer | None) = None;
 }
 
 
@@ -24,7 +24,7 @@ glob _tc: any = None,
      _debug: bool = False,
      _BOOT_ERROR: str = "",
      _shutting_down: bool = False,
-     _sv_lock: any = None;
+     _sv_lock: (threading.Lock | None) = None;
 
 
 def boot(
@@ -65,9 +65,9 @@ def _boot_impl(entry_file: str, graph_path: str) {
             _runtime.close();
         } except Exception as e {
             sys.stderr.write(
-                "inprocess_dispatch: prior runtime close on re-boot failed: " + str(
-                    e
-                ) + "\n"
+                "inprocess_dispatch: prior runtime close on re-boot failed: "
+                    + str(e)
+                    + "\n"
             );
         }
         _runtime = None;
@@ -148,7 +148,8 @@ def shutdown {
 
     if _worker is not None and _worker.is_alive() {
         sys.stderr.write(
-            "inprocess_dispatch: worker still running after join timeout; " + "queue cleared -- worker will drain its local ref and exit\n"
+            "inprocess_dispatch: worker still running after join timeout; "
+                + "queue cleared -- worker will drain its local ref and exit\n"
         );
     }
     _tc = None;
@@ -195,9 +196,7 @@ def dispatch(payload_json: str) -> str {
     } except Exception {
         body = {"ok": False, "error": {"message": resp.text}};
     }
-    return json.dumps(
-        {"status": resp.status_code, "ok": resp.is_success, "body": body}
-    );
+    return json.dumps({"status": resp.status_code, "ok": resp.ok, "body": body});
 }
 
 
@@ -238,7 +237,7 @@ def dispatch_sync(payload_json: str, timeout_s: float = 0.0) -> str {
     );
     th.start();
 
-    done.wait(timeout_s);
+    done.`wait(timeout_s);
     if box["v"] is not None {
         return box["v"] as str;
     }
@@ -274,7 +273,8 @@ def forward(
     if token {
         headers["Authorization"] = "Bearer " + token;
     }
-    with _sv_lock {
+    sv_lock: threading.Lock = _sv_lock;
+    with sv_lock {
         resp = tc.request(method, path, content=body, headers=headers);
     }
     ctype = resp.headers.get("content-type", "application/json");
@@ -307,12 +307,14 @@ def _error_envelope(code: str, message: str, details: str = "") -> str {
 def _webview_return(w: int, id_bytes: bytes, status: int, payload: bytes) {
     if _wv_return is None {
         lib = ctypes.CDLL(None);
-        lib.webview_return.argtypes = [
+        argtypes:
+            list[type[ctypes.c_void_p] | type[ctypes.c_char_p] | type[ctypes.c_int]] = [
             ctypes.c_void_p,
             ctypes.c_char_p,
             ctypes.c_int,
             ctypes.c_char_p
         ];
+        lib.webview_return.argtypes = argtypes;
         lib.webview_return.restype = ctypes.c_int;
         _wv_return = lib.webview_return;
     }
@@ -404,9 +406,11 @@ def _worker_loop {
 def handle(call_id: int, req_ptr: int, w: int) {
     if call_id == 0 or req_ptr == 0 {
         sys.stderr.write(
-            "inprocess_dispatch: handle() called with null pointer" " (call_id=" + str(
-                call_id
-            ) + ", req_ptr=" + str(req_ptr) + "); dropping\n"
+            "inprocess_dispatch: handle() called with null pointer" " (call_id="
+                + str(call_id)
+                + ", req_ptr="
+                + str(req_ptr)
+                + "); dropping\n"
         );
         return;
     }
@@ -435,7 +439,8 @@ def _handle_impl(req_ptr: int, w: int, id_bytes: bytes) {
         return;
     }
     try {
-        outer = json.loads(ctypes.cast(req_ptr, ctypes.c_char_p).value.decode());
+        req_bytes = ctypes.cast(req_ptr, ctypes.c_char_p).value or b"";
+        outer = json.loads(req_bytes.decode());
         payload_json = outer[0];
     } except Exception as e {
         _reply(

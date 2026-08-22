@@ -1,5 +1,3 @@
-import from typing { Callable }
-
 def deco(f: Callable) -> Callable {
     return f;
 }

@@ -1,7 +1,6 @@
 import threading;
 import time;
 import from pathlib { Path }
-import from typing { Callable }
 
 enum ChangeType { CREATED, MODIFIED, DELETED }
 
@@ -28,9 +27,10 @@ obj JacFileWatcher {
         _callbacks: list[Callable[[FileChangeEvent], None]] = [],
         _debounce_ms: int = 100,
         _running: bool = False,
-        _pending_events: dict[str, FileChangeEvent] = {};
+        _pending_events: dict[str, FileChangeEvent] = {},
+        _last_flush: float = 0.0;
 
-    static has _events_lock: any = threading.Lock();
+    static has _events_lock: threading.Lock = threading.Lock();
 
     def start -> None;
     def stop -> None;
