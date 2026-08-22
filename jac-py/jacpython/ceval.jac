@@ -2094,6 +2094,21 @@ def py_repr(value: PyObj) -> PyObj {
             return py_error("TypeError", "__repr__ returned non-string");
         }
     }
+    # Native bound-method/builtin wrappers have no faithful host form (to_host
+    # drops them to None, which would repr as 'None'), so synthesize the
+    # CPython-style repr minus the embedded address.
+    if isinstance(value, PyListMethod) {
+        return PyStr(t="str", val="<built-in method " + (value as PyListMethod).name + " of list object>");
+    }
+    if isinstance(value, PyDictMethod) {
+        return PyStr(t="str", val="<built-in method " + (value as PyDictMethod).name + " of dict object>");
+    }
+    if isinstance(value, PySetMethod) {
+        return PyStr(t="str", val="<built-in method " + (value as PySetMethod).name + " of set object>");
+    }
+    if isinstance(value, PyNativeBuiltin) {
+        return PyStr(t="str", val="<built-in function " + (value as PyNativeBuiltin).name + ">");
+    }
     result = host_convert(value, 2);
     if is_error(result) {
         return result;
@@ -5329,7 +5344,8 @@ obj PyGenStop(PyObj) {
 obj PyGenerator(PyObj) {
     has frame: PyFrame,
         started: bool = False,
-        finished: bool = False;
+        finished: bool = False,
+        running: bool = False;
 
     def tp_iter -> PyObj {
         return self;
@@ -5343,6 +5359,12 @@ obj PyGenerator(PyObj) {
         }
         if name == "gi_frame" {
             return PyGenFrame(t="genframe", gen=self);
+        }
+        if name == "gi_running" {
+            # True only while the generator's frame is actively executing;
+            # observable from re-entrant access (the generator inspecting
+            # itself through a callback), False while suspended/finished.
+            return PyBool(t="bool", val=self.running);
         }
         return py_error("AttributeError", name);
     }
@@ -5388,6 +5410,7 @@ def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
         gen.frame.stack.append(sent);
     }
     gen.started = True;
+    gen.running = True;
     result = run_frame(gen.frame);
     return finish_gen_result(gen, result);
 }
@@ -5396,6 +5419,7 @@ def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
 # raw run_frame outcome into the yielded value | PyGenStop(return value) | error
 # shape that all generator drivers speak.
 def finish_gen_result(gen: PyGenerator, result: PyObj) -> PyObj {
+    gen.running = False;
     if is_error(result) {
         gen.finished = True;
         return result;
@@ -5461,6 +5485,7 @@ def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
         # exhaustion / error handling then completes or unwinds the yield-from.
         frame.pending_throw = err;
         frame.stack.append(py_none());  # sent-value placeholder SEND reads below
+        gen.running = True;
         return finish_gen_result(gen, run_frame(frame));
     }
     # frame.ip sits one instruction past YIELD_VALUE; the handler lookup wants
@@ -5472,6 +5497,7 @@ def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
         return err;
     }
     frame.ip = target;
+    gen.running = True;
     result = run_frame(frame);
     return finish_gen_result(gen, result);
 }

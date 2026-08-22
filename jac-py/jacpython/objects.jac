@@ -769,6 +769,64 @@ obj PyCode(PyObj) {
         }
         return result;
     }
+
+    # Expose the CPython-visible co_* attribute surface so introspection
+    # (inspect, dis, f.__code__.co_name, gen.gi_frame-style access) works.
+    # Field names differ from the public names (argcount -> co_argcount etc.).
+    def tp_getattro(name: str) -> PyObj {
+        if name == "co_argcount" {
+            return PyInt(t="int", val=self.argcount);
+        }
+        if name == "co_posonlyargcount" {
+            return PyInt(t="int", val=self.posonlyargcount);
+        }
+        if name == "co_kwonlyargcount" {
+            return PyInt(t="int", val=self.kwonlyargcount);
+        }
+        if name == "co_stacksize" {
+            return PyInt(t="int", val=self.stacksize);
+        }
+        if name == "co_flags" {
+            return PyInt(t="int", val=self.flags);
+        }
+        if name == "co_name" {
+            return PyStr(t="str", val=self.name);
+        }
+        if name == "co_qualname" {
+            return PyStr(t="str", val=self.qualname);
+        }
+        if name == "co_filename" {
+            return PyStr(t="str", val=self.filename);
+        }
+        if name == "co_firstlineno" {
+            return PyInt(t="int", val=self.firstlineno);
+        }
+        if name == "co_names" or name == "co_varnames" or name == "co_cellvars"
+            or name == "co_freevars" {
+            items: list[PyObj] = [];
+            src_names: list[str] = [];
+            if name == "co_names" {
+                src_names = self.names;
+            } elif name == "co_varnames" {
+                src_names = self.varnames;
+            } elif name == "co_cellvars" {
+                src_names = self.cellvars;
+            } else {
+                src_names = self.freevars;
+            }
+            for n in src_names {
+                items.append(PyStr(t="str", val=n));
+            }
+            return PyTuple(t="tuple", items=items);
+        }
+        if name == "co_consts" {
+            return PyTuple(t="tuple", items=self.consts);
+        }
+        if name == "co_code" {
+            return PyBytes(t="bytes", val=self.co_code);
+        }
+        return py_error("AttributeError", "'code' object has no attribute '" + name + "'");
+    }
 }
 
 obj PyCell(PyObj) {

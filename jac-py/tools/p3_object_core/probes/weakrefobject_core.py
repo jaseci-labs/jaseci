@@ -3,9 +3,13 @@ class TestWeakrefCore(unittest.TestCase):
         class C:
             pass
         c = C()
-        self.assertIsNotNone(c)
+        # Layer 1 diffs each assert arg across VMs; a bare fresh instance can't
+        # be carried host<->jac, so fold liveness into one expression.
+        self.assertTrue(c is not None)
         self.assertTrue(isinstance(c, C))
 
     def test_object_identity(self):
         a = object()
-        self.assertIs(a, a)
+        # Cross-process identity of a fresh object() never matches per-arg;
+        # intra-expression identity keeps the intent.
+        self.assertTrue(a is a)

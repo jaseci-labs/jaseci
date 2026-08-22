@@ -5,8 +5,10 @@ class TestDescrCore(unittest.TestCase):
             def f(cls):
                 return cls
 
-        self.assertIs(C.f(), C)
-        self.assertIs(C().f(), C)
+        # Intra-expression identity: assertIs(C.f(), C) compares objects across
+        # interpreters under the Layer-1 replay harness, which never matches.
+        self.assertEqual(C.f() is C, True)
+        self.assertEqual(C().f() is C, True)
 
     def test_staticmethod_no_bind(self):
         class C:
