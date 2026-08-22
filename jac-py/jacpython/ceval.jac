@@ -361,9 +361,14 @@ def _jac_make_host_trampoline(native_fn):
     # native function instead of re-wrapping it as an opaque proxy.
     try:
         _trampoline.__name__ = native_fn.name
-        _trampoline.__qualname__ = native_fn.code.qualname
-        doc = native_fn._func_doc()
-        _trampoline.__doc__ = doc.val if isinstance(doc, PyStr) else None
+        # PyFunction carries code/_func_doc; other callables (PyNativeBuiltin,
+        # bound/method wrappers) only carry .name.
+        if hasattr(native_fn, "code"):
+            _trampoline.__qualname__ = native_fn.code.qualname
+            doc = native_fn._func_doc()
+            _trampoline.__doc__ = doc.val if isinstance(doc, PyStr) else None
+        else:
+            _trampoline.__qualname__ = native_fn.name
         _trampoline.__jac_native__ = native_fn
     except BaseException:
         pass
@@ -1807,6 +1812,19 @@ def to_host(value: PyObj) -> any {
             # lets host type()/classmethod/property/functools wrap and later
             # invoke jacpython functions -- the round-trip that unblocks
             # namedtuple's dynamic class creation and decorator machinery.
+            return _jac_make_host_trampoline(value);
+
+        case PyNativeBuiltin():
+        case PyBoundMethod():
+        case PyGenMethod():
+            # Native builtins/bound methods crossing to the host become
+            # trampolines too (same round-trip as PyFunction): host code can
+            # call them and from_host recovers the native via __jac_native__.
+            return _jac_make_host_trampoline(value);
+
+        case PyListMethod():
+        case PyDictMethod():
+        case PySetMethod():
             return _jac_make_host_trampoline(value);
 
         case PyNativeNew():
