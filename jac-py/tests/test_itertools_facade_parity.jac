@@ -144,3 +144,79 @@ test "wave12 chain agrees with host itertools.chain" {
     want_nested = _take_until_stop(host_it.chain.from_iterable(["ab", [1, 2], (9,)]));
     assert nested == want_nested , (nested, want_nested);
 }
+
+test "wave12 product agrees with host itertools.product" {
+    argsets: list = [
+        [],
+        ["ab"],
+        ["ab", range(3)],
+        [[1, 2], [3, 4], [5]],
+        [""],
+        [[], [1]],
+    ];
+    for args in argsets {
+        got = _take_until_stop(_p2_product(args));
+        want = _take_until_stop(host_it.product(*args));
+        assert got == want , (args, got, want);
+    }
+    assert _take_until_stop(_p2_product(["ab"], 0)) == [()] , "repeat=0";
+    assert _take_until_stop(_p2_product(["ab"], 2)) == (
+        _take_until_stop(host_it.product("ab", repeat=2))
+    ) , "repeat=2";
+    bad = False;
+    try {
+        _p2_product(["a"], -1);
+    } except ValueError {
+        bad = True;
+    }
+    assert bad , "negative repeat raises ValueError";
+}
+
+test "wave12 combinations agree with host itertools.combinations" {
+    for src in ["ABCD", range(4), [], [1]] {
+        for r in range(6) {
+            got = _take_until_stop(_p2_combinations(src, r));
+            want = _take_until_stop(host_it.combinations(src, r));
+            assert got == want , (src, r, got, want);
+        }
+    }
+    bad = False;
+    try {
+        _p2_combinations("AB", -1);
+    } except ValueError {
+        bad = True;
+    }
+    assert bad , "negative r raises ValueError";
+}
+
+test "wave12 combinations_with_replacement agree with host" {
+    for src in ["ABC", range(3), [], "A"] {
+        for r in range(5) {
+            got = _take_until_stop(_p2_cwr(src, r));
+            want = _take_until_stop(host_it.combinations_with_replacement(src, r));
+            assert got == want , (src, r, got, want);
+        }
+    }
+}
+
+test "wave12 permutations agree with host itertools.permutations" {
+    cases: list = [("ABCD", None), ("ABCD", 2), (range(3), None), (range(3), 0),
+                   ([1], None), ([], None), ([], 2), ("AB", 5)];
+    for (src, r) in cases {
+        if r is None {
+            got = _take_until_stop(_p2_permutations(src));
+            want = _take_until_stop(host_it.permutations(src));
+        } else {
+            got = _take_until_stop(_p2_permutations(src, r));
+            want = _take_until_stop(host_it.permutations(src, r));
+        }
+        assert got == want , (src, r, got, want);
+    }
+    bad = False;
+    try {
+        _p2_permutations("AB", -1);
+    } except ValueError {
+        bad = True;
+    }
+    assert bad , "negative r raises ValueError";
+}
