@@ -322,6 +322,22 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     raises (PySliceIndices.indices first; audit sibling method descriptors).
     Guard: pin-item22-methoddesc-qualname-msg.
 
+10. **[LOW] Builtin arg-check messages: missing count suffix + got-N.**
+    WildRaven sibling audit (item 22 follow-through). In ceval.jac native-
+    builtin block (~4600s): len()/hash()/repr() say "takes exactly one
+    argument" without CPython's "(N given)" suffix; isinstance/issubclass/
+    getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
+    builtin functions - only suffixes missing. classmethod/staticmethod text
+    needs host-oracle check. Owner: WildRaven, in flight.
+
+24. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+    ("object of type 'int' has no len()").** Found by split-codegen subagent,
+    reproduced identically on pre-split base commit: exec_tail_emits_code
+    (codegen_util.jac:926) receives an int instead of the stmt list when an
+    if/try/with sits in tail position after a return inside a function.
+    Compiler lane (QuickBear or successor). Needs confirming probe with valid
+    jac test-case syntax before fix.
+
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
 per-protocol special cases.
@@ -577,6 +593,22 @@ green. Class-decorator support needs pinning elsewhere.
     mis-transcribed host string (prefix dropped). Fix lives in whichever slot
     raises (PySliceIndices.indices first; audit sibling method descriptors).
     Guard: pin-item22-methoddesc-qualname-msg.
+
+5. **[LOW] Builtin arg-check messages: missing count suffix + got-N.**
+    WildRaven sibling audit (item 22 follow-through). In ceval.jac native-
+    builtin block (~4600s): len()/hash()/repr() say "takes exactly one
+    argument" without CPython's "(N given)" suffix; isinstance/issubclass/
+    getattr family lacks ", got N". Bare-name style (no prefix) is CORRECT for
+    builtin functions - only suffixes missing. classmethod/staticmethod text
+    needs host-oracle check. Owner: WildRaven, in flight.
+
+24. **[LOW] Tail-position if/try/with as non-final statement crashes codegen
+    ("object of type 'int' has no len()").** Found by split-codegen subagent,
+    reproduced identically on pre-split base commit: exec_tail_emits_code
+    (codegen_util.jac:926) receives an int instead of the stmt list when an
+    if/try/with sits in tail position after a return inside a function.
+    Compiler lane (QuickBear or successor). Needs confirming probe with valid
+    jac test-case syntax before fix.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
