@@ -329,7 +329,7 @@ def _jac_make_host_trampoline(native_fn):
         pass
     return _trampoline
 
-def _jac_recover_native(raw) -> PyObj:
+def _jac_recover_native(raw) -> PyObj | None:
     # If raw is a trampoline we minted, hand back the native function it wraps
     # so a host->native round-trip collapses instead of nesting proxies. Read the
     # marker from the object's OWN __dict__, not via getattr: a bound method

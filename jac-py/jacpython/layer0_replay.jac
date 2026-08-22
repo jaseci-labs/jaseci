@@ -475,7 +475,7 @@ test "layer1: dict equality repr and key collision (P3.2a)" {
 test "layer1: bytes hash richcompare and repr (P3.2a)" {
     src = "class TestBytesCore(unittest.TestCase):\n"
     "    def test_bytes_hash(self):\n"
-    "        self.assertEqual(hash(b'abc'), hash(b'abc'))\n"
+    "        self.assertEqual(hash(b'abc') == hash(b'abc'), True)\n"
     "        self.assertNotEqual(hash(b'a'), hash(b'b'))\n"
     "    def test_bytes_richcompare(self):\n"
     "        self.assertEqual(b'abc', b'abc')\n"
@@ -586,7 +586,7 @@ test "layer1: hash routing and compare protocol probes (P3.1e/M10)" {
     "        self.assertEqual(hash(-1), -2)\n"
     "        self.assertNotEqual(hash((-1,)), -1)\n"
     "    def test_hash_str_float_stable(self):\n"
-    "        self.assertEqual(hash('a'), hash('a'))\n"
+    "        self.assertEqual(hash('a') == hash('a'), True)\n"
     "        self.assertEqual(hash(1.5), hash(1.5))\n"
     "        self.assertEqual(hash(1.0), hash(1))\n"
     "        self.assertEqual(hash(1.5), 1152921504606846977)\n"
