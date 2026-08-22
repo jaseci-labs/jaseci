@@ -39,9 +39,12 @@ test "get_py_code_gen omits the native passes when native=False" {
 test "get_py_code_gen schedules the native passes when native=True" {
     # Codegen runs after the analysis stage in the single pipeline, so the
     # standalone schedule is constructed against its provides.
-    with_native = get_py_code_gen(native=True, provided=providers_of(
+    with_native = get_py_code_gen(
+        native=True,
+        provided=providers_of(
             get_ir_gen_sched() + get_analysis_sched() + get_boundary_analysis_sched()
-        ));
+        )
+    );
     assert NaIRGenPass in with_native;
     assert NativeCompilePass in with_native;
 }

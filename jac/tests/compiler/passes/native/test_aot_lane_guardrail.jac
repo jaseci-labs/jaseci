@@ -38,9 +38,12 @@ test "the native codegen schedule carries the native passes" {
     import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
     # Codegen runs after the analysis stage in the single pipeline, so the
     # standalone schedule is constructed against its provides.
-    sched = get_py_code_gen(native=True, provided=providers_of(
+    sched = get_py_code_gen(
+        native=True,
+        provided=providers_of(
             get_ir_gen_sched() + get_analysis_sched() + get_boundary_analysis_sched()
-        ));
+        )
+    );
     names = [p.__name__ for p in sched];
     assert NaIRGenPass in sched , (
         f"native codegen schedule lost NaIRGenPass: {names}"
