@@ -34,6 +34,9 @@ glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
      _MAX_AUTO_JOBS: int = 12,
      _PROGRESS_WIDTH: int = 72;
 
+glob _SHARD_FLOOR_SECONDS: float = 15.0,
+     _DURATIONS_NAME: str = "test-durations.json";
+
 glob _CRASH_LOG: list[str] = [""],
      _TEST_BASES: list[str] = [],
      _TEST_PACKAGES: dict[(str, str)] = {},
@@ -58,6 +61,14 @@ obj TestPlan {
     def is_empty -> bool;
 }
 
+obj TestUnit {
+    has path: str,
+        explicit: bool = False,
+        shard: int = 0,
+        nshards: int = 1,
+        cost: float = 0.0;
+}
+
 obj NameFilter {
     has expr: str,
         tree: any = None;
@@ -79,7 +90,9 @@ obj Reporter {
         stream: any = None,
         column: int = 0,
         counts: dict[(str, int)] postinit,
-        failures: list[TestOutcome] postinit;
+        failures: list[TestOutcome] postinit,
+        file_seconds: dict[(str, float)] postinit,
+        file_tests: dict[(str, int)] postinit;
 
     def postinit -> None;
     def record(outcome: TestOutcome) -> None;
@@ -90,7 +103,7 @@ obj Reporter {
 }
 
 obj ForkPool {
-    has plan: TestPlan,
+    has units: list[TestUnit],
         selector: (NameFilter | None),
         reporter: Reporter,
         jobs: int,
@@ -122,6 +135,8 @@ def run_file(
     filepath: str,
     selector: (NameFilter | None) = None,
     explicit: bool = False,
+    shard: int = 0,
+    nshards: int = 1,
     xit: bool = False,
     maxfail: (int | None) = None,
     seen_failures: int = 0
@@ -138,6 +153,24 @@ def run_tests(
     ignore: (list[str] | None) = None,
     jobs: (str | int | None) = None
 ) -> int;
+
+def durations_path -> str;
+
+def load_durations -> tuple[(dict[(str, float)], dict[(str, int)])];
+
+def save_durations(seconds: dict[(str, float)], counts: dict[(str, int)]) -> None;
+
+def plan_units(
+    plan: TestPlan,
+    jobs: int,
+    seconds: dict[(str, float)],
+    counts: dict[(str, int)],
+    shardable: (list[str] | None) = None
+) -> list[TestUnit];
+
+def _shard_globs -> list[str];
+
+def _shard_allowed(path: str, patterns: list[str]) -> bool;
 
 def default_jobs -> int;
 
@@ -186,7 +219,7 @@ def _capture_end(state: dict[(str, any)]) -> str;
 def _cleanup_test_bases -> None;
 
 def _run_serial(
-    plan: TestPlan,
+    units: list[TestUnit],
     selector: (NameFilter | None),
     reporter: Reporter,
     xit: bool,

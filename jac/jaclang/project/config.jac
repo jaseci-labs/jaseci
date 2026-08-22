@@ -144,7 +144,8 @@ obj ClientConfig {
 
 obj DevConfig {
     has jaclang_source: str = "",
-        test_jobs: str = "auto";
+        test_jobs: str = "auto",
+        test_shard: list[str] = [];
 }
 
 def interpolate_env_vars(value: str) -> str;

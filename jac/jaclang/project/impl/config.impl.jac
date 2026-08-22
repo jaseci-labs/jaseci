@@ -1316,7 +1316,8 @@ impl _parse_toml_data(
 
         config.dev = DevConfig(
             jaclang_source=str(dev_data.get("jaclang_source", "")),
-            test_jobs=str(dev_data.get("test_jobs", "auto"))
+            test_jobs=str(dev_data.get("test_jobs", "auto")),
+            test_shard=[str(pat) for pat in (dev_data.get("test_shard") or [])]
         );
     }
     _warn_legacy_plugins_table(data);

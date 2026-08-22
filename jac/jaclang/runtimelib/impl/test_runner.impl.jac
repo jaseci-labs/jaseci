@@ -293,6 +293,158 @@ impl install_warning_filters -> None {
     }
 }
 
+impl _shard_globs -> list[str] {
+    raw = os.environ.get("JAC_TEST_SHARD", "");
+    globs = [
+        part
+        for part in raw.replace(",", " ").split()
+        if part
+    ];
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if (cfg is not None) and cfg.is_valid() {
+            for part in (cfg.dev.test_shard or []) {
+                if part and (part not in globs) {
+                    globs.append(str(part));
+                }
+            }
+        }
+    } except Exception {
+        return globs;
+    }
+    return globs;
+}
+
+impl durations_path -> str {
+    import from pathlib { Path }
+    base: any = None;
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if (cfg is not None) and cfg.is_valid() and (cfg.project_root is not None) {
+            base = cfg.get_cache_dir();
+        }
+    } except Exception {
+        base = None;
+    }
+    if base is None {
+        base = Path(os.getcwd()) / ".jac" / "cache";
+    }
+    return str(Path(base) / _DURATIONS_NAME);
+}
+
+impl load_durations -> tuple[(dict[(str, float)], dict[(str, int)])] {
+    import json;
+    seconds: dict[(str, float)] = {};
+    counts: dict[(str, int)] = {};
+    try {
+        with open(durations_path(), encoding="utf-8") as f {
+            raw: dict[(str, any)] = dict(json.load(f));
+        }
+        files: dict[(str, any)] = dict(raw.get("files") or {});
+        for (path, rec) in files.items() {
+            row: dict[(str, any)] = dict(rec);
+            seconds[path] = float(row.get("seconds", 0.0));
+            counts[path] = int(row.get("tests", 0));
+        }
+    } except Exception {
+        return ({}, {});
+    }
+    return (seconds, counts);
+}
+
+impl save_durations(seconds: dict[(str, float)], counts: dict[(str, int)]) -> None {
+    import json;
+    import from pathlib { Path }
+    if not seconds {
+        return;
+    }
+    (known, known_counts) = load_durations();
+    for (path, secs) in seconds.items() {
+        known[path] = secs;
+        known_counts[path] = counts.get(path, known_counts.get(path, 0));
+    }
+    merged: dict[(str, any)] = {};
+    for (path, secs) in known.items() {
+        if not os.path.exists(path) {
+            continue;
+        }
+        merged[path] = {"seconds": secs, "tests": known_counts.get(path, 0)};
+    }
+    target = durations_path();
+    try {
+        Path(target).parent.mkdir(parents=True, exist_ok=True);
+        tmp = target + ".tmp";
+        with open(tmp, "w", encoding="utf-8") as f {
+            json.dump({"files": merged}, f);
+        }
+        os.replace(tmp, target);
+    } except Exception {
+        return;
+    }
+}
+
+impl plan_units(
+    plan: TestPlan,
+    jobs: int,
+    seconds: dict[(str, float)],
+    counts: dict[(str, int)],
+    shardable: (list[str] | None) = None
+) -> list[TestUnit] {
+    import math;
+    allowed = shardable or [];
+    known = [
+        seconds[f]
+        for f in plan.files
+        if f in seconds
+    ];
+    total = sum(known);
+    target = 0.0;
+    if (jobs > 1) and total {
+        target = max(_SHARD_FLOOR_SECONDS, total / jobs);
+    }
+    units: list[TestUnit] = [];
+    for path in plan.files {
+        explicit = path in plan.explicit;
+        cost = seconds.get(path, -1.0);
+        nshards = 1;
+        if (target > 0.0) and (cost > target) and _shard_allowed(path, allowed) {
+            want = int(math.ceil(cost / target));
+            room = counts.get(path, 0) or 1;
+            nshards = max(1, min(want, jobs, room));
+        }
+        for idx in range(nshards) {
+            units.append(
+                TestUnit(
+                    path=path,
+                    explicit=explicit,
+                    shard=idx,
+                    nshards=nshards,
+                    cost=(cost / nshards) if (cost >= 0.0) else -1.0
+                )
+            );
+        }
+    }
+    units.sort(key=lambda (u: TestUnit) { (0 if (u.cost < 0.0) else 1, -u.cost); });
+    return units;
+}
+
+impl _shard_allowed(path: str, patterns: list[str]) -> bool {
+    if not patterns {
+        return False;
+    }
+    import fnmatch;
+    norm = path.replace(os.sep, "/");
+    for pat in patterns {
+        needle = str(pat).replace(os.sep, "/");
+        if fnmatch.fnmatch(norm, needle) or (needle in norm) {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl default_jobs -> int {
     cpus = os.cpu_count() or 1;
     avail = 0;
@@ -594,6 +746,8 @@ impl run_file(
     filepath: str,
     selector: (NameFilter | None) = None,
     explicit: bool = False,
+    shard: int = 0,
+    nshards: int = 1,
     xit: bool = False,
     maxfail: (int | None) = None,
     seen_failures: int = 0
@@ -630,6 +784,13 @@ impl run_file(
                     status=ERROR,
                     message=f"{type(exc).__name__}: {exc}"
                 )
+            ];
+        }
+        if nshards > 1 {
+            results = [
+                res
+                for (at, res) in enumerate(results)
+                if (at % nshards) == shard
             ];
         }
         for res in results {
@@ -699,6 +860,13 @@ impl run_file(
             for info in list(registered) {
                 pending.append(info);
             }
+        }
+        if nshards > 1 {
+            pending = [
+                info
+                for (at, info) in enumerate(pending)
+                if (at % nshards) == shard
+            ];
         }
         for info in pending {
             label = info.display_name;
@@ -773,10 +941,13 @@ impl Reporter.postinit -> None {
     }
     self.counts = {PASSED: 0, FAILED: 0, ERROR: 0, SKIPPED: 0, CRASHED: 0};
     self.failures = [];
+    self.file_seconds = {};
+    self.file_tests = {};
 }
 
 impl Reporter.record(outcome: TestOutcome) -> None {
     self.counts[outcome.status] = self.counts.get(outcome.status, 0) + 1;
+    self.file_tests[outcome.file] = self.file_tests.get(outcome.file, 0) + 1;
     if outcome.is_failure() {
         self.failures.append(outcome);
     }
@@ -912,6 +1083,7 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
 
 impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     import json;
+    import time;
     install_warning_filters();
 
     _recycle = 25;
@@ -937,12 +1109,15 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
             break;
         }
         _CRASH_LOG[0] = str(request.get("crashlog", ""));
+        unit_started = time.perf_counter();
         outcomes: list[TestOutcome] = [];
         try {
             outcomes = run_file(
                 request["path"],
                 self.selector,
                 bool(request.get("explicit")),
+                shard=int(request.get("shard", 0)),
+                nshards=int(request.get("nshards", 1)),
                 xit=self.xit,
                 maxfail=self.maxfail,
                 seen_failures=int(request.get("seen", 0))
@@ -963,6 +1138,7 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         payload = json.dumps(
             {
                 "idx": request["idx"],
+                "elapsed": time.perf_counter() - unit_started,
                 "outcomes": [o.to_wire() for o in outcomes],
                 "retire": _retire
             }
@@ -980,18 +1156,20 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
 
 impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
     import json;
-    if self._should_stop() or (self.cursor >= len(self.plan.files)) {
+    if self._should_stop() or (self.cursor >= len(self.units)) {
         return False;
     }
     idx = self.cursor;
     self.cursor += 1;
-    path = self.plan.files[idx];
+    unit = self.units[idx];
     kid["inflight"] = idx;
     payload = json.dumps(
         {
             "idx": idx,
-            "path": path,
-            "explicit": path in self.plan.explicit,
+            "path": unit.path,
+            "explicit": unit.explicit,
+            "shard": unit.shard,
+            "nshards": unit.nshards,
             "seen": self.reporter.failure_count(),
             "crashlog": kid["crashlog"]
         }
@@ -1016,13 +1194,19 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     } except Exception {
         return;
     }
+    idx = int(record.get("idx", -1));
+    if (0 <= idx < len(self.units)) and (self.units[idx].nshards == 1) {
+        self.reporter.file_seconds[self.units[idx].path] = float(
+            record.get("elapsed", 0.0)
+        );
+    }
     kid["inflight"] = None;
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
     if record.get("retire") {
         kid["retired"] = True;
-        if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+        if not self._should_stop() and (self.cursor < len(self.units)) {
             replacement = self._spawn(kid["slot"]);
             self.kids.append(replacement);
             self._dispatch(replacement);
@@ -1068,12 +1252,12 @@ impl ForkPool._reap(kid: dict[(str, any)]) -> None {
         if spilled {
             detail += "\n--- output captured before the worker died ---\n" + spilled;
         }
-        self.reporter.file_crashed(self.plan.files[idx], detail);
+        self.reporter.file_crashed(self.units[idx].path, detail);
     }
     if (
         not kid.get("retired")
         and not self._should_stop()
-        and (self.cursor < len(self.plan.files))
+        and (self.cursor < len(self.units))
     ) {
         replacement = self._spawn(kid["slot"]);
         self.kids.append(replacement);
@@ -1211,20 +1395,25 @@ impl ForkPool._shutdown -> None {
 }
 
 impl _run_serial(
-    plan: TestPlan,
+    units: list[TestUnit],
     selector: (NameFilter | None),
     reporter: Reporter,
     xit: bool,
     maxfail: (int | None)
 ) -> None {
     install_warning_filters();
-    for path in plan.files {
+    import time;
+    for unit in units {
+        path = unit.path;
         outcomes: list[TestOutcome] = [];
+        unit_started = time.perf_counter();
         try {
             outcomes = run_file(
                 path,
                 selector,
-                path in plan.explicit,
+                unit.explicit,
+                shard=unit.shard,
+                nshards=unit.nshards,
                 xit=xit,
                 maxfail=maxfail,
                 seen_failures=reporter.failure_count()
@@ -1240,6 +1429,9 @@ impl _run_serial(
                 )
             ];
         }
+        reporter.file_seconds[path] = (
+            reporter.file_seconds.get(path, 0.0) + (time.perf_counter() - unit_started)
+        );
         for outcome in outcomes {
             reporter.record(outcome);
         }
@@ -1275,21 +1467,28 @@ impl run_tests(
     }
     selector = _build_selector(test_name, filter);
     workers = resolve_jobs(jobs);
+    (known_seconds, known_counts) = load_durations();
+    units = plan_units(plan, workers, known_seconds, known_counts, _shard_globs());
     started = time.perf_counter();
-    if (workers <= 1) or (len(plan.files) <= 1) or not hasattr(os, "fork") {
-        _run_serial(plan, selector, reporter, xit, maxfail);
+    if (workers <= 1) or (len(units) <= 1) or not hasattr(os, "fork") {
+        _run_serial(units, selector, reporter, xit, maxfail);
     } else {
         pool = ForkPool(
-            plan=plan,
+            units=units,
             selector=selector,
             reporter=reporter,
-            jobs=min(workers, len(plan.files)),
+            jobs=min(workers, len(units)),
             xit=xit,
             maxfail=maxfail
         );
         pool.run();
     }
-    failures = reporter.summarize(time.perf_counter() - started);
+    elapsed = time.perf_counter() - started;
+    truncated = bool(reporter.failure_count()) and (xit or bool(maxfail));
+    if (selector is None) and not truncated {
+        save_durations(reporter.file_seconds, reporter.file_tests);
+    }
+    failures = reporter.summarize(elapsed);
     if reporter.total_count() == 0 {
         return EXIT_NO_TESTS;
     }
