@@ -1,4 +1,24 @@
-# FIXME — TASK.md implementation review
+# FIXME - TASK.md implementation review
+
+> **Status (2026-08-22): superseded.** This was a point-in-time review of the P2/P3 state.
+> All **Critical** and **High** findings below are resolved - native str/int/float/bytes hash
+> (`pyhash.jac`), `PyBool.tp_richcompare` + `NotImplemented` sentinel (`objects.jac`),
+> cross-type ordering `TypeError`, native reprs, getplatform libtest wiring, manifest drift
+> CI check, wave-4 pystricmp reclass/stem gates. Verify against TODO.md "Also done" rather
+> than this file.
+>
+> Still open (intentional, per reference-leaf policy):
+>
+> - **M6** - `long_add`/`x_add`/`long_compare` digit paths in `longobject.jac` are unwired
+>   (bignum ops use Jac `PyInt.val`). Wire or narrow TASK claims to hash-only.
+> - **M7** - dict open-addressing helpers in `dictobject.jac` are c2jac reference leaves,
+>   not used by the runtime hashkey dict. Integrate when moving to real open-addressing.
+> - **L7** - empty `tp_name` placeholder differs from CPython (align with heap types).
+>
+> Also fixed after this review: oracle_tests path rot in all wave manifests (now validated
+> by `tools/p2_conformance_waves_gate.py`), tautological gate asserts in
+> `run_conformance.jac` / `test_p3_object_core_gate.jac`, orphaned
+> `test_p2_facade_parity.jac` (wired into CI), per-wave lift/gate script consolidation.
 
 Review date: 2026-08-20  
 Scope: all code landed or present locally for slices marked complete in `TASK.md` (P2 waves 2–4, P3.0–P3.2b, libtest bridge, CI gates).  
@@ -21,7 +41,7 @@ Gates currently pass locally for wave 4 and P3 lift artifacts, but several **sem
 
 ---
 
-## Critical — P3 runtime semantics
+## Critical - P3 runtime semantics
 
 ### 1. `hash()` uses FNV digest of hashkeys for most types
 
@@ -39,7 +59,7 @@ Gates currently pass locally for wave 4 and P3 lift artifacts, but several **sem
 
 **File:** `jac-py/jacpython/abstract_protocol.jac` (`_hashkey_digest` `n:` path)
 
-For `n:` keys, `_hashkey_digest` returns `int(hk[2:])` directly. `long_hash` in `longobject.jac` correctly maps `-1 → -2`, and `py_hash(PyInt)` uses that path — so bare `hash(-1)` works. But `tuple_hash` calls `PyObject_Hash` on each element, so **`hash((-1,))` is wrong**.
+For `n:` keys, `_hashkey_digest` returns `int(hk[2:])` directly. `long_hash` in `longobject.jac` correctly maps `-1 → -2`, and `py_hash(PyInt)` uses that path - so bare `hash(-1)` works. But `tuple_hash` calls `PyObject_Hash` on each element, so **`hash((-1,))` is wrong**.
 
 **Fix:** Share `long_hash` / `-1 → -2` in one place; call it from both `long_hash_obj` and `PyObject_Hash` for numeric hashkeys.
 
@@ -71,7 +91,7 @@ Root cause: `PyObject_RichCompare` treats any non-error bool result as final; it
 
 | # | File | Issue | Fix |
 |---|------|-------|-----|
-| H4 | `jac-py/jacpython/layer_p2_libtest.jac` | Comments claim shims are "backed by staged `jac-py/Modules/*.jac` ports", but `p2_libtest_reset()` hardcodes `"linux"` / `"Linux"` / `"x86_64"` via `::py::` — never calls `Py_GetPlatform()` from `getplatform.jac`. | Wire shim from staged port or update docs to "stub pending staged wiring". |
+| H4 | `jac-py/jacpython/layer_p2_libtest.jac` | Comments claim shims are "backed by staged `jac-py/Modules/*.jac` ports", but `p2_libtest_reset()` hardcodes `"linux"` / `"Linux"` / `"x86_64"` via `::py::` - never calls `Py_GetPlatform()` from `getplatform.jac`. | Wire shim from staged port or update docs to "stub pending staged wiring". |
 | H5 | `jac/tests/jacpy/libtest_runner.jac` | `can_run_jacpython_libtest()` requires `Modules/{stem}.jac` to exist, but the JacPython path never loads that file. | Load staged module into shim or drop the staged-file gate. |
 | H6 | `jac-py/tools/p2_conformance_gate.py` | `test_libtest_modules_record_jacpython_results` uses `skipTest` when `jacpython_results` absent; only asserts `failed == 0` (all-skipped modules pass). | Require `jacpython_results`; assert `passed >= 1` for capable libtest modules (`getplatform`). |
 | H7 | `.github/workflows/ci.yml` | `run_conformance.jac` regenerates manifest in CI workspace; nothing verifies **checked-in** `conformance_manifest.json` matches generated output. | Add `git diff --exit-code jac-py/tests/conformance_manifest.json` after harness step. |
@@ -130,12 +150,12 @@ Root cause: `PyObject_RichCompare` treats any non-error bool result as final; it
 ### Minor consistency
 
 - `conformance_manifest_wave4.json` uses `"note"` per module; wave 1/2 use `"notes"`.
-- `layer_p2_libtest.jac` uses `host_compile_marshal` (bootstrap) but is not listed in `p4_import_gate.py` transitional allowlist — harmless today (not a product module prefix), worth documenting.
-- `platform_basic` libtest snippet uses weak asserts (`isinstance`, `len > 0`); JacPython stub always returns `"linux"` — not parity with host or staged `Py_GetPlatform()`.
+- `layer_p2_libtest.jac` uses `host_compile_marshal` (bootstrap) but is not listed in `p4_import_gate.py` transitional allowlist - harmless today (not a product module prefix), worth documenting.
+- `platform_basic` libtest snippet uses weak asserts (`isinstance`, `len > 0`); JacPython stub always returns `"linux"` - not parity with host or staged `Py_GetPlatform()`.
 
 ---
 
-## P2 wave 4 — confirmed correct
+## P2 wave 4 - confirmed correct
 
 - Lift-staged modules (`pyctype_space`, `pyctype_alpha`, `math_factorial_small`): staged `.jac` matches `_lifted/p2_corpus_wave4/` byte-for-byte.
 - Tier-B baseline: `tier_b_total = 0` on lifted tree.
@@ -144,9 +164,9 @@ Root cause: `PyObject_RichCompare` treats any non-error bool result as final; it
 
 ---
 
-## P3 — confirmed correct
+## P3 - confirmed correct
 
-- **Import graph (P3.2b):** `marshal_reader.jac` → `objects`; `ceval.jac` → object helpers + `objects`; slim `pyc_first.jac` re-exports — acyclic (`p3_import_cycle_gate.py` PASS).
+- **Import graph (P3.2b):** `marshal_reader.jac` → `objects`; `ceval.jac` → object helpers + `objects`; slim `pyc_first.jac` re-exports - acyclic (`p3_import_cycle_gate.py` PASS).
 - **Container compare/repr (native paths):** list/dict/bytes/tuple/set/exception helpers structurally match CPython for curated Layer-1 cases.
 - **`long_hash_obj` / numeric collapse:** `hash(1) == hash(1.0) == hash(True)` works for bare ints.
 - **Dict key collision:** `{1: 'a'; 1.0: 'b'}` → one entry, value `'b'` (hashkey model).
@@ -155,12 +175,12 @@ Root cause: `PyObject_RichCompare` treats any non-error bool result as final; it
 
 ## Recommended fix order
 
-1. **P3 hash unification** — native str/float hash; fix `n:` `-1 → -2` in `PyObject_Hash`; stop FNV-on-hashkey for user-visible `hash()`.
-2. **P3 compare protocol** — `PyBool.tp_richcompare`; `NotImplemented` plumbing; `TypeError` on unorderable cross-type ordering.
-3. **P3 repr / bytes hash** — native str/int/float repr; decide fate of bytes host hash shim.
-4. **Gate honesty** — add Layer-1 replay probes for items 1–3; runtime checks in `test_p3_object_core_gate.jac`.
-5. **P2 libtest** — wire `getplatform.jac` into shim or correct docs; harden conformance manifest CI drift check (H7).
-6. **P2 wave 4 hygiene** — fix `pystricmp` NUL semantics; strengthen staged-sync and conformance stem gates; expand oracles.
+1. **P3 hash unification** - native str/float hash; fix `n:` `-1 → -2` in `PyObject_Hash`; stop FNV-on-hashkey for user-visible `hash()`.
+2. **P3 compare protocol** - `PyBool.tp_richcompare`; `NotImplemented` plumbing; `TypeError` on unorderable cross-type ordering.
+3. **P3 repr / bytes hash** - native str/int/float repr; decide fate of bytes host hash shim.
+4. **Gate honesty** - add Layer-1 replay probes for items 1–3; runtime checks in `test_p3_object_core_gate.jac`.
+5. **P2 libtest** - wire `getplatform.jac` into shim or correct docs; harden conformance manifest CI drift check (H7).
+6. **P2 wave 4 hygiene** - fix `pystricmp` NUL semantics; strengthen staged-sync and conformance stem gates; expand oracles.
 
 ---
 
