@@ -4,7 +4,7 @@
 # objects. Generated parser rules call these helpers; this file is hand-written
 # and grows with each grammar profile.
 
-import from objects { PyObj, PyInt, PyBool, PyStr, py_none }
+import from objects { PyObj, PyInt, PyBool, PyStr, PyFloat, PyComplex, py_none }
 import from ast_nodes {
     ast_node,
     expr,
@@ -156,17 +156,62 @@ def _digit_val(c: str) -> int {
     return -1;
 }
 
-def pa_parse_int_spelling(spelling: str) -> int {
-    n = 0;
+def _strip_underscores(spelling: str) -> str {
+    out = "";
     i = 0;
     while i < len(spelling) {
-        d = _digit_val(spelling[i]);
-        if d >= 0 {
-            n = n * 10 + d;
+        if spelling[i] != "_" {
+            out = out + spelling[i];
         }
         i = i + 1;
     }
+    return out;
+}
+
+def _digit_val_base(c: str, base: int) -> int {
+    d = -1;
+    if c >= "0" and c <= "9" {
+        d = ord(c) - ord("0");
+    } elif base == 16 {
+        if c >= "a" and c <= "f" {
+            d = ord(c) - ord("a") + 10;
+        } elif c >= "A" and c <= "F" {
+            d = ord(c) - ord("A") + 10;
+        }
+    }
+    if d < 0 or d >= base {
+        return -1;
+    }
+    return d;
+}
+
+def _fold_radix(s: str, start: int, base: int) -> int {
+    # Tokenizer-guaranteed valid spellings; a bad digit means a lexer bug.
+    n = 0;
+    i = start;
+    while i < len(s) {
+        d = _digit_val_base(s[i], base);
+        if d < 0 {
+            return -1;
+        }
+        n = n * base + d;
+        i = i + 1;
+    }
     return n;
+}
+
+def pa_parse_int_spelling(spelling: str) -> int {
+    s = _strip_underscores(spelling);
+    if len(s) >= 3 and s[0] == "0" and (s[1] == "x" or s[1] == "X") {
+        return _fold_radix(s, 2, 16);
+    }
+    if len(s) >= 3 and s[0] == "0" and (s[1] == "o" or s[1] == "O") {
+        return _fold_radix(s, 2, 8);
+    }
+    if len(s) >= 3 and s[0] == "0" and (s[1] == "b" or s[1] == "B") {
+        return _fold_radix(s, 2, 2);
+    }
+    return _fold_radix(s, 0, 10);
 }
 
 def _hex_digit_val(c: str) -> int {
@@ -353,11 +398,115 @@ def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None {
     return pa_constant_from_string(tok);
 }
 
+def _is_prefixed_int(s: str) -> bool {
+    return len(s) >= 3 and s[0] == "0" and (
+        s[1] == "x" or s[1] == "X" or
+        s[1] == "o" or s[1] == "O" or
+        s[1] == "b" or s[1] == "B"
+    );
+}
+
+def _has_float_marker(s: str) -> bool {
+    # Only meaningful for non-prefixed spellings (hex digits include e/E).
+    i = 0;
+    while i < len(s) {
+        c = s[i];
+        if c == "." or c == "e" or c == "E" {
+            return True;
+        }
+        i = i + 1;
+    }
+    return False;
+}
+
+def _parse_decimal_float(s: str) -> float {
+    # strtod-equivalent for tokenizer-valid non-prefixed spellings
+    # (optional sign, digits, optional fraction, optional exponent).
+    # NOTE: accumulate-and-scale rounding may differ from correctly-rounded
+    # strtod by <=1 ULP on adversarially long literals.
+    val = 0.0;
+    i = 0;
+    neg = False;
+    if s[i] == "+" or s[i] == "-" {
+        neg = s[i] == "-";
+        i = i + 1;
+    }
+    while i < len(s) and s[i] >= "0" and s[i] <= "9" {
+        val = val * 10.0 + (ord(s[i]) - ord("0"));
+        i = i + 1;
+    }
+    if i < len(s) and s[i] == "." {
+        i = i + 1;
+        scale = 0.1;
+        while i < len(s) and s[i] >= "0" and s[i] <= "9" {
+            val = val + (ord(s[i]) - ord("0")) * scale;
+            scale = scale / 10.0;
+            i = i + 1;
+        }
+    }
+    e = 0;
+    if i < len(s) and (s[i] == "e" or s[i] == "E") {
+        i = i + 1;
+        exp_neg = False;
+        if i < len(s) and (s[i] == "+" or s[i] == "-") {
+            exp_neg = s[i] == "-";
+            i = i + 1;
+        }
+        while i < len(s) and s[i] >= "0" and s[i] <= "9" {
+            e = e * 10 + (ord(s[i]) - ord("0"));
+            i = i + 1;
+        }
+        if exp_neg {
+            e = -e;
+        }
+    }
+    if e >= 0 {
+        k = 0;
+        while k < e {
+            val = val * 10.0;
+            k = k + 1;
+        }
+    } else {
+        k = 0;
+        while k > e {
+            val = val / 10.0;
+            k = k - 1;
+        }
+    }
+    if neg {
+        return -val;
+    }
+    return val;
+}
+
+def pa_py_number_from_spelling(spelling: str) -> PyObj {
+    # Mirrors CPython pegen number_token: prefixed ints first (they never
+    # carry a j suffix or float markers), then imaginary, then float.
+    s = _strip_underscores(spelling);
+    if _is_prefixed_int(s) {
+        return PyInt(t="int", val=pa_parse_int_spelling(s));
+    }
+    last = s[len(s) - 1];
+    if last == "j" or last == "J" {
+        body = "";
+        i = 0;
+        while i < len(s) - 1 {
+            body = body + s[i];
+            i = i + 1;
+        }
+        return PyComplex(t="complex", real=0.0, imag=_parse_decimal_float(body));
+    }
+    if _has_float_marker(s) {
+        return PyFloat(t="float", val=_parse_decimal_float(s));
+    }
+    return PyInt(t="int", val=pa_parse_int_spelling(s));
+}
+
 def pa_number_from_token(tok: peg_token | None) -> Constant | None {
     if tok is None {
         return None;
     }
-    val = PyInt(t="int", val=pa_parse_int_spelling(tok.spelling));
+    val = pa_py_number_from_spelling(tok.spelling);
     return Constant(
         value=val,
         kind=None,
