@@ -1978,6 +1978,9 @@ def host_builtin(name: str) -> PyObj {
     }
     # next()/iter() are handled natively so a native generator or iterator is
     # driven one step in-VM instead of being drained across the host boundary.
+    # sorted()/max()/min() are native so key=/reverse=/default= reach VM
+    # callables: routed through the host, a key function (a PyFunction) cannot
+    # cross the substrate boundary and was silently dropped.
     # id() is native so it reports stable object identity (consistent with `is`)
     # rather than the host id of a throwaway to_host value. len() reads a native
     # container's own size (and dispatches __len__) instead of counting a
@@ -2001,7 +2004,10 @@ def host_builtin(name: str) -> PyObj {
         or name == "setattr"
         or name == "hasattr"
         or name == "delattr"
-        or name == "globals" {
+        or name == "globals"
+        or name == "sorted"
+        or name == "max"
+        or name == "min" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -4554,6 +4560,9 @@ obj PyNativeBuiltin(PyObj) {
     has name: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.name == "sorted" or self.name == "max" or self.name == "min" {
+            return builtin_sorted_min_max(self.name, args, kwargs);
+        }
         if self.name == "id" {
             if len(args) == 0 {
                 return py_error("TypeError", "id expected 1 argument");
@@ -5056,6 +5065,119 @@ def iterable_items(src: PyObj) -> list[PyObj] {
         return (it as PyIter).items;
     }
     return [];
+}
+
+# Materialize any iterable into a fresh list, propagating iteration errors.
+def iter_drain(src: PyObj) -> PyObj {
+    it = py_iter(src);
+    if is_error(it) {
+        return it;
+    }
+    out: list[PyObj] = [];
+    while True {
+        step = send_into(it, py_none());
+        if step.t == "genstop" {
+            break;
+        }
+        if is_error(step) {
+            return step;
+        }
+        out.append(step);
+    }
+    return PyList(t="list", items=out);
+}
+
+# sorted()/max()/min(): natively served so key= (a VM callable) actually runs.
+# sorted reuses list_sort_inplace's decorate-sort-undecorate machinery, so
+# key=/reverse= behave exactly like list.sort(). max/min follow CPython: one
+# positional iterable (with default= for emptiness) or several positionals,
+# ties keep the first candidate, key failures and comparison failures raise.
+def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+    is_sorted = name == "sorted";
+    key_fn = py_none();
+    do_reverse = False;
+    has_default = False;
+    default_val = py_none();
+    for kw in kwargs {
+        if kw == "key" {
+            key_fn = kwargs[kw];
+        } elif is_sorted and kw == "reverse" {
+            do_reverse = py_truth(kwargs[kw]);
+        } elif not is_sorted and kw == "default" {
+            has_default = True;
+            default_val = kwargs[kw];
+        } else {
+            return py_error("TypeError", "'" + kw + "' is an invalid keyword argument for " + name + "()");
+        }
+    }
+    if is_sorted {
+        if len(args) == 0 {
+            return py_error("TypeError", name + " expected at least 1 argument, got 0");
+        }
+        if len(args) > 1 {
+            return py_error("TypeError", name + " expected at most 1 argument, got " + str(len(args)));
+        }
+        drained = iter_drain(args[0]);
+        if is_error(drained) {
+            return drained;
+        }
+        out = drained as PyList;
+        err = list_sort_inplace(out, key_fn, do_reverse);
+        if is_error(err) {
+            return err;
+        }
+        return out as PyObj;
+    }
+    if len(args) == 0 {
+        return py_error("TypeError", name + " expected at least 1 argument, got 0");
+    }
+    candidates: list[PyObj] = [];
+    if len(args) == 1 {
+        drained = iter_drain(args[0]);
+        if is_error(drained) {
+            return drained;
+        }
+        candidates = (drained as PyList).items;
+    } else {
+        if has_default {
+            return py_error("TypeError", "Cannot specify a default for " + name + "() with multiple positional arguments");
+        }
+        candidates = args;
+    }
+    best: PyObj | None = None;
+    best_key: PyObj | None = None;
+    for v in candidates {
+        k = v;
+        if not (key_fn.t == "none") {
+            k = key_fn.tp_call([v], {});
+            if is_error(k) {
+                return k;
+            }
+        }
+        take = best is None;
+        if not take {
+            if name == "max" {
+                cmp = py_compare(0, best_key as PyObj, k);
+            } else {
+                cmp = py_compare(0, k, best_key as PyObj);
+            }
+            if is_error(cmp) {
+                return cmp;
+            }
+            take = py_truth(cmp);
+        }
+        if take {
+            best = v;
+            best_key = k;
+        }
+    }
+    if best is None {
+        if has_default {
+            return default_val;
+        }
+        return py_error("ValueError", name + "() iterable argument is empty");
+    }
+    return best as PyObj;
 }
 
 # CPython list.sort(): stable merge sort driven by py_compare(<). key= uses
