@@ -38,8 +38,11 @@ def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any 
 }
 
 """Run a void JIT function and capture what it writes to fd 1 (C stdout)."""
-def capture_stdout(fn: object) -> bytes {
+def capture_stdout(fn: any) -> bytes {
     libc = ctypes.CDLL(None);
+    # Drain anything (e.g. the launcher's first-run banner) still sitting in
+    # libc's stdout buffer, or the JIT's own fflush dumps it into the capture.
+    libc.fflush(None);
     (r, w) = os.pipe();
     saved = os.dup(1);
     os.dup2(w, 1);

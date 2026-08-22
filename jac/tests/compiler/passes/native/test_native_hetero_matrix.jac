@@ -93,7 +93,7 @@ test "hetero list slot overwrite and append/pop" {
     ann = _get_s(eng, "hl_annotated", ctypes.c_char_p, ctypes.c_char_p);
     assert ow(b"ow").decode("utf-8") == "ow-two";
     assert ap() == 6;
-    assert ann(b"q").decode("utf-8") == "q?";
+    assert ann(b"q").decode("utf-8") == "q?" , repr(ann(b"q"));
 }
 
 test "hetero list iteration dispatches isinstance by tag" {

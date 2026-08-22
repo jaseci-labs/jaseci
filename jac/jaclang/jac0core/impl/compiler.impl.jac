@@ -1525,6 +1525,40 @@ impl JacCompiler._compile_once(
     }
 
     if (
+        options.no_cgen
+        and not options.symtab_ir_only
+        and not had_parse_errors
+        and not had_blocking_errors
+        and 'inference' in actual_program._analyses_run.get(id(mod_targ), set())
+    ) {
+        import from jaclang.jac0core.passes.module_codegen_pass {
+            ModuleCodegenPass as _PtyMcp
+        }
+        if is_native_mod or _PtyMcp.has_native_context_stmts(mod_targ) {
+            _parity_passes: list = [];
+            try {
+                import from jaclang.compiler.passes.main.rc_facts_pass {
+                    RcFactsPass as _PtyRcFacts
+                }
+                import from jaclang.compiler.passes.native {
+                    NaIRGenPass as _PtyNaIRGen
+                }
+                _parity_passes = [_PtyRcFacts, _PtyNaIRGen];
+            } except ImportError {
+                _parity_passes = [];
+            }
+            if _parity_passes {
+                self.run_schedule(
+                    mod=mod_targ,
+                    target_program=actual_program,
+                    passes=_parity_passes,
+                    cancel_token=options.cancel_token
+                );
+            }
+        }
+    }
+
+    if (
         not had_parse_errors
         and not had_blocking_errors
         and not options.symtab_ir_only
