@@ -17,6 +17,7 @@ import from objects {
     PySet,
     PyCode,
     py_none,
+    py_error,
     bytes_value,
     tuple_value,
     str_value,
@@ -153,9 +154,25 @@ def pycode_from_marshal_fields(
 obj Reader {
     has data: list[int],
         pos: int,
-        refs: list[PyObj];
+        refs: list[PyObj],
+        bad: str = "";
+
+    # Record the first corruption found in the stream; parsing degrades to
+    # zero-fill afterwards and unmarshal() surfaces it as a ValueError
+    # sentinel. Never silent: every failure carries a clear message.
+    def fail(msg: str) {
+        if self.bad == "" {
+            self.bad = msg;
+        }
+    }
 
     def r_byte -> int {
+        if self.pos >= len(self.data) {
+            self.fail(
+                "truncated stream: byte read past end at pos " + str(self.pos)
+            );
+            return 0;
+        }
         b = self.data[self.pos];
         self.pos = self.pos + 1;
         return b & 0xFF;
@@ -246,7 +263,18 @@ obj Reader {
         } elif type == 99 {
             return self.read_code();
         } elif type == 114 {
-            return self.refs[self.r_long()];
+            idx = self.r_long();
+            if idx < 0 or idx >= len(self.refs) {
+                self.fail(
+                    "reference index "
+                        + str(idx)
+                        + " out of range ("
+                        + str(len(self.refs))
+                        + " refs recorded)"
+                );
+                return py_none();
+            }
+            return self.refs[idx];
         } elif type == 58 {
             return self.read_slice();
         } elif type == 60 {
@@ -254,6 +282,12 @@ obj Reader {
         } elif type == 62 {
             return self.read_set(True);
         } else {
+            self.fail(
+                "unknown type code "
+                    + str(type)
+                    + " at pos "
+                    + str(self.pos - 1)
+            );
             return py_none();
         }
     }
@@ -418,6 +452,29 @@ obj Reader {
         names: list[str] = str_values(names_t);
         lpnames: list[str] = str_values(lpnames_t);
         lpkinds: list[int] = bytes_value(lpkinds_t);
+        # Frozen transport contract (codeobject.jac C1.1/C5, marshal.c
+        # TYPE_CODE block): co_code must be whole instructions and the
+        # localsplus names/kinds arrays must agree element-for-element.
+        if len(co_code) % 2 != 0 {
+            self.fail(
+                "code object '"
+                    + str_value(name)
+                    + "': co_code length "
+                    + str(len(co_code))
+                    + " is not a whole number of instructions"
+            );
+        }
+        if len(lpnames) != len(lpkinds) {
+            self.fail(
+                "code object '"
+                    + str_value(name)
+                    + "': localsplus names/kinds length mismatch ("
+                    + str(len(lpnames))
+                    + " vs "
+                    + str(len(lpkinds))
+                    + ")"
+            );
+        }
         varnames: list[str] = [];
         cellvars: list[str] = [];
         freevars: list[str] = [];
@@ -470,5 +527,9 @@ obj Reader {
 
 def unmarshal(data: list[int]) -> PyObj {
     r = Reader(data=data, pos=0, refs=[]);
-    return r.r_object();
+    o = r.r_object();
+    if r.bad != "" {
+        return py_error("ValueError", "marshal: " + r.bad);
+    }
+    return o;
 }
