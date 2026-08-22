@@ -35,6 +35,9 @@ def _jac_host_call(fn, args, kwargs):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_is_callable(value):
+    return callable(value)
+
 def _jac_host_getitem(value, index):
     try:
         return (True, value[index])
@@ -1991,6 +1994,7 @@ def host_builtin(name: str) -> PyObj {
         or name == "len"
         or name == "repr"
         or name == "hash"
+        or name == "callable"
         or name == "isinstance"
         or name == "issubclass"
         or name == "getattr"
@@ -3725,6 +3729,30 @@ def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     return fn.tp_call(args, kwargs);
 }
 
+# callable(): mirrors the tp_call slot presence. User instances are callable
+# iff their MRO resolves __call__ (or they box a callable builtin base);
+# host proxies delegate the probe to the wrapped value.
+def obj_is_callable(x: PyObj) -> bool {
+    if isinstance(x, (PyFunction, PyNativeBuiltin, PyClass, PyExceptionType,
+                      PyBoundMethod, PyClassMethodCtor, PyStaticMethodCtor)) {
+        return True;
+    }
+    if isinstance(x, PyUserObj) {
+        u = x as PyUserObj;
+        if user_has_dunder(x, "__call__") {
+            return True;
+        }
+        if u._has_base() {
+            return obj_is_callable(u._base_obj());
+        }
+        return False;
+    }
+    if isinstance(x, PyHostProxy) {
+        return (_jac_host_is_callable((x as PyHostProxy).val)) as bool;
+    }
+    return False;
+}
+
 # ---------------- Track B: builtin subclassing support -----------------------
 
 # C3 linearization: L[C] = C + merge(L[B1], ..., L[Bn], [B1, ..., Bn]). This gives
@@ -4561,6 +4589,12 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "issubclass expected 2 arguments");
             }
             return PyBool(t="bool", val=py_issubclass(args[0], args[1]));
+        }
+        if self.name == "callable" {
+            if len(args) < 1 {
+                return py_error("TypeError", "callable expected 1 argument");
+            }
+            return PyBool(t="bool", val=obj_is_callable(args[0]));
         }
         if self.name == "getattr" {
             # getattr(obj, name[, default]): native attribute access, honoring a
