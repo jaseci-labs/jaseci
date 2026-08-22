@@ -13,7 +13,7 @@
 #
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
-import from objects { PyObj, PyCode, PyInt, is_error }
+import from objects { PyObj, PyCode, PyInt, PyFloat, PyComplex, is_error }
 import from product_compile { compile_source }
 import from parser { parse_eval_expr }
 import from ast_nodes { Constant }
@@ -109,51 +109,77 @@ test "literal frontier: int literals in function body match oracle recursively" 
     );
 }
 
-# ---------------- known parser gaps (sentinels) ----------------
+# ---------------- number spelling parsing ----------------
 #
-# pa_number_from_token (parser_actions.jac) builds EVERY NUMBER token as
-# decimal PyInt via pa_parse_int_spelling, which skips non-digit chars and has
-# no base-prefix handling:
-#   "1.5"   -> PyInt(15)          (no PyFloat construction path exists)
-#   "0xFF"  -> PyInt(0)           (x/hex digits skipped)
-#   "0o17"  -> PyInt(17)          (read as decimal)
-#   "0b1011"-> PyInt(1011)        (read as decimal)
-# The fix lands on a separate branch; when it does, these sentinels fail and
-# get replaced by parity tests like the ones above.
+# pa_number_from_token routes every NUMBER token through
+# pa_py_number_from_spelling (parser_actions.jac): base-prefixed ints
+# (0x/0o/0b, underscores stripped), floats ('.' or exponent marker), and
+# imaginary literals (trailing j/J) -> PyComplex(0, imag).
 
-test "known-bug sentinel: float literal currently parses as digit-folded PyInt" {
-    e = parse_eval_expr("1.5", "<sentinel>");
+test "number spelling: float literal parses to PyFloat" {
+    e = parse_eval_expr("1.5", "<num>");
     assert isinstance(e, Constant);
     c = e as Constant;
-    # Documents the bug: 15 instead of PyFloat(1.5). Flip to a parity test
-    # once pa_number_from_token handles float spellings.
+    assert isinstance(c.value, PyFloat);
+    assert (c.value as PyFloat).val == 1.5;
+}
+
+test "number spelling: hex spelling parses to exact int" {
+    e = parse_eval_expr("0xFF", "<num>");
+    assert isinstance(e, Constant);
+    c = e as Constant;
+    assert isinstance(c.value, PyInt);
+    assert (c.value as PyInt).val == 255;
+}
+
+test "number spelling: octal spelling parses to exact int" {
+    e = parse_eval_expr("0o17", "<num>");
+    assert isinstance(e, Constant);
+    c = e as Constant;
     assert isinstance(c.value, PyInt);
     assert (c.value as PyInt).val == 15;
 }
 
-test "known-bug sentinel: hex spelling currently parses wrong" {
-    e = parse_eval_expr("0xFF", "<sentinel>");
+test "number spelling: binary spelling parses to exact int" {
+    e = parse_eval_expr("0b1011", "<num>");
     assert isinstance(e, Constant);
     c = e as Constant;
-    # Documents the bug: 0 instead of 255.
     assert isinstance(c.value, PyInt);
-    assert (c.value as PyInt).val == 0;
+    assert (c.value as PyInt).val == 11;
 }
 
-test "known-bug sentinel: octal spelling currently reads as decimal" {
-    e = parse_eval_expr("0o17", "<sentinel>");
+test "number spelling: underscores stripped from int literal" {
+    e = parse_eval_expr("10_000", "<num>");
     assert isinstance(e, Constant);
     c = e as Constant;
-    # Documents the bug: decimal 17 instead of octal 15.
     assert isinstance(c.value, PyInt);
-    assert (c.value as PyInt).val == 17;
+    assert (c.value as PyInt).val == 10000;
 }
 
-test "known-bug sentinel: binary spelling currently reads as decimal" {
-    e = parse_eval_expr("0b1011", "<sentinel>");
+test "number spelling: exponent form parses to PyFloat" {
+    e = parse_eval_expr("1e-3", "<num>");
     assert isinstance(e, Constant);
     c = e as Constant;
-    # Documents the bug: decimal 1011 instead of binary 11.
-    assert isinstance(c.value, PyInt);
-    assert (c.value as PyInt).val == 1011;
+    assert isinstance(c.value, PyFloat);
+    assert (c.value as PyFloat).val == 0.001;
+}
+
+test "number spelling: imaginary j suffix parses to pure PyComplex" {
+    e = parse_eval_expr("1j", "<num>");
+    assert isinstance(e, Constant);
+    c = e as Constant;
+    assert isinstance(c.value, PyComplex);
+    z = c.value as PyComplex;
+    assert z.real == 0.0;
+    assert z.imag == 1.0;
+}
+
+test "number spelling: fractional imaginary parses to PyComplex" {
+    e = parse_eval_expr("0.5j", "<num>");
+    assert isinstance(e, Constant);
+    c = e as Constant;
+    assert isinstance(c.value, PyComplex);
+    z = c.value as PyComplex;
+    assert z.real == 0.0;
+    assert z.imag == 0.5;
 }
