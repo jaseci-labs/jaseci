@@ -5400,6 +5400,11 @@ obj PyGenMethod(PyObj) {
 # plain iteration). Returns the yielded PyObj on a yield, a PyGenStop on normal
 # return (exhaustion), or a propagating error object on a raise.
 def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
+    if gen.running {
+        # CPython: resuming a generator whose frame is already executing
+        # (self-resume via a callback/trampoline) raises ValueError.
+        return py_error("ValueError", "generator already executing");
+    }
     if gen.finished {
         return PyGenStop(t="genstop", val=py_none());
     }
@@ -5469,6 +5474,9 @@ def as_error(value: PyObj) -> PyObj {
 # gen.throw(exc): resume the generator as though `exc` were raised at the point
 # where it last suspended, so a try/except surrounding the yield can catch it.
 def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
+    if gen.running {
+        return py_error("ValueError", "generator already executing");
+    }
     err = as_error(thrown);
     if err.t != "error" {
         return err;
