@@ -1,0 +1,213 @@
+========== walrus ==========
+SRC: 'if (n := len([1,2])) > 1:\n    print(n)\n'
+co_names: ('len', 'n', 'print')
+co_varnames: ()
+co_cellvars: () freevars: ()
+stacksize: 4 flags: 0x0
+  0           RESUME                   0
+
+  1           LOAD_NAME                0 (len)
+              PUSH_NULL
+              LOAD_SMALL_INT           1
+              LOAD_SMALL_INT           2
+              BUILD_LIST               2
+              CALL                     1
+              COPY                     1
+              STORE_NAME               1 (n)
+              LOAD_SMALL_INT           1
+              COMPARE_OP             148 (bool(>))
+              POP_JUMP_IF_FALSE       11 (to L1)
+              NOT_TAKEN
+
+  2           LOAD_NAME                2 (print)
+              PUSH_NULL
+              LOAD_NAME                1 (n)
+              CALL                     1
+              POP_TOP
+              LOAD_CONST               1 (None)
+              RETURN_VALUE
+
+  1   L1:     LOAD_CONST               1 (None)
+              RETURN_VALUE
+========== genexp ==========
+SRC: 's = sum(x*x for x in range(3))\n'
+co_names: ('sum', 'range', 's')
+co_varnames: ()
+co_cellvars: () freevars: ()
+stacksize: 6 flags: 0x0
+  0           RESUME                   0
+
+  1           LOAD_NAME                0 (sum)
+              PUSH_NULL
+              LOAD_CONST               0 (<code object <genexpr> at 0x7f7840152de0, file "<f>", line 1>)
+              MAKE_FUNCTION
+              LOAD_NAME                1 (range)
+              PUSH_NULL
+              LOAD_SMALL_INT           3
+              CALL                     1
+              GET_ITER
+              CALL                     0
+              CALL                     1
+              STORE_NAME               2 (s)
+              LOAD_CONST               1 (None)
+              RETURN_VALUE
+
+Disassembly of <code object <genexpr> at 0x7f7840152de0, file "<f>", line 1>:
+   1           RETURN_GENERATOR
+               POP_TOP
+       L1:     RESUME                   0
+               LOAD_FAST                0 (.0)
+       L2:     FOR_ITER                13 (to L3)
+               STORE_FAST_LOAD_FAST    17 (x, x)
+               LOAD_FAST_BORROW         1 (x)
+               BINARY_OP                5 (*)
+               YIELD_VALUE              0
+               RESUME                   5
+               POP_TOP
+               JUMP_BACKWARD           15 (to L2)
+       L3:     END_FOR
+               POP_ITER
+               LOAD_CONST               0 (None)
+               RETURN_VALUE
+
+  --   L4:     CALL_INTRINSIC_1         3 (INTRINSIC_STOPITERATION_ERROR)
+               RERAISE                  1
+ExceptionTable:
+  L1 to L4 -> L4 [0] lasti
+========== typealias ==========
+SRC: 'type Alias = int\n'
+co_names: ('Alias',)
+co_varnames: ()
+co_cellvars: () freevars: ()
+stacksize: 4 flags: 0x0
+  0           RESUME                   0
+
+  1           LOAD_CONST               0 ('Alias')
+              LOAD_CONST               1 (None)
+              LOAD_CONST               2 ((1,))
+              LOAD_CONST               3 (<code object Alias at 0x7f7840171980, file "<f>", line 1>)
+              MAKE_FUNCTION
+              SET_FUNCTION_ATTRIBUTE   1 (defaults)
+              BUILD_TUPLE              3
+              CALL_INTRINSIC_1        11 (INTRINSIC_TYPEALIAS)
+              STORE_NAME               0 (Alias)
+              LOAD_CONST               1 (None)
+              RETURN_VALUE
+
+Disassembly of <code object Alias at 0x7f7840171980, file "<f>", line 1>:
+  1           RESUME                   0
+              LOAD_FAST_BORROW         0 (.format)
+              LOAD_SMALL_INT           2
+              COMPARE_OP             132 (>)
+              POP_JUMP_IF_FALSE        3 (to L1)
+              NOT_TAKEN
+              LOAD_COMMON_CONSTANT     1 (NotImplementedError)
+              RAISE_VARARGS            1
+      L1:     LOAD_GLOBAL              0 (int)
+              RETURN_VALUE
+========== typealias_generic ==========
+SRC: 'type Pair[T] = tuple[T, T]\n'
+co_names: ('Pair',)
+co_varnames: ()
+co_cellvars: () freevars: ()
+stacksize: 2 flags: 0x0
+  0           RESUME                   0
+
+  1           LOAD_CONST               0 (<code object <generic parameters of Pair> at 0x7f784014dd30, file "<f>", line 1>)
+              MAKE_FUNCTION
+              PUSH_NULL
+              CALL                     0
+              STORE_NAME               0 (Pair)
+              LOAD_CONST               1 (None)
+              RETURN_VALUE
+
+Disassembly of <code object <generic parameters of Pair> at 0x7f784014dd30, file "<f>", line 1>:
+  --           MAKE_CELL                0 (T)
+
+   1           RESUME                   0
+               LOAD_CONST               0 ('Pair')
+               LOAD_CONST               1 ('T')
+               CALL_INTRINSIC_1         7 (INTRINSIC_TYPEVAR)
+               COPY                     1
+               STORE_DEREF              0 (T)
+               BUILD_TUPLE              1
+               LOAD_CONST               2 ((1,))
+               LOAD_FAST_BORROW         0 (T)
+               BUILD_TUPLE              1
+               LOAD_CONST               3 (<code object Pair at 0x7f7840152de0, file "<f>", line 1>)
+               MAKE_FUNCTION
+               SET_FUNCTION_ATTRIBUTE   8 (closure)
+               SET_FUNCTION_ATTRIBUTE   1 (defaults)
+               BUILD_TUPLE              3
+               CALL_INTRINSIC_1        11 (INTRINSIC_TYPEALIAS)
+               RETURN_VALUE
+
+Disassembly of <code object Pair at 0x7f7840152de0, file "<f>", line 1>:
+  --           COPY_FREE_VARS           1
+
+   1           RESUME                   0
+               LOAD_FAST_BORROW         0 (.format)
+               LOAD_SMALL_INT           2
+               COMPARE_OP             132 (>)
+               POP_JUMP_IF_FALSE        3 (to L1)
+               NOT_TAKEN
+               LOAD_COMMON_CONSTANT     1 (NotImplementedError)
+               RAISE_VARARGS            1
+       L1:     LOAD_GLOBAL              0 (tuple)
+               LOAD_DEREF               1 (T)
+               LOAD_DEREF               1 (T)
+               BUILD_TUPLE              2
+               BINARY_OP               26 ([])
+               RETURN_VALUE
+========== trystar ==========
+SRC: 'try:\n    pass\nexcept* ValueError:\n    pass\n'
+co_names: ('ValueError',)
+co_varnames: ()
+co_cellvars: () freevars: ()
+stacksize: 6 flags: 0x0
+   0           RESUME                   0
+
+   1           NOP
+
+   2           LOAD_CONST               0 (None)
+               RETURN_VALUE
+
+  --   L1:     PUSH_EXC_INFO
+
+   3           BUILD_LIST               0
+               COPY                     2
+               LOAD_NAME                0 (ValueError)
+               CHECK_EG_MATCH
+               COPY                     1
+               POP_JUMP_IF_NONE         8 (to L2)
+               NOT_TAKEN
+               POP_TOP
+
+   4           LIST_APPEND              1
+               JUMP_FORWARD             6 (to L3)
+
+  --           LIST_APPEND              3
+               POP_TOP
+               LIST_APPEND              1
+               JUMP_FORWARD             2 (to L3)
+
+   3   L2:     POP_TOP
+               LIST_APPEND              1
+
+  --   L3:     CALL_INTRINSIC_2         1 (INTRINSIC_PREP_RERAISE_STAR)
+               COPY                     1
+               POP_JUMP_IF_NOT_NONE     5 (to L7)
+       L4:     NOT_TAKEN
+       L5:     POP_TOP
+       L6:     POP_EXCEPT
+               LOAD_CONST               0 (None)
+               RETURN_VALUE
+       L7:     SWAP                     2
+               POP_EXCEPT
+               RERAISE                  0
+       L8:     COPY                     3
+               POP_EXCEPT
+               RERAISE                  1
+ExceptionTable:
+  L1 to L4 -> L8 [1] lasti
+  L5 to L6 -> L8 [1] lasti
