@@ -6851,6 +6851,23 @@ def run_frame(frame: PyFrame) -> PyObj {
                 j = j + 1;
             }
             if any_unhashable {
+                # CPython raises TypeError naming the offending key's type.
+                # Known-unhashable natives must RAISE here, not degrade: the
+                # old opaque-host-map fallback let the host dict's raw
+                # exception ESCAPE exec_code's PyError channel (TODO item 26).
+                # Shapes that are merely not-yet-natively-hashed (e.g. slice,
+                # hashable in CPython) keep the opaque-host fallback so their
+                # behavior is unchanged.
+                j = 0;
+                while j < arg {
+                    keyobj = popped[j * 2];
+                    if keyobj.t == "list" or keyobj.t == "dict" or keyobj.t == "set" {
+                        return py_error(
+                            "TypeError", "unhashable type: '" + keyobj.t + "'"
+                        );
+                    }
+                    j = j + 1;
+                }
                 host_map: dict[any, any] = {};
                 j = 0;
                 while j < arg {

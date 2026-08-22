@@ -204,15 +204,14 @@ obj PyInt(PyObj) {
             if of.val == float("-inf") {
                 return _bool_from_cmp(1, kind);
             }
-            try {
-                fself = float(self.val);
-            } except OverflowError {
-                if self.val > 0 {
-                    return _bool_from_cmp(1, kind);
-                }
-                return _bool_from_cmp(-1, kind);
+            if of.val != of.val {
+                # NaN: unordered -- delegate to PyFloat's operator-encoded NaN
+                # rules (no precision is lost that matters here).
+                return of.tp_richcompare(kind, self);
             }
-            return PyFloat(t="float", val=fself).tp_richcompare(kind, other);
+            # Exact compare against the float's value; promotion to float would
+            # round self and report equality across the 2**53 boundary.
+            return _bool_from_cmp(_cmp_int_vs_float(self.val, of.val), kind);
         }
         # Non-numeric right operand: identity-tag (in)equality only.
         if kind == 2 {
@@ -428,15 +427,16 @@ obj PyFloat(PyObj) {
             if self.val == float("-inf") {
                 return _bool_from_cmp(-1, kind);
             }
-            try {
-                other = PyFloat(t="float", val=float(iv)) as PyObj;
-            } except OverflowError {
-                # |int| beyond float range: strictly beyond every finite float.
-                if iv > 0 {
-                    return _bool_from_cmp(-1, kind);
-                }
-                return _bool_from_cmp(1, kind);
+            if self.val == self.val {
+                # Exact compare (TODO item 25): negated because the helper
+                # orders (int, float) and this is (float, int).
+                return _bool_from_cmp(-_cmp_int_vs_float(iv, self.val), kind);
             }
+            # NaN vs int: every operator but != is False.
+            if kind == 3 {
+                return PyBool(t="bool", val=True);
+            }
+            return PyBool(t="bool", val=False);
         }
         (ok, b) = self._coerce(other);
         if not ok {
@@ -1687,6 +1687,29 @@ def int_values(o: PyObj) -> list[int] {
         }
     }
     return result;
+}
+
+# Exact int-vs-finite-float comparison (TODO item 25): CPython compares the
+# int against the float's EXACT value. float(2**53 + 1) rounds to 2**53, so
+# promoting the int to float wrongly reports equality across the 2**53
+# boundary. Truncation int(fv) is exact host arithmetic (arbitrary precision);
+# the fractional remainder breaks ties. Precondition: fv finite, not NaN.
+def _cmp_int_vs_float(a: int, fv: float) -> int {
+    t = int(fv);
+    frac = fv - float(t);
+    if a < t {
+        return -1;
+    }
+    if a > t {
+        return 1;
+    }
+    if frac > 0.0 {
+        return -1;
+    }
+    if frac < 0.0 {
+        return 1;
+    }
+    return 0;
 }
 
 def expect_int(o: PyObj) -> int {
