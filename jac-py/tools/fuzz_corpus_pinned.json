@@ -1,5 +1,5 @@
 {
- "description": "Pinned differential-fuzz corpus (BrightTiger lane). Red pins = open TODO.md findings; ok pins = behavior that must stay green through refactors (esp. dunder-lookup sweep). Run via jac-py/jacpython/_fuzz_smoke.jac after pointing /tmp/fuzz_cases.json at this file.",
+ "description": "Pinned differential-fuzz corpus (BrightTiger lane). pin-* entries: walker-lineage cases -- red pins map to open TODO.md findings (see tools/fuzz_known_reds.json); ok pins must stay green through refactors. gen-* entries are seeded probes from tools/fuzz_gen.py (seed 20260822), host-CPython-validated at generation time. Run via tools/fuzz_run.py, which drives jacpython/_fuzz_smoke.jac (Layer-1 dual-execution replay) and classifies GREEN / EXPECTED-RED / NEW-RED. Fresh gen-* reds are recorded findings -- see tools/fuzz_findings_20260822.md; do not delete red pins.",
  "cases": [
   {
    "name": "pin-item1-descr-get",
@@ -156,6 +156,526 @@
   {
    "name": "pin-item22b-unhashable-display-typerror",
    "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            got = ''\n            try:\n                d = {[]: 'nope'}\n            except TypeError:\n                return 'type-error'\n            return 'no-error'\n        self.assertEqual(probe(), 'type-error')\n"
+  },
+  {
+   "name": "gen-arith-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 1215159675617248502341968572394896477843 * 2999938219 + -8\n        n = -1215159675617248502341968572394896477843\n        self.assertEqual(divmod(a, 7)[0] * 7 + divmod(a, 7)[1] == a, True)\n        self.assertEqual(divmod(a, 7)[1] >= 0, True)\n        self.assertEqual(divmod(-a, 7)[1] >= 0, True)\n        self.assertEqual(divmod(-a, 7)[0] * 7 + divmod(-a, 7)[1] == -a, True)\n"
+  },
+  {
+   "name": "gen-cmp-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(7 < -3 <= 5 == ((7 < -3) and (-3 <= 5)), False)\n        self.assertEqual(7 != -3 == (not 7 == -3), False)\n        self.assertEqual(1 < 2 == 2 < 3, True)\n        self.assertEqual(3 > 2 > 1 == 1, True)\n"
+  },
+  {
+   "name": "gen-dict-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {}\n        d[True] = 't'\n        d[1] = 'one'\n        d[99] = 'k0'\n        self.assertEqual(len(d) == len(list(d)), True)\n        self.assertEqual(d[True] == 'one', True)\n        self.assertEqual(d[99] == 'k0', True)\n        self.assertEqual(list(d)[-1] == 99, True)\n"
+  },
+  {
+   "name": "gen-set-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([1, 8, 11, 25, 29, 31])\n        B = set([7, 11, 15, 33])\n        self.assertEqual(sorted(A & B) == [11], True)\n        self.assertEqual(sorted(A | B) == [1, 7, 8, 11, 15, 25, 29, 31, 33], True)\n        self.assertEqual(sorted(A ^ B) == [1, 7, 8, 15, 25, 29, 31, 33], True)\n        self.assertEqual(sorted(A - B) == [1, 8, 25, 29, 31], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == False, True)\n"
+  },
+  {
+   "name": "gen-list-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [39, 1, -30, -7, -45, -47, -50, 28]\n        self.assertEqual(sorted(L) == [-50, -47, -45, -30, -7, 1, 28, 39], True)\n        self.assertEqual(L.count(-7) == 1, True)\n        self.assertEqual(L.index(-7) == 3, True)\n        self.assertEqual(sorted(L, key=lambda x: (x < 0, abs(x))) == [1, 28, 39, -7, -30, -45, -47, -50], True)\n"
+  },
+  {
+   "name": "gen-str-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'beta-alpha'\n        self.assertEqual(s.upper() == 'BETA-ALPHA', True)\n        self.assertEqual(s.split('-') == ['beta', 'alpha'], True)\n        self.assertEqual('-'.join(s.split('-')) == s, True)\n        self.assertEqual(s.replace('beta', 'X') == 'X-alpha', True)\n        self.assertEqual('beta'.ljust(9).strip() == 'beta', True)\n        self.assertEqual(s.find('alpha') == 5, True)\n"
+  },
+  {
+   "name": "gen-bytes-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([22, 208, 141, 239, 109, 250])\n        self.assertEqual(B[1:3] == bytes([208, 141]), True)\n        self.assertEqual(B + B[-1:] == bytes([22, 208, 141, 239, 109, 250, 250]), True)\n        self.assertEqual(list(B[:3]) == [22, 208, 141], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '16', True)\n"
+  },
+  {
+   "name": "gen-exc-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        order = []\n        def probe():\n            order.append('try')\n            try:\n                raise KeyError('k')\n            except LookupError:\n                order.append('lookup')\n            finally:\n                order.append('fin')\n            return 'done'\n        self.assertEqual(probe() == 'done', True)\n        self.assertEqual(order == ['try', 'lookup', 'fin'], True)\n"
+  },
+  {
+   "name": "gen-gen-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            for j in range(4):\n                x = yield j * j\n                if x == 'halt':\n                    return 'stopped'\n            return 'done'\n        it = g()\n        self.assertEqual(next(it) == 0, True)\n        self.assertEqual([it.send('go') for _ in range(3)] == [1, 4, 9], True)\n        self.assertEqual(it.close() is None, True)\n"
+  },
+  {
+   "name": "gen-comp-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sq = [x * 3 for x in range(5)]\n        [leak for leak in [7]]\n        self.assertEqual(sq == [0, 3, 6, 9, 12], True)\n        self.assertEqual('leak' in dir(), False)\n"
+  },
+  {
+   "name": "gen-closure-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def make():\n            count = -6\n            def bump():\n                nonlocal count\n                count += 4\n                return count\n            return bump\n        b = make()\n        b2 = make()\n        self.assertEqual([b() for _ in range(3)] == [-2, 2, 6], True)\n        self.assertEqual(b2() == -2, True)\n        self.assertEqual(b() == 10, True)\n"
+  },
+  {
+   "name": "gen-cons-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [13, 39, 48, 4, 44, 49]\n        self.assertEqual(any(x % 2 for x in data) == True, True)\n        self.assertEqual(all(x > 0 for x in data), True)\n        self.assertEqual(list(enumerate(data, start=1))[0] == (1, 13), True)\n        self.assertEqual([a + b for a, b in zip(data, [35, 44, 26])][:3] == [48, 83, 74], True)\n        self.assertEqual(len(list(zip(data, range(99)))) == 6, True)\n"
+  },
+  {
+   "name": "gen-loop-000",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        seen = []\n        for j in range(6):\n            if j == 5:\n                continue\n            seen.append(j)\n        else:\n            seen.append('else')\n        w = 0\n        while True:\n            w += 1\n            if w >= 6:\n                break\n        self.assertEqual(seen == [0, 1, 2, 3, 4, 'else'], True)\n        self.assertEqual(w == 6, True)\n"
+  },
+  {
+   "name": "gen-arith-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        p = pow(1, 8, 65537)\n        x = 387\n        self.assertEqual(p == (1 ** 8) % 65537, True)\n        self.assertEqual(~x == -x - 1, True)\n        self.assertEqual((1 << 3) >> 3 == 1, True)\n        self.assertEqual((1 >> 2) == (1 // 4) if 1 >= 0 else True, True)\n"
+  },
+  {
+   "name": "gen-cmp-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(float('nan') == float('nan'), False)\n        self.assertEqual(float('nan') != float('nan'), True)\n        self.assertEqual(float('inf') > 10 ** 400, True)\n        self.assertEqual(-float('inf') < -10 ** 400, True)\n        self.assertEqual(float('-0.0') == 0, True)\n"
+  },
+  {
+   "name": "gen-dict-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = dict.fromkeys([134, 112, 69, 173, 83], 0)\n        d.setdefault(112, 99)\n        d.setdefault(112, 77)\n        d.update({69: 5})\n        k = d.pop(173)\n        self.assertEqual(d[112] == 99, False)\n        self.assertEqual(d[69] == 5, True)\n        self.assertEqual(k not in d, True)\n        self.assertEqual(d.get(83, 'dflt') == 'dflt', False)\n"
+  },
+  {
+   "name": "gen-set-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([2, 6, 11, 16, 30, 39])\n        B = set([8, 12, 19, 27, 38, 39])\n        self.assertEqual(sorted(A & B) == [39], True)\n        self.assertEqual(sorted(A | B) == [2, 6, 8, 11, 12, 16, 19, 27, 30, 38, 39], True)\n        self.assertEqual(sorted(A ^ B) == [2, 6, 8, 11, 12, 16, 19, 27, 30, 38], True)\n        self.assertEqual(sorted(A - B) == [2, 6, 11, 16, 30], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == False, True)\n"
+  },
+  {
+   "name": "gen-list-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-3, 34, -34, -45, -50, 34, 48, 48]\n        M = L[:]\n        L[2:7:3] = [0] * 2\n        del M[2:7]\n        self.assertEqual(L[2:7:3] == [-34, 34], False)\n        self.assertEqual(len(L) >= 2, True)\n        self.assertEqual(M == [-3, 34, 48], True)\n"
+  },
+  {
+   "name": "gen-str-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        v = 2003\n        f = 33.8397\n        self.assertEqual('%d' % v == str(v), True)\n        self.assertEqual('%x' % 255 == 'ff', True)\n        self.assertEqual('%s|%' + '' if False else ('%s|%s' % ('beta', v)) == 'beta|2003', True)\n        self.assertEqual('{}={}'.format('beta', v) == 'beta=2003', True)\n        self.assertEqual('{nm}!'.format_map({'nm': 'delta'}) == 'delta!', True)\n"
+  },
+  {
+   "name": "gen-bytes-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([159, 206, 15, 14, 245, 227])\n        self.assertEqual(B[1:3] == bytes([206, 15]), True)\n        self.assertEqual(B + B[-1:] == bytes([159, 206, 15, 14, 245, 227, 227]), True)\n        self.assertEqual(list(B[:3]) == [159, 206, 15], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '9f', True)\n"
+  },
+  {
+   "name": "gen-exc-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        log = []\n        def fin_on_return():\n            try:\n                return 'try'\n            finally:\n                log.append('finally')\n        def nested():\n            log = []\n            try:\n                try:\n                    raise IndexError\n                finally:\n                    log.append('inner')\n            except IndexError:\n                log.append('outer')\n            return log\n        self.assertEqual(fin_on_return() == 'try', True)\n        self.assertEqual(log == ['finally'], True)\n        self.assertEqual(nested() == ['inner', 'outer'], True)\n"
+  },
+  {
+   "name": "gen-gen-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        log = []\n        def inner():\n            try:\n                yield 1\n                yield 2\n            finally:\n                log.append('ifin')\n        def outer():\n            yield from inner()\n            yield 3\n        it = outer()\n        def drain():\n            try:\n                next(it)\n            except StopIteration:\n                log.append('stop')\n        self.assertEqual([next(it), next(it), next(it)] == [1, 2, 3], True)\n        self.assertEqual(drain() is None, True)\n        self.assertEqual(log == ['ifin', 'stop'], True)\n"
+  },
+  {
+   "name": "gen-comp-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        dc = {k: k * 3 for k in range(6) if k % 2 == 0}\n        self.assertEqual(dc == {0: 0, 2: 6, 4: 12}, True)\n        self.assertEqual({k % 3 for k in range(12)} == {0, 1, 2}, True)\n        self.assertEqual(sum(k for k in range(6) if k != 0) == 15, True)\n"
+  },
+  {
+   "name": "gen-closure-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def f(a, b=9, *, k=4, **rest):\n            return (a, b, k, sorted(rest.items()))\n        self.assertEqual(f(1)[0] == 1, True)\n        self.assertEqual(f(1)[1] == 9, True)\n        self.assertEqual(f(1, k=9)[2] == 9, True)\n        self.assertEqual(f(*[10, 20], **{'k': 30, 'extra': 1})[0] == 10, True)\n        self.assertEqual(dict(f(*[10], **{'extra': 1})[3]).get('extra') == 1, True)\n"
+  },
+  {
+   "name": "gen-cons-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [26, 50, 42, 57, 30, 4]\n        self.assertEqual(list(map(str, data[:2])) == ['26', '50'], True)\n        self.assertEqual(list(filter(lambda v: v % 2 == 0, data)) == [26, 50, 42, 30, 4], True)\n        self.assertEqual(list(filter(None, [0, 1, '', 'a'])) == [1, 'a'], True)\n        self.assertEqual(sum(data, 5) == 214, True)\n"
+  },
+  {
+   "name": "gen-loop-001",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 33\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 1, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
+  },
+  {
+   "name": "gen-arith-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        f = 23 / -4\n        fl = 23 // -4\n        m = 23 % -4\n        self.assertEqual(fl * -4 + m == 23, True)\n        self.assertEqual(m == 0 or (m > 0) != (-4 < 0), True)\n        self.assertEqual(divmod(23, -4)[1] == m, True)\n        self.assertEqual(round(f, 6) == round(23 / -4, 6), True)\n"
+  },
+  {
+   "name": "gen-cmp-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 9007199254740993\n        b = float(a)\n        self.assertEqual(a == b, False)\n        self.assertEqual((a != b) == (not a == b), True)\n        self.assertEqual(isinstance(b, float), True)\n        self.assertEqual(True, True)\n"
+  },
+  {
+   "name": "gen-dict-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {'a': 160, 'b': 44, 'c': 186, 'd': 181, 'e': 163}\n        ks = list(d.keys())\n        del d['c']\n        d[186] = 186\n        self.assertEqual(list(d.keys()) == ['a', 'b', 'd', 'e'], False)\n        self.assertEqual(list(d.keys())[-1] == 186, True)\n        self.assertEqual(sum(d.values()) == 734, True)\n"
+  },
+  {
+   "name": "gen-set-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([2, 10, 28, 37])\n        B = set([1, 9, 12, 18, 30, 35])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [1, 2, 9, 10, 12, 18, 28, 30, 35, 37], True)\n        self.assertEqual(sorted(A ^ B) == [1, 2, 9, 10, 12, 18, 28, 30, 35, 37], True)\n        self.assertEqual(sorted(A - B) == [2, 10, 28, 37], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a, *b, c = [28, -33, 0, -8, -18, -11, -42, -34]\n        p, q = q, p = 1, 2\n        *mids, = b\n        self.assertEqual(b == [-33, 0, -8, -18, -11, -42], True)\n        self.assertEqual(c == -34, True)\n        self.assertEqual(q == 2, False)\n        self.assertEqual(mids == [-33, 0, -8, -18, -11, -42], True)\n"
+  },
+  {
+   "name": "gen-str-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        tbl = str.maketrans('abc', 'xyz', 'd')\n        self.assertEqual('abcd'.translate(tbl) == 'xyz', True)\n        self.assertEqual('\\t'.expandtabs(8) == ' ' * 8, True)\n        self.assertEqual(ord('\\u00e9') == 233, True)\n        self.assertEqual(chr(20013) == '\\u4e2d', True)\n        self.assertEqual('delta'.encode('utf-8').decode() == 'delta', True)\n        self.assertEqual(bytes('delta', 'ascii').isascii(), True)\n"
+  },
+  {
+   "name": "gen-bytes-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([142, 216, 49, 102, 247, 57])\n        self.assertEqual(B[1:3] == bytes([216, 49]), True)\n        self.assertEqual(B + B[-1:] == bytes([142, 216, 49, 102, 247, 57, 57]), True)\n        self.assertEqual(list(B[:3]) == [142, 216, 49], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '8e', True)\n"
+  },
+  {
+   "name": "gen-exc-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def reraise():\n            caught = None\n            try:\n                try:\n                    raise TypeError('orig')\n                except TypeError as e:\n                    caught = type(e).__name__\n                    raise\n            except TypeError as e2:\n                return (caught, str(e2))\n        def nm():\n            try:\n                undefined_xyzzy_42\n            except NameError:\n                return 'ne'\n        self.assertEqual(reraise() == ('TypeError', 'orig'), True)\n        self.assertEqual(nm() == 'ne', True)\n"
+  },
+  {
+   "name": "gen-gen-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            try:\n                yield 'a'\n                yield 'b'\n            except ValueError as e:\n                yield 'caught:' + str(e)\n                yield 'after'\n        it = g()\n        self.assertEqual(next(it) == 'a', True)\n        self.assertEqual(it.throw(ValueError('boom')) == 'caught:boom', True)\n        self.assertEqual(next(it) == 'after', True)\n"
+  },
+  {
+   "name": "gen-comp-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        mat = [[r * 8 + cc for cc in range(3)] for r in range(3)]\n        flat = [cell for row in mat for cell in row]\n        self.assertEqual(flat == [0, 1, 2, 8, 9, 10, 16, 17, 18], True)\n        self.assertEqual([mat[r][r] for r in range(3)] == [0, 9, 18], True)\n        self.assertEqual(all(isinstance(row, list) for row in mat), True)\n"
+  },
+  {
+   "name": "gen-closure-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        fs = [lambda x=x: x + 2 for x in range(3)]\n        gs = [lambda: x for x in range(3)]\n        def outer():\n            acc = []\n            def add(v):\n                acc.append(v)\n            return add, acc\n        add_fn, acc_list = outer()\n        [add_fn(v) for v in range(2)]\n        self.assertEqual([fn() for fn in fs] == [2, 3, 4], True)\n        self.assertEqual(len({g() for g in gs}) == 1, True)\n        self.assertEqual(acc_list == [0, 1], True)\n"
+  },
+  {
+   "name": "gen-cons-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        short = []\n        def boom():\n            short.append('called')\n            return True\n        ans = False and boom()\n        self.assertEqual(short == [], True)\n        self.assertEqual(ans is False, True)\n        self.assertEqual((True or boom()) is True, True)\n        self.assertEqual(short == [], True)\n"
+  },
+  {
+   "name": "gen-loop-002",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        seen = []\n        for j in range(3):\n            if j == 2:\n                continue\n            seen.append(j)\n        else:\n            seen.append('else')\n        w = 0\n        while True:\n            w += 1\n            if w >= 3:\n                break\n        self.assertEqual(seen == [0, 1, 'else'], True)\n        self.assertEqual(w == 3, True)\n"
+  },
+  {
+   "name": "gen-arith-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        v = 1104144310865907936263414769\n        self.assertEqual(abs(-v) == v, True)\n        self.assertEqual(round(v / 3) * 3 <= v + 2, True)\n        self.assertEqual(int.from_bytes(v.to_bytes(12, 'little'), 'little') == v, True)\n        self.assertEqual(v.bit_length() > 60, True)\n"
+  },
+  {
+   "name": "gen-cmp-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class R():\n            def __init__(me, v): me.v = v\n            def __eq__(me, o): return me.v == getattr(o, 'v', None)\n            def __lt__(me, o): return me.v < o.v\n            def __le__(me, o): return me.v <= o.v\n        xs = [R(3), R(1), R(2)]\n        self.assertEqual(sorted([x.v for x in xs]) == [1, 2, 3], True)\n        self.assertEqual(R(1) == R(1), True)\n        self.assertEqual(R(1) == 1, False)\n        self.assertEqual(max(xs, key=lambda x: x.v).v == 3, True)\n        self.assertEqual(min(xs, key=lambda x: x.v).v == 1, True)\n"
+  },
+  {
+   "name": "gen-dict-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d1 = {'a': 85, 'b': 147, 'c': 151}\n        d2 = {'b': 151, 'c': 136, 'd': 30}\n        view = d1.keys() | d2.keys()\n        self.assertEqual(len(view) == 4, True)\n        self.assertEqual((view & d1.keys()) == d1.keys(), True)\n        self.assertEqual((d1 | d2) == {'a': 85, 'b': 151, 'c': 151, 'd': 136}, False)\n"
+  },
+  {
+   "name": "gen-set-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([14, 16, 28, 31])\n        B = set([1, 14, 24])\n        self.assertEqual(sorted(A & B) == [14], True)\n        self.assertEqual(sorted(A | B) == [1, 14, 16, 24, 28, 31], True)\n        self.assertEqual(sorted(A ^ B) == [1, 16, 24, 28, 31], True)\n        self.assertEqual(sorted(A - B) == [16, 28, 31], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == False, True)\n"
+  },
+  {
+   "name": "gen-list-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-46, -24, -31, -47, 15]\n        L.remove(-31)\n        L.insert(0, 0)\n        L.extend([])\n        rev = list(L)\n        rev.reverse()\n        self.assertEqual(-31 not in L, True)\n        self.assertEqual(L[0] == 0, True)\n        self.assertEqual(len(L) == 5, True)\n        self.assertEqual(rev[::-1] == L, True)\n"
+  },
+  {
+   "name": "gen-str-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        w = 'alphagammabeta'\n        self.assertEqual(w.capitalize()[0] == 'A', True)\n        self.assertEqual(w[1:-1] == 'lphagammabet', True)\n        self.assertEqual(w.startswith('alpha'), True)\n        self.assertEqual(w.endswith('beta'), True)\n        self.assertEqual(w.title() == 'AlphaGammaBeta', False)\n        self.assertEqual('*'.join(w) == 'a*l*p*h*a*g*a*m*m*a*b*e*t*a', True)\n"
+  },
+  {
+   "name": "gen-bytes-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([199, 242, 146, 25, 215, 192])\n        self.assertEqual(B[1:3] == bytes([242, 146]), True)\n        self.assertEqual(B + B[-1:] == bytes([199, 242, 146, 25, 215, 192, 192]), True)\n        self.assertEqual(list(B[:3]) == [199, 242, 146], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == 'c7', True)\n"
+  },
+  {
+   "name": "gen-exc-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class MyErr(Exception): pass\n        class SubErr(MyErr): pass\n        hits = []\n        def pick():\n            try:\n                raise SubErr('sub')\n            except (KeyError, ValueError):\n                hits.append('kv')\n            except (SubErr, MyErr):\n                hits.append('mine')\n            return 'ok'\n        self.assertEqual(pick() == 'ok', True)\n        self.assertEqual(hits == ['mine'], True)\n        self.assertEqual(issubclass(SubErr, MyErr), True)\n"
+  },
+  {
+   "name": "gen-gen-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def countdown(t):\n            while t > 0:\n                got = yield t\n                t = (got if isinstance(got, int) else t) - 1\n            return 'zero'\n        it = countdown(3)\n        seq = []\n        seq.append(next(it))\n        while len(seq) < 3:\n            seq.append(it.send(seq[-1]))\n        def finish():\n            try:\n                it.send(seq[-1])\n            except StopIteration as e:\n                seq.append(e.value)\n        finish()\n        self.assertEqual(seq == [3, 2, 1, 'zero'], True)\n"
+  },
+  {
+   "name": "gen-comp-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        words = ['ab', 'cde', 'f']\n        lens = {w: len(w) for w in words}\n        self.assertEqual(lens['cde'] == 3, True)\n        self.assertEqual(len(list((a, b) for a in 'xy' for b in '12')) == 4, True)\n        self.assertEqual(sum(sum(row) for row in [[1, 2], [3, 4]]) == 10, True)\n        self.assertEqual([w.upper() for w in words if len(w) > 1] == ['AB', 'CDE'], True)\n"
+  },
+  {
+   "name": "gen-closure-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def make():\n            count = 2\n            def bump():\n                nonlocal count\n                count += 5\n                return count\n            return bump\n        b = make()\n        b2 = make()\n        self.assertEqual([b() for _ in range(3)] == [7, 12, 17], True)\n        self.assertEqual(b2() == 7, True)\n        self.assertEqual(b() == 22, True)\n"
+  },
+  {
+   "name": "gen-cons-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {'a': 35, 'b': 12, 'c': 24, 'd': 1}\n        self.assertEqual(min(d.values()) == 1, True)\n        self.assertEqual(max(d, key=d.get) == 'a', True)\n        self.assertEqual(repr({1: {2: [3, (4,)]}}) == \"{1: {2: [3, (4,)]}}\", True)\n        self.assertEqual(len(repr({1: {2: [3, (4,)]}})) > 10, True)\n"
+  },
+  {
+   "name": "gen-loop-003",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 9\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 4, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
+  },
+  {
+   "name": "gen-arith-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = int('0b101', 0)\n        self.assertEqual(a == int('0b101', 0), True)\n        self.assertEqual([bool(a > 0)] == [True], True)\n        self.assertEqual(complex(3, -4).real == 3, True)\n        self.assertEqual(complex(3, -4).imag == -4, True)\n        self.assertEqual(abs(complex(3, -4)) == 5.0, True)\n"
+  },
+  {
+   "name": "gen-cmp-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(-8 < -18 <= 2 == ((-8 < -18) and (-18 <= 2)), False)\n        self.assertEqual(-8 != -18 == (not -8 == -18), False)\n        self.assertEqual(1 < 2 == 2 < 3, True)\n        self.assertEqual(3 > 2 > 1 == 1, True)\n"
+  },
+  {
+   "name": "gen-dict-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {}\n        d[True] = 't'\n        d[1] = 'one'\n        d[71] = 'k0'\n        self.assertEqual(len(d) == len(list(d)), True)\n        self.assertEqual(d[True] == 'one', True)\n        self.assertEqual(d[71] == 'k0', True)\n        self.assertEqual(list(d)[-1] == 71, True)\n"
+  },
+  {
+   "name": "gen-set-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([7, 10, 25, 31, 38])\n        B = set([2, 4, 19, 27])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [2, 4, 7, 10, 19, 25, 27, 31, 38], True)\n        self.assertEqual(sorted(A ^ B) == [2, 4, 7, 10, 19, 25, 27, 31, 38], True)\n        self.assertEqual(sorted(A - B) == [7, 10, 25, 31, 38], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-6, 14, -50, 43, -34, -46, -1, 47]\n        self.assertEqual(sorted(L) == [-50, -46, -34, -6, -1, 14, 43, 47], True)\n        self.assertEqual(L.count(43) == 1, True)\n        self.assertEqual(L.index(43) == 3, True)\n        self.assertEqual(sorted(L, key=lambda x: (x < 0, abs(x))) == [14, 43, 47, -1, -6, -34, -46, -50], True)\n"
+  },
+  {
+   "name": "gen-str-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sp = '  gamma  '\n        self.assertEqual('%c' % 65 == 'A', True)\n        self.assertEqual('aB'.swapcase() == 'Ab', True)\n        self.assertEqual(sp.strip() == 'gamma', True)\n        self.assertEqual(sp.lstrip().rstrip() == sp.strip(), True)\n        self.assertEqual('ab'.partition('b')[0] == 'a', True)\n        self.assertEqual('a-b-c'.rsplit('-', 1) == ['a-b', 'c'], True)\n"
+  },
+  {
+   "name": "gen-bytes-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([57, 158, 163, 46, 174, 134])\n        self.assertEqual(B[1:3] == bytes([158, 163]), True)\n        self.assertEqual(B + B[-1:] == bytes([57, 158, 163, 46, 174, 134, 134]), True)\n        self.assertEqual(list(B[:3]) == [57, 158, 163], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '39', True)\n"
+  },
+  {
+   "name": "gen-exc-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        chain = []\n        def low():\n            raise ValueError('low')\n        def high():\n            try:\n                low()\n            except ValueError as e:\n                raise RuntimeError('high') from e\n        try_holder = []\n        def run_high():\n            try:\n                high()\n            except RuntimeError as e:\n                return (str(e), type(e.__cause__).__name__)\n        def ctx_probe():\n            try:\n                try:\n                    1 / 0\n                except ZeroDivisionError:\n                    raise KeyError('ctx')\n            except KeyError as e2:\n                return type(e2.__context__).__name__\n        self.assertEqual(run_high() == ('high', 'ValueError'), True)\n        self.assertEqual(ctx_probe() == 'ZeroDivisionError', True)\n"
+  },
+  {
+   "name": "gen-gen-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            yield 10\n            return\n            yield 20\n        it = g()\n        def stop_check():\n            try:\n                next(it)\n                return False\n            except StopIteration:\n                return True\n        closed = g()\n        self.assertEqual(next(it) == 10, True)\n        self.assertEqual(stop_check(), True)\n        self.assertEqual(closed.close() is None, True)\n"
+  },
+  {
+   "name": "gen-comp-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sq = [x * 2 for x in range(8)]\n        [leak for leak in [7]]\n        self.assertEqual(sq == [0, 2, 4, 6, 8, 10, 12, 14], True)\n        self.assertEqual('leak' in dir(), False)\n"
+  },
+  {
+   "name": "gen-closure-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def f(a, b=6, *, k=2, **rest):\n            return (a, b, k, sorted(rest.items()))\n        self.assertEqual(f(1)[0] == 1, True)\n        self.assertEqual(f(1)[1] == 6, True)\n        self.assertEqual(f(1, k=9)[2] == 9, True)\n        self.assertEqual(f(*[10, 20], **{'k': 30, 'extra': 1})[0] == 10, True)\n        self.assertEqual(dict(f(*[10], **{'extra': 1})[3]).get('extra') == 1, True)\n"
+  },
+  {
+   "name": "gen-cons-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [47, 16, 28, 7, 37, 33]\n        self.assertEqual(any(x % 2 for x in data) == True, True)\n        self.assertEqual(all(x > 0 for x in data), True)\n        self.assertEqual(list(enumerate(data, start=1))[0] == (1, 47), True)\n        self.assertEqual([a + b for a, b in zip(data, [43, 48, 27])][:3] == [90, 64, 55], True)\n        self.assertEqual(len(list(zip(data, range(99)))) == 6, True)\n"
+  },
+  {
+   "name": "gen-loop-004",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        seen = []\n        for j in range(6):\n            if j == 2:\n                continue\n            seen.append(j)\n        else:\n            seen.append('else')\n        w = 0\n        while True:\n            w += 1\n            if w >= 3:\n                break\n        self.assertEqual(seen == [0, 1, 3, 4, 5, 'else'], True)\n        self.assertEqual(w == 3, True)\n"
+  },
+  {
+   "name": "gen-arith-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 494608401274920976\n        b = 1011461157752116248\n        self.assertEqual((a ^ b) ^ b == a, True)\n        self.assertEqual((a | b) >= max(a, b), True)\n        self.assertEqual((a & b) <= min(a, b), True)\n        self.assertEqual(hash(a) == hash(int(repr(a))), True)\n        self.assertEqual(hash(-a) == hash(int(repr(-a))), True)\n"
+  },
+  {
+   "name": "gen-cmp-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(float('nan') == float('nan'), False)\n        self.assertEqual(float('nan') != float('nan'), True)\n        self.assertEqual(float('inf') > 10 ** 400, True)\n        self.assertEqual(-float('inf') < -10 ** 400, True)\n        self.assertEqual(float('-0.0') == 0, True)\n"
+  },
+  {
+   "name": "gen-dict-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = dict.fromkeys([185, 88, 108, 105, 155], 0)\n        d.setdefault(88, 99)\n        d.setdefault(88, 77)\n        d.update({108: 5})\n        k = d.pop(105)\n        self.assertEqual(d[88] == 99, False)\n        self.assertEqual(d[108] == 5, True)\n        self.assertEqual(k not in d, True)\n        self.assertEqual(d.get(155, 'dflt') == 'dflt', False)\n"
+  },
+  {
+   "name": "gen-set-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([1, 10, 32])\n        B = set([18, 33, 36])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [1, 10, 18, 32, 33, 36], True)\n        self.assertEqual(sorted(A ^ B) == [1, 10, 18, 32, 33, 36], True)\n        self.assertEqual(sorted(A - B) == [1, 10, 32], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-45, -27, -30, -10, 36, 19, -48, -50]\n        M = L[:]\n        L[1:9:3] = [0] * 3\n        del M[1:9]\n        self.assertEqual(L[1:9:3] == [-27, 36, -50], False)\n        self.assertEqual(len(L) >= 3, True)\n        self.assertEqual(M == [-45], True)\n"
+  },
+  {
+   "name": "gen-str-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'beta-gamma'\n        self.assertEqual(s.upper() == 'BETA-GAMMA', True)\n        self.assertEqual(s.split('-') == ['beta', 'gamma'], True)\n        self.assertEqual('-'.join(s.split('-')) == s, True)\n        self.assertEqual(s.replace('beta', 'X') == 'X-gamma', True)\n        self.assertEqual('beta'.ljust(12).strip() == 'beta', True)\n        self.assertEqual(s.find('gamma') == 5, True)\n"
+  },
+  {
+   "name": "gen-bytes-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([189, 172, 233, 68, 215, 235])\n        self.assertEqual(B[1:3] == bytes([172, 233]), True)\n        self.assertEqual(B + B[-1:] == bytes([189, 172, 233, 68, 215, 235, 235]), True)\n        self.assertEqual(list(B[:3]) == [189, 172, 233], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == 'bd', True)\n"
+  },
+  {
+   "name": "gen-exc-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        order = []\n        def probe():\n            order.append('try')\n            try:\n                raise KeyError('k')\n            except LookupError:\n                order.append('lookup')\n            finally:\n                order.append('fin')\n            return 'done'\n        self.assertEqual(probe() == 'done', True)\n        self.assertEqual(order == ['try', 'lookup', 'fin'], True)\n"
+  },
+  {
+   "name": "gen-gen-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            for j in range(2):\n                x = yield j * j\n                if x == 'halt':\n                    return 'stopped'\n            return 'done'\n        it = g()\n        self.assertEqual(next(it) == 0, True)\n        self.assertEqual([it.send('go') for _ in range(1)] == [1], True)\n        self.assertEqual(it.close() is None, True)\n"
+  },
+  {
+   "name": "gen-comp-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        dc = {k: k * 2 for k in range(3) if k % 2 == 0}\n        self.assertEqual(dc == {0: 0, 2: 4}, True)\n        self.assertEqual({k % 3 for k in range(6)} == {0, 1, 2}, True)\n        self.assertEqual(sum(k for k in range(3) if k != 0) == 3, True)\n"
+  },
+  {
+   "name": "gen-closure-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        fs = [lambda x=x: x + 5 for x in range(3)]\n        gs = [lambda: x for x in range(3)]\n        def outer():\n            acc = []\n            def add(v):\n                acc.append(v)\n            return add, acc\n        add_fn, acc_list = outer()\n        [add_fn(v) for v in range(5)]\n        self.assertEqual([fn() for fn in fs] == [5, 6, 7], True)\n        self.assertEqual(len({g() for g in gs}) == 1, True)\n        self.assertEqual(acc_list == [0, 1, 2, 3, 4], True)\n"
+  },
+  {
+   "name": "gen-cons-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [20, 11, 13, 24, 29, 7]\n        self.assertEqual(list(map(str, data[:2])) == ['20', '11'], True)\n        self.assertEqual(list(filter(lambda v: v % 2 == 0, data)) == [20, 24], True)\n        self.assertEqual(list(filter(None, [0, 1, '', 'a'])) == [1, 'a'], True)\n        self.assertEqual(sum(data, 0) == 104, True)\n"
+  },
+  {
+   "name": "gen-loop-005",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 37\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 4, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
+  },
+  {
+   "name": "gen-arith-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 649113124437468397026527320251571666599 * 1449670460 + -10\n        n = -649113124437468397026527320251571666599\n        self.assertEqual(divmod(a, 7)[0] * 7 + divmod(a, 7)[1] == a, True)\n        self.assertEqual(divmod(a, 7)[1] >= 0, True)\n        self.assertEqual(divmod(-a, 7)[1] >= 0, True)\n        self.assertEqual(divmod(-a, 7)[0] * 7 + divmod(-a, 7)[1] == -a, True)\n"
+  },
+  {
+   "name": "gen-cmp-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = 9007199254740992\n        b = float(a)\n        self.assertEqual(a == b, True)\n        self.assertEqual((a != b) == (not a == b), True)\n        self.assertEqual(isinstance(b, float), True)\n        self.assertEqual(int(b) == a, True)\n"
+  },
+  {
+   "name": "gen-dict-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {'a': 40, 'b': 72, 'c': 164, 'd': 121, 'e': 160}\n        ks = list(d.keys())\n        del d['c']\n        d[164] = 164\n        self.assertEqual(list(d.keys()) == ['a', 'b', 'd', 'e'], False)\n        self.assertEqual(list(d.keys())[-1] == 164, True)\n        self.assertEqual(sum(d.values()) == 557, True)\n"
+  },
+  {
+   "name": "gen-set-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([14, 16, 17, 36])\n        B = set([5, 17, 23, 36, 37, 39])\n        self.assertEqual(sorted(A & B) == [17, 36], True)\n        self.assertEqual(sorted(A | B) == [5, 14, 16, 17, 23, 36, 37, 39], True)\n        self.assertEqual(sorted(A ^ B) == [5, 14, 16, 23, 37, 39], True)\n        self.assertEqual(sorted(A - B) == [14, 16], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == False, True)\n"
+  },
+  {
+   "name": "gen-list-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a, *b, c = [-14, 24, 13, -38, -5, 41, -50, -21]\n        p, q = q, p = 1, 2\n        *mids, = b\n        self.assertEqual(b == [24, 13, -38, -5, 41, -50], True)\n        self.assertEqual(c == -21, True)\n        self.assertEqual(q == 2, False)\n        self.assertEqual(mids == [24, 13, -38, -5, 41, -50], True)\n"
+  },
+  {
+   "name": "gen-str-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        v = -1017\n        f = 78.2064\n        self.assertEqual('%d' % v == str(v), True)\n        self.assertEqual('%x' % 255 == 'ff', True)\n        self.assertEqual('%s|%' + '' if False else ('%s|%s' % ('alpha', v)) == 'alpha|-1017', True)\n        self.assertEqual('{}={}'.format('alpha', v) == 'alpha=-1017', True)\n        self.assertEqual('{nm}!'.format_map({'nm': 'gamma'}) == 'gamma!', True)\n"
+  },
+  {
+   "name": "gen-bytes-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([182, 115, 97, 53, 243, 79])\n        self.assertEqual(B[1:3] == bytes([115, 97]), True)\n        self.assertEqual(B + B[-1:] == bytes([182, 115, 97, 53, 243, 79, 79]), True)\n        self.assertEqual(list(B[:3]) == [182, 115, 97], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == 'b6', True)\n"
+  },
+  {
+   "name": "gen-exc-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        log = []\n        def fin_on_return():\n            try:\n                return 'try'\n            finally:\n                log.append('finally')\n        def nested():\n            log = []\n            try:\n                try:\n                    raise IndexError\n                finally:\n                    log.append('inner')\n            except IndexError:\n                log.append('outer')\n            return log\n        self.assertEqual(fin_on_return() == 'try', True)\n        self.assertEqual(log == ['finally'], True)\n        self.assertEqual(nested() == ['inner', 'outer'], True)\n"
+  },
+  {
+   "name": "gen-gen-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        log = []\n        def inner():\n            try:\n                yield 1\n                yield 2\n            finally:\n                log.append('ifin')\n        def outer():\n            yield from inner()\n            yield 3\n        it = outer()\n        def drain():\n            try:\n                next(it)\n            except StopIteration:\n                log.append('stop')\n        self.assertEqual([next(it), next(it), next(it)] == [1, 2, 3], True)\n        self.assertEqual(drain() is None, True)\n        self.assertEqual(log == ['ifin', 'stop'], True)\n"
+  },
+  {
+   "name": "gen-comp-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        mat = [[r * 4 + cc for cc in range(3)] for r in range(3)]\n        flat = [cell for row in mat for cell in row]\n        self.assertEqual(flat == [0, 1, 2, 4, 5, 6, 8, 9, 10], True)\n        self.assertEqual([mat[r][r] for r in range(3)] == [0, 5, 10], True)\n        self.assertEqual(all(isinstance(row, list) for row in mat), True)\n"
+  },
+  {
+   "name": "gen-closure-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def make():\n            count = 1\n            def bump():\n                nonlocal count\n                count += 3\n                return count\n            return bump\n        b = make()\n        b2 = make()\n        self.assertEqual([b() for _ in range(3)] == [4, 7, 10], True)\n        self.assertEqual(b2() == 4, True)\n        self.assertEqual(b() == 13, True)\n"
+  },
+  {
+   "name": "gen-cons-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        short = []\n        def boom():\n            short.append('called')\n            return True\n        ans = False and boom()\n        self.assertEqual(short == [], True)\n        self.assertEqual(ans is False, True)\n        self.assertEqual((True or boom()) is True, True)\n        self.assertEqual(short == [], True)\n"
+  },
+  {
+   "name": "gen-loop-006",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        seen = []\n        for j in range(5):\n            if j == 4:\n                continue\n            seen.append(j)\n        else:\n            seen.append('else')\n        w = 0\n        while True:\n            w += 1\n            if w >= 5:\n                break\n        self.assertEqual(seen == [0, 1, 2, 3, 'else'], True)\n        self.assertEqual(w == 5, True)\n"
+  },
+  {
+   "name": "gen-arith-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        p = pow(29, 4, 65537)\n        x = -360\n        self.assertEqual(p == (29 ** 4) % 65537, True)\n        self.assertEqual(~x == -x - 1, True)\n        self.assertEqual((29 << 3) >> 3 == 29, True)\n        self.assertEqual((29 >> 2) == (29 // 4) if 29 >= 0 else True, True)\n"
+  },
+  {
+   "name": "gen-cmp-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class R():\n            def __init__(me, v): me.v = v\n            def __eq__(me, o): return me.v == getattr(o, 'v', None)\n            def __lt__(me, o): return me.v < o.v\n            def __le__(me, o): return me.v <= o.v\n        xs = [R(3), R(1), R(2)]\n        self.assertEqual(sorted([x.v for x in xs]) == [1, 2, 3], True)\n        self.assertEqual(R(1) == R(1), True)\n        self.assertEqual(R(1) == 1, False)\n        self.assertEqual(max(xs, key=lambda x: x.v).v == 3, True)\n        self.assertEqual(min(xs, key=lambda x: x.v).v == 1, True)\n"
+  },
+  {
+   "name": "gen-dict-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d1 = {'a': 181, 'b': 33, 'c': 167}\n        d2 = {'b': 167, 'c': 93, 'd': 163}\n        view = d1.keys() | d2.keys()\n        self.assertEqual(len(view) == 4, True)\n        self.assertEqual((view & d1.keys()) == d1.keys(), True)\n        self.assertEqual((d1 | d2) == {'a': 181, 'b': 167, 'c': 167, 'd': 93}, False)\n"
+  },
+  {
+   "name": "gen-set-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([4, 8, 21, 25])\n        B = set([5, 29, 31, 36, 37, 38])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [4, 5, 8, 21, 25, 29, 31, 36, 37, 38], True)\n        self.assertEqual(sorted(A ^ B) == [4, 5, 8, 21, 25, 29, 31, 36, 37, 38], True)\n        self.assertEqual(sorted(A - B) == [4, 8, 21, 25], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [30, 3, 31, -18, -5]\n        L.remove(31)\n        L.insert(0, -2)\n        L.extend([])\n        rev = list(L)\n        rev.reverse()\n        self.assertEqual(31 not in L, True)\n        self.assertEqual(L[0] == -2, True)\n        self.assertEqual(len(L) == 5, True)\n        self.assertEqual(rev[::-1] == L, True)\n"
+  },
+  {
+   "name": "gen-str-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        tbl = str.maketrans('abc', 'xyz', 'd')\n        self.assertEqual('abcd'.translate(tbl) == 'xyz', True)\n        self.assertEqual('\\t'.expandtabs(8) == ' ' * 8, True)\n        self.assertEqual(ord('\\u00e9') == 233, True)\n        self.assertEqual(chr(20013) == '\\u4e2d', True)\n        self.assertEqual('gamma'.encode('utf-8').decode() == 'gamma', True)\n        self.assertEqual(bytes('gamma', 'ascii').isascii(), True)\n"
+  },
+  {
+   "name": "gen-bytes-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([204, 190, 131, 250, 121, 147])\n        self.assertEqual(B[1:3] == bytes([190, 131]), True)\n        self.assertEqual(B + B[-1:] == bytes([204, 190, 131, 250, 121, 147, 147]), True)\n        self.assertEqual(list(B[:3]) == [204, 190, 131], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == 'cc', True)\n"
+  },
+  {
+   "name": "gen-exc-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def reraise():\n            caught = None\n            try:\n                try:\n                    raise TypeError('orig')\n                except TypeError as e:\n                    caught = type(e).__name__\n                    raise\n            except TypeError as e2:\n                return (caught, str(e2))\n        def nm():\n            try:\n                undefined_xyzzy_42\n            except NameError:\n                return 'ne'\n        self.assertEqual(reraise() == ('TypeError', 'orig'), True)\n        self.assertEqual(nm() == 'ne', True)\n"
+  },
+  {
+   "name": "gen-gen-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            try:\n                yield 'a'\n                yield 'b'\n            except ValueError as e:\n                yield 'caught:' + str(e)\n                yield 'after'\n        it = g()\n        self.assertEqual(next(it) == 'a', True)\n        self.assertEqual(it.throw(ValueError('boom')) == 'caught:boom', True)\n        self.assertEqual(next(it) == 'after', True)\n"
+  },
+  {
+   "name": "gen-comp-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        words = ['ab', 'cde', 'f']\n        lens = {w: len(w) for w in words}\n        self.assertEqual(lens['cde'] == 3, True)\n        self.assertEqual(len(list((a, b) for a in 'xy' for b in '12')) == 4, True)\n        self.assertEqual(sum(sum(row) for row in [[1, 2], [3, 4]]) == 10, True)\n        self.assertEqual([w.upper() for w in words if len(w) > 1] == ['AB', 'CDE'], True)\n"
+  },
+  {
+   "name": "gen-closure-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def f(a, b=10, *, k=3, **rest):\n            return (a, b, k, sorted(rest.items()))\n        self.assertEqual(f(1)[0] == 1, True)\n        self.assertEqual(f(1)[1] == 10, True)\n        self.assertEqual(f(1, k=9)[2] == 9, True)\n        self.assertEqual(f(*[10, 20], **{'k': 30, 'extra': 1})[0] == 10, True)\n        self.assertEqual(dict(f(*[10], **{'extra': 1})[3]).get('extra') == 1, True)\n"
+  },
+  {
+   "name": "gen-cons-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {'a': 26, 'b': 6, 'c': 30, 'd': 59}\n        self.assertEqual(min(d.values()) == 6, True)\n        self.assertEqual(max(d, key=d.get) == 'd', True)\n        self.assertEqual(repr({1: {2: [3, (4,)]}}) == \"{1: {2: [3, (4,)]}}\", True)\n        self.assertEqual(len(repr({1: {2: [3, (4,)]}})) > 10, True)\n"
+  },
+  {
+   "name": "gen-loop-007",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 13\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 9, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
+  },
+  {
+   "name": "gen-arith-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        f = -14 / 16\n        fl = -14 // 16\n        m = -14 % 16\n        self.assertEqual(fl * 16 + m == -14, True)\n        self.assertEqual(m == 0 or (m > 0) != (16 < 0), True)\n        self.assertEqual(divmod(-14, 16)[1] == m, True)\n        self.assertEqual(round(f, 6) == round(-14 / 16, 6), True)\n"
+  },
+  {
+   "name": "gen-cmp-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(19 < 3 <= -12 == ((19 < 3) and (3 <= -12)), False)\n        self.assertEqual(19 != 3 == (not 19 == 3), False)\n        self.assertEqual(1 < 2 == 2 < 3, True)\n        self.assertEqual(3 > 2 > 1 == 1, True)\n"
+  },
+  {
+   "name": "gen-dict-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {}\n        d[True] = 't'\n        d[1] = 'one'\n        d[156] = 'k0'\n        self.assertEqual(len(d) == len(list(d)), True)\n        self.assertEqual(d[True] == 'one', True)\n        self.assertEqual(d[156] == 'k0', True)\n        self.assertEqual(list(d)[-1] == 156, True)\n"
+  },
+  {
+   "name": "gen-set-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([0, 10, 16])\n        B = set([1, 4, 11, 19, 33, 36])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [0, 1, 4, 10, 11, 16, 19, 33, 36], True)\n        self.assertEqual(sorted(A ^ B) == [0, 1, 4, 10, 11, 16, 19, 33, 36], True)\n        self.assertEqual(sorted(A - B) == [0, 10, 16], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-42, 2, 26, 42, -6, 31, -4, -10]\n        self.assertEqual(sorted(L) == [-42, -10, -6, -4, 2, 26, 31, 42], True)\n        self.assertEqual(L.count(42) == 1, True)\n        self.assertEqual(L.index(42) == 3, True)\n        self.assertEqual(sorted(L, key=lambda x: (x < 0, abs(x))) == [2, 26, 31, 42, -4, -6, -10, -42], True)\n"
+  },
+  {
+   "name": "gen-str-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        w = 'deltaalphabeta'\n        self.assertEqual(w.capitalize()[0] == 'D', True)\n        self.assertEqual(w[1:-1] == 'eltaalphabet', True)\n        self.assertEqual(w.startswith('delta'), True)\n        self.assertEqual(w.endswith('beta'), True)\n        self.assertEqual(w.title() == 'DeltaAlphaBeta', False)\n        self.assertEqual('*'.join(w) == 'd*e*l*t*a*a*l*p*h*a*b*e*t*a', True)\n"
+  },
+  {
+   "name": "gen-bytes-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([16, 170, 254, 169, 51, 195])\n        self.assertEqual(B[1:3] == bytes([170, 254]), True)\n        self.assertEqual(B + B[-1:] == bytes([16, 170, 254, 169, 51, 195, 195]), True)\n        self.assertEqual(list(B[:3]) == [16, 170, 254], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '10', True)\n"
+  },
+  {
+   "name": "gen-exc-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class MyErr(Exception): pass\n        class SubErr(MyErr): pass\n        hits = []\n        def pick():\n            try:\n                raise SubErr('sub')\n            except (KeyError, ValueError):\n                hits.append('kv')\n            except (SubErr, MyErr):\n                hits.append('mine')\n            return 'ok'\n        self.assertEqual(pick() == 'ok', True)\n        self.assertEqual(hits == ['mine'], True)\n        self.assertEqual(issubclass(SubErr, MyErr), True)\n"
+  },
+  {
+   "name": "gen-gen-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def countdown(t):\n            while t > 0:\n                got = yield t\n                t = (got if isinstance(got, int) else t) - 1\n            return 'zero'\n        it = countdown(3)\n        seq = []\n        seq.append(next(it))\n        while len(seq) < 3:\n            seq.append(it.send(seq[-1]))\n        def finish():\n            try:\n                it.send(seq[-1])\n            except StopIteration as e:\n                seq.append(e.value)\n        finish()\n        self.assertEqual(seq == [3, 2, 1, 'zero'], True)\n"
+  },
+  {
+   "name": "gen-comp-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sq = [x * 3 for x in range(6)]\n        [leak for leak in [7]]\n        self.assertEqual(sq == [0, 3, 6, 9, 12, 15], True)\n        self.assertEqual('leak' in dir(), False)\n"
+  },
+  {
+   "name": "gen-closure-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        fs = [lambda x=x: x + 1 for x in range(3)]\n        gs = [lambda: x for x in range(3)]\n        def outer():\n            acc = []\n            def add(v):\n                acc.append(v)\n            return add, acc\n        add_fn, acc_list = outer()\n        [add_fn(v) for v in range(1)]\n        self.assertEqual([fn() for fn in fs] == [1, 2, 3], True)\n        self.assertEqual(len({g() for g in gs}) == 1, True)\n        self.assertEqual(acc_list == [0], True)\n"
+  },
+  {
+   "name": "gen-cons-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [2, 52, 33, 20, 7, 19]\n        self.assertEqual(any(x % 2 for x in data) == True, True)\n        self.assertEqual(all(x > 0 for x in data), True)\n        self.assertEqual(list(enumerate(data, start=1))[0] == (1, 2), True)\n        self.assertEqual([a + b for a, b in zip(data, [37, 59, 4])][:3] == [39, 111, 37], True)\n        self.assertEqual(len(list(zip(data, range(99)))) == 6, True)\n"
+  },
+  {
+   "name": "gen-loop-008",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        seen = []\n        for j in range(4):\n            if j == 1:\n                continue\n            seen.append(j)\n        else:\n            seen.append('else')\n        w = 0\n        while True:\n            w += 1\n            if w >= 2:\n                break\n        self.assertEqual(seen == [0, 2, 3, 'else'], True)\n        self.assertEqual(w == 2, True)\n"
+  },
+  {
+   "name": "gen-arith-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        v = 1038959234509113785504041014\n        self.assertEqual(abs(-v) == v, True)\n        self.assertEqual(round(v / 3) * 3 <= v + 2, True)\n        self.assertEqual(int.from_bytes(v.to_bytes(12, 'little'), 'little') == v, True)\n        self.assertEqual(v.bit_length() > 60, True)\n"
+  },
+  {
+   "name": "gen-cmp-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual(float('nan') == float('nan'), False)\n        self.assertEqual(float('nan') != float('nan'), True)\n        self.assertEqual(float('inf') > 10 ** 400, True)\n        self.assertEqual(-float('inf') < -10 ** 400, True)\n        self.assertEqual(float('-0.0') == 0, True)\n"
+  },
+  {
+   "name": "gen-dict-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = dict.fromkeys([55, 118, 129, 29, 67], 0)\n        d.setdefault(118, 99)\n        d.setdefault(118, 77)\n        d.update({129: 5})\n        k = d.pop(29)\n        self.assertEqual(d[118] == 99, False)\n        self.assertEqual(d[129] == 5, True)\n        self.assertEqual(k not in d, True)\n        self.assertEqual(d.get(67, 'dflt') == 'dflt', False)\n"
+  },
+  {
+   "name": "gen-set-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        A = set([1, 8, 9, 10, 11, 16])\n        B = set([4, 5, 15, 19, 21, 31])\n        self.assertEqual(sorted(A & B) == [], True)\n        self.assertEqual(sorted(A | B) == [1, 4, 5, 8, 9, 10, 11, 15, 16, 19, 21, 31], True)\n        self.assertEqual(sorted(A ^ B) == [1, 4, 5, 8, 9, 10, 11, 15, 16, 19, 21, 31], True)\n        self.assertEqual(sorted(A - B) == [1, 8, 9, 10, 11, 16], True)\n        self.assertEqual((A <= A), True)\n        self.assertEqual(A.isdisjoint(B) == True, True)\n"
+  },
+  {
+   "name": "gen-list-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        L = [-46, -50, -8, -21, 13, -8, -14, -48]\n        M = L[:]\n        L[1:2:1] = [0] * 1\n        del M[1:2]\n        self.assertEqual(L[1:2:1] == [-50], False)\n        self.assertEqual(len(L) >= 1, True)\n        self.assertEqual(M == [-46, -8, -21, 13, -8, -14, -48], True)\n"
+  },
+  {
+   "name": "gen-str-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sp = '  delta  '\n        self.assertEqual('%c' % 65 == 'A', True)\n        self.assertEqual('aB'.swapcase() == 'Ab', True)\n        self.assertEqual(sp.strip() == 'delta', True)\n        self.assertEqual(sp.lstrip().rstrip() == sp.strip(), True)\n        self.assertEqual('ab'.partition('b')[0] == 'a', True)\n        self.assertEqual('a-b-c'.rsplit('-', 1) == ['a-b', 'c'], True)\n"
+  },
+  {
+   "name": "gen-bytes-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        B = bytes([143, 52, 14, 56, 238, 211])\n        self.assertEqual(B[1:3] == bytes([52, 14]), True)\n        self.assertEqual(B + B[-1:] == bytes([143, 52, 14, 56, 238, 211, 211]), True)\n        self.assertEqual(list(B[:3]) == [143, 52, 14], True)\n        self.assertEqual(bytes.maketrans(b'ab', b'XY') is not None or True, True)\n        self.assertEqual(b'abc'.translate(bytes.maketrans(b'ab', b'XY'), delete=b'c') == b'XY', True)\n        self.assertEqual(B.hex()[:2] == '8f', True)\n"
+  },
+  {
+   "name": "gen-exc-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        chain = []\n        def low():\n            raise ValueError('low')\n        def high():\n            try:\n                low()\n            except ValueError as e:\n                raise RuntimeError('high') from e\n        try_holder = []\n        def run_high():\n            try:\n                high()\n            except RuntimeError as e:\n                return (str(e), type(e.__cause__).__name__)\n        def ctx_probe():\n            try:\n                try:\n                    1 / 0\n                except ZeroDivisionError:\n                    raise KeyError('ctx')\n            except KeyError as e2:\n                return type(e2.__context__).__name__\n        self.assertEqual(run_high() == ('high', 'ValueError'), True)\n        self.assertEqual(ctx_probe() == 'ZeroDivisionError', True)\n"
+  },
+  {
+   "name": "gen-gen-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            yield 10\n            return\n            yield 20\n        it = g()\n        def stop_check():\n            try:\n                next(it)\n                return False\n            except StopIteration:\n                return True\n        closed = g()\n        self.assertEqual(next(it) == 10, True)\n        self.assertEqual(stop_check(), True)\n        self.assertEqual(closed.close() is None, True)\n"
+  },
+  {
+   "name": "gen-comp-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        dc = {k: k * 3 for k in range(5) if k % 2 == 0}\n        self.assertEqual(dc == {0: 0, 2: 6, 4: 12}, True)\n        self.assertEqual({k % 3 for k in range(10)} == {0, 1, 2}, True)\n        self.assertEqual(sum(k for k in range(5) if k != 0) == 10, True)\n"
+  },
+  {
+   "name": "gen-closure-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def make():\n            count = -10\n            def bump():\n                nonlocal count\n                count += 5\n                return count\n            return bump\n        b = make()\n        b2 = make()\n        self.assertEqual([b() for _ in range(3)] == [-5, 0, 5], True)\n        self.assertEqual(b2() == -5, True)\n        self.assertEqual(b() == 10, True)\n"
+  },
+  {
+   "name": "gen-cons-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = [8, 42, 6, 41, 7, 3]\n        self.assertEqual(list(map(str, data[:2])) == ['8', '42'], True)\n        self.assertEqual(list(filter(lambda v: v % 2 == 0, data)) == [8, 42, 6], True)\n        self.assertEqual(list(filter(None, [0, 1, '', 'a'])) == [1, 'a'], True)\n        self.assertEqual(sum(data, 8) == 115, True)\n"
+  },
+  {
+   "name": "gen-loop-009",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 30\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 0, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
   }
  ]
 }
