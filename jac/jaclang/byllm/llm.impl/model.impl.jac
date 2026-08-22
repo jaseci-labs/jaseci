@@ -29,6 +29,9 @@ impl Model.postinit -> None {
                 _disable_debugging();
             }
             litellm.drop_params = _litellm_config.get("drop_params", True);
+            litellm.include_cost_in_streaming_usage = _litellm_config.get(
+                "include_cost_in_streaming_usage", True
+            );
         }
 
         native_override = self.config.get(

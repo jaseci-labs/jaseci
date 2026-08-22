@@ -265,6 +265,11 @@ def _litellm_ctx_window(model_name: str) -> int {
 }
 
 
+def _existing_cost(usage_obj: object) -> object {
+    return (usage_obj.get("cost") if isinstance(usage_obj, dict) else usage_obj?.cost);
+}
+
+
 def _attach_call_cost(
     usage_obj: object, model_name: str, response: object = None
 ) -> None {
@@ -274,6 +279,9 @@ def _attach_call_cost(
             or _usage_int(usage_obj, "completion_tokens")
             or _usage_int(usage_obj, "total_tokens")
         ) {
+        return;
+    }
+    if _existing_cost(usage_obj) is not None {
         return;
     }
     try {

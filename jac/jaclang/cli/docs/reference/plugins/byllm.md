@@ -494,6 +494,7 @@ max_output_retries = 3            # Retries for structured output (0 = disabled)
 local_cost_map = true             # Use local cost map
 drop_params = true                # Drop unsupported params per provider
 debug = false                     # Enable verbose LiteLLM logging
+include_cost_in_streaming_usage = true  # Let LiteLLM compute cost on streaming usage chunks
 
 [byllm.fallback]
 strategy = "fallback"             # Default ModelPool routing strategy
@@ -539,6 +540,7 @@ compaction_model       = ""       # Empty = copy of the active model; set to use
 | `local_cost_map` | bool | `true` | Use local cost map instead of fetching from remote |
 | `drop_params` | bool | `true` | Silently drop parameters unsupported by the chosen provider |
 | `debug` | bool | `false` | Enable verbose LiteLLM logging (HTTP requests, retries, headers). When `false`, LiteLLM's internal loggers are silenced. Exceptions are always logged via byLLM's own logger regardless of this setting |
+| `include_cost_in_streaming_usage` | bool | `true` | Let LiteLLM compute `cost` on a streamed usage chunk itself, from its own full response context, instead of byLLM recomputing it afterward from a bare `{model, usage}` shape. Has no effect below litellm 1.75.2, where the underlying flag doesn't exist |
 
 **`[byllm.parallel]` options:**
 
