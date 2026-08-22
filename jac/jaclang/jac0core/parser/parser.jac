@@ -332,9 +332,8 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
          TokenKind.D_LBRACE: Tok.D_LBRACE.value,
          TokenKind.D_RBRACE: Tok.D_RBRACE.value,
          TokenKind.EOF: "EOF"
-     };
-
-glob _BUILTIN_TYPE_KINDS: frozenset[TokenKind] = frozenset(
+     },
+     _BUILTIN_TYPE_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.TYP_STRING,
              TokenKind.TYP_INT,
@@ -358,9 +357,8 @@ glob _BUILTIN_TYPE_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.TYP_F32,
              TokenKind.TYP_F64
          }
-     );
-
-glob _KEYWORD_KINDS: frozenset[TokenKind] = frozenset(
+     ),
+     _KEYWORD_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.KW_ABSTRACT,
              TokenKind.KW_OBJECT,
@@ -437,9 +435,8 @@ glob _KEYWORD_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.KW_SUPER
          }
      )
-         | _BUILTIN_TYPE_KINDS;
-
-glob _AUG_ASSIGN_KINDS: frozenset[TokenKind] = frozenset(
+         | _BUILTIN_TYPE_KINDS,
+     _AUG_ASSIGN_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.ADD_EQ,
              TokenKind.SUB_EQ,
@@ -455,9 +452,8 @@ glob _AUG_ASSIGN_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.LSHIFT_EQ,
              TokenKind.RSHIFT_EQ
          }
-     );
-
-glob _COMPARE_KINDS: frozenset[TokenKind] = frozenset(
+     ),
+     _COMPARE_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.EE,
              TokenKind.NE,
@@ -470,9 +466,8 @@ glob _COMPARE_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.KW_NIN,
              TokenKind.KW_ISN
          }
-     );
-
-glob _FSTRING_START_KINDS: frozenset[TokenKind] = frozenset(
+     ),
+     _FSTRING_START_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.F_DQ_START,
              TokenKind.F_SQ_START,
@@ -483,9 +478,8 @@ glob _FSTRING_START_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.RF_TDQ_START,
              TokenKind.RF_TSQ_START
          }
-     );
-
-glob _SYNC_BOUNDARY_KINDS: frozenset[TokenKind] = frozenset(
+     ),
+     _SYNC_BOUNDARY_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.KW_IF,
              TokenKind.KW_WHILE,
@@ -515,9 +509,8 @@ glob _SYNC_BOUNDARY_KINDS: frozenset[TokenKind] = frozenset(
              TokenKind.RBRACE,
              TokenKind.SEMI
          }
-     );
-
-glob _IMPL_SPECIAL_NAME_KINDS: frozenset[TokenKind] = frozenset(
+     ),
+     _IMPL_SPECIAL_NAME_KINDS: frozenset[TokenKind] = frozenset(
          {
              TokenKind.KW_ENTRY,
              TokenKind.KW_EXIT,
