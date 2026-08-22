@@ -28,6 +28,14 @@ Evidence pin: `pin-item19-range-identity` (RED) - expects `type(r).__name__
 == 'range'`, `(r.start, r.stop, r.step) == (2, 20, 3)`,
 `r[2:8:2] == range(8, 14, 6)`.
 
+PIN CORRECTION (IronArrow review, host-verified by YoungHawk): the pin's
+slice expectation is WRONG against real CPython. Host oracle:
+`range(2,20,3)[2:8:2] == range(8, 20, 6)` (slice stop clamps to the
+underlying range's stop, not naive slice-stop arithmetic).
+`range(8,14,6)` has len 1 vs actual len 2 - not equal under any comparison.
+The pin file (BrightTiger lane) needs `range(8, 14, 6)` -> `range(8, 20, 6)`
+BEFORE implementation, or the differential gate chases a phantom.
+
 ## Target design
 
 **Option A (recommended): native `PyRange` heap type + bridge arms both ways.**
@@ -95,10 +103,14 @@ Falsifiable checks:
 
 ### Phase 2 - surface completion
 
-Slice arithmetic returning PyRange (`r[2:8:2] == range(8,14,6)` is actually
-pin-covered - if trivially reachable in phase 1, fold it in), `.index()/
+Slice arithmetic returning PyRange (`r[2:8:2] == range(8,20,6)` per corrected
+expectation; if trivially reachable in phase 1, fold it in), `.index()/
 .count()`, hash/hashkey (dict-key support: new `"r:"` prefix family alongside
-"n:"/"obj:"/"host:", value-hashed like CPython's range hash).
+"n:"/"obj:"/"host:"). Hash formula is EXACTLY CPython's:
+`hash((len(r), r.start, r.step))` - hash of the (length, start, step) triple,
+NOT of (start, stop, step). Host-verified.
+Q2 resolved: phase 2 firmly - the "r:" prefix touches shared dispatch tables
+used by every container op; wants its own corpus run, not a P1 rider.
 
 ## Risks / invariants
 
@@ -110,6 +122,29 @@ pin-covered - if trivially reachable in phase 1, fold it in), `.index()/
   implementation lands only after they release. Their work may also touch the
   `_py_container_del` routing near my edit sites - rebase carefully.
 - Shared-tree hygiene: surgical staging, commit within minutes of verify.
+- Consumer-matrix interaction (UltraJaguar): once from_host stops
+  materializing, lifted stdlib code that SAW a PyList from a bridged host
+  range now sees PyRange. pin-item5-consumers-matrix is currently red with an
+  in-flight consumer rewire - sequence this landing against that rewire or
+  red-set movement gets joint triage.
+
+## Accepted deviations (ledger-style, so nobody rediscovers them as bugs)
+
+- D-RANGE-ID: to_host builds a NEW host range per bridge crossing, so guest
+  <-> host identity round-trips break (`is` across the boundary). Pure-host
+  range identity is not stable/meaningful either. Mirrors decisions D01/D02.
+- Setattr on .start/.stop/.step raises AttributeError ('readonly attribute'),
+  byte-matching CPython (host-verified).
+
+## Review verdicts (2026-08-22)
+
+- IronArrow (integrator fresh-eyes): APPROVE WITH CORRECTIONS - both folded
+  in (pin slice fix above, hash formula above); sign-off granted for
+  phasing/blast-radius, corpus re-run gate confirmed as containment.
+- UltraJaguar (BrightTiger continuity): APPROVE, full technical sign-off;
+  all factual claims verified against code (branch at :1741, leaf helpers,
+  interception precedent at :3751, colocation precedent). Go/no-go rests with
+  the USER (ownership parked pre-crash); verification half done.
 
 ## Non-goals
 
@@ -117,11 +152,10 @@ pin-covered - if trivially reachable in phase 1, fold it in), `.index()/
 - No range subclassing support beyond `to_index` unwrapping of boxed ints.
 - Not touching compiler_codegen/emit/annotations (QuickBear lane).
 
-## Open questions for reviewers
+## Open questions - RESOLVED
 
-1. UltraJaguar as combined design-judgment + verification sign-off acceptable,
-   or hold for a GoldLion successor?
-2. Hash/dict-key support: phase 1 or phase 2? (CPython parity says eventually;
-   corpus pressure says defer.)
-3. PyRangeIter via explicit `send_into` arm vs `__next__`-through-getattro tail
-   branch - reviewer preference on which reads better?
+1. Sign-off: UltraJaguar full technical approval; USER holds go/no-go
+   (ownership parked pre-crash).
+2. Hash/dict-key: phase 2, firmly.
+3. Iterator cursor: explicit send_into arm (hot-loop path, no per-next()
+   getattro indirection).
