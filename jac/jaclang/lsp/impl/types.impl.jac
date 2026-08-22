@@ -2,7 +2,7 @@ impl Position.__repr__ -> str {
     return f"{self.line}:{self.character}";
 }
 
-impl Position.__eq__(other: object) -> bool {
+impl Position.__eq__(other: object) -> (bool | pytypes.NotImplementedType) {
     if isinstance(other, Position) {
         return self.line == other.line and self.character == other.character;
     }
@@ -17,7 +17,7 @@ impl Range.__repr__ -> str {
     return f"{self.start!r}-{self.end!r}";
 }
 
-impl Range.__eq__(other: object) -> bool {
+impl Range.__eq__(other: object) -> (bool | pytypes.NotImplementedType) {
     if isinstance(other, Range) {
         return self.start == other.start and self.end == other.end;
     }

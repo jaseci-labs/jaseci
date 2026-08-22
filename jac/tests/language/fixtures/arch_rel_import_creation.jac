@@ -10,15 +10,17 @@ here ++> UtilityNode(data=42);
 visit [-->][?:UtilityNode];
 }
 
-def UtilityNode {
-here.display_data();
+can handle with UtilityNode entry {
 }
 }
 """;
 
+import os;
 with entry {
     node_arch = JacRuntime.create_archetype_from_source(
-        dynamic_module_source, module_name="dynamic_module"
+        dynamic_module_source,
+        module_name="dynamic_module",
+        base_path=os.path.dirname(os.path.abspath(__file__))
     );
     walker_obj = JacRuntime.spawn_walker(
         'DynamicWalker', module_name="dynamic_module",

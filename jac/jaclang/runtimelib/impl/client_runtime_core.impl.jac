@@ -18,48 +18,57 @@ impl __createJacSchema(zodLib: any) -> any {
 }
 
 impl __getApiBaseUrl -> str {
-    return globalThis.__JAC_API_BASE_URL__ or "";
+    base: any = globalThis.__JAC_API_BASE_URL__;
+    return base or "";
 }
 
 impl __getEndpointEffects -> dict {
-    if not globalThis.__jacEndpointEffects__ {
-        initEl = None;
+    effects: any = globalThis.__jacEndpointEffects__;
+    if effects {
+        return effects;
+    }
+    initText: (str | None) = None;
 
-        if globalThis.document {
-            try {
-                initEl = document.getElementById("__jac_init__");
-            } except Exception as e {
-                console.warn("[jac-client] Failed to find __jac_init__ element:", e);
+    if globalThis.document {
+        try {
+            initEl = document.getElementById("__jac_init__");
+            if isinstance(initEl, HTMLElement) {
+                initText = initEl.textContent;
             }
-        }
-        if initEl {
-            try {
-                data = JSON.parse(initEl.textContent);
-                globalThis.__jacEndpointEffects__ = data["endpointEffects"] or {};
-            } except Exception as e {
-                console.warn(
-                    "[jac-client] Failed to parse __jac_init__ data, using empty effects:",
-                    e
-                );
-                globalThis.__jacEndpointEffects__ = {};
-            }
-        } else {
-            globalThis.__jacEndpointEffects__ = {};
+        } except Exception as e {
+            console.warn("[jac-client] Failed to find __jac_init__ element:", e);
         }
     }
-    return globalThis.__jacEndpointEffects__;
+    if initText {
+        try {
+            data: any = JSON.parse(initText);
+            effects = data["endpointEffects"] or {};
+        } except Exception as e {
+            console.warn(
+                "[jac-client] Failed to parse __jac_init__ data, using empty effects:",
+                e
+            );
+            effects = {};
+        }
+    } else {
+        effects = {};
+    }
+    globalThis.__jacEndpointEffects__ = effects;
+    return effects;
 }
 
 impl __getCacheState -> dict {
-    if not globalThis.__jacCacheState__ {
-        globalThis.__jacCacheState__ = {
+    state: any = globalThis.__jacCacheState__;
+    if not state {
+        state = {
             "cache": {},
             "order": [],
             "pending": {},
             "config": {"maxEntries": 500, "defaultTtlMs": 60000}
         };
+        globalThis.__jacCacheState__ = state;
     }
-    return globalThis.__jacCacheState__;
+    return state;
 }
 
 impl __isFresh(`entry: dict) -> bool {
@@ -70,10 +79,10 @@ impl __isFresh(`entry: dict) -> bool {
     return age < `entry["ttl"];
 }
 
-impl __cacheGet(key: str) -> dict {
+impl __cacheGet(key: str) -> dict | None {
     state = __getCacheState();
-    entry = state["cache"][key];
-    if not entry {
+    `entry = state["cache"][key];
+    if not `entry {
         return None;
     }
 
@@ -82,7 +91,7 @@ impl __cacheGet(key: str) -> dict {
         state["order"].splice(idx, 1);
     }
     state["order"].push(key);
-    return entry;
+    return `entry;
 }
 
 impl __cacheSet(key: str, data: any, ttl: int) -> None {
@@ -112,9 +121,9 @@ impl __evictOldest -> None {
     }
 }
 
-impl __overlaps(list1: list, list2: list) -> bool {
+impl __overlaps(list1: list[str], list2: list[str]) -> bool {
     for item in list1 {
-        if list2.includes(item) {
+        if item in list2 {
             return True;
         }
     }
@@ -125,8 +134,8 @@ impl __invalidateEndpoint(endpoint_key: str) -> None {
     state = __getCacheState();
     keys_to_delete = [];
     for key in Object.keys(state["cache"]) {
-        if key.startsWith(endpoint_key) {
-            keys_to_delete.push(key);
+        if key.startswith(endpoint_key) {
+            keys_to_delete.append(key);
         }
     }
     for key in keys_to_delete {
@@ -201,6 +210,11 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("function", function_name, "", args);
         if not response["ok"] {
+            if response["status"] == 401 {
+                __removeLocalStorage("jac_token");
+                window.location.reload();
+                return {};
+            }
             raise Exception(
                 f"Function {function_name} failed: {__nativeErrorMsg(response)}"
             );
@@ -227,6 +241,11 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
         {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
     );
     if not response.ok {
+        if response.status == 401 {
+            __removeLocalStorage("jac_token");
+            window.location.reload();
+            return {};
+        }
         error_text = await response.text();
         raise Exception(f"Function {function_name} failed: {error_text}");
     }
@@ -278,7 +297,7 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
             reader_info = effects[endpoint_name];
             if reader_info and not reader_info["is_writer"] {
                 if writer_touches.includes("*")
-                or __overlaps(reader_info["touches"], writer_touches) {
+                    or __overlaps(reader_info["touches"], writer_touches) {
                     __invalidateEndpoint(endpoint_name);
                 }
             }
@@ -291,9 +310,9 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
 
 impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
     if left == "login"
-    or left == "signup"
-    or left == "logout"
-    or left == "refresh_token" {
+        or left == "signup"
+        or left == "logout"
+        or left == "refresh_token" {
         return await __doWalkerFetch(left, right, fields);
     }
     endpoint_key = f"walker:{left}";
@@ -409,8 +428,8 @@ impl jacLogin(
         }
     );
     if response.ok {
-        data = JSON.parse(await response.text());
-        token = None;
+        data: any = JSON.parse(await response.text());
+        token: (str | None) = None;
         try {
             if data["data"] and data["data"]["token"] {
                 token = data["data"]["token"];
@@ -462,8 +481,10 @@ impl jacSetToken(token: str) -> None {
 }
 
 impl __jacDesktopBroker -> str {
-    if window.__JAC_DESKTOP__ and window.__JAC_BROKER__ {
-        return window.__JAC_BROKER__;
+    is_desktop: any = globalThis.__JAC_DESKTOP__;
+    broker: any = globalThis.__JAC_BROKER__;
+    if is_desktop and broker {
+        return broker;
     }
     return "";
 }
@@ -480,8 +501,8 @@ impl __jacPollBrokerSession(broker: str, timeout_ms: int, interval_ms: int) -> s
         try {
             resp = await fetch(f"{broker}/session");
             if resp.ok {
-                data = await resp.json();
-                token = data["token"] or "";
+                data: any = await resp.json();
+                token: any = data["token"] or "";
                 if token {
                     return token;
                 }
@@ -499,9 +520,9 @@ impl jacSsoLogin(platform: str, api_base: str = "", operation: str = "login") ->
     broker = __jacDesktopBroker();
     if broker {
         start_url = (
-            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}" + f"&operation={encodeURIComponent(
-                operation
-            )}" + f"&api_base={encodeURIComponent(base)}"
+            f"{broker}/oauth/start?platform={encodeURIComponent(platform)}"
+            + f"&operation={encodeURIComponent(operation)}"
+            + f"&api_base={encodeURIComponent(base)}"
         );
         started = await fetch(start_url);
         if not started.ok {
@@ -523,21 +544,22 @@ impl jacSsoLogin(platform: str, api_base: str = "", operation: str = "login") ->
 }
 
 impl __getLocalStorage(key: str) -> str {
-    storage = globalThis.localStorage;
-    return storage.getItem(key) if storage else "";
+    if not globalThis.localStorage {
+        return "";
+    }
+    value = localStorage.getItem(key);
+    return value if value is not None else "";
 }
 
 impl __setLocalStorage(key: str, value: str) -> None {
-    storage = globalThis.localStorage;
-    if storage {
-        storage.setItem(key, value);
+    if globalThis.localStorage {
+        localStorage.setItem(key, value);
     }
 }
 
 impl __removeLocalStorage(key: str) -> None {
-    storage = globalThis.localStorage;
-    if storage {
-        storage.removeItem(key);
+    if globalThis.localStorage {
+        localStorage.removeItem(key);
     }
 }
 
@@ -571,10 +593,11 @@ impl __jacReportError(
 }
 
 impl __jacInstallErrorHandlers -> None {
-    if window.__jacErrorHandlersInstalled {
+    installed: any = globalThis.__jacErrorHandlersInstalled;
+    if installed {
         return;
     }
-    window.__jacErrorHandlersInstalled = True;
+    setattr(globalThis, "__jacErrorHandlersInstalled", True);
 
     window.addEventListener(
         "error",
@@ -604,12 +627,24 @@ impl __jacInstallErrorHandlers -> None {
 }
 
 impl ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement {
-    return
+    <div
+        role="alert"
+        style={{
+            minHeight: "100vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#f9fafb",
+            fontFamily: "system-ui, sans-serif",
+
+        }}
+    >
         <div
             role="alert"
             style={{
                 minHeight: "100vh",
                 display: "flex",
+                flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
                 backgroundColor: "#f9fafb",
@@ -617,56 +652,43 @@ impl ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement {
 
             }}
         >
-            <div
-                role="alert"
+            <h2 style={{color: "#dc2626", marginBottom: "12px"}}>
+                🚨 Something went wrong
+            </h2>
+            <p style={{color: "#374151", marginBottom: "16px"}}>
+                An unexpected error occurred. Please try again.
+            </p>
+            <pre
                 style={{
-                    minHeight: "100vh",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "#f9fafb",
-                    fontFamily: "system-ui, sans-serif",
+                    color: "#991b1b",
+                    background: "#fee2e2",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    overflowX: "auto",
+                    marginBottom: "16px",
 
                 }}
             >
-                <h2 style={{color: "#dc2626", marginBottom: "12px"}}>
-                    🚨 Something went wrong
-                </h2>
-                <p style={{color: "#374151", marginBottom: "16px"}}>
-                    An unexpected error occurred. Please try again.
-                </p>
-                <pre
-                    style={{
-                        color: "#991b1b",
-                        background: "#fee2e2",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        overflowX: "auto",
-                        marginBottom: "16px",
+                {error.message}
+            </pre>
+            <button
+                onClick={lambda { resetErrorBoundary(); }}
+                style={{
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
 
-                    }}
-                >
-                    {error.message}
-                </pre>
-                <button
-                    onClick={lambda { resetErrorBoundary(); }}
-                    style={{
-                        backgroundColor: "#2563eb",
-                        color: "#fff",
-                        padding: "10px 16px",
-                        borderRadius: "8px",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "14px",
-
-                    }}
-                >
-                    🔄 Try again
-                </button>
-            </div>
-        </div>;
+                }}
+            >
+                🔄 Try again
+            </button>
+        </div>
+    </div>
 }
 
 impl errorOverlay(filePath: str, errors: str) -> JsxElement {
@@ -768,8 +790,8 @@ impl __unwrapFormSchema(schema: any) -> any {
         if not schema.shape {
             if schema._def and schema._def.schema {
                 actualSchema = schema._def.schema;
-            } elif schema.def and schema.def.schema {
-                actualSchema = schema.def.schema;
+            } elif schema.`def and schema.`def.schema {
+                actualSchema = schema.`def.schema;
             }
         }
     } except Exception as e {

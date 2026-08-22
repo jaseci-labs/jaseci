@@ -25,7 +25,8 @@ test "AWSProvider and LocalProvider honour their per-provider contracts" {
     assert local.prometheus_scrape_port(8000) == 8000;
     assert local.prometheus_scrape_port(3000) == 3000;
 
-    assert aws.service_url("my-nlb.us-east-1.elb.amazonaws.com", 30080) == "http://my-nlb.us-east-1.elb.amazonaws.com";
+    assert aws.service_url("my-nlb.us-east-1.elb.amazonaws.com", 30080)
+        == "http://my-nlb.us-east-1.elb.amazonaws.com";
     assert aws.service_url(None, 30080) is None;
     assert local.service_url(None, 30080) == "http://localhost:30080";
     assert local.service_url("irrelevant-endpoint", 30080) == "http://localhost:30080";
@@ -83,20 +84,20 @@ test "validate_ports: AWS skips the API; Local raises on conflict and excludes o
 
 test "get_cluster_provider returns the correct provider based on cluster node metadata" {
     class FakeNode {
-        def init(self, provider_id: str) {
+        def init(self: any, provider_id: str) {
             self.spec = SimpleNamespace(provider_id=provider_id);
             self.metadata = SimpleNamespace(labels={});
         }
     }
 
     class FakeApiAws {
-        def list_node(self) -> object {
+        def list_node(self: any) -> object {
             return SimpleNamespace(items=[FakeNode("aws://us-east-1/i-0abc12345")]);
         }
     }
 
     class FakeApiLocal {
-        def list_node(self) -> object {
+        def list_node(self: any) -> object {
             return SimpleNamespace(items=[FakeNode("")]);
         }
     }
