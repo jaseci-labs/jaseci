@@ -621,27 +621,6 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
         } except Exception {
             ;
         }
-        try {
-            top: (uni.UniNode | None) = sym_node;
-            while (
-                top is not None
-                and not isinstance(top.parent, uni.Module)
-                and top.parent is not None
-            ) {
-                top = top.parent;
-            }
-            if isinstance(top, uni.ContextAwareNode) {
-                space = sym_node.codespace().value;
-                tags: list[str] = [];
-                if top.codespace_dual {
-                    tags.append('dual');
-                }
-                tags.append('inferred');
-                node_info += f"'\n'placement: {space} ({', '.join(tags)})";
-            }
-        } except Exception {
-            ;
-        }
     } except AttributeError as e {
         self.log_warning(f"Attribute error when accessing node attributes: {e}");
     }

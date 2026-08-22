@@ -622,6 +622,46 @@ test "vm: RAISE_VARARGS raises with message" {
     assert err.exception.message == (host_exc[1] as str);
 }
 
+# Regression: a zero-step slice must raise ValueError before the stepping
+# loops run -- without the guard, seq[5:1:0] never terminates.
+test "vm: zero-step slice subscript raises ValueError like CPython" {
+    setup = "";
+    body = "seq = [1, 2, 3, 4]\nresult = seq[5:1:0]\n";
+    host_exc = host_raises(setup, body);
+    assert host_exc is not None;
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == (host_exc[0] as str);
+    assert err.exception.message == (host_exc[1] as str);
+}
+
+# Regression: same guard on the delete path (del seq[a:b:c]).
+test "vm: del with zero-step slice raises ValueError like CPython" {
+    setup = "";
+    body = "seq = [1, 2, 3, 4]\ndel seq[5:1:0]\n";
+    host_exc = host_raises(setup, body);
+    assert host_exc is not None;
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == (host_exc[0] as str);
+    assert err.exception.message == (host_exc[1] as str);
+}
+
+# bool is an int subclass: True/False index sequences as 1/0. The str, bytes,
+# and tuple subscripts must route through __index__ like list does.
+test "vm: bool subscripts index str/bytes/tuple like CPython" {
+    assert_vm_value_matches_host(
+        "s = 'abc'\nt = (1, 2, 3)\nb = b'xy'\n",
+        "result = (s[True], t[False], b[True], s[False], t[True])\n",
+        "exec",
+        "result",
+    );
+}
+
 # vm-opcode: OP_LOAD_SPECIAL
 test "vm: LOAD_SPECIAL enters context manager" {
     setup = "";

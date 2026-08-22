@@ -280,12 +280,17 @@ obj PyStr(PyObj) {
 
     def mp_subscript(index: PyObj) -> PyObj {
         if isinstance(index, PySlice) {
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
             return PyStr(t="str", val=_slice_str(self.val, index as PySlice));
         }
-        if index.t != "int" {
-            return py_error("TypeError", "index must be an integer");
+        idx = index.to_index();
+        if is_error(idx) {
+            return py_error("TypeError", "string indices must be integers or slices");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         text = self.val;
         if i < 0 {
             i = len(text) + i;
@@ -319,12 +324,17 @@ obj PyBytes(PyObj) {
 
     def mp_subscript(index: PyObj) -> PyObj {
         if isinstance(index, PySlice) {
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
             return PyBytes(t="bytes", val=_slice_ints(self.val, index as PySlice));
         }
-        if index.t != "int" {
-            return py_error("TypeError", "index must be an integer");
+        idx = index.to_index();
+        if is_error(idx) {
+            return py_error("TypeError", "bytes indices must be integers or slices");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         vals = self.val;
         if i < 0 {
             i = len(vals) + i;
@@ -583,12 +593,17 @@ obj PyTuple(PyObj) {
 
     def mp_subscript(index: PyObj) -> PyObj {
         if isinstance(index, PySlice) {
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
             return PyTuple(t="tuple", items=_slice_objs(self.items, index as PySlice));
         }
-        if index.t != "int" {
-            return py_error("TypeError", "index must be an integer");
+        idx = index.to_index();
+        if is_error(idx) {
+            return py_error("TypeError", "tuple indices must be integers or slices");
         }
-        i = (index as PyInt).val;
+        i = (idx as PyInt).val;
         if i < 0 {
             i = len(self.items) + i;
         }
@@ -634,6 +649,10 @@ obj PyList(PyObj) {
 
     def mp_subscript(index: PyObj) -> PyObj {
         if isinstance(index, PySlice) {
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
             return PyList(t="list", items=_slice_objs(self.items, index as PySlice));
         }
         idx = index.to_index();
@@ -670,6 +689,10 @@ obj PyList(PyObj) {
         if isinstance(index, PySlice) {
             # del lst[a:b:c] -- rebuild the list without the sliced positions
             # (re._constants does `del OPCODES[-2:]`).
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
             b = slice_indices(index as PySlice, len(self.items));
             si = b[0];
             stop = b[1];
@@ -1566,6 +1589,26 @@ def is_error(value: PyObj) -> bool {
 }
 
 # ---------------- slicing (CPython PySlice_AdjustIndices) ----------------
+# CPython raises ValueError("slice step cannot be zero") before any stepping
+# loop runs; without this guard a zero-step slice never terminates.
+def _zero_step_error(sl: PySlice) -> PyObj {
+    if isinstance(sl.step, PyNoneType) {
+        return py_none();
+    }
+    step = sl.step;
+    if isinstance(step, PyBool) {
+        # bool is an int subclass: True steps forward.
+        if (step as PyBool).val {
+            return py_none();
+        }
+        return py_error("ValueError", "slice step cannot be zero");
+    }
+    if isinstance(step, PyInt) and (step as PyInt).val == 0 {
+        return py_error("ValueError", "slice step cannot be zero");
+    }
+    return py_none();
+}
+
 def _adjust_index(i: int, length: int, neg: bool) -> int {
     if i < 0 {
         i = i + length;

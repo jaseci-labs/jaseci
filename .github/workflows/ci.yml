@@ -661,15 +661,17 @@ jobs:
       - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac
 
+      # The P3 gate drivers only use JACPYTHON_CPYTHON as a run/skip flag; the
+      # interpreter itself is never executed. Resolve it from PATH (setup-python
+      # above pins 3.14) so no dev-machine path leaks into CI.
+      - name: Resolve CPython oracle flag for P3 gates
+        run: echo "JACPYTHON_CPYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+
       - name: P3 Layer-0/1 corpus ratchet (isolated jac run)
-        run: python jac-py/tools/p3_object_core/replay_gate.py
-        env:
-          JACPYTHON_CPYTHON: /home/jac/.local/bin/python3.14
+        run: python3 jac-py/tools/p3_object_core/replay_gate.py
 
       - name: P3 runtime parity probes (M11)
-        run: python jac-py/tools/p3_object_core/runtime_gate.py
-        env:
-          JACPYTHON_CPYTHON: /home/jac/.local/bin/python3.14
+        run: python3 jac-py/tools/p3_object_core/runtime_gate.py
 
   # Compiler suite, one chunk per runner. Chunking is load-bearing: the
   # materializer crossing leaks its native parse tree per compile, so one long
