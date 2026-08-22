@@ -4,6 +4,7 @@ import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.constant { OwnershipKind }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5090, E5092 }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.type_system.types {
     AnyType,
@@ -17,6 +18,17 @@ import from jaclang.compiler.type_system.types {
 }
 
 obj NaIRGenTypes(NaIRGenState) {
+    def _tb_class_name(t: any) -> (str | None);
+    def _tb_is(t: any, names: tuple) -> bool;
+    def _tb_args(t: any) -> list;
+    def _tb_members(t: any) -> list;
+    def _tb_non_none(t: any) -> list;
+    def _tb_has_none(t: any) -> bool;
+    def _tb_opt_payload(t: any) -> (any | None);
+    def _tb_elem(t: any, idx: int = 0) -> (any | None);
+    def _tb_decl(t: any) -> (uni.UniNode | None);
+    def _tb_kind(t: any) -> str;
+    def _tb_solve(t: any) -> any;
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);

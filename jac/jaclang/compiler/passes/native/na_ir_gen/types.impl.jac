@@ -1,3 +1,170 @@
+impl NaIRGenTypes._tb_solve(t: any) -> any {
+    if isinstance(t, TypeVarType) {
+        _sol = self._mono_solution;
+        if _sol is not None and t.name in _sol {
+            return self._tb_solve(_sol[t.name]);
+        }
+    }
+    return t;
+}
+
+impl NaIRGenTypes._tb_class_name(t: any) -> (str | None) {
+    t = self._tb_solve(t);
+    if isinstance(t, EnumMemberType) {
+        return (t.enum_class.shared.class_name if t.enum_class is not None else None);
+    }
+    if isinstance(t, ClassType) and t._shared is not None {
+        return t.shared.class_name;
+    }
+    return None;
+}
+
+impl NaIRGenTypes._tb_is(t: any, names: tuple) -> bool {
+    _name = self._tb_class_name(t);
+    return _name is not None and _name in names;
+}
+
+impl NaIRGenTypes._tb_args(t: any) -> list {
+    t = self._tb_solve(t);
+    if isinstance(t, ClassType) and t.private is not None {
+        return list(t.private.type_args or []);
+    }
+    return [];
+}
+
+impl NaIRGenTypes._tb_members(t: any) -> list {
+    t = self._tb_solve(t);
+    if isinstance(t, UnionType) {
+        out: list = [];
+        for m in (t.types or []) {
+            out.extend(self._tb_members(m));
+        }
+        return out;
+    }
+    return [t] if t is not None else [];
+}
+
+impl NaIRGenTypes._tb_non_none(t: any) -> list {
+    return [
+        m
+        for m in self._tb_members(t)
+        if not self._tb_is(m, ("NoneType", "None"))
+    ];
+}
+
+impl NaIRGenTypes._tb_has_none(t: any) -> bool {
+    return any(self._tb_is(m, ("NoneType", "None")) for m in self._tb_members(t));
+}
+
+impl NaIRGenTypes._tb_opt_payload(t: any) -> (any | None) {
+    if not self._tb_has_none(t) {
+        return None;
+    }
+    _rest = self._tb_non_none(t);
+    return _rest[0] if len(_rest) == 1 else None;
+}
+
+impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
+    _payload = self._tb_opt_payload(t);
+    _args = self._tb_args(_payload if _payload is not None else t);
+    return _args[idx] if idx < len(_args) else None;
+}
+
+impl NaIRGenTypes._tb_decl(t: any) -> (uni.UniNode | None) {
+    t = self._tb_solve(t);
+    if isinstance(t, EnumMemberType) {
+        t = t.enum_class;
+    }
+    if isinstance(t, ClassType) and t._shared is not None {
+        _decl = t.shared.symbol_table;
+        if isinstance(_decl, (uni.Archetype, uni.Enum)) {
+            return _decl;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenTypes._tb_kind(t: any) -> str {
+    t = self._tb_solve(t);
+    if t is None {
+        return "unknown";
+    }
+    if isinstance(t, (AnyType, UnknownType)) {
+        return "any";
+    }
+    if isinstance(t, NeverType) {
+        return "never";
+    }
+    if isinstance(t, TypeVarType) {
+        return "typevar";
+    }
+    if isinstance(t, FunctionType) {
+        return "fn";
+    }
+    if isinstance(t, EnumMemberType) {
+        return "enum";
+    }
+    if isinstance(t, UnionType) {
+        _payload = self._tb_opt_payload(t);
+        if _payload is not None {
+            return "optional";
+        }
+        _kinds = {self._tb_kind(m) for m in self._tb_members(t)};
+        return _kinds.pop() if len(_kinds) == 1 else "union";
+    }
+    if not isinstance(t, ClassType) or t._shared is None {
+        return "unknown";
+    }
+    if t.shared.is_enum_class {
+        return "enum";
+    }
+    if not t.is_instance() and t.is_instantiable() {
+        return "class";
+    }
+    _name = t.shared.class_name;
+    _nk = JAC_TYPE_REGISTRY.numeric_kind_of(_name);
+    if _name == "bool" {
+        return "bool";
+    }
+    if _nk == NumericKind.IntKind {
+        return "int";
+    }
+    if _nk == NumericKind.FloatKind {
+        return "float";
+    }
+    _by_name = {
+        "str": "str",
+        "LiteralString": "str",
+        "bytes": "bytes",
+        "bytearray": "bytearray",
+        "list": "list",
+        "Sequence": "list",
+        "dict": "dict",
+        "set": "set",
+        "frozenset": "set",
+        "tuple": "tuple",
+        "range": "range",
+        "complex": "complex",
+        "slice": "slice",
+        "NoneType": "none",
+        "None": "none",
+        "object": "any",
+        "Region": "region",
+        "File": "file",
+        "BinaryFile": "binary_file",
+        "Iterator": "iterator",
+        "Iterable": "iterator",
+        "Generator": "iterator"
+    };
+    if _name in _by_name {
+        return _by_name[_name];
+    }
+    if isinstance(t.shared.symbol_table, uni.Archetype) {
+        return "struct";
+    }
+    return "object";
+}
+
 impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
     if t is None {
         return None;
