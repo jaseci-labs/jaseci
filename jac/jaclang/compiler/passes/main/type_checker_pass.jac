@@ -125,8 +125,7 @@ class TypeCheckPass(UniPass) {
     has evaluator: TypeEvaluator,
         _lambda_depth: int = 0;
 
-    static has PROVIDES: tuple = ('inference', ),
-        inference_only: bool = False;
+    static has PROVIDES: tuple = ('inference', );
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;

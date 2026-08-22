@@ -1145,35 +1145,29 @@ impl TypeCheckPass._install_client_state_setters(self: TypeCheckPass) -> None {
         return;
     }
 
-    prev_emit = getattr(self, '_emit_diagnostics', True);
-    self._emit_diagnostics = False;
-    try {
-        none_type = self.evaluator._convert_to_instance(self.evaluator.get_none_type());
-        for nd in mod.get_all_sub_nodes(typ=HasVar) {
-            owner = self._client_state_field_owner(nd);
-            if owner is None {
-                continue;
-            }
-            setter_name = state_setter_name(nd.name.value);
-            if not setter_name {
-                continue;
-            }
-            scope = nd.sym_tab;
-            if (scope is None) or (scope.names_in_scope.get(setter_name) is not None) {
-                continue;
-            }
-            sym = nd.sym;
-            if sym is None {
-                continue;
-            }
-            stub = Name.gen_stub_from_node(nd.name, setter_name);
-            stub.type = create_callable_type(
-                [self.evaluator.get_type_of_symbol(sym)], none_type
-            );
-            scope.def_insert(stub);
+    none_type = self.evaluator._convert_to_instance(self.evaluator.get_none_type());
+    for nd in mod.get_all_sub_nodes(typ=HasVar) {
+        owner = self._client_state_field_owner(nd);
+        if owner is None {
+            continue;
         }
-    } finally {
-        self._emit_diagnostics = prev_emit;
+        setter_name = state_setter_name(nd.name.value);
+        if not setter_name {
+            continue;
+        }
+        scope = nd.sym_tab;
+        if (scope is None) or (scope.names_in_scope.get(setter_name) is not None) {
+            continue;
+        }
+        sym = nd.sym;
+        if sym is None {
+            continue;
+        }
+        stub = Name.gen_stub_from_node(nd.name, setter_name);
+        stub.type = create_callable_type(
+            [self.evaluator.get_type_of_symbol(sym)], none_type
+        );
+        scope.def_insert(stub);
     }
 }
 
