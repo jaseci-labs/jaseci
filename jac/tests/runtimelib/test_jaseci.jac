@@ -9,9 +9,13 @@ import from tempfile { mkdtemp }
 import jaclang;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from tests.conftest { get_object }
+import from tests.support { get_object }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "runtimelib", "fixtures");
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 def capture_start -> io.StringIO {
     captured = io.StringIO();
@@ -39,14 +43,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[1], 0, via_all],
+        args=_as_any([roots[1], 0, via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[0], 0, via_all],
+        args=_as_any([roots[0], 0, via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -54,14 +58,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[20],
+        args=_as_any([20]),
         **{"root": roots[0]},
         nd=nodes[1]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[10],
+        args=_as_any([10]),
         **{"root": roots[1]},
         nd=nodes[0]
     );
@@ -69,14 +73,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_target_node",
-        args=[20, nodes[1]],
+        args=_as_any([20, nodes[1]]),
         **{"root": roots[0]}
     );
 
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_target_node",
-        args=[10, nodes[0]],
+        args=_as_any([10, nodes[0]]),
         **{"root": roots[1]}
     );
 
@@ -106,14 +110,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[1], via_all],
+        args=_as_any([roots[1], via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[0], via_all],
+        args=_as_any([roots[0], via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -141,14 +145,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[1], "WRITE", via_all],
+        args=_as_any([roots[1], "WRITE", via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="allow_other_root_access",
-        args=[roots[0], "WRITE", via_all],
+        args=_as_any([roots[0], "WRITE", via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -156,14 +160,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[200],
+        args=_as_any([200]),
         **{"root": roots[0]},
         nd=nodes[1]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[100],
+        args=_as_any([100]),
         **{"root": roots[1]},
         nd=nodes[0]
     );
@@ -194,14 +198,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[1], via_all],
+        args=_as_any([roots[1], via_all]),
         **{"root": roots[0]},
         nd=node_1
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="disallow_other_root_access",
-        args=[roots[0], via_all],
+        args=_as_any([roots[0], via_all]),
         **{"root": roots[1]},
         nd=node_2
     );
@@ -228,14 +232,14 @@ def trigger_access_validation_test(
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[1],
+        args=_as_any([1]),
         **{"root": roots[0]},
         nd=nodes[0]
     );
     execution.enter(
         filename=os.path.join(FIXTURES, "other_root_access.jac"),
         entrypoint="update_node",
-        args=[2],
+        args=_as_any([2]),
         **{"root": roots[1]},
         nd=nodes[1]
     );
@@ -508,19 +512,20 @@ test "walker purger" {
             args=[]
         );
         output = capture_get(captured).strip();
-        assert output == (
-            "Root()\n"
-            "A(id=0)\nA(id=1)\n"
-            "B(id=0)\nB(id=1)\nB(id=0)\nB(id=1)\n"
-            "C(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\n"
-            "D(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\n"
-            "D(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\n"
-            "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
-            "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
-            "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
-            "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
-            "125\n124"
-        );
+        assert output
+            == (
+                "Root()\n"
+                "A(id=0)\nA(id=1)\n"
+                "B(id=0)\nB(id=1)\nB(id=0)\nB(id=1)\n"
+                "C(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\nC(id=0)\nC(id=1)\n"
+                "D(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\n"
+                "D(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\nD(id=0)\nD(id=1)\n"
+                "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
+                "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
+                "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
+                "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
+                "125\n124"
+            ) , f"got: {output!r}";
         captured = capture_start();
         execution.enter(
             filename=os.path.join(FIXTURES, "graph_purger.jac"),
@@ -538,7 +543,7 @@ test "walker purger" {
             args=[]
         );
         output = capture_get(captured).strip();
-        assert output == "Root()\n1\n0";
+        assert output == "Root()\n1\n0" , f"got: {output!r}";
     } finally {
         Jac.set_base_path(_orig_base);
         shutil.rmtree(_tmpdir, ignore_errors=True);
@@ -576,13 +581,13 @@ test "other root access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[1],
+            args=_as_any([1]),
             **{"root": root1}
         );
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[2],
+            args=_as_any([2]),
             **{"root": root2}
         );
         nodes = capture_get(captured).strip().split("\n");
@@ -675,7 +680,7 @@ test "get object read access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[1],
+            args=_as_any([1]),
             **{"root": root1}
         );
         node_id = capture_get(captured).strip();
@@ -704,7 +709,7 @@ test "get object read access" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="allow_other_root_access",
-            args=[root2, 0],
+            args=_as_any([root2, 0]),
             **{"root": root1},
             nd=node_id
         );
@@ -755,11 +760,12 @@ test "savable object" {
         prints = capture_get(captured).strip().split("\n");
         id = prints[0];
 
-        assert prints[1] == (
-            "SavableObject(val=0, arr=[], json={}, parent=Parent(val=1, arr=[1], json"
-            "={'a': 1}, enum_field=<Enum.B: 'b'>, child=Child(val=2, arr=[1, 2], json"
-            "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>)), enum_field=<Enum.A: 'a'>)"
-        ) , f"create printed: {prints!r}";
+        assert prints[1]
+            == (
+                "SavableObject(val=0, arr=[], json={}, parent=Parent(val=1, arr=[1], json"
+                "={'a': 1}, enum_field=<Enum.B: 'b'>, child=Child(val=2, arr=[1, 2], json"
+                "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>)), enum_field=<Enum.A: 'a'>)"
+            ) , f"create printed: {prints!r}";
 
         captured = capture_start();
 
@@ -800,11 +806,12 @@ test "savable object" {
         );
 
         got = capture_get(captured).strip();
-        assert got == (
-            "SavableObject(val=1, arr=[1], json={'a': 1}, parent=Parent(val=2, arr=[1, 2], json"
-            "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>, child=Child(val=3, arr=[1, 2, 3], json"
-            "={'a': 1, 'b': 2, 'c': 3}, enum_field=<Enum.A: 'a'>)), enum_field=<Enum.B: 'b'>)"
-        ) , f"update printed: {got!r}";
+        assert got
+            == (
+                "SavableObject(val=1, arr=[1], json={'a': 1}, parent=Parent(val=2, arr=[1, 2], json"
+                "={'a': 1, 'b': 2}, enum_field=<Enum.C: 'c'>, child=Child(val=3, arr=[1, 2, 3], json"
+                "={'a': 1, 'b': 2, 'c': 3}, enum_field=<Enum.A: 'a'>)), enum_field=<Enum.B: 'b'>)"
+            ) , f"update printed: {got!r}";
 
         captured = capture_start();
 
@@ -845,15 +852,16 @@ test "traversing save" {
             args=[]
         );
 
-        assert capture_get(captured).strip() == (
-            "digraph {\n"
-            "node [style=\"filled\", shape=\"ellipse\", fillcolor=\"invis\", fontcolor=\"black\"];\n"
-            "0 -> 1 [label=\"\"];\n"
-            "1 -> 2 [label=\"\"];\n"
-            "0 [label=\"Root()\"fillcolor=\"#FFE9E9\"];\n"
-            "1 [label=\"A()\"fillcolor=\"#F0FFF0\"];\n"
-            "2 [label=\"B()\"fillcolor=\"#F5E5FF\"];\n}"
-        );
+        assert capture_get(captured).strip()
+            == (
+                "digraph {\n"
+                "node [style=\"filled\", shape=\"ellipse\", fillcolor=\"invis\", fontcolor=\"black\"];\n"
+                "0 -> 1 [label=\"\"];\n"
+                "1 -> 2 [label=\"\"];\n"
+                "0 [label=\"Root()\"fillcolor=\"#FFE9E9\"];\n"
+                "1 [label=\"A()\"fillcolor=\"#F0FFF0\"];\n"
+                "2 [label=\"B()\"fillcolor=\"#F5E5FF\"];\n}"
+            );
     } finally {
         Jac.set_base_path(_orig_base);
         shutil.rmtree(_tmpdir, ignore_errors=True);
@@ -923,7 +931,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["READ", None],
+            args=_as_any(["READ", None]),
             nd=nd_str
         );
 
@@ -947,7 +955,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 1],
+            args=_as_any([None, 1]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -972,7 +980,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["WRITE", None],
+            args=_as_any(["WRITE", None]),
             nd=nd_str
         );
 
@@ -980,7 +988,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 2],
+            args=_as_any([None, 2]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -1005,7 +1013,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=["NO_ACCESS", None],
+            args=_as_any(["NO_ACCESS", None]),
             nd=nd_str
         );
 
@@ -1013,7 +1021,7 @@ test "custom access validation" {
         execution.enter(
             filename=os.path.join(FIXTURES, "custom_access_validation.jac"),
             entrypoint="update",
-            args=[None, 5],
+            args=_as_any([None, 5]),
             **{"root": other_root},
             nd=nd_str
         );
@@ -1054,28 +1062,45 @@ test "run persistent reuse" {
     _orig_base = Jac.get_base_path_dir();
     Jac.set_base_path(_tmpdir);
     try {
-        # Database path is auto-generated at
-        # _tmpdir/.jac/data/<target file stem>.db
-        db_path = os.path.join(_tmpdir, ".jac", "data", "simple_node_connection.db");
+        # The project's rows live in its database on the shared embedded
+        # server; inspect them out-of-band through a fresh store connection.
+        import from jaclang.runtimelib.pgembed { PgRuntime }
+        import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
+        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+
+        def _db_counts -> tuple {
+            rt = PgRuntime(
+                data_dir=shared_pg_data_dir(),
+                database=project_db_name(
+                    _tmpdir, os.path.join(FIXTURES, "simple_node_connection.jac")
+                )
+            );
+            st = PgStore(conninfo=rt.ensure());
+            st.begin(TxnIsolation.READ_COMMITTED);
+            rows = st.rows(
+                "SELECT 1 FROM anchors WHERE id = CAST(:i AS uuid)",
+                {'i': "00000000-0000-0000-0000-000000000000"}
+            );
+            assert rows , "Root should be persisted to database";
+            edges = st.rows(
+                """
+                SELECT COUNT(*) FROM anchors
+                WHERE src = CAST(:i AS uuid) OR dst = CAST(:i AS uuid)
+                """,
+                {'i': "00000000-0000-0000-0000-000000000000"}
+            )[0][0];
+            keys = st.rows("SELECT COUNT(*) FROM anchors", {})[0][0];
+            st.commit();
+            st.close();
+            return (keys, edges);
+        }
 
         ##############################################
         #          FIRST RUN - CREATE NODES          #
         ##############################################
         execution.run(filename=os.path.join(FIXTURES, "simple_node_connection.jac"));
 
-        # Check database directly (not via get_object which re-runs code)
-        conn = sqlite3.connect(str(db_path));
-        cursor = conn.execute(
-            "SELECT data FROM anchors WHERE id = ?",
-            ("00000000-0000-0000-0000-000000000000", )
-        );
-        row = cursor.fetchone();
-        assert row is not None , "Root should be persisted to database";
-        root_data = json.loads(row[0]);
-        first_run_edges = len(root_data["edges"]);
-        cursor = conn.execute("SELECT COUNT(*) FROM anchors");
-        first_run_keys = cursor.fetchone()[0];
-        conn.close();
+        (first_run_keys, first_run_edges) = _db_counts();
 
         # Should have root + 2 nodes + 2 edges = 5 keys
         assert first_run_keys > 1 , "First run should persist nodes to database";
@@ -1087,18 +1112,7 @@ test "run persistent reuse" {
         ##############################################
         execution.run(filename=os.path.join(FIXTURES, "simple_node_connection.jac"));
 
-        # Check database again
-        conn = sqlite3.connect(str(db_path));
-        cursor = conn.execute(
-            "SELECT data FROM anchors WHERE id = ?",
-            ("00000000-0000-0000-0000-000000000000", )
-        );
-        row = cursor.fetchone();
-        root_data = json.loads(row[0]);
-        second_run_edges = len(root_data["edges"]);
-        cursor = conn.execute("SELECT COUNT(*) FROM anchors");
-        second_run_keys = cursor.fetchone()[0];
-        conn.close();
+        (second_run_keys, second_run_edges) = _db_counts();
 
         # Should have same number of keys (not doubled)
         assert second_run_keys == first_run_keys , (
@@ -1141,7 +1155,7 @@ test "user isolation via set user root" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[100],
+            args=_as_any([100]),
             **{"root": user1_root}
         );
         user1_node = capture_get(captured).strip();
@@ -1151,7 +1165,7 @@ test "user isolation via set user root" {
         execution.enter(
             filename=os.path.join(FIXTURES, "other_root_access.jac"),
             entrypoint="create_node",
-            args=[200],
+            args=_as_any([200]),
             **{"root": user2_root}
         );
         user2_node = capture_get(captured).strip();

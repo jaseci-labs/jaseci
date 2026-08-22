@@ -6,7 +6,7 @@ glob _PLACEHOLDER: set = {
          "__table_base"
      };
 
-def _rd_uleb(b: bytes, o: int) -> tuple {
+def _rd_uleb(b: bytes, o: int) -> tuple[int, int] {
     r = 0;
     s = 0;
     while True {
@@ -20,7 +20,7 @@ def _rd_uleb(b: bytes, o: int) -> tuple {
     }
 }
 
-def _rd_sleb(b: bytes, o: int) -> tuple {
+def _rd_sleb(b: bytes, o: int) -> tuple[int, int] {
     r = 0;
     s = 0;
     while True {
@@ -83,7 +83,7 @@ def _u32le(v: int) -> bytes {
     return (v & 0xffffffff).to_bytes(4, "little");
 }
 
-def _rd_name(b: bytes, o: int) -> tuple {
+def _rd_name(b: bytes, o: int) -> tuple[str, int] {
     (n, o) = _rd_uleb(b, o);
     return (b[o:o + n].decode("latin1"), o + n);
 }
@@ -111,14 +111,14 @@ def _patch(buf: bytearray, off: int, data: bytes) {
 
 obj WasmObj {
     has b: bytes,
-        types_raw: list = [],
-        imports: list = [],
-        func_types: list = [],
+        types_raw: list[bytes] = [],
+        imports: list[list[any]] = [],
+        func_types: list[int] = [],
         code: bytes = b"",
         data_raw: bytes = b"",
-        symtab: list = [],
-        relocs: list = [],
-        seg_info: list = [];
+        symtab: list[list[any]] = [],
+        relocs: list[list[any]] = [],
+        seg_info: list[tuple[str, int, int]] = [];
 
     def postinit {
         self.types_raw = [];
@@ -251,11 +251,11 @@ impl WasmObj.parse_linking(o: int, end: int) -> None {
                     self.symtab.append([kind, flags, idx, None]);
                 } else {
                     (idx, o) = _rd_uleb(b, o);
-                    nm = None;
+                    opt_nm: (str | None) = None;
                     if (not undef) or (flags & 0x40) {
-                        (nm, o) = _rd_name(b, o);
+                        (opt_nm, o) = _rd_name(b, o);
                     }
-                    self.symtab.append([kind, flags, idx, nm]);
+                    self.symtab.append([kind, flags, idx, opt_nm]);
                 }
                 ci += 1;
             }
@@ -326,7 +326,7 @@ def _parse_data_segments(b: bytes) -> list {
 }
 
 def _sym_val(
-    ob: WasmObj, si: int, old2new: dict, seg_base: list, heap_base: int = -1
+    ob: WasmObj, si: int, old2new: dict, seg_base: list[int], heap_base: int = -1
 ) -> int {
     e = ob.symtab[si];
     k = e[0];
@@ -372,7 +372,7 @@ impl WasmLinker.link(
     segs = _parse_data_segments(ob.data_raw);
 
     base = 1024;
-    seg_base = [];
+    seg_base: list[int] = [];
     i = 0;
     while i < len(segs) {
         al = 0;
@@ -403,8 +403,22 @@ impl WasmLinker.link(
             if host_abi is not None and fld in host_abi {
                 im = [im[0], host_module, fld, im[3]];
             } elif app_imports is not None and fld not in app_imports {
+                if fld.startswith("__jac64_") {
+                    raise RuntimeError(
+                        f"wasm import '{fld}' is a wasm_rt floor adapter, not "
+                            + "an app symbol: the vendored libc bitcode is stale and does "
+                            + f"not define it. Rebuild the floor (`zig build "
+                            + "vendor-wasm-libc`) rather than adding it to "
+                            + "wasm_host_abi.jac -- the host ABI is syscalls only, and a "
+                            + "host-side allocator cannot return a linear-memory pointer."
+                    );
+                }
                 raise RuntimeError(
-                    f"wasm import '{fld}' is neither part of the " + f"{host_module} host ABI nor declared by the app; " + "the native floor references a symbol missing from the " + "vendored wasm_rt libc (compiler drift) — add it to " + "wasm_rt or to wasm_host_abi.jac"
+                    f"wasm import '{fld}' is neither part of the "
+                        + f"{host_module} host ABI nor declared by the app; "
+                        + "the native floor references a symbol missing from the "
+                        + "vendored wasm_rt libc (compiler drift) — add it to "
+                        + "wasm_rt or to wasm_host_abi.jac"
                 );
             }
             old2new[oi] = len(kept);

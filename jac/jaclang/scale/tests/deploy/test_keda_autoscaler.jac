@@ -7,6 +7,9 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
     TriggerAuth
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
 
 test "cpu trigger is translated to KEDA Utilization format" {
     keda = KEDAAutoscaler();
@@ -151,6 +154,33 @@ test "build manifests produces a complete and valid ScaledObject body" {
     assert m["body"]["spec"]["minReplicaCount"] == 2;
     assert m["body"]["spec"]["maxReplicaCount"] == 10;
     assert m["body"]["spec"]["triggers"][0]["metadata"]["value"] == "60";
+}
+
+test "build manifests applies behavior_overlay through advanced.horizontalPodAutoscalerConfig" {
+    keda = KEDAAutoscaler();
+    spec = AutoscalerSpec(
+        scale_target_name="orders-deployment",
+        namespace="staging",
+        min_replicas=2,
+        max_replicas=10,
+        triggers=[Trigger(type="cpu", metadata={"averageUtilization": "60"})],
+        behavior_overlay={
+            "scaleDown": {
+                "stabilizationWindowSeconds": 600,
+                "selectPolicy": "Min",
+                "policies": [{"type": "Pods", "value": 2, "periodSeconds": 300}]
+            }
+        }
+    );
+    m = keda._build_manifests(spec);
+    behavior = m["body"]["spec"]["advanced"]["horizontalPodAutoscalerConfig"][
+        "behavior"
+    ];
+    assert behavior["scaleDown"]["stabilizationWindowSeconds"] == 600;
+    assert behavior["scaleDown"]["selectPolicy"] == "Min";
+    assert behavior["scaleDown"]["policies"]
+        == [{"type": "Pods", "value": 2, "periodSeconds": 300}];
+    assert behavior["scaleUp"]["stabilizationWindowSeconds"] == 60;
 }
 
 test "build manifests adds idleReplicaCount zero for scale-to-zero" {
@@ -313,7 +343,7 @@ test "apply logs the install docs link when KEDA CRDs are not installed" {
     mock_api = unittest.mock.MagicMock();
     mock_api.list_cluster_custom_object.side_effect = ApiException(status=404);
     mock_logger = unittest.mock.MagicMock();
-    keda = KEDAAutoscaler(_custom_api=mock_api, logger=mock_logger);
+    keda = KEDAAutoscaler(_custom_api=mock_api, logger=_as_any(mock_logger));
     spec = AutoscalerSpec(
         scale_target_name="svc-deployment",
         namespace="default",
@@ -518,10 +548,11 @@ test "destroy collection removes all labeled ScaledObjects and TriggerAuthentica
     keda = KEDAAutoscaler(_custom_api=mock_api, _v2_api=unittest.mock.MagicMock());
     keda.destroy_collection("staging", "managed=jac-scale");
     delete_calls = mock_api.delete_namespaced_custom_object.call_args_list;
-    assert len(delete_calls) == 2;
+    assert len(delete_calls) == 3;
     plurals = [c[1]["plural"] for c in delete_calls];
     assert "scaledobjects" in plurals;
     assert "triggerauthentications" in plurals;
+    assert "interceptorroutes" in plurals;
 }
 
 test "destroy collection is silent when KEDA CRDs are not installed (404)" {

@@ -34,12 +34,12 @@ test "registry contains all 22 expected primitive types" {
 
 # ── Typed entry access ───────────────────────────────────────
 test "get returns JacTypeEntry for known types" {
-    entry = JAC_TYPE_REGISTRY.get("int");
-    assert entry is not None;
-    assert isinstance(entry, JacTypeEntry);
-    assert entry.name == "int";
-    assert entry.emitter_suffix == "IntEmitter";
-    assert entry.na_type_spec == "i64";
+    `entry = JAC_TYPE_REGISTRY.get("int");
+    assert `entry is not None;
+    assert isinstance(`entry, JacTypeEntry);
+    assert `entry.name == "int";
+    assert `entry.emitter_suffix == "IntEmitter";
+    assert `entry.na_type_spec == "i64";
 }
 
 test "get returns None for unknown types" {
@@ -55,25 +55,29 @@ test "emitter_items covers all primitive types" {
 
 test "emitter suffixes follow naming convention" {
     entry_int = JAC_TYPE_REGISTRY.get("int");
+    assert entry_int is not None;
     assert entry_int.emitter_suffix == "IntEmitter";
     entry_str = JAC_TYPE_REGISTRY.get("str");
+    assert entry_str is not None;
     assert entry_str.emitter_suffix == "StrEmitter";
     entry_fs = JAC_TYPE_REGISTRY.get("frozenset");
+    assert entry_fs is not None;
     assert entry_fs.emitter_suffix == "FrozensetEmitter";
     entry_bool = JAC_TYPE_REGISTRY.get("bool");
+    assert entry_bool is not None;
     assert entry_bool.emitter_suffix == "BoolEmitter";
 }
 
 test "fixed-width types reuse IntEmitter and FloatEmitter" {
     for name in ["i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64"] {
-        entry = JAC_TYPE_REGISTRY.get(name);
-        assert entry is not None;
-        assert entry.emitter_suffix == "IntEmitter";
+        `entry = JAC_TYPE_REGISTRY.get(name);
+        assert `entry is not None;
+        assert `entry.emitter_suffix == "IntEmitter";
     }
     for name in ["f32", "f64"] {
-        entry = JAC_TYPE_REGISTRY.get(name);
-        assert entry is not None;
-        assert entry.emitter_suffix == "FloatEmitter";
+        `entry = JAC_TYPE_REGISTRY.get(name);
+        assert `entry is not None;
+        assert `entry.emitter_suffix == "FloatEmitter";
     }
 }
 
