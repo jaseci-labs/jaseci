@@ -799,7 +799,10 @@ def module_own_native_anchor(module: (uni.Module | None)) -> bool {
 }
 
 def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
-    import from jaclang.jac0core.placement_pins { effective_module_pin }
+    import from jaclang.jac0core.placement_pins {
+        _is_demoted_native,
+        effective_module_pin
+    }
     if (
         nd.is_service_import
         or nd.is_typed
@@ -819,6 +822,9 @@ def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
         real_resolved.startswith(jaclang_root + os.sep)
         and (os.sep + 'na_stdlib' + os.sep) not in real_resolved
     ) {
+        return None;
+    }
+    if _is_demoted_native(real_resolved) {
         return None;
     }
     if effective_module_pin(resolved) == 'native' {

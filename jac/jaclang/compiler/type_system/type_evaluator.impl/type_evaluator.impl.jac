@@ -3539,6 +3539,9 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     if not isinstance(tgt, Name) or tgt.sym is None {
         return False;
     }
+    if not expr.in_client_context() {
+        return False;
+    }
     mod = expr.find_parent_of_type(Module);
     if mod is None {
         return False;
