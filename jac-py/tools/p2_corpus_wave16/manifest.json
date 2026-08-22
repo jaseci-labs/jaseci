@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave16",
+  "description": "P2 wave 16: binascii conversion kernels (hex digit valuation, b2a_hex separator scheduling, base64 strict-mode decode state machine, uu framing, CRC-CCITT/CRC-32 table walks, qp hex emission)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave16",
+  "baseline_report": "jac-py/tools/p2_corpus_wave16/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "binasciimodule",
+      "source": "jac-py/tools/p2_corpus_wave16/corpus/binasciimodule.c",
+      "header_free": true
+    }
+  ]
+}

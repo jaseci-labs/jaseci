@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave16",
+  "description": "P2 wave 16 staging policy (binascii kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave16",
+  "modules": [
+    {
+      "stem": "binasciimodule",
+      "staging": "lift"
+    }
+  ]
+}

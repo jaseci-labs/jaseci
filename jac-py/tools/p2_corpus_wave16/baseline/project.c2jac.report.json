@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave16/binasciimodule.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave16/_staging/binasciimodule.c",
+      "tier_b_count": 0
+    }
+  ],
+  "quarantined_functions": [],
+  "tier_b_total": 0,
+  "version": 1
+}
