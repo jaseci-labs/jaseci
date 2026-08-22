@@ -12,6 +12,7 @@ import from jaclang.runtimelib.serving.datatypes {
     URL,
     parse_query_string
 }
+import from jaclang.runtimelib.serving.streams { close_stream_like }
 import from jaclang.runtimelib.serving.ws { WebSocket, compute_accept_key }
 
 
@@ -515,6 +516,10 @@ obj ServingServer {
             return conn_override != 'close';
         } except (ConnectionError, OSError) {
             return False;
+        } finally {
+            if stream is not None {
+                await close_stream_like(stream, what="response stream");
+            }
         }
     }
 

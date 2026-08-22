@@ -148,10 +148,10 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message=result.get('error', 'Walker execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
         return TransportResponse.success(
@@ -301,10 +301,10 @@ impl JacAPIServerEndpoints.create_function_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message=result.get('error', 'Function execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
         if raw_body {
@@ -509,15 +509,20 @@ impl JacAPIServerEndpoints.create_webhook_callback(
             self.get_walkers()[walker_name], walker_kwargs, user_id
         );
 
+        if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
+            return TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            );
+        }
         if 'error' in result {
             logger.error(
                 f"Webhook walker '{walker_name}' failed: "
                 f"{result.get('error')} {result.get('traceback', '')}"
             );
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message='Webhook processing failed',
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
 

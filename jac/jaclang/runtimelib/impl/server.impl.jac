@@ -1,6 +1,7 @@
 import from jaclang.cli.console { console }
 import from jaclang.cli.banners { JAC_DISCORD_URL }
 import from jaclang.runtimelib.serializer { Serializer }
+import from jaclang.runtimelib.serving.streams { close_stream_like }
 import from jaclang.runtimelib.client_bundle { MissingBunError, _ensure_js_generated }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.auth_models {
@@ -404,7 +405,29 @@ async def _run_function_with_occ(
             call_token = ctx.call_state.set(CallState());
             call_state = ctx.call_state.get();
             try {
-                return await run_attempt(call_state, ctx);
+                result = await run_attempt(call_state, ctx);
+                if isgenerator(result) or isinstance(result, AsyncGenerator) {
+                    limit = _stream_limit();
+                    slot = _stream_pool.acquire(limit);
+                    if slot is None {
+                        logger.warning(
+                            f"stream_limit: refusing a new stream, "
+                            f"{_stream_pool.active} of {limit} concurrent "
+                            "streams are already open"
+                        );
+                        await close_stream_like(result, what="refused stream");
+                        return {
+                            'error': (
+                                f"stream_limit: {limit} concurrent streams are "
+                                "already open"
+                            ),
+                            'error_code': 'stream_limit',
+                            'http_status': 503
+                        };
+                    }
+                    return _stream_in_request_context(result, ctx, slot);
+                }
+                return result;
             } except WriteConflict as wc {
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
@@ -446,6 +469,206 @@ async def _run_function_with_occ(
             logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
         }
         Jac.reset_request_context(req_token);
+    }
+}
+
+def _stream_limit -> int {
+    limit = 1024;
+    try {
+        cfg = get_config();
+        if cfg is not None {
+            limit = int(cfg.serve.max_concurrent_streams);
+        }
+    } except Exception as e {
+        logger.warning(
+            f"[serve] max_concurrent_streams could not be read "
+            f"({type(e).__name__}: {e}); using the default of 1024"
+        );
+        return 1024;
+    }
+    if limit < 0 {
+        logger.warning(
+            f"[serve] max_concurrent_streams = {limit} is negative; using the "
+            "default of 1024 (0 = unlimited)"
+        );
+        return 1024;
+    }
+    return limit;
+}
+
+impl StreamPool.postinit -> None {
+    self._lock = threading.Lock();
+}
+
+impl StreamPool.acquire(limit: int) -> (StreamSlot | None) {
+    with self._lock {
+        if limit > 0 and self.active >= limit {
+            return None;
+        }
+        self.active += 1;
+    }
+    return StreamSlot(pool=self);
+}
+
+impl StreamPool._release(slot: StreamSlot) -> None {
+    with self._lock {
+        if slot.released {
+            return;
+        }
+        slot.released = True;
+        self.active = max(0, self.active - 1);
+    }
+}
+
+impl StreamSlot.start -> None {
+    self.started = True;
+}
+
+impl StreamSlot.release -> None {
+    self.pool._release(self);
+}
+
+impl StreamSlot.release_unstarted -> None {
+    if not self.started {
+        self.release();
+    }
+}
+
+def _stream_in_request_context(
+    gen: any, ctx: ExecutionContext, slot: StreamSlot
+) -> AsyncGenerator {
+    import weakref;
+    if isgenerator(gen) {
+        stream = _stream_sync_gen(gen, ctx, slot);
+    } else {
+        stream = _stream_async_gen(gen, ctx, slot);
+    }
+    weakref.finalize(stream, slot.release_unstarted);
+    return stream;
+}
+
+async def _stream_sync_gen(
+    gen: any, ctx: ExecutionContext, slot: StreamSlot
+) -> AsyncGenerator {
+    slot.start();
+    loop = asyncio.get_running_loop();
+    q: asyncio.Queue = asyncio.Queue();
+    capacity = threading.Semaphore(2);
+    stopped = [False];
+
+    def _put(msg: tuple) {
+        try {
+            loop.call_soon_threadsafe(q.put_nowait, msg);
+        } except RuntimeError {
+            ;
+        }
+    }
+
+    def _produce {
+        token = Jac.push_request_context(ctx);
+        try {
+            try {
+                while True {
+                    capacity.acquire();
+                    if stopped[0] {
+                        break;
+                    }
+                    try {
+                        item = next(gen);
+                    } except StopIteration {
+                        break;
+                    }
+                    _put(('item', item));
+                }
+            } finally {
+                gen.close();
+            }
+            ctx.mem.unit_enter();
+            try {
+                Jac.commit();
+            } finally {
+                try {
+                    ctx.mem.unit_exit();
+                } except Exception as ue {
+                    logger.warning(
+                        f"stream unit exit failed: {type(ue).__name__}: {ue}"
+                    );
+                }
+            }
+            _put(('done', None));
+        } except BaseException as e {
+            _put(('error', e));
+        } finally {
+            Jac.reset_request_context(token);
+            slot.release();
+        }
+    }
+    worker = threading.Thread(target=_produce, daemon=True);
+    try {
+        worker.start();
+    } except BaseException {
+        slot.release();
+        raise;
+    }
+    try {
+        while True {
+            (kind, payload) = await q.get();
+            if kind == 'done' {
+                break;
+            }
+            if kind == 'error' {
+                raise payload;
+            }
+            capacity.release();
+            yield payload;
+        }
+    } finally {
+        stopped[0] = True;
+        capacity.release();
+    }
+}
+
+async def _stream_async_gen(
+    gen: any, ctx: ExecutionContext, slot: StreamSlot
+) -> AsyncGenerator {
+    slot.start();
+    try {
+        while True {
+            token = Jac.push_request_context(ctx);
+            try {
+                item = await gen.__anext__();
+            } except StopAsyncIteration {
+                break;
+            } finally {
+                Jac.reset_request_context(token);
+            }
+            yield item;
+        }
+        token = Jac.push_request_context(ctx);
+        try {
+            ctx.mem.unit_enter();
+            try {
+                await Jac.acommit();
+            } finally {
+                try {
+                    ctx.mem.unit_exit();
+                } except Exception as ue {
+                    logger.warning(
+                        f"stream unit exit failed: {type(ue).__name__}: {ue}"
+                    );
+                }
+            }
+        } finally {
+            Jac.reset_request_context(token);
+        }
+    } finally {
+        token = Jac.push_request_context(ctx);
+        try {
+            await close_stream_like(gen, what="stream producer");
+        } finally {
+            Jac.reset_request_context(token);
+            slot.release();
+        }
     }
 }
 
@@ -1595,9 +1818,7 @@ impl ExecutionHandler.call_function(
     result = await self.execution_manager.execute_function(
         functions[name], args, username
     );
-    return TransportResponse.success(
-        data=result, meta=Meta(extra={'http_status': 200})
-    );
+    return _execution_result_response(result);
 }
 
 impl ExecutionHandler.spawn_walker(
@@ -1613,6 +1834,28 @@ impl ExecutionHandler.spawn_walker(
         );
     }
     result = await self.execution_manager.spawn_walker(walkers[name], fields, username);
+    return _execution_result_response(result);
+}
+
+def execution_error_code(result: dict) -> str {
+    return str(result.get('error_code', 'execution_error')).upper();
+}
+
+def execution_error_status(result: dict, fallback: int = 500) -> int {
+    status = result.get('http_status');
+    return status if isinstance(status, int) else fallback;
+}
+
+def _execution_result_response(result: any) -> TransportResponse {
+    if isinstance(result, dict)
+        and 'error' in result
+        and isinstance(result.get('http_status'), int) {
+        return TransportResponse.fail(
+            code=execution_error_code(result),
+            message=str(result.get('error')),
+            meta=Meta(extra={'http_status': execution_error_status(result)})
+        );
+    }
     return TransportResponse.success(
         data=result, meta=Meta(extra={'http_status': 200})
     );

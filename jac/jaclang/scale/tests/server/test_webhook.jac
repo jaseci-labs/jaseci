@@ -223,6 +223,56 @@ test "webhook - minimal webhook with valid api key" {
     }
 }
 
+test "webhook - walker reporting a generator streams as SSE" {
+    client = make_client();
+    try {
+        _wh_user = f"webhook_stream_user_{uuid.uuid4().hex[:8]}";
+        client.register_user(_wh_user, "password123");
+        token = client.login_user(_wh_user, "password123");
+
+        api_key_response = client.post(
+            "/api-key/create",
+            json={"name": "webhook_stream_key", "expiry_days": 30},
+            headers={"Authorization": f"Bearer {token}"}
+        );
+        assert api_key_response.status_code == 201 , (
+            f"Failed to create API key: {api_key_response.text}"
+        );
+        api_key_data = extract_data(api_key_response.json());
+
+        payload = json.dumps({"count": 3});
+        payload_bytes = payload.encode("utf-8");
+        ts = str(int(time.time()));
+        signature = _generate_webhook_signature(
+            f"{ts}.".encode("utf-8") + payload_bytes, api_key_data["signing_secret"]
+        );
+        response = client.post(
+            "/webhook/WebhookStream",
+            content=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": api_key_data["api_key"],
+                "X-Webhook-Signature": signature,
+                "X-Webhook-Timestamp": ts
+            }
+        );
+
+        assert response.status_code == 200 , (
+            f"Expected 200, got {response.status_code}: {response.text}"
+        );
+        assert "text/event-stream" in response.headers.get("content-type", "") , (
+            f"webhook generator was not streamed: {dict(response.headers)} {response.text}"
+        );
+        for i in range(3) {
+            assert f'"n": {i}' in response.text , f"missing item {i}: {response.text}";
+        }
+        assert '"transport": "webhook"' in response.text , response.text;
+        assert "event: end" in response.text , f"stream did not end cleanly: {response.text}";
+    } finally {
+        client.close();
+    }
+}
+
 test "webhook - payment received with fields" {
     client = make_client();
     try {

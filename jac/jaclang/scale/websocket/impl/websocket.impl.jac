@@ -259,36 +259,19 @@ impl consume_rate_token(
     return False;
 }
 
-impl _ws_stream_next(gen: any) -> any {
-    try {
-        return gen.__next__();
-    } except StopIteration {
-        return _WS_STREAM_STOP;
-    }
-}
-
 impl _ws_stream_result(send_result: any, result: any) {
     stream_error: (str | None) = None;
     try {
-        if isgenerator(result) {
-            loop = asyncio.get_running_loop();
-            while True {
-                item = await loop.run_in_executor(None, _ws_stream_next, result);
-                if item is _WS_STREAM_STOP {
-                    break;
-                }
-                await send_result({'ok': True, 'type': 'chunk', 'data': item});
-            }
-        } else {
-            async for item in result {
-                await send_result({'ok': True, 'type': 'chunk', 'data': item});
-            }
+        async for item in result {
+            await send_result({'ok': True, 'type': 'chunk', 'data': item});
         }
     } except WebSocketDisconnect {
         raise;
     } except Exception as e {
         logger.error(f"WS stream error: {e}");
         stream_error = str(e);
+    } finally {
+        await close_stream_like(result, what="WS stream");
     }
     if stream_error is None {
         await send_result({'ok': True, 'type': 'done'});
