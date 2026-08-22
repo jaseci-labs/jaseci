@@ -45,7 +45,7 @@ def _wave_spec(manifest: dict, stem: str) -> dict {
             return spec;
         }
     }
-    assert False , f"missing c2jac_objects_wave entry {stem!r}";
+    raise ValueError(f"missing c2jac_objects_wave entry {stem!r}");
 }
 
 
