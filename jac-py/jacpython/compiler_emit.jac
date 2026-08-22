@@ -14,7 +14,9 @@ import from objects {
     PyNoneType,
     PySlice,
     PyCode,
-    PyTuple
+    PyTuple,
+    PySet,
+    is_error
 }
 import from opcode_meta {
     OP_RESUME,
@@ -1666,6 +1668,26 @@ def visit_expr(
                 }
                 si = si + 1;
             }
+            return None;
+        }
+        if len(selts) > 0 and display_all_constant(selts) {
+            # CPython packs an all-constant set as an empty set extended by a
+            # folded frozenset const: BUILD_SET 0; LOAD_CONST (frozenset);
+            # SET_UPDATE 1. Mirrors the all-constant list path above.
+            frozen = PySet(t="frozenset", items={}, frozen=True);
+            ci2 = 0;
+            const_items = display_const_items(selts);
+            while ci2 < len(const_items) {
+                added = frozen.set_add(const_items[ci2]);
+                if is_error(added) {
+                    break;
+                }
+                ci2 = ci2 + 1;
+            }
+            g.emit_op(OP_BUILD_SET, 0, dloc);
+            cidx_set = g.u.add_const(frozen);
+            g.emit_op(OP_LOAD_CONST, cidx_set, dloc);
+            g.emit_op(OP_SET_UPDATE, 1, dloc);
             return None;
         }
         si = 0;
