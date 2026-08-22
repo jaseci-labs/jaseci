@@ -1706,8 +1706,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                         isinstance(right_type, ClassType) and right_type.is_enum_class()
                     );
                     if not is_enum {
+                        _in_item = expr.left if i == 0 else expr.rights[i - 1];
                         result = self.get_type_of_magic_method_call(
-                            right_type, "__contains__", [expr.rights[i]], None
+                            right_type, "__contains__", [_in_item], None
                         );
                         if result is None {
                             self.emit_diag(
