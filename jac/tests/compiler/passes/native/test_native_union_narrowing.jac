@@ -48,7 +48,7 @@ A narrowing the backend cannot lower surfaces here first: the emitter raises,
 the module carries diagnostics, and there is no engine to call into. That is
 a real failure of the shape, so it is asserted rather than skipped.
 """
-def _engine(fixture: str) -> object {
+def _engine(fixture: str) -> any {
     hit = _ENGINES.get(fixture);
     if hit is not None {
         return hit;
@@ -67,7 +67,7 @@ def _engine(fixture: str) -> object {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(fixture: str, name: str) -> object {
+def _get(fixture: str, name: str) -> any {
     addr = _engine(fixture).get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in the engine for {fixture}";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -75,7 +75,7 @@ def _get(fixture: str, name: str) -> object {
 
 
 """Import the same fixture through the sv/bytecode pathway, memoized."""
-def _sv(fixture: str) -> object {
+def _sv(fixture: str) -> any {
     hit = _SV_MODS.get(fixture);
     if hit is not None {
         return hit;

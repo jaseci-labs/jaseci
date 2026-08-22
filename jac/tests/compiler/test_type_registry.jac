@@ -55,12 +55,16 @@ test "emitter_items covers all primitive types" {
 
 test "emitter suffixes follow naming convention" {
     entry_int = JAC_TYPE_REGISTRY.get("int");
+    assert entry_int is not None;
     assert entry_int.emitter_suffix == "IntEmitter";
     entry_str = JAC_TYPE_REGISTRY.get("str");
+    assert entry_str is not None;
     assert entry_str.emitter_suffix == "StrEmitter";
     entry_fs = JAC_TYPE_REGISTRY.get("frozenset");
+    assert entry_fs is not None;
     assert entry_fs.emitter_suffix == "FrozensetEmitter";
     entry_bool = JAC_TYPE_REGISTRY.get("bool");
+    assert entry_bool is not None;
     assert entry_bool.emitter_suffix == "BoolEmitter";
 }
 

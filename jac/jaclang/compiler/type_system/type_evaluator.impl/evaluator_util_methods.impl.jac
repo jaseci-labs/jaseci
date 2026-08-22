@@ -18,6 +18,9 @@ impl TypeEvaluator._try_resolve_forward_ref(expr: String) -> TypeBase | None {
 
     resolved = self.get_type_of_symbol(symbol);
     if isinstance(resolved, UnknownType) {
+        if resolved.is_incomplete {
+            return resolved;
+        }
         return None;
     }
     return resolved;
@@ -57,6 +60,7 @@ impl TypeEvaluator._build_field_params(
         }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
+                param_map.pop(has_var.name.value, None);
                 continue;
             }
 
@@ -428,6 +432,16 @@ impl TypeEvaluator._get_getattr_return_type(base_type: ClassType) -> TypeBase | 
             return getattr_type.return_type or UnknownType();
         }
     }
+
+    if member := self._lookup_class_member(base_type, "__getattribute__") {
+        _ga_decl = self.declaring_class_of(member.symbol, base_type);
+        if _ga_decl is not None and _ga_decl.shared.class_name != "object" {
+            getattr_type = self.get_type_of_symbol(member.symbol);
+            if isinstance(getattr_type, FunctionType) {
+                return getattr_type.return_type or UnknownType();
+            }
+        }
+    }
     return None;
 }
 
@@ -507,6 +521,29 @@ impl TypeEvaluator._convert_to_instance(jtype: TypeBase) -> TypeBase {
     return convert_to_instance(jtype);
 }
 
+impl TypeEvaluator._metaclass_of(cls_type: ClassType) -> (ClassType | None) {
+    for cls in cls_type.shared.mro {
+        arch = cls.shared.symbol_table;
+        if not isinstance(arch, Archetype) {
+            continue;
+        }
+        for kid in arch.kid {
+            if (
+                isinstance(kid, KWPair)
+                and kid.key is not None
+                and kid.key.sym_name == "metaclass"
+            ) {
+                meta_type = self.get_type_of_expression(kid.value);
+                if isinstance(meta_type, ClassType)
+                    and meta_type.shared is not cls_type.shared {
+                    return meta_type;
+                }
+            }
+        }
+    }
+    return None;
+}
+
 impl TypeEvaluator._edge_endpoint_type(
     edge_type: ClassType, edge_dir: EdgeDir
 ) -> TypeBase | None {
@@ -533,12 +570,19 @@ impl TypeEvaluator._edge_endpoint_type(
 }
 
 impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool {
+    import from jaclang.compiler.type_system.type_utils { types_equivalent }
     for existing in type_list {
         if isinstance(ty, ClassType) and isinstance(existing, ClassType) {
             if ty.shared == existing.shared {
                 return True;
             }
         } elif ty is existing {
+            return True;
+        } elif (
+            not isinstance(ty, ClassType)
+            and not isinstance(existing, ClassType)
+            and types_equivalent(ty, existing)
+        ) {
             return True;
         }
     }
@@ -1667,6 +1711,12 @@ impl TypeEvaluator.validate_typevar_variance(func: Ability) -> None {
 }
 
 impl TypeEvaluator.validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> None {
+    if type_var.is_self {
+        if expr.find_parent_of_type(Archetype) is not None
+            or expr.find_parent_of_type(ImplDef) is not None {
+            return;
+        }
+    }
     if isinstance(expr, Name) and expr.sym {
         sym_decl = expr.sym.decl;
         if sym_decl {

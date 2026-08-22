@@ -200,10 +200,12 @@ def classify_call(nd: FuncCall) -> CallKind {
     }
 
     intrinsics = intrinsic_registry_if_ready();
-    if intrinsics is not None
-        and isinstance(nd.target, Name)
-        and intrinsics.is_intrinsic(nd.target.sym_name) {
-        return CallKind.INTRINSIC;
+    if intrinsics is not None and isinstance(nd.target, Name) {
+        import from jaclang.compiler.intrinsic_registry { IntrinsicRegistry }
+        if isinstance(intrinsics, IntrinsicRegistry)
+            and intrinsics.is_intrinsic(nd.target.sym_name) {
+            return CallKind.INTRINSIC;
+        }
     }
 
     sym = resolve_expr_symbol(nd.target);
@@ -740,12 +742,14 @@ def _import_used_as_value(mod: Module, imp: Import) -> bool {
 }
 
 
-def serverless_server_evidence(mod: Module, prog: any) -> list[tuple] {
+def serverless_server_evidence(
+    mod: Module, prog: any
+) -> list[tuple[str, str, UniNode]] {
     import from jaclang.jac0core.placement { get_module_summary, project_has_server }
     if project_has_server(mod.loc.mod_path or '') {
         return [];
     }
-    out: list[tuple] = [];
+    out: list[tuple[str, str, UniNode]] = [];
     for es in get_module_summary(mod, prog).elements {
         if es.index >= len(mod.body) {
             continue;

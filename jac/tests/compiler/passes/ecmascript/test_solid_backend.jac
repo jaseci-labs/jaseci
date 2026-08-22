@@ -103,7 +103,9 @@ test "solid reports signals runtime symbols for reactive lowering" {
 test "solid read seam lowers a reactive read to an accessor call" {
     read_node = SolidBackend().lower_state_read("count");
     assert isinstance(read_node, es.CallExpression);
-    assert read_node.callee.name == "count";
+    callee = read_node.callee;
+    assert isinstance(callee, es.Identifier);
+    assert callee.name == "count";
     assert read_node.arguments == [];
 }
 

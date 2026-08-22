@@ -344,8 +344,9 @@ impl ReactNativeTarget._compile_native_jac_modules(
 ) -> tuple[(any, Path)] {
     console.print("  Step 1: Compiling Jac modules + native runtime...", style="muted");
 
+    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
     builder = Jac.get_client_bundle_builder();
-    if builder is None {
+    if not isinstance(builder, ViteClientBundleBuilder) {
         raise RuntimeError(
             "Client bundle builder is unavailable — the jac-client compiler "
             "stack is required for react-native builds. Ensure "
@@ -488,7 +489,7 @@ def _start_ios(artifact_path: Path, project_dir: Path) {
     );
     import json as json_mod;
     sim_data = json_mod.loads(sim_result.stdout);
-    devices = sim_data.get("devices", {});
+    devices: dict[str, list[dict[str, any]]] = sim_data.get("devices", {});
 
     booted_udid: str | None = None;
     for (runtime_key, device_list) in devices.items() {

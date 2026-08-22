@@ -223,11 +223,8 @@ impl nacompile(
     }
     import from jaclang.project { get_config }
 
-    _gc_cfg = None;
     _cfg = get_config();
-    if _cfg {
-        _gc_cfg = _cfg.gc;
-    }
+    _gc_cfg = _cfg.gc if _cfg else None;
     if not gc {
         gc = _gc_cfg.`default if _gc_cfg else "cycles";
     }
@@ -324,7 +321,6 @@ impl nacompile(
         prog = JacProgram();
         options = CompileOptions(
             aot_mode=True,
-            type_check=False,
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
             na_gc_mode=gc,
@@ -474,7 +470,7 @@ impl nacompile(
     llvm.initialize_all_targets();
     llvm.initialize_all_asmprinters();
 
-    triple = (options.native_target or "") or llvm.get_default_triple();
+    triple = (options.native_target or "") or str(llvm.get_default_triple());
     console.print(f"  Target: {triple}");
 
     export_symbols: list[str] = [];
@@ -592,19 +588,20 @@ impl nacompile(
     }
 
     _target_ovr = options.native_target or "";
-    if _target_ovr {
-        target = llvm.Target.from_triple(_target_ovr);
-    } else {
-        target = llvm.Target.from_default_triple();
-    }
+    _llvm_target = (
+        llvm.Target.from_triple(_target_ovr)
+            if _target_ovr
+            else llvm.Target.from_default_triple()
+    );
+    assert isinstance(_llvm_target, llvm.Target);
 
     if shared {
-        target_machine = target.create_target_machine(
-            opt=2, reloc="pic", codemodel="small"
-        );
+        _tm = _llvm_target.create_target_machine(opt=2, reloc="pic", codemodel="small");
     } else {
-        target_machine = target.create_target_machine(opt=2, codemodel="large");
+        _tm = _llvm_target.create_target_machine(opt=2, codemodel="large");
     }
+    assert isinstance(_tm, llvm.TargetMachine);
+    target_machine = _tm;
 
     _opt_level = int(options.opt_level or 0);
     _dump_path = options.dump_ir_path or "";
@@ -612,7 +609,9 @@ impl nacompile(
     if _opt_level > 0 {
         pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
         pb = llvm.create_pass_builder(target_machine, pto);
+        assert isinstance(pb, llvm.PassBuilder);
         opt_mpm = pb.getModulePassManager();
+        assert isinstance(opt_mpm, llvm.ModulePassManager);
         if not shared {
             opt_mpm.add_internalize_pass();
         }
@@ -626,6 +625,7 @@ impl nacompile(
     }
 
     obj_bytes = target_machine.emit_object(mod);
+    assert isinstance(obj_bytes, bytes);
     console.print(f"  Object code emitted ({len(obj_bytes)} bytes).");
 
     if is_windows {

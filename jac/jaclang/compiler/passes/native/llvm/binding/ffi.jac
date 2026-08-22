@@ -1,10 +1,7 @@
 import sys;
 import os;
 import ctypes;
-import from jaclang.compiler.passes.native.llvm.binding.common {
-    _decode_string,
-    _is_shutting_down
-}
+import from jaclang.compiler.passes.native.llvm.binding.common { _is_shutting_down }
 
 
 def _shim_name -> str {
@@ -49,14 +46,36 @@ def _find_shim -> str {
 }
 
 
+class _MissingShimFunc {
+    """Stands in for a shim function when no shim exists.
+
+    Binding modules configure argtypes/restype at import time; without a
+    shim those assignments land here and vanish, so the modules stay
+    importable (the checker resolving an import must not demand LLVM).
+    Only an actual call raises, with the original locate error."""
+
+    def init(self: _MissingShimFunc, err: OSError) {
+        self._err: OSError = err;
+    }
+
+    def __call__(self: _MissingShimFunc, *args: any, **kwargs: any) -> any {
+        raise self._err;
+    }
+}
+
+
 class _LazyLib {
     def init(self: _LazyLib) {
-        self._handle = None;
+        self._handle: (ctypes.CDLL | None) = None;
     }
 
     def __getattr__(self: _LazyLib, name: str) -> any {
         if self._handle is None {
-            self._handle = ctypes.CDLL(_find_shim());
+            try {
+                self._handle = ctypes.CDLL(_find_shim());
+            } except OSError as e {
+                return _MissingShimFunc(e);
+            }
         }
         return getattr(self._handle, name);
     }
@@ -153,7 +172,7 @@ class OutputString {
         }
         s = self._ptr.value;
         assert s is not None;
-        return _decode_string(s);
+        return bytes(s).decode('utf-8');
     }
 
     def __bool__(self: OutputString) -> bool {

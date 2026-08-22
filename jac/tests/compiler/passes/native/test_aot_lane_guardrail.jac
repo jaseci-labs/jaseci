@@ -19,7 +19,13 @@ import sys;
 import tempfile;
 import from tests.support { JAC_ROOT, TESTS_DIR }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_py_code_gen }
+import from jaclang.jac0core.compiler {
+    get_analysis_sched,
+    get_boundary_analysis_sched,
+    get_ir_gen_sched,
+    get_py_code_gen,
+    providers_of
+}
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -30,7 +36,14 @@ glob FIXTURES = os.path.join(
 
 test "the native codegen schedule carries the native passes" {
     import from jaclang.compiler.passes.native { NaIRGenPass, NativeCompilePass }
-    sched = get_py_code_gen(native=True);
+    # Codegen runs after the analysis stage in the single pipeline, so the
+    # standalone schedule is constructed against its provides.
+    sched = get_py_code_gen(
+        native=True,
+        provided=providers_of(
+            get_ir_gen_sched() + get_analysis_sched() + get_boundary_analysis_sched()
+        )
+    );
     names = [p.__name__ for p in sched];
     assert NaIRGenPass in sched , (
         f"native codegen schedule lost NaIRGenPass: {names}"
@@ -47,7 +60,6 @@ test "an AOT compile that lowers nothing names the module" {
         file_path=os.path.join(FIXTURES, "aot_no_lowerable_code.jac"),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             no_ir_cache=True

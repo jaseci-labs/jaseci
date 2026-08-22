@@ -630,7 +630,9 @@ class _InputIntrinsicProps(_HtmlCommonProps):
     """Props for <input> elements."""
 
     type: str
-    value: str
+    # React and Solid both accept numeric `value` (string | number in their
+    # JSX typings); the framework stringifies it on render.
+    value: str | int | float
     checked: bool
     disabled: bool
     readOnly: bool

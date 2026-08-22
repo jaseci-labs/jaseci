@@ -2,9 +2,10 @@
 
 The move-lowerability proof is a core analysis on the shared dataflow
 framework; the native codegen schedule consumes the stamped
-`Assignment.na_move_lowerable` facts. These fixtures are plain `.jac` files compiled
-with `type_check=False` (so the ownership checker never runs over the deliberate
-UAF channels), then we drive `RcFactsPass` directly over the CFG-built IR
+`Assignment.na_move_lowerable` facts. These fixtures are plain `.jac` files whose
+hazard sources are plain RC locals (the always-on ownership checker tracks `own`
+bindings, so a real `own` UAF no longer compiles), and we drive `RcFactsPass`
+directly over the CFG-built IR
 so the `na_move_lowerable` marks come purely from the core liveness proof. Each
 fixture function has a single `bN = a` candidate; we assert the mark per candidate
 by its target name.
@@ -28,7 +29,7 @@ glob FIXTURES = os.path.join(TESTS_DIR, "compiler", "passes", "main", "fixtures"
 """Map every single-target `Name = ...` assignment to its move-lowerable mark."""
 def move_marks(fixture: str) -> dict[str, bool] {
     prog = JacProgram();
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), type_check=False);
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     # Native codegen (which schedules this pass) is gated off for plain `.jac`

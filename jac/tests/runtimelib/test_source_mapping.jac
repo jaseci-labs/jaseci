@@ -13,6 +13,10 @@ import from jaclang.runtimelib.source_mapping {
     read_source_snippet
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # =============================================================================
 # VLQ Decoding
 # =============================================================================
@@ -310,7 +314,7 @@ test "es compiler produces exact line mapping for function body statements" {
         assert mod.gen.es_ast is not None , "No ES AST generated";
         # Get JS code and line map
         import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js_with_map }
-        (js_code, line_map) = es_to_js_with_map(mod.gen.es_ast);
+        (js_code, line_map) = es_to_js_with_map(_as_any(mod.gen.es_ast));
         assert len(line_map) > 0 , "No line mappings generated";
         # Build a lookup: output_line -> jac_line
         out_to_jac: dict[int, int] = {};

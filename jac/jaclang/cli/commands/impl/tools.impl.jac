@@ -63,6 +63,7 @@ impl tool(tool: str, args: list = []) -> int {
 
 impl dot(
     filename: str,
+    session: str = "",
     initial: str = "",
     depth: int = -1,
     traverse: bool = False,

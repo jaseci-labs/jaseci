@@ -151,10 +151,7 @@ def _compile_route(path: str, route: any) -> tuple[any] {
         mod = prog.compile(
             file_path=path,
             options=CompileOptions(
-                type_check=False,
-                no_cgen=False,
-                force_target_program=True,
-                default_codespace="server"
+                no_cgen=False, force_target_program=True, default_codespace="server"
             )
         );
         snap = prefix_snapshot();
@@ -166,7 +163,7 @@ def _compile_route(path: str, route: any) -> tuple[any] {
 }
 
 def _bytecode_of(mod: any) -> any {
-    raw = mod.gen?.py_bytecode;
+    raw: any = mod.gen?.py_bytecode;
     if not raw {
         return None;
     }
@@ -429,9 +426,12 @@ test "the comparators are not vacuous" {
 }
 
 test "injected divergence: the harness fails when the routes disagree" {
-    path = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures", "fam.jac");
+    # hello_world.jac, not fam.jac: the code comparator can only fire on a
+    # module whose staged compile reaches codegen, and fam.jac is a parser
+    # stress fixture that the critical-path checker (correctly) refuses.
+    path = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures", "hello_world.jac");
     if not os.path.exists(path) {
-        testskip("fam.jac fixture is absent");
+        testskip("hello_world.jac fixture is absent");
     }
     try {
         diffs = parity_diffs(path, diverging_prefix_entry);
@@ -449,7 +449,7 @@ test "injected divergence: the harness fails when the routes disagree" {
         f"reporting noise instead of the perturbation: {joined[:600]}"
     );
     kinds = {
-        "field": any(d.startswith("fam") for d in diffs),
+        "field": any(d.startswith("hello_world") for d in diffs),
         "code": any(".co_" in d for d in diffs),
         "unparse": any("unparse diverged" in d for d in diffs)
     };
