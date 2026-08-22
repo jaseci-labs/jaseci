@@ -130,7 +130,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
             parts = name.split("::");
             cls_sym = mod.sym_tab.lookup(parts[0]);
             if cls_sym is not None {
-                scope = cls_sym.decl.name_of;
+                scope: any = cls_sym.decl.name_of;
                 sym = scope.lookup(parts[1], deep=False);
             }
         } else {

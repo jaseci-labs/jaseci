@@ -791,6 +791,13 @@ document: _Document
 class _Window:
     """The `window` object (minimal surface)."""
 
+    # Jac-injected host globals (set by the desktop host bootstrap and the
+    # client runtime before any user code runs).
+    __JAC_DESKTOP__: object
+    __JAC_BROKER__: object
+    __JAC_INIT__: object
+    __JAC_API_BASE_URL__: object
+    __JAC_RN_ASSET_MAP__: object
     innerWidth: float
     innerHeight: float
     outerWidth: float

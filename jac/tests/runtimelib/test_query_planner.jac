@@ -95,7 +95,7 @@ test "cold engine query: preds, slice, and fetches == |result|" {
             );
             hits = resolve_query(ctx2.mem, q);
             assert len(hits) == 1;
-            assert hits[0].archetype.val == 2;
+            assert _as_any(hits[0]).archetype.val == 2;
             fetches = ctx2.mem.get_fetch_count();
             assert fetches == 1 , (
                 f"cost invariant: expected 1 L3 fetch (the winner), got {fetches}"
@@ -108,7 +108,7 @@ test "cold engine query: preds, slice, and fetches == |result|" {
                 )
             );
             assert len(two) == 2;
-            assert [a.archetype.val for a in two] == [1, 2];
+            assert [_as_any(a).archetype.val for a in two] == [1, 2];
 
             chain = resolve_query(
                 ctx2.mem,
@@ -125,7 +125,7 @@ test "cold engine query: preds, slice, and fetches == |result|" {
                 )
             );
             assert len(chain) == 1;
-            assert chain[0].archetype.tag == "leaf";
+            assert _as_any(chain[0]).archetype.tag == "leaf";
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();
@@ -193,7 +193,7 @@ test "overlay: uncommitted writes are visible, both directions" {
                 )
             );
             assert len(one) == 1;
-            one[0].archetype.val = 42;
+            _as_any(one[0]).archetype.val = 42;
 
             after = resolve_query(
                 ctx2.mem,

@@ -33,6 +33,11 @@ walker Probe {
     }
 }
 
+def _acl_label(a: any) -> any {
+    return a.archetype.label;
+}
+
+
 def _as_root(v: any) -> Root {
     return v;
 }
@@ -52,7 +57,7 @@ def _three_transcripts(origin_arch: any, mem: any) -> tuple {
         if isinstance(n, SecretNode)
     ];
     planned = [
-        a.archetype.label
+        _acl_label(a)
         for a in resolve_query(
             mem, GraphQuery(origin_arch, hops=[QHop(dir=2, nd=SecretNode)])
         )
