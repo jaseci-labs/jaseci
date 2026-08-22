@@ -30,12 +30,14 @@ test "literal JS host global sets stay in sync with JS_HOST_GLOBAL_TAGS" {
     assert BROWSER_SEED_GLOBALS == frozenset(derived_seed) , (
         "BROWSER_SEED_GLOBALS drifted from JS_HOST_GLOBAL_TAGS: only in set: "
         + str(sorted(BROWSER_SEED_GLOBALS - frozenset(derived_seed)))
-        + "; only in tags: " + str(sorted(frozenset(derived_seed) - BROWSER_SEED_GLOBALS))
+        + "; only in tags: "
+        + str(sorted(frozenset(derived_seed) - BROWSER_SEED_GLOBALS))
     );
     assert JS_HOST_CONSTRUCTORS == frozenset(derived_ctors) , (
         "JS_HOST_CONSTRUCTORS drifted from JS_HOST_GLOBAL_TAGS: only in set: "
         + str(sorted(JS_HOST_CONSTRUCTORS - frozenset(derived_ctors)))
-        + "; only in tags: " + str(sorted(frozenset(derived_ctors) - JS_HOST_CONSTRUCTORS))
+        + "; only in tags: "
+        + str(sorted(frozenset(derived_ctors) - JS_HOST_CONSTRUCTORS))
     );
     assert JS_HOST_AMBIENT_GLOBALS == frozenset(JS_HOST_GLOBAL_TAGS.keys()) , (
         "JS_HOST_AMBIENT_GLOBALS drifted from JS_HOST_GLOBAL_TAGS keys"
