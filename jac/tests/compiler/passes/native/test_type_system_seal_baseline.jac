@@ -416,6 +416,7 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._get_type_of_self",
              "TypeEvaluator._get_type_of_super",
              "TypeEvaluator._type_var_bound_in_scope",
+             "TypeEvaluator.validate_call_args",
              "TypeEvaluator.validate_typevar_variance"
          ),
          "erased field 'TypeEvaluator.program'": (
@@ -436,17 +437,13 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._resolve_py_ast_type_node",
              "TypeEvaluator._resolve_string_type_expr"
          ),
-         "attribute access 'symbol'": (
-             "TypeEvaluator._get_method_with_overloads",
-             "TypeEvaluator.get_type_of_member"
-         ),
          "for-loop iterable 'FuncCall'": (
              "TypeEvaluator._build_field_params",
              "TypeEvaluator._build_typeddict_fields"
          ),
          "function 'collect_assignment_target_keys'": (
-             "TypeEvaluator._get_type_from_flow_node",
-             "TypeEvaluator._loop_body_writes_target"
+             "TypeEvaluator._loop_body_writes_target",
+
          ),
          "function 'get_special_enum_value_type_from_bases'": (
              "TypeEvaluator.get_type_of_class",
@@ -460,13 +457,20 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._extract_tuple_element_type_path",
              "TypeEvaluator._tuple_literal_index_type"
          ),
-         "method 'TypeEvaluator._in_native_context'": (
+         "method (native emitter error in) 'TypeEvaluator.assign_type'": (
              "TypeEvaluator.assign_type",
-             "TypeEvaluator.validate_call_args"
+
          ),
          "method 'TypeEvaluator.get_type_of_enum'": (
              "TypeEvaluator._get_enum_member_type_for_decl",
-             "TypeEvaluator._get_type_of_symbol"
+             "TypeEvaluator._get_type_of_symbol_decl"
+         ),
+         "function 'collect_member_syms'": ("TypeEvaluator._super_owner_for", ),
+         "expression 'AtomUnit'": ("TypeEvaluator._synthesize_enum_metaclass_attr", ),
+         "function 'resolve_expr_symbol'": ("TypeEvaluator.flow_pred_never_returns", ),
+         "method 'TypeEvaluator.flow_pred_never_returns'": (
+             "TypeEvaluator._get_type_from_flow_node",
+
          ),
          "method 'TypeEvaluator.get_type_of_module'": (
              "TypeEvaluator.get_type_of_module_item",
@@ -476,16 +480,10 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._get_declared_return_type",
              "TypeEvaluator._infer_lambda_block_return_type"
          ),
-         # `attribute access 'cur_node'` cleared when `transform.jac` joined
-         # the closure and the read got a layout; `_in_native_context`
-         # demotes one step deeper, on the isinstance the read feeds -- one
-         # for one, exactly as the joint-seal design measured.
-         "builtin call 'isinstance against `UniNode`'": (
-             "TypeEvaluator._in_native_context",
-
-         ),
+         # `attribute access 'cur_node'` and `_in_native_context`'s
+         # isinstance both cleared once checker stamps reach every tree a
+         # native unit consumes -- the joint-seal design's end state.
          "attribute access 'errors_had'": ("TypeEvaluator._resolve_type_alias_rhs", ),
-         "builtin call 'isinstance against `UniCFGNode`'": ("_find_cfg_node_for", ),
          "builtin call 'isinstance'": ("TypeEvaluator._union_narrowed_types", ),
          "expression 'CompareExpr'": ("TypeEvaluator._synthesize_typeddict_method", ),
          "expression 'comprehension over an element-erased collection'": (
@@ -493,6 +491,7 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
 
          ),
          "function 'build_type_var_solution'": (
+             "TypeEvaluator.get_type_of_member",
              "TypeEvaluator.specialize_member_type",
 
          ),
@@ -580,6 +579,7 @@ glob CHECKER_CLOSURE: tuple = (
          "fnmatch.jac",
          "hashlib.jac",
          "helpers.jac",
+         "intrinsic_registry.jac",
          "logging.jac",
          "module_codegen_pass.jac",
          "operations.jac",
@@ -737,28 +737,22 @@ IR). What remains of the joint seal is roots in `NATIVE_SEAL_ROOTS` and the
 pooled seal's verdict; nothing in the pair needs a lowering change.
 """
 glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
-         "inherited field access 'ir_in'": (
-             "TypeCheckPass._check_unresolved_lambda_params",
-             "TypeCheckPass._insert_builtin_symbols",
-             "TypeCheckPass.emit",
-             "TypeCheckPass.exit_ability",
-             "TypeCheckPass.exit_archetype",
-             "TypeCheckPass.exit_enum"
-         ),
-         "expression 'FuncCall'": (
-             "TypeCheckPass.after_pass",
-             "TypeCheckPass.before_pass"
-         ),
+         "expression 'FuncCall'": ("TypeCheckPass.before_pass", ),
+         "expression 'BoolExpr'": ("TypeCheckPass.after_pass", ),
          "type 'JacProgram'": ("TypeEvaluator.program", ),
-         "field assignment 'type'": ("TypeCheckPass.exit_assignment", ),
+         "function 'get_pow_result_type'": ("TypeCheckPass.exit_assignment", ),
          "function 'classify_call'": ("TypeCheckPass.exit_func_call", ),
-         "unsupported attribute access 'get'": (
-             "TypeCheckPass._check_intrinsic_call",
+         "for-loop iterable 'tuple with mixed element storage'": (
+             "TypeCheckPass._client_state_field_owner",
 
          ),
-         "unsupported attribute access 'is_intrinsic'": (
-             "TypeCheckPass._check_intrinsic_collision",
+         "function 'state_setter_name'": (
+             "TypeCheckPass._install_client_state_setters",
 
+         ),
+         "function 'intrinsic_registry_if_ready'": (
+             "TypeCheckPass._check_intrinsic_call",
+             "TypeCheckPass._check_intrinsic_collision"
          ),
          "unsupported attribute access 'type'": ("TypeCheckPass.exit_sub_tag", )
      };

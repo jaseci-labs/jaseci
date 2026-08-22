@@ -192,25 +192,15 @@ glob UNITREE_CLOSURE: tuple = (
              "demotes here instead of linking against the name the demotion "
              "renamed away. Clears with its callee."
          ),
-         "type_utils.jac::expr_primitive_name": (
-             "Python-only: narrows its `prog` to `JacProgram` and reaches "
-             "`get_type_evaluator`. `type_evaluator.jac` is not in this unit "
-             "and cannot be, so the attribute chain has no layout to walk."
-         ),
          "type_utils.jac::class_implements_protocol": (
              "Backend gap -- imported isinstance: `isinstance` against "
              "`UniScopeNode`, whose layout is not reachable from this unit's "
              "root even though `unitree.jac` is a member."
          ),
-         "type_utils.jac::doc_of_sym": (
-             "Backend gap -- imported isinstance: `isinstance` against "
-             "`AstDocNode`, same unreachable-layout shape."
-         ),
-         "type_utils.jac::completion_item_from_sym": (
-             "Cascade: calls `doc_of_sym`, waived above."
-         ),
          "type_utils.jac::get_completion_items": (
-             "Cascade: calls `completion_item_from_sym`, waived above."
+             "Backend gap: builds completion rows through "
+             "`completion_kind_from_sym`'s unlowerable `match`, waived "
+             "below."
          ),
          "type_utils.jac::completion_kind_from_sym": (
              "Backend gap: a `match` over unitree archetypes; the "
@@ -267,6 +257,11 @@ glob UNITREE_CLOSURE: tuple = (
              "Python-only: same function-local unitree import. This is the "
              "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
              "which no sealed parse reaches."
+         ),
+         "helpers.jac::add_line_numbers": (
+             "Backend gap: `str.join` over a built list has no native "
+             "lowering in this unit; the diagnostic gutter is Python-side "
+             "output machinery either way."
          ),
          # `transform.jac` and `uni_pass.jac` contribute no entry:
          # `Alert.pretty_print` cleared when the helpers gutter formatting

@@ -317,7 +317,7 @@ def _walk_closure(
         return out;
     }
 
-    def attr_of(trailer: uni.UniNode) -> (str | None) {
+    def attr_of(trailer: uni.AtomTrailer) -> (str | None) {
         right = trailer.right if trailer?.right is not None else None;
         if isinstance(right, uni.Name) {
             return right.value;
