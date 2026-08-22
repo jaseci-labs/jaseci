@@ -55,14 +55,20 @@
 #        CO_FAST_FREE=0x80. A cell that is also a local (cell parameter)
 #        carries BOTH 0x20 and 0x40 and appears only in varnames+cellvars
 #        views, never freevars.
-#   C4.3 Disjointness: a name is cell or free, never both; within one view
-#        names are unique; the three views share no name between
-#        cellvars and freevars.
-#   C4.4 Deref index space: LOAD_DEREF/STORE_DEREF opargs index into
-#        cellvars ++ freevars (in that order), i.e. arg < len(cellvars)
-#        selects cellvars[arg], else freevars[arg - len(cellvars)].
-#   C4.5 Fast-local index space: LOAD_FAST-family/STORE_FAST-family opargs
-#        index into varnames only (arg < len(varnames))
+#   C4.3 Cell parameters keep their varname slot (kind bits 0x20|0x40);
+#        they are NOT duplicated into cellvars -- the appended region holds
+#        only non-argument cellvars, then freevars.
+#   C4.4 Disjointness: within each view names are unique; no name appears
+#        in both cellvars and freevars.
+#   C4.5 Merged-index addressing: BOTH operand families -- fast
+#        (LOAD_FAST/LOAD_FAST_BORROW/LOAD_FAST_CHECK/LOAD_FAST_AND_CLEAR/
+#        STORE_FAST/STORE_FAST_MAYBE_NULL/DELETE_FAST) and deref
+#        (LOAD/STORE/DELETE_DEREF, LOAD_CLOSURE, MAKE_CELL) -- carry
+#        MERGED localsplus indexes over [varnames][cellvars][freevars]:
+#        0 <= oparg < len(varnames)+len(cellvars)+len(freevars).
+#        Deref-family ops fetch the slot's PyCell; fast-family ops fetch
+#        its value; a cell-kind slot is reachable through both families
+#        (CPython 3.14 loads cellvars via LOAD_FAST_BORROW).
 #
 # C5 -- marshal transport field order (Reader.read_code, marshal.c
 #      w_object TYPE_CODE block): argcount, posonlyargcount, kwonlyargcount,

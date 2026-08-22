@@ -32,13 +32,22 @@ import from opcode_meta {
     OP_RETURN_VALUE,
     OP_LOAD_CONST,
     OP_LOAD_FAST,
+    OP_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_CHECK,
+    OP_LOAD_FAST_AND_CLEAR,
     OP_STORE_FAST,
+    OP_STORE_FAST_MAYBE_NULL,
+    OP_DELETE_FAST,
+    OP_LOAD_DEREF,
+    OP_STORE_DEREF,
+    OP_DELETE_DEREF,
+    OP_LOAD_CLOSURE,
+    OP_MAKE_CELL,
     OP_BINARY_OP,
     OP_COMPARE_OP,
     OP_CALL,
     OP_MAKE_FUNCTION,
     opcode_cache_count,
-    instruction_width,
 }
 
 obj PyCodeDiff {
@@ -216,7 +225,298 @@ def compare_int_list(a: list[int], b: list[int], path: str) -> PyCodeDiff {
     return diff_ok();
 }
 
+# ---------------- structural contract checks (codeobject.jac C1-C5) ------
+
+# Byte width of one instruction in raw co_code: the (opcode, oparg) pair
+# plus 2 bytes per inline-cache unit. This is the frozen C1.3 width -- do
+# NOT confuse with opcode_meta.instruction_width, which counts cache units
+# as single bytes and therefore cannot be used to walk raw co_code.
+def instruction_byte_width(op: int) -> int {
+    return 2 + 2 * opcode_cache_count(op);
+}
+
+# C1.1/C1.3/C1.4: co_code is raw bytes; every inline-cache unit is exactly
+# (CACHE, 0); walking instruction widths from offset 0 lands precisely on
+# the end of the buffer.
+def verify_code_layout(co: PyCode, path: str) -> PyCodeDiff {
+    code = co.co_code;
+    if len(code) % 2 != 0 {
+        return diff_fail(
+            path + ".co_code", "C1.1 odd byte length " + str(len(code))
+        );
+    }
+    ip = 0;
+    while ip < len(code) {
+        if ip + 1 >= len(code) {
+            return diff_fail(
+                path + ".co_code",
+                "C1.4 truncated instruction at byte " + str(ip)
+            );
+        }
+        op = code[ip];
+        caches = opcode_cache_count(op);
+        k = 0;
+        while k < caches {
+            off = ip + 2 + 2 * k;
+            if code[off] != OP_CACHE or code[off + 1] != 0 {
+                return diff_fail(
+                    path + ".co_code",
+                    "C1.3 cache slot at byte "
+                        + str(off)
+                        + " is not (CACHE, 0)"
+                );
+            }
+            k = k + 1;
+        }
+        ip = ip + instruction_byte_width(op);
+    }
+    if ip != len(code) {
+        return diff_fail(
+            path + ".co_code",
+            "C1.4 width walk lands at "
+                + str(ip)
+                + " but buffer length is "
+                + str(len(code))
+        );
+    }
+    return diff_ok();
+}
+
+# C3.1-C3.4: exception-table entry format, varint7 encoding, ordering,
+# and range checks against the bytecode length in code units.
+def verify_exception_table(co: PyCode, path: str) -> PyCodeDiff {
+    data = co.exceptiontable;
+    nunits = len(co.co_code) // 2;
+    prev_start = -1;
+    pos = 0;
+    ei = 0;
+    while pos < len(data) {
+        if (data[pos] & 0x80) == 0 {
+            return diff_fail(
+                path + ".exceptiontable",
+                "C3.x entry "
+                    + str(ei)
+                    + " missing start-marker bit at byte "
+                    + str(pos)
+            );
+        }
+        vals: list[int] = [];
+        item = 0;
+        while item < 4 {
+            v = 0;
+            shift = 0;
+            more = True;
+            while more {
+                if pos >= len(data) {
+                    return diff_fail(
+                        path + ".exceptiontable",
+                        "C3.2 truncated varint7 in entry "
+                            + str(ei)
+                            + " at byte "
+                            + str(pos)
+                    );
+                }
+                b = data[pos];
+                pos = pos + 1;
+                v = v | ((b & 63) << shift);
+                shift = shift + 6;
+                if (b & 0x40) == 0 {
+                    more = False;
+                }
+            }
+            if v >= (1 << 30) {
+                return diff_fail(
+                    path + ".exceptiontable",
+                    "C3.2 value exceeds 30 bits in entry " + str(ei)
+                );
+            }
+            vals.append(v);
+            item = item + 1;
+        }
+        start = vals[0];
+        size = vals[1];
+        target = vals[2];
+        if size == 0 {
+            return diff_fail(
+                path + ".exceptiontable",
+                "C3.x entry " + str(ei) + " has empty range"
+            );
+        }
+        if start <= prev_start {
+            return diff_fail(
+                path + ".exceptiontable",
+                "C3.x entry "
+                    + str(ei)
+                    + " start not strictly increasing: "
+                    + str(start)
+                    + " after "
+                    + str(prev_start)
+            );
+        }
+        if start + size > nunits {
+            return diff_fail(
+                path + ".exceptiontable",
+                "C3.x entry "
+                    + str(ei)
+                    + " covers units ["
+                    + str(start)
+                    + ","
+                    + str(start + size)
+                    + ") but code has "
+                    + str(nunits)
+                    + " units"
+            );
+        }
+        if target >= nunits {
+            return diff_fail(
+                path + ".exceptiontable",
+                "C3.x entry "
+                    + str(ei)
+                    + " target "
+                    + str(target)
+                    + " outside code ("
+                    + str(nunits)
+                    + " units)"
+            );
+        }
+        prev_start = start;
+        ei = ei + 1;
+    }
+    return diff_ok();
+}
+
+# C4.4/C4.5/C4.6: localsplus view disjointness/uniqueness and merged-index
+# operand ranges for deref- and fast-family single-operand instructions.
+def _has_duplicate(names: list[str]) -> bool {
+    i = 0;
+    while i < len(names) {
+        j = i + 1;
+        while j < len(names) {
+            if names[i] == names[j] {
+                return True;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return False;
+}
+
+def verify_localsplus(co: PyCode, path: str) -> PyCodeDiff {
+    ci = 0;
+    while ci < len(co.cellvars) {
+        fi = 0;
+        while fi < len(co.freevars) {
+            if co.cellvars[ci] == co.freevars[fi] {
+                return diff_fail(
+                    path + ".cellvars",
+                    "C4.4 name '" + co.cellvars[ci] + "' is both cell and free"
+                );
+            }
+            fi = fi + 1;
+        }
+        ci = ci + 1;
+    }
+    if _has_duplicate(co.varnames) {
+        return diff_fail(path + ".varnames", "C4.4 duplicate name");
+    }
+    if _has_duplicate(co.cellvars) {
+        return diff_fail(path + ".cellvars", "C4.4 duplicate name");
+    }
+    if _has_duplicate(co.freevars) {
+        return diff_fail(path + ".freevars", "C4.4 duplicate name");
+    }
+    # C4.5 merged-index bound for both operand families. Only
+    # single-operand members are checked; combined ops
+    # (_LOAD_FAST_LOAD_FAST etc.) pack two operands.
+    total = len(co.varnames) + len(co.cellvars) + len(co.freevars);
+    code = co.co_code;
+    ip = 0;
+    while ip < len(code) {
+        op = code[ip];
+        arg = code[ip + 1];
+        if op == OP_LOAD_FAST
+            or op == OP_LOAD_FAST_BORROW
+            or op == OP_LOAD_FAST_CHECK
+            or op == OP_LOAD_FAST_AND_CLEAR
+            or op == OP_STORE_FAST
+            or op == OP_STORE_FAST_MAYBE_NULL
+            or op == OP_DELETE_FAST
+            or op == OP_LOAD_DEREF
+            or op == OP_STORE_DEREF
+            or op == OP_DELETE_DEREF
+            or op == OP_LOAD_CLOSURE
+            or op == OP_MAKE_CELL {
+            if arg >= total {
+                return diff_fail(
+                    path + ".co_code",
+                    "C4.5 localsplus oparg "
+                        + str(arg)
+                        + " at byte "
+                        + str(ip)
+                        + " outside merged layout ("
+                        + str(total)
+                        + ")"
+                );
+            }
+        }
+        ip = ip + instruction_byte_width(op);
+    }
+    return diff_ok();
+}
+
+# Full C1-C5 structural contract check, recursive into nested code consts.
+def pycode_contract_check(co: PyCode, path: str) -> PyCodeDiff {
+    d = verify_code_layout(co, path);
+    if not d.ok {
+        return d;
+    }
+    d = verify_exception_table(co, path);
+    if not d.ok {
+        return d;
+    }
+    d = verify_localsplus(co, path);
+    if not d.ok {
+        return d;
+    }
+    i = 0;
+    while i < len(co.consts) {
+        c = co.consts[i];
+        if isinstance(c, PyCode) {
+            child = c as PyCode;
+            d = pycode_contract_check(
+                child,
+                _append_path(path, child.name)
+            );
+            if not d.ok {
+                return d;
+            }
+        }
+        i = i + 1;
+    }
+    return diff_ok();
+}
+
+def pycode_contract_message(co: PyCode) -> str {
+    d = pycode_contract_check(co, "code");
+    if d.ok {
+        return "";
+    }
+    return d.path + ": " + d.message;
+}
+
 def pycode_diff(expected: PyCode, actual: PyCode, path: str) -> PyCodeDiff {
+    # Enforce the frozen binary contract (P4a) on both sides before any
+    # field comparison: a violation is a codegen/oracle bug regardless of
+    # whether the two codes agree field-by-field.
+    de = pycode_contract_check(expected, path + "[expected]");
+    if not de.ok {
+        return de;
+    }
+    da = pycode_contract_check(actual, path + "[actual]");
+    if not da.ok {
+        return da;
+    }
     if expected.argcount != actual.argcount {
         return diff_fail(
             path + ".argcount", str(expected.argcount) + " vs " + str(actual.argcount)
@@ -402,7 +702,7 @@ def disassemble_lines(co: PyCode) -> list[str] {
             line = line + " (+cache " + str(caches) + ")";
         }
         out.append(line);
-        ip = ip + instruction_width(op);
+        ip = ip + instruction_byte_width(op);
     }
     return out;
 }
