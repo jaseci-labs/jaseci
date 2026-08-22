@@ -301,14 +301,26 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
 
-21. **[LOW-MED] Exception attribute VALUES lack __class__ synthesis.**
-    Caught exception e: e.__class__.__name__ GREEN (item 12 fix covers the
-    instance). But r2.__cause__.__class__.__name__ / __context__ equivalents
-    raise AttributeError("__class__"): whatever py_getattr returns for
+8. **[LOW-MED] Exception attribute VALUES lack **class** synthesis.**
+    Caught exception e: e.**class**.**name** GREEN (item 12 fix covers the
+    instance). But r2.**cause**.**class**.**name** / **context** equivalents
+    raise AttributeError("**class**"): whatever py_getattr returns for
     exception attributes skips the PyExceptionType synthesis path. Blocks
     chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
-    Fix: route __cause__/__context__ (audit all exception attrs) through the
+    Fix: route **cause**/**context** (audit all exception attrs) through the
     same type-synthesis as the instance itself.
+
+9. **[LOW] Native method-descriptor TypeErrors lack qualname prefix.**
+    slice(1,2).indices() zero-arg: jacpython says "indices() takes exactly one
+    argument (0 given)"; CPython says "slice.indices() takes ...". Method-
+    descriptor error formatting uses **name** where CPython uses the qualname
+    (owner-prefixed) form. RESOLVES the suspected harness bug: layer1 harvest/
+    replay is EXONERATED - a side-by-side namespace diff showed both sides
+    faithfully report their own messages; the divergence is real VM behavior.
+    WildRaven's earlier 'direct drive byte-exact' check compared against a
+    mis-transcribed host string (prefix dropped). Fix lives in whichever slot
+    raises (PySliceIndices.indices first; audit sibling method descriptors).
+    Guard: pin-item22-methoddesc-qualname-msg.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of
@@ -364,10 +376,9 @@ per-protocol special cases.
     StopIteration doesn't attach .value. Only affects explicit-iteration
     consumers (for loops ignore .value).
 
-
 ### Widened-differential findings (QuickBear, 2026-08-22 afternoon)
 
-0b. **[COMPILER][HIGH] f-strings do not interpolate at all.**
+0b. **\[COMPILER\]\[HIGH\] f-strings do not interpolate at all.**
     `f'{a}+{b}'` compiles to a single LOAD_CONST of the literal text
     "{a}+{b}" -- runtime produces that literal instead of "1+2". Root cause:
     parser actions pa_joined_str / pa_formatted_value / pa_interpolation /
@@ -377,23 +388,22 @@ per-protocol special cases.
     (FORMAT_SIMPLE=12 / BUILD_STRING=50 opcodes already exist with ceval
     support). Every f-string in every program is silently wrong until fixed.
 
-0c. **[CODEGEN][HIGH] for/else with break/continue miscompiles control flow.**
+0c. **\[CODEGEN\]\[HIGH\] for/else with break/continue miscompiles control flow.**
     Byte diff shows duplicated epilogues mid-stream and a JUMP_FORWARD 245
     past program end; runtime: `done=0; for...break; else: done=99; r=done`
     yields None instead of 0. while/else is byte-exact, so this is specific
     to FOR + break/continue + else interaction. Semantic correctness bug,
     not just parity.
 
-3b. **[CODEGEN-PARITY][MED] def with *args/**kw defaults: function-attribute
+3b. **\[CODEGEN-PARITY\]\[MED\] def with *args/**kw defaults: function-attribute
     operand ordering differs from host.** Function BODY bytes match; module
     frame emits defaults/kwdefaults consts in different intern order
     (ours LOAD_CONST 1,2 vs host 4,1). Same family as fixed item 9A but for
     MAKE_FUNCTION attribute wiring. Semantics-neutral.
 
-3c. **[CODEGEN-PARITY][MED] listcomp with if-filter byte-parity gap.**
+3c. **\[CODEGEN-PARITY\]\[MED\] listcomp with if-filter byte-parity gap.**
     Compiles, runs, but bytes differ from host oracle. Needs isolation
     (comprehension inlining vs CPython's implicit function form).
-
 
 ## Runtime fix lane - HANDOFF BRIEF (for new worker agent)
 
@@ -467,6 +477,17 @@ domains coexist with these gaps: lifted-from-bytecode areas are solid,
 hand-dispatched areas hole exactly where no test looked. STRATEGY: unify,
 don't patch - individual fixes leave holes reopening under future features.
 
+**PIN STATUS @ HEAD 276b1af4e** (WildRaven nit batch + list-subclass drain gap): 22 GREEN /
+11 RED. New pin-slice-subclass-generator-assign GREEN on first run (gap fix works). All other reds unchanged/owned.
+ATTRIBUTION NOTE: 276b1af4e carries WildRaven's code (objects.jac nits/E1053 + ceval PyUserObj forward reroute) under a docs-labeled message - concurrent committer absorbed staged edits mid-cycle (shared-tree hazard). Code authorship: WildRaven, slice lane. Content verified complete via git show; not rewriting shared history.
+Harness note: WildRaven reported layer1 try/except replay mis-replaying zero-arg native-callable messages; NOT reproducible at this HEAD (probe returns byte-exact CPython message) - likely shadowed by their own indices() message fix; no action.
+
+**PIN STATUS @ HEAD e1c668204** (post slice-family landing): 21 GREEN /
+11 RED. Newly flipped: item10-slice-assign + item20-dynamic-slice-read-del
+(WildRaven). Remaining reds all owned: item1 x3 + item2 + item15 x2 (walker),
+item8 x2 (subagent), consumers-matrix (worker), item19 (unowned), chaining-
+nesteddef (blocked on item21). Earlier status below.
+
 **PIN STATUS @ HEAD 0694fda4d** (full 30-pin run post item-4 fix + 9A):
 11 GREEN (item4 family x5, inverse sentinels x3, iter-half,
 property-precedence, unpack-star) / 19 RED - every red maps to an open item,
@@ -536,14 +557,26 @@ green. Class-decorator support needs pinning elsewhere.
     accepting PySlice. Standalone slice() objects are fine (type/attrs/
     .indices() green).
 
-21. **[LOW-MED] Exception attribute VALUES lack __class__ synthesis.**
-    Caught exception e: e.__class__.__name__ GREEN (item 12 fix covers the
-    instance). But r2.__cause__.__class__.__name__ / __context__ equivalents
-    raise AttributeError("__class__"): whatever py_getattr returns for
+3. **[LOW-MED] Exception attribute VALUES lack **class** synthesis.**
+    Caught exception e: e.**class**.**name** GREEN (item 12 fix covers the
+    instance). But r2.**cause**.**class**.**name** / **context** equivalents
+    raise AttributeError("**class**"): whatever py_getattr returns for
     exception attributes skips the PyExceptionType synthesis path. Blocks
     chaining introspection idioms; keeps pin-ok-exc-chaining-nesteddef red.
-    Fix: route __cause__/__context__ (audit all exception attrs) through the
+    Fix: route **cause**/**context** (audit all exception attrs) through the
     same type-synthesis as the instance itself.
+
+4. **[LOW] Native method-descriptor TypeErrors lack qualname prefix.**
+    slice(1,2).indices() zero-arg: jacpython says "indices() takes exactly one
+    argument (0 given)"; CPython says "slice.indices() takes ...". Method-
+    descriptor error formatting uses **name** where CPython uses the qualname
+    (owner-prefixed) form. RESOLVES the suspected harness bug: layer1 harvest/
+    replay is EXONERATED - a side-by-side namespace diff showed both sides
+    faithfully report their own messages; the divergence is real VM behavior.
+    WildRaven's earlier 'direct drive byte-exact' check compared against a
+    mis-transcribed host string (prefix dropped). Fix lives in whichever slot
+    raises (PySliceIndices.indices first; audit sibling method descriptors).
+    Guard: pin-item22-methoddesc-qualname-msg.
 
 Pattern note: user-class dunder support is piecemeal - consider one sweep that
 routes ALL protocols through a common type-slot/dunder lookup instead of

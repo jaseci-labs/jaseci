@@ -588,10 +588,16 @@ obj PySliceIndices(PyObj) {
     has sl: PySlice;
 
     # slice.indices(len) -> (start, stop, step) resolved against that length.
+    # Errors carry the full method-descriptor qualname (CPython prefixes with
+    # the owner type name; TODO item 22).
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(args) != 1 or len(kwargs) > 0 {
+        if len(kwargs) > 0 {
+            return py_error("TypeError", "slice.indices() takes no keyword arguments");
+        }
+        if len(args) != 1 {
             return py_error(
-                "TypeError", "indices() takes exactly one argument (" + str(len(args)) + " given)"
+                "TypeError",
+                "slice.indices() takes exactly one argument (" + str(len(args)) + " given)",
             );
         }
         err = _zero_step_error(self.sl);

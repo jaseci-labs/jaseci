@@ -1,0 +1,137 @@
+{
+ "description": "Pinned differential-fuzz corpus (BrightTiger lane). Red pins = open TODO.md findings; ok pins = behavior that must stay green through refactors (esp. dunder-lookup sweep). Run via jac-py/jacpython/_fuzz_smoke.jac after pointing /tmp/fuzz_cases.json at this file.",
+ "cases": [
+  {
+   "name": "pin-item1-descr-get",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Ten():\n            def __get__(me, obj, owner): return 10\n        class C():\n            attr = Ten()\n        self.assertEqual(C().attr, 10)\n"
+  },
+  {
+   "name": "pin-item1-data-descr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class D():\n            def __get__(me, obj, owner): return obj._v\n            def __set__(me, obj, v): obj._v = v * 2\n        class C(): x = D()\n        c = C()\n        c.x = 21\n        self.assertEqual(c.x, 42)\n"
+  },
+  {
+   "name": "pin-item1-precedence-data-vs-inst",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class D():\n            def __get__(me, obj, owner): return 'from-descr'\n            def __set__(me, obj, v): pass\n        class C(): pass\n        c = C()\n        C.x = D()\n        c.__dict__['x'] = 'from-instance'\n        self.assertEqual(c.x, 'from-descr')\n"
+  },
+  {
+   "name": "pin-item2-mro-c3",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class A(): pass\n        class B(A): pass\n        class C2(A): pass\n        class D(B, C2): pass\n        self.assertEqual([k.__name__ for k in D.__mro__], ['D', 'B', 'C', 'A', 'object'])\n"
+  },
+  {
+   "name": "pin-item4-call",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Adder():\n            def __init__(me, n): me.n = n\n            def __call__(me, x): return x + me.n\n        self.assertEqual(Adder(10)(5), 15)\n"
+  },
+  {
+   "name": "pin-item5-iter",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Countdown():\n            def __init__(me, n): me.n = n\n            def __iter__(me): return me\n            def __next__(me):\n                if me.n <= 0: raise StopIteration()\n                me.n = me.n - 1\n                return me.n + 1\n        self.assertEqual(list(Countdown(3)), [3, 2, 1])\n"
+  },
+  {
+   "name": "pin-item5-inverse-inst-dict",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            class C(): pass\n            c = C()\n            c.__dict__['__iter__'] = lambda: iter([])\n            try:\n                list(c)\n                return False\n            except TypeError:\n                return True\n        self.assertEqual(probe(), True)\n"
+  },
+  {
+   "name": "pin-item8-sorted-key",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        ws = ['bbb', 'a', 'cc']\n        self.assertEqual(sorted(ws, key=len), ['a', 'cc', 'bbb'])\n"
+  },
+  {
+   "name": "pin-item8-max-key",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        ws = ['bbb', 'a', 'cc']\n        self.assertEqual(max(ws, key=len), 'bbb')\n"
+  },
+  {
+   "name": "pin-item7-inf-bigint",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        inf = float('inf')\n        self.assertEqual(inf > 10 ** 400, True)\n"
+  },
+  {
+   "name": "pin-item10-slice-assign",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        xs = [0, 0, 0, 0]\n        xs[::2] = [7, 8]\n        self.assertEqual(xs, [7, 0, 8, 0])\n"
+  },
+  {
+   "name": "pin-item12-class-dunder",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class A(): pass\n        a = A()\n        self.assertEqual(a.__class__.__name__, 'A')\n"
+  },
+  {
+   "name": "pin-item12-exc-class-chain",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                raise ValueError('inner')\n            except ValueError as e:\n                return e.__class__.__name__\n        self.assertEqual(probe(), 'ValueError')\n"
+  },
+  {
+   "name": "pin-item13-callable-class",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class C(): pass\n        self.assertEqual(callable(C), True)\n"
+  },
+  {
+   "name": "pin-item14-gen-return-value",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def g():\n            yield 1\n            return 99\n        def drive():\n            it = g()\n            out = []\n            out.append(next(it))\n            try:\n                next(it)\n            except StopIteration as s:\n                out.append(s.value)\n            return out\n        self.assertEqual(drive(), [1, 99])\n"
+  },
+  {
+   "name": "pin-ok-exc-chaining-nesteddef",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            res = []\n            try:\n                raise ValueError('inner')\n            except ValueError as e:\n                try:\n                    raise RuntimeError('outer') from e\n                except RuntimeError as r2:\n                    res.append(r2.__cause__.__class__.__name__)\n                    res.append(r2.__context__.__class__.__name__)\n            return res\n        self.assertEqual(probe(), ['RuntimeError' if False else 'ValueError', 'ValueError'])\n"
+  },
+  {
+   "name": "pin-item15-getattr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Proxy():\n            def __getattr__(me, name): return 'fb:' + name\n        p = Proxy()\n        self.assertEqual(p.whatever, 'fb:whatever')\n"
+  },
+  {
+   "name": "pin-item15-descr-miss-to-getattr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            class Boom():\n                def __get__(me, obj, owner):\n                    raise AttributeError('nope')\n            class C():\n                x = Boom()\n                def __getattr__(me, name):\n                    return 'tail:' + name\n            return C().x\n        self.assertEqual(probe(), 'tail:x')\n"
+  },
+  {
+   "name": "pin-item15-inverse-not-implicit",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            class C():\n                def __getattr__(me, name):\n                    if name == '__iter__':\n                        return lambda: iter([])\n                    raise AttributeError(name)\n            try:\n                list(C())\n                return False\n            except TypeError:\n                return True\n        self.assertEqual(probe(), True)\n"
+  },
+  {
+   "name": "pin-item17-exit-cls-name",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            seen = []\n            class Ctx():\n                def __enter__(me): return me\n                def __exit__(me, et, ev, tb):\n                    seen.append(et.__name__)\n                    return True\n            with Ctx():\n                raise ValueError('x')\n            return seen\n        self.assertEqual(probe(), ['ValueError'])\n"
+  },
+  {
+   "name": "pin-item18-property-deleter",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        gone = []\n        class T3():\n            @property\n            def x(me): return 1\n            @x.deleter\n            def x(me): gone.append('del')\n        o = T3()\n        del o.x\n        self.assertEqual(gone, ['del'])\n"
+  },
+  {
+   "name": "pin-item5-iter-half",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class G():\n            def __iter__(me): return iter([1, 2])\n        g = G()\n        it = iter(g)\n        self.assertEqual(next(it), 1)\n        self.assertEqual(hasattr(g, '__iter__'), True)\n"
+  },
+  {
+   "name": "pin-property-beats-instance-dict",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class C():\n            pass\n        def getx(me): return 'from-prop'\n        C.x = property(getx)\n        c = C()\n        c.__dict__['x'] = 'from-inst'\n        self.assertEqual(c.x, 'from-prop')\n"
+  },
+  {
+   "name": "pin-item5-consumers-matrix",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class It():\n            def __init__(me, data): me.data = data\n            def __iter__(me): return iter(me.data)\n        src = [3, 1, 2]\n        u = It(src)\n        self.assertEqual(list(u), [3, 1, 2])\n        u2 = It(src)\n        self.assertEqual(sorted(u2), [1, 2, 3])\n        u3 = It(src)\n        self.assertEqual(tuple(u3), (3, 1, 2))\n        u4 = It(src)\n        self.assertEqual(dict.fromkeys(It(['a', 'b'])), {'a': None, 'b': None})\n        u5 = It([1, 2])\n        self.assertEqual(sum(u5), 3)\n        u6 = It([True, False])\n        self.assertEqual(any(u6), True)\n        u7 = It([True, 1])\n        self.assertEqual(all(u7), True)\n        u8 = It([4, 2, 9])\n        self.assertEqual(max(u8), 9)\n        u9 = It([4, 2, 9])\n        self.assertEqual(min(u9), 2)\n        u10 = It([1, 2])\n        self.assertEqual(list(enumerate(u10)), [(0, 1), (1, 2)])\n        u11 = It([1, 2])\n        self.assertEqual(list(zip(u11, 'ab')), [(1, 'a'), (2, 'b')])\n"
+  },
+  {
+   "name": "pin-item5-unpack-star",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def run():\n            class It():\n                def __iter__(me): return iter([1, 2, 3])\n            a, b, c = It()\n            def f(x, y, z): return x + y + z\n            return (a, b, c, f(*It()))\n        self.assertEqual(run(), (1, 2, 3, 6))\n"
+  },
+  {
+   "name": "pin-item19-range-identity",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        r = range(2, 20, 3)\n        self.assertEqual(type(r).__name__, 'range')\n        self.assertEqual((r.start, r.stop, r.step), (2, 20, 3))\n        self.assertEqual(r[2:8:2], range(8, 14, 6))\n"
+  },
+  {
+   "name": "pin-item4-noncallable-call",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            class C():\n                __call__ = 42\n            try:\n                C()()\n                return 'no-error'\n            except TypeError:\n                return 'type-error'\n        self.assertEqual(probe(), 'type-error')\n"
+  },
+  {
+   "name": "pin-item4-kwargs-passthrough",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Greeter():\n            def __call__(me, greeting, punct='!'):\n                return greeting + punct\n        g = Greeter()\n        self.assertEqual(g('hi'), 'hi!')\n        self.assertEqual(g('hi', punct='?'), 'hi?')\n"
+  },
+  {
+   "name": "pin-item4-exc-propagation",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Bomber():\n            def __call__(me):\n                raise ValueError('boom')\n        def probe():\n            try:\n                Bomber()()\n            except ValueError as e:\n                return str(e)\n        self.assertEqual(probe(), 'boom')\n"
+  },
+  {
+   "name": "pin-item4-inverse-inst-dict-call",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            class C():\n                pass\n            c = C()\n            c.__dict__['__call__'] = lambda: 'hijack'\n            try:\n                c()\n                return False\n            except TypeError:\n                return True\n        self.assertEqual(probe(), True)\n"
+  },
+  {
+   "name": "pin-item7-inf-matrix",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        big = 10 ** 400\n        inf = float('inf')\n        ninf = float('-inf')\n        self.assertEqual(inf > big, True)\n        self.assertEqual(big < inf, True)\n        self.assertEqual(ninf < -big, True)\n        self.assertEqual(-big > ninf, True)\n        self.assertEqual(big > 1e308, True)\n"
+  },
+  {
+   "name": "pin-item20-dynamic-slice-read-del",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        xs = [0, 1, 2, 3, 4, 5]\n        s = slice(1, 5, 2)\n        self.assertEqual(xs[s], [1, 3])\n        d = slice(0, 2)\n        del xs[d]\n        self.assertEqual(xs, [2, 3, 4, 5])\n"
+  },
+  {
+   "name": "pin-slice-subclass-generator-assign",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class L(list): pass\n        xs = L([0, 0, 0, 0])\n        def gen():\n            yield 7\n            yield 8\n        xs[::2] = gen()\n        self.assertEqual(xs, [7, 0, 8, 0])\n"
+  }
+ ]
+}
