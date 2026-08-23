@@ -76,6 +76,17 @@ _L1_CHECKS = {
     "assertGreater", "assertLess", "assertGreaterEqual", "assertLessEqual",
 }
 
+# Fixture-mode-only extensions. Legacy stems must keep their exact harvest
+# sets (ratcheted baselines), so these extra assert families are recognized
+# only when fixtures=True. Semantics are the harness's established per-arg
+# differential one: each argument expression is evaluated on both engines and
+# compared cross-engine -- not the assertion relation itself.
+_L1_FIXTURE_CHECKS = {
+    "assertListEqual", "assertTupleEqual", "assertSetEqual", "assertDictEqual",
+    "assertIn", "assertNotIn", "assertCountEqual",
+    "assertIsInstance", "assertNotIsInstance",
+}
+
 
 def _stmt_scope_nodes(stmt):
     # ast.walk(stmt) minus nested function/class subtrees: names bound in an
@@ -107,15 +118,42 @@ def _dedent_segment(seg, base_col):
     return "\n".join(fixed)
 
 
-def _l1_is_check_expr(s):
-    """True for a `self.assertX(...)` expression statement (X in _L1_CHECKS)."""
+def _l1_is_check_expr(s, names=None):
+    """True for a `self.assertX(...)` expression statement (X in names)."""
     return (
         isinstance(s, ast.Expr)
         and isinstance(s.value, ast.Call)
         and isinstance(s.value.func, ast.Attribute)
         and isinstance(s.value.func.value, ast.Name)
         and s.value.func.value.id == "self"
-        and s.value.func.attr in _L1_CHECKS
+        and s.value.func.attr in (names if names is not None else _L1_CHECKS)
+    )
+
+
+def _l1_is_raises_call(s):
+    """True for a bare `self.assertRaises(E, callable, *args, **kwargs)`
+    expression statement (the non-with form)."""
+    return (
+        isinstance(s, ast.Expr)
+        and isinstance(s.value, ast.Call)
+        and isinstance(s.value.func, ast.Attribute)
+        and isinstance(s.value.func.value, ast.Name)
+        and s.value.func.value.id == "self"
+        and s.value.func.attr == "assertRaises"
+        and len(s.value.args) >= 2
+    )
+
+
+def _l1_is_subtest_with(s):
+    """True for a `with self.subTest(...):` statement."""
+    return (
+        isinstance(s, ast.With)
+        and len(s.items) == 1
+        and isinstance(s.items[0].context_expr, ast.Call)
+        and isinstance(s.items[0].context_expr.func, ast.Attribute)
+        and isinstance(s.items[0].context_expr.func.value, ast.Name)
+        and s.items[0].context_expr.func.value.id == "self"
+        and s.items[0].context_expr.func.attr == "subTest"
     )
 
 
@@ -171,7 +209,121 @@ def _l1_flatten_seq(stmts):
     return out
 
 
-def _l1_harvest_methods(source):
+def _l1_harvest_one(source, node, allow_self=False):
+    """Harvest one test method body -> (setup_stmts, checks) or None.
+
+    Shared by legacy and fixture modes; sees ONLY the method's own statements,
+    so fixture composition stays a caller-side concern. allow_self (fixture
+    mode only) keeps setup statements that touch `self`: the composed namespace
+    defines a synthetic fixture object, so `self.attr` resolves there -- and
+    anything the fixture can't provide fails the host probe honestly."""
+    setup_stmts, checks = [], []
+    import textwrap
+    # Worklist (not recursion) so fixture mode can splice `with self.subTest`
+    # bodies in place, preserving execution order while dropping the pure-
+    # labelling wrapper. Legacy never sees subTest/extra asserts: any self-
+    # touch already dropped those methods there.
+    pending = list(_l1_flatten_seq(node.body))
+    check_names = (_L1_CHECKS | _L1_FIXTURE_CHECKS) if allow_self else None
+    i = 0
+    while i < len(pending):
+        stmt = pending[i]
+        i += 1
+        if allow_self and _l1_is_subtest_with(stmt):
+            pending[i:i] = list(stmt.body)
+            continue
+        # A `self.assertX(...)` check statement.
+        if _l1_is_check_expr(stmt, check_names):
+            args = [ast.get_source_segment(source, a) for a in stmt.value.args]
+            if any(a is None for a in args):
+                return None
+            checks.append((stmt.value.func.attr, args))
+            continue
+        # A `with self.assertRaises(E): body` raises-check. Stored as
+        # ("assertRaises", [exc_src, body_src]); body_src is a dedented
+        # statement block whose execution must raise a matching exception.
+        if _l1_is_raises_with(stmt):
+            exc_src = ast.get_source_segment(
+                source, stmt.items[0].context_expr.args[0]
+            )
+            body_nodes = list(stmt.body)
+            body_segs = [ast.get_source_segment(source, s) for s in body_nodes]
+            if exc_src is None or any(s is None for s in body_segs) or (
+                not allow_self
+                and any(
+                    isinstance(n, ast.Name) and n.id == "self"
+                    for s in stmt.body for n in _stmt_scope_nodes(s)
+                )
+            ):
+                return None
+            body_fixed = "\n".join(
+                _dedent_segment(seg, n.col_offset)
+                for n, seg in zip(body_nodes, body_segs)
+            )
+            checks.append(("assertRaises", [exc_src, textwrap.dedent(body_fixed)]))
+            continue
+        # A bare `self.assertRaises(E, callable, *args, **kwargs)` call. Stored
+        # like a raises-check but with the WRAPPED CALL reconstructed from
+        # segments -- replaying the raw statement would need unittest's
+        # assertRaises, which the fixture namespace deliberately lacks.
+        if allow_self and _l1_is_raises_call(stmt):
+            call = stmt.value
+            exc_src = ast.get_source_segment(source, call.args[0])
+            fn_src = ast.get_source_segment(source, call.args[1])
+            arg_srcs = [
+                ast.get_source_segment(source, a) for a in call.args[2:]
+            ] + [
+                f"{kw.arg}={ast.get_source_segment(source, kw.value)}"
+                for kw in call.keywords
+                if kw.arg is not None and ast.get_source_segment(source, kw.value)
+            ]
+            if exc_src is None or fn_src is None or any(
+                a is None for a in arg_srcs
+            ):
+                return None
+            checks.append(("assertRaises", [exc_src, fn_src + "(" + ", ".join(arg_srcs) + ")"]))
+            continue
+        # A bare docstring/expression constant is inert setup.
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+            continue
+        # Kept-intact Try: control flow must not be rewritten (see
+        # _l1_lift_try_checks), so bypass the self-touch drop here. Nested
+        # self refs are handled honestly: lifted checks evaluate post-hoc;
+        # unlifted ones (handler bodies) NameError during setup exec since
+        # the layer-1 namespace has no self -> host probe declines -> skip.
+        if isinstance(stmt, ast.Try):
+            seg = ast.get_source_segment(source, stmt)
+            if seg is None:
+                return None
+            setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
+            continue
+        # Anything referencing `self` (or an unharvestable segment) is out.
+        # The walk skips nested def/class subtrees: a method parameter named
+        # `self` inside a locally-defined class/function is its own scope,
+        # not fixture state (the host replayability probe still guards the
+        # remainder). Only Load-scope references at statement scope count.
+        if not allow_self and any(
+            isinstance(n, ast.Name) and n.id == "self"
+            for n in _stmt_scope_nodes(stmt)
+        ):
+            return None
+        seg = ast.get_source_segment(source, stmt)
+        if seg is None:
+            return None
+        setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
+    if not checks:
+        return None
+    return (setup_stmts, checks)
+
+
+def _l1_parse(source):
+    try:
+        return ast.parse(source)
+    except SyntaxError:
+        return None
+
+
+def _l1_harvest_methods_parsed(tree, source):
     """Split each `test_*` method into (name, setup_src, checks).
 
     setup_src is the dedented block of the method's non-assert statements;
@@ -182,79 +334,203 @@ def _l1_harvest_methods(source):
     host self-containment probe also declines them.
     """
     out = []
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return out
-    import textwrap
     for node in ast.walk(tree):
         if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test")):
             continue
-        setup_stmts, checks, ok = [], [], True
-        for stmt in _l1_flatten_seq(node.body):
-            # A `self.assertX(...)` check statement.
-            if _l1_is_check_expr(stmt):
-                args = [ast.get_source_segment(source, a) for a in stmt.value.args]
-                if any(a is None for a in args):
-                    ok = False
-                    break
-                checks.append((stmt.value.func.attr, args))
-                continue
-            # A `with self.assertRaises(E): body` raises-check. Stored as
-            # ("assertRaises", [exc_src, body_src]); body_src is a dedented
-            # statement block whose execution must raise a matching exception.
-            if _l1_is_raises_with(stmt):
-                exc_src = ast.get_source_segment(
-                    source, stmt.items[0].context_expr.args[0]
-                )
-                body_nodes = list(stmt.body)
-                body_segs = [ast.get_source_segment(source, s) for s in body_nodes]
-                if exc_src is None or any(s is None for s in body_segs) or any(
-                    isinstance(n, ast.Name) and n.id == "self"
-                    for s in stmt.body for n in _stmt_scope_nodes(s)
-                ):
-                    ok = False
-                    break
-                body_fixed = "\n".join(
-                    _dedent_segment(seg, node.col_offset)
-                    for node, seg in zip(body_nodes, body_segs)
-                )
-                checks.append(("assertRaises", [exc_src, textwrap.dedent(body_fixed)]))
-                continue
-            # A bare docstring/expression constant is inert setup.
-            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
-                continue
-            # Kept-intact Try: control flow must not be rewritten (see
-            # _l1_lift_try_checks), so bypass the self-touch drop here. Nested
-            # self refs are handled honestly: lifted checks evaluate post-hoc;
-            # unlifted ones (handler bodies) NameError during setup exec since
-            # the layer-1 namespace has no self -> host probe declines -> skip.
-            if isinstance(stmt, ast.Try):
-                seg = ast.get_source_segment(source, stmt)
-                if seg is None:
-                    ok = False
-                    break
-                setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
-                continue
-            # Anything referencing `self` (or an unharvestable segment) is out.
-            # The walk skips nested def/class subtrees: a method parameter named
-            # `self` inside a locally-defined class/function is its own scope,
-            # not fixture state (the host replayability probe still guards the
-            # remainder). Only Load-scope references at statement scope count.
-            if any(
-                isinstance(n, ast.Name) and n.id == "self"
-                for n in _stmt_scope_nodes(stmt)
-            ):
-                ok = False
-                break
-            seg = ast.get_source_segment(source, stmt)
-            if seg is None:
-                ok = False
-                break
-            setup_stmts.append(_dedent_segment(seg, stmt.col_offset))
-        if not ok or not checks:
+        harvested = _l1_harvest_one(source, node)
+        if harvested is None:
             continue
+        setup_stmts, checks = harvested
+        import textwrap
         setup_src = textwrap.dedent("\n".join(setup_stmts)) if setup_stmts else ""
+        out.append((node.name, setup_src, checks))
+    return out
+
+
+def _l1_harvest_methods(source):
+    tree = _l1_parse(source)
+    if tree is None:
+        return []
+    return _l1_harvest_methods_parsed(tree, source)
+
+
+# ---- Fixture mode (opt-in per manifest entry: "fixtures": true) ------------
+# Legacy harvesting drops any method whose setup touches `self`, so fixture-
+# driven CPython test files (setUp bodies, class-level attributes, module-level
+# helper classes/functions) yield zero harvestable methods. Fixture mode makes
+# such methods replayable WITHOUT changing what legacy stems harvest:
+#
+#   1. Module-level imports, simple assigns and def/class definitions are
+#      carried into the replayed namespace (each non-def guarded with
+#      try/except so one unimportable extension module can't poison the whole
+#      file -- both legs run identical guarded code).
+#   2. Class-level data attributes are replayed onto a synthetic fixture
+#      instance (`self`); lambda-valued attributes attach to the fixture CLASS
+#      instead so `self.f(x)` binds self exactly like the real class does.
+#   3. The enclosing class's setUp body (resolved base-first through
+#      module-level bases) is inlined ahead of the test body.
+#
+# Honesty invariants are preserved: anything still unrunnable (properties,
+# helper methods on self like check()/hash_constructors, unittest.skip
+# decorators, subTest plumbing) fails the HOST self-containment probe first
+# and counts as skipped -- never passed; both legs always execute identical
+# source, so there is no fixture-shaped false green.
+
+
+def _l1_fixture_preamble(tree, source):
+    """Module-level statements carried into every fixture-mode setup: imports,
+    simple assigns, function/class defs, and Try/If blocks that conditionally
+    bind extension-module names (_hashlib & co). Each statement gets its own
+    try/except so an unimportable optional module or a class-creation side
+    effect degrades to honest per-method skips instead of poisoning the file.
+    unittest.TestCase subclasses are NOT carried: creating them runs decorator
+    machinery (skip* marks referencing test.support) that replayed methods
+    never need -- their data lives in the class-attr fixture instead."""
+    import textwrap
+    parts = []
+    for stmt in tree.body:
+        if isinstance(stmt, ast.If) and any(
+            isinstance(n, ast.Compare)
+            and any(isinstance(x, ast.Constant) and x.value == "__main__"
+                    for x in [n.left] + n.comparators)
+            for n in _stmt_scope_nodes(stmt)
+        ):
+            # `if __name__ == "__main__": unittest.main()` is CLI plumbing;
+            # replayed namespaces run under __name__ == "__main__" so carrying
+            # it would launch a whole unittest run inside every setup.
+            continue
+        emit = None
+        if isinstance(stmt, (ast.Import, ast.ImportFrom, ast.Assign,
+                             ast.AnnAssign, ast.FunctionDef,
+                             ast.AsyncFunctionDef, ast.Try, ast.If)):
+            emit = stmt
+        elif isinstance(stmt, ast.ClassDef):
+            if not any(
+                (isinstance(b, ast.Name) and b.id.find("TestCase") != -1)
+                or (isinstance(b, ast.Attribute) and b.attr.find("TestCase") != -1)
+                for b in stmt.bases
+            ):
+                emit = stmt
+        if emit is None:
+            continue
+        seg = ast.get_source_segment(source, stmt)
+        if seg is None:
+            continue
+        seg = _dedent_segment(seg, stmt.col_offset)
+        parts.append(
+            "try:\n" + textwrap.indent(seg, "    ") + "\nexcept BaseException:\n    pass"
+        )
+    return "\n".join(parts)
+
+
+def _l1_fixture_mro(cls_node, classes):
+    """Base-first order over module-level bases resolvable by name (unittest
+    TestCase bases and anything nested/renamed are simply absent)."""
+    seen, order = set(), []
+
+    def visit(c):
+        if id(c) in seen:
+            return
+        seen.add(id(c))
+        for b in c.bases:
+            if isinstance(b, ast.Name) and b.id in classes:
+                visit(classes[b.id])
+        order.append(c)
+
+    visit(cls_node)
+    return order
+
+
+def _l1_class_attr_lines(cls_node, source):
+    """Class-level data attrs -> `self.X = <seg>` lines; lambda values attach
+    to the fixture class so attribute access binds self like a real method."""
+    lines = []
+    for stmt in cls_node.body:
+        value = getattr(stmt, "value", None)
+        if value is None:
+            continue
+        targets = []
+        if isinstance(stmt, ast.Assign):
+            targets = stmt.targets
+        elif isinstance(stmt, ast.AnnAssign):
+            targets = [stmt.target]
+        else:
+            continue
+        seg = ast.get_source_segment(source, value)
+        if seg is None:
+            continue
+        names = []
+        for t in targets:
+            if isinstance(t, ast.Name):
+                names.append(t.id)
+            elif isinstance(t, ast.Tuple) and all(
+                isinstance(e, ast.Name) for e in t.elts
+            ):
+                names.extend(e.id for e in t.elts)
+            else:
+                names = []
+                break
+        if not names:
+            continue
+        if isinstance(value, ast.Lambda):
+            lines.append(f"_L1Fixture.{names[0]} = {seg}")
+        else:
+            lines.append(
+                ", ".join("self." + n for n in names) + " = " + seg
+            )
+    return lines
+
+
+def _l1_fixture_setup_body(cls_node, source):
+    """Dedented setUp body of cls_node (docstrings dropped), or None."""
+    import textwrap
+    for stmt in cls_node.body:
+        if isinstance(stmt, ast.FunctionDef) and stmt.name == "setUp":
+            parts = []
+            for s in stmt.body:
+                if isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant):
+                    continue
+                seg = ast.get_source_segment(source, s)
+                if seg is None:
+                    return None
+                parts.append(_dedent_segment(seg, s.col_offset))
+            return textwrap.dedent("\n".join(parts))
+    return None
+
+
+def _l1_harvest_methods_fixture(tree, source):
+    """Fixture-mode variant of _l1_harvest_methods."""
+    import textwrap
+    classes = {
+        n.name: n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)
+    }
+    parents = {}
+    for n in ast.walk(tree):
+        for c in ast.iter_child_nodes(n):
+            parents[c] = n
+    preamble = _l1_fixture_preamble(tree, source)
+    out = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test")):
+            continue
+        harvested = _l1_harvest_one(source, node, allow_self=True)
+        if harvested is None:
+            continue
+        setup_stmts, checks = harvested
+        attr_lines, setUp_src = [], None
+        cls = parents.get(node)
+        if isinstance(cls, ast.ClassDef):
+            for c in _l1_fixture_mro(cls, classes):
+                attr_lines.extend(_l1_class_attr_lines(c, source))
+                body = _l1_fixture_setup_body(c, source)
+                if body is not None:
+                    setUp_src = body
+        head = [preamble] if preamble else []
+        head.append("class _L1Fixture:\n    pass\nself = _L1Fixture()")
+        head.extend(attr_lines)
+        if setUp_src is not None:
+            head.append(setUp_src)
+        setup_src = textwrap.dedent("\n".join(head + setup_stmts))
         out.append((node.name, setup_src, checks))
     return out
 
@@ -462,9 +738,21 @@ def _l1_replay_method(setup_src: str, checks: any) -> int {
 
 # Drive a whole test-file source through Layer 1: harvest replayable methods,
 # probe each for host self-containment (fixture-free), and replay the rest.
-def layer1_replay_source(source: str) -> ReplayResult {
+# With fixtures=True, methods gain a synthetic fixture namespace built from the
+# module preamble, class-level attributes, and an inlined setUp body (see the
+# fixture-mode block above). Legacy stems must NOT pass fixtures=True -- their
+# harvest sets and baselines are defined by the legacy pass.
+def layer1_replay_source(source: str, fixtures: bool = False) -> ReplayResult {
     result = ReplayResult();
-    methods = _l1_harvest_methods(source);
+    tree = _l1_parse(source);
+    if tree is None {
+        return result;
+    }
+    if fixtures {
+        methods = _l1_harvest_methods_fixture(tree, source);
+    } else {
+        methods = _l1_harvest_methods_parsed(tree, source);
+    }
     for method in methods {
         setup_src: str = method[1] as str;
         checks = method[2];

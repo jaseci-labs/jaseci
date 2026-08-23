@@ -69,7 +69,8 @@ def _p3_run_layer1(manifest: dict) {
     for spec in manifest["layer1_files"] as list {
         stem: str = spec["stem"] as str;
         src = _p3_read_corpus(spec["path"] as str);
-        result = layer1_replay_source(src);
+        fixtures: bool = spec.get("fixtures", False) as bool;
+        result = layer1_replay_source(src, fixtures);
         _p3_assert_replay_baseline(stem, result, spec["baseline"] as dict);
     }
 }
