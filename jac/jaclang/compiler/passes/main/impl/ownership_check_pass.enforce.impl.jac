@@ -1,3 +1,4 @@
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.jac0core.diagnostics {
     E1315,
     E1401,
@@ -8,23 +9,9 @@ import from jaclang.jac0core.diagnostics {
     E1406
 }
 
-glob _NOGC_SCALARS: tuple = (
-         "int",
-         "float",
-         "bool",
-         "None",
-         "NoneType",
-         "type",
-         "i8",
-         "i16",
-         "i32",
-         "i64",
-         "u8",
-         "u16",
-         "u32",
-         "u64",
-         "f32",
-         "f64"
+glob _NOGC_SCALARS: frozenset[str] = frozenset(
+         ["int", "float", "bool", "None", "NoneType", "type"]
+             + JAC_TYPE_REGISTRY.sized_scalar_names()
      );
 
 def _nogc_name_candidates(mod_name: str) -> list[str] {
