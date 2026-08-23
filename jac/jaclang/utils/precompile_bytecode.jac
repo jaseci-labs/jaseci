@@ -388,6 +388,7 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/expr_keys.jac",
@@ -437,8 +438,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::class_implements_protocol",
          "compiler/type_system/type_utils.jac::collect_member_syms",
          "compiler/type_system/type_utils.jac::get_completion_items",
-         "compiler/type_system/type_utils.jac::completion_kind_from_sym",
-         "compiler/type_system/type_utils.jac::completion_item_from_sym",
          "compiler/type_system/type_utils.jac::compute_mro_linearization",
          "compiler/type_system/type_utils.jac::build_type_var_solution",
          "compiler/type_system/type_utils.jac::shadowed_type_var_names",
@@ -587,9 +586,9 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "against a layout not reachable from the root "
              "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
              "as a for-loop iterable (`build_type_var_solution`, "
-             "`build_solution_from_specialized_class`), and comprehensions or "
-             "matches over element-erased collections "
-             "(`shadowed_type_var_names`, `completion_kind_from_sym`). "
+             "`build_solution_from_specialized_class`), and comprehensions "
+             "over element-erased collections "
+             "(`shadowed_type_var_names`). "
              "Each clears with the named gap."
          ),
          (
