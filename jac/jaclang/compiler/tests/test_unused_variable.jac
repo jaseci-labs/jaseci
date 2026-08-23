@@ -19,17 +19,23 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 def unused_warnings(src: str, name: str) -> list[str] {
     prog = JacProgram();
     prog.compile(
-        file_path="unused_var_src.jac", use_str=src,
+        file_path="unused_var_src.jac",
+        use_str=src,
         options=CompileOptions(no_cgen=True)
     );
     marker = "'" + name + "' is defined but never used";
-    return [str(w) for w in prog.warnings_had if marker in str(w)];
+    return [
+        str(w)
+        for w in prog.warnings_had
+        if marker in str(w)
+    ];
 }
 
 def error_count(src: str) -> int {
     prog = JacProgram();
     prog.compile(
-        file_path="unused_var_src.jac", use_str=src,
+        file_path="unused_var_src.jac",
+        use_str=src,
         options=CompileOptions(no_cgen=True)
     );
     return len(prog.errors_had);
@@ -77,11 +83,7 @@ test "if else dual assignment followed by read emits no warning" {
 }
 
 test "sequential reassignment without read emits unused warning" {
-    src = "def probe -> int {\n"
-    "    x = 1;\n"
-    "    x = 2;\n"
-    "    return 0;\n"
-    "}\n";
+    src = "def probe -> int {\n" "    x = 1;\n" "    x = 2;\n" "    return 0;\n" "}\n";
     assert error_count(src) == 0 , src;
     warns = unused_warnings(src, "x");
     assert len(warns) == 1 , warns;
@@ -102,11 +104,7 @@ test "while loop single assignment without read emits unused warning" {
 }
 
 test "augmented assignment as only later touch emits no warning" {
-    src = "def probe -> int {\n"
-    "    x = 1;\n"
-    "    x += 2;\n"
-    "    return 0;\n"
-    "}\n";
+    src = "def probe -> int {\n" "    x = 1;\n" "    x += 2;\n" "    return 0;\n" "}\n";
     assert error_count(src) == 0 , src;
     warns = unused_warnings(src, "x");
     assert warns == [] , warns;
