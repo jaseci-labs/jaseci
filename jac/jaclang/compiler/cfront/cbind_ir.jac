@@ -1,5 +1,6 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.cfront.c_common { assign_synthetic_token_positions }
 
 
 obj FuncDesc {
@@ -263,7 +264,7 @@ def build_binding_module(
     if not elements {
         return uni.Module.make_stub(inject_src=src);
     }
-    return uni.Module(
+    mod = uni.Module(
         name=mod_name,
         source=src,
         doc=None,
@@ -272,4 +273,6 @@ def build_binding_module(
         has_synthesized_tokens=True,
         kid=elements
     );
+    assign_synthetic_token_positions(mod);
+    return mod;
 }

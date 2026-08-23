@@ -332,6 +332,7 @@ impl CastBuildPass.proc_file_ast(nd: c_ast.Node) -> uni.Module {
         has_synthesized_tokens=True,
         kid=elements
     );
+    assign_synthetic_token_positions(ret);
     return cast(uni.Module, self.nu(ret));
 }
 

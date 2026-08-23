@@ -25,6 +25,7 @@ import from jaclang.compiler.cfront.c_common {
     is_simple_ref,
     switch_is_safe,
     jac_prim_zero,
+    assign_synthetic_token_positions,
     CLIT_INT,
     CLIT_FLOAT,
     CLIT_CHAR,
