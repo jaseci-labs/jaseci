@@ -409,6 +409,16 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     being treated as real. Bundles the phantom-cascade pattern seen with
     objects/ceval mid-edits + annotations partials.
 
+MESH-HYGIENE LESSONS (UltraMoon, tonight): (a) reservation transfers MUST
+    steer all in-flight agents - del-leak agent wiped uncommitted ceval work
+    via git checkout because ownership moved without notice; (b) jac check
+    misses lowercase false/true literals in Jac default args - runtime-only
+    NameError (bit harness line 664, fixtures: bool = false).
+ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
+    below CPython refcounting on dict-subscript del / pop / popitem / del attr;
+    routing-revert premise FALSE for those paths. Fix needs jac0core owner =
+    user decision (host-compiler blast radius).
+
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
