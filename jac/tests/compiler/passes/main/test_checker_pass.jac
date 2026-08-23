@@ -3814,8 +3814,10 @@ test "root_cause_2_unknown_cascade" {
     # Cascading E1032 suppressed for chained AtomTrailer/FuncCall targets.
     # Name targets still report: persistence.some_attr, data.values() are first
     # attribute accesses on Unknown variables — each is a real diagnostic.
-    # 5: 2 root E1030 + 2 E1032 on Name targets + 1 return mismatch.
-    assert len(rc2_errors) == 5 , f"Expected 5 unknown-cascade errors, got {len(
+    # 6: 2 root E1030 + 2 E1032 on Name targets + 1 return mismatch + the
+    # E1053 for the Unknown argument to `list(...)`, which is now validated
+    # against `list.__init__` like any other call.
+    assert len(rc2_errors) == 6 , f"Expected 6 unknown-cascade errors, got {len(
         rc2_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in rc2_errors);
@@ -4151,7 +4153,9 @@ test "root_causes_total_error_count" {
     # Any) restored the E1030s the dynamic-attr root causes always expected.
     # Down to 13: union member access is specialized per member, so the
     # `(any | str).upper()` E1053 in root cause 9 is gone.
-    assert len(_fixture_errors) == 13 , f"Expected 13 fixture errors, got {len(
+    # Up to 14: builtin constructors with only `__init__` overloads (list,
+    # set, bytearray) are validated, so `list(<Unknown>)` reports E1053.
+    assert len(_fixture_errors) == 14 , f"Expected 14 fixture errors, got {len(
         _fixture_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in _fixture_errors);

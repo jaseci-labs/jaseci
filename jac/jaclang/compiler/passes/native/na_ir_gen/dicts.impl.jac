@@ -281,9 +281,7 @@ impl NaIRGenDicts._jacval_scalar_bits(value: ir.Value, payload_ty: any) -> tuple
         if value.type.width > 64 {
             return (0, b.trunc(value, i64, name="jv.itrunc"));
         }
-        _entry = JAC_TYPE_REGISTRY.get(self._tb_class_name(payload_ty) or "");
-        _unsigned = bool(_entry is not None and _entry.is_unsigned)
-            or value.type.width == 1;
+        _unsigned = self._tb_unsigned(payload_ty) or value.type.width == 1;
         return (
             0,
             b.zext(value, i64, name="jv.iext")

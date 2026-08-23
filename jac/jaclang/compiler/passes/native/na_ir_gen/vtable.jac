@@ -1,5 +1,6 @@
 import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
 import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { HDR_RC_OFF, HDR_TAG_OFF, RC_SENTINEL }
 import jaclang.jac0core.unitree as uni;

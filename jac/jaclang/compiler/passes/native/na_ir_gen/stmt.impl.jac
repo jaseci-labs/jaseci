@@ -1698,10 +1698,10 @@ impl NaIRGenStmt._apply_scalar_aug_op(
     if _tok is None {
         return None;
     }
-    if aug_op == "**=" {
-        return self._codegen_pow(current, rhs, rhs_node);
-    }
     _rty = self._expr_type_of(rhs_node);
+    if aug_op == "**=" {
+        return self._codegen_pow(current, rhs, rhs_node, cur_ty, _rty);
+    }
     coerced = self._coerce_typed(rhs, current.type, _rty);
     result = self._binop_typed(_tok, current, coerced, cur_ty, _rty);
     if result is not None and result.type != current.type {
@@ -1846,7 +1846,7 @@ impl NaIRGenStmt._codegen_aug_value(
         return (_dres, False);
     }
     if aug_op == "**=" {
-        return (self._codegen_pow(current, value, nd.value), False);
+        return (self._codegen_pow(current, value, nd.value, _tty, _vty), False);
     }
     coerced = value;
     if _kind in ("int", "float", "bool") {

@@ -18,6 +18,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob VTABLE_HEADER_SLOTS: int = 1,
      ACCESSOR_SLOT_SUFFIX: dict[str, str] = {
@@ -27,8 +28,12 @@ glob VTABLE_HEADER_SLOTS: int = 1,
      };
 
 def layout_scalar_names -> set[str] {
-    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    return JAC_TYPE_REGISTRY.scalar_names();
+    return {
+        n
+        for n in JAC_TYPE_REGISTRY.primitive_names()
+        if JAC_TYPE_REGISTRY.is_numeric(n)
+    }
+        | {"str", "bytes"};
 }
 
 obj FieldInfo {

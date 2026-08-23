@@ -2276,6 +2276,14 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     if method_name is None {
         return None;
     }
+    _wrap_owner = self._tb_solve(trailer.target.type);
+    if (
+        method_name == "wrap"
+        and self._tb_is_class_ref(_wrap_owner)
+        and JAC_TYPE_REGISTRY.is_sized(self._tb_class_name(_wrap_owner) or "")
+    ) {
+        return self._codegen_sized_wrap(nd, self._tb_class_name(_wrap_owner) or "");
+    }
     _is_super = (
         isinstance(trailer.target, uni.SpecialVarRef)
         and trailer.target.name == Tok.KW_SUPER
@@ -3570,7 +3578,9 @@ impl NaIRGenObjects._codegen_field_aug_assign(
         return None;
     }
 
-    scalar = self._apply_scalar_aug_op(current, rhs, aug_op, rhs_node);
+    scalar = self._apply_scalar_aug_op(
+        current, rhs, aug_op, rhs_node, cur_ty=self._expr_type_of(target)
+    );
     if scalar is not None {
         return scalar;
     }

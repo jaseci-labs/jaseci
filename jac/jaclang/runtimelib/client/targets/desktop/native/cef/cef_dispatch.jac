@@ -640,12 +640,12 @@ def:pub cef_dispatch_window_info_create(title: str, width: int, height: int) -> 
     g_wi.bounds_x = 100;
     g_wi.bounds_y = 100;
     if width > 0 {
-        g_wi.bounds_w = width;
+        g_wi.bounds_w = i32(width);
     } else {
         g_wi.bounds_w = 800;
     }
     if height > 0 {
-        g_wi.bounds_h = height;
+        g_wi.bounds_h = i32(height);
     } else {
         g_wi.bounds_h = 600;
     }
@@ -716,7 +716,7 @@ def:pub cef_dispatch_startup(cache_path: str, no_sandbox: int) -> i32 {
     cef_platform_bootstrap();
     _init_vtables();
     _log("startup: initializing CEF");
-    settings: int = cef_dispatch_settings_create(no_sandbox, cache_path);
+    settings: int = cef_dispatch_settings_create(i32(no_sandbox), cache_path);
 
     if g_cached_args == 0 {
         g_cached_args = cef_dispatch_main_args_create();
@@ -724,7 +724,7 @@ def:pub cef_dispatch_startup(cache_path: str, no_sandbox: int) -> i32 {
 
     old_sigchld: int = signal(17, 0);
     _log("startup: calling cef_initialize");
-    rc: int = cef_initialize(g_cached_args, settings, g_dispatch_app, 0);
+    rc: i32 = cef_initialize(g_cached_args, settings, g_dispatch_app, 0);
     _log("startup: cef_initialize returned");
     free(g_cached_args);
     g_cached_args = 0;
@@ -901,7 +901,7 @@ def:pub cef_dispatch_window_set_title(title: int) -> i32 {
     netname: int = XInternAtom(dpy, "_NET_WM_NAME", 0);
     utf8: int = XInternAtom(dpy, "UTF8_STRING", 0);
     if netname != 0 and utf8 != 0 {
-        XChangeProperty(dpy, top, netname, utf8, 8, 0, title, strlen(title));
+        XChangeProperty(dpy, top, netname, utf8, 8, 0, title, i32(strlen(title)));
     }
     XFlush(dpy);
     XCloseDisplay(dpy);

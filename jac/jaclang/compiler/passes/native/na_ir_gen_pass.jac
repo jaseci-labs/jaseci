@@ -40,6 +40,7 @@ import from jaclang.compiler.passes.native.na_ir_gen.random { NaIRGenRandom }
 import from jaclang.compiler.passes.native.na_ir_gen.refcount { NaIRGenRefcount }
 import from jaclang.compiler.passes.native.na_ir_gen.repr { NaIRGenRepr }
 import from jaclang.compiler.passes.native.na_ir_gen.sets { NaIRGenSets }
+import from jaclang.compiler.passes.native.na_ir_gen.sized { NaIRGenSized }
 import from jaclang.compiler.passes.native.na_ir_gen.stmt { NaIRGenStmt }
 import from jaclang.compiler.passes.native.na_ir_gen.struct { NaIRGenStruct }
 import from jaclang.compiler.passes.native.na_ir_gen.time { NaIRGenTime }
@@ -48,7 +49,7 @@ import from jaclang.compiler.passes.native.na_ir_gen.tuples { NaIRGenTuples }
 import from jaclang.compiler.passes.native.na_ir_gen.types { NaIRGenTypes }
 import from jaclang.compiler.passes.native.na_ir_gen.vtable { NaIRGenVtable }
 
-obj NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
+obj NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenSized, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
     static has REQUIRES: tuple = (
         'inference',
         'cfg',

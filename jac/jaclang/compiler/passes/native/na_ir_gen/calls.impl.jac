@@ -1276,6 +1276,9 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._codegen_enum_ctor(nd, _ec_name);
         }
     }
+    if _cls_form and JAC_TYPE_REGISTRY.is_sized(self._tb_class_name(_tt) or "") {
+        return self._codegen_sized_cast(nd, self._tb_class_name(_tt) or "");
+    }
 
     _callee_t = nd.target.type;
     if isinstance(_callee_t, ClassType)
@@ -1560,7 +1563,6 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if _is_foreign {
-        result = self._clib_sext_ret(func_name, result);
         if _clib_str_ret and isinstance(result.type, ir.PointerType) {
             result = self._membrane_str_in(self.builder, result);
         }
@@ -2682,6 +2684,8 @@ impl NaIRGenCalls._codegen_builtin_call(nd: uni.FuncCall) -> (ir.Value | None) {
         result = self._codegen_builtin_nary(nd, func_name);
     } elif func_name in _NA_UNARY_BUILTINS {
         result = self._codegen_builtin_unary(nd, func_name);
+    } elif func_name.startswith("wrapping_") {
+        result = self._codegen_wrapping(nd, func_name);
     } else {
         _direct: dict = {
             "print": self._emit_print,
@@ -2758,6 +2762,10 @@ impl NaIRGenCalls._codegen_type_call(nd: uni.FuncCall) -> (ir.Value | None) {
             help_text="Only the one-argument `type(x)` form lowers natively."
         );
         return None;
+    }
+    _scalar = self._tb_shape(self._flow_narrowed_type_of(_cid_params[0]));
+    if _scalar is not None {
+        return self._codegen_type_name_str(_scalar.name);
     }
     return self._codegen_class_id(_cid_params[0]);
 }

@@ -35,9 +35,16 @@ impl TypeEvaluator.validate_arg_types(
             continue;
         }
 
-        if not self.assign_type(arg_type, expected, strict=self._is_strict_site(arg)) {
+        verdict = self.assign_expr(
+            value,
+            arg_type,
+            expected,
+            strict=self._is_strict_site(arg),
+            probe=checking_overload
+        );
+        if not verdict.ok {
             has_errors = True;
-            if not checking_overload {
+            if not checking_overload and not verdict.diagnosed {
                 self.emit_diag(
                     E1053,
                     arg,
@@ -77,6 +84,11 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         and caller_type.is_builtin("auto")
         and (not expr.params or len(expr.params) == 0) {
         return self.prefetch.int_class or UnknownType();
+    }
+
+    fw_type = fixed_width_call_type(self, expr, caller_type);
+    if fw_type is not None {
+        return fw_type;
     }
 
     if self._in_native_context() {
@@ -257,6 +269,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
 
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
+                    self.validate_arg_types(arg_param_match);
                     ret_type = overload.return_type;
                     bindings = self._collect_type_var_bindings(
                         overload, expr, is_unbound_call=is_unbound_call
@@ -455,6 +468,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         ctor_arch = caller_type.shared.symbol_table;
         if isinstance(ctor_arch, Archetype)
             and ctor_arch.find_parent_of_type(Import) is not None {
+            self._check_extern_ctor_args(expr, ctor_arch);
             return caller_type.clone_as_instance();
         }
 
@@ -475,13 +489,25 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
 
         if matched_method is None {
             init_method = self._lookup_class_member(caller_type, "init");
+            if init_method is None
+                or init_method.class_type.shared.class_name == "object" {
+                _dunder_init = self._lookup_class_member(caller_type, "__init__");
+                if _dunder_init is not None
+                    and _dunder_init.class_type.shared.class_name != "object" {
+                    init_method = _dunder_init;
+                }
+            }
             is_from_object = init_method
                 and init_method.class_type.shared.class_name == "object";
 
             if init_method and not is_from_object {
                 method_ty = self._get_method_with_overloads(init_method, caller_type);
                 matched_method = self._validate_constructor_method(expr, method_ty);
-                if matched_method is None and expr.params {
+                if (
+                    matched_method is None
+                    and expr.params
+                    and not isinstance(method_ty, OverloadedType)
+                ) {
                     init_sym_type = self.get_type_of_symbol(init_method.symbol);
                     if isinstance(init_sym_type, FunctionType) {
                         self.match_args_to_params(expr.params, expr, init_sym_type);
@@ -671,6 +697,7 @@ impl TypeEvaluator._validate_constructor_method(
 
             if not arg_param_match.argument_errors {
                 if self.validate_arg_types(arg_param_match, checking_overload=True) {
+                    self.validate_arg_types(arg_param_match);
                     matched_overload = overload;
                     self._stamp_call_binding(
                         expr,
@@ -685,10 +712,23 @@ impl TypeEvaluator._validate_constructor_method(
             }
         }
         if matched_overload is None and method_type.overloads {
-            ctor_first = self._strip_implicit_self_cls(method_type.overloads[0]);
-            self.match_args_to_params(
-                expr.params, expr, ctor_first, checking_overload=False
+            ctor_report = self._strip_implicit_self_cls(method_type.overloads[0]);
+            for overload in method_type.overloads {
+                ctor_probe = self._strip_implicit_self_cls(overload);
+                probe = self.match_args_to_params(
+                    expr.params, expr, ctor_probe, checking_overload=True
+                );
+                if not probe.argument_errors {
+                    ctor_report = ctor_probe;
+                    break;
+                }
+            }
+            arg_param_report = self.match_args_to_params(
+                expr.params, expr, ctor_report, checking_overload=False
             );
+            if not arg_param_report.argument_errors {
+                self.validate_arg_types(arg_param_report);
+            }
         }
         return matched_overload;
     }
@@ -868,6 +908,14 @@ impl TypeEvaluator.assign_type_to_type_var(
 
     if isinstance(param_type, ClassType) and isinstance(arg_type, ClassType) {
         param_type_args = param_type.private.type_args if param_type.private else [];
+        if (
+            param_type_args
+            and param_type.shared != arg_type.shared
+            and self._is_protocol_class(param_type)
+            and self._bind_protocol_type_vars(param_type, arg_type, bindings)
+        ) {
+            return True;
+        }
         specialized = specialize_for_base_class(arg_type, param_type);
         arg_type_args = specialized.private.type_args if specialized.private else [];
 
@@ -880,6 +928,60 @@ impl TypeEvaluator.assign_type_to_type_var(
         }
     }
     return True;
+}
+
+
+impl TypeEvaluator._bind_protocol_type_vars(
+    proto: ClassType, arg_type: ClassType, bindings: dict[str, TypeBase]
+) -> bool {
+    """Solve a protocol's type parameters from the argument's matching members.
+
+    `abs(x: SupportsAbs[_T]) -> _T` called with an `int` binds `_T` through
+    `int.__abs__ -> int`: the protocol's own parameters are rewritten to the
+    outer arguments (`_T_co -> _T`) and each member signature is matched
+    against the argument class's member.
+    """;
+    proto_symtab = proto.shared.symbol_table;
+    if not isinstance(proto_symtab, UniScopeNode) {
+        return False;
+    }
+    mapping: dict[str, TypeBase] = {};
+    for (i, tp) in enumerate(proto.shared.type_params or []) {
+        if i < len(proto.private.type_args) and tp.name {
+            mapping[tp.name] = proto.private.type_args[i];
+        }
+    }
+    if not mapping {
+        return False;
+    }
+    recv = arg_type if arg_type.is_instance() else arg_type.clone_as_instance();
+    bound_any = False;
+    for (name, sym) in proto_symtab.names_in_scope.items() {
+        if not (sym.decl and isinstance(sym.decl.name_of, Ability)) {
+            continue;
+        }
+        proto_ft = self.get_type_of_ability(sym.decl.name_of);
+        if not isinstance(proto_ft, FunctionType) {
+            continue;
+        }
+        member = self._lookup_class_member(recv, name);
+        if member is None {
+            return False;
+        }
+        arg_ft = self.get_type_of_member(member, recv);
+        if not isinstance(arg_ft, FunctionType) {
+            continue;
+        }
+        inner: dict[str, TypeBase] = {};
+        self.assign_type_to_type_var(proto_ft, arg_ft, inner);
+        for (inner_name, outer) in mapping.items() {
+            if inner_name in inner and isinstance(outer, TypeVarType) and outer.name {
+                self.assign_type_to_type_var(outer, inner[inner_name], bindings);
+                bound_any = True;
+            }
+        }
+    }
+    return bound_any;
 }
 
 

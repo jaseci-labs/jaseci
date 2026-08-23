@@ -220,11 +220,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
                     }
                     if expected_elem is not None and elem_types {
-                        all_compatible = True;
+                        all_compatible = not (
+                            isinstance(expected_elem, ClassType)
+                            and self._is_protocol_class(expected_elem)
+                        );
                         for et in elem_types {
+                            if not all_compatible {
+                                break;
+                            }
                             if not self.assign_type(et, expected_elem) {
                                 all_compatible = False;
-                                break;
                             }
                         }
                         if all_compatible {
@@ -743,7 +748,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return expr.right.type;
                 }
                 if isinstance(base_type, ModuleType) {
-                    if base_type.is_external {
+                    if base_type.is_external or base_type.symbol_table is None {
                         expr.right.type = AnyType(is_foreign=True);
                         return expr.right.type;
                     }
@@ -957,7 +962,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                     _attr_arch = base_type.shared.symbol_table;
                     if isinstance(_attr_arch, Archetype)
                         and _attr_arch.find_parent_of_type(Import) is not None {
-                        expr.right.type = AnyType(is_foreign=True);
+                        if _ext_member
+                            := self._lookup_class_member(base_type, expr.right.value) {
+                            _ext_member.symbol.add_use(expr.right);
+                        }
+                        expr.right.type = self._extern_member_type(
+                            _attr_arch, expr.right.sym_name
+                        );
                         return expr.right.type;
                     }
                     if (
@@ -1652,7 +1663,7 @@ impl TypeEvaluator._get_type_of_expression_core(
             return self.get_type_of_expression(expr.value);
 
         case FuncCall():
-            _call_t = self.validate_call_args(expr);
+            _call_t = self._refine_struct_unpack(expr, self.validate_call_args(expr));
             _adopted = self._adopt_expected_container(expr, _call_t, expected_type);
             return _adopted if _adopted is not None else _call_t;
 
@@ -1752,6 +1763,18 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
 
                 if op.name in BINARY_OPERATOR_MAP {
+                    if both_numeric(left_type, right_type) {
+                        unify_numeric_operands(
+                            self,
+                            left_type,
+                            right_type,
+                            expr.left if i == 0 else expr.rights[i - 1],
+                            expr.rights[i],
+                            expr,
+                            op.value
+                        );
+                        continue;
+                    }
                     (magic, rmagic) = BINARY_OPERATOR_MAP[op.name];
                     result = self.get_type_of_magic_method_call(
                         left_type, magic, [expr.rights[i]], None
@@ -1981,6 +2004,10 @@ impl TypeEvaluator._get_type_of_expression_core(
                         and not operand_type.is_diagnosed
                         and not operand_type.is_incomplete {
                         self.emit_diag(E1010, expr, op=op_name, type=str(operand_type));
+                        return UnknownType(is_diagnosed=True);
+                    }
+                    if expr.op.name == Tok.MINUS and is_unsigned_type(operand_type) {
+                        self.emit_diag(E1129, expr, type=str(operand_type));
                         return UnknownType(is_diagnosed=True);
                     }
                     return operand_type;
@@ -2833,6 +2860,34 @@ impl TypeEvaluator._assign_callable(
     return True;
 }
 
+impl TypeEvaluator._is_protocol_class(dest_type: ClassType) -> bool {
+    for base_cls in dest_type.shared.base_classes {
+        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
+            continue;
+        }
+        if base_cls.shared == self.prefetch.protocol_class.shared {
+            return True;
+        }
+        if base_cls.shared.is_builtin_class
+            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+            return True;
+        }
+    }
+    class_name = dest_type.shared.class_name;
+    if (dest_type.shared.is_from_stdlib_stub or dest_type.shared.is_builtin_class)
+        and (class_name.startswith('Supports') or class_name.startswith('_Supports')) {
+        return True;
+    }
+    for mro_cls in dest_type.shared.mro {
+        if isinstance(mro_cls, ClassType)
+            and (mro_cls.shared.is_builtin_class or mro_cls.shared.is_from_stdlib_stub)
+            and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl TypeEvaluator._assign_class(
     src_type: ClassType, dest_type: ClassType, strict: bool = False
 ) -> bool {
@@ -2920,67 +2975,17 @@ impl TypeEvaluator._assign_class(
         return True;
     }
 
-    if src_type.is_builtin("int") and dest_type.is_builtin("float") {
-        return True;
-    }
-
     if src_type.is_builtin() and dest_type.is_builtin() {
-        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
-        src_kind = JAC_TYPE_REGISTRY.numeric_kind_of(src_type.shared.class_name);
-        dest_kind = JAC_TYPE_REGISTRY.numeric_kind_of(dest_type.shared.class_name);
-        if src_kind != NumericKind.NotNumeric and dest_kind != NumericKind.NotNumeric {
-            if src_kind == dest_kind {
-                return True;
-            }
-            if src_kind == NumericKind.IntKind and dest_kind == NumericKind.FloatKind {
-                return True;
-            }
+        import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+        src_name = src_type.shared.class_name;
+        dest_name = dest_type.shared.class_name;
+        if JAC_TYPE_REGISTRY.is_numeric(src_name)
+            and JAC_TYPE_REGISTRY.is_numeric(dest_name) {
+            return JAC_TYPE_REGISTRY.widens_to(src_name, dest_name);
         }
     }
 
-    is_protocol = False;
-
-    for base_cls in dest_type.shared.base_classes {
-        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
-            continue;
-        }
-
-        if base_cls.shared == self.prefetch.protocol_class.shared {
-            is_protocol = True;
-            break;
-        }
-
-        if base_cls.shared.is_builtin_class
-            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-            is_protocol = True;
-            break;
-        }
-    }
-
-    if not is_protocol {
-        class_name = dest_type.shared.class_name;
-        if (dest_type.shared.is_from_stdlib_stub or dest_type.shared.is_builtin_class)
-            and (
-                class_name.startswith('Supports') or class_name.startswith('_Supports')
-            ) {
-            is_protocol = True;
-        }
-    }
-
-    if not is_protocol {
-        for mro_cls in dest_type.shared.mro {
-            if isinstance(mro_cls, ClassType) {
-                if (
-                    mro_cls.shared.is_builtin_class
-                    or mro_cls.shared.is_from_stdlib_stub
-                )
-                    and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-                    is_protocol = True;
-                    break;
-                }
-            }
-        }
-    }
+    is_protocol = self._is_protocol_class(dest_type);
 
     if is_protocol {
         if class_implements_protocol(src_type, dest_type, self) {
@@ -3008,6 +3013,72 @@ impl TypeEvaluator.is_sub_class(super_cls: ClassType, sub_cls: ClassType) -> boo
         }
     }
     return False;
+}
+
+impl TypeEvaluator._refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> TypeBase {
+    """Type `struct.unpack(<literal format>, ...)` by its format.
+
+    The stub says `tuple[Any, ...]`; a literal format fixes the arity and the
+    element kinds (ints and floats), which every lane can use and which the
+    native backend needs to index the result without re-reading the format.
+    """;
+    import from jaclang.jac0core.struct_format { parse_struct_format }
+    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
+    if not (
+        isinstance(call_t, ClassType)
+        and call_t.is_builtin("tuple")
+        and self._tuple_has_variadic_arg(call_t)
+    ) {
+        return call_t;
+    }
+    callee = expr.resolved_callee;
+    if callee is None or callee.func_name not in ("unpack", "unpack_from") {
+        return call_t;
+    }
+    _sym = resolve_expr_symbol(expr.target);
+    _decl_mod = _sym.decl.find_parent_of_type(Module) if _sym and _sym.decl else None;
+    _mod_name = os.path.basename(str(_decl_mod.loc.mod_path)) if _decl_mod else "";
+    if _mod_name not in ("struct.pyi", "_struct.pyi", "struct.jac", "_struct.jac") {
+        return call_t;
+    }
+    params = expr.params or [];
+    if not params {
+        return call_t;
+    }
+    _fnode = params[0];
+    if isinstance(_fnode, MultiString) and len(_fnode.strings) == 1 {
+        _fnode = _fnode.strings[0];
+    }
+    if not isinstance(_fnode, String) or not isinstance(_fnode.lit_value, str) {
+        return call_t;
+    }
+    _layout = parse_struct_format(_fnode.lit_value);
+    if (
+        _layout is None
+        or self.prefetch.int_class is None
+        or self.prefetch.float_class is None
+    ) {
+        return call_t;
+    }
+    _elems: list[TypeBase] = [];
+    for _f in _layout.value_fields() {
+        _elems.append(
+            self._convert_to_instance(
+                self.prefetch.float_class
+                    if _f.kind == "float"
+                    else self.prefetch.int_class
+            )
+        );
+    }
+    if not _elems or self.prefetch.tuple_class is None {
+        return call_t;
+    }
+    _tuple_t = self._convert_to_instance(self.prefetch.tuple_class);
+    if not isinstance(_tuple_t, ClassType) {
+        return call_t;
+    }
+    _tuple_t.private.type_args = _elems;
+    return _tuple_t;
 }
 
 impl TypeEvaluator._adopt_expected_container(
@@ -3362,6 +3433,20 @@ impl TypeEvaluator.is_type_var_tuple_class(ty: TypeBase) -> bool {
         return True;
     }
     return self._is_typing_special_form(ty, "TypeVarTuple");
+}
+
+impl TypeEvaluator.assign_expr(
+    expr: Expr | None,
+    src_type: TypeBase,
+    dest_type: TypeBase,
+    strict: bool = False,
+    probe: bool = False
+) -> AssignVerdict {
+    verdict = assign_numeric_expr(self, expr, src_type, dest_type, probe);
+    if verdict is not None {
+        return verdict;
+    }
+    return AssignVerdict(ok=self.assign_type(src_type, dest_type, strict));
 }
 
 impl TypeEvaluator.assign_type(
@@ -4567,7 +4652,14 @@ impl TypeEvaluator._get_type_from_flow_node(
                         )
                             is not None
                     );
+                    import from jaclang.compiler.type_system.fixed_width {
+                        numeric_name_of
+                    }
+                    _decl_num = numeric_name_of(declared_type);
+                    _assigned_num = numeric_name_of(assigned_type);
                     if _decl_extern {
+                        narrowed_from_assignment = None;
+                    } elif _decl_num is not None and _assigned_num is not None {
                         narrowed_from_assignment = None;
                     } elif self.is_none_type(declared_type) {
                         narrowed_from_assignment = assigned_type;

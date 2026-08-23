@@ -5,6 +5,7 @@ import from jaclang.compiler.passes.main.layout_pass {
     accessor_slot_name
 }
 import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.compiler.passes.native.na_ir_gen.constants {
     NATIVE_OSPATH_FUNCS,
     NATIVE_OS_FUNCS,

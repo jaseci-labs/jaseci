@@ -5,6 +5,7 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5090, E5092 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import from jaclang.compiler.type_system.type_utils { convert_to_instance }
+import from jaclang.jac0core.scalars { ScalarShape, shape_of }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.type_system.types {
     AnyType,
@@ -32,6 +33,9 @@ obj NaIRGenTypes(NaIRGenState) {
     def _tb_builtin(name: str) -> any;
     def _tb_kind(t: any) -> str;
     def _tb_payload_kind(t: any) -> str;
+    def _tb_shape(t: any) -> (ScalarShape | None);
+    def _tb_unsigned(t: any) -> bool;
+    def _tb_sized(t: any) -> bool;
     def _tb_solve(t: any) -> any;
     def _tb_spec_match(t: any, names: tuple) -> (any | None);
     def _tb_erased(t: any) -> bool;
@@ -116,6 +120,11 @@ obj NaIRGenTypes(NaIRGenState) {
         resolved: (ResolvedOperator | None) = None
     ) -> (ir.Value | None);
 
+    def _unify_int_widths(
+        left: ir.Value, right: ir.Value
+    ) -> tuple[(ir.Value, ir.Value)];
+
+    def _to_float_type(val: ir.Value, target: ir.Type, src_ty: any) -> ir.Value;
     def _emit_str_concat(left: ir.Value, right: ir.Value) -> ir.Value;
     def _emit_arch_dunder_binop(
         op: str,

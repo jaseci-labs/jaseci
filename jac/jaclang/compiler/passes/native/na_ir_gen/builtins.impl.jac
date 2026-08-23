@@ -1294,7 +1294,14 @@ impl NaIRGenBuiltins._emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None) {
     exit_fn = self._get_or_declare_extern("exit", ir.VoidType(), [i32]);
 
     if args {
-        code = self._coerce_type(args[0], i32);
+        code = args[0];
+        if code.type != i32 {
+            code = (
+                self.builder.trunc(code, i32, name="exit.code")
+                    if code.type.width > 32
+                    else self._coerce_type(code, i32)
+            );
+        }
     } else {
         code = ir.Constant(i32, 0);
     }

@@ -488,7 +488,11 @@ impl NaIRGenVtable._codegen_class_ref(nd: uni.Name) -> (ir.Value | None) {
     }
     _t = nd.type;
     if self._tb_is_class_ref(_t) and not _t.shared.is_enum_class {
-        return self._emit_class_name_const(self._tb_class_name(_t) or nd.value);
+        _cls_name = self._tb_class_name(_t) or nd.value;
+        if JAC_TYPE_REGISTRY.is_sized(_cls_name) {
+            return self._codegen_type_name_str(_cls_name);
+        }
+        return self._emit_class_name_const(_cls_name);
     }
     return None;
 }

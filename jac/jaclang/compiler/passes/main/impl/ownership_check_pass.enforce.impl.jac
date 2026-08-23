@@ -1,3 +1,4 @@
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.jac0core.diagnostics {
     E1315,
     E1401,

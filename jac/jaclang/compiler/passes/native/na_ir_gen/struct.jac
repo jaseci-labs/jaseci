@@ -1,4 +1,5 @@
 import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.jac0core.struct_format { parse_struct_format }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.diagnostics { E5092 }
 import jaclang.jac0core.unitree as uni;

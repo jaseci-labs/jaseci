@@ -330,6 +330,17 @@ impl TypeEvaluator._lookup_object_member(
 impl TypeEvaluator._lookup_class_member(
     base_type: ClassType, member: str
 ) -> ClassMember | None {
+    """Find `member` along the MRO, attributed to the class that declares it.
+
+    A symbol found on `object` is reported as `object`'s, so constructor
+    resolution can tell an inherited `__new__` from the class's own.
+    """;
+    for cls in base_type.shared.mro {
+        direct = collect_member_syms(cls.shared.symbol_table, member);
+        if direct {
+            return ClassMember(direct[0], cls, list(direct[1:]));
+        }
+    }
     for cls in base_type.shared.mro {
         overloaded_syms: list[Symbol] = [];
         if sym := cls.lookup_member_symbol(member, overloaded_syms) {

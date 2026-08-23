@@ -10,21 +10,24 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
     if isinstance(nd, uni.Int) {
         tok_name = nd?.name;
         if tok_name == Tok.HEX {
-            return ir.Constant(ir.IntType(64), int(nd.value, 16));
+            _lit = ir.Constant(ir.IntType(64), int(nd.value, 16));
         } elif tok_name == Tok.OCT {
-            return ir.Constant(ir.IntType(64), int(nd.value, 8));
+            _lit = ir.Constant(ir.IntType(64), int(nd.value, 8));
         } elif tok_name == Tok.BIN {
-            return ir.Constant(ir.IntType(64), int(nd.value, 2));
+            _lit = ir.Constant(ir.IntType(64), int(nd.value, 2));
         } else {
-            return ir.Constant(ir.IntType(64), int(nd.value, 0));
+            _lit = ir.Constant(ir.IntType(64), int(nd.value, 0));
         }
+        return self._lower_coercion(nd, _lit) if nd.coerce_to is not None else _lit;
     }
     if isinstance(nd, uni.Float) {
-        return ir.Constant(ir.DoubleType(), float(nd.value));
+        _flit = ir.Constant(ir.DoubleType(), float(nd.value));
+        return self._lower_coercion(nd, _flit) if nd.coerce_to is not None else _flit;
     }
     if isinstance(nd, uni.Bool) {
         val = 1 if nd.value.lower() in ("true", "1") else 0;
-        return ir.Constant(ir.IntType(1), val);
+        _blit = ir.Constant(ir.IntType(1), val);
+        return self._lower_coercion(nd, _blit) if nd.coerce_to is not None else _blit;
     }
     if isinstance(nd, uni.Null) {
         return ir.Constant(ir.IntType(8).as_pointer(), None);
@@ -98,9 +101,11 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
 
+    if _result is not None and isinstance(nd, uni.Expr) and nd.coerce_to is not None {
+        _result = self._lower_coercion(nd, _result);
+    }
     if _result is not None {
         _result.jac_loc = _jac_loc;
-
         if self?.jacval_type
             and _result.type == self.jacval_type
             and isinstance(nd, uni.Expr)
@@ -655,7 +660,7 @@ impl NaIRGenExpr._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     _rty = self._flow_narrowed_type_of(nd.right);
     result: (ir.Value | None);
     if op == Tok.STAR_POW {
-        result = self._codegen_pow(left, right, nd.right);
+        result = self._codegen_pow(left, right, nd.right, _lty, _rty);
     } else {
         result = self._emit_binary_op(
             op, left, right, _lty, _rty, resolved=nd.resolved_op
@@ -711,6 +716,10 @@ impl NaIRGenExpr._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
         if _kind == "float" {
             return self.builder.fneg(operand, name="fneg");
         } elif _kind in ("int", "bool") {
+            if operand.type.width > 1
+                and (self._tb_sized(_operand_t) or self._tb_sized(nd.type)) {
+                return self._emit_checked_neg(operand);
+            }
             return self.builder.neg(operand, name="neg");
         } elif _kind == "complex" {
             f64 = ir.DoubleType();
@@ -1842,6 +1851,16 @@ impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) 
     _cls_name = self._codegen_class_name(nd);
     if _cls_name is not None {
         return _cls_name;
+    }
+    _bound_owner = self._tb_solve(nd.target.type);
+    if self._tb_is_class_ref(_bound_owner)
+        and JAC_TYPE_REGISTRY.is_sized(self._tb_class_name(_bound_owner) or "") {
+        _bound = self._codegen_sized_bound(
+            self._tb_class_name(_bound_owner) or "", right_name
+        );
+        if _bound is not None {
+            return _bound;
+        }
     }
 
     _cf_member = self._codegen_class_form_enum_member(nd);

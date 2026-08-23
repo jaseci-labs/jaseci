@@ -33,8 +33,14 @@ import from jaclang.jac0core.diagnostics {
     E1115,
     E1118
 }
+import from .fixed_width {
+    both_numeric,
+    folded_number,
+    numeric_name_of,
+    shift_result_type,
+    unify_numeric_operands
+}
 import type from .type_evaluator { TypeEvaluator }
-import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 
 glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.PLUS: ('__add__', '__radd__'),
@@ -124,99 +130,90 @@ def _has_gradual_type_args(t: TypeBase) -> bool {
     return False;
 }
 
-def _is_int_like(t: ClassType) -> bool {
-    return t.is_builtin()
-        and t.shared.class_name != "bool"
-        and JAC_TYPE_REGISTRY.numeric_kind_of(t.shared.class_name)
-            == NumericKind.IntKind;
-}
-
-def _is_float_like(t: ClassType) -> bool {
-    return t.is_builtin()
-        and JAC_TYPE_REGISTRY.numeric_kind_of(t.shared.class_name)
-            == NumericKind.FloatKind;
-}
+glob BITWISE_OPERATORS: set[str] = {Tok.BW_AND, Tok.BW_OR, Tok.BW_XOR},
+     SHIFT_OPERATORS: set[str] = {Tok.LSHIFT, Tok.RSHIFT};
 
 def get_numeric_promotion_type(
-    evaluator: TypeEvaluator, left_type: TypeBase, right_type: TypeBase, op: str
+    evaluator: TypeEvaluator,
+    left_type: TypeBase,
+    right_type: TypeBase,
+    op: str,
+    left_node: Expr | None = None,
+    right_node: Expr | None = None,
+    diag_node: UniNode | None = None
 ) -> TypeBase | None {
-    if not isinstance(left_type, ClassType) or not isinstance(right_type, ClassType) {
+    if not both_numeric(left_type, right_type) {
         return None;
     }
-    left_is_int = _is_int_like(left_type);
-    left_is_float = _is_float_like(left_type);
-    right_is_int = _is_int_like(right_type);
-    right_is_float = _is_float_like(right_type);
-
-    if not ((left_is_int or left_is_float) and (right_is_int or right_is_float)) {
-        return None;
-    }
-
     float_class = evaluator.prefetch.float_class;
-    int_class = evaluator.prefetch.int_class;
-    if float_class is None or int_class is None {
+    if float_class is None {
         return None;
     }
-
-    left_name = left_type.shared.class_name;
-    right_name = right_type.shared.class_name;
-    left_w = JAC_TYPE_REGISTRY.bit_width_of(left_name);
-    right_w = JAC_TYPE_REGISTRY.bit_width_of(right_name);
-
-    if op == Tok.DIV or left_is_float or right_is_float {
-        if (
-            left_is_float
-            and right_is_float
-            and left_w is not None
-            and right_w is not None
-        ) {
-            return evaluator._convert_to_instance(
-                left_type if left_w >= right_w else right_type
-            );
+    if op in SHIFT_OPERATORS {
+        if not is_int_kind_type(left_type) or not is_int_kind_type(right_type) {
+            return None;
         }
+        return shift_result_type(
+            evaluator, left_type, right_type, left_node, right_node
+        );
+    }
+    if op in BITWISE_OPERATORS
+        and not (is_int_kind_type(left_type) and is_int_kind_type(right_type)) {
+        return None;
+    }
+    unified = unify_numeric_operands(
+        evaluator,
+        left_type,
+        right_type,
+        left_node,
+        right_node,
+        diag_node if diag_node is not None else left_node,
+        op
+    );
+    if unified is None {
+        return UnknownType(is_diagnosed=True);
+    }
+    if op == Tok.DIV {
         return evaluator._convert_to_instance(float_class);
     }
+    return unified;
+}
 
-    if left_w is None or right_w is None {
-        return evaluator._convert_to_instance(int_class);
-    }
-
-    if left_w >= right_w {
-        return evaluator._convert_to_instance(left_type);
-    }
-    return evaluator._convert_to_instance(right_type);
+def is_int_kind_type(t: TypeBase) -> bool {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
+    name = numeric_name_of(t);
+    return name is not None
+        and JAC_TYPE_REGISTRY.numeric_kind_of(name) == NumericKind.IntKind;
 }
 
 def get_pow_result_type(
     evaluator: TypeEvaluator,
     left_type: TypeBase,
     right_type: TypeBase,
-    right_node: (UniNode | None)
+    right_node: (Expr | None),
+    left_node: Expr | None = None,
+    diag_node: UniNode | None = None
 ) -> (TypeBase | None) {
-    if not isinstance(left_type, ClassType) or not isinstance(right_type, ClassType) {
-        return None;
-    }
-    left_is_int = _is_int_like(left_type);
-    left_is_float = _is_float_like(left_type);
-    right_is_int = _is_int_like(right_type);
-    right_is_float = _is_float_like(right_type);
-    if not ((left_is_int or left_is_float) and (right_is_int or right_is_float)) {
-        return None;
-    }
+    import from jaclang.jac0core.const_fold { fold_const }
     float_class = evaluator.prefetch.float_class;
-    int_class = evaluator.prefetch.int_class;
-    if float_class is None or int_class is None {
+    if float_class is None or not both_numeric(left_type, right_type) {
         return None;
     }
-    if left_is_float or right_is_float {
+    (rok, rv) = fold_const(right_node);
+    if rok and isinstance(rv, int) and not isinstance(rv, bool) and rv < 0 {
         return evaluator._convert_to_instance(float_class);
     }
-    import from jaclang.jac0core.const_fold { fold_const }
-    (rok, rv) = fold_const(right_node);
-    if rok and isinstance(rv, int) and not isinstance(rv, bool) and rv >= 0 {
-        return get_numeric_promotion_type(
-            evaluator, left_type, right_type, Tok.STAR_POW
-        );
+    promoted = get_numeric_promotion_type(
+        evaluator, left_type, right_type, Tok.STAR_POW, left_node, right_node, diag_node
+    );
+    if promoted is None or isinstance(promoted, UnknownType) {
+        return promoted;
+    }
+    if not is_int_kind_type(promoted) {
+        return evaluator._convert_to_instance(float_class);
+    }
+    if rok and isinstance(rv, int) and not isinstance(rv, bool) {
+        return promoted;
     }
     return evaluator._convert_to_instance(float_class);
 }
@@ -367,17 +364,25 @@ def get_type_of_binary_operation(
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
-        if expr.op.name in ARITHMETIC_OPERATORS {
+        if expr.op.name in ARITHMETIC_OPERATORS
+            or expr.op.name in BITWISE_OPERATORS
+            or expr.op.name in SHIFT_OPERATORS {
             if expr.op.name == Tok.STAR_POW {
                 pow_type = get_pow_result_type(
-                    evaluator, left_type, right_type, expr.right
+                    evaluator, left_type, right_type, expr.right, expr.left, expr
                 );
                 if pow_type is not None {
                     return pow_type;
                 }
             }
             promoted_type = get_numeric_promotion_type(
-                evaluator, left_type, right_type, expr.op.name
+                evaluator,
+                left_type,
+                right_type,
+                expr.op.name,
+                expr.left,
+                expr.right,
+                expr
             );
             if promoted_type is not None {
                 expr.resolved_op = None;

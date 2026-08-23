@@ -4,6 +4,7 @@ import from jaclang.compiler.passes.main.layout_pass {
 }
 import from jaclang.compiler.type_system.types { FunctionType }
 import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.compiler.type_registry { JacTypeEntry }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.diagnostics { E5060, E5090, E5092 }

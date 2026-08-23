@@ -96,10 +96,17 @@ impl NaIRGenTypes._tuple_type_of(args: list) -> any {
 }
 
 impl NaIRGenTypes._tb_builtin(name: str) -> any {
-    _cls = getattr(self.prog.type_evaluator.prefetch, f"{name}_class", None);
+    _ev = self.prog.type_evaluator;
+    _cls = getattr(_ev.prefetch, f"{name}_class", None);
+    if not isinstance(_cls, ClassType) {
+        _cls = _ev._get_type_from_module(_ev.jac_builtins_module, name);
+    }
+    if not isinstance(_cls, ClassType) {
+        _cls = _ev._get_type_from_module(_ev.builtins_module, name);
+    }
     if not isinstance(_cls, ClassType) {
         raise AssertionError(
-            f"native codegen: the checker has no prefetched builtin class '{name}'"
+            f"native codegen: the checker has no builtin class '{name}'"
         );
     }
     return convert_to_instance(_cls);
@@ -215,6 +222,26 @@ impl NaIRGenTypes._tb_payload_kind(t: any) -> str {
         return self._tb_kind(self._tb_opt_payload(t));
     }
     return _k;
+}
+
+impl NaIRGenTypes._tb_shape(t: any) -> (ScalarShape | None) {
+    import from jaclang.compiler.type_system.type_utils { primitive_type_name_of }
+    _t = self._tb_solve(t);
+    if self._tb_kind(_t) == "optional" {
+        _t = self._tb_opt_payload(_t);
+    }
+    _name = primitive_type_name_of(_t);
+    return shape_of(_name) if _name is not None else None;
+}
+
+impl NaIRGenTypes._tb_unsigned(t: any) -> bool {
+    _sh = self._tb_shape(t);
+    return _sh is not None and _sh.sized and not _sh.is_float and not _sh.signed;
+}
+
+impl NaIRGenTypes._tb_sized(t: any) -> bool {
+    _sh = self._tb_shape(t);
+    return _sh is not None and _sh.sized;
 }
 
 impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
@@ -527,6 +554,12 @@ impl NaIRGenTypes._struct_name_for_key(tk: any) -> (str | None) {
 impl NaIRGenTypes._flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None) {
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
+    }
+    if expr.coerce_to is not None {
+        _ct = self._tb_builtin(expr.coerce_to);
+        if _ct is not None {
+            return _ct;
+        }
     }
     _nt = expr.narrowed_type;
     if _nt is not None {
@@ -1982,9 +2015,38 @@ impl NaIRGenTypes._coerce_type_inner(
 
     if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.IntType) {
         if val.type.width < target_type.width {
+            if val.type.width == 1 {
+                return self.builder.zext(val, target_type, name="zext");
+            }
+            _src_sh = self._tb_shape(src_ty) if src_ty is not None else None;
+            if _src_sh is None {
+                raise AssertionError(
+                    f"native codegen: widening {val.type} into {target_type} needs the checker type of the source (got {src_ty}) at {self._na_loc()}"
+                );
+            }
+            if _src_sh.signed and not _src_sh.is_float {
+                return self.builder.sext(val, target_type, name="sext");
+            }
             return self.builder.zext(val, target_type, name="zext");
         } elif val.type.width > target_type.width {
-            return self.builder.trunc(val, target_type, name="trunc");
+            if target_type.width == 1 {
+                return self.builder.icmp_signed(
+                    "!=", val, ir.Constant(val.type, 0), name="int.truth"
+                );
+            }
+            if isinstance(val, ir.Constant) and isinstance(val.constant, int) {
+                _w = target_type.width;
+                if -(1 << (_w - 1)) <= val.constant < (1 << _w) {
+                    return ir.Constant(target_type, val.constant);
+                }
+            }
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="silent narrowing",
+                name=f"{val.type} into {target_type}"
+            );
+            return val;
         }
     }
 
@@ -2027,14 +2089,55 @@ impl NaIRGenTypes._promote_to_float(
             f"(got {lty}, {rty}) at {self._na_loc()}"
         );
     }
-    f64 = ir.DoubleType();
-    _lk = self._tb_payload_kind(lty);
-    _rk = self._tb_payload_kind(rty);
-    if _lk in ("int", "bool", "enum") or (_lk == "float" and left.type != f64) {
-        left = self._coerce_type(left, f64, lty);
+    _lsh = self._tb_shape(lty);
+    _rsh = self._tb_shape(rty);
+    target: ir.Type = (
+        ir.FloatType()
+            if _lsh is not None
+                and _rsh is not None
+                and _lsh.is_float
+                and _rsh.is_float
+                and _lsh.width == 32
+                and _rsh.width == 32
+            else ir.DoubleType()
+    );
+    return (
+        self._to_float_type(left, target, lty),
+        self._to_float_type(right, target, rty)
+    );
+}
+
+impl NaIRGenTypes._to_float_type(
+    val: ir.Value, target: ir.Type, src_ty: any
+) -> ir.Value {
+    if val.type == target {
+        return val;
     }
-    if _rk in ("int", "bool", "enum") or (_rk == "float" and right.type != f64) {
-        right = self._coerce_type(right, f64, rty);
+    _k = self._tb_payload_kind(src_ty);
+    if _k in ("int", "bool", "enum") {
+        if self._tb_unsigned(src_ty) or _k == "bool" {
+            return self.builder.uitofp(val, target, name="u2f");
+        }
+        return self.builder.sitofp(val, target, name="s2f");
+    }
+    if _k == "float" {
+        if isinstance(target, ir.DoubleType) {
+            return self.builder.fpext(val, target, name="fpext");
+        }
+        return self.builder.fptrunc(val, target, name="fptrunc");
+    }
+    raise AssertionError(
+        f"native codegen: a `{src_ty}` value ({_k}) has no float conversion at {self._na_loc()}"
+    );
+}
+
+impl NaIRGenTypes._unify_int_widths(
+    left: ir.Value, right: ir.Value
+) -> tuple[(ir.Value, ir.Value)] {
+    if left.type.width == 1 and right.type.width > 1 {
+        left = self.builder.zext(left, right.type, name="bool.widen");
+    } elif right.type.width == 1 and left.type.width > 1 {
+        right = self.builder.zext(right, left.type, name="bool.widen");
     }
     return (left, right);
 }
@@ -2089,6 +2192,8 @@ impl NaIRGenTypes._emit_binary_op(
             f"(got {lty}, {rty}) at {self._na_loc()}"
         );
     }
+    unsigned = self._tb_unsigned(lty) or self._tb_unsigned(rty);
+    checked = self._tb_sized(lty) or self._tb_sized(rty);
     left = self._str_norm(left);
     right = self._str_norm(right);
     _lk = self._tb_payload_kind(lty);
@@ -2475,7 +2580,7 @@ impl NaIRGenTypes._emit_binary_op(
         } elif op == Tok.STAR_MUL {
             return self.builder.fmul(left, right, name="fmul");
         } elif op == Tok.DIV {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="fdiv.zero.chk"
             );
@@ -2484,7 +2589,7 @@ impl NaIRGenTypes._emit_binary_op(
             );
             return self.builder.fdiv(left, right, name="fdiv");
         } elif op == Tok.MOD {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="fmod.zero.chk"
             );
@@ -2493,7 +2598,7 @@ impl NaIRGenTypes._emit_binary_op(
             );
             return self._codegen_float_floor_mod(left, right);
         } elif op == Tok.FLOOR_DIV {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="ffloordiv.zero.chk"
             );
@@ -2519,44 +2624,32 @@ impl NaIRGenTypes._emit_binary_op(
                 f"{left.type} and {right.type} at {self._na_loc()}"
             );
         }
-        if left.type.width < right.type.width {
-            left = self.builder.sext(left, right.type, name="int.sext.l");
-        } elif right.type.width < left.type.width {
-            right = self.builder.sext(right, left.type, name="int.sext.r");
+        (left, right) = self._unify_int_widths(left, right);
+        if op == Tok.LSHIFT {
+            if checked {
+                return self._emit_checked_shl(left, right, unsigned);
+            }
+            return self.builder.shl(left, right, name="shl");
+        } elif op == Tok.RSHIFT {
+            if checked {
+                return self._emit_shr(left, right, unsigned);
+            }
+            return self.builder.ashr(left, right, name="ashr");
+        }
+        if left.type != right.type {
+            raise AssertionError(
+                f"native codegen: {op} on {lty}/{rty} operands lowered to "
+                f"different integer widths {left.type} and {right.type} "
+                f"at {self._na_loc()}"
+            );
         }
         int_ty = left.type;
-        _w = int_ty.width;
-        i1 = ir.IntType(1);
         if op == Tok.PLUS {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.sadd.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="add.ovf");
-            val = self.builder.extract_value(result, 0, name="add.val");
-            overflow = self.builder.extract_value(result, 1, name="add.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("add", left, right, unsigned);
         } elif op == Tok.MINUS {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.ssub.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="sub.ovf");
-            val = self.builder.extract_value(result, 0, name="sub.val");
-            overflow = self.builder.extract_value(result, 1, name="sub.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("sub", left, right, unsigned);
         } elif op == Tok.STAR_MUL {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.smul.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="mul.ovf");
-            val = self.builder.extract_value(result, 0, name="mul.val");
-            overflow = self.builder.extract_value(result, 1, name="mul.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("mul", left, right, unsigned);
         } elif op == Tok.FLOOR_DIV {
             izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed(
@@ -2565,7 +2658,7 @@ impl NaIRGenTypes._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            (q, _) = self._codegen_int_floor_divmod(left, right);
+            (q, _) = self._emit_int_divmod(left, right, unsigned);
             return q;
         } elif op == Tok.MOD {
             izero = ir.Constant(int_ty, 0);
@@ -2573,7 +2666,7 @@ impl NaIRGenTypes._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            (_, r) = self._codegen_int_floor_divmod(left, right);
+            (_, r) = self._emit_int_divmod(left, right, unsigned);
             return r;
         }
     }
@@ -2586,12 +2679,6 @@ impl NaIRGenTypes._emit_binary_op(
     }
     if op == Tok.BW_XOR {
         return self.builder.xor(left, right, name="bwxor");
-    }
-    if op == Tok.LSHIFT {
-        return self.builder.shl(left, right, name="shl");
-    }
-    if op == Tok.RSHIFT {
-        return self.builder.ashr(left, right, name="ashr");
     }
 
     if op == Tok.KW_AND {
@@ -3749,10 +3836,18 @@ impl NaIRGenTypes._emit_comparison(
                     f"{left.type} and {right.type} at {self._na_loc()}"
                 );
             }
-            if left.type.width < right.type.width {
-                left = self.builder.sext(left, right.type, name="sext.l");
-            } elif right.type.width < left.type.width {
-                right = self.builder.sext(right, left.type, name="sext.r");
+            (left, right) = self._unify_int_widths(left, right);
+            if left.type != right.type {
+                raise AssertionError(
+                    f"native codegen: comparison {op} on {lty}/{rty} operands "
+                    f"lowered to different integer widths {left.type} and "
+                    f"{right.type} at {self._na_loc()}"
+                );
+            }
+            if self._tb_unsigned(lty) or self._tb_unsigned(rty) {
+                return self.builder.icmp_unsigned(
+                    icmp_map[op], left, right, name="icmp"
+                );
             }
             return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
         }

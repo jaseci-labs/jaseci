@@ -755,6 +755,7 @@ impl UniCFGNode.get_tail -> UniCFGNode {
 impl Expr.postinit -> None {
     self.type = None;
     self.narrowed_type = None;
+    self.coerce_to = None;
     self.attached_tokens = None;
 }
 

@@ -4118,17 +4118,35 @@ impl NativeBuiltinEmitter.emit_abs(
     b = get_builder(p);
     i64 = ir.IntType(64);
     _k = ctx.arg_kind(0);
-    if _k in ("int", "bool") {
-        iv = p._coerce_type(arg_val, i64);
+    _at = ctx.arg_type(0);
+    if _k == "bool" {
+        return p._coerce_typed(arg_val, i64, _at);
+    }
+    if _k == "int" {
+        if p._tb_sized(_at) {
+            if p._tb_unsigned(_at) {
+                return arg_val;
+            }
+            return p._emit_checked_abs(arg_val);
+        }
+        iv = p._coerce_typed(arg_val, i64, _at);
         zero = ir.Constant(i64, 0);
         is_neg = b.icmp_signed("<", iv, zero, name="abs.neg");
         negated = b.sub(zero, iv, name="abs.negate");
         return b.select(is_neg, negated, iv, name="abs.result");
     }
     if _k == "float" {
+        if isinstance(arg_val.type, ir.FloatType) {
+            fabsf_fn = p._get_or_declare_extern(
+                "fabsf", ir.FloatType(), [ir.FloatType()]
+            );
+            return b.call(fabsf_fn, [arg_val], name="abs.f32result");
+        }
         fabs_fn = p._get_or_declare_extern("fabs", ir.DoubleType(), [ir.DoubleType()]);
         return b.call(
-            fabs_fn, [p._coerce_type(arg_val, ir.DoubleType())], name="abs.fresult"
+            fabs_fn,
+            [p._coerce_typed(arg_val, ir.DoubleType(), _at)],
+            name="abs.fresult"
         );
     }
     return None;
@@ -4620,12 +4638,13 @@ impl NativeBuiltinEmitter.emit_int(
     b = get_builder(p);
     i64 = ir.IntType(64);
     _k = ctx.arg_kind(0);
+    _at = ctx.arg_type(0);
     if _k in ("int", "bool") {
-        return p._coerce_type(arg_val, i64);
+        return p._coerce_typed(arg_val, i64, _at);
     }
     if _k == "float" {
         return b.fptosi(
-            p._coerce_type(arg_val, ir.DoubleType()), i64, name="int.from.float"
+            p._coerce_typed(arg_val, ir.DoubleType(), _at), i64, name="int.from.float"
         );
     }
     if _k != "str" {
@@ -4677,9 +4696,7 @@ impl NativeBuiltinEmitter.emit_float(
         return result;
     }
     if _k in ("int", "bool") {
-        return b.sitofp(
-            p._coerce_type(arg_val, ir.IntType(64)), f64, name="float.from.int"
-        );
+        return p._to_float_type(arg_val, f64, ctx.arg_type(0));
     }
     if _k == "float" {
         return p._coerce_type(arg_val, f64);

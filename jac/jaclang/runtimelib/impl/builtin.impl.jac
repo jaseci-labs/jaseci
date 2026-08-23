@@ -117,6 +117,12 @@ impl __getattr__(name: str) -> object {
             '_jac_region_instrument': 'instrument_drops'
         };
         return getattr(_region_mod, _region_map[name]);
+    } elif name.startswith('wrapping_') or _is_sized_type_name(name) {
+        import jaclang.runtimelib.sized as _sized_mod;
+        if name.startswith('wrapping_') {
+            return getattr(_sized_mod, name);
+        }
+        return _sized_mod.SIZED_TYPES[name];
     }
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}");
 }
@@ -402,4 +408,9 @@ impl _jac_chunks(xs: any, n: int) -> list {
         i = j;
     }
     return out;
+}
+
+def _is_sized_type_name(name: str) -> bool {
+    import from jaclang.jac0core.scalars { is_sized }
+    return is_sized(name);
 }
