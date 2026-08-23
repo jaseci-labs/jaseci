@@ -20,10 +20,13 @@ glob FIXTURES = os.path.join(
      );
 
 """Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
+def compile_native(
+    fixture: str, options: any = None
+) -> tuple[ExecutionEngine, uni.Module] {
     prog = JacProgram();
     ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
+        file_path=str(os.path.join(FIXTURES, fixture)),
+        options=options if options is not None else native_force_opts()
     );
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
@@ -99,4 +102,38 @@ test "base except handler still sees a readable message for struct raises" {
     fn = get_func(eng, "base_handler_message", ctypes.c_int64);
     result = fn();
     assert result == 1 , f"Expected 1 (str(e) is the type name), got {result}";
+}
+
+# --- malloc NULL must abort cleanly instead of dereferencing (issue #6815) ---
+# The optimized module dump may inline the private allocators, so these
+# assertions are module-level rather than per-function.
+"""Assert malloc OOM guards are present: null-check, abort call, message."""
+def assert_malloc_oom_guard(ir: uni.Module) {
+    text = str(ir.gen.llvm_ir);
+    assert "raw.null" in text , "malloc result must be null-checked";
+    assert ("call void @abort(" in text or 'call void @"abort"(' in text) , "OOM path must call abort";
+    assert "jac native: out of memory" in text , (
+        "OOM message global missing from module IR"
+    );
+}
+
+"""Headerless nogc options: `--gc none` with nogc enforced."""
+def _headerless_opts -> any {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    return CompileOptions(
+        force_codespace='native',
+        force_target_program=True,
+        na_gc_mode="none",
+        nogc_enforce_all=True
+    );
+}
+
+test "__rc_alloc null-checks malloc and aborts on OOM" {
+    (_, ir) = compile_native("rc_glob_return.jac");
+    assert_malloc_oom_guard(ir);
+}
+
+test "__jac_halloc null-checks malloc and aborts on OOM" {
+    (_, ir) = compile_native("nogc/enforce_clean.jac", options=_headerless_opts());
+    assert_malloc_oom_guard(ir);
 }
