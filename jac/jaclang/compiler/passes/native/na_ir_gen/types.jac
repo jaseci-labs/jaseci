@@ -81,16 +81,28 @@ obj NaIRGenTypes(NaIRGenState) {
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _promote_to_float(
+        left: ir.Value, right: ir.Value, unsigned: bool = False
+    ) -> tuple[(ir.Value, ir.Value)];
+
+    def _emit_binary_op(
+        op: str,
+        left: ir.Value,
+        right: ir.Value,
+        unsigned: bool = False,
+        checked: bool = False
+    ) -> (ir.Value | None);
+
+    def _unify_int_widths(
         left: ir.Value, right: ir.Value
     ) -> tuple[(ir.Value, ir.Value)];
 
-    def _emit_binary_op(op: str, left: ir.Value, right: ir.Value) -> (ir.Value | None);
+    def _to_float_type(val: ir.Value, target: ir.Type, unsigned: bool) -> ir.Value;
     def _emit_arch_dunder_binop(
         op: str, left: ir.Value, right: ir.Value
     ) -> (ir.Value | None);
 
     def _emit_comparison(
-        op: str, left: ir.Value, right: ir.Value, is_float: bool
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, unsigned: bool = False
     ) -> (ir.Value | None);
 
     def _is_jacval_ty(t: ir.Type) -> bool;
