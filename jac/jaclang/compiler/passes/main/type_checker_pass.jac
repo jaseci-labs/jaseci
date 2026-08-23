@@ -77,6 +77,8 @@ import from jaclang.compiler.type_system.operations {
     AUG_OPERATOR_MAP,
     AUG_TO_BINARY_MAP,
     BINARY_OPERATOR_MAP,
+    BITWISE_OPERATORS,
+    SHIFT_OPERATORS,
     get_numeric_promotion_type,
     get_pow_result_type
 }

@@ -29,7 +29,7 @@ obj:pub Webview {
     }
 
     def size(width: int, height: int, hint: int = 0) {
-        webview_set_size(self.handle, width, height, hint);
+        webview_set_size(self.handle, i32(width), i32(height), i32(hint));
     }
 
     def navigate(url: str) {
@@ -74,7 +74,7 @@ def:pub run_main_loop {
 }
 
 def:pub new_webview(debug: bool = False) -> Webview {
-    dbg: i32 = 1 if debug else 0;
+    dbg: i32 = i32(1 if debug else 0);
     h = webview_create(dbg, 0);
     LAST_WEBVIEW_HANDLE = h;
     return Webview(handle=h);
