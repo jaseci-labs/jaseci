@@ -192,6 +192,162 @@ def _strhex_impl(data: any, sep: any, bytes_per_sep: int) -> bytes {
 }
 
 
+# ---------------------------------------------------------------------------
+# base64: a2b_base64/b2a_base64
+#
+# Decode mirrors the RFC 3548/4648 strict-mode state machine of
+# binascii_a2b_base64_impl verbatim; encode mirrors b2a_base64_impl's
+# 6-bit drain plus partial-group tail.
+#
+
+def _b64_alphabet() -> str {
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+}
+
+# table_a2b_base64 semantics: value 0..63 for alphabet characters, 255
+# (unsigned-char wrap of -1) for anything else.
+def _b64_value(raw: int) -> int {
+    o = raw;
+    if o >= 65 and o <= 90 {  # 'A'..'Z' -> 0..25
+        return o - 65;
+    }
+    if o >= 97 and o <= 122 {  # 'a'..'z' -> 26..51
+        return o - 71;
+    }
+    if o >= 48 and o <= 57 {  # '0'..'9' -> 52..61
+        return o + 4;
+    }
+    if o == 43 {  # '+' -> 62
+        return 62;
+    }
+    if o == 47 {  # '/' -> 63
+        return 63;
+    }
+    return 255;
+}
+
+def _b64_len1_error(nbytes_emitted: int) {
+    _binascii_error(
+        "Invalid base64-encoded string: number of data characters ("
+        + str(nbytes_emitted // 3 * 4 + 1)
+        + ") cannot be 1 more than a multiple of 4");
+}
+
+def a2b_base64(data: any, strict_mode: bool = False) -> bytes {
+    buf = _ascii_buffer(data);
+    ascii_len = len(buf);
+    out: list[int] = [];
+    quad_pos = 0;
+    leftchar = 0;
+    pads = 0;
+
+    i = 0;
+    while i < ascii_len {
+        raw = buf[i];
+        stop = False;
+        if raw == 61 {  # '=' (BASE64_PAD)
+            pads += 1;
+            if quad_pos >= 2 and quad_pos + pads <= 4 {
+                i += 1;
+                continue;  # valid trailing pad
+            }
+            # RFC 4648 section 3.3: excess pad MAY be ignored.
+            if not strict_mode {
+                i += 1;
+                continue;
+            }
+            if quad_pos == 1 {
+                # C breaks here; the final validation reports the error.
+                stop = True;
+            } else {
+                _binascii_error(
+                    "Leading padding not allowed" if (quad_pos == 0 and i == 0)
+                    else "Excess padding not allowed");
+            }
+        } else {
+            this_ch = _b64_value(raw);
+            if this_ch >= 64 {
+                if strict_mode {
+                    _binascii_error("Only base64 data is allowed");
+                }
+                i += 1;
+                continue;  # ignore non-alphabet byte
+            }
+            if pads > 0 and strict_mode {
+                _binascii_error(
+                    "Excess data after padding" if quad_pos + pads == 4
+                    else "Discontinuous padding not allowed");
+            }
+            pads = 0;
+            if quad_pos == 0 {
+                quad_pos = 1;
+                leftchar = this_ch;
+            } elif quad_pos == 1 {
+                quad_pos = 2;
+                out.append(((leftchar << 2) | (this_ch >> 4)) & 0xFF);
+                leftchar = this_ch & 0x0F;
+            } elif quad_pos == 2 {
+                quad_pos = 3;
+                out.append(((leftchar << 4) | (this_ch >> 2)) & 0xFF);
+                leftchar = this_ch & 0x03;
+            } else {
+                quad_pos = 0;
+                out.append(((leftchar << 6) | this_ch) & 0xFF);
+                leftchar = 0;
+            }
+        }
+        if stop {
+            break;
+        }
+        i += 1;
+    }
+
+    if quad_pos == 1 {
+        _b64_len1_error(len(out));
+    }
+    if quad_pos != 0 and quad_pos + pads < 4 {
+        _binascii_error("Incorrect padding");
+    }
+    return bytes(out);
+}
+
+# BASE64_MAXBIN: ((PY_SSIZE_T_MAX - 3) / 2) on LP64.
+glob _BASE64_MAXBIN: int = (9223372036854775807 - 3) // 2;
+
+def b2a_base64(data: any, newline: bool = True) -> bytes {
+    buf = _ascii_buffer(data);
+    bin_len = len(buf);
+    if bin_len > _BASE64_MAXBIN {
+        _binascii_error("Too much data for base64 line");
+    }
+    table = _b64_alphabet();
+    out: list[int] = [];
+    leftchar = 0;
+    leftbits = 0;
+    for k in range(bin_len) {
+        leftchar = ((leftchar << 8) | buf[k]) & 0xFFFFFFFF;
+        leftbits += 8;
+        while leftbits >= 6 {
+            this_ch = (leftchar >> (leftbits - 6)) & 0x3F;
+            leftbits -= 6;
+            out.append(ord(table[this_ch]));
+        }
+    }
+    if leftbits == 2 {
+        out.append(ord(table[(leftchar & 3) << 4]));
+        out.append(61);  # '='
+        out.append(61);
+    } elif leftbits == 4 {
+        out.append(ord(table[(leftchar & 0x0F) << 2]));
+        out.append(61);
+    }
+    if newline {
+        out.append(10);  # courtesy newline
+    }
+    return bytes(out);
+}
+
+
 def hexlify(data: any, sep: any = None, bytes_per_sep: int = 1) -> bytes {
     return _strhex_impl(data, sep, bytes_per_sep);
 }

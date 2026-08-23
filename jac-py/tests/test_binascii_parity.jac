@@ -9,7 +9,9 @@ authoring time.
 """
 
 import from binasciimodule {
+    a2b_base64,
     a2b_hex,
+    b2a_base64,
     b2a_hex,
     hexlify,
     unhexlify,
@@ -94,6 +96,67 @@ test "wave16 separator errors match host" {
                       "object of type 'int' has no len()");
     _expect_sep_error("sep list", [48], 1, "TypeError",
                       "sep must be str or bytes.");
+}
+
+
+def _expect_b64_error(label: str, arg: any, strict_mode: bool,
+                      want_msg: str) {
+    raised = False;
+    got = "";
+    try {
+        a2b_base64(arg, strict_mode);
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert raised , label + ": expected an error";
+    assert got == want_msg , (label, got, want_msg);
+}
+
+
+test "wave16 base64 round trips" {
+    assert b2a_base64(b"b") == b"Yg==\n" , "single byte + newline";
+    assert b2a_base64(b"b", False) == b"Yg==";
+    assert b2a_base64(b"") == b"\n";
+    assert b2a_base64(b"abc", False) == b"YWJj";
+    assert b2a_base64(b"abcd") == b"YWJjZA==\n";
+    assert a2b_base64(b"Yg==\n") == b"b";
+    assert a2b_base64(b"") == b"";
+    # Newlines are insignificant on decode (host pin).
+    assert a2b_base64(b"YWJj\nZEFk") == _b(0x61, 0x62, 0x63, 0x64, 0x41, 0x64);
+    assert a2b_base64(b"YWJjZA==\n") == b"abcd";
+    # Non-strict mode ignores non-alphabet bytes and excess pads.
+    assert a2b_base64(b"Yg===") == b"b";
+    assert a2b_base64(b"Yg==YQ") == _b(0x62, 0x06, 0x10);
+}
+
+
+test "wave16 base64 strict mode matches host" {
+    _expect_b64_error("leading pad", b"=Yg==", True,
+                      "Leading padding not allowed");
+    _expect_b64_error("excess pad", b"Yg===", True,
+                      "Excess padding not allowed");
+    _expect_b64_error("excess pad long", b"Yg====", True,
+                      "Excess padding not allowed");
+    _expect_b64_error("non-alpha", b"Yg!*", True,
+                      "Only base64 data is allowed");
+    _expect_b64_error("excess data after pad", b"Yg==YQ", True,
+                      "Excess data after padding");
+    # 'Y=g=': the '=' at quad_pos 1 breaks the loop; final validation
+    # reports the len-1 message with 0 emitted bytes -> count 1.
+    _expect_b64_error("discontinuous pad", b"Y=g=", True,
+                      "Invalid base64-encoded string: number of data characters"
+                      " (1) cannot be 1 more than a multiple of 4");
+}
+
+
+test "wave16 base64 decode length errors match host" {
+    _expect_b64_error("one char", b"Y", False,
+                      "Invalid base64-encoded string: number of data characters"
+                      " (1) cannot be 1 more than a multiple of 4");
+    _expect_b64_error("two chars", b"Yg", False, "Incorrect padding");
+    _expect_b64_error("ignored junk two chars", b"Yg*", False,
+                      "Incorrect padding");
 }
 
 
