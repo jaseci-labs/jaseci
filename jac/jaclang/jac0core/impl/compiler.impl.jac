@@ -177,7 +177,12 @@ impl JacCompiler.get_bytecode(
     }
 
     cache_path = get_module_cache_path(full_target);
-    if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
+    cache_valid = False;
+    modkey: (str | None) = None;
+    if not rebuild {
+        (cache_valid, modkey) = is_module_cache_valid(full_target, cache_path);
+    }
+    if cache_valid {
         try {
             jir_data = cache_path.read_bytes();
             bc = read_bytecode_only(jir_data);
@@ -216,18 +221,26 @@ impl JacCompiler.get_bytecode(
     }
 
     allow_unsealed = (not rebuild) and (not no_precompile);
-    precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
+    if modkey is None {
+        modkey = compute_module_key(full_target);
+    }
+    precompiled_bc = self._get_precompiled_jir_bytecode(
+        full_target, allow_unsealed, modkey
+    );
     if precompiled_bc is not None {
         try {
             import from jaclang.jac0core.jir {
                 write_precompiled_jir,
-                module_jir_key_sections,
+                module_env_fingerprint,
+                SEC_MODKEY,
                 FLAG_PRECOMPILED
             }
+            key_sections: dict[int, bytes] = {
+                SEC_MODKEY: modkey.encode('utf-8'),
+                SEC_ENVKEY: module_env_fingerprint(full_target).encode('utf-8')
+            };
             jir_bytes = write_precompiled_jir(
-                precompiled_bc,
-                flags=FLAG_PRECOMPILED,
-                extra_sections=module_jir_key_sections(full_target)
+                precompiled_bc, flags=FLAG_PRECOMPILED, extra_sections=key_sections
             );
             cache_path.parent.mkdir(parents=True, exist_ok=True);
 
@@ -305,7 +318,9 @@ impl JacCompiler.get_bytecode(
                 import from jaclang.jac0core.jir { write_module_cache }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
-                    write_module_cache(full_target, cache_bc, extra_sections=sections);
+                    write_module_cache(
+                        full_target, cache_bc, extra_sections=sections, modkey=modkey
+                    );
                 }
             } except Exception {
                 ;
@@ -574,7 +589,7 @@ impl JacCompiler._sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None
 }
 
 impl JacCompiler._get_precompiled_jir_bytecode(
-    full_target: str, allow_unsealed: bool = True
+    full_target: str, allow_unsealed: bool = True, module_key: (str | None) = None
 ) -> (bytes | None) {
     import from pathlib { Path as _Path }
     import from jaclang.jac0core.jir { PRECOMPILE_SENTINEL, cache_mode }
@@ -606,7 +621,9 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     jir_data = _Path(jir_path).read_bytes();
                     trusted = (
                         sealed_img is not None
-                        or precompiled_jir_matches_source(jir_data, norm_file)
+                        or precompiled_jir_matches_source(
+                            jir_data, norm_file, module_key=module_key
+                        )
                     );
                     if trusted {
                         bc = read_bytecode_only(jir_data);

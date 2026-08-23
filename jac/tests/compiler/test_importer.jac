@@ -25,7 +25,9 @@ import from jaclang.jac0core.jir {
     SEC_PLACEMENT,
     SECTIONS_MAGIC,
     HEADER_SIZE,
-    read_sections
+    read_sections,
+    is_module_cache_valid,
+    compute_module_key
 }
 
 glob TEST_DIR = os.path.join(JAC_ROOT, "tests", "compiler"),
@@ -486,27 +488,27 @@ test "fresh mtime does not admit a cache written under a different environment" 
         assert os.path.getmtime(cache_path) > os.path.getmtime(jac_file) , (
             "cache must be newer than source for the mtime fast path to apply"
         );
-        assert is_module_cache_valid(jac_file, cache_path) , "fresh cache should be valid";
+        assert is_module_cache_valid(jac_file, cache_path)[0] , "fresh cache should be valid";
 
         saved = list(jir._COMPILER_DIGEST_CACHE);
         try {
             jir._COMPILER_DIGEST_CACHE.clear();
             jir._COMPILER_DIGEST_CACHE.append("289:" + "0" * 64);
-            assert not is_module_cache_valid(jac_file, cache_path) , (
+            assert not is_module_cache_valid(jac_file, cache_path)[0] , (
                 "a fresh mtime served a cache written under a different compiler"
             );
         } finally {
             jir._COMPILER_DIGEST_CACHE.clear();
             jir._COMPILER_DIGEST_CACHE.extend(saved);
         }
-        assert is_module_cache_valid(jac_file, cache_path) , (
+        assert is_module_cache_valid(jac_file, cache_path)[0] , (
             "restoring the compiler digest should restore validity"
         );
 
         prev_opt = os.environ.get("JAC_OPT_LEVEL");
         try {
             os.environ["JAC_OPT_LEVEL"] = "0" if prev_opt != "0" else "1";
-            assert not is_module_cache_valid(jac_file, cache_path) , (
+            assert not is_module_cache_valid(jac_file, cache_path)[0] , (
                 "a fresh mtime served a cache written under a different "
                 "codegen fingerprint"
             );
@@ -517,7 +519,7 @@ test "fresh mtime does not admit a cache written under a different environment" 
                 os.environ["JAC_OPT_LEVEL"] = prev_opt;
             }
         }
-        assert is_module_cache_valid(jac_file, cache_path) , (
+        assert is_module_cache_valid(jac_file, cache_path)[0] , (
             "restoring the codegen fingerprint should restore validity"
         );
     } finally {
@@ -569,7 +571,7 @@ test "editing placement pins in jac.toml invalidates the module cache" {
             assert os.path.getmtime(cache_path) > os.path.getmtime(jac_file) , (
                 "cache must be newer than source for the mtime fast path to apply"
             );
-            assert is_module_cache_valid(jac_file, cache_path) , (
+            assert is_module_cache_valid(jac_file, cache_path)[0] , (
                 "fresh cache should be valid"
             );
 
@@ -580,7 +582,7 @@ test "editing placement pins in jac.toml invalidates the module cache" {
             with open(toml_path, "a") as f {
                 f.write('\n[placement.pins]\n"m.helper_fn" = "server"\n');
             }
-            assert not is_module_cache_valid(jac_file, cache_path) , (
+            assert not is_module_cache_valid(jac_file, cache_path)[0] , (
                 "a jac.toml pins edit must invalidate the module cache"
             );
 
@@ -588,7 +590,7 @@ test "editing placement pins in jac.toml invalidates the module cache" {
             assert cache_path.read_bytes() != stale , (
                 "a recompile must overwrite the stale cache entry"
             );
-            assert is_module_cache_valid(jac_file, cache_path) , (
+            assert is_module_cache_valid(jac_file, cache_path)[0] , (
                 "the rewritten cache must be valid under the new pins"
             );
             assert _cached_pins(cache_path.read_bytes()).get("helper_fn") == "server" , (
@@ -850,6 +852,141 @@ test "internal get_bytecode evicts unit AST after compile" {
             os.environ.pop("JAC_REBUILD", None);
         } else {
             os.environ["JAC_REBUILD"] = old_rebuild;
+        }
+    }
+}
+
+test "client_kind cache memoizes projects without jac.toml" {
+    import importlib;
+    import from jaclang.jac0core.jir {
+        clear_module_client_kind_cache,
+        compute_module_key
+    }
+    clear_module_client_kind_cache();
+    with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
+        src = os.path.join(d, "solo.jac");
+        with open(src, "w") as f {
+            f.write("glob x = 1;\n");
+        }
+        compute_module_key(src);
+        py_jir = importlib.import_module("jaclang.jac0core.jir");
+        assert len(py_jir._client_kind_cache) == 1 , (
+            "the first probe must populate the client-kind cache"
+        );
+        compute_module_key(src);
+        assert len(py_jir._client_kind_cache) == 1 , (
+            "a second probe must reuse the cached client kind"
+        );
+        clear_module_client_kind_cache();
+        assert len(py_jir._client_kind_cache) == 0;
+    }
+}
+
+test "client_kind cache refreshes when a nearer jac.toml appears" {
+    import from jaclang.jac0core.jir {
+        clear_module_client_kind_cache,
+        compute_module_key
+    }
+    clear_module_client_kind_cache();
+    with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
+        parent = os.path.join(d, "parent");
+        child = os.path.join(parent, "child");
+        os.makedirs(child);
+        src = os.path.join(child, "mod.jac");
+        parent_toml = os.path.join(parent, "jac.toml");
+        child_toml = os.path.join(child, "jac.toml");
+        with open(src, "w") as f {
+            f.write("glob x = 1;\n");
+        }
+        with open(parent_toml, "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "0.0.1"\nclient_kind = "mobui"\n'
+            );
+        }
+        past = time.time() - 5;
+        os.utime(src, (past, past));
+        os.utime(parent_toml, (past, past));
+        key_before = compute_module_key(src);
+        with open(child_toml, "w") as f {
+            f.write('[project]\nname = "t"\nversion = "0.0.1"\n');
+        }
+        key_after = compute_module_key(src);
+        assert key_before != key_after , (
+            "client-kind memoization must refresh when the nearest jac.toml changes"
+        );
+    }
+}
+
+test "is_module_cache_valid rejects mtime-fresh cache after jac.toml client_kind change" {
+    import from jaclang.jac0core.jir { clear_module_client_kind_cache }
+    clear_module_client_kind_cache();
+    with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
+        src = os.path.join(d, "mod.jac");
+        toml = os.path.join(d, "jac.toml");
+        with open(src, "w") as f {
+            f.write("glob x = 1;\n");
+        }
+        with open(toml, "w") as f {
+            f.write('[project]\nname = "t"\nversion = "0.0.1"\n');
+        }
+        past = time.time() - 5;
+        os.utime(src, (past, past));
+        os.utime(toml, (past, past));
+        compiler = JacCompiler();
+        code = compiler.get_bytecode(src, JacProgram());
+        assert code is not None;
+        cache_path = get_module_cache_path(src);
+        assert cache_path.exists();
+        valid_before = is_module_cache_valid(src, cache_path)[0];
+        assert valid_before;
+        with open(toml, "w") as f {
+            f.write(
+                '[project]\nname = "t"\nversion = "0.0.1"\n' 'client_kind = "mobui"\n'
+            );
+        }
+        os.utime(src, (past, past));
+        valid_after = is_module_cache_valid(src, cache_path)[0];
+        assert not valid_after , (
+            "mtime-fresh cache must be rejected when jac.toml client_kind changes"
+        );
+    }
+}
+
+test "is_module_cache_valid returns the computed module key" {
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
+    ) as tmp {
+        tmp.write("glob rebased_key_probe = 2;\n");
+        tmp.flush();
+        jac_file = tmp.name;
+    }
+    try {
+        compiler = JacCompiler();
+        compiler.get_bytecode(jac_file, JacProgram());
+        cache_path = get_module_cache_path(jac_file);
+        assert cache_path.exists();
+        # A just-written cache takes the mtime fast path and legitimately
+        # returns no key; age it so the probe walks the hashing path.
+        future = time.time() + 30;
+        os.utime(jac_file, (future, future));
+        try {
+            (valid, key) = is_module_cache_valid(jac_file, cache_path);
+            assert valid , (
+                "an untouched source must still validate on the hashing path"
+            );
+            assert key == compute_module_key(jac_file) , (
+                "the stale-path probe must return the same key a fresh "
+                "computation yields"
+            );
+        } finally {
+            past = time.time() - 5;
+            os.utime(jac_file, (past, past));
+        }
+    } finally {
+        os.unlink(jac_file);
+        cp = get_module_cache_path(jac_file);
+        if cp.exists() {
+            cp.unlink();
         }
     }
 }

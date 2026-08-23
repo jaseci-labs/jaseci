@@ -108,9 +108,18 @@ def compute_content_sha256(file_path: str) -> str {
 }
 
 def _related_files(source_path: str) -> list[tuple[str, str]] {
+    result: list[tuple[str, str]] = [];
+    base_dir = str(Path(source_path).resolve().parent);
+    for p in sorted(_related_source_paths(source_path)) {
+        rel = os.path.relpath(p, base_dir).replace(os.sep, '/');
+        result.append((rel, compute_content_sha256(p)));
+    }
+    return result;
+}
+
+def _related_source_paths(source_path: str) -> list[str] {
     import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     src = Path(source_path).resolve();
-    base_dir = src.parent;
     paths: set = set();
     paths |= set(discover_annex_files(str(src), '.impl.jac'));
     paths |= set(discover_annex_files(str(src), '.test.jac'));
@@ -118,15 +127,42 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
     if style is not None {
         paths.add(style);
     }
-    result: list[tuple[str, str]] = [];
-    for p in sorted(paths) {
-        rel = os.path.relpath(p, str(base_dir)).replace(os.sep, '/');
-        result.append((rel, compute_content_sha256(p)));
-    }
-    return result;
+    return list(paths);
 }
 
-glob _client_kind_probe: dict = {"active": False};
+glob _client_kind_cache: dict[str, tuple[str, str | None, str]] = {},
+     _client_kind_probe_depth: list[int] = [0],
+     _NO_TOML_FP: str = "__no_toml__";
+
+def _find_jac_toml_path(source_path: str) -> (str | None) {
+    import from jaclang.jac0core.modresolver { find_project_root }
+    found = find_project_root(Path(source_path));
+    if found is None {
+        return None;
+    }
+    (_root, toml_path) = found;
+    return str(toml_path);
+}
+
+def _read_toml_content_hash(toml_path: str) -> (str | None) {
+    try {
+        return compute_content_sha256(toml_path);
+    } except OSError {
+        return None;
+    }
+}
+
+def _current_toml_signature(source_path: str) -> tuple[str | None, str] {
+    toml_path = _find_jac_toml_path(source_path);
+    if toml_path is None {
+        return (None, _NO_TOML_FP);
+    }
+    toml_fp = _read_toml_content_hash(toml_path);
+    if toml_fp is None {
+        return (None, _NO_TOML_FP);
+    }
+    return (toml_path, toml_fp);
+}
 
 def is_compiler_source_path(source_path: str) -> bool {
     try {
@@ -149,19 +185,36 @@ def _module_codespace_mode(source_path: str) -> str {
     }
 }
 
+def clear_module_client_kind_cache {
+    _client_kind_cache.clear();
+}
+
 def _module_client_kind(source_path: str) -> str {
-    if _client_kind_probe["active"] {
+    (current_toml, current_fp) = _current_toml_signature(source_path);
+    cached_entry = _client_kind_cache.get(source_path);
+    if cached_entry is not None {
+        (kind, cached_toml, cached_fp) = cached_entry;
+        if cached_toml == current_toml and cached_fp == current_fp {
+            return kind;
+        }
+        if current_toml is not None {
+            import from jaclang.project.config { invalidate_config_for_root }
+            invalidate_config_for_root(Path(current_toml).parent);
+        }
+    }
+    if _client_kind_probe_depth[0] > 0 {
         return "web";
     }
-    _client_kind_probe["active"] = True;
+    _client_kind_probe_depth[0] = 1;
     try {
         import from jaclang.project.client_kind { resolve_client_kind_context }
-        (kind, _) = resolve_client_kind_context(source_path);
+        (kind, _proj_root) = resolve_client_kind_context(source_path);
+        _client_kind_cache[source_path] = (kind, current_toml, current_fp);
         return kind;
     } except Exception {
         return "web";
     } finally {
-        _client_kind_probe["active"] = False;
+        _client_kind_probe_depth[0] = 0;
     }
 }
 
@@ -288,15 +341,21 @@ def module_env_fingerprint(source_path: str) -> str {
     return h.hexdigest();
 }
 
-def compute_module_key(source_path: str) -> str {
+def _module_key_from_related(source_path: str, related_paths: list[str]) -> str {
     h = hashlib.sha256();
     h.update(_full_env_fingerprint(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
-    for (rel, digest) in _related_files(source_path) {
+    base_dir = str(Path(source_path).resolve().parent);
+    for p in sorted(related_paths) {
+        rel = os.path.relpath(p, base_dir).replace(os.sep, '/');
         h.update(rel.encode());
-        h.update(digest.encode());
+        h.update(compute_content_sha256(p).encode());
     }
     return h.hexdigest();
+}
+
+def compute_module_key(source_path: str) -> str {
+    return _module_key_from_related(source_path, _related_source_paths(source_path));
 }
 
 def _read_key_section(data: bytes, sec_type: int) -> (str | None) {
@@ -359,22 +418,29 @@ def jir_matches_source(jir_data: bytes, source_path: str) -> bool {
     return stored == module_cache_key(source_path);
 }
 
-def compute_precompile_module_key(source_path: str, compiler_digest: str = "") -> str {
+def compute_precompile_module_key(
+    source_path: str, compiler_digest: str = "", module_key: (str | None) = None
+) -> str {
+    key = module_key if module_key is not None else module_cache_key(source_path);
     h = hashlib.sha256();
-    h.update(module_cache_key(source_path).encode());
+    h.update(key.encode());
     h.update(b"|compiler=");
     h.update((compiler_digest or running_compiler_digest()).encode());
     return h.hexdigest();
 }
 
 def precompiled_jir_matches_source(
-    jir_data: bytes, source_path: str, compiler_digest: str = ""
+    jir_data: bytes,
+    source_path: str,
+    compiler_digest: str = "",
+    module_key: (str | None) = None
 ) -> bool {
     stored = read_modkey(jir_data);
     if stored is None {
         return False;
     }
-    return stored == compute_precompile_module_key(source_path, compiler_digest);
+    return stored
+        == compute_precompile_module_key(source_path, compiler_digest, module_key);
 }
 
 def jir_cacheable_source_path(source_path: str) -> bool {
@@ -556,28 +622,24 @@ def read_debug_source(data: bytes) -> (str | None) {
     }
 }
 
-def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
+def is_module_cache_valid(
+    source_path: str, cache_path: Path
+) -> tuple[bool, (str | None)] {
     if not cache_path.exists() {
-        return False;
+        return (False, None);
     }
     try {
         data: bytes = cache_path.read_bytes();
         header = parse_header(data[:HEADER_SIZE]);
         if header is None or not header.is_compatible() {
-            return False;
+            return (False, None);
         }
         if not jir_env_matches(data, source_path) {
-            return False;
+            return (False, None);
         }
         cache_mtime = os.path.getmtime(cache_path);
 
-        related = discover_annex_files(source_path, '.impl.jac')
-            + discover_annex_files(source_path, '.test.jac');
-        style = discover_style_annex(source_path);
-        if style is not None {
-            related.append(style);
-        }
+        related = _related_source_paths(source_path);
         fresh = cache_mtime > os.path.getmtime(source_path);
         if fresh {
             for f in related {
@@ -593,18 +655,23 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
             }
         }
         if fresh {
-            return True;
+            return (True, None);
         }
 
-        return jir_matches_source(data, source_path);
+        modkey = _module_key_from_related(source_path, related);
+        stored = read_modkey(data);
+        return (stored == modkey, modkey);
     } except OSError {
-        return False;
+        return (False, None);
     }
 }
 
 
 def write_module_cache(
-    source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None
+    source_path: str,
+    bytecode: bytes,
+    extra_sections: (dict[int, bytes] | None) = None,
+    modkey: (str | None) = None
 ) -> bool {
     resolved_path = str(Path(source_path).resolve());
     if not jir_cacheable_source_path(resolved_path) {
@@ -612,11 +679,19 @@ def write_module_cache(
     }
     try {
         cache_path = get_module_cache_path(resolved_path);
-        if is_module_cache_valid(resolved_path, cache_path) {
-            return False;
+        sections: dict[int, bytes];
+        if modkey is not None {
+            sections = {
+                SEC_MODKEY: modkey.encode('utf-8'),
+                SEC_ENVKEY: module_env_fingerprint(resolved_path).encode('utf-8')
+            };
+        } else {
+            if is_module_cache_valid(resolved_path, cache_path)[0] {
+                return False;
+            }
+            sections = module_jir_key_sections(resolved_path);
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
-        sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {
                 sections[k] = v;
