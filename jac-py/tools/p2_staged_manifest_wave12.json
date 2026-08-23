@@ -7,7 +7,8 @@
   "modules": [
     {
       "stem": "itertoolsmodule",
-      "staging": "lift"
+      "staging": "hand",
+      "note": "staged pair grew past this wave's ratchet snapshot when wave 21 extended the kernel set in place (islice/zip_longest/groupby/batched/takewhile/dropwhile slices); Modules copy is now the maintained truth and _lifted/p2_corpus_wave12 stays a frozen historical ratchet"
     }
   ]
 }

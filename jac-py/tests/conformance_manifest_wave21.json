@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "wave": "p2_wave21",
+  "description": "P2 wave-21 conformance manifest (itertools kernels round 2 + datetime date/timedelta calendrical kernels, host-oracle parity)",
+  "module_count": 2,
+  "modules": [
+    {
+      "stem": "itertoolsmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_itertools_wave21_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "wave-21 kernel slices (islice skip/stop ladder, zip_longest numactive countdown, groupby head-run scan, batched short-batch decision, takewhile/dropwhile sticky flips) extend the staged wave-12 pair in place; facade behaviors gated vs host itertools"
+    },
+    {
+      "stem": "datetimemodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_datetime_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "date/timedelta calendrical integer kernels (is_leap, day tables, ymd_to_ord, weekday, iso_week1_monday, normalize_pair/d_s_us) gated vs host datetime; ord_to_ymd/normalize_* stay ratchet artifacts (pointer out-params)"
+    }
+  ]
+}

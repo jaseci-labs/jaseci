@@ -29,7 +29,11 @@ class P2ConformanceWavesGateTests(unittest.TestCase):
         return _load(_TESTS_DIR / f"conformance_manifest_wave{wave}.json")
 
     def test_all_waves(self) -> None:
-        for wave in range(2, 20):
+        # Discover waves from the manifests themselves: a hardcoded range
+        # needs touching every wave and breaks when sibling lanes land out
+        # of order.
+        for path in sorted(_TESTS_DIR.glob("conformance_manifest_wave*.json")):
+            wave = int(path.stem.removeprefix("conformance_manifest_wave"))
             with self.subTest(wave=wave):
                 self._check_wave(wave)
 
