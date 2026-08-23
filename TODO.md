@@ -422,6 +422,16 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+27. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
+    Py_LT..Py_GE imports missing from bytesobject.jac; the dispatch arm existed
+    all along. All 10 gen-bytes pins flipped green in corpus window at
+    3ebab8681 (156g/13r).
+31. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
+    exact host-value match incl. huge-int bounds.
+19. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
+    P2 index/count/hash from rangeobject.c, residual huge-int hash closed via
+    real lifted tuple_hash/xxHash machinery. test_range ratchet 28/0/0.
+
 19-P2 RESIDUAL (from ratchet window @ 808647626): test_range now 26 passed /
     2 failed. Remaining: hash() on HUGE-INT ranges only -
     range(0, 2**100-1, 2) and range(2**200, 2**201-2**99, 2**100) diverge from
@@ -840,6 +850,16 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+27. **[HIGH][FIXED 492264de5 UltraMoon] bytes richcompare** - REAL root cause:
+    Py_LT..Py_GE imports missing from bytesobject.jac; the dispatch arm existed
+    all along. All 10 gen-bytes pins flipped green in corpus window at
+    3ebab8681 (156g/13r).
+31. **[LOW][FIXED 3ebab8681 UltraMoon] slice hash** per sliceobject.c 3.12+,
+    exact host-value match incl. huge-int bounds.
+19. **[MED-HIGH][CLOSED a258dc7c] Native PyRange complete** - P1 gate-verified,
+    P2 index/count/hash from rangeobject.c, residual huge-int hash closed via
+    real lifted tuple_hash/xxHash machinery. test_range ratchet 28/0/0.
 
 19-P2 RESIDUAL (from ratchet window @ 808647626): test_range now 26 passed /
     2 failed. Remaining: hash() on HUGE-INT ranges only -
