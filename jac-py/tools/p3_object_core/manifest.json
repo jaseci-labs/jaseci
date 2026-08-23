@@ -57,6 +57,24 @@
         "failed": 0,
         "errored": 0
       }
+    },
+    {
+      "stem": "test_float",
+      "path": "Lib/test/test_float.py",
+      "baseline": {
+        "passed": 117,
+        "failed": 0,
+        "errored": 0
+      }
+    },
+    {
+      "stem": "test_complex",
+      "path": "Lib/test/test_complex.py",
+      "baseline": {
+        "passed": 90,
+        "failed": 0,
+        "errored": 0
+      }
     }
   ],
   "layer1_files": [
