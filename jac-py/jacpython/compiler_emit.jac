@@ -1505,6 +1505,24 @@ def visit_expr(
         call_args = call_effective_args(ca);
         cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
         kws = call_effective_keywords(ca);
+        if (
+            len(call_args) == 1
+            and len(kws) == 0
+            and not call_has_unpacking(ca)
+            and isinstance(call_args[0], GeneratorExp)
+            and len((call_args[0] as GeneratorExp).generators) > 0
+        ) {
+            # Sole generator-expression argument: CPython lowers the genexp
+            # (nested function + outermost GET_ITER + hidden-argument CALL 0)
+            # directly against the callee setup instead of pushing generic args,
+            # then performs the enclosing call over the produced generator.
+            visit_expr(g, call_args[0]);
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_CALL, len(call_args), cloc_call);
+            return None;
+        }
         if call_has_unpacking(ca) {
             # CALL_FUNCTION_EX site: build the positional slot here; the kwargs
             # mapping and the call itself go through emit_call_keyword_values /
@@ -1575,6 +1593,29 @@ def visit_expr(
     }
     if isinstance(e, Lambda) {
         visit_lambda(g, e as Lambda);
+        return None;
+    }
+    if isinstance(e, NamedExpr) {
+        ne = e as NamedExpr;
+        wloc = nloc(ne.lineno, ne.end_lineno, ne.col_offset, ne.end_col_offset);
+        visit_expr(
+            g, ne.value, false_shortcircuit_returns, compare_use_join, register_int_const
+        );
+        if codegen_busy(g) {
+            return None;
+        }
+        # PEP 572: the value stays as the expression result while a copy is
+        # bound to the target in the scope where the assignment lands.
+        g.emit_op(OP_COPY, 1, wloc);
+        if not isinstance(ne.target, Name) {
+            codegen_fail(g, "NotImplementedError", "unsupported walrus target");
+            return None;
+        }
+        emit_expr_name_store(g, (ne.target as Name).id, expr_loc(ne.target));
+        return None;
+    }
+    if isinstance(e, GeneratorExp) {
+        visit_genexp(g, e as GeneratorExp);
         return None;
     }
     if isinstance(e, Yield) {
@@ -1657,7 +1698,11 @@ def visit_expr(
             emit_starred_list_build(g, lelts, dloc);
             return None;
         }
-        if len(lelts) > 0 and display_all_constant(lelts) {
+        # CPython packs an all-constant list as an empty list extended by a
+        # folded const tuple only from three elements up (compile.c packs when
+        # the display is longer than the small-element fast path): shorter ones
+        # load each element then BUILD_LIST n.
+        if len(lelts) >= 3 and display_all_constant(lelts) {
             li2 = 0;
             while li2 < len(lelts) {
                 register_int_literal_const(g, lelts[li2], True);
@@ -1708,7 +1753,7 @@ def visit_expr(
             }
             return None;
         }
-        if len(selts) > 0 and display_all_constant(selts) {
+        if len(selts) >= 3 and display_all_constant(selts) {
             si3 = 0;
             while si3 < len(selts) {
                 register_int_literal_const(g, selts[si3], True);
@@ -3407,5 +3452,196 @@ def compile_lambda_cfg(
         return u;
     }
     g.emit_op(OP_RETURN_VALUE, 0, bloc);
+    return u;
+}
+
+# Scope-aware store of TOS into a plain name, for expression-side lowering
+# (walrus). Mirrors the statement-side name store; kept here because the
+# statement-level helpers live above this layer (codegen imports emit).
+def emit_expr_name_store(g: cfg_builder, name: str, tloc: cloc) -> None {
+    name = codegen_mangle(g, name);
+    fi = fast_local_index(g, name);
+    if fi >= 0 {
+        g.emit_op(OP_STORE_FAST, fi, tloc);
+        return;
+    }
+    if g.sym_top is not None and g.sym_top.block_type != "module" {
+        flags = sym_dict_get(g.sym_top.symbols, name, 0);
+        scope = sym_scope_of(flags);
+        if scope == SCOPE_FREE or scope == SCOPE_CELL {
+            idx = localsplus_index(g, name);
+            g.emit_op(OP_STORE_DEREF, idx, tloc);
+            return;
+        }
+        if scope == SCOPE_GLOBAL_EXPLICIT or scope == SCOPE_GLOBAL_IMPLICIT {
+            idx = g.u.add_name(name);
+            g.emit_op(OP_STORE_GLOBAL, idx, tloc);
+            return;
+        }
+    }
+    idx = g.u.add_name(name);
+    g.emit_op(OP_STORE_NAME, idx, tloc);
+}
+
+# Lower a generator expression: nested <genexpr> PyCode + MAKE_FUNCTION, then
+# evaluate the outermost iterable in the ENCLOSING frame and call the function
+# via CALL 0 -- CPython binds the function's `.0` parameter from CALL's hidden
+# self_or_null slot (GET_ITER result lands directly under the callable).
+def visit_genexp(g: cfg_builder, ge: GeneratorExp) -> None {
+    gloc = nloc(ge.lineno, ge.end_lineno, ge.col_offset, ge.end_col_offset);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "generator expression without symtable");
+        return;
+    }
+    sym_fn = sym_function_child_at(g.sym_top, "genexpr", ge.lineno, ge.col_offset);
+    if sym_fn is None {
+        codegen_fail(g, "SystemError", "missing symtable for generator expression");
+        return;
+    }
+    u_fn = compile_genexp_cfg(ge, g.u.filename, sym_fn, g.private);
+    if u_fn.diag is not None {
+        g.u.diag = u_fn.diag;
+        return;
+    }
+    cfg_fn = verify_cfg(u_fn);
+    if cfg_fn.diag is not None {
+        g.u.diag = cfg_fn.diag;
+        return;
+    }
+    co = assemble(cfg_fn);
+    g.u.nested_code_emitted = True;
+    emit_make_function_with_closure(g, sym_fn, co, gloc, None);
+    gen0 = ge.generators[0];
+    iloc = expr_loc(gen0.iter);
+    visit_expr(g, gen0.iter);
+    if codegen_busy(g) {
+        return;
+    }
+    g.emit_op(OP_GET_ITER, 0, iloc);
+    g.emit_op(OP_CALL, 0, gloc);
+}
+
+# Build unverified_cfg for a generator expression body. The `.0` parameter
+# carries the outermost iterator; each further `for` clause evaluates its
+# iterable inside the loop it nests in. The body yields elt once per innermost
+# iteration; filters branch back to their loop header.
+def compile_genexp_cfg(
+    ge: GeneratorExp, filename: str, sym_fn: sym_block, private: str | None = None
+) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename, name="<genexpr>", qualname="<genexpr>", firstlineno=ge.lineno
+    );
+    u.argcount = 1;
+    u.flags = CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR;
+    if sym_fn.nested {
+        u.flags = u.flags | CO_NESTED;
+    }
+    u.varnames = fast_varnames_from_sym(sym_fn);
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_fn, private);
+    protect_start = emit_function_prologue(g, sym_fn, ge.lineno, True);
+    gens = ge.generators;
+    nloops = len(gens);
+    dot0_loc = expr_loc(gens[0].target);
+    g.emit_op(OP_LOAD_FAST, 0, dot0_loc);
+
+    hdrs: list[basicblock] = [];
+    fidxs: list[int] = [];
+    inner_names: list[str] | None = None;
+    g.u.comp_depth = g.u.comp_depth + 1;
+    gi = 0;
+    while gi < nloops {
+        gen = gens[gi];
+        iloc = expr_loc(gen.iter);
+        if gi > 0 {
+            visit_expr(g, gen.iter);
+            if codegen_busy(g) {
+                u.flush_late_consts();
+                return u;
+            }
+            g.emit_op(OP_GET_ITER, 0, iloc);
+        }
+        hdr = g.new_block();
+        g.use(hdr);
+        fidx = len(hdr.instrs);
+        g.emit_jump(OP_FOR_ITER, 0, iloc);
+        hdrs.append(hdr);
+        fidxs.append(fidx);
+        bound_names = comp_bound_names_from_target(gen.target);
+        slots = comp_target_slots(g, gen.target);
+        if bound_names is None or slots is None {
+            codegen_fail(
+                g, "NotImplementedError", "unsupported generator expression target"
+            );
+            u.flush_late_consts();
+            return u;
+        }
+        if gi == nloops - 1 {
+            inner_names = bound_names;
+            lead = comp_lead_is_loopvar(g, gen, ge.elt, bound_names, slots);
+        } else {
+            lead = False;
+        }
+        comp_emit_bind_target(g, gen.target, slots, lead);
+        fj = 0;
+        while fj < len(gen.ifs) {
+            fexpr = gen.ifs[fj];
+            floc = expr_loc(fexpr);
+            visit_comp_elt(g, fexpr, bound_names, True);
+            if codegen_busy(g) {
+                u.flush_late_consts();
+                return u;
+            }
+            pass_blk = g.new_block();
+            g.emit_jump(OP_POP_JUMP_IF_TRUE, pass_blk.id, floc);
+            g.emit_jump(OP_JUMP_BACKWARD, hdr.id, floc);
+            g.use(pass_blk);
+            fj = fj + 1;
+        }
+        gi = gi + 1;
+    }
+
+    elt_loc = expr_loc(ge.elt);
+    visit_comp_elt(g, ge.elt, inner_names as list[str]);
+    if codegen_busy(g) {
+        u.flush_late_consts();
+        return u;
+    }
+    g.emit_op(OP_YIELD_VALUE, 0, elt_loc);
+    g.emit_op(OP_RESUME, 5, elt_loc);
+    g.emit_op(OP_POP_TOP, 0, elt_loc);
+    g.u.comp_depth = g.u.comp_depth - 1;
+    g.emit_jump(OP_JUMP_BACKWARD, hdrs[nloops - 1].id, elt_loc);
+
+    # Natural exhaustion unwinds one loop level at a time, innermost first.
+    k = nloops - 1;
+    while k >= 0 {
+        exit_blk = g.new_block();
+        hdrs[k].instrs[fidxs[k]].target_block = exit_blk.id;
+        g.use(exit_blk);
+        xloc = expr_loc(gens[k].iter);
+        g.emit_op(OP_END_FOR, 0, xloc);
+        g.emit_op(OP_POP_ITER, 0, xloc);
+        if k > 0 {
+            g.emit_jump(OP_JUMP_BACKWARD, hdrs[k - 1].id, xloc);
+        }
+        k = k - 1;
+    }
+    none_idx = u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, elt_loc);
+    g.emit_op(OP_RETURN_VALUE, 0, elt_loc);
+
+    if len(g.u.comp_handlers) > 0 {
+        # An inline comprehension in the body registers save/restore handlers
+        # that only compiler_exc resolves at statement level; keep the nested
+        # unit unsupported rather than emitting dangling handler refs.
+        codegen_fail(
+            g, "NotImplementedError", "inline comprehension inside generator expression"
+        );
+        u.flush_late_consts();
+        return u;
+    }
+    emit_generator_except_handler(g, protect_start);
+    u.flush_late_consts();
     return u;
 }

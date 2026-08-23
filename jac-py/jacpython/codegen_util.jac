@@ -966,6 +966,10 @@ def comp_leftmost_leaf(e: expr) -> expr {
     while True {
         if isinstance(cur, BinOp) {
             cur = (cur as BinOp).left;
+        } elif isinstance(cur, NamedExpr) {
+            # PEP 572: the walrus value is evaluated in place, so its leftmost
+            # leaf participates in the lead STORE_FAST_LOAD_FAST fusion.
+            cur = (cur as NamedExpr).value;
         } elif isinstance(cur, Compare) {
             cur = (cur as Compare).left;
         } elif isinstance(cur, UnaryOp) {
