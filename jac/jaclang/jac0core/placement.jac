@@ -52,10 +52,6 @@ obj ElementSummary {
     }
 
     static def from_dict(d: dict) -> ElementSummary {
-        # Shape guard: a well-formed record written by to_dict carries every
-        # key below, so a missing one means a stale/corrupt cache entry.
-        # Raise instead of silently defaulting 14 fields; summary_from_bytes
-        # catches this and the caller recomputes the summary.
         if (
             not isinstance(d, dict)
             or 'index' not in d
@@ -303,32 +299,6 @@ def _element_reqs(stmt: uni.UniNode) -> list {
             }
             if npm_dep {
                 reqs.append(['NPM', 'npm dependency']);
-            } else {
-                # Native-supported stdlib imports (collections.abc, typing
-                # erasures, ...) are placement-neutral on the native pathway;
-                # they must not surface as a PY capability requirement.
-                targets: list[str] = [];
-                if isinstance(stmt, uni.Import) and stmt.from_loc is not None {
-                    targets.append(stmt.from_loc.dot_path_str);
-                } elif isinstance(stmt, uni.Import) {
-                    for item in stmt.items {
-                        if isinstance(item, uni.ModulePath) {
-                            targets.append(item.dot_path_str);
-                        }
-                    }
-                }
-                import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
-                supported = True;
-                for tgt in targets {
-                    clean = tgt.lstrip('.') if tgt else '';
-                    if clean and clean not in NATIVE_SUPPORTED_STDLIB {
-                        supported = False;
-                        break;
-                    }
-                }
-                if not supported {
-                    reqs.append(['PY', 'python import']);
-                }
             }
         }
         return reqs;

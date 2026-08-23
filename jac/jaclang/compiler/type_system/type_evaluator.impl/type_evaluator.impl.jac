@@ -2112,28 +2112,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                     if _js_name == "import" {
                         _js_name = "__import_meta__";
                     }
-                    if self.host_provides(expr, 'DOM') {
-                        dom_sym = self.dom_types_module.names_in_scope.get(expr.value);
-                        if dom_sym is not None {
-                            symbol = dom_sym;
-                        }
-                    }
                     js_sym = self.js_globals_module.names_in_scope.get(_js_name);
-                    if (
-                        js_sym is not None
-                        and expr.in_client_context()
-                        and self.host_provides(expr, 'JS_GLOBALS')
-                    ) {
-                        import from jaclang.jac0core.host { js_global_requires_dom }
-                        if (
-                            js_global_requires_dom(expr.value)
-                            and not self.host_provides(expr, 'DOM')
-                        ) {
-                            js_sym = None;
-                        }
-                        if js_sym is not None {
-                            symbol = js_sym;
-                        }
+                    if js_sym is not None and expr.in_client_context() {
+                        symbol = js_sym;
                     }
                 }
                 if symbol {
@@ -4104,6 +4085,13 @@ impl TypeEvaluator.postinit -> None {
             continue;
         }
         self.builtins_module.names_in_scope[name] = sym;
+    }
+
+    for (name, sym) in self.dom_types_module.names_in_scope.items() {
+        existing = self.builtins_module.names_in_scope.get(name);
+        if existing is None or existing.imported {
+            self.builtins_module.names_in_scope[name] = sym;
+        }
     }
 
     raw_groups = self._read_ambient_imports_by_module(
