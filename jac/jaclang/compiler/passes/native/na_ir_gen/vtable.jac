@@ -3,10 +3,8 @@ import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { HDR_RC_OFF, HDR_TAG_OFF, RC_SENTINEL }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.type_system.types { ClassType }
 
 obj NaIRGenVtable(NaIRGenState) {
-    def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];

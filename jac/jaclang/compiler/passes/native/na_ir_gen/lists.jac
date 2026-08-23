@@ -3,7 +3,6 @@ import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.diagnostics { E5092 }
 import jaclang.jac0core.unitree as uni;
 import os;
-import sys;
 
 obj NaIRGenLists(NaIRGenState) {
     def _spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None);
@@ -15,7 +14,14 @@ obj NaIRGenLists(NaIRGenState) {
         b: any, val: ir.Value, elem_type: ir.Type, name: str
     ) -> ir.Value;
 
-    def _empty_list_dest_spec(nd: uni.ListVal) -> (str | None);
+    def _list_elem_ready(
+        val: ir.Value,
+        expr: (uni.UniNode | None),
+        spec: str,
+        elem_llvm: ir.Type,
+        loc: str
+    ) -> tuple;
+
     def _emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> None;
     def _emit_aos_list_helpers(tname: str) -> ir.Type;
     def _codegen_list_val(nd: uni.ListVal) -> (ir.Value | None);

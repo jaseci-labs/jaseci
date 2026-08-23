@@ -40,6 +40,8 @@ obj NaIRGenIterators(NaIRGenState) {
     def _make_iter_from_value(val: ir.Value, expr: uni.UniNode) -> (tuple | None);
     def _build_iter_from_expr(expr: uni.UniNode) -> (tuple | None);
     def _codegen_next(nd: uni.FuncCall) -> (ir.Value | None);
+    def _member_return_type(owner_ty: any, name: str) -> any;
+    def _iter_elem_llvm(iter_ty: any) -> (ir.Type | None);
     def _make_map_iter(up: tuple, callee: tuple) -> (tuple | None);
     def _make_filter_iter(up: tuple, callee: tuple) -> (tuple | None);
     def _make_enumerate_iter(up: tuple) -> (tuple | None);

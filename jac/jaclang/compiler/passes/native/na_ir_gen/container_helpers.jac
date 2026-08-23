@@ -2,8 +2,8 @@ import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { HDR_ALLOC_ID_OFF, HDR_DTOR_OFF, HDR_TAG_OFF }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5092 }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.type_system.types { UnknownType }
 
 obj NaIRGenContainerHelpers(NaIRGenState) {
     def _emit_key_comparison(
@@ -19,18 +19,46 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
     def _emit_jacval_release_fn -> ir.Function;
     def _emit_jacval_rc_fn(fn_name: str, is_retain: bool) -> ir.Function;
     def _container_managed_fields(layout: dict) -> list;
-    def _reject_ptr_into_raw_slot(
-        nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
+    def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
+    def _container_src_info(
+        val: (ir.Value | None), operand: (uni.UniNode | None)
+    ) -> (dict | None);
+
+    def _elem_slot_llvm(t: any) -> (ir.Type | None);
+    def _list_spec_for_elem_llvm(elem_llvm: ir.Type) -> str;
+    def _list_spec_for_type(t: any) -> (str | None);
+    def _dict_spec_for_type(t: any) -> (str | None);
+    def _set_spec_for_type(t: any) -> (str | None);
+    def _aos_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None);
+    def _list_helpers_for(expr: (uni.UniNode | None)) -> (dict | None);
+    def _list_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None);
+    def _dict_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None);
+    def _set_spec_for_expr(expr: (uni.UniNode | None)) -> (str | None);
+    def _expr_type_of(expr: (uni.UniNode | None)) -> any;
+    def _sym_type_of(nd: (uni.UniNode | None)) -> any;
+    def _to_bool_of(val: ir.Value, expr: (uni.UniNode | None)) -> ir.Value;
+    def _coerce_typed(val: ir.Value, target_type: ir.Type, src_ty: any) -> ir.Value;
+    def _binop_typed(
+        op: str,
+        left: ir.Value,
+        right: ir.Value,
+        lty: any,
+        rty: any,
+        resolved: any = None
+    ) -> (ir.Value | None);
+
+    def _cmp_typed(
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+    ) -> (ir.Value | None);
+
+    def _callee_name_of(call: (uni.UniNode | None)) -> (str | None);
+    def _builtin_call_is(call: (uni.UniNode | None), name: str) -> bool;
+    def _method_call_is(
+        call: (uni.UniNode | None), name: str, owner_kinds: tuple
     ) -> bool;
 
-    def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
-    def _container_src_info(val: (ir.Value | None)) -> (dict | None);
-    def _spread_elem_storage(
-        src_info: dict, operand: (uni.Expr | None)
-    ) -> (ir.Type | None);
-
-    def _reject_spread_slot_mismatch(
-        nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
+    def _module_member_is(
+        expr: (uni.UniNode | None), module: str, member: str
     ) -> bool;
 
     def _emit_spread_copy(
@@ -39,7 +67,8 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
         dest: ir.Value,
         dest_helpers: dict,
         dest_kind: str,
-        loc: str
+        loc: str,
+        src_elem_ty: any = None
     ) -> None;
 
     def _emit_elem_retain(b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value) -> None;
@@ -78,7 +107,8 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
         fn_name: str,
         container_ptr_type: ir.Type,
         layout: dict,
-        dtor_fn: (ir.Function | None) = None
+        dtor_fn: (ir.Function | None) = None,
+        type_name: str = "container"
     ) -> ir.Function;
 
     def _emit_container_len_fn(
@@ -109,7 +139,6 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
         raw: ir.Value, struct_type: ir.LiteralStructType
     ) -> None;
 
-    def _container_type_name(dtor_fn: object) -> str;
     def _emit_container_trace_fn(
         trace_fn_name: str, container_ptr_type: ir.Type, layout: dict
     ) -> ir.Function;

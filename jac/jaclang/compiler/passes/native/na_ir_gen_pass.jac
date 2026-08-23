@@ -54,6 +54,7 @@ obj NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes,
         'cfg',
         'ownership',
         'capability',
+        'layout',
         'rc-facts'
     );
 }

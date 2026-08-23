@@ -39,8 +39,7 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
         return;
     }
     kernel_mod.gen.nogc_enforced = getattr(self.ir_in.gen, "nogc_enforced", False);
-    self._walk_imported_module_type_names(kernel_mod);
-    self._walk_imported_module_types(kernel_mod);
+    self._register_dep_module_layouts(kernel_mod);
     self._walk_imported_module_abilities(kernel_mod, with_fn_verdicts=False);
     self._osp_kernel_mod = kernel_mod;
 
@@ -52,22 +51,27 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
 }
 
 impl NaIRGenOsp._compute_osp_model(archetypes: list[uni.Archetype]) -> None {
-    for arch in archetypes {
-        _n = arch.name.value if arch.name else None;
-        if (_n is not None) and (arch.arch_kind is not None) {
-            self.arch_ast_map[_n] = arch;
+    import from jaclang.jac0core.osp_model { get_osp_model }
+    reg = self._registry();
+    _osp_decls: list[uni.Archetype] = list(archetypes);
+    _seen: set[str] = {(a.name.value if a.name else "") for a in archetypes};
+    for (_lname, _lay) in reg.layouts.items() {
+        if _lay.is_osp and _lay.decl_node is not None and _lname not in _seen {
+            _seen.add(_lname);
+            _osp_decls.append(_lay.decl_node);
         }
     }
-    import from jaclang.jac0core.osp_model { get_osp_model }
     _model = get_osp_model(
         self.ir_in,
-        archetypes=(list(archetypes) + list(self.arch_ast_map.values())),
-        context=CodeContext.NATIVE
+        archetypes=_osp_decls,
+        context=CodeContext.NATIVE,
+        mro_of=reg.mro_order
     );
     for (_name, _other) in _model.collisions {
+        _lay = reg.get_layout(_name);
         self.emit(
             E5092,
-            node_override=self.arch_ast_map.get(_name),
+            node_override=(_lay.decl_node if _lay is not None else None),
             kind="archetype",
             name=f"{_name} (OSP type-tag hash collides with '{_other}')"
         );
@@ -81,20 +85,24 @@ impl NaIRGenOsp._osp_active -> bool {
 }
 
 impl NaIRGenOsp._xmod_osp_help(names: list) -> (str | None) {
+    import os as _xh_os;
     _model = self.ir_in.gen.osp_model;
     _tags = _model.tags if (_model is not None) else {};
     for _n in names {
-        if (
-            (_n is not None) and (_n not in _tags) and (_n in self.imported_osp_archs)
-        ) {
-            (_kind, _mod) = self.imported_osp_archs[_n];
-            return (
-                f"the {_kind} archetype '{_n}' is imported from native module "
-                f"'{_mod}' but was not materialized into this native compile; "
-                f"ensure '{_mod}' compiles as native source, or define the "
-                f"archetype in this module."
-            );
+        if _n is None or _n in _tags {
+            continue;
         }
+        _lay = self._arch_layout(_n);
+        if _lay is None or not _lay.is_osp or _lay.decl_mod == self._own_path() {
+            continue;
+        }
+        _mod = _xh_os.path.splitext(_xh_os.path.basename(_lay.decl_mod))[0];
+        return (
+            f"the {_lay.arch_type} archetype '{_n}' is imported from native module "
+            f"'{_mod}' but was not materialized into this native compile; "
+            f"ensure '{_mod}' compiles as native source, or define the "
+            f"archetype in this module."
+        );
     }
     return None;
 }
@@ -115,7 +123,8 @@ impl NaIRGenOsp._emit_osp_thunk(arch_name: str, method: uni.Ability) -> None {
     jv = self.jacval_type;
 
     _thunk_name = f"{full}.__ospthunk";
-    _imported = arch_name in self.imported_osp_archs;
+    _lay = self._arch_layout(arch_name);
+    _imported = _lay is not None and _lay.decl_mod != self._own_path();
     if _imported {
         _thunk_name = f"{_thunk_name}.x{self._osp_thunk_uid}";
         self._osp_thunk_uid += 1;
@@ -224,23 +233,21 @@ impl NaIRGenOsp._osp_build_slot(
     }
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    _idx = self.struct_field_indices.get("Slot", {});
+    _idx = self._arch_layout("Slot").field_index;
     self.builder.store(
         ir.Constant(i64, trig_tag),
         self.builder.gep(
             slot,
-            [ir.Constant(i32, 0), ir.Constant(i32, _idx.get("trig_tag", 0))],
+            [ir.Constant(i32, 0), ir.Constant(i32, _idx["trig_tag"])],
             name="slot.trig"
         )
     );
-    _fn_ty = self.struct_field_types.get("Slot", {}).get("fn");
-    _fn_val = self._coerce_type(thunk, _fn_ty) if _fn_ty is not None else thunk;
+    _fn_ty = self.struct_field_types["Slot"]["fn"];
+    _fn_val = self._coerce_type(thunk, _fn_ty);
     self.builder.store(
         _fn_val,
         self.builder.gep(
-            slot,
-            [ir.Constant(i32, 0), ir.Constant(i32, _idx.get("fn", 1))],
-            name="slot.fn"
+            slot, [ir.Constant(i32, 0), ir.Constant(i32, _idx["fn"])], name="slot.fn"
         )
     );
     return slot;
@@ -271,12 +278,12 @@ impl NaIRGenOsp._osp_build_descriptor(
     }
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    _idx = self.struct_field_indices.get(struct_name, {});
+    _idx = self._arch_layout(struct_name).field_index;
     self.builder.store(
         ir.Constant(i64, type_tag),
         self.builder.gep(
             desc,
-            [ir.Constant(i32, 0), ir.Constant(i32, _idx.get("type_tag", 0))],
+            [ir.Constant(i32, 0), ir.Constant(i32, _idx["type_tag"])],
             name="desc.tag"
         )
     );
@@ -284,7 +291,7 @@ impl NaIRGenOsp._osp_build_descriptor(
         self._osp_build_slot_list(entry_slots),
         self.builder.gep(
             desc,
-            [ir.Constant(i32, 0), ir.Constant(i32, _idx.get("entry", 1))],
+            [ir.Constant(i32, 0), ir.Constant(i32, _idx["entry"])],
             name="desc.entry"
         )
     );
@@ -292,7 +299,7 @@ impl NaIRGenOsp._osp_build_descriptor(
         self._osp_build_slot_list(exit_slots),
         self.builder.gep(
             desc,
-            [ir.Constant(i32, 0), ir.Constant(i32, _idx.get("exit", 2))],
+            [ir.Constant(i32, 0), ir.Constant(i32, _idx["exit"])],
             name="desc.exit"
         )
     );
@@ -425,7 +432,8 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
     );
     _ocf.linkage = "internal";
     self._builder = ir.IRBuilder(_ocf.append_basic_block("entry"));
-    _ws_idx = self.struct_field_indices.get("WalkScope", {});
+    _ws_lay = self._arch_layout("WalkScope");
+    _ws_idx = _ws_lay.field_index if _ws_lay is not None else {};
     if _ws_idx {
         _deliver = _ocf.append_basic_block("deliver");
         _oc_done = _ocf.append_basic_block("done");
@@ -434,7 +442,7 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
         _nested = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("nested", 7))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["nested"])],
                 name="oc.nested.p"
             ),
             name="oc.nested"
@@ -451,7 +459,7 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
         _wlk_jv = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("wlk", 0))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["wlk"])],
                 name="oc.wlk.p"
             ),
             name="oc.wlk.jv"
@@ -464,7 +472,7 @@ impl NaIRGenOsp._osp_emit_callbacks(isa_global: ir.GlobalVariable, n: int) -> di
         _rep = self.builder.load(
             self.builder.gep(
                 _scope,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx.get("reports", 4))],
+                [ir.Constant(i32, 0), ir.Constant(i32, _ws_idx["reports"])],
                 name="oc.rep.p"
             ),
             name="oc.rep"
@@ -626,7 +634,10 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     _saved = self._builder;
     self._builder = ir.IRBuilder(_setup.append_basic_block("entry"));
     for (_lidx, _name) in enumerate(_model.order) {
-        _sn = "WalkerDesc" if (_model.arch_kind.get(_name) == "walker") else "NodeDesc";
+        _on_lay = self._arch_layout(_name);
+        _sn = "WalkerDesc"
+            if (_on_lay is not None and _on_lay.arch_type == "walker")
+            else "NodeDesc";
 
         _desc = self._osp_build_descriptor(
             _sn,
@@ -647,15 +658,15 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     }
     _rt = self._osp_rc_new("OspRuntime");
     if _rt is not None {
-        _rf = self.struct_field_types.get("OspRuntime", {});
-        _ridx = self.struct_field_indices.get("OspRuntime", {});
+        _rf = self.struct_field_types["OspRuntime"];
+        _ridx = self._arch_layout("OspRuntime").field_index;
         for _fname in ["tag_of", "is_a", "node_desc", "on_complete"] {
             _cb = self._coerce_type(_cbs[_fname], _rf[_fname]);
             self.builder.store(
                 _cb,
                 self.builder.gep(
                     _rt,
-                    [ir.Constant(i32, 0), ir.Constant(i32, _ridx.get(_fname, 0))],
+                    [ir.Constant(i32, 0), ir.Constant(i32, _ridx[_fname])],
                     name=f"rt.{_fname}"
                 )
             );
@@ -1249,7 +1260,8 @@ impl NaIRGenOsp._elem_arch_name_of(expr: (uni.UniNode | None)) -> (str | None) {
 impl NaIRGenOsp._emit_osp_predicate_filter(
     src: ir.Value, arch_name: str, compares: list[uni.CompareExpr], nd: uni.UniNode
 ) -> (ir.Value | None) {
-    _fields = self.struct_field_indices.get(arch_name);
+    _pf_lay = self._arch_layout(arch_name);
+    _fields = _pf_lay.field_index if _pf_lay is not None else None;
     if _fields is None {
         self.emit(
             E5092,

@@ -5,10 +5,15 @@ import os;
 import from jaclang.compiler.type_system.types { UnknownType }
 
 obj NaIRGenTuples(NaIRGenState) {
-    def _infer_unpack_struct_ptr(nd: object) -> (ir.Type | None);
+    def _unpack_slot_llvm(target: uni.UniNode, elem_llvm: ir.Type) -> ir.Type;
+    def _tuple_elem_llvms(t: any) -> (list | None);
+    def _tuple_has_variadic_arg(type_args: list) -> bool;
     def _codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None);
     def _codegen_tuple_unpack(
-        targets: list, tuple_val: ir.Value, tuple_node: (object | None)
+        targets: list,
+        tuple_val: ir.Value,
+        tuple_node: (object | None),
+        tuple_ty: any = None
     ) -> bool;
 
     def _codegen_tuple_index(
@@ -22,11 +27,14 @@ obj NaIRGenTuples(NaIRGenState) {
     def _tuple_iter_shape(expr: (uni.UniNode | None), val: (ir.Value | None)) -> bool;
     def _tuple_seq_flavor(elem_types: list) -> (tuple | None);
     def _tuple_iter_seq(
-        expr: (uni.UniNode | None), val: (ir.Value | None)
+        expr: (uni.UniNode | None), val: (ir.Value | None), src_ty: any = None
     ) -> (tuple | None);
 
     def _variadic_tuple_seq_type(type_args: list) -> (ir.Type | None);
-    def _tuple_seq_coerce(val: ir.Value, target_type: ir.Type) -> (ir.Value | None);
+    def _tuple_seq_coerce(
+        val: ir.Value, target_type: ir.Type, src_ty: any = None
+    ) -> (ir.Value | None);
+
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
     def _sizeof_llvm(ty: ir.Type) -> ir.Value;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;

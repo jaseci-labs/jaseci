@@ -1538,13 +1538,16 @@ impl JacCompiler._compile_once(
         if is_native_mod or _PtyMcp.has_native_context_stmts(mod_targ) {
             _parity_passes: list = [];
             try {
+                import from jaclang.compiler.passes.main.layout_pass {
+                    LayoutPass as _PtyLayout
+                }
                 import from jaclang.compiler.passes.main.rc_facts_pass {
                     RcFactsPass as _PtyRcFacts
                 }
                 import from jaclang.compiler.passes.native {
                     NaIRGenPass as _PtyNaIRGen
                 }
-                _parity_passes = [_PtyRcFacts, _PtyNaIRGen];
+                _parity_passes = [_PtyLayout, _PtyRcFacts, _PtyNaIRGen];
             } except ImportError {
                 _parity_passes = [];
             }

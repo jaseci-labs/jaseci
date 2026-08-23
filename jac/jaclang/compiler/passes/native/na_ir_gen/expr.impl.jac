@@ -194,7 +194,7 @@ impl NaIRGenExpr._codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None) {
             node_override=nd,
             kind="expression",
             name="YieldExpr",
-            help_text="yield lowers natively only directly inside a generator function (declared `-> Iterator[T]`); it is not supported in lambdas, nested functions, or non-generator bodies."
+            help_text="A generator nested in another function (or a lambda) has no native lowering; hoist it to module level."
         );
         return None;
     }
@@ -321,38 +321,54 @@ impl NaIRGenExpr._codegen_yield_from(nd: uni.YieldExpr) -> (ir.Value | None) {
 }
 
 impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
-    sig = nd.signature;
+    _fn_t = nd.type;
+    if not isinstance(_fn_t, FunctionType) {
+        raise AssertionError(
+            f"lambda at {nd.loc} is not typed as a function (got {nd.type})"
+        );
+    }
     param_types: list[ir.Type] = [];
     param_names: list[str] = [];
-    if sig is not None and sig.params {
-        for p in sig.params {
-            p_name = p.name.value if p?.name and p.name else f"arg{len(param_names)}";
-
-            p_type = self._resolve_jac_type(p)
-                if p?.type_tag and p.type_tag is not None
-                else ir.IntType(64);
-            param_types.append(p_type);
-            param_names.append(p_name);
+    for p in (_fn_t.parameters or []) {
+        _pt = self._lower_type(p.param_type);
+        if _pt is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="lambda parameter",
+                name=f"{p.name}: {p.param_type}",
+                help_text="Every lambda parameter needs a type with a native layout; annotate it (e.g. `lambda x: int : ...`) or let the call site fix it."
+            );
+            return None;
         }
+        param_types.append(_pt);
+        param_names.append(p.name);
     }
-    ret_type = ir.IntType(64);
-    if sig is not None and sig.return_type is not None {
-        ret_type = self._resolve_jac_type(sig.return_type);
+    ret_type = self._lower_type(_fn_t.return_type);
+    if ret_type is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="lambda return type",
+            name=f"{_fn_t.return_type}",
+            help_text="The lambda's result type has no native layout."
+        );
+        return None;
     }
 
     captures: list[tuple] = [];
     free_var_names: list[str] = [];
     for cap_sym in nd.captures {
-        if cap_sym.sym_name not in free_var_names {
-            free_var_names.append(cap_sym.sym_name);
+        if cap_sym.sym_name in free_var_names {
+            continue;
         }
-    }
-    for fv_name in free_var_names {
-        if fv_name in self.local_vars {
-            alloca = self.local_vars[fv_name];
-            val = self.builder.load(alloca, name=f"cap.{fv_name}");
-            captures.append((fv_name, val, val.type));
+        free_var_names.append(cap_sym.sym_name);
+        if cap_sym.sym_name not in self.local_vars {
+            continue;
         }
+        alloca = self.local_vars[cap_sym.sym_name];
+        val = self.builder.load(alloca, name=f"cap.{cap_sym.sym_name}");
+        captures.append((cap_sym.sym_name, val, val.type));
     }
 
     all_param_types = list(param_types);
@@ -483,7 +499,19 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
 }
 
 impl NaIRGenExpr._codegen_name(nd: uni.Name) -> (ir.Value | None) {
+    import from jaclang.jac0core.constant { SymbolType }
     var_name = nd.value;
+    sym = nd.sym;
+    if sym is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name=f"unresolved name '{var_name}'",
+            help_text="The symbol table resolved no declaration for this name, so the native backend has no storage to read it from."
+        );
+        return None;
+    }
     _has_caps = var_name in self.lambda_captures or var_name in self.nested_captures;
     if _has_caps {
         _np = nd.parent;
@@ -497,35 +525,64 @@ impl NaIRGenExpr._codegen_name(nd: uni.Name) -> (ir.Value | None) {
             return None;
         }
     }
+    _kind = sym.sym_type;
+    _decl_of = sym.decl.name_of if sym.decl is not None else None;
+    if _kind
+        in (
+            SymbolType.OBJECT_ARCH,
+            SymbolType.NODE_ARCH,
+            SymbolType.EDGE_ARCH,
+            SymbolType.WALKER_ARCH,
+            SymbolType.ENUM_ARCH
+        )
+        or isinstance(_decl_of, (uni.Archetype, uni.Enum)) {
+        if var_name in self.local_vars {
+            return self.builder.load(self.local_vars[var_name], name=var_name);
+        }
+        return self._codegen_class_ref(nd);
+    }
+    if _kind in (SymbolType.ABILITY, SymbolType.METHOD, SymbolType.TEST)
+        or isinstance(_decl_of, uni.Ability) {
+        if var_name in self.local_vars {
+            return self.builder.load(self.local_vars[var_name], name=var_name);
+        }
+        if var_name in self.func_symtab {
+            return self.func_symtab[var_name];
+        }
+        if var_name in self.global_vars {
+            return self.builder.load(
+                self.global_vars[var_name], name=f"glob.{var_name}"
+            );
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="function value",
+            name=var_name,
+            help_text="This function has no native definition in this unit, so it cannot be used as a value here."
+        );
+        return None;
+    }
+    if _kind == SymbolType.MODULE {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name=f"module '{var_name}' as a value",
+            help_text="Modules are not first-class values in native code; call or read their members directly."
+        );
+        return None;
+    }
     if var_name in self.local_vars {
-        alloca = self.local_vars[var_name];
-        return self.builder.load(alloca, name=var_name);
+        return self.builder.load(self.local_vars[var_name], name=var_name);
+    }
+    if var_name in self.global_vars {
+        return self.builder.load(self.global_vars[var_name], name=f"glob.{var_name}");
     }
     if var_name in self.func_symtab {
         return self.func_symtab[var_name];
     }
-
-    if var_name in self.global_vars {
-        global_var = self.global_vars[var_name];
-        return self.builder.load(global_var, name=f"glob.{var_name}");
-    }
     return self._codegen_class_ref(nd);
-}
-
-impl NaIRGenExpr._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
-    if isinstance(nd.left, uni.TupleVal) and nd.left.values {
-        call_params = list(nd.left.values);
-    } else {
-        call_params = [nd.left];
-    }
-    call = uni.FuncCall(
-        target=nd.right,
-        params=call_params,
-        genai_call=None,
-        kid=[nd.right, *call_params]
-    );
-    call.parent = nd.parent;
-    return self._codegen_expr(call);
 }
 
 impl NaIRGenExpr._codegen_walrus(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -557,7 +614,13 @@ impl NaIRGenExpr._codegen_walrus(nd: uni.BinaryExpr) -> (ir.Value | None) {
         }
         self.builder.store(value, alloca);
     } else {
-        var_type = value.type;
+        var_type = self._lower_type(nd.left.type);
+        if var_type is None {
+            raise AssertionError(
+                f"walrus target '{var_name}' at {nd.loc} has no lowerable type ({nd.left.type})"
+            );
+        }
+        value = self._coerce_type(value, var_type);
         alloca = self._entry_alloca(var_type, var_name);
         if isinstance(var_type, ir.PointerType) and not self._is_owned(value) {
             self._emit_rc_retain(value, op="walrus", loc=_loc);
@@ -592,19 +655,21 @@ impl NaIRGenExpr._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if left is None or right is None {
         return None;
     }
+    _lty = self._flow_narrowed_type_of(nd.left);
+    _rty = self._flow_narrowed_type_of(nd.right);
     result: (ir.Value | None);
     if op == Tok.STAR_POW {
         result = self._codegen_pow(left, right, nd.right);
     } else {
-        result = self._emit_binary_op(op, left, right);
+        result = self._emit_binary_op(
+            op, left, right, _lty, _rty, resolved=nd.resolved_op
+        );
     }
 
     if result is not None {
-        i8p = ir.IntType(8).as_pointer();
-        _sdt = self._str_desc_ty;
-        _l_strish = left.type == i8p or (_sdt is not None and left.type == _sdt);
-        _r_strish = right.type == i8p or (_sdt is not None and right.type == _sdt);
-        if op == Tok.PLUS and _l_strish and _r_strish {
+        _l_str = self._tb_kind(_lty) == "str";
+        _r_str = self._tb_kind(_rty) == "str";
+        if op == Tok.PLUS and _l_str and _r_str {
             if self._is_owned(left) {
                 self._emit_rc_release_typed(
                     left, op="binop_lhs", loc=getattr(left, 'jac_loc', '')
@@ -615,16 +680,109 @@ impl NaIRGenExpr._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
                     right, op="binop_rhs", loc=getattr(right, 'jac_loc', '')
                 );
             }
-        } elif op in (Tok.PLUS, Tok.STAR_MUL) and self._is_owned(result) {
-            for _lt in self.list_types.values() {
-                if result.type == _lt.as_pointer() {
-                    self._release_owned_operands(left, right, op="binop_list");
-                    break;
-                }
-            }
+        } elif op in (Tok.PLUS, Tok.STAR_MUL)
+            and self._is_owned(result)
+            and self._tb_kind(nd.type) == "list" {
+            self._release_owned_operands(left, right, op="binop_list");
         }
     }
     return result;
+}
+
+impl NaIRGenExpr._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
+    operand = self._codegen_expr(nd.operand);
+    if operand is None {
+        return None;
+    }
+    import from jaclang.jac0core.constant { is_borrow_kind, OwnershipKind }
+    if is_borrow_kind(nd.ownership) {
+        return operand;
+    }
+    if nd.ownership == OwnershipKind.IMM {
+        return operand;
+    }
+    _kind = self._tb_kind(self._flow_narrowed_type_of(nd.operand));
+    if nd.ownership == OwnershipKind.OWN {
+        if _kind == "str" and operand.type == ir.IntType(8).as_pointer() {
+            _rb = self._rc_strdup(operand, name="rebox.str");
+            return self._mark_owned(_rb);
+        }
+        return operand;
+    }
+    op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
+    if op == Tok.MINUS {
+        if _kind == "float" {
+            return self.builder.fneg(operand, name="fneg");
+        } elif _kind in ("int", "bool") {
+            return self.builder.neg(operand, name="neg");
+        } elif _kind == "complex" {
+            f64 = ir.DoubleType();
+            i64 = ir.IntType(64);
+            i32 = ir.IntType(32);
+            z0 = ir.Constant(i32, 0);
+            z1 = ir.Constant(i32, 1);
+            r = self.builder.load(
+                self.builder.gep(operand, [z0, z0], name="cneg.rp"), name="cneg.r"
+            );
+            im = self.builder.load(
+                self.builder.gep(operand, [z0, z1], name="cneg.ip"), name="cneg.i"
+            );
+            nr = self.builder.fneg(r, name="cneg.nr");
+            ni = self.builder.fneg(im, name="cneg.ni");
+            raw = self.builder.call(
+                self.rc_alloc_fn, [ir.Constant(i64, 16)], name="cneg.raw"
+            );
+            ptr = self.builder.bitcast(
+                raw, self.complex_struct_type.as_pointer(), name="cneg.ptr"
+            );
+            self.builder.store(nr, self.builder.gep(ptr, [z0, z0], name="cneg.srp"));
+            self.builder.store(ni, self.builder.gep(ptr, [z0, z1], name="cneg.sip"));
+            return ptr;
+        }
+    } elif op == Tok.NOT {
+        if isinstance(operand.type, ir.IntType) and operand.type.width == 1 {
+            return self.builder.not_(operand, name="not");
+        } elif isinstance(operand.type, ir.IntType) {
+            zero = ir.Constant(operand.type, 0);
+            return self.builder.icmp_signed("==", operand, zero, name="not");
+        }
+        return self.builder.not_(
+            self._to_bool(operand, self._flow_narrowed_type_of(nd.operand)), name="not"
+        );
+    } elif op == Tok.BW_NOT {
+        if _kind in ("int", "bool") {
+            all_ones = ir.Constant(operand.type, -1);
+            return self.builder.xor(operand, all_ones, name="bwnot");
+        }
+    } elif op == Tok.PLUS {
+        if _kind in ("int", "bool", "float", "complex") {
+            return operand;
+        }
+    }
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="unary operator",
+        name=f"{op} on {_kind}",
+        help_text="This unary operator has no native lowering for the operand's type."
+    );
+    return None;
+}
+
+impl NaIRGenExpr._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
+    if isinstance(nd.left, uni.TupleVal) and nd.left.values {
+        call_params = list(nd.left.values);
+    } else {
+        call_params = [nd.left];
+    }
+    call = uni.FuncCall(
+        target=nd.right,
+        params=call_params,
+        genai_call=None,
+        kid=[nd.right, *call_params]
+    );
+    call.parent = nd.parent;
+    return self._codegen_expr(call);
 }
 
 impl NaIRGenExpr._codegen_spawn(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -770,31 +928,25 @@ impl NaIRGenExpr._codegen_compare_link(
 ) -> (ir.Value | None) {
     _cmp_left_orig = left;
     _cmp_right_orig = right;
+    _o_right = right_node.expr if isinstance(right_node, uni.CfgExpr) else right_node;
+    _o_left = left_node.expr if isinstance(left_node, uni.CfgExpr) else left_node;
+    _lty = self._flow_narrowed_type_of(_o_left);
+    _rty = self._flow_narrowed_type_of(_o_right);
+    _lk = self._tb_kind(_lty);
+    _rk = self._tb_kind(_rty);
 
     if self?.jacval_type and op in (Tok.KW_IS, Tok.KW_ISN, Tok.EE, Tok.NE) {
         _none_negate = op in (Tok.KW_ISN, Tok.NE);
-        _right_node = right_node;
-        if isinstance(_right_node, uni.CfgExpr) {
-            _right_node = _right_node.expr;
-        }
-        _left_node = left_node;
-        if isinstance(_left_node, uni.CfgExpr) {
-            _left_node = _left_node.expr;
-        }
-        if left.type == self.jacval_type and isinstance(_right_node, uni.Null) {
+        if left.type == self.jacval_type and isinstance(_o_right, uni.Null) {
             return self._jacval_is_none(left, _none_negate);
         }
-        if right.type == self.jacval_type and isinstance(_left_node, uni.Null) {
+        if right.type == self.jacval_type and isinstance(_o_left, uni.Null) {
             return self._jacval_is_none(right, _none_negate);
         }
     }
 
     if op in (Tok.KW_IS, Tok.KW_ISN, Tok.EE, Tok.NE) {
         _on_negate = op in (Tok.KW_ISN, Tok.NE);
-        _o_right = right_node.expr
-            if isinstance(right_node, uni.CfgExpr)
-            else right_node;
-        _o_left = left_node.expr if isinstance(left_node, uni.CfgExpr) else left_node;
         _opt_side: (ir.Value | None) = None;
         if self._opt_payload_of(left.type) is not None
             and isinstance(_o_right, uni.Null) {
@@ -816,457 +968,27 @@ impl NaIRGenExpr._codegen_compare_link(
     }
 
     if op == Tok.KW_IN or op == Tok.KW_NIN {
-        is_not_in = op == Tok.KW_NIN;
-        left = self._str_norm(left);
-        right = self._str_norm(right);
-        right = self._unwrap_opt_container(right);
-        _in_key_nd = left_node.expr
-            if isinstance(left_node, uni.CfgExpr)
-            else left_node;
-        _in_hay_nd = right_node.expr
-            if isinstance(right_node, uni.CfgExpr)
-            else right_node;
-        _in_hay_tk = self._type_key_of(_in_hay_nd) or "";
-        _in_hay_cont = (
-            _in_hay_tk.startswith("list[")
-            or _in_hay_tk.startswith("dict[")
-            or _in_hay_tk.startswith("set[")
-            or _in_hay_tk.startswith("frozenset[")
-            or _in_hay_tk.startswith("tuple[")
+        return self._codegen_membership(
+            op == Tok.KW_NIN,
+            left,
+            right,
+            _o_left,
+            _o_right,
+            _cmp_right_orig,
+            release_operands
         );
-
-        for (dict_key, helpers) in self.dict_helpers.items() {
-            dict_type = self.dict_types.get(dict_key);
-            if dict_type is not None and right.type == dict_type.as_pointer() {
-                key_type = helpers["key_type"];
-                (left_coerced, _din_gate) = self._opt_membership_operand(
-                    left, key_type
-                );
-                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
-                _has_args = [right, left_coerced];
-                if _kh is not None {
-                    _has_args.append(_kh);
-                }
-                result = self.builder.call(_has_fn, _has_args, name="dict.contains");
-
-                result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
-                if _din_gate is not None {
-                    result = self.builder.select(
-                        _din_gate,
-                        result,
-                        ir.Constant(ir.IntType(64), 0),
-                        name="dict.in.opt"
-                    );
-                }
-                if is_not_in {
-                    result = self.builder.icmp_signed(
-                        "==", result, ir.Constant(ir.IntType(64), 0), name="not.in"
-                    );
-                    result = self.builder.zext(
-                        result, ir.IntType(64), name="notin.i64"
-                    );
-                }
-
-                if release_operands {
-                    self._release_owned_operands(
-                        left_coerced, _cmp_right_orig, op="cmp_in_dict"
-                    );
-                }
-                return result;
-            }
-        }
-
-        for (set_key, helpers) in self.set_helpers.items() {
-            set_type = self.set_types.get(set_key);
-            if set_type is not None and right.type == set_type.as_pointer() {
-                elem_type = helpers["elem_type"];
-                (left_coerced, _sin_gate) = self._opt_membership_operand(
-                    left, elem_type
-                );
-                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
-                _has_args = [right, left_coerced];
-                if _kh is not None {
-                    _has_args.append(_kh);
-                }
-                result = self.builder.call(_has_fn, _has_args, name="set.contains");
-                result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
-                if _sin_gate is not None {
-                    result = self.builder.select(
-                        _sin_gate,
-                        result,
-                        ir.Constant(ir.IntType(64), 0),
-                        name="set.in.opt"
-                    );
-                }
-                if is_not_in {
-                    result = self.builder.icmp_signed(
-                        "==", result, ir.Constant(ir.IntType(64), 0), name="not.in"
-                    );
-                    result = self.builder.zext(
-                        result, ir.IntType(64), name="notin.i64"
-                    );
-                }
-
-                if release_operands {
-                    self._release_owned_operands(
-                        left_coerced, _cmp_right_orig, op="cmp_in_set"
-                    );
-                }
-                return result;
-            }
-        }
-
-        for (list_key, helpers) in self.list_helpers.items() {
-            list_type = self.list_types.get(list_key);
-            if list_type is not None and right.type == list_type.as_pointer() {
-                elem_type = helpers["elem_type"];
-                (left_coerced, _lin_gate) = self._opt_membership_operand(
-                    left, elem_type
-                );
-                list_len = self.builder.call(
-                    helpers["len"], [right], name="list.in.len"
-                );
-                i64 = ir.IntType(64);
-                func = self.builder.basic_block.function;
-                entry_bb = self.builder.basic_block;
-                loop_bb = func.append_basic_block(name="list.in.loop");
-                check_bb = func.append_basic_block(name="list.in.check");
-                found_bb = func.append_basic_block(name="list.in.found");
-                done_bb = func.append_basic_block(name="list.in.done");
-                self.builder.branch(loop_bb);
-                self.builder.position_at_start(loop_bb);
-                idx = self.builder.phi(i64, name="list.in.idx");
-                idx.add_incoming(ir.Constant(i64, 0), entry_bb);
-                at_end = self.builder.icmp_unsigned(
-                    ">=", idx, list_len, name="list.in.atend"
-                );
-                self.builder.cbranch(at_end, done_bb, check_bb);
-                self.builder.position_at_start(check_bb);
-                elem = self.builder.call(
-                    helpers["get"], [right, idx], name="list.in.elem"
-                );
-                _lin_left_tk = self._type_key_of(left_node);
-                _lin_coll_tk = self._type_key_of(right_node) or "";
-
-                _lin_str_elems = (
-                    _lin_left_tk == "str"
-                    or _lin_coll_tk.startswith("list[str")
-                    or left.type == ir.IntType(8).as_pointer()
-                );
-                if (
-                    _lin_str_elems
-                    and isinstance(elem.type, ir.PointerType)
-                    and isinstance(left_coerced.type, ir.PointerType)
-                ) {
-                    _lin_i8p = ir.IntType(8).as_pointer();
-                    _lin_cmp = self._call_str_cmp(
-                        self.builder,
-                        self.builder.bitcast(
-                            left_coerced, _lin_i8p, name="list.in.l.i8"
-                        ),
-                        self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8"),
-                        name="list.in.strcmp"
-                    );
-                    eq = self.builder.icmp_signed(
-                        "==",
-                        _lin_cmp,
-                        ir.Constant(ir.IntType(32), 0),
-                        name="list.in.eq"
-                    );
-                } elif self?.jacval_type and elem.type == self.jacval_type {
-                    eq = self._emit_jacval_eq(left_coerced, elem);
-                } elif isinstance(elem.type, (ir.DoubleType, ir.FloatType)) {
-                    eq = self.builder.fcmp_ordered(
-                        "==", elem, left_coerced, name="list.in.eq"
-                    );
-                } else {
-                    eq = self.builder.icmp_signed(
-                        "==", elem, left_coerced, name="list.in.eq"
-                    );
-                }
-                _lin_end_bb = self.builder.basic_block;
-                next_idx = self.builder.add(
-                    idx, ir.Constant(i64, 1), name="list.in.next"
-                );
-                idx.add_incoming(next_idx, _lin_end_bb);
-                self.builder.cbranch(eq, found_bb, loop_bb);
-                self.builder.position_at_start(found_bb);
-                self.builder.branch(done_bb);
-                self.builder.position_at_start(done_bb);
-                result = self.builder.phi(i64, name="list.in.result");
-                result.add_incoming(ir.Constant(i64, 0), loop_bb);
-                result.add_incoming(ir.Constant(i64, 1), found_bb);
-                if _lin_gate is not None {
-                    result = self.builder.select(
-                        _lin_gate, result, ir.Constant(i64, 0), name="list.in.opt"
-                    );
-                }
-                if is_not_in {
-                    result = self.builder.icmp_signed(
-                        "==", result, ir.Constant(i64, 0), name="not.in"
-                    );
-                    result = self.builder.zext(result, i64, name="notin.i64");
-                }
-
-                if release_operands {
-                    self._release_owned_operands(
-                        left_coerced, _cmp_right_orig, op="cmp_in_list"
-                    );
-                }
-                return result;
-            }
-        }
-
-        tin_struct: (ir.LiteralStructType | None) = None;
-        tin_val: (ir.Value | None) = None;
-        if isinstance(right.type, ir.LiteralStructType) {
-            tin_struct = right.type;
-            tin_val = right;
-        } elif isinstance(right.type, ir.PointerType)
-            and isinstance(right.type.pointee, ir.LiteralStructType) {
-            tin_struct = right.type.pointee;
-            tin_val = self.builder.load(right, name="tuple.in.val");
-        }
-        if tin_struct is not None and tin_val is not None {
-            n = len(tin_struct.elements);
-            if n > 0 {
-                i64 = ir.IntType(64);
-                i1_t = ir.IntType(1);
-                found = ir.Constant(i1_t, 0);
-                for i in range(n) {
-                    elem = self.builder.extract_value(tin_val, i, name=f"tuple.in.{i}");
-                    left_c = self._coerce_type(left, elem.type);
-                    if isinstance(elem.type, ir.IntType) {
-                        eq = self.builder.icmp_signed(
-                            "==", left_c, elem, name=f"tuple.in.{i}.eq"
-                        );
-                    } elif isinstance(elem.type, ir.DoubleType) {
-                        eq = self.builder.fcmp_ordered(
-                            "==", left_c, elem, name=f"tuple.in.{i}.eq"
-                        );
-                    } else {
-                        cmp = self._call_str_cmp(
-                            self.builder, left_c, elem, name=f"tuple.in.{i}.cmp"
-                        );
-                        eq = self.builder.icmp_signed(
-                            "==",
-                            cmp,
-                            ir.Constant(ir.IntType(32), 0),
-                            name=f"tuple.in.{i}.eq"
-                        );
-                    }
-                    found = self.builder.or_(found, eq, name=f"tuple.in.{i}.found");
-                }
-                result = self.builder.zext(found, i64, name="tuple.in.result");
-                if is_not_in {
-                    result = self.builder.icmp_signed(
-                        "==", result, ir.Constant(i64, 0), name="tuple.notin"
-                    );
-                    result = self.builder.zext(result, i64, name="tuple.notin.i64");
-                }
-                return result;
-            }
-        }
-
-        if right.type == self.range_struct_type.as_pointer() {
-            i64 = ir.IntType(64);
-            i32 = ir.IntType(32);
-            z0 = ir.Constant(i32, 0);
-            val = self._coerce_type(left, i64);
-            start = self.builder.load(
-                self.builder.gep(right, [z0, ir.Constant(i32, 0)], name="rin.sp"),
-                name="rin.start"
-            );
-            stop = self.builder.load(
-                self.builder.gep(right, [z0, ir.Constant(i32, 1)], name="rin.ep"),
-                name="rin.stop"
-            );
-            step = self.builder.load(
-                self.builder.gep(right, [z0, ir.Constant(i32, 2)], name="rin.tp"),
-                name="rin.step"
-            );
-
-            diff = self.builder.sub(val, start, name="rin.diff");
-            rem = self.builder.srem(diff, step, name="rin.rem");
-            rem_zero = self.builder.icmp_signed(
-                "==", rem, ir.Constant(i64, 0), name="rin.remz"
-            );
-
-            step_pos = self.builder.icmp_signed(
-                ">", step, ir.Constant(i64, 0), name="rin.spos"
-            );
-            ge_start = self.builder.icmp_signed(">=", val, start, name="rin.ges");
-            lt_stop = self.builder.icmp_signed("<", val, stop, name="rin.lts");
-            pos_ok = self.builder.and_(ge_start, lt_stop, name="rin.pok");
-            le_start = self.builder.icmp_signed("<=", val, start, name="rin.les");
-            gt_stop = self.builder.icmp_signed(">", val, stop, name="rin.gts");
-            neg_ok = self.builder.and_(le_start, gt_stop, name="rin.nok");
-            bounds = self.builder.select(step_pos, pos_ok, neg_ok, name="rin.bounds");
-            found = self.builder.and_(rem_zero, bounds, name="rin.found");
-            result = self.builder.zext(found, i64, name="rin.result");
-            if is_not_in {
-                result = self.builder.icmp_signed(
-                    "==", result, ir.Constant(i64, 0), name="rin.notin"
-                );
-                result = self.builder.zext(result, i64, name="rin.notin.i64");
-            }
-            return result;
-        }
-
-        if self._is_bytes_value(left) and self._is_bytes_value(right) {
-            i64 = ir.IntType(64);
-            is_found = self._emit_bytes_contains(left, right);
-            result = self.builder.zext(is_found, i64, name="by.in.i64");
-            if is_not_in {
-                result = self.builder.icmp_signed(
-                    "==", result, ir.Constant(i64, 0), name="by.notin"
-                );
-                result = self.builder.zext(result, i64, name="by.notin.i64");
-            }
-            return result;
-        }
-
-        if isinstance(right.type, ir.PointerType)
-            and isinstance(left.type, ir.PointerType) {
-            i8p = ir.IntType(8).as_pointer();
-            i64 = ir.IntType(64);
-            if right.type == i8p and left.type == i8p and not _in_hay_cont {
-                strstr_fn = self._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
-                found = self.builder.call(strstr_fn, [right, left], name="str.in.ptr");
-                null_ptr = ir.Constant(i8p, None);
-                is_found = self.builder.icmp_unsigned(
-                    "!=", found, null_ptr, name="str.in.found"
-                );
-                result = self.builder.zext(is_found, i64, name="str.in.i64");
-                if is_not_in {
-                    result = self.builder.icmp_signed(
-                        "==", result, ir.Constant(i64, 0), name="not.in"
-                    );
-                    result = self.builder.zext(result, i64, name="notin.i64");
-                }
-                return result;
-            }
-            self.emit(
-                E5092,
-                node_override=_in_hay_nd,
-                kind="expression",
-                name="membership over an element-erased collection",
-                help_text="Every container the emitter registered answers "
-                "membership from its own layout; the one pointer shape left "
-                "is the substring test, and that needs a plain string on both "
-                "sides. Neither holds here. The right-hand side's declared "
-                f"type ({_in_hay_tk or 'unknown'}) either names a container "
-                "whose layout never reached this comparison -- usually one "
-                "read out of an enclosing container that stores its entries "
-                "untyped -- or the needle is not a string. Running the "
-                "substring test over them would answer from the header bytes "
-                "instead. Bind the container to a directly-typed local, or "
-                "annotate it, so its own layout reaches this comparison."
-            );
-            return None;
-        }
-        return None;
     }
 
     if op == Tok.KW_IS or op == Tok.KW_ISN {
-        _opt_ident = self._identity_over_optional(left, right, op == Tok.KW_ISN);
-        if _opt_ident is not None {
-            if release_operands
-                and isinstance(_cmp_left_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_left_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_left_orig,
-                    op="cmp_is_opt",
-                    loc=getattr(_cmp_left_orig, 'jac_loc', '')
-                );
-            }
-            if release_operands
-                and isinstance(_cmp_right_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_right_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_right_orig,
-                    op="cmp_is_opt",
-                    loc=getattr(_cmp_right_orig, 'jac_loc', '')
-                );
-            }
-            return _opt_ident;
-        }
+        return self._codegen_identity(
+            op == Tok.KW_ISN, left, right, _lk, _rk, _o_left, release_operands
+        );
     }
-
-    if op == Tok.KW_IS {
-        if isinstance(left.type, ir.PointerType)
-            and isinstance(right.type, ir.PointerType) {
-            if left.type != right.type {
-                right = self.builder.bitcast(right, left.type);
-            }
-            _is_result = self.builder.icmp_unsigned("==", left, right, name="is.eq");
-            if release_operands
-                and isinstance(_cmp_left_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_left_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_left_orig,
-                    op="cmp_is",
-                    loc=getattr(_cmp_left_orig, 'jac_loc', '')
-                );
-            }
-            if release_operands
-                and isinstance(_cmp_right_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_right_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_right_orig,
-                    op="cmp_is",
-                    loc=getattr(_cmp_right_orig, 'jac_loc', '')
-                );
-            }
-            return _is_result;
-        }
-
-        if isinstance(left.type, ir.IntType)
-            and isinstance(right.type, ir.PointerType) {
-            return ir.Constant(ir.IntType(1), 0);
-        }
-        return self._to_bool(left);
-    }
-    if op == Tok.KW_ISN {
-        if isinstance(left.type, ir.PointerType)
-            and isinstance(right.type, ir.PointerType) {
-            if left.type != right.type {
-                right = self.builder.bitcast(right, left.type);
-            }
-            _isn_result = self.builder.icmp_unsigned("!=", left, right, name="is.ne");
-            if release_operands
-                and isinstance(_cmp_left_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_left_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_left_orig,
-                    op="cmp_isn",
-                    loc=getattr(_cmp_left_orig, 'jac_loc', '')
-                );
-            }
-            if release_operands
-                and isinstance(_cmp_right_orig.type, ir.PointerType)
-                and self._is_owned(_cmp_right_orig) {
-                self._emit_rc_release_simple(
-                    _cmp_right_orig,
-                    op="cmp_isn",
-                    loc=getattr(_cmp_right_orig, 'jac_loc', '')
-                );
-            }
-            return _isn_result;
-        }
-
-        if isinstance(left.type, ir.IntType)
-            and isinstance(right.type, ir.PointerType) {
-            return ir.Constant(ir.IntType(1), 1);
-        }
-        return self._to_bool(left);
-    }
-    is_float = isinstance(left.type, (ir.DoubleType, ir.FloatType))
-        or isinstance(right.type, (ir.DoubleType, ir.FloatType));
+    is_float = _lk == "float" or _rk == "float";
     if is_float {
-        (left, right) = self._promote_to_float(left, right);
+        (left, right) = self._promote_to_float(left, right, _lty, _rty);
     }
-    _cmp_result = self._emit_comparison(op, left, right, is_float);
+    _cmp_result = self._emit_comparison(op, left, right, is_float, _lty, _rty);
     if release_operands
         and isinstance(_cmp_left_orig.type, ir.PointerType)
         and self._is_owned(_cmp_left_orig) {
@@ -1282,6 +1004,343 @@ impl NaIRGenExpr._codegen_compare_link(
         );
     }
     return _cmp_result;
+}
+
+impl NaIRGenExpr._codegen_identity(
+    negate: bool,
+    left: ir.Value,
+    right: ir.Value,
+    lk: str,
+    rk: str,
+    at: uni.UniNode,
+    release_operands: bool
+) -> (ir.Value | None) {
+    """`x is y` / `x is not y` over native representations.
+
+    Options compare by presence and payload; two references compare by
+    address; two unboxed scalars compare by value (a native int has no
+    identity apart from its value); a scalar against a reference is never the
+    same object. Truthiness is never an answer here.
+    """;
+    _orig_l = left;
+    _orig_r = right;
+    _res: (ir.Value | None) = self._identity_over_optional(left, right, negate);
+    if _res is None {
+        if isinstance(left.type, ir.PointerType)
+            and isinstance(right.type, ir.PointerType) {
+            if left.type != right.type {
+                right = self.builder.bitcast(right, left.type);
+            }
+            _res = self.builder.icmp_unsigned(
+                "!=" if negate else "==",
+                left,
+                right,
+                name="is.ne" if negate else "is.eq"
+            );
+        } elif isinstance(left.type, ir.PointerType)
+            or isinstance(right.type, ir.PointerType) {
+            _res = ir.Constant(ir.IntType(1), 1 if negate else 0);
+        } elif lk in ("int", "bool", "enum") and rk in ("int", "bool", "enum") {
+            _w = max(left.type.width, right.type.width)
+                if isinstance(left.type, ir.IntType)
+                    and isinstance(right.type, ir.IntType)
+                else 64;
+            _lc = self._coerce_type(left, ir.IntType(_w));
+            _rc = self._coerce_type(right, ir.IntType(_w));
+            _res = self.builder.icmp_signed(
+                "!=" if negate else "==", _lc, _rc, name="is.val"
+            );
+        } elif lk == "float" and rk == "float" {
+            _res = self.builder.fcmp_ordered(
+                "!=" if negate else "==", left, right, name="is.fval"
+            );
+        } elif self?.jacval_type
+            and left.type == self.jacval_type
+            and right.type == self.jacval_type {
+            _eq = self._emit_jacval_eq(left, right);
+            _res = self.builder.not_(_eq, name="is.jv.ne") if negate else _eq;
+        } else {
+            self.emit(
+                E5092,
+                node_override=at,
+                kind="identity comparison",
+                name=f"{lk} is {rk}",
+                help_text="Identity over these operand types has no native lowering."
+            );
+            return None;
+        }
+    }
+    if release_operands {
+        for _ov in (_orig_l, _orig_r) {
+            if isinstance(_ov.type, ir.PointerType) and self._is_owned(_ov) {
+                self._emit_rc_release_simple(
+                    _ov, op="cmp_is", loc=getattr(_ov, 'jac_loc', '')
+                );
+            }
+        }
+    }
+    return _res;
+}
+
+impl NaIRGenExpr._membership_result(
+    found: ir.Value, is_not_in: bool, gate: (ir.Value | None) = None
+) -> ir.Value {
+    i64 = ir.IntType(64);
+    result = found
+        if found.type == i64
+        else self.builder.zext(found, i64, name="in.i64");
+    if gate is not None {
+        result = self.builder.select(gate, result, ir.Constant(i64, 0), name="in.opt");
+    }
+    if is_not_in {
+        result = self.builder.icmp_signed(
+            "==", result, ir.Constant(i64, 0), name="not.in"
+        );
+        result = self.builder.zext(result, i64, name="notin.i64");
+    }
+    return result;
+}
+
+impl NaIRGenExpr._codegen_membership(
+    is_not_in: bool,
+    left: ir.Value,
+    right: ir.Value,
+    left_node: uni.UniNode,
+    right_node: uni.UniNode,
+    right_orig: ir.Value,
+    release_operands: bool
+) -> (ir.Value | None) {
+    i64 = ir.IntType(64);
+    _hay_t = self._tb_solve(self._flow_narrowed_type_of(right_node));
+    _hay_payload = self._tb_opt_payload(_hay_t);
+    if _hay_payload is not None {
+        _hay_t = _hay_payload;
+    }
+    _hk = self._tb_kind(_hay_t);
+    left = self._str_norm(left);
+    right = self._str_norm(right);
+    right = self._unwrap_opt_container(right);
+
+    if _hk == "dict" {
+        _dk = self._dict_key_of(right_node);
+        helpers = self.dict_helpers.get(_dk) if _dk is not None else None;
+        if helpers is not None {
+            key_type = helpers["key_type"];
+            (left_coerced, _din_gate) = self._opt_membership_operand(left, key_type);
+            (_has_fn, _kh) = self._static_key_op(helpers, "contains", left_node);
+            _has_args = [right, left_coerced];
+            if _kh is not None {
+                _has_args.append(_kh);
+            }
+            found = self.builder.call(_has_fn, _has_args, name="dict.contains");
+            result = self._membership_result(found, is_not_in, _din_gate);
+            if release_operands {
+                self._release_owned_operands(
+                    left_coerced, right_orig, op="cmp_in_dict"
+                );
+            }
+            return result;
+        }
+    } elif _hk == "set" {
+        _sk = self._set_spec_of(right_node);
+        helpers = self.set_helpers.get(_sk) if _sk is not None else None;
+        if helpers is not None {
+            elem_type = helpers["elem_type"];
+            (left_coerced, _sin_gate) = self._opt_membership_operand(left, elem_type);
+            (_has_fn, _kh) = self._static_key_op(helpers, "contains", left_node);
+            _has_args = [right, left_coerced];
+            if _kh is not None {
+                _has_args.append(_kh);
+            }
+            found = self.builder.call(_has_fn, _has_args, name="set.contains");
+            result = self._membership_result(found, is_not_in, _sin_gate);
+            if release_operands {
+                self._release_owned_operands(left_coerced, right_orig, op="cmp_in_set");
+            }
+            return result;
+        }
+    } elif _hk in ("list", "bytearray") {
+        _lk = self._list_spec_of(right_node);
+        helpers = self.list_helpers.get(_lk) if _lk is not None else None;
+        if helpers is not None {
+            elem_type = helpers["elem_type"];
+            (left_coerced, _lin_gate) = self._opt_membership_operand(left, elem_type);
+            list_len = self.builder.call(helpers["len"], [right], name="list.in.len");
+            func = self.builder.basic_block.function;
+            entry_bb = self.builder.basic_block;
+            loop_bb = func.append_basic_block(name="list.in.loop");
+            check_bb = func.append_basic_block(name="list.in.check");
+            found_bb = func.append_basic_block(name="list.in.found");
+            done_bb = func.append_basic_block(name="list.in.done");
+            self.builder.branch(loop_bb);
+            self.builder.position_at_start(loop_bb);
+            idx = self.builder.phi(i64, name="list.in.idx");
+            idx.add_incoming(ir.Constant(i64, 0), entry_bb);
+            at_end = self.builder.icmp_unsigned(
+                ">=", idx, list_len, name="list.in.atend"
+            );
+            self.builder.cbranch(at_end, done_bb, check_bb);
+            self.builder.position_at_start(check_bb);
+            elem = self.builder.call(helpers["get"], [right, idx], name="list.in.elem");
+            _elem_kind = self._tb_kind(self._tb_elem(_hay_t));
+            _needle_kind = self._tb_kind(self._flow_narrowed_type_of(left_node));
+            if (
+                (_elem_kind == "str" or _needle_kind == "str")
+                and isinstance(elem.type, ir.PointerType)
+                and isinstance(left_coerced.type, ir.PointerType)
+            ) {
+                _lin_i8p = ir.IntType(8).as_pointer();
+                _lin_cmp = self._call_str_cmp(
+                    self.builder,
+                    self.builder.bitcast(left_coerced, _lin_i8p, name="list.in.l.i8"),
+                    self.builder.bitcast(elem, _lin_i8p, name="list.in.e.i8"),
+                    name="list.in.strcmp"
+                );
+                eq = self.builder.icmp_signed(
+                    "==", _lin_cmp, ir.Constant(ir.IntType(32), 0), name="list.in.eq"
+                );
+            } elif self?.jacval_type and elem.type == self.jacval_type {
+                eq = self._emit_jacval_eq(left_coerced, elem);
+            } elif _elem_kind == "float" {
+                eq = self.builder.fcmp_ordered(
+                    "==", elem, left_coerced, name="list.in.eq"
+                );
+            } else {
+                eq = self.builder.icmp_signed(
+                    "==", elem, left_coerced, name="list.in.eq"
+                );
+            }
+            _lin_end_bb = self.builder.basic_block;
+            next_idx = self.builder.add(idx, ir.Constant(i64, 1), name="list.in.next");
+            idx.add_incoming(next_idx, _lin_end_bb);
+            self.builder.cbranch(eq, found_bb, loop_bb);
+            self.builder.position_at_start(found_bb);
+            self.builder.branch(done_bb);
+            self.builder.position_at_start(done_bb);
+            found = self.builder.phi(i64, name="list.in.result");
+            found.add_incoming(ir.Constant(i64, 0), loop_bb);
+            found.add_incoming(ir.Constant(i64, 1), found_bb);
+            result = self._membership_result(found, is_not_in, _lin_gate);
+            if release_operands {
+                self._release_owned_operands(
+                    left_coerced, right_orig, op="cmp_in_list"
+                );
+            }
+            return result;
+        }
+    } elif _hk == "tuple" {
+        tin_struct: (ir.LiteralStructType | None) = None;
+        tin_val: (ir.Value | None) = None;
+        if isinstance(right.type, ir.LiteralStructType) {
+            tin_struct = right.type;
+            tin_val = right;
+        } elif isinstance(right.type, ir.PointerType)
+            and isinstance(right.type.pointee, ir.LiteralStructType) {
+            tin_struct = right.type.pointee;
+            tin_val = self.builder.load(right, name="tuple.in.val");
+        }
+        if tin_struct is not None and tin_val is not None {
+            n = len(tin_struct.elements);
+            i1_t = ir.IntType(1);
+            found: ir.Value = ir.Constant(i1_t, 0);
+            _elem_kinds = [self._tb_kind(a) for a in self._tb_args(_hay_t)];
+            for i in range(n) {
+                elem = self.builder.extract_value(tin_val, i, name=f"tuple.in.{i}");
+                left_c = self._coerce_type(left, elem.type);
+                _ek = _elem_kinds[i] if i < len(_elem_kinds) else "unknown";
+                if _ek == "str" {
+                    cmp = self._call_str_cmp(
+                        self.builder, left_c, elem, name=f"tuple.in.{i}.cmp"
+                    );
+                    eq = self.builder.icmp_signed(
+                        "==",
+                        cmp,
+                        ir.Constant(ir.IntType(32), 0),
+                        name=f"tuple.in.{i}.eq"
+                    );
+                } elif _ek == "float" {
+                    eq = self.builder.fcmp_ordered(
+                        "==", left_c, elem, name=f"tuple.in.{i}.eq"
+                    );
+                } elif isinstance(elem.type, ir.IntType) {
+                    eq = self.builder.icmp_signed(
+                        "==", left_c, elem, name=f"tuple.in.{i}.eq"
+                    );
+                } elif isinstance(elem.type, ir.PointerType) {
+                    eq = self.builder.icmp_unsigned(
+                        "==", left_c, elem, name=f"tuple.in.{i}.eq"
+                    );
+                } else {
+                    self.emit(
+                        E5092,
+                        node_override=right_node,
+                        kind="expression",
+                        name=f"membership over tuple element {_ek}",
+                        help_text="This tuple element type has no native equality for membership tests."
+                    );
+                    return None;
+                }
+                found = self.builder.or_(found, eq, name=f"tuple.in.{i}.found");
+            }
+            return self._membership_result(found, is_not_in);
+        }
+    } elif _hk == "range" {
+        i32 = ir.IntType(32);
+        z0 = ir.Constant(i32, 0);
+        val = self._coerce_type(left, i64);
+        start = self.builder.load(
+            self.builder.gep(right, [z0, ir.Constant(i32, 0)], name="rin.sp"),
+            name="rin.start"
+        );
+        stop = self.builder.load(
+            self.builder.gep(right, [z0, ir.Constant(i32, 1)], name="rin.ep"),
+            name="rin.stop"
+        );
+        step = self.builder.load(
+            self.builder.gep(right, [z0, ir.Constant(i32, 2)], name="rin.tp"),
+            name="rin.step"
+        );
+        diff = self.builder.sub(val, start, name="rin.diff");
+        rem = self.builder.srem(diff, step, name="rin.rem");
+        rem_zero = self.builder.icmp_signed(
+            "==", rem, ir.Constant(i64, 0), name="rin.remz"
+        );
+        step_pos = self.builder.icmp_signed(
+            ">", step, ir.Constant(i64, 0), name="rin.spos"
+        );
+        ge_start = self.builder.icmp_signed(">=", val, start, name="rin.ges");
+        lt_stop = self.builder.icmp_signed("<", val, stop, name="rin.lts");
+        pos_ok = self.builder.and_(ge_start, lt_stop, name="rin.pok");
+        le_start = self.builder.icmp_signed("<=", val, start, name="rin.les");
+        gt_stop = self.builder.icmp_signed(">", val, stop, name="rin.gts");
+        neg_ok = self.builder.and_(le_start, gt_stop, name="rin.nok");
+        bounds = self.builder.select(step_pos, pos_ok, neg_ok, name="rin.bounds");
+        found = self.builder.and_(rem_zero, bounds, name="rin.found");
+        return self._membership_result(found, is_not_in);
+    } elif _hk == "bytes" {
+        if self._is_bytes_value(left) {
+            found = self._emit_bytes_contains(left, right);
+            return self._membership_result(found, is_not_in);
+        }
+    } elif _hk == "str" {
+        i8p = ir.IntType(8).as_pointer();
+        if right.type == i8p and left.type == i8p {
+            strstr_fn = self._get_or_declare_extern("strstr", i8p, [i8p, i8p]);
+            hit = self.builder.call(strstr_fn, [right, left], name="str.in.ptr");
+            found = self.builder.icmp_unsigned(
+                "!=", hit, ir.Constant(i8p, None), name="str.in.found"
+            );
+            return self._membership_result(found, is_not_in);
+        }
+    }
+    self.emit(
+        E5092,
+        node_override=right_node,
+        kind="expression",
+        name=f"membership over {_hay_t} ({_hk})",
+        help_text="Membership lowers natively over lists, dicts, sets, tuples, ranges, bytes and strings whose element types have a native layout; this right-hand side has none."
+    );
+    return None;
 }
 
 impl NaIRGenExpr._identity_over_optional(
@@ -1387,78 +1446,6 @@ impl NaIRGenExpr._codegen_compare_chain(
     return result;
 }
 
-impl NaIRGenExpr._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
-    operand = self._codegen_expr(nd.operand);
-    if operand is None {
-        return None;
-    }
-    import from jaclang.jac0core.constant { is_borrow_kind, OwnershipKind }
-    if is_borrow_kind(nd.ownership) {
-        return operand;
-    }
-    if nd.ownership == OwnershipKind.IMM {
-        return operand;
-    }
-    if nd.ownership == OwnershipKind.OWN {
-        if isinstance(operand.type, ir.PointerType)
-            and operand.type == ir.IntType(8).as_pointer() {
-            _rb = self._rc_strdup(operand, name="rebox.str");
-            return self._mark_owned(_rb);
-        }
-        return operand;
-    }
-    op = nd.op.name if isinstance(nd.op, uni.Token) else str(nd.op);
-    if op == Tok.MINUS {
-        if isinstance(operand.type, (ir.DoubleType, ir.FloatType)) {
-            return self.builder.fneg(operand, name="fneg");
-        } elif isinstance(operand.type, ir.IntType) {
-            return self.builder.neg(operand, name="neg");
-        } elif operand.type == self.complex_struct_type.as_pointer() {
-            f64 = ir.DoubleType();
-            i64 = ir.IntType(64);
-            i32 = ir.IntType(32);
-            z0 = ir.Constant(i32, 0);
-            z1 = ir.Constant(i32, 1);
-            r = self.builder.load(
-                self.builder.gep(operand, [z0, z0], name="cneg.rp"), name="cneg.r"
-            );
-            im = self.builder.load(
-                self.builder.gep(operand, [z0, z1], name="cneg.ip"), name="cneg.i"
-            );
-            nr = self.builder.fneg(r, name="cneg.nr");
-            ni = self.builder.fneg(im, name="cneg.ni");
-            raw = self.builder.call(
-                self.rc_alloc_fn, [ir.Constant(i64, 16)], name="cneg.raw"
-            );
-            ptr = self.builder.bitcast(
-                raw, self.complex_struct_type.as_pointer(), name="cneg.ptr"
-            );
-            self.builder.store(nr, self.builder.gep(ptr, [z0, z0], name="cneg.srp"));
-            self.builder.store(ni, self.builder.gep(ptr, [z0, z1], name="cneg.sip"));
-            return ptr;
-        }
-    } elif op == Tok.NOT {
-        if isinstance(operand.type, ir.IntType) and operand.type.width == 1 {
-            return self.builder.not_(operand, name="not");
-        } elif isinstance(operand.type, ir.IntType) {
-            zero = ir.Constant(operand.type, 0);
-            return self.builder.icmp_signed("==", operand, zero, name="not");
-        }
-        return self.builder.not_(self._to_bool(operand), name="not");
-    } elif op == Tok.BW_NOT {
-        if isinstance(operand.type, ir.IntType) {
-            all_ones = ir.Constant(operand.type, -1);
-            return self.builder.xor(operand, all_ones, name="bwnot");
-        }
-    } elif op == Tok.PLUS {
-        if isinstance(operand.type, (ir.IntType, ir.DoubleType, ir.FloatType))
-            or operand.type == self.complex_struct_type.as_pointer() {
-            return operand;
-        }
-    }
-    return None;
-}
-
 impl NaIRGenExpr._bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | None) {
     if a == b {
         return a;
@@ -1507,7 +1494,9 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
     }
 
     for i in range(1, len(nd.values)) {
-        cond = self._to_bool(result);
+        cond = self._to_bool(
+            result, self._flow_narrowed_type_of(nd.values[0]) if i == 1 else None
+        );
         func = self.builder.function;
         entry_bb = self.builder.block;
         rhs_bb = func.append_basic_block(name=f"bool.rhs.{i}");
@@ -1519,10 +1508,7 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
-        _bool_peer_saved = self._peer_container_ty;
-        self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
-        self._peer_container_ty = _bool_peer_saved;
         if rhs_val is None {
             return None;
         }
@@ -1567,7 +1553,7 @@ impl NaIRGenExpr._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     if cond is None {
         return None;
     }
-    cond = self._to_bool(cond);
+    cond = self._to_bool(cond, self._flow_narrowed_type_of(nd.condition));
     func = self.builder.function;
     then_bb = func.append_basic_block(name="ternary.then");
     else_bb = func.append_basic_block(name="ternary.else");
@@ -1580,10 +1566,7 @@ impl NaIRGenExpr._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
-    _peer_saved = self._peer_container_ty;
-    self._peer_container_ty = then_val.type if then_val is not None else None;
     else_val = self._codegen_expr(nd.else_value);
-    self._peer_container_ty = _peer_saved;
     else_end_bb = self.builder.block;
     else_open = not self.builder.block.is_terminated;
 
@@ -1671,675 +1654,533 @@ impl NaIRGenExpr._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
         return self._codegen_chained_filter(nd);
     }
     if nd.is_attr {
-        target_name = self._get_name(nd.target);
-        right_name = self._get_name(nd.right);
+        return self._codegen_attr_access(nd);
+    }
+    if nd.right?.slices {
+        return self._codegen_subscript(nd);
+    }
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="subscript/index access",
+        name=(self._get_name(nd.target) or "<expr>"),
+        help_text="This trailer has neither a member name nor an index; it has no native lowering."
+    );
+    return None;
+}
 
-        _cls_name = self._codegen_class_name(nd);
-        if _cls_name is not None {
-            return _cls_name;
+impl NaIRGenExpr._enum_member_value(enum_t: any, member: str) -> (ir.Value | None) {
+    enum_name = self._tb_class_name(enum_t);
+    if enum_name is None {
+        return None;
+    }
+    _key = f"{enum_name}.{member}";
+    if _key not in self.enum_values {
+        self._ensure_enum_lowered(enum_t);
+    }
+    return self.enum_values.get(_key);
+}
+
+impl NaIRGenExpr._codegen_enum_member_attr(
+    nd: uni.AtomTrailer, right_name: str
+) -> (ir.Value | None) {
+    """`.value` / `.name` on an enum member, static or runtime.
+
+    A target typed `EnumMemberType` is a member spelled out in source, so the
+    answer is a constant; an enum-typed target is a runtime member and reads
+    through the enum's value/name tables.
+    """;
+    import from jaclang.compiler.passes.main.layout_pass {
+        class_form_enum_member,
+        class_form_enum_scalar
+    }
+    _tt = self._tb_solve(nd.target.type);
+    _cf_owner = class_form_enum_member(_tt);
+    if _cf_owner is not None {
+        if right_name == "value" {
+            return self._codegen_class_form_enum_member(nd.target);
         }
-
-        _cf_member = self._codegen_class_form_enum_member(nd);
-        if _cf_member is not None {
-            return _cf_member;
-        }
-
-        if right_name == "value" or right_name == "name" {
-            import from jaclang.compiler.passes.main.layout_pass {
-                class_form_enum_member,
-                class_form_enum_scalar
-            }
-            _cf_owner = class_form_enum_member(
-                nd.target.type if isinstance(nd.target, uni.Expr) else None
+        return self._make_global_string(_cf_owner[2], name_prefix=".cfenum.name");
+    }
+    if right_name == "value" and class_form_enum_scalar(_tt) is not None {
+        return self._codegen_expr(nd.target);
+    }
+    if isinstance(_tt, EnumMemberType) {
+        mem_enum = self._tb_class_name(_tt);
+        mem_name = _tt.member_info.member_name if _tt.member_info is not None else None;
+        if mem_enum is None or mem_name is None {
+            raise AssertionError(
+                f"enum member at {nd.target.loc} has no class or member name"
             );
-            if _cf_owner is not None {
-                if right_name == "value" {
-                    return self._codegen_class_form_enum_member(nd.target);
-                }
-                return self._make_global_string(
-                    _cf_owner[2], name_prefix=".cfenum.name"
-                );
+        }
+        member_val = self._enum_member_value(_tt, mem_name);
+        if member_val is None {
+            raise AssertionError(
+                f"enum member {mem_enum}.{mem_name} at {nd.target.loc} has no lowered constant"
+            );
+        }
+        if mem_enum in self.enum_string_values {
+            return self._wrap_enum_str(
+                self._codegen_enum_value_lookup(
+                    mem_enum, member_val, use_name=(right_name == "name")
+                )
+            );
+        }
+        if right_name == "value" {
+            return member_val;
+        }
+        ordinal = self.enum_member_ordinal.get(f"{mem_enum}.{mem_name}");
+        if ordinal is None {
+            raise AssertionError(
+                f"enum member {mem_enum}.{mem_name} at {nd.target.loc} has no ordinal"
+            );
+        }
+        return self._wrap_enum_str(
+            self._codegen_enum_value_lookup(
+                mem_enum, ir.Constant(ir.IntType(64), ordinal), use_name=True
+            )
+        );
+    }
+    enum_name = self._tb_class_name(_tt);
+    if enum_name is None {
+        raise AssertionError(
+            f"enum-typed receiver at {nd.target.loc} has no class name"
+        );
+    }
+    if enum_name not in self.enum_types {
+        self._ensure_enum_lowered(_tt);
+    }
+    member_val = self._codegen_expr(nd.target);
+    if member_val is None {
+        return None;
+    }
+    if enum_name in self.enum_string_values {
+        return self._wrap_enum_str(
+            self._codegen_enum_value_lookup(
+                enum_name, member_val, use_name=(right_name == "name")
+            )
+        );
+    }
+    if right_name == "value" and enum_name in self.enum_name_arrays {
+        return member_val;
+    }
+    return self._codegen_enum_attr_runtime(enum_name, member_val, right_name == "name");
+}
+
+impl NaIRGenExpr._codegen_module_attr(
+    nd: uni.AtomTrailer, mod_sym: any, right_name: str
+) -> (ir.Value | None) {
+    _decl = mod_sym.decl;
+    _path = _decl if isinstance(_decl, uni.ModulePath) else _decl?.parent;
+    mod_name = (
+        _path.dot_path_str.lstrip(".")
+            if isinstance(_path, uni.ModulePath)
+            else mod_sym.sym_name
+    );
+    if mod_name in self._native_stdlib_modules {
+        if mod_name == "sys" {
+            if right_name == "argv" {
+                return self._emit_sys_argv();
             }
-            if right_name == "value"
-                and isinstance(nd.target, uni.Expr)
-                and class_form_enum_scalar(nd.target.type) is not None {
-                return self._codegen_expr(nd.target);
+            if right_name == "platform" {
+                import platform as _plat;
+                return self._make_global_string(_plat.system().lower());
+            }
+            if right_name == "maxsize" {
+                return ir.Constant(ir.IntType(64), 0x7FFFFFFFFFFFFFFF);
+            }
+            if right_name == "byteorder" {
+                import sys as _sys;
+                return self._make_global_string(_sys.byteorder);
+            }
+            if right_name == "stdout" or right_name == "stderr" {
+                return self._emit_sys_stream(right_name);
             }
         }
-
-        if (right_name == "value" or right_name == "name")
-            and isinstance(nd.target, uni.AtomTrailer)
-            and nd.target.is_attr {
-            mem_enum = self._get_name(nd.target.target);
-            mem_name = self._get_name(nd.target.right);
-
-            if mem_enum is not None
-                and mem_name is not None
-                and f"{mem_enum}.{mem_name}" not in self.enum_values {
-                _al_nd = nd.target.target;
-                if isinstance(_al_nd, uni.Name)
-                    and _al_nd.sym is not None
-                    and _al_nd.sym.decl is not None {
-                    _al_of = _al_nd.sym.decl.name_of;
-                    if _al_of is not None
-                        and isinstance(_al_of.parent, uni.ModuleItem)
-                        and isinstance(_al_of.parent.name, uni.Name) {
-                        _al_orig = _al_of.parent.name.value;
-                        if f"{_al_orig}.{mem_name}" not in self.enum_values {
-                            self._codegen_enum_layout(_al_orig, None);
-                        }
-                        if f"{_al_orig}.{mem_name}" in self.enum_values {
-                            mem_enum = _al_orig;
-                        }
-                    }
-                }
-            }
-            if mem_enum is not None
-                and mem_name is not None
-                and f"{mem_enum}.{mem_name}" in self.enum_values {
-                member_val = self.enum_values[f"{mem_enum}.{mem_name}"];
-                if mem_enum in self.enum_string_values {
-                    return self._wrap_enum_str(
-                        self._codegen_enum_value_lookup(
-                            mem_enum, member_val, use_name=(right_name == "name")
-                        )
-                    );
-                }
-
-                if right_name == "value" {
-                    return member_val;
-                }
-
-                ordinal = self.enum_member_ordinal.get(f"{mem_enum}.{mem_name}");
-                if ordinal is not None {
-                    return self._wrap_enum_str(
-                        self._codegen_enum_value_lookup(
-                            mem_enum,
-                            ir.Constant(ir.IntType(64), ordinal),
-                            use_name=True
-                        )
-                    );
-                }
+        if mod_name == "math" {
+            _mc = self._emit_math_const(right_name);
+            if _mc is not None {
+                return _mc;
             }
         }
-        if right_name is not None and (right_name == "value" or right_name == "name") {
-            _re_tk = self._type_key_of(nd.target);
-            if _re_tk is not None {
-                _re_tk = _re_tk.replace(" ", "").split(".")[-1];
-                if _re_tk in self.enum_string_values {
-                    _re_ord = self._codegen_expr(nd.target);
-                    if _re_ord is not None {
-                        return self._wrap_enum_str(
-                            self._codegen_enum_value_lookup(
-                                _re_tk, _re_ord, use_name=(right_name == "name")
-                            )
-                        );
-                    }
-                } elif right_name == "value" and _re_tk in self.enum_name_arrays {
-                    return self._codegen_expr(nd.target);
-                }
-            }
-        }
-        if right_name is not None and (right_name == "value" or right_name == "name") {
-            _mt_tk = self._type_key_of(nd.target);
-            if _mt_tk is not None {
-                _mt_tk = _mt_tk.replace(" ", "");
-            }
-            if _mt_tk is not None and _mt_tk.startswith("type[") and "]." in _mt_tk {
-                _mt_cls = _mt_tk[5:_mt_tk.index("]")];
-                _mt_mem = _mt_tk.split("].", 1)[1];
-                if right_name == "name" {
-                    return self._make_global_string(_mt_mem);
-                }
-            }
-        }
-        if target_name is not None and right_name is not None {
-            if (
-                target_name == "sys"
-                and self?._native_stdlib_modules
-                and "sys" in self._native_stdlib_modules
-            ) {
-                if right_name == "argv" {
-                    return self._emit_sys_argv();
-                }
-                if right_name == "platform" {
-                    import platform as _plat;
-                    return self._make_global_string(_plat.system().lower());
-                }
-                if right_name == "maxsize" {
-                    return ir.Constant(ir.IntType(64), 0x7FFFFFFFFFFFFFFF);
-                }
-                if right_name == "byteorder" {
-                    import sys as _sys;
-                    return self._make_global_string(_sys.byteorder);
-                }
-                if right_name == "stdout" or right_name == "stderr" {
-                    return self._emit_sys_stream(right_name);
-                }
-            }
-
-            if (
-                target_name == "math"
-                and self?._native_stdlib_modules
-                and "math" in self._native_stdlib_modules
-            ) {
-                _mc = self._emit_math_const(right_name);
-                if _mc is not None {
-                    return _mc;
-                }
-            }
-
-            if (
-                target_name == "os"
-                and self?._native_stdlib_modules
-                and "os" in self._native_stdlib_modules
-            ) {
-                _oc = self._emit_os_const(right_name);
-                if _oc is not None {
-                    return _oc;
-                }
-            }
-
-            if (
-                self?._native_module_imports
-                and target_name in self._native_module_imports
-                and target_name not in self.local_vars
-                and target_name not in self.struct_types
-                and right_name in self.global_vars
-            ) {
-                return self.builder.load(
-                    self.global_vars[right_name], name=f"modglob.{right_name}"
-                );
-            }
-
-            full_name = f"{target_name}.{right_name}";
-            if full_name in self.enum_values {
-                return self.enum_values[full_name];
-            }
-            if isinstance(nd.target, uni.Name)
-                and nd.target.sym is not None
-                and nd.target.sym.decl is not None {
-                _mv_of = nd.target.sym.decl.name_of;
-                if _mv_of is not None
-                    and isinstance(_mv_of.parent, uni.ModuleItem)
-                    and isinstance(_mv_of.parent.name, uni.Name) {
-                    _mv_orig = _mv_of.parent.name.value;
-                    _mv_full = f"{_mv_orig}.{right_name}";
-                    if _mv_full not in self.enum_values {
-                        self._codegen_enum_layout(_mv_orig, None);
-                    }
-                    if _mv_full in self.enum_values {
-                        return self.enum_values[_mv_full];
-                    }
-                }
-            }
-            _tk_alias = self._type_key_of(nd.target);
-            if _tk_alias is not None {
-                _tk_alias = _tk_alias.replace(" ", "");
-            }
-            if _tk_alias is not None
-                and _tk_alias.startswith("type[")
-                and _tk_alias.endswith("]") {
-                _real_cls = _tk_alias[5:-1];
-                _real_full = f"{_real_cls}.{right_name}";
-                if _real_full not in self.enum_values {
-                    self._codegen_enum_layout(_real_cls, None);
-                }
-                if _real_full in self.enum_values {
-                    return self.enum_values[_real_full];
-                }
-                if _real_cls in self.struct_types
-                    and _real_cls not in self.local_vars {
-                    for _rcn in self._mro_of(_real_cls) {
-                        _rsf = f"{_rcn}.{right_name}";
-                        if _rsf in self.static_fields {
-                            return self.builder.load(
-                                self.static_fields[_rsf], name=f"sfld.{right_name}"
-                            );
-                        }
-                    }
-                }
-            }
-
-            if (
-                target_name in self.struct_types and target_name not in self.local_vars
-            ) {
-                for _cn in self._mro_of(target_name) {
-                    _sf = f"{_cn}.{right_name}";
-                    if _sf in self.static_fields {
-                        return self.builder.load(
-                            self.static_fields[_sf], name=f"sfld.{right_name}"
-                        );
-                    }
-                }
-            }
-
-            if (right_name == "value" or right_name == "name") {
-                enum_name = self._enum_name_of(nd.target);
-                if enum_name is not None and enum_name in self.enum_types {
-                    member_val = self._codegen_expr(nd.target);
-                    if member_val is not None {
-                        return self._codegen_enum_attr_runtime(
-                            enum_name, member_val, right_name == "name"
-                        );
-                    }
-                }
-            }
-
-            _fa_type_name = self._struct_name_of(nd.target);
-            if _fa_type_name is not None {
-                type_name = _fa_type_name;
-                _fa_idx = self.struct_field_indices.get(type_name);
-                _fa_get = self._accessor_slot_of(type_name, right_name, "property");
-                if (
-                    _fa_get is None
-                    and (_fa_idx is None or right_name not in _fa_idx)
-                    and self._pyb_base_of(type_name) is not None
-                ) {
-                    obj_val = self._codegen_expr(nd.target);
-                    if obj_val is not None {
-                        return self._codegen_pyb_field_load(
-                            nd, self._opt_unwrap_attr(obj_val), right_name
-                        );
-                    }
-                }
-                obj_val = self._codegen_expr(nd.target);
-                if obj_val is not None {
-                    return self._read_field_or_refuse(
-                        nd, obj_val, right_name, type_name
-                    );
-                }
-            }
-        }
-
-        if right_name is not None {
-            obj_val = self._codegen_expr(nd.target);
-            if obj_val is not None {
-                type_name = self._struct_name_of(nd.target);
-                if type_name is None {
-                    type_name = self._infer_type_name(obj_val);
-                }
-                if type_name is not None {
-                    return self._read_field_or_refuse(
-                        nd, obj_val, right_name, type_name
-                    );
-                }
+        if mod_name == "os" {
+            _oc = self._emit_os_const(right_name);
+            if _oc is not None {
+                return _oc;
             }
         }
     }
+    if mod_name in self._native_module_imports and right_name in self.global_vars {
+        return self.builder.load(
+            self.global_vars[right_name], name=f"modglob.{right_name}"
+        );
+    }
+    _rt = nd.type;
+    if isinstance(_rt, EnumMemberType) {
+        _mv = self._enum_member_value(_rt.enum_class, right_name);
+        if _mv is not None {
+            return _mv;
+        }
+    }
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="attribute access",
+        name=f"{mod_name}.{right_name}",
+        help_text="This module attribute has no native lowering in this unit."
+    );
+    return None;
+}
 
-    if nd.is_attr and target_name is not None and right_name is not None {
+impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) {
+    import from jaclang.jac0core.constant { SymbolType }
+    right_name = self._get_name(nd.right);
+    if right_name is None {
+        raise AssertionError(f"attribute access at {nd.loc} has no member name");
+    }
+
+    _cls_name = self._codegen_class_name(nd);
+    if _cls_name is not None {
+        return _cls_name;
+    }
+
+    _cf_member = self._codegen_class_form_enum_member(nd);
+    if _cf_member is not None {
+        return _cf_member;
+    }
+
+    _rt = self._tb_solve(nd.type);
+    _tt = self._tb_solve(self._flow_narrowed_type_of(nd.target));
+    _tt_payload = self._tb_opt_payload(_tt);
+    if _tt_payload is not None {
+        _tt = _tt_payload;
+    }
+    _t_kind = self._tb_kind(_tt);
+    _recv_sym = nd.target.sym if isinstance(nd.target, uni.AstSymbolNode) else None;
+
+    if _recv_sym is not None and _recv_sym.sym_type == SymbolType.MODULE {
+        return self._codegen_module_attr(nd, _recv_sym, right_name);
+    }
+
+    if isinstance(_rt, EnumMemberType) and _t_kind in ("enum", "class") {
+        _mv = self._enum_member_value(_rt.enum_class, right_name);
+        if _mv is not None {
+            return _mv;
+        }
+    }
+    if (
+        _t_kind == "enum"
+        and isinstance(_tt, ClassType)
+        and not _tt.is_instance()
+        and right_name not in ("value", "name")
+    ) {
+        _mv = self._enum_member_const(_tt, right_name);
+        if _mv is not None {
+            return _mv;
+        }
+    }
+
+    if right_name in ("value", "name") and _t_kind == "enum" {
+        return self._codegen_enum_member_attr(nd, right_name);
+    }
+
+    if _t_kind == "slice" {
         _slice_field_map: dict[(str, int)] = {"start": 0, "stop": 1, "step": 2};
-        if (
-            self._type_key_of(nd.target) == "slice" and right_name in _slice_field_map
-        ) {
+        if right_name in _slice_field_map {
             obj_val = self._codegen_expr(nd.target);
-            if obj_val is not None {
-                i32 = ir.IntType(32);
-                z0 = ir.Constant(i32, 0);
-                fidx = ir.Constant(i32, _slice_field_map[right_name]);
-                ptr = self.builder.gep(
-                    obj_val, [z0, fidx], name=f"slice.{right_name}.ptr"
-                );
-                return self.builder.load(ptr, name=f"slice.{right_name}");
+            if obj_val is None {
+                return None;
             }
+            i32 = ir.IntType(32);
+            z0 = ir.Constant(i32, 0);
+            fidx = ir.Constant(i32, _slice_field_map[right_name]);
+            ptr = self.builder.gep(obj_val, [z0, fidx], name=f"slice.{right_name}.ptr");
+            return self.builder.load(ptr, name=f"slice.{right_name}");
         }
     }
 
-    if not nd.is_attr and nd.right?.slices and nd.right.is_range {
-        target_name = self._get_name(nd.target);
-        slices = nd.right.slices or [];
-        if slices {
-            s = slices[0];
-
-            _slice_list_spec = self._list_spec_of(nd.target);
-            if _slice_list_spec is not None {
-                target_val = self._codegen_expr(nd.target);
-                target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
-                if target_val is not None {
-                    _shape = self._infer_list_elem_type(target_val);
-                    elem_type_name = _shape if _shape is not None else _slice_list_spec;
-                    result = self._codegen_list_slice(target_val, s, elem_type_name);
-                    if result is not None {
-                        return result;
-                    }
-                }
-            } else {
-                target_val = self._codegen_expr(nd.target);
-                if target_val is not None
-                    and self._str_desc_ty is not None
-                    and target_val.type == self._str_desc_ty {
-                    result = self._codegen_string_slice(target_val, s, nd.target);
-                    if result is not None {
-                        return result;
-                    }
-                }
-                target_val = self._str_norm(target_val);
-                if target_val is not None {
-                    i8p = ir.IntType(8).as_pointer();
-                    if self._is_bytes_value(target_val) {
-                        result = self._codegen_bytes_slice(target_val, s);
-                        if result is not None {
-                            return result;
-                        }
-                    } elif target_val.type == i8p {
-                        result = self._codegen_string_slice(target_val, s, nd.target);
-                        if result is not None {
-                            return result;
-                        }
-                    } else {
-                        elem_type_name = self._infer_list_elem_type(target_val);
-                        if elem_type_name is not None {
-                            result = self._codegen_list_slice(
-                                target_val, s, elem_type_name
-                            );
-                            if result is not None {
-                                return result;
-                            }
-                        }
-                    }
+    _cls_decl = self._tb_decl(_tt);
+    _cls_form = (
+        isinstance(_tt, ClassType) and _tt._shared is not None and not _tt.is_instance()
+    );
+    if _cls_form and isinstance(_cls_decl, uni.Archetype) {
+        _cls = self._tb_class_name(_tt);
+        if _cls is not None and _cls in self.struct_types {
+            for _cn in self._mro_of(_cls) {
+                _sf = f"{_cn}.{right_name}";
+                if _sf in self.static_fields {
+                    return self.builder.load(
+                        self.static_fields[_sf], name=f"sfld.{right_name}"
+                    );
                 }
             }
         }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="attribute access",
+            name=f"{_cls}.{right_name}",
+            help_text="Only static fields of an archetype with a native layout can be read off the class."
+        );
+        return None;
     }
 
-    if not nd.is_attr and nd.right?.slices {
-        target_name = self._get_name(nd.target);
+    _fa_type_name = self._struct_name_of(nd.target);
+    if _fa_type_name is not None {
+        type_name = _fa_type_name;
+        _fa_idx = self.struct_field_indices.get(type_name);
+        _fa_get = self._accessor_slot_of(type_name, right_name, "property");
+        obj_val = self._codegen_expr(nd.target);
+        if obj_val is None {
+            return None;
+        }
+        if (
+            _fa_get is None
+            and (_fa_idx is None or right_name not in _fa_idx)
+            and self._pyb_base_of(type_name) is not None
+        ) {
+            return self._codegen_pyb_field_load(
+                nd, self._opt_unwrap_attr(obj_val), right_name
+            );
+        }
+        return self._read_field_or_refuse(nd, obj_val, right_name, type_name);
+    }
 
-        _idx_list_spec = self._list_spec_of(nd.target)
-            if target_name is not None
-            else None;
-        if _idx_list_spec is not None {
-            target_val = self._codegen_expr(nd.target);
-            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
-            if target_val is not None {
-                _shape = self._infer_list_elem_type(target_val);
-                elem_type_name = _shape if _shape is not None else _idx_list_spec;
-                slices = nd.right.slices or [];
-                if slices {
-                    idx_node = slices[0];
-                    idx_val = self._codegen_expr(idx_node);
-                    if idx_val is None and idx_node?.start {
-                        idx_val = self._codegen_expr(idx_node.start);
-                    }
-                    if idx_val is not None {
-                        result = self._codegen_index(
-                            target_val, idx_val, elem_type_name
-                        );
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="attribute access",
+        name=right_name,
+        help_text=f"The receiver is typed `{_tt}` ({_t_kind}), which has no native layout with a member `{right_name}`. Give the value a concrete native type, or move this code to a @sv/Python context."
+    );
+    return None;
+}
 
-                        if result is not None and elem_type_name == "ptr" {
-                            cast_type = self._list_elem_llvm_of(nd.target);
-                            if (
-                                isinstance(cast_type, ir.PointerType)
-                                and result.type != cast_type
-                            ) {
-                                result = self.builder.bitcast(
-                                    result, cast_type, name="idx.cast"
-                                );
-                            }
-                        }
-                        return result;
-                    }
-                }
-            }
-        } else {
-            target_val = self._codegen_expr(nd.target);
-            if target_val is not None
-                and self._str_desc_ty is not None
-                and target_val.type == self._str_desc_ty {
-                _dslices = nd.right.slices or [];
-                if _dslices {
-                    _didx_node = _dslices[0];
-                    _didx_val = self._codegen_expr(_didx_node);
-                    if _didx_val is None and _didx_node?.start {
-                        _didx_val = self._codegen_expr(_didx_node.start);
-                    }
-                    if _didx_val is not None {
-                        _ddata = self.builder.extract_value(
-                            target_val,
-                            0 if self._nogc_headerless() else 1,
-                            name="chr.data"
-                        );
-                        _dlen = self.builder.extract_value(
-                            target_val,
-                            1 if self._nogc_headerless() else 2,
-                            name="chr.len"
-                        );
-                        return self._codegen_string_index(
-                            _ddata, _didx_val, len_val=_dlen
-                        );
-                    }
-                }
-            }
-            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
-            if target_val is not None {
-                if self?.jacval_type and target_val.type == self.jacval_type {
-                    _any_slices = nd.right.slices or [];
-                    if _any_slices {
-                        _any_idx_node = _any_slices[0];
-                        _any_key = self._codegen_expr(_any_idx_node);
-                        if _any_key is None and _any_idx_node?.start {
-                            _any_key = self._codegen_expr(_any_idx_node.start);
-                        }
-                        if _any_key is not None {
-                            _any_res = self._codegen_any_subscript(
-                                target_val, _any_key
-                            );
-                            if _any_res is not None {
-                                return _any_res;
-                            }
-                        }
-                    }
-                }
+impl NaIRGenExpr._subscript_index_value(nd: uni.AtomTrailer) -> (ir.Value | None) {
+    slices = nd.right.slices or [];
+    if not slices {
+        return None;
+    }
+    idx_node = slices[0];
+    idx_val = self._codegen_expr(idx_node);
+    if idx_val is None and idx_node?.start {
+        idx_val = self._codegen_expr(idx_node.start);
+    }
+    return idx_val;
+}
 
-                if self._is_bytes_value(target_val) {
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        idx_val = self._codegen_expr(idx_node);
-                        if idx_val is None and idx_node?.start {
-                            idx_val = self._codegen_expr(idx_node.start);
-                        }
-                        if idx_val is not None {
-                            return self._codegen_bytes_index(target_val, idx_val);
-                        }
-                    }
-                }
+impl NaIRGenExpr._codegen_subscript(nd: uni.AtomTrailer) -> (ir.Value | None) {
+    _tt = self._tb_solve(self._flow_narrowed_type_of(nd.target));
+    _tt_payload = self._tb_opt_payload(_tt);
+    if _tt_payload is not None {
+        _tt = _tt_payload;
+    }
+    _t_kind = self._tb_kind(_tt);
+    slices = nd.right.slices or [];
+    is_range = bool(nd.right.is_range) and bool(slices);
+    s = slices[0] if slices else None;
 
-                i8p = ir.IntType(8).as_pointer();
-                if target_val.type == i8p {
-                    is_known_list = self._list_spec_of(nd.target) is not None;
-                    if not is_known_list {
-                        slices = nd.right.slices or [];
-                        if slices {
-                            idx_node = slices[0];
-                            idx_val = self._codegen_expr(idx_node);
-                            if idx_val is None and idx_node?.start {
-                                idx_val = self._codegen_expr(idx_node.start);
-                            }
-                            if idx_val is not None
-                                and isinstance(idx_val.type, ir.IntType) {
-                                return self._codegen_string_index(
-                                    target_val,
-                                    idx_val,
-                                    len_val=self._call_str_len(
-                                        self.builder, target_val, name="chr.len"
-                                    )
-                                );
-                            }
-                            if idx_val is not None {
-                                _sub_tk = self._type_key_of(nd.target) or "unknown";
-                                self.emit(
-                                    E5092,
-                                    node_override=nd.target,
-                                    kind="expression",
-                                    name="subscript of an element-erased collection",
-                                    help_text="An untyped pointer is subscripted "
-                                    "with a non-integer key. The only layout the "
-                                    "emitter can read out of a bare pointer is a "
-                                    "string, and a string is indexed by integers, "
-                                    "so this target is a container whose declared "
-                                    f"type ({_sub_tk}) never reached its own "
-                                    "layout -- usually one read out of an "
-                                    "enclosing container that stores its entries "
-                                    "untyped. Indexing it as a string would read "
-                                    "the header bytes. Bind the container to a "
-                                    "directly-typed local, or annotate it, so its "
-                                    "own layout reaches this subscript."
-                                );
-                                return None;
-                            }
-                        }
-                    }
-                }
-
-                elem_type_name = self._infer_list_elem_type(target_val);
-                if elem_type_name is not None {
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        idx_val = self._codegen_expr(idx_node);
-                        if idx_val is None and idx_node?.start {
-                            idx_val = self._codegen_expr(idx_node.start);
-                        }
-                        if idx_val is not None {
-                            result = self._codegen_index(
-                                target_val, idx_val, elem_type_name
-                            );
-
-                            if result is not None and elem_type_name == "ptr" {
-                                cast_type = self._list_elem_llvm_of(nd.target);
-                                if (
-                                    isinstance(cast_type, ir.PointerType)
-                                    and result.type != cast_type
-                                ) {
-                                    result = self.builder.bitcast(
-                                        result, cast_type, name="chain.idx.cast"
-                                    );
-                                }
-                            }
-                            return result;
-                        }
-                    }
-                }
-
-                _rd_sname: (str | None) = self._struct_ptr_pointee_name(target_val);
-                if _rd_sname is not None {
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        idx_val = self._codegen_expr(idx_node);
-                        if idx_val is None and idx_node?.start {
-                            idx_val = self._codegen_expr(idx_node.start);
-                        }
-                        if idx_val is not None {
-                            return self._struct_array_elem_ptr(target_val, idx_val);
-                        }
-                    }
-                }
-
-                tsub_struct: (ir.LiteralStructType | None) = None;
-                if isinstance(target_val.type, ir.LiteralStructType) {
-                    tsub_struct = target_val.type;
-                } elif isinstance(target_val.type, ir.PointerType)
-                    and isinstance(target_val.type.pointee, ir.LiteralStructType) {
-                    tsub_struct = target_val.type.pointee;
-                }
-                if tsub_struct is not None {
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        idx_val = self._codegen_expr(idx_node);
-                        if idx_val is None and idx_node?.start {
-                            idx_val = self._codegen_expr(idx_node.start);
-                        }
-                        if idx_val is not None {
-                            return self._codegen_tuple_index(
-                                target_val, idx_val, tsub_struct
-                            );
-                        }
-                    }
-                }
-
-                dict_type_info = self._infer_dict_type(target_val);
-                if dict_type_info is not None {
-                    (key_type_name, val_type_name) = dict_type_info;
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        key_val = self._codegen_expr(idx_node);
-                        if key_val is None and idx_node?.start {
-                            key_val = self._codegen_expr(idx_node.start);
-                        }
-                        if key_val is not None {
-                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
-                            return self._codegen_dict_access(
-                                target_val,
-                                key_val,
-                                key_type_name,
-                                val_type_name,
-                                key_node=_dk_nd
-                            );
-                        }
-                    }
-                }
+    if _t_kind in ("list", "bytearray") {
+        spec = self._list_spec_of(nd.target);
+        if spec is None {
+            self.emit(
+                E5092,
+                node_override=nd.target,
+                kind="subscript/index access",
+                name=f"{_tt}",
+                help_text="This list's element type has no native layout, so the list cannot be indexed natively."
+            );
+            return None;
+        }
+        target_val = self._codegen_expr(nd.target);
+        target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
+        if target_val is None {
+            return None;
+        }
+        if is_range {
+            return self._codegen_list_slice(target_val, s, spec);
+        }
+        idx_val = self._subscript_index_value(nd);
+        if idx_val is None {
+            return None;
+        }
+        result = self._codegen_index(target_val, idx_val, spec);
+        if result is not None and spec == "ptr" {
+            cast_type = self._lower_type(nd.type);
+            if isinstance(cast_type, ir.PointerType) and result.type != cast_type {
+                result = self.builder.bitcast(result, cast_type, name="idx.cast");
             }
         }
+        return result;
+    }
 
+    if _t_kind == "str" {
+        target_val = self._codegen_expr(nd.target);
+        if target_val is None {
+            return None;
+        }
+        if self._str_desc_ty is not None and target_val.type == self._str_desc_ty {
+            if is_range {
+                return self._codegen_string_slice(target_val, s, nd.target);
+            }
+            _didx_val = self._subscript_index_value(nd);
+            if _didx_val is None {
+                return None;
+            }
+            _ddata = self.builder.extract_value(
+                target_val, 0 if self._nogc_headerless() else 1, name="chr.data"
+            );
+            _dlen = self.builder.extract_value(
+                target_val, 1 if self._nogc_headerless() else 2, name="chr.len"
+            );
+            return self._codegen_string_index(_ddata, _didx_val, len_val=_dlen);
+        }
+        target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
+        if target_val is None {
+            return None;
+        }
+        if is_range {
+            return self._codegen_string_slice(target_val, s, nd.target);
+        }
+        idx_val = self._subscript_index_value(nd);
+        if idx_val is None {
+            return None;
+        }
+        return self._codegen_string_index(
+            target_val,
+            self._coerce_type(idx_val, ir.IntType(64)),
+            len_val=self._call_str_len(self.builder, target_val, name="chr.len")
+        );
+    }
+
+    if _t_kind == "bytes" {
+        target_val = self._opt_unwrap_subscript(
+            self._str_norm(self._codegen_expr(nd.target))
+        );
+        if target_val is None {
+            return None;
+        }
+        if is_range {
+            return self._codegen_bytes_slice(target_val, s);
+        }
+        idx_val = self._subscript_index_value(nd);
+        if idx_val is None {
+            return None;
+        }
+        return self._codegen_bytes_index(target_val, idx_val);
+    }
+
+    if is_range {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="subscript/index access",
+            name=f"slice of {_tt}",
+            help_text="Only lists, strings, bytes and bytearrays can be sliced natively."
+        );
+        return None;
+    }
+
+    if _t_kind == "any" {
+        target_val = self._opt_unwrap_subscript(
+            self._str_norm(self._codegen_expr(nd.target))
+        );
+        _any_key = self._subscript_index_value(nd);
+        if target_val is None or _any_key is None {
+            return None;
+        }
+        _any_res = self._codegen_any_subscript(target_val, _any_key);
+        if _any_res is not None {
+            return _any_res;
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="subscript/index access",
+            name="any",
+            help_text="A dynamically typed value could not be subscripted natively."
+        );
+        return None;
+    }
+
+    if _t_kind == "tuple" {
+        target_val = self._opt_unwrap_subscript(
+            self._str_norm(self._codegen_expr(nd.target))
+        );
+        if target_val is None {
+            return None;
+        }
+        tsub_struct = self._tuple_struct_of_value(target_val);
+        if tsub_struct is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="subscript/index access",
+                name=f"{_tt}",
+                help_text="This tuple did not lower to a native tuple struct."
+            );
+            return None;
+        }
+        idx_val = self._subscript_index_value(nd);
+        if idx_val is None {
+            return None;
+        }
+        return self._codegen_tuple_index(target_val, idx_val, tsub_struct);
+    }
+
+    if _t_kind == "dict" {
         dict_type_key = self._dict_key_of(nd.target);
-        if dict_type_key is not None {
-            parts = dict_type_key.split(":");
-            if len(parts) == 2 {
-                (key_type_name, val_type_name) = (parts[0], parts[1]);
-                target_val = self._codegen_expr(nd.target);
-                target_val = self._str_norm(target_val);
-                if target_val is not None {
-                    slices = nd.right.slices or [];
-                    if slices {
-                        idx_node = slices[0];
-                        key_val = self._codegen_expr(idx_node);
-                        if key_val is None and idx_node?.start {
-                            key_val = self._codegen_expr(idx_node.start);
-                        }
-                        if key_val is not None {
-                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
-                            return self._codegen_dict_access(
-                                target_val,
-                                key_val,
-                                key_type_name,
-                                val_type_name,
-                                key_node=_dk_nd
-                            );
-                        }
-                    }
-                }
+        parts = dict_type_key.split(":") if dict_type_key is not None else [];
+        if len(parts) != 2 {
+            self.emit(
+                E5092,
+                node_override=nd.target,
+                kind="subscript/index access",
+                name=f"{_tt}",
+                help_text="This dict's key or value type has no native layout, so the dict cannot be indexed natively."
+            );
+            return None;
+        }
+        (key_type_name, val_type_name) = (parts[0], parts[1]);
+        target_val = self._opt_unwrap_subscript(
+            self._str_norm(self._codegen_expr(nd.target))
+        );
+        if target_val is None {
+            return None;
+        }
+        key_val = self._subscript_index_value(nd);
+        if key_val is None {
+            return None;
+        }
+        idx_node = slices[0];
+        _dk_nd = idx_node.start if idx_node?.start else idx_node;
+        return self._codegen_dict_access(
+            target_val, key_val, key_type_name, val_type_name, key_node=_dk_nd
+        );
+    }
+
+    if _t_kind == "struct" {
+        target_val = self._opt_unwrap_subscript(
+            self._str_norm(self._codegen_expr(nd.target))
+        );
+        if target_val is None {
+            return None;
+        }
+        if self._struct_ptr_pointee_name(target_val) is not None {
+            idx_val = self._subscript_index_value(nd);
+            if idx_val is None {
+                return None;
             }
+            return self._struct_array_elem_ptr(target_val, idx_val);
         }
     }
 
     self.emit(
         E5092,
         node_override=nd,
-        kind="attribute access" if nd.is_attr else "subscript/index access",
-        name=(self._get_name(nd.right) or "<expr>")
-            if nd.is_attr
-            else (self._get_name(nd.target) or "<expr>"),
-        help_text="The receiver's type could not be resolved to a native struct/container layout, so the access lowered to no code. Give the value a concrete native type, or move this code to a @sv/Python context."
+        kind="subscript/index access",
+        name=(self._get_name(nd.target) or "<expr>"),
+        help_text=f"The receiver is typed `{_tt}` ({_t_kind}), which has no native subscript lowering. Give the value a concrete native container type, or move this code to a @sv/Python context."
     );
-    return None;
-}
-
-impl NaIRGenExpr._infer_dict_type(val: ir.Value) -> (tuple | None) {
-    if not isinstance(val.type, ir.PointerType) {
-        return None;
-    }
-    for (dict_key, dtype) in self.dict_types.items() {
-        if val.type == dtype.as_pointer() {
-            parts = dict_key.split(":");
-            if len(parts) == 2 {
-                return (parts[0], parts[1]);
-            }
-        }
-    }
     return None;
 }

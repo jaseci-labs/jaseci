@@ -39,7 +39,8 @@ impl NaIRGenLists._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) ->
         f"__list_new_{elem_type_name}",
         list_ptr_type,
         _list_layout,
-        dtor_fn=_rel_fn_decl
+        dtor_fn=_rel_fn_decl,
+        type_name=f"list_{elem_type_name}"
     );
 
     append_fnty = ir.FunctionType(ir.VoidType(), [list_ptr_type, elem_type]);
@@ -181,306 +182,80 @@ impl NaIRGenLists._spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None)
     return None;
 }
 
-impl NaIRGenLists._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
-    _child: uni.UniNode = nd;
-    _dp = nd.parent;
-    while (
-        (isinstance(_dp, uni.CfgExpr) and _dp.expr is _child)
-        or (
-            isinstance(_dp, uni.IfElseExpr)
-            and (_dp.value is _child or _dp.else_value is _child)
-        )
-    ) {
-        _child = _dp;
-        _dp = _dp.parent;
+impl NaIRGenLists._list_elem_ready(
+    val: ir.Value, expr: (uni.UniNode | None), spec: str, elem_llvm: ir.Type, loc: str
+) -> tuple {
+    _vty = self._expr_type_of(expr);
+    if isinstance(elem_llvm, ir.PointerType)
+        and isinstance(elem_llvm.pointee, ir.LiteralStructType)
+        and isinstance(val.type, ir.LiteralStructType) {
+        val = self._coerce_tuple_to_struct(val, elem_llvm.pointee);
     }
-    if isinstance(_dp, uni.ReturnStmt) and _dp.expr is _child {
-        if self._builder is not None and self._builder.function is not None {
-            return self._spec_from_list_slot_type(
-                self._builder.function.function_type.return_type
-            );
-        }
-        return None;
+    val = self._box_value_tuple(val, loc=loc);
+    val = self._nogc_elem_prep(expr, val);
+    _boxed = val;
+    if spec == "jacval" {
+        return (self._box_to_jacval(val, ty=_vty), _boxed);
     }
-    if isinstance(_dp, uni.HasVar) and _dp.value is _child {
-        _hv_spec = self._spec_from_list_slot_type(self._resolve_field_type(_dp));
-        if self._na_debug_on() {
-            import sys;
-            _hv_nm = _dp.name.value if _dp.name else "?";
-            sys.stderr.write(
-                f"NA_DEBUG empty-list dest hasvar={_hv_nm} spec={_hv_spec}\n"
-            );
-        }
-        return _hv_spec;
+    if val.type != elem_llvm {
+        val = self._coerce_typed(val, elem_llvm, _vty);
     }
-    if isinstance(_dp, uni.Assignment) and _dp.value is _child {
-        for _tgt in (_dp.target or []) {
-            if not isinstance(_tgt, uni.AtomTrailer) {
-                _spec = self._elem_spec_of(_tgt);
-                if _spec is not None {
-                    return _spec;
-                }
-            }
-            if isinstance(_tgt, uni.AtomTrailer) and _tgt.is_attr {
-                _cls = self._struct_name_of(_tgt.target);
-                _fld = self._get_name(_tgt.right);
-                if _cls is not None and _fld is not None {
-                    _spec = self._spec_from_list_slot_type(
-                        self.struct_field_types.get(_cls, {}).get(_fld)
-                    );
-                    if _spec is not None {
-                        return _spec;
-                    }
-                }
-            }
-
-            _tn = self._get_name(_tgt)
-                if not isinstance(_tgt, uni.AtomTrailer)
-                else None;
-            if _tn is not None {
-                _slot = self.local_vars.get(_tn);
-                if _slot is not None and isinstance(_slot.type, ir.PointerType) {
-                    _spec = self._spec_from_list_slot_type(_slot.type.pointee);
-                    if _spec is not None {
-                        return _spec;
-                    }
-                }
-            }
-        }
+    if spec == "ptr" and isinstance(val.type, ir.PointerType) {
+        val = self.builder.bitcast(val, ir.IntType(8).as_pointer(), name="elem.cast");
+    } else {
+        val = self._coerce_typed(val, self.list_helpers[spec]["elem_type"], _vty);
     }
-    if isinstance(_dp, uni.KWPair) and _dp.value is _child {
-        _fc = _dp.parent;
-        if isinstance(_fc, uni.FuncCall) {
-            _cn = self._get_name(_fc.target);
-            if _cn is None or _cn not in self.struct_types {
-                _cn = self._struct_name_of(_fc);
-            }
-            _kn = _dp.key.sym_name if _dp.key is not None else None;
-            if _cn is not None and _kn is not None {
-                return self._spec_from_list_slot_type(
-                    self.struct_field_types.get(_cn, {}).get(_kn)
-                );
-            }
-        }
-    }
-    return None;
+    return (val, _boxed);
 }
 
 impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
-    self._pending_list_elem_struct = None;
-    if not nd.values {
-        elem_type_name = "";
-        _decl_par = nd.parent;
-        _bare_list_decl = False;
-        if isinstance(_decl_par, (uni.Assignment, uni.HasVar))
-            and _decl_par.value is nd
-            and _decl_par.type_tag is not None {
-            _lt_tag = _decl_par.type_tag.tag;
-            _lt_name: (str | None) = None;
-            if isinstance(_lt_tag, uni.Name) {
-                _lt_name = _lt_tag.value;
-            } elif uni?.BuiltinType and isinstance(_lt_tag, uni.BuiltinType) {
-                _lt_name = _lt_tag.value;
-            }
-            _bare_list_decl = _lt_name == "list";
-        }
-        _own_spec = self._elem_spec_of(nd);
-        _dest_spec = self._empty_list_dest_spec(nd);
-        if _dest_spec is None {
-            _dest_spec = self._spec_from_container_ptr(self._peer_container_ty);
-        }
-        if (
-            _dest_spec is not None
-            and _dest_spec != "jacval"
-            and (_own_spec is None or _own_spec == "jacval")
-        ) {
-            _own_spec = _dest_spec;
-        }
-        if _own_spec is not None {
-            elem_type_name = _own_spec;
-        } elif _bare_list_decl {
-            elem_type_name = "i64";
-        } elif self._builder and self._builder.function {
-            ret_type = self.builder.function.return_value.type;
-            if isinstance(ret_type, ir.PointerType) {
-                for (tn, lt) in self.list_types.items() {
-                    if lt.as_pointer() == ret_type {
-                        elem_type_name = tn;
-                        break;
-                    }
-                }
-            }
-        }
-        if not elem_type_name {
-            elem_type_name = "jacval" if self?.jacval_type else "i64";
-        }
-
-        if elem_type_name == "ptr" {
-            self._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
-        } elif elem_type_name == "f64" {
-            self._emit_list_helpers("f64", ir.DoubleType());
-        } elif elem_type_name == "jacval" and self?.jacval_type {
-            self._emit_list_helpers("jacval", self.jacval_type);
-        } else {
-            self._emit_list_helpers("i64", ir.IntType(64));
-        }
-        helpers = self.list_helpers.get(elem_type_name);
-        if helpers is not None {
-            _empty_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                if nd.loc
-                else 0}";
-
-            _empty_new = self._rc_call_with_ctx(
-                helpers["new"], [], op="new", loc=_empty_loc, name="list.empty"
-            );
-            self._nogc_stamp_elem_drops(_empty_new, self._nogc_type_arg_mangles(nd));
-            return _empty_new;
-        }
+    _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+        if nd.loc
+        else 0}";
+    _lty = self._expr_type_of(nd);
+    _elem_tb = self._tb_elem(_lty);
+    if _elem_tb is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name="list display without an element type",
+            help_text="The checker stamped no element type on this list display, so there is no native layout to build it in. Annotate the binding (for example `xs: list[int] = []`), or give the display an element."
+        );
         return None;
     }
-
-    _decl_elem = self._list_elem_llvm_of(nd);
-    _clos_elem = self._closure_struct_of(_decl_elem)
-        if _decl_elem is not None
-        else None;
-
-    _first_spread = self._spread_operand(nd.values[0]);
-    first_val: (ir.Value | None) = None;
-    _first_src_info: (dict | None) = None;
-    if _first_spread is not None {
-        _first_src_info = self._container_src_info(
-            self._str_norm(self._codegen_expr(_first_spread))
+    _elem_llvm = self._elem_slot_llvm(_elem_tb);
+    if _elem_llvm is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name=f"list of {_elem_tb}",
+            help_text="The element type has no native lowering, so the list has no native layout. Use a lowerable element type, or move this code to a @sv/Python context."
         );
-        if _first_src_info is None {
-            self.emit(
-                E5092,
-                node_override=nd.values[0],
-                kind="expression",
-                name="spread in a list display",
-                help_text="A `*` spread is copied element by element out of a native list or set; this operand lowered to neither. Give it a lowerable list or set type, or write the elements out."
-            );
-            return None;
-        }
-    } else {
-        first_val = self._str_norm(self._codegen_expr(nd.values[0]));
-        if first_val is None {
-            return None;
-        }
-        first_val = self._box_value_tuple(
-            first_val,
-            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                if nd.loc
-                else 0}"
-        );
-        if _clos_elem is not None and first_val.type != _decl_elem {
-            first_val = self._coerce_type(first_val, _decl_elem);
-        }
+        return None;
     }
-    _lit_spec = self._elem_spec_of(nd);
-    if _lit_spec == "jacval" and self?.jacval_type {
-        elem_type = self.jacval_type;
-        elem_type_name = "jacval";
-    } elif _lit_spec in ("i64", "f64")
-        and _decl_elem is not None
-        and isinstance(_decl_elem, (ir.IntType, ir.DoubleType)) {
-        elem_type = _decl_elem;
-        elem_type_name = _lit_spec;
-    } else {
-        elem_type = first_val.type
-            if first_val is not None
-            else _first_src_info["helpers"]["elem_type"];
-        elem_type_name = "i64";
-        if isinstance(elem_type, ir.DoubleType) {
-            elem_type_name = "f64";
-        } elif isinstance(elem_type, ir.PointerType) {
-            elem_type_name = "ptr";
-        } elif self?.jacval_type and elem_type == self.jacval_type {
-            elem_type_name = "jacval";
-        }
-    }
-
-    if isinstance(elem_type, ir.PointerType)
-        and isinstance(elem_type.pointee, ir.LiteralStructType) {
-        self._pending_list_elem_struct = elem_type;
-    }
-
-    self._emit_list_helpers(elem_type_name, elem_type);
-    helpers = self.list_helpers[elem_type_name];
-    i8p = ir.IntType(8).as_pointer();
-
-    _list_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-        if nd.loc
-        else 0}";
+    spec = self._list_spec_for_elem_llvm(_elem_llvm);
+    helpers = self.list_helpers[spec];
     list_val = self._rc_call_with_ctx(
-        helpers["new"], [], op="new", loc=_list_new_loc, name="list.new"
+        helpers["new"], [], op="new", loc=_loc, name="list.new"
     );
-    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
+    self._nogc_stamp_elem_drops(list_val, [_elem_tb]);
 
-    _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-        if nd.loc
-        else 0}";
-    if first_val is None {
-        if self._reject_spread_slot_mismatch(
-            nd.values[0],
-            _first_src_info["helpers"]["elem_type"],
-            helpers["elem_type"],
-            "list element"
-        ) {
-            return None;
-        }
-        self._emit_spread_copy(
-            _first_src_info["value"],
-            _first_src_info["helpers"],
-            list_val,
-            helpers,
-            "list",
-            _linit_loc
-        );
-    } else {
-        first_val = self._nogc_elem_prep(nd.values[0], first_val);
-        if self._reject_ptr_into_raw_slot(
-            nd, first_val, helpers["elem_type"], "list element"
-        ) {
-            return list_val;
-        }
-        append_val = first_val;
-        if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
-            append_val = self.builder.bitcast(first_val, i8p, name="elem.cast");
-        } else {
-            append_val = self._coerce_type(append_val, helpers["elem_type"]);
-        }
-        self._rc_call_with_ctx(
-            helpers["append"], [list_val, append_val], op="list_init", loc=_linit_loc
-        );
-        if isinstance(first_val.type, ir.PointerType)
-            and self._is_owned(first_val)
-            and self._gc_mode() != "none" {
-            self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
-        }
-    }
-
-    for i in range(1, len(nd.values)) {
-        _spread_op = self._spread_operand(nd.values[i]);
+    for v_nd in (nd.values or []) {
+        _spread_op = self._spread_operand(v_nd);
         if _spread_op is not None {
             _src_info = self._container_src_info(
-                self._str_norm(self._codegen_expr(_spread_op))
+                self._str_norm(self._codegen_expr(_spread_op)), _spread_op
             );
             if _src_info is None {
                 self.emit(
                     E5092,
-                    node_override=nd.values[i],
+                    node_override=v_nd,
                     kind="expression",
                     name="spread in a list display",
                     help_text="A `*` spread is copied element by element out of a native list or set; this operand lowered to neither. Give it a lowerable list or set type, or write the elements out."
                 );
-                return None;
-            }
-            if self._reject_spread_slot_mismatch(
-                nd.values[i],
-                _src_info["helpers"]["elem_type"],
-                helpers["elem_type"],
-                "list element"
-            ) {
                 return None;
             }
             self._emit_spread_copy(
@@ -489,58 +264,34 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 list_val,
                 helpers,
                 "list",
-                _linit_loc
+                _loc,
+                src_elem_ty=self._tb_elem(self._expr_type_of(_spread_op))
             );
             continue;
         }
-        val = self._str_norm(self._codegen_expr(nd.values[i]));
+        val = self._str_norm(self._codegen_expr(v_nd));
         if val is None {
             self.emit(
                 E5092,
-                node_override=nd.values[i],
+                node_override=v_nd,
                 kind="expression",
                 name="list element",
                 help_text="This element of the list display did not lower, so the list would have been built without it. Move the expression out of the display, or move the enclosing code to a @sv/Python context."
             );
             return None;
         }
-        if self._pending_list_elem_struct is not None
-            and isinstance(self._pending_list_elem_struct, ir.PointerType)
-            and isinstance(
-                self._pending_list_elem_struct.pointee, ir.LiteralStructType
-            ) {
-            val = self._coerce_tuple_to_struct(
-                val, self._pending_list_elem_struct.pointee
-            );
-        }
-        _orig_val = val;
-        val = self._box_value_tuple(val, loc=_linit_loc);
-        if _clos_elem is not None and val.type != _decl_elem {
-            val = self._coerce_type(val, _decl_elem);
-        }
-        val = self._nogc_elem_prep(nd.values[i], val);
-        _boxed_val = val;
-        if self._reject_ptr_into_raw_slot(
-            nd, val, helpers["elem_type"], "list element"
-        ) {
-            return list_val;
-        }
-        if elem_type_name == "ptr" and isinstance(val.type, ir.PointerType) {
-            val = self.builder.bitcast(val, i8p, name="elem.cast");
-        } else {
-            val = self._coerce_type(val, helpers["elem_type"]);
-        }
-        self._rc_call_with_ctx(
-            helpers["append"], [list_val, val], op="list_init", loc=_linit_loc
+        (append_val, _boxed_val) = self._list_elem_ready(
+            val, v_nd, spec, _elem_llvm, _loc
         );
-
+        self._rc_call_with_ctx(
+            helpers["append"], [list_val, append_val], op="list_init", loc=_loc
+        );
         if isinstance(_boxed_val.type, ir.PointerType)
             and self._is_owned(_boxed_val)
             and self._gc_mode() != "none" {
-            self._emit_rc_release_simple(_boxed_val, op="list_init", loc=_linit_loc);
+            self._emit_rc_release_simple(_boxed_val, op="list_init", loc=_loc);
         }
     }
-
     return list_val;
 }
 
@@ -652,11 +403,6 @@ impl NaIRGenLists._codegen_index_set(
         value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
 
-    if self._reject_ptr_into_raw_slot(
-        None, value, elem_type, "list element assignment"
-    ) {
-        return;
-    }
     _orig_value = value;
     _val_was_owned = self._is_owned(value);
     value = self._coerce_type(value, elem_type);

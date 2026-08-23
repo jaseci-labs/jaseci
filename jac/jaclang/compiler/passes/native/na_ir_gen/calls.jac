@@ -9,6 +9,17 @@ import from jaclang.compiler.type_system.types { ClassType, EnumMemberType, Unio
 
 obj NaIRGenCalls(NaIRGenState) {
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_builtin_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
+    def _codegen_len_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_empty_container_ctor(
+        nd: uni.FuncCall, func_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_range_or_slice(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
+    def _codegen_input_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _module_call_qualifier(nd: uni.FuncCall) -> (str | None);
+    def _callee_function(nd: uni.FuncCall, func_name: str) -> (ir.Function | None);
+    def _nogc_owned_release_args(nd: uni.FuncCall, release_args: list) -> list;
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
     def _emit_intrinsic_misuse(nd: uni.FuncCall, intr: object, reason: str) -> None;
     def _intrinsic_operand(
@@ -27,11 +38,8 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, intr: object, args: list
     ) -> (ir.Value | None);
 
-    def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
-    def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
     def _container_type_args(t: any) -> list;
-    def _unwrap_cfg_expr(e: any) -> any;
     def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
     def _call_args_lowered(
         nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
@@ -41,17 +49,15 @@ obj NaIRGenCalls(NaIRGenState) {
     def _codegen_decorated_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
     def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_isinstance_ptr_tags(operand: ir.Value, tags: list[int]) -> ir.Value;
-    def _isinstance_type_name(nd: uni.UniNode) -> (str | None);
+    def _isinstance_arm_class(v: uni.UniNode) -> any;
     def _isinstance_target_names(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (list[str] | None);
 
+    def _isinstance_name_kinds(type_arg: uni.UniNode, names: list[str]) -> dict;
     def _isinstance_operand_is_pyb(nd: uni.FuncCall, operand: ir.Value) -> bool;
-    def _isinstance_abc_reduction(
-        type_expr: uni.UniNode, name: str
-    ) -> (list[str] | None);
-
-    def _isinstance_static_verdict(name: str, operand: ir.Value) -> (bool | None);
+    def _isinstance_abc_reduction(t: any, name: str) -> (list[str] | None);
+    def _isinstance_static_verdict(kind: str, operand_t: any) -> (bool | None);
     def _enum_union_tags(operand_expr: uni.UniNode, names: list[str]) -> tuple;
     def _arch_alias_target(nd: (uni.UniNode | None)) -> (str | None);
     def _emit_isinstance_user(
@@ -66,9 +72,7 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, operand: ir.Value, tags: list[int], names: list[str]
     ) -> (ir.Value | None);
 
-    def _jacval_tags_for_type(name: str) -> list[int];
-    def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
-    def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
+    def _jacval_tags_for_kind(kind: str) -> list[int];
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
     def _coerce_narrowed_arg(
@@ -81,9 +85,19 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
-    def _emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None;
+    def _spread_tuple_values(tv: ir.Value) -> list;
+    def _finish_bound_args(
+        nd: uni.FuncCall, func: ir.Function, self_offset: int, args: list
+    ) -> list;
+
+    def _abandoned_args(func: ir.Function, self_offset: int, args: list) -> list;
+    def _checker_flagged(nd: uni.UniNode) -> bool;
+    def _stub_default_value(
+        nd: uni.FuncCall, param: any, expected_type: (ir.Type | None)
+    ) -> ir.Value;
+
     def _codegen_varargs_list(
-        nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
+        nd: uni.FuncCall, extras: list, expected: (ir.Type | None), elem_tb: any
     ) -> (ir.Value | None);
 
     def _codegen_kwargs_dict(
@@ -91,7 +105,8 @@ obj NaIRGenCalls(NaIRGenState) {
         leftover: dict,
         expected: (ir.Type | None),
         order: (list | None) = None,
-        bind_records: (list | None) = None
+        bind_records: (list | None) = None,
+        val_tb: any = None
     ) -> (ir.Value | None);
 
     def _merge_dict_into(
@@ -112,7 +127,6 @@ obj NaIRGenCalls(NaIRGenState) {
         required_kind: (str | None)
     ) -> dict;
 
-    def _default_arg_fallback(t: ir.Type) -> ir.Value;
     def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
     def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
 }

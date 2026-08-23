@@ -223,6 +223,66 @@ impl NaIRGenExceptions._emit_runtime_raise(
     self.builder.position_at_end(ok_bb);
 }
 
+impl NaIRGenExceptions._exc_class_name_of(t: any, at: uni.UniNode) -> str {
+    """The exception class an expression's type names.
+
+    Accepts an instance (`raise ValueError(...)`, a bound `except ... as e`)
+    or a class-form `type[X]` (an `except X` clause); anything else is an
+    upstream typing gap and raises.
+    """;
+    _t = self._tb_solve(t);
+    if isinstance(_t, ClassType) and _t._shared is not None and _t.is_builtin("type") {
+        _targs = _t.private.type_args or [];
+        _t = self._tb_solve(_targs[0]) if _targs else None;
+    }
+    _name = self._tb_class_name(_t);
+    if _name is None {
+        raise AssertionError(
+            f"exception at {at.loc} is typed {t} ({self._tb_kind(
+                t
+            )}), which names no class"
+        );
+    }
+    return _name;
+}
+
+impl NaIRGenExceptions._register_exc_class(t: any, at: uni.UniNode) -> str {
+    _name = self._exc_class_name_of(t, at);
+    self._get_or_register_exc_type(_name);
+    return _name;
+}
+
+impl NaIRGenExceptions._user_exc_subclasses(type_name: str) -> list[str] {
+    """User archetypes whose checker MRO passes through `type_name`.
+
+    Lets `except Base` match a subclass id: every archetype this unit knows
+    is asked, through its class type, whether `type_name` is one of its
+    ancestors.
+    """;
+    _ev = self.prog.get_type_evaluator();
+    out: list[str] = [];
+    for (_an, _arch) in self.arch_ast_map.items() {
+        if _an == type_name or not isinstance(_arch, uni.Archetype) {
+            continue;
+        }
+        _sym = _arch.name_spec.sym;
+        if _sym is None {
+            continue;
+        }
+        _ct = _ev.get_type_of_symbol(_sym);
+        if not isinstance(_ct, ClassType) or _ct._shared is None {
+            continue;
+        }
+        for _anc in (_ct.shared.mro or []) {
+            if self._tb_class_name(_anc) == type_name {
+                out.append(_an);
+                break;
+            }
+        }
+    }
+    return out;
+}
+
 impl NaIRGenExceptions._get_or_register_exc_type(exc_name: str) -> int {
     if exc_name in self._exc_type_registry {
         return self._exc_type_registry[exc_name];
@@ -235,7 +295,12 @@ impl NaIRGenExceptions._get_or_register_exc_type(exc_name: str) -> int {
 
 impl NaIRGenExceptions._get_exc_descendants(type_name: str) -> list[str] {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    descendants = JAC_TYPE_REGISTRY.exception_descendants(type_name);
+    descendants = list(JAC_TYPE_REGISTRY.exception_descendants(type_name));
+    for _sub in self._user_exc_subclasses(type_name) {
+        if _sub not in descendants {
+            descendants.append(_sub);
+        }
+    }
     for desc_name in descendants {
         self._get_or_register_exc_type(desc_name);
     }
@@ -273,28 +338,18 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
     exc_type_name = "Exception";
     exc_type_id = 0;
     if nd.cause is not None {
-        if isinstance(nd.cause, uni.FuncCall) {
-            exc_type_name = self._get_name(nd.cause.target) or "Exception";
-            exc_type_id = self._get_or_register_exc_type(exc_type_name);
-
-            _exc_pos_args = [];
-            for _p in (nd.cause.params or []) {
-                if not isinstance(_p, uni.KWPair) {
-                    _exc_pos_args.append(_p);
-                }
-            }
-            _exc_has_init = f"{exc_type_name}.init" in self.method_funcs;
-            if f"{exc_type_name}.__init__" in self.method_funcs {
-                _exc_has_init = True;
-            }
-            _exc_order = self.struct_field_order.get(exc_type_name);
-            _exc_struct_ok = _exc_has_init;
-            if (not _exc_struct_ok) and (_exc_order is not None) {
-                _exc_struct_ok = len(_exc_pos_args) <= len(_exc_order);
-            }
-            if (exc_type_name in self.struct_types) and _exc_struct_ok {
-                exc_payload = self._codegen_expr(nd.cause);
-            } elif _exc_pos_args {
+        _cause_t = self._flow_narrowed_type_of(nd.cause);
+        exc_type_name = self._register_exc_class(_cause_t, nd.cause);
+        exc_type_id = self._get_or_register_exc_type(exc_type_name);
+        if exc_type_name in self.struct_types {
+            exc_payload = self._codegen_expr(nd.cause);
+        } elif isinstance(nd.cause, uni.FuncCall) {
+            _exc_pos_args = [
+                _p
+                for _p in (nd.cause.params or [])
+                if not isinstance(_p, uni.KWPair)
+            ];
+            if _exc_pos_args {
                 exc_msg = self._codegen_expr(_exc_pos_args[0]);
             } elif nd.cause.params {
                 exc_msg = self._codegen_expr(nd.cause.params[0]);
@@ -323,6 +378,29 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
         self._exc_raise_fn, [exc_payload, ir.Constant(i32, exc_type_id), exc_msg]
     );
     self.builder.unreachable();
+}
+
+impl NaIRGenExceptions._except_clause_classes(except_node: uni.Except) -> list[str] {
+    """The exception class names an `except` clause matches.
+
+    A bare clause matches everything; a single class is its `type[X]`; a tuple
+    clause is `tuple[type[A], type[B], ...]` and matches any of its arms.
+    """;
+    _ex = except_node.ex_type;
+    if _ex is None {
+        return ["Exception"];
+    }
+    _t = self._tb_solve(self._flow_narrowed_type_of(_ex));
+    if self._tb_kind(_t) == "tuple" {
+        _arms = self._tb_args(_t);
+        if not _arms {
+            raise AssertionError(
+                f"except clause at {_ex.loc} is a tuple with no class arms ({_t})"
+            );
+        }
+        return [self._register_exc_class(_a, _ex) for _a in _arms];
+    }
+    return [self._register_exc_class(_t, _ex)];
 }
 
 impl NaIRGenExceptions._raise_has_frame_handler(nd: uni.RaiseStmt) -> bool {
@@ -446,8 +524,12 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
                 next_dispatch_bb = None;
             }
 
-            caught_type_name = self._get_name(except_node.ex_type) or "Exception";
-            caught_type_id = self._get_or_register_exc_type(caught_type_name);
+            _caught_names = self._except_clause_classes(except_node);
+            caught_type_name = _caught_names[0];
+            _caught_ids = [
+                self._get_or_register_exc_type(_cn) for _cn in _caught_names
+            ];
+            caught_type_id = 0 if 0 in _caught_ids else _caught_ids[0];
 
             if i > 0 {
                 self.builder.position_at_end(current_dispatch_bb);
@@ -459,24 +541,28 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
             if caught_type_id == 0 {
                 self.builder.branch(handler_bb);
             } else {
-                descendants = self._get_exc_descendants(caught_type_name);
-                does_match = self.builder.icmp_signed(
-                    "==",
-                    exc_type_val,
-                    ir.Constant(i32, caught_type_id),
-                    name=f"exc.match.{i}"
-                );
-                for desc_name in descendants {
-                    desc_id = self._get_or_register_exc_type(desc_name);
-                    desc_match = self.builder.icmp_signed(
+                _match_ids: list[int] = [];
+                for _cn in _caught_names {
+                    for _mn in [_cn] + self._get_exc_descendants(_cn) {
+                        _mid = self._get_or_register_exc_type(_mn);
+                        if _mid not in _match_ids {
+                            _match_ids.append(_mid);
+                        }
+                    }
+                }
+                does_match: (ir.Value | None) = None;
+                for _mid in _match_ids {
+                    _m = self.builder.icmp_signed(
                         "==",
                         exc_type_val,
-                        ir.Constant(i32, desc_id),
-                        name=f"exc.match.{i}.{desc_name}"
+                        ir.Constant(i32, _mid),
+                        name=f"exc.match.{i}.{_mid}"
                     );
-                    does_match = self.builder.or_(
-                        does_match, desc_match, name=f"exc.or.{i}.{desc_name}"
-                    );
+                    does_match = _m
+                        if does_match is None
+                        else self.builder.or_(
+                            does_match, _m, name=f"exc.or.{i}.{_mid}"
+                        );
                 }
                 if next_dispatch_bb is not None {
                     self.builder.cbranch(does_match, handler_bb, next_dispatch_bb);
@@ -503,11 +589,17 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
                     if isinstance(except_node.name, uni.Name)
                     else str(except_node.name);
 
-                if caught_type_name in self.struct_types {
+                _bound_t = self._tb_solve(except_node.name.type);
+                _bound_cls = self._tb_class_name(_bound_t);
+                if (
+                    self._tb_kind(_bound_t) == "struct"
+                    and _bound_cls is not None
+                    and _bound_cls in self.struct_types
+                ) {
                     handler_exc_obj = self.builder.load(
                         exc_obj_ptr, name="exc.bound.obj"
                     );
-                    _exc_sp_ty = self.struct_types[caught_type_name].as_pointer();
+                    _exc_sp_ty = self.struct_types[_bound_cls].as_pointer();
                     typed_obj = self.builder.bitcast(
                         handler_exc_obj, _exc_sp_ty, name="exc.bound.typed"
                     );

@@ -635,6 +635,13 @@ impl TypeEvaluator._get_type_of_expression_core(
 
         case IndexSlice():
             if expr.is_range {
+                for _sl in (expr.slices or []) {
+                    for _part in (_sl.start, _sl.stop, _sl.step) {
+                        if _part is not None {
+                            self.get_type_of_expression(_part);
+                        }
+                    }
+                }
                 if self.prefetch and self.prefetch.slice_class {
                     return self._convert_to_instance(self.prefetch.slice_class);
                 }

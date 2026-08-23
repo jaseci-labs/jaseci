@@ -20,7 +20,8 @@ impl NaIRGenClibAbi._foreign_fns -> dict {
 
 impl NaIRGenClibAbi._foreign_fields_of(name: str) -> list {
     model = self._foreign_model();
-    indices = self.struct_field_indices.get(name, {});
+    lay = self._arch_layout(name);
+    indices = lay.field_index if lay is not None else {};
     out: list = [];
     for (i, (fn, tn)) in enumerate(model.get(name, [])) {
         assert fn not in indices or indices[fn] == i , f"foreign field order mismatch for {name}.{fn}";
@@ -53,13 +54,13 @@ impl NaIRGenClibAbi._clib_c_type(name: str) -> ir.Type {
     }
     ct = self.llvm_module.context.get_identified_type(key);
     self.struct_types[key] = ct;
-    ftypes = self.struct_field_types.get(name, {});
+    ftypes = self.struct_field_types[name];
     body: list = [];
     for (fn, nested) in self._foreign_fields_of(name) {
         if nested is not None {
             body.append(self._clib_c_type(nested));
         } else {
-            body.append(ftypes.get(fn, ir.IntType(64)));
+            body.append(ftypes[fn]);
         }
     }
     ct.set_body(*body);

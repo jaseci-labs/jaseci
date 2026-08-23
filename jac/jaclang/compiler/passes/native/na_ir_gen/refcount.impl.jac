@@ -1406,10 +1406,14 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
     field_indices = self.struct_field_indices.get(type_name, {});
     foreign_fields = self.struct_field_foreign.get(type_name, set());
     i32 = ir.IntType(32);
-    for (fname, ftype) in field_types.items() {
+    for (fname, _hv_ty) in self._struct_field_checker_types(type_name) {
+        ftype = field_types.get(fname);
+        if ftype is None {
+            continue;
+        }
         if fname in self.struct_field_inline.get(type_name, set()) {
             _in_idx = field_indices.get(fname, -1);
-            _in_name = getattr(ftype, "name", "") or "";
+            _in_name = self._tb_class_name(_hv_ty) or "";
             _in_dropf = self._emit_struct_drop_fields_fn(_in_name)
                 if _in_name
                 else None;
@@ -1430,16 +1434,12 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
         if idx < 0 {
             continue;
         }
-        _fld_drop: (ir.Function | None) = None;
-        _pointee = ftype?.pointee;
-        _pname = getattr(_pointee, "name", "") or "";
-        if _pname in self.struct_types or _pname == type_name {
-            _fld_drop = self._emit_struct_drop_fn(_pname);
-        } elif _pname.startswith("List.")
-            or _pname.startswith("Dict.")
-            or _pname.startswith("Set.") {
-            _fld_drop = self._emit_container_drop_fn(_pname);
-        }
+        _fld_kind = self._tb_kind(_hv_ty);
+        _fld_drop: (ir.Function | None) = (
+            self._drop_fn_for_type(_hv_ty)
+                if _fld_kind in ("struct", "object", "list", "dict", "set")
+                else None
+        );
         if _fld_drop is None {
             continue;
         }
@@ -1457,6 +1457,33 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
     b.position_at_end(done_bb);
     b.ret_void();
     return fn;
+}
+
+impl NaIRGenRefcount._struct_field_checker_types(type_name: str) -> list {
+    _arch = self.arch_ast_map.get(type_name);
+    if not isinstance(_arch, uni.Archetype) {
+        return [];
+    }
+    out: list = [];
+    _seen: set = set();
+    _chain: list = [_arch];
+    for _base in self._mro_of(type_name) {
+        _bast = self.arch_ast_map.get(_base);
+        if isinstance(_bast, uni.Archetype) and _bast is not _arch {
+            _chain.append(_bast);
+        }
+    }
+    for _a in _chain {
+        for _hv in _a.get_has_vars() {
+            _n = _hv.name.value;
+            if _n in _seen {
+                continue;
+            }
+            _seen.add(_n);
+            out.append((_n, _hv.type));
+        }
+    }
+    return out;
 }
 
 impl NaIRGenRefcount._emit_container_drop_fn(cont_name: str) -> (ir.Function | None) {
@@ -1576,136 +1603,64 @@ impl NaIRGenRefcount._nogc_elem_drop_slot_ty -> ir.Type {
     return ir.FunctionType(ir.VoidType(), [ir.IntType(8).as_pointer()]).as_pointer();
 }
 
-impl NaIRGenRefcount._nogc_type_arg_mangles_of_str(m: str) -> list {
-    _open = m.find("[");
-    if _open < 0 or not m.endswith("]") {
-        return [];
-    }
-    _inner = m[_open + 1:-1];
-    _args: list = [];
-    _depth = 0;
-    _cur = "";
-    for _ch in _inner {
-        if _ch == "[" {
-            _depth += 1;
-        } elif _ch == "]" {
-            _depth -= 1;
-        }
-        if _ch == "," and _depth == 0 {
-            _args.append(_cur.strip());
-            _cur = "";
-        } else {
-            _cur += _ch;
-        }
-    }
-    if _cur.strip() {
-        _args.append(_cur.strip());
-    }
-    return _args;
-}
-
-impl NaIRGenRefcount._nogc_type_arg_mangles(expr: uni.UniNode | None) -> list {
-    _m = "";
-    try {
-        _m = expr.type.mangle() if (expr is not None and expr.type is not None) else "";
-    } except Exception {
-        return [];
-    }
-    _open = _m.find("[");
-    if _open < 0 or not _m.endswith("]") {
-        return [];
-    }
-    _inner = _m[_open + 1:-1];
-    _args: list = [];
-    _depth = 0;
-    _cur = "";
-    for _ch in _inner {
-        if _ch == "[" {
-            _depth += 1;
-        } elif _ch == "]" {
-            _depth -= 1;
-        }
-        if _ch == "," and _depth == 0 {
-            _args.append(_cur.strip());
-            _cur = "";
-        } else {
-            _cur += _ch;
-        }
-    }
-    if _cur.strip() {
-        _args.append(_cur.strip());
-    }
-    return _args;
-}
-
-impl NaIRGenRefcount._drop_spec_for_mangle(mangle: str) -> (tuple | None) {
-    if mangle == "int" or mangle == "bool" {
-        return ("i64", ir.IntType(64));
-    }
-    if mangle == "float" {
-        return ("f64", ir.DoubleType());
-    }
-    if mangle == "str"
-        or mangle in self.struct_types
-        or mangle.startswith("list[")
-        or mangle.startswith("dict[")
-        or mangle.startswith("set[") {
-        return ("ptr", ir.IntType(8).as_pointer());
-    }
-    return None;
-}
-
-impl NaIRGenRefcount._drop_fn_for(mangle: str) -> (ir.Function | None) {
-    if mangle in self.drop_fn_registry {
-        return self.drop_fn_registry[mangle];
+impl NaIRGenRefcount._drop_fn_for_type(t: any) -> (ir.Function | None) {
+    _key = self._mangled_of(t);
+    if _key is not None and _key in self.drop_fn_registry {
+        return self.drop_fn_registry[_key];
     }
     i8p = ir.IntType(8).as_pointer();
     _fn: (ir.Function | None) = None;
-    if mangle in _NOGC_OSP_ENGINE_STRUCTS {
-        return None;
-    }
-    if mangle in self.struct_types and self._arch_is_osp_name(mangle) {
-        return None;
-    }
-    if mangle == "str" {
+    _kind = self._tb_kind(t);
+    if _kind == "str" {
         _fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-    } elif "|" in mangle or mangle == "any" {
-        _fn = self._emit_jacval_slot_drop_fn(mangle);
-    } elif mangle in self.struct_types {
-        _fn = self._emit_struct_drop_fn(mangle);
-    } elif mangle.startswith("list[") and mangle.endswith("]") {
-        _inner = self._drop_spec_for_mangle(mangle[5:-1]);
-        if _inner is not None {
-            self._emit_list_helpers(_inner[0], _inner[1]);
-            _fn = self._emit_container_drop_fn(f"List.{_inner[0]}");
+    } elif _kind in ("optional", "union", "any") {
+        _fn = self._emit_jacval_slot_drop_fn(t);
+    } elif _kind in ("struct", "object") {
+        _name = self._tb_class_name(t);
+        if (
+            _name is not None
+            and _name in self.struct_types
+            and _name not in _NOGC_OSP_ENGINE_STRUCTS
+            and not self._arch_is_osp_name(_name)
+        ) {
+            _fn = self._emit_struct_drop_fn(_name);
         }
-    } elif mangle.startswith("set[") and mangle.endswith("]") {
-        _inner = self._drop_spec_for_mangle(mangle[4:-1]);
-        if _inner is not None {
-            _fn = self._emit_container_drop_fn(f"Set.{_inner[0]}");
+    } elif _kind == "list" {
+        _spec = self._list_spec_for_type(t);
+        if _spec is not None {
+            _fn = self._emit_container_drop_fn(f"List.{_spec}");
         }
-    } elif mangle.startswith("dict[") and mangle.endswith("]") {
-        _kv = self._nogc_type_arg_mangles_of_str(mangle);
-        if len(_kv) == 2 {
-            _ks = self._drop_spec_for_mangle(_kv[0]);
-            _vs = self._drop_spec_for_mangle(_kv[1]);
-            if _ks is not None and _vs is not None {
-                _fn = self._emit_container_drop_fn(f"Dict.{_ks[0]}.{_vs[0]}");
-            }
+    } elif _kind == "set" {
+        _spec = self._set_spec_for_type(t);
+        if _spec is not None {
+            _fn = self._emit_container_drop_fn(f"Set.{_spec}");
+        }
+    } elif _kind == "dict" {
+        _spec = self._dict_spec_for_type(t);
+        if _spec is not None {
+            _fn = self._emit_container_drop_fn("Dict." + _spec.replace(":", "."));
         }
     }
-    if _fn is not None {
-        self.drop_fn_registry[mangle] = _fn;
+    if _fn is not None and _key is not None {
+        self.drop_fn_registry[_key] = _fn;
     }
     return _fn;
 }
 
 impl NaIRGenRefcount._nogc_stamp_elem_drops(
-    cont: ir.Value | None, elem_mangles: list
+    cont: ir.Value | None, elem_types: list
 ) -> None {
     if cont is None or self._gc_mode() != "none" {
         return;
     }
+    _str_cls = self.prog.get_type_evaluator().prefetch.str_class;
+    elem_mangles = [
+        (
+            (_str_cls.clone_as_instance() if _str_cls is not None else None)
+                if _et == "str"
+                else _et
+        ) for _et in elem_types
+    ];
     i32 = ir.IntType(32);
     _slot_ty = self._nogc_elem_drop_slot_ty();
     _cont_struct = cont.type?.pointee;
@@ -1721,7 +1676,7 @@ impl NaIRGenRefcount._nogc_stamp_elem_drops(
         if _k < len(elem_mangles)
     ];
     for (_idx, _em) in _slot_specs {
-        _drop_target = self._drop_fn_for(_em);
+        _drop_target = self._drop_fn_for_type(_em) if _em is not None else None;
         if _drop_target is None {
             continue;
         }
@@ -1733,9 +1688,8 @@ impl NaIRGenRefcount._nogc_stamp_elem_drops(
     }
 }
 
-impl NaIRGenRefcount._emit_jacval_slot_drop_fn(
-    elem_mangle: str
-) -> (ir.Function | None) {
+impl NaIRGenRefcount._emit_jacval_slot_drop_fn(elem_ty: any) -> (ir.Function | None) {
+    elem_mangle = self._mangled_of(elem_ty) or "any";
     _key = f"jacval:{elem_mangle}";
     if _key in self.container_drop_fns {
         return self.container_drop_fns[_key];
@@ -1745,26 +1699,25 @@ impl NaIRGenRefcount._emit_jacval_slot_drop_fn(
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    _members = [_m.strip() for _m in elem_mangle.split("|")];
     _list_drops: list = [];
     _struct_drops: list = [];
-    for _m in _members {
-        if _m == "list[int]" {
-            self._emit_list_helpers("i64", i64);
-            _cand = self._emit_container_drop_fn("List.i64");
-            if _cand is not None and _cand not in _list_drops {
-                _list_drops.append(_cand);
+    for _m in self._tb_non_none(elem_ty) {
+        _mk = self._tb_kind(_m);
+        if _mk == "list" {
+            _spec = self._list_spec_for_type(_m);
+            if _spec in ("i64", "f64") {
+                _cand = self._emit_container_drop_fn(f"List.{_spec}");
+                if _cand is not None and _cand not in _list_drops {
+                    _list_drops.append(_cand);
+                }
             }
-        } elif _m == "list[float]" {
-            self._emit_list_helpers("f64", ir.DoubleType());
-            _cand = self._emit_container_drop_fn("List.f64");
-            if _cand is not None and _cand not in _list_drops {
-                _list_drops.append(_cand);
-            }
-        } elif _m in self.struct_types {
-            _cand = self._emit_struct_drop_fn(_m);
-            if _cand is not None and _cand not in _struct_drops {
-                _struct_drops.append(_cand);
+        } elif _mk in ("struct", "object") {
+            _mn = self._tb_class_name(_m);
+            if _mn is not None and _mn in self.struct_types {
+                _cand = self._emit_struct_drop_fn(_mn);
+                if _cand is not None and _cand not in _struct_drops {
+                    _struct_drops.append(_cand);
+                }
             }
         }
     }
@@ -1845,6 +1798,28 @@ impl NaIRGenRefcount._nogc_elem_prep(
     if val is None or self._gc_mode() != "none" {
         return val;
     }
+    _ep_ty = self._expr_type_of(expr);
+    _ep_kind = self._tb_kind(self._tb_opt_payload(_ep_ty) or _ep_ty);
+    if _ep_kind != "str" {
+        if isinstance(val.type, ir.PointerType)
+            and isinstance(expr, uni.Name)
+            and expr.sym_name in self.local_vars
+            and expr.sym_name not in self.param_vars {
+            _epm = self.ir_in.rc_move_in;
+            if id(expr) in _epm {
+                _ep_slot = self.local_vars[expr.sym_name];
+                if isinstance(_ep_slot.type, ir.PointerType)
+                    and isinstance(_ep_slot.type.pointee, ir.PointerType) {
+                    self.builder.store(
+                        ir.Constant(_ep_slot.type.pointee, None), _ep_slot
+                    );
+                }
+            } else {
+                self.nogc_no_free_vars.add(expr.sym_name);
+            }
+        }
+        return val;
+    }
     if self._str_desc_ty is not None and val.type == self._str_desc_ty {
         if self._is_owned(val) or isinstance(expr, uni.FString) {
             return val;
@@ -1873,43 +1848,16 @@ impl NaIRGenRefcount._nogc_elem_prep(
         self._mark_owned(_ep_copy);
         return _ep_copy;
     }
-    if not (
-        isinstance(val.type, ir.PointerType)
-        and isinstance(val.type.pointee, ir.IntType)
-        and val.type.pointee.width == 8
-    ) {
-        if isinstance(val.type, ir.PointerType)
-            and isinstance(expr, uni.Name)
-            and expr.sym_name in self.local_vars
-            and expr.sym_name not in self.param_vars {
-            _epm = self.ir_in.rc_move_in;
-            if id(expr) in _epm {
-                _ep_slot = self.local_vars[expr.sym_name];
-                if isinstance(_ep_slot.type, ir.PointerType)
-                    and isinstance(_ep_slot.type.pointee, ir.PointerType) {
-                    self.builder.store(
-                        ir.Constant(_ep_slot.type.pointee, None), _ep_slot
-                    );
-                }
-            } else {
-                self.nogc_no_free_vars.add(expr.sym_name);
-            }
-        }
+    if not isinstance(val.type, ir.PointerType) {
         return val;
     }
     if isinstance(expr, uni.FString) {
         return val;
     }
-    if isinstance(expr, uni.AtomTrailer) and isinstance(expr.right, uni.IndexSlice) {
-        _bm = "";
-        try {
-            _bm = expr.target.type.mangle() if expr.target.type is not None else "";
-        } except Exception {
-            _bm = "";
-        }
-        if _bm == "str" {
-            return val;
-        }
+    if isinstance(expr, uni.AtomTrailer)
+        and isinstance(expr.right, uni.IndexSlice)
+        and self._tb_kind(self._expr_type_of(expr.target)) == "str" {
+        return val;
     }
     if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
         _mi = self.ir_in.rc_move_in;

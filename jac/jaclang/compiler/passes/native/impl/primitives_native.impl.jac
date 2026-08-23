@@ -2586,11 +2586,6 @@ impl NativeListEmitter.emit_append(
     }
 
     _boxed_val = p._box_value_tuple(args[0]);
-    if p._reject_ptr_into_raw_slot(
-        None, _boxed_val, helpers["elem_type"], "list append"
-    ) {
-        return ir.Constant(ir.IntType(64), 0);
-    }
     val = p._coerce_type(_boxed_val, helpers["elem_type"]);
 
     _append_loc = getattr(args[0], 'jac_loc', "");
@@ -2688,11 +2683,6 @@ impl NativeListEmitter.emit_insert(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     insert_idx = args[0];
-    if p._reject_ptr_into_raw_slot(
-        None, args[1], helpers["elem_type"], "list insert"
-    ) {
-        return ir.Constant(i64, 0);
-    }
     insert_val = p._coerce_type(args[1], helpers["elem_type"]);
 
     b.call(helpers["append"], [target, insert_val]);
@@ -3817,9 +3807,6 @@ impl NativeSetEmitter.emit_add(
     helpers = p.set_helpers.get(ctx.type_key);
     if helpers is None or not args {
         return None;
-    }
-    if p._reject_ptr_into_raw_slot(None, args[0], helpers["elem_type"], "set add") {
-        return ir.Constant(ir.IntType(64), 0);
     }
     val = p._coerce_type(args[0], helpers["elem_type"]);
     get_builder(p).call(helpers["add"], [target, val]);

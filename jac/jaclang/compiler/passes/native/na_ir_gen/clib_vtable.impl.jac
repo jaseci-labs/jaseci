@@ -1,7 +1,10 @@
 impl NaIRGenClibVtable._clib_struct_has_fn_ptr(name: str) -> bool {
-    for ftype in self.struct_field_types.get(name, {}).values() {
-        if isinstance(ftype, ir.PointerType)
-            and isinstance(ftype.pointee, ir.FunctionType) {
+    lay = self._arch_layout(name);
+    if lay is None {
+        return False;
+    }
+    for finfo in lay.fields {
+        if finfo.is_func_ptr {
             return True;
         }
     }

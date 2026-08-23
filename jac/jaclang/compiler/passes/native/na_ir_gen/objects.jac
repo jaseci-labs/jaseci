@@ -1,8 +1,8 @@
 import from jaclang.compiler.passes.main.layout_pass {
     ACCESSOR_SLOT_SUFFIX,
     ArchetypeLayout,
-    accessor_slot_name,
-    archetype_accessors
+    ClassConstInfo,
+    accessor_slot_name
 }
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.constants {
@@ -22,16 +22,27 @@ import from jaclang.jac0core.codeinfo {
 }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 import from jaclang.jac0core.constant { OwnershipKind }
-import from jaclang.jac0core.diagnostics { E5090, E5091, E5092 }
+import from jaclang.jac0core.diagnostics { E5091, E5092 }
 import from jaclang.jac0core.osp_model { stable_osp_tag }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import jaclang.jac0core.unitree as uni;
 import os;
 import sys;
-import from jaclang.compiler.type_system.types { FunctionType }
+import from jaclang.compiler.type_system.types { ClassType, FunctionType }
 
 obj NaIRGenObjects(NaIRGenState) {
-    def _erased_sig_typevars(nd: uni.Archetype) -> dict;
+    def _registry -> any;
+    def _own_path -> str;
+    def _arch_key(lay: ArchetypeLayout) -> str;
+    def _own_method_slots(lay: ArchetypeLayout) -> list;
+    def _is_virtual_slot(arch_name: str, method_name: str) -> bool;
+    def _member_field_of(nd: (uni.UniNode | None)) -> (uni.HasVar | None);
+    def _member_ability_of(nd: (uni.UniNode | None)) -> (uni.Ability | None);
+    def _tb_is_class_ref(t: any) -> bool;
+    def _init_ability_of(owner: str) -> (uni.Ability | None);
+    def _module_name_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _receiver_arch_name(expr: (uni.UniNode | None)) -> (str | None);
+    def _erased_sig_typevars(lay: ArchetypeLayout) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(
         nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
@@ -52,17 +63,10 @@ obj NaIRGenObjects(NaIRGenState) {
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
     def _register_archetypes(module: uni.Module) -> None;
     def _codegen_archetype(nd: uni.Archetype) -> None;
-    def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
-    def _register_class_consts(
-        nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
-    ) -> None;
-
+    def _register_static_fields(arch_name: str, lay: ArchetypeLayout) -> None;
+    def _register_class_consts(arch_name: str, lay: ArchetypeLayout) -> None;
     def _register_one_class_const(
-        arch_name: str,
-        fname: str,
-        target: uni.UniNode,
-        assign: uni.Assignment,
-        owns: bool
+        arch_name: str, cinfo: ClassConstInfo, owns: bool
     ) -> None;
 
     def _class_const_enum_init(
@@ -85,7 +89,10 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> None;
 
     def _method_slot_name(method: uni.Ability, field: (uni.HasVar | None)) -> str;
-    def _accessor_slot_of(type_name: str, field_name: str, kind: str) -> (str | None);
+    def _accessor_slot_of(
+        type_name: str, field_name: str, kind: str, member: (uni.UniNode | None) = None
+    ) -> (str | None);
+
     def _codegen_accessor_call(
         obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
     ) -> (ir.Value | None);
@@ -147,7 +154,6 @@ obj NaIRGenObjects(NaIRGenState) {
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_event_method(arch_name: str, method: uni.Ability) -> None;
-    def _trigger_member_structs(tag: (uni.UniNode | None)) -> list[str];
     def _trigger_struct_names(method: uni.Ability) -> list[str];
     def _union_layout_conflict(members: list[str]) -> (str | None);
     def _codegen_instantiation(

@@ -15,26 +15,6 @@ impl NaIRGenDicts._dict_key_spec(key_type: ir.Type) -> tuple {
     return ("i64", 0);
 }
 
-impl NaIRGenDicts._peer_dict_key -> (str | None) {
-    """Dict layout an empty display should adopt from the operand beside it.
-
-    Set only where one branch's container answers for the other's: a ternary
-    arm and the right operand of `or`/`and`. An empty `{}` has no entries to
-    infer from, so `h.tbl or {}` would otherwise pick its own flavour, and
-    the phi would erase both branches to `i8*`.
-    """;
-    _pt = self._peer_container_ty;
-    if _pt is None or not isinstance(_pt, ir.PointerType) {
-        return None;
-    }
-    for (_spec, _dt) in self.dict_types.items() {
-        if _dt.as_pointer() == _pt {
-            return _spec;
-        }
-    }
-    return None;
-}
-
 impl NaIRGenDicts._unwrap_opt_container(val: ir.Value) -> ir.Value {
     _pay = self._opt_payload_of(val.type);
     if _pay is None or not isinstance(_pay, ir.PointerType) {
@@ -175,7 +155,11 @@ impl NaIRGenDicts._emit_dict_helpers(
     }
 
     new_fn = self._emit_container_new_fn(
-        f"__dict_new_{_safe}", dict_ptr_type, layout, dtor_fn=_rel_fn_decl
+        f"__dict_new_{_safe}",
+        dict_ptr_type,
+        layout,
+        dtor_fn=_rel_fn_decl,
+        type_name=f"dict_{_safe}"
     );
 
     core = self._emit_hash_core_helpers(
@@ -222,7 +206,40 @@ impl NaIRGenDicts._emit_dict_helpers(
     };
 }
 
-impl NaIRGenDicts._box_to_jacval(value: ir.Value) -> ir.Value {
+impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
+    _kind = self._tb_kind(ty);
+    if _kind in ("optional", "union") {
+        _tags = {self._jacval_tag_for_type(_m) for _m in self._tb_non_none(ty)};
+        return _tags.pop() if len(_tags) == 1 else None;
+    }
+    _by_kind = {
+        "int": 0,
+        "float": 1,
+        "str": 2,
+        "list": 3,
+        "bytearray": 3,
+        "dict": 4,
+        "set": 5,
+        "struct": 6,
+        "object": 6,
+        "tuple": 6,
+        "bool": 7,
+        "none": 8,
+        "bytes": 2,
+        "fn": 2,
+        "file": 2,
+        "binary_file": 2,
+        "region": 2,
+        "iterator": 2,
+        "range": 2,
+        "slice": 2,
+        "complex": 2,
+        "enum": 2
+    };
+    return _by_kind.get(_kind);
+}
+
+impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
     value = self._str_norm(value);
     b = self.builder;
     i8 = ir.IntType(8);
@@ -255,48 +272,31 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value) -> ir.Value {
         payload = b.bitcast(value, i64, name="jv.f2i");
         b.store(payload, payload_ptr);
     } elif isinstance(value.type, ir.PointerType) {
-        ptr_tag = 2;
-        for (_, ltype) in self.list_types.items() {
-            if value.type == ltype.as_pointer() {
-                ptr_tag = 3;
-                break;
-            }
+        _i8p_box = ir.IntType(8).as_pointer();
+        _tag: (int | None) = None;
+        _maybe_none = ty is None;
+        if ty is not None {
+            _tag = self._jacval_tag_for_type(ty);
+            _maybe_none = self._tb_has_none(ty);
+        } elif value.type == _i8p_box {
+            _tag = 2;
         }
-        if ptr_tag == 2 {
-            for (_, dtype) in self.dict_types.items() {
-                if value.type == dtype.as_pointer() {
-                    ptr_tag = 4;
-                    break;
-                }
-            }
-        }
-        if ptr_tag == 2 {
-            for (_, stype) in self.set_types.items() {
-                if value.type == stype.as_pointer() {
-                    ptr_tag = 5;
-                    break;
-                }
-            }
-        }
-        if ptr_tag == 2 {
-            for (_, structt) in self.struct_types.items() {
-                if value.type == structt.as_pointer() {
-                    ptr_tag = 6;
-                    break;
-                }
-            }
+        if _tag is None {
+            raise AssertionError(
+                f"native: boxing a pointer value into `any` without a checker type (ty={ty}, llvm={value.type})"
+            );
         }
         payload = b.ptrtoint(value, i64, name="jv.p2i");
-        if ptr_tag == 2 {
+        if _maybe_none {
             is_null = b.icmp_unsigned(
                 "==", payload, ir.Constant(i64, 0), name="jv.isnone"
             );
-            none_or_str = b.select(
-                is_null, ir.Constant(i8, 8), ir.Constant(i8, 2), name="jv.nonetag"
+            none_or_tag = b.select(
+                is_null, ir.Constant(i8, 8), ir.Constant(i8, _tag), name="jv.nonetag"
             );
-            b.store(none_or_str, tag_ptr);
+            b.store(none_or_tag, tag_ptr);
         } else {
-            b.store(ir.Constant(i8, ptr_tag), tag_ptr);
+            b.store(ir.Constant(i8, _tag), tag_ptr);
         }
         b.store(payload, payload_ptr);
     } elif isinstance(value.type, ir.VoidType) {
@@ -343,39 +343,29 @@ impl NaIRGenDicts._unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.V
 impl NaIRGenDicts._dict_key_reconcile(
     dk: (str | None), val: (ir.Value | None)
 ) -> (str | None) {
-    if val is None {
-        return dk;
-    }
-    if dk is not None {
-        _st = self.dict_types.get(dk);
-        if _st is not None and val.type == _st.as_pointer() {
-            return dk;
-        }
-    }
-    _info = self._infer_dict_type(val);
-    if _info is not None {
-        return f"{_info[0]}:{_info[1]}";
-    }
     return dk;
 }
 
 impl NaIRGenDicts._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
-    if not nd.kv_pairs {
-        _dk = self._peer_dict_key() or self._dict_key_of(nd);
-        _helpers = self.dict_helpers.get(_dk) if _dk is not None else None;
-        if _helpers is not None {
-            _empty_dv = self.builder.call(_helpers["new"], [], name="dict.empty");
-            self._nogc_stamp_elem_drops(_empty_dv, self._nogc_type_arg_mangles(nd));
-            return _empty_dv;
-        }
+    _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+        if nd.loc
+        else 0}";
+    _dty = self._expr_type_of(nd);
+    _kt = self._tb_elem(_dty, 0);
+    _vt = self._tb_elem(_dty, 1);
+    if _kt is None or _vt is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name="dict display without key/value types",
+            help_text="The checker stamped no key or value type on this dict display, so there is no native layout to build it in. Annotate the binding (for example `d: dict[str, int] = {}`), or give the display an entry."
+        );
         return None;
     }
-
-    _dk_args = nd.type.private.type_args
-        if (isinstance(nd, uni.Expr) and nd.type is not None)
-        else [];
-    _k_store = self._elem_storage_llvm(_dk_args[0]) if len(_dk_args) >= 2 else None;
-    if _k_store is not None and self?.jacval_type and _k_store == self.jacval_type {
+    _kl = self._elem_slot_llvm(_kt);
+    _vl = self._elem_slot_llvm(_vt);
+    if _kl is not None and self?.jacval_type and _kl == self.jacval_type {
         self.emit(
             E5092,
             node_override=nd,
@@ -385,108 +375,65 @@ impl NaIRGenDicts._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         );
         return None;
     }
-
-    first_pair = nd.kv_pairs[0];
-    first_key = self._codegen_expr(first_pair.key);
-    first_val = self._str_norm(self._codegen_expr(first_pair.value));
-    if first_key is None or first_val is None {
+    if _kl is None or _vl is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name=f"dict of {_kt} to {_vt}",
+            help_text="The key or value type has no native lowering, so the dict has no native layout. Use lowerable key and value types, or move this code to a @sv/Python context."
+        );
         return None;
     }
+    (key_type_name, key_size) = self._dict_key_spec(_kl);
+    val_type_name = self._dict_val_spec(_vl);
+    self._emit_dict_helpers(key_type_name, val_type_name, _kl, _vl, key_size);
+    helpers = self.dict_helpers[f"{key_type_name}:{val_type_name}"];
+    key_type = helpers["key_type"];
+    val_type = helpers["val_type"];
+    use_jacval = val_type_name == "jacval";
 
-    _own_dk = self._dict_key_of(nd);
-    use_jacval = _own_dk is not None and _own_dk.endswith(":jacval");
-
-    if _own_dk is not None and not use_jacval and _own_dk in self.dict_helpers {
-        dict_key = _own_dk;
-        helpers = self.dict_helpers[dict_key];
-        key_type = helpers["key_type"];
-        val_type = helpers["val_type"];
-    } else {
-        key_type = first_key.type;
-        (key_type_name, key_size) = self._dict_key_spec(key_type);
-        if use_jacval {
-            val_type = self.jacval_type;
-            val_type_name = "jacval";
-        } else {
-            val_type = first_val.type;
-            val_type_name = self._dict_val_spec(val_type);
-        }
-        dict_key = f"{key_type_name}:{val_type_name}";
-        self._emit_dict_helpers(
-            key_type_name, val_type_name, key_type, val_type, key_size
-        );
-        helpers = self.dict_helpers[dict_key];
-    }
-
-    _dict_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-        if nd.loc
-        else 0}";
     dict_val = self._rc_call_with_ctx(
-        helpers["new"], [], op="new", loc=_dict_new_loc, name="dict.new"
+        helpers["new"], [], op="new", loc=_loc, name="dict.new"
     );
-    self._nogc_stamp_elem_drops(dict_val, self._nogc_type_arg_mangles(nd));
-    _dinit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-        if nd.loc
-        else 0}";
+    self._nogc_stamp_elem_drops(dict_val, [_kt, _vt]);
 
-    first_val = self._nogc_elem_prep(first_pair.value, first_val);
-    if not use_jacval
-        and self._reject_ptr_into_raw_slot(nd, first_val, val_type, "dict value") {
-        return dict_val;
-    }
-    first_store_val = (
-        self._box_to_jacval(first_val)
-            if use_jacval
-            else self._coerce_type(first_val, val_type)
-    );
-    (_set_fn, _kh) = self._static_key_op(helpers, "set", first_pair.key);
-    _set_args = [dict_val, self._coerce_type(first_key, key_type), first_store_val];
-    if _kh is not None {
-        _set_args.append(_kh);
-    }
-    self._rc_call_with_ctx(_set_fn, _set_args, op="dict_init", loc=_dinit_loc);
-
-    if isinstance(first_key.type, ir.PointerType) and self._is_owned(first_key) {
-        self._emit_rc_release_simple(first_key, op="dict_init", loc=_dinit_loc);
-    }
-    if isinstance(first_val.type, ir.PointerType) and self._is_owned(first_val) {
-        self._emit_rc_release_simple(first_val, op="dict_init", loc=_dinit_loc);
-    }
-
-    for i in range(1, len(nd.kv_pairs)) {
-        pair = nd.kv_pairs[i];
+    for pair in (nd.kv_pairs or []) {
         k = self._codegen_expr(pair.key);
-        v = self._codegen_expr(pair.value);
-        if k is not None and v is not None {
-            v = self._nogc_elem_prep(pair.value, v);
-            if not use_jacval
-                and self._reject_ptr_into_raw_slot(nd, v, val_type, "dict value") {
-                return dict_val;
-            }
-            _orig_k = k;
-            _orig_v = v;
-            k = self._coerce_type(k, key_type);
-            if use_jacval {
-                v = self._box_to_jacval(v);
-            } else {
-                v = self._coerce_type(v, val_type);
-            }
-            (_set_fn, _kh) = self._static_key_op(helpers, "set", pair.key);
-            _set_args = [dict_val, k, v];
-            if _kh is not None {
-                _set_args.append(_kh);
-            }
-            self._rc_call_with_ctx(_set_fn, _set_args, op="dict_init", loc=_dinit_loc);
+        v = self._str_norm(self._codegen_expr(pair.value));
+        if k is None or v is None {
+            self.emit(
+                E5092,
+                node_override=pair,
+                kind="expression",
+                name="dict entry",
+                help_text="This entry of the dict display did not lower, so the dict would have been built without it. Move the expression out of the display, or move the enclosing code to a @sv/Python context."
+            );
+            return None;
+        }
+        v = self._nogc_elem_prep(pair.value, v);
+        _orig_k = k;
+        _orig_v = v;
+        k = self._coerce_typed(k, key_type, self._expr_type_of(pair.key));
+        if use_jacval {
+            v = self._box_to_jacval(v, ty=self._expr_type_of(pair.value));
+        } else {
+            v = self._coerce_typed(v, val_type, self._expr_type_of(pair.value));
+        }
+        (_set_fn, _kh) = self._static_key_op(helpers, "set", pair.key);
+        _set_args = [dict_val, k, v];
+        if _kh is not None {
+            _set_args.append(_kh);
+        }
+        self._rc_call_with_ctx(_set_fn, _set_args, op="dict_init", loc=_loc);
 
-            if isinstance(_orig_k.type, ir.PointerType) and self._is_owned(_orig_k) {
-                self._emit_rc_release_simple(_orig_k, op="dict_init", loc=_dinit_loc);
-            }
-            if isinstance(_orig_v.type, ir.PointerType) and self._is_owned(_orig_v) {
-                self._emit_rc_release_simple(_orig_v, op="dict_init", loc=_dinit_loc);
-            }
+        if isinstance(_orig_k.type, ir.PointerType) and self._is_owned(_orig_k) {
+            self._emit_rc_release_simple(_orig_k, op="dict_init", loc=_loc);
+        }
+        if isinstance(_orig_v.type, ir.PointerType) and self._is_owned(_orig_v) {
+            self._emit_rc_release_simple(_orig_v, op="dict_init", loc=_loc);
         }
     }
-
     return dict_val;
 }
 
@@ -538,9 +485,6 @@ impl NaIRGenDicts._codegen_dict_set(
     target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
     val_type = helpers["val_type"];
-    if self._reject_ptr_into_raw_slot(None, value, val_type, "dict value assignment") {
-        return;
-    }
     _orig_key = key_val;
     _orig_value = value;
     key_val = self._coerce_type(key_val, key_type);

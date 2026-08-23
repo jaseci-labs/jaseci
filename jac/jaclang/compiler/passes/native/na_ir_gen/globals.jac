@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E5026 }
+import from jaclang.jac0core.diagnostics { E5026, E5092 }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.const_fold { fold_const }

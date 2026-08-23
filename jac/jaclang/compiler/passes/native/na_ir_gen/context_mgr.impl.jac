@@ -9,6 +9,42 @@ impl NaIRGenContextMgr._codegen_with(nd: uni.WithStmt) -> None {
     self._codegen_with_recursive(nd.exprs, 0, nd.body);
 }
 
+impl NaIRGenContextMgr._context_manager_class(
+    expr_item: uni.ExprAsItem
+) -> (str | None) {
+    """The native layout whose `__enter__` / `__exit__` a `with` item runs.
+
+    The manager's class comes from the checker's type on the expression. A
+    manager whose type the checker did not resolve is an upstream bug and
+    raises; a resolved class with no native layout is the one E5092 here.
+    """;
+    _t = self._tb_solve(self._flow_narrowed_type_of(expr_item.expr));
+    _payload = self._tb_opt_payload(_t);
+    if _payload is not None {
+        _t = self._tb_solve(_payload);
+    }
+    _name = self._tb_class_name(_t);
+    if _name is None {
+        raise AssertionError(
+            f"`with` item at {expr_item.expr.loc} is typed {_t} ({self._tb_kind(
+                _t
+            )}), which names no class"
+        );
+    }
+    self._lower_type(_t);
+    if _name not in self.struct_types {
+        self.emit(
+            E5092,
+            node_override=expr_item.expr,
+            kind="context manager",
+            name=_name,
+            help_text="The manager's class has no native layout visible to this unit, so its `__enter__` / `__exit__` cannot be called natively."
+        );
+        return None;
+    }
+    return _name;
+}
+
 impl NaIRGenContextMgr._codegen_with_recursive(
     exprs: object, idx: int, body: object
 ) -> None {
@@ -20,62 +56,59 @@ impl NaIRGenContextMgr._codegen_with_recursive(
     }
     expr_item = exprs[idx];
     i8p = ir.IntType(8).as_pointer();
-    i32 = ir.IntType(32);
     func = self.builder.function;
 
-    cm_val = self._codegen_expr(expr_item.expr);
-    if cm_val is None {
-        self._codegen_with_recursive(exprs, idx + 1, body);
+    type_name = self._context_manager_class(expr_item);
+    if type_name is None {
         return;
     }
-
-    type_name: (str | None) = None;
-    cm_target_name = self._get_name(expr_item.expr);
-
-    if isinstance(cm_val.type, ir.PointerType) {
-        for (sname, stype) in self.struct_types.items() {
-            if cm_val.type == stype.as_pointer() {
-                type_name = sname;
-                break;
-            }
-        }
-    }
-    if type_name is None {
-        type_name = self._infer_type_name(cm_val);
-    }
-    if type_name is None {
-        self._codegen_with_recursive(exprs, idx + 1, body);
-        return;
-    }
-
+    enter_owner = self._resolve_method_owner(type_name, "__enter__");
+    exit_owner = self._resolve_method_owner(type_name, "__exit__");
     enter_fn = self._resolve_method(type_name, "__enter__");
     exit_fn = self._resolve_method(type_name, "__exit__");
     if enter_fn is None or exit_fn is None {
-        self._codegen_with_recursive(exprs, idx + 1, body);
+        self.emit(
+            E5092,
+            node_override=expr_item.expr,
+            kind="context manager",
+            name=type_name,
+            help_text=(
+                f"`with` needs native `__enter__` and `__exit__` methods on the manager; "
+                f"'{type_name}' resolves __enter__ to {enter_owner} and __exit__ to {exit_owner}, "
+                f"and at least one has no native lowering."
+            )
+        );
         return;
     }
 
-    enter_args: list[ir.Value] = [cm_val];
-
-    if len(enter_fn.args) > 0 {
-        enter_args[0] = self._coerce_type(cm_val, enter_fn.args[0].type);
+    cm_val = self._codegen_expr(expr_item.expr);
+    if cm_val is None {
+        return;
     }
+    cm_val = self._opt_unwrap_attr(cm_val);
+
+    enter_args: list[ir.Value] = [self._coerce_type(cm_val, enter_fn.args[0].type)];
     enter_result = self.builder.call(enter_fn, enter_args, name="cm.enter");
 
     if expr_item.alias is not None {
         alias_name = self._get_name(expr_item.alias);
         if alias_name is not None {
-            alloca = self._entry_alloca(enter_result.type, alias_name);
-
-            if isinstance(enter_result.type, ir.PointerType) {
-                self.builder.store(ir.Constant(enter_result.type, None), alloca);
-                self._emit_rc_retain(
-                    enter_result,
-                    op="ctx_enter",
-                    loc=getattr(enter_result, 'jac_loc', '')
+            _alias_t = self._lower_type(expr_item.alias.type);
+            if _alias_t is None {
+                raise AssertionError(
+                    f"`with ... as {alias_name}` at {expr_item.alias.loc} has no lowerable type ({expr_item.alias.type})"
                 );
             }
-            self.builder.store(enter_result, alloca);
+            _bound = self._coerce_type(enter_result, _alias_t);
+            alloca = self._entry_alloca(_alias_t, alias_name);
+
+            if isinstance(_alias_t, ir.PointerType) {
+                self.builder.store(ir.Constant(_alias_t, None), alloca);
+                self._emit_rc_retain(
+                    _bound, op="ctx_enter", loc=getattr(enter_result, 'jac_loc', '')
+                );
+            }
+            self.builder.store(_bound, alloca);
             self.local_vars[alias_name] = alloca;
         }
     }
@@ -94,12 +127,7 @@ impl NaIRGenContextMgr._codegen_with_recursive(
     self.builder.position_at_end(exit_bb);
 
     null_ptr = ir.Constant(i8p, None);
-    exit_args: list[ir.Value] = [cm_val];
-
-    if len(exit_fn.args) > 0 {
-        exit_args[0] = self._coerce_type(cm_val, exit_fn.args[0].type);
-    }
-
+    exit_args: list[ir.Value] = [self._coerce_type(cm_val, exit_fn.args[0].type)];
     for i in range(1, len(exit_fn.args)) {
         exit_args.append(self._coerce_type(null_ptr, exit_fn.args[i].type));
     }

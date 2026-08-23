@@ -4,6 +4,11 @@ import from jaclang.jac0core.constant { OwnershipKind }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5092 }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.type_system.types {
+    ClassType,
+    EnumMemberType,
+    FunctionType
+}
 
 obj NaIRGenExpr(NaIRGenState) {
     def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);
@@ -29,6 +34,30 @@ obj NaIRGenExpr(NaIRGenState) {
         release_operands: bool = True
     ) -> (ir.Value | None);
 
+    def _codegen_identity(
+        negate: bool,
+        left: ir.Value,
+        right: ir.Value,
+        lk: str,
+        rk: str,
+        at: uni.UniNode,
+        release_operands: bool
+    ) -> (ir.Value | None);
+
+    def _membership_result(
+        found: ir.Value, is_not_in: bool, gate: (ir.Value | None) = None
+    ) -> ir.Value;
+
+    def _codegen_membership(
+        is_not_in: bool,
+        left: ir.Value,
+        right: ir.Value,
+        left_node: uni.UniNode,
+        right_node: uni.UniNode,
+        right_orig: ir.Value,
+        release_operands: bool
+    ) -> (ir.Value | None);
+
     def _identity_over_optional(
         left: ir.Value, right: ir.Value, negate: bool
     ) -> (ir.Value | None);
@@ -39,6 +68,18 @@ obj NaIRGenExpr(NaIRGenState) {
     def _emit_yield_suspend(v: ir.Value) -> None;
     def _codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None);
     def _codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _codegen_subscript(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _subscript_index_value(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _enum_member_value(enum_t: any, member: str) -> (ir.Value | None);
+    def _codegen_enum_member_attr(
+        nd: uni.AtomTrailer, right_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_module_attr(
+        nd: uni.AtomTrailer, mod_sym: any, right_name: str
+    ) -> (ir.Value | None);
+
     def _codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None);
     def _bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | None);
     def _codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None);
@@ -49,5 +90,4 @@ obj NaIRGenExpr(NaIRGenState) {
 
     def _spawn_operand_name(nd: uni.UniNode) -> (str | None);
     def _is_walker_arch(name: str) -> bool;
-    def _infer_dict_type(val: ir.Value) -> (tuple | None);
 }

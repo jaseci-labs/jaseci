@@ -55,30 +55,6 @@ impl NaIRGenCalls._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
     return None;
 }
 
-impl NaIRGenCalls._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
-    _tgt = nd.target;
-    if not isinstance(_tgt, uni.AtomTrailer)
-        or _tgt.is_attr
-        or not isinstance(_tgt.right, uni.IndexSlice) {
-        return None;
-    }
-    _base_tk = self._type_key_of(_tgt.target);
-    if _base_tk is None or not _base_tk.startswith("type[") {
-        return None;
-    }
-    _tk = self._type_key_of(_tgt);
-    if _tk is None or not _tk.startswith("type[") or not _tk.endswith("]") {
-        return None;
-    }
-    return self._erased_arch_base(_tk[5:-1]);
-}
-
-impl NaIRGenCalls._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
-    decl = nd.callee_decl;
-    sig = decl.signature if decl is not None else None;
-    return sig if isinstance(sig, uni.FuncSignature) else None;
-}
-
 impl NaIRGenCalls._arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None) {
     arch = self.arch_ast_map.get(type_name);
     if not isinstance(arch, uni.Archetype) or arch.body is None {
@@ -95,39 +71,31 @@ impl NaIRGenCalls._arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None
     return None;
 }
 
-impl NaIRGenCalls._default_arg_fallback(t: ir.Type) -> ir.Value {
-    if isinstance(t, ir.PointerType) {
-        if t.pointee == self._get_bytes_struct_type() {
-            return self._make_global_bytes(b"");
-        }
-        return ir.Constant(t, None);
-    }
-    if isinstance(t, (ir.IntType, ir.DoubleType)) {
-        return ir.Constant(t, 0);
-    }
-    return ir.Constant(t, None);
-}
-
 impl NaIRGenCalls._codegen_bound_args(
     nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
 ) -> list {
+    import from jaclang.compiler.type_system.types { ParamKind }
+    callee = nd.resolved_callee;
+    arg_params = nd.arg_params or {};
     raw = nd.params or [];
+    args: list = [];
     positional: list = [];
-    kw_map: dict = {};
+    kw_named: dict = {};
     kw_spreads: list = [];
     kw_order: list = [];
-    _unpack_names: list = [];
     for param in raw {
         if isinstance(param, uni.KWPair) {
             key = param.key.sym_name if param.key is not None else None;
             if key is not None {
-                kw_map[key] = param.value;
+                kw_named[key] = param;
                 kw_order.append(("lit", key));
             } else {
                 kw_spreads.append(param.value);
                 kw_order.append(("spread", param.value));
             }
-        } elif (
+            continue;
+        }
+        if (
             isinstance(param, uni.UnaryExpr)
             and isinstance(param.op, uni.Token)
             and param.op.name in (Tok.STAR_MUL, Tok.STAR_POW)
@@ -137,69 +105,73 @@ impl NaIRGenCalls._codegen_bound_args(
                 kw_order.append(("spread", param.operand));
                 continue;
             }
+            _sp_kind = self._tb_kind(self._flow_narrowed_type_of(param.operand));
             _tv = self._codegen_expr(param.operand);
-            _tt = _tv.type if _tv is not None else None;
-            _tup_ptr = (
-                _tv is not None
-                and isinstance(_tt, ir.PointerType)
-                and isinstance(_tt.pointee, ir.LiteralStructType)
-            );
-            _tup_val = _tv is not None and isinstance(_tt, ir.LiteralStructType);
-            _is_list_sp = False;
-            if _tv is not None and not _tup_ptr and isinstance(_tt, ir.PointerType) {
-                for (_sln, _slt) in self.list_types.items() {
-                    if _slt.as_pointer() == _tt {
-                        _is_list_sp = True;
-                        break;
-                    }
-                }
+            if _tv is None {
+                return self._abandoned_args(func, self_offset, args);
             }
-            if _tup_ptr or _tup_val {
-                _sp32 = ir.IntType(32);
-                _tup_elems = _tt.pointee.elements if _tup_ptr else _tt.elements;
-                for (_ei, _et) in enumerate(_tup_elems) {
-                    if _tup_ptr {
-                        _ep = self.builder.gep(
-                            _tv,
-                            [ir.Constant(_sp32, 0), ir.Constant(_sp32, _ei)],
-                            name=f"spread.{_ei}"
-                        );
-                        _ev = self.builder.load(_ep, name=f"spread.v.{_ei}");
-                    } else {
-                        _ev = self.builder.extract_value(
-                            _tv, _ei, name=f"spread.v.{_ei}"
-                        );
-                    }
-                    if isinstance(_ev.type, ir.PointerType) {
-                        self._emit_rc_retain(_ev, op="spread_elem", loc="");
-                        self._mark_owned(_ev);
-                    }
-                    positional.append(("spread.val", _ev));
-                }
-                if _tup_ptr and self._is_owned(_tv) {
-                    self._emit_rc_release_simple(_tv, op="spread_tuple", loc="");
-                }
-            } elif _is_list_sp {
-                positional.append(("spread.list.val", _tv));
+            if _sp_kind == "tuple" {
+                positional.extend(self._spread_tuple_values(_tv));
+            } elif _sp_kind == "list" {
+                positional.append(("spread.list.val", _tv, param.operand));
             } else {
-                _unpack_names.append(param.op.value);
+                self.emit(
+                    E5092,
+                    node_override=param,
+                    kind="call argument unpacking",
+                    name=f"*{_sp_kind}",
+                    help_text="Only tuple spreads (static arity) and list spreads into a variadic callee lower natively; spread a tuple or a list, or pass the elements explicitly."
+                );
             }
-        } else {
-            positional.append(param);
+            continue;
         }
-    }
-    if _unpack_names {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="call argument unpacking",
-            name=", ".join(_unpack_names),
-            help_text="Only tuple spreads (static arity) and list spreads into a variadic callee lower natively; `**` unpacking and spreads of other types are not lowered - pass the elements explicitly or move the call to a @sv/Python context."
-        );
+        positional.append(param);
     }
 
-    callee_sig = self._callee_sig_of(nd);
-    if kw_spreads and (callee_sig is None or callee_sig.kwargs is None) {
+    if callee is None
+        or callee.parameters is None
+        or callee.is_gradual_callable_form() {
+        if kw_named or kw_spreads {
+            raise AssertionError(
+                f"keyword arguments at {nd.loc} but the checker stamped no callee parameters"
+            );
+        }
+        for p in positional {
+            if isinstance(p, tuple) {
+                if p[0] == "spread.list.val" {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="call argument unpacking",
+                        name="*",
+                        help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
+                    );
+                    continue;
+                }
+                args.append(p[1]);
+                continue;
+            }
+            v = self._codegen_expr(p);
+            if v is not None {
+                args.append(v);
+            }
+        }
+        return self._finish_bound_args(nd, func, self_offset, args);
+    }
+
+    params = list(callee.parameters);
+    _bound_ids: set = set();
+    for (_a, _p) in arg_params.items() {
+        if _p is not None {
+            _bound_ids.add(id(_p));
+        }
+    }
+    if params
+        and (params[0].is_self or params[0].is_cls)
+        and id(params[0]) not in _bound_ids {
+        params = params[1:];
+    }
+    if kw_spreads and not any(p.param_kind == ParamKind.KWARG for p in params) {
         self.emit(
             E5092,
             node_override=nd,
@@ -210,128 +182,106 @@ impl NaIRGenCalls._codegen_bound_args(
         kw_spreads = [];
         kw_order = [];
     }
-    args: list = [];
-
-    if callee_sig is None {
-        for p in positional {
-            if isinstance(p, tuple) and p and p[0] == "spread.val" {
-                args.append(p[1]);
-                continue;
-            }
-            if isinstance(p, tuple) and p and p[0] == "spread.list.val" {
-                self.emit(
-                    E5092,
-                    node_override=nd,
-                    kind="call argument unpacking",
-                    name="*",
-                    help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
-                );
-                continue;
-            }
-            v = self._codegen_expr(p);
-            if v is not None {
-                args.append(v);
-            }
+    _has_vararg = any(p.param_kind == ParamKind.VARARG for p in params);
+    _has_kwarg = any(p.param_kind == ParamKind.KWARG for p in params);
+    _pack_slots = (
+        (_has_vararg or _has_kwarg)
+        and not func.function_type.var_arg
+        and len(func.args) == self_offset + len(params)
+    );
+    _kw_by_param: dict = {};
+    for (_a, _p) in arg_params.items() {
+        if isinstance(_a, uni.KWPair) and _a.key is not None and _p is not None {
+            _kw_by_param.setdefault(id(_p), []).append(_a);
         }
+    }
+    _bind_records: list = [];
+    _pos_i = 0;
+    for p in params {
         slot = self_offset + len(args);
-        while slot < len(func.args) {
-            args.append(self._default_arg_fallback(func.args[slot].type));
-            slot += 1;
-        }
-        return args;
-    }
-
-    sig_params = callee_sig.get_parameters();
-    _self_skip = 0;
-    if (
-        self_offset > 0
-        and sig_params
-        and sig_params[0].name
-        and sig_params[0].name.value == "self"
-    ) {
-        sig_params = sig_params[1:];
-        _self_skip = 1;
-    }
-    _has_pack = (callee_sig.varargs is not None) or (callee_sig.kwargs is not None);
-    if _has_pack and func.function_type.var_arg {
-        _has_pack = False;
-    }
-    _sig_is_callees = (self_offset - _self_skip + len(callee_sig.get_parameters()))
-        == len(func.args);
-    if _has_pack {
-        _chk = self_offset - _self_skip
-            + len(callee_sig.posonly_params or [])
-            + len(callee_sig.params or []);
-        if callee_sig.varargs is not None {
-            _vt_ok = False;
-            if _chk < len(func.args)
-                and isinstance(func.args[_chk].type, ir.PointerType) {
-                for (_, _lt) in self.list_types.items() {
-                    if _lt.as_pointer() == func.args[_chk].type {
-                        _vt_ok = True;
-                        break;
+        expected_type = func.args[slot].type if slot < len(func.args) else None;
+        if p.param_kind == ParamKind.VARARG {
+            extras = positional[_pos_i:];
+            _pos_i = len(positional);
+            if not _pack_slots {
+                for e in extras {
+                    if isinstance(e, tuple) {
+                        if e[0] == "spread.list.val" {
+                            self.emit(
+                                E5092,
+                                node_override=nd,
+                                kind="call argument unpacking",
+                                name="*",
+                                help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
+                            );
+                            continue;
+                        }
+                        args.append(e[1]);
+                        continue;
+                    }
+                    v = self._codegen_expr(e);
+                    if v is not None {
+                        args.append(v);
                     }
                 }
+                continue;
             }
-            if not _vt_ok {
-                if _sig_is_callees {
-                    self._emit_pack_slot_refusal(nd, "*");
-                }
-                _has_pack = False;
+            _lv = self._codegen_varargs_list(nd, extras, expected_type, p.param_type);
+            if _lv is None {
+                return self._abandoned_args(func, self_offset, args);
             }
-            _chk += 1;
+            args.append(_lv);
+            continue;
         }
-        _chk += len(callee_sig.kwonlyargs or []);
-        if _has_pack and callee_sig.kwargs is not None {
-            _dt_ok = False;
-            if _chk < len(func.args)
-                and isinstance(func.args[_chk].type, ir.PointerType) {
-                for (_dk, _dt) in self.dict_types.items() {
-                    if _dk.startswith("ptr:")
-                        and _dt.as_pointer() == func.args[_chk].type {
-                        _dt_ok = True;
-                        break;
-                    }
+        if p.param_kind == ParamKind.KWARG {
+            if not _pack_slots {
+                if _kw_by_param.get(id(p)) or kw_spreads {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="variadic call",
+                        name="**",
+                        help_text="The callee declares a `**` pack, but its native implementation has no `**kwargs` slot, so the keyword arguments this site would pack have nowhere to go."
+                    );
+                    return self._abandoned_args(func, self_offset, args);
                 }
+                continue;
             }
-            if not _dt_ok {
-                if _sig_is_callees {
-                    self._emit_pack_slot_refusal(nd, "**");
-                }
-                _has_pack = False;
+            leftover: dict = {};
+            for _kwn in _kw_by_param.get(id(p), []) {
+                leftover[_kwn.key.sym_name] = _kwn.value;
+            }
+            _dv = self._codegen_kwargs_dict(
+                nd, leftover, expected_type, kw_order, _bind_records, p.param_type
+            );
+            if _dv is None {
+                return self._abandoned_args(func, self_offset, args);
+            }
+            args.append(_dv);
+            continue;
+        }
+        chosen: any = None;
+        _from_pos = False;
+        _from_kw = False;
+        _stub_default = False;
+        if p.param_kind != ParamKind.KWONLY and _pos_i < len(positional) {
+            chosen = positional[_pos_i];
+            _pos_i += 1;
+            _from_pos = True;
+        } elif _kw_by_param.get(id(p)) {
+            chosen = _kw_by_param[id(p)][0].value;
+            _from_kw = True;
+        } elif p.default_value is not None {
+            chosen = p.default_value;
+            if isinstance(chosen, (uni.Null, uni.Ellipsis))
+                and str(chosen.loc.mod_path).endswith(".pyi") {
+                chosen = None;
+                _stub_default = True;
             }
         }
-    }
-    if not _has_pack {
-        for (pix, sp) in enumerate(sig_params) {
-            slot = self_offset + pix;
-            if (
-                slot >= len(func.args)
-                and not func.function_type.var_arg
-                and pix >= len(positional)
-            ) {
-                break;
-            }
-            expected_type = func.args[slot].type
-                if slot < len(func.args)
-                else ir.IntType(64);
-            chosen: (uni.Expr | None) = None;
-            if pix < len(positional) {
-                chosen = positional[pix];
-            } elif sp.name.sym_name in kw_map {
-                chosen = kw_map[sp.name.sym_name];
-            } elif sp.value is not None {
-                chosen = sp.value;
-                if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                    and str(chosen.loc.mod_path).endswith(".pyi") {
-                    chosen = None;
-                }
-            }
-            if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
-                val = chosen[1];
-            } elif isinstance(chosen, tuple)
-                and chosen
-                and chosen[0] == "spread.list.val" {
+        val: (ir.Value | None) = None;
+        if isinstance(chosen, tuple) {
+            if chosen[0] == "spread.list.val" {
                 self.emit(
                     E5092,
                     node_override=nd,
@@ -339,189 +289,114 @@ impl NaIRGenCalls._codegen_bound_args(
                     name="*",
                     help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
                 );
-                val = None;
-            } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
+                return self._abandoned_args(func, self_offset, args);
             }
-            if val is not None {
-                args.append(val);
-            } else {
-                args.append(self._default_arg_fallback(expected_type));
+            val = chosen[1];
+        } elif chosen is not None {
+            val = self._codegen_expr(chosen);
+            if val is None {
+                return self._abandoned_args(func, self_offset, args);
             }
+        } elif _stub_default or (kw_spreads and p.param_kind != ParamKind.POSONLY) {
+            val = self._stub_default_value(nd, p, expected_type);
+        } elif self._checker_flagged(nd) {
+            return self._abandoned_args(func, self_offset, args);
+        } else {
+            raise AssertionError(
+                f"no argument bound to parameter '{p.name}' at {nd.loc}; the checker owns the missing-argument diagnostic (E1050)"
+            );
         }
-
-        for pix in range(len(sig_params), len(positional)) {
-            _extra_p = positional[pix];
-            if isinstance(_extra_p, tuple)
-                and _extra_p
-                and _extra_p[0] == "spread.val" {
-                args.append(_extra_p[1]);
+        args.append(val);
+        if kw_spreads and p.param_kind != ParamKind.POSONLY {
+            if expected_type is None {
+                raise AssertionError(
+                    f"parameter '{p.name}' of {nd.loc} has no native slot to bind a `**` spread key into"
+                );
+            }
+            _required: (str | None) = None;
+            if chosen is None and not p.is_optional {
+                _required = (
+                    "keyword-only" if p.param_kind == ParamKind.KWONLY else "positional"
+                );
+            }
+            _bind_records.append(
+                self._prep_kwbind_record(
+                    p.name,
+                    expected_type,
+                    len(args) - 1,
+                    args[-1],
+                    "pos" if _from_pos else ("kw" if _from_kw else None),
+                    _required
+                )
+            );
+        }
+    }
+    for _rec in _bind_records {
+        if _rec["alloca"] is None {
+            continue;
+        }
+        if _rec["missing_msg"] is not None {
+            _flv = self.builder.load(_rec["flag"], name="kwbind.flag");
+            self._emit_runtime_raise(
+                self.builder.not_(_flv, name="kwbind.unbound"),
+                "TypeError",
+                _rec["missing_msg"]
+            );
+        }
+        _bv = self.builder.load(_rec["alloca"], name="kwbind.final");
+        if isinstance(_bv.type, ir.PointerType) {
+            self._mark_owned(_bv);
+        }
+        args[_rec["args_idx"]] = _bv;
+    }
+    if _pos_i < len(positional) {
+        for e in positional[_pos_i:] {
+            if isinstance(e, tuple) {
+                if e[0] != "spread.list.val" {
+                    args.append(e[1]);
+                }
                 continue;
             }
-            if isinstance(_extra_p, tuple)
-                and _extra_p
-                and _extra_p[0] == "spread.list.val" {
-                continue;
-            }
-            v = self._codegen_expr(_extra_p);
+            v = self._codegen_expr(e);
             if v is not None {
                 args.append(v);
             }
         }
-    } else {
-        _fixed = list(callee_sig.posonly_params or []) + list(callee_sig.params or []);
-        _n_posonly = len(callee_sig.posonly_params or []);
-        if _self_skip and _fixed {
-            _fixed = _fixed[1:];
-            _n_posonly = _n_posonly - 1 if _n_posonly > 0 else 0;
-        }
-        _bind_records: list = [];
-        for (pix, sp) in enumerate(_fixed) {
-            slot = self_offset + pix;
-            expected_type = func.args[slot].type
-                if slot < len(func.args)
-                else ir.IntType(64);
-            chosen = None;
-            _from_pos = False;
-            _from_kw = False;
-            if pix < len(positional) {
-                chosen = positional[pix];
-                _from_pos = True;
-            } elif sp.name.sym_name in kw_map {
-                chosen = kw_map.pop(sp.name.sym_name);
-                _from_kw = True;
-            } elif sp.value is not None {
-                chosen = sp.value;
-                if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                    and str(chosen.loc.mod_path).endswith(".pyi") {
-                    chosen = None;
-                }
-            }
-            if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
-                val = chosen[1];
-            } elif isinstance(chosen, tuple)
-                and chosen
-                and chosen[0] == "spread.list.val" {
-                self.emit(
-                    E5092,
-                    node_override=nd,
-                    kind="call argument unpacking",
-                    name="*",
-                    help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
-                );
-                val = None;
-            } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
-            }
-            if val is not None {
-                args.append(val);
-            } else {
-                args.append(self._default_arg_fallback(expected_type));
-            }
-            if kw_spreads and pix >= _n_posonly {
-                _bind_records.append(
-                    self._prep_kwbind_record(
-                        sp.name.sym_name,
-                        expected_type,
-                        len(args) - 1,
-                        args[-1],
-                        "pos" if _from_pos else ("kw" if _from_kw else None),
-                        "positional" if sp.value is None else None
-                    )
-                );
-            }
-        }
-        _slot = self_offset + len(_fixed);
-        if callee_sig.varargs is not None {
-            _pack_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _lv = self._codegen_varargs_list(nd, positional[len(_fixed):], _pack_t);
-            if _lv is not None {
-                args.append(_lv);
-            } elif _pack_t is not None {
-                args.append(self._default_arg_fallback(_pack_t));
-            }
-            _slot += 1;
-        }
-        for sp in (callee_sig.kwonlyargs or []) {
-            expected_type = func.args[_slot].type
-                if _slot < len(func.args)
-                else ir.IntType(64);
-            chosen = None;
-            _from_kw = False;
-            if sp.name.sym_name in kw_map {
-                chosen = kw_map.pop(sp.name.sym_name);
-                _from_kw = True;
-            } elif sp.value is not None {
-                chosen = sp.value;
-                if isinstance(chosen, (uni.Null, uni.Ellipsis))
-                    and str(chosen.loc.mod_path).endswith(".pyi") {
-                    chosen = None;
-                }
-            }
-            if isinstance(chosen, tuple) and chosen and chosen[0] == "spread.val" {
-                val = chosen[1];
-            } elif isinstance(chosen, tuple)
-                and chosen
-                and chosen[0] == "spread.list.val" {
-                self.emit(
-                    E5092,
-                    node_override=nd,
-                    kind="call argument unpacking",
-                    name="*",
-                    help_text="A list spread has no static arity, so it cannot fill fixed parameters; spread a tuple instead, or make the callee variadic."
-                );
-                val = None;
-            } else {
-                val = self._codegen_expr(chosen) if chosen is not None else None;
-            }
-            if val is not None {
-                args.append(val);
-            } else {
-                args.append(self._default_arg_fallback(expected_type));
-            }
-            if kw_spreads {
-                _bind_records.append(
-                    self._prep_kwbind_record(
-                        sp.name.sym_name,
-                        expected_type,
-                        len(args) - 1,
-                        args[-1],
-                        "kw" if _from_kw else None,
-                        "keyword-only" if sp.value is None else None
-                    )
-                );
-            }
-            _slot += 1;
-        }
-        if callee_sig.kwargs is not None {
-            _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_order, _bind_records);
-            if _dv is not None {
-                args.append(_dv);
-            } elif _kw_t is not None {
-                args.append(self._default_arg_fallback(_kw_t));
-            }
-        }
-        for _rec in _bind_records {
-            if _rec["alloca"] is None {
-                continue;
-            }
-            if _rec["missing_msg"] is not None {
-                _flv = self.builder.load(_rec["flag"], name="kwbind.flag");
-                self._emit_runtime_raise(
-                    self.builder.not_(_flv, name="kwbind.unbound"),
-                    "TypeError",
-                    _rec["missing_msg"]
-                );
-            }
-            _bv = self.builder.load(_rec["alloca"], name="kwbind.final");
-            if isinstance(_bv.type, ir.PointerType) {
-                self._mark_owned(_bv);
-            }
-            args[_rec["args_idx"]] = _bv;
-        }
     }
+    return self._finish_bound_args(nd, func, self_offset, args);
+}
 
+impl NaIRGenCalls._spread_tuple_values(tv: ir.Value) -> list {
+    _tt = tv.type;
+    _tup_ptr = isinstance(_tt, ir.PointerType)
+        and isinstance(_tt.pointee, ir.LiteralStructType);
+    _elems = _tt.pointee.elements if _tup_ptr else _tt.elements;
+    _i32 = ir.IntType(32);
+    out: list = [];
+    for (_ei, _et) in enumerate(_elems) {
+        if _tup_ptr {
+            _ep = self.builder.gep(
+                tv, [ir.Constant(_i32, 0), ir.Constant(_i32, _ei)], name=f"spread.{_ei}"
+            );
+            _ev = self.builder.load(_ep, name=f"spread.v.{_ei}");
+        } else {
+            _ev = self.builder.extract_value(tv, _ei, name=f"spread.v.{_ei}");
+        }
+        if isinstance(_ev.type, ir.PointerType) {
+            self._emit_rc_retain(_ev, op="spread_elem", loc="");
+            self._mark_owned(_ev);
+        }
+        out.append(("spread.val", _ev));
+    }
+    if _tup_ptr and self._is_owned(tv) {
+        self._emit_rc_release_simple(tv, op="spread_tuple", loc="");
+    }
+    return out;
+}
+
+impl NaIRGenCalls._finish_bound_args(
+    nd: uni.FuncCall, func: ir.Function, self_offset: int, args: list
+) -> list {
     _nc_name = nd.target.sym_name if isinstance(nd.target, uni.Name) else None;
     _nc_entry = self.nested_captures.get(_nc_name) if _nc_name is not None else None;
     if _nc_entry is not None and _nc_entry[0] is func {
@@ -535,11 +410,7 @@ impl NaIRGenCalls._codegen_bound_args(
                     name=f"{_nc_name} (captured '{_cname}' not in the calling frame)",
                     help_text="A capturing nested function can only be called from a frame that defines or forwards its captures. Pass the value as an explicit parameter instead."
                 );
-
-                while len(args) < len(func.args) {
-                    args.append(self._default_arg_fallback(func.args[len(args)].type));
-                }
-                return args;
+                return self._abandoned_args(func, self_offset, args);
             }
             if _cmode == "ptr" {
                 args.append(_c_slot);
@@ -548,84 +419,86 @@ impl NaIRGenCalls._codegen_bound_args(
             }
         }
     }
-
     if func.function_type.var_arg {
         return args;
     }
     expected_argc = len(func.args) - self_offset;
     if len(args) > expected_argc {
-        if len(args) > len(sig_params) {
-            self.emit(
-                E5092,
-                node_override=nd,
-                kind="expression",
-                name=f"call with {len(args)} arguments (native accepts {expected_argc})",
-                help_text="The resolved (frontend) signature allows more arguments than the native implementation declares (a variadic stub over a bounded native function). Pass fewer arguments or fold the extras before the call."
-            );
-            return args[:expected_argc];
-        }
-
-        return args;
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="expression",
+            name=f"call with {len(args)} arguments (native accepts {expected_argc})",
+            help_text="The resolved (frontend) signature allows more arguments than the native implementation declares (a variadic stub over a bounded native function). Pass fewer arguments or fold the extras before the call."
+        );
+        return args[:expected_argc];
     }
-    while len(args) < expected_argc {
-        slot = self_offset + len(args);
-        args.append(self._default_arg_fallback(func.args[slot].type));
+    if len(args) < expected_argc {
+        if self._checker_flagged(nd) {
+            return self._abandoned_args(func, self_offset, args);
+        }
+        raise AssertionError(
+            f"call at {nd.loc} bound {len(args)} arguments but '{func.name}' takes {expected_argc}; the checker owns the missing-argument diagnostic (E1050)"
+        );
     }
     return args;
 }
 
-impl NaIRGenCalls._emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None {
-    """Refuse a call whose callee declares a pack it could not lay out.
+impl NaIRGenCalls._abandoned_args(
+    func: ir.Function, self_offset: int, args: list
+) -> list {
+    """Pad a binding that already reported its diagnostic to the slot count.
 
-    Binding the extras positionally into a slot that is not a pack is the one
-    answer this site may never give: the callee reads that slot as its whole
-    parameter pack, so the mismatch is a silent misread at run time rather
-    than a missing feature.
-
-    Reached only when the signature that declares the pack is the one the
-    called function was built from. A bundled native module whose typeshed
-    stub is variadic while its own definition is fixed-arity -- `os.path.join`
-    is the standing example -- resolves a signature belonging to a different
-    implementation, and positional binding against the real one is correct.
+    Reached only after an E5092 named the shape gap; the padded values keep the
+    call structurally well-formed so the enclosing function demotes cleanly
+    instead of tripping the IR builder.
     """;
-    _sink = "*args" if star == "*" else "**kwargs";
-    self.emit(
-        E5092,
-        node_override=nd,
-        kind="variadic call",
-        name=star,
-        help_text=(
-            f"The callee declares a `{star}` pack, but its `{_sink}` slot did "
-            f"not lay out as a native list or dict, so the arguments this "
-            f"site would pack have nowhere to go. Annotate the pack with an "
-            f"element type that lowers, or move the call to a @sv/Python "
-            f"context."
-        )
-    );
+    out = list(args);
+    if func.function_type.var_arg {
+        return out;
+    }
+    while self_offset + len(out) < len(func.args) {
+        out.append(self._zero_const(func.args[self_offset + len(out)].type));
+    }
+    return out;
+}
+
+impl NaIRGenCalls._checker_flagged(nd: uni.UniNode) -> bool {
+    """Whether an earlier pass already reported an error on this node's line.""";
+    for e in self.errors_had {
+        if (
+            e.loc is not None
+            and nd.loc is not None
+            and e.loc.mod_path == nd.loc.mod_path
+            and e.loc.first_line == nd.loc.first_line
+        ) {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenCalls._codegen_varargs_list(
-    nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
+    nd: uni.FuncCall, extras: list, expected: (ir.Type | None), elem_tb: any
 ) -> (ir.Value | None) {
-    spec: (str | None) = None;
-    if expected is not None and isinstance(expected, ir.PointerType) {
-        for (tn, lt) in self.list_types.items() {
-            if lt.as_pointer() == expected {
-                spec = tn;
-                break;
-            }
-        }
-    }
-    helpers = self.list_helpers.get(spec) if spec is not None else None;
-    if helpers is None {
+    _elem_llvm = self._elem_storage_llvm(elem_tb);
+    if _elem_llvm is None {
         self.emit(
             E5092,
             node_override=nd,
             kind="variadic parameter",
             name="*",
-            help_text="The callee's *args slot did not resolve to a registered native list type; annotate the variadic parameter with a lowerable element type."
+            help_text=f"The callee's `*args` element type ({elem_tb}) has no native layout; annotate the variadic parameter with a lowerable element type."
         );
         return None;
+    }
+    _list_ptr = self._lower_list_for_elem(_elem_llvm);
+    spec = self._spec_from_container_ptr(_list_ptr);
+    helpers = self.list_helpers.get(spec) if spec is not None else None;
+    if helpers is None {
+        raise AssertionError(
+            f"list helpers for `*args` element {elem_tb} were not registered at {nd.loc}"
+        );
     }
     _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
@@ -636,17 +509,14 @@ impl NaIRGenCalls._codegen_varargs_list(
     for e in extras {
         if isinstance(e, tuple) and e and e[0] == "spread.list.val" {
             _src = e[1];
-            _src_h = None;
-            for (_sn, _slt) in self.list_types.items() {
-                if _slt.as_pointer() == _src.type {
-                    _src_h = self.list_helpers.get(_sn);
-                    break;
-                }
-            }
+            _src_spec = self._list_spec_of(e[2]);
+            _src_h = self.list_helpers.get(_src_spec)
+                if _src_spec is not None
+                else None;
             if _src_h is None {
                 self.emit(
                     E5092,
-                    node_override=nd,
+                    node_override=e[2],
                     kind="call argument unpacking",
                     name="*",
                     help_text="The spread list's element type did not resolve to a registered native list; annotate it with a lowerable element type."
@@ -689,14 +559,8 @@ impl NaIRGenCalls._codegen_varargs_list(
         } else {
             v = self._codegen_expr(e);
             if v is None {
-                self.emit(
-                    E5092, node_override=e, kind="expression", name="variadic argument"
-                );
-                continue;
+                return None;
             }
-        }
-        if v is None {
-            continue;
         }
         _orig = v;
         v2 = self._coerce_type(v, helpers["elem_type"]);
@@ -705,7 +569,11 @@ impl NaIRGenCalls._codegen_varargs_list(
             self._emit_rc_release_simple(_orig, op="list_init", loc=_loc);
         }
     }
-    return self._mark_owned(lv);
+    _lv = self._mark_owned(lv);
+    if expected is not None and _lv.type != expected {
+        _lv = self._coerce_type(_lv, expected);
+    }
+    return _lv;
 }
 
 impl NaIRGenCalls._codegen_kwargs_dict(
@@ -713,30 +581,33 @@ impl NaIRGenCalls._codegen_kwargs_dict(
     leftover: dict,
     expected: (ir.Type | None),
     order: (list | None) = None,
-    bind_records: (list | None) = None
+    bind_records: (list | None) = None,
+    val_tb: any = None
 ) -> (ir.Value | None) {
-    dict_key: (str | None) = None;
-    if expected is not None and isinstance(expected, ir.PointerType) {
-        for (dk, dt) in self.dict_types.items() {
-            if dt.as_pointer() == expected {
-                dict_key = dk;
-                break;
-            }
-        }
-    }
-    if dict_key is not None and not dict_key.startswith("ptr:") {
-        dict_key = None;
-    }
-    helpers = self.dict_helpers.get(dict_key) if dict_key is not None else None;
-    if helpers is None {
+    _i8p = ir.IntType(8).as_pointer();
+    _v_llvm = self._elem_storage_llvm(val_tb);
+    if _v_llvm is None {
         self.emit(
             E5092,
             node_override=nd,
             kind="variadic parameter",
             name="**",
-            help_text="The callee's **kwargs slot did not resolve to a registered str-keyed native dict type; annotate the variadic parameter with a lowerable value type."
+            help_text=f"The callee's `**kwargs` value type ({val_tb}) has no native layout; annotate the variadic parameter with a lowerable value type."
         );
         return None;
+    }
+    if self._str_desc_ty is not None and _v_llvm == self._str_desc_ty {
+        _v_llvm = _i8p;
+    }
+    (_k_spec, _k_size) = self._dict_key_spec(_i8p);
+    _v_spec = self._dict_val_spec(_v_llvm);
+    self._emit_dict_helpers(_k_spec, _v_spec, _i8p, _v_llvm, _k_size);
+    dict_key = f"{_k_spec}:{_v_spec}";
+    helpers = self.dict_helpers.get(dict_key);
+    if helpers is None {
+        raise AssertionError(
+            f"dict helpers for `**kwargs` value {val_tb} were not registered at {nd.loc}"
+        );
     }
     _loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
@@ -762,7 +633,7 @@ impl NaIRGenCalls._codegen_kwargs_dict(
                 [
                     _skip_dv,
                     self._make_global_string(_br["name"], name_prefix=".kwname"),
-                    self._default_arg_fallback(helpers["val_type"]),
+                    self._zero_const(helpers["val_type"]),
                     ir.Constant(ir.IntType(64), self._static_str_hash(_br["name"]))
                 ],
                 op="dict_init",
@@ -780,13 +651,7 @@ impl NaIRGenCalls._codegen_kwargs_dict(
             }
             v = self._codegen_expr(leftover[kname]);
             if v is None {
-                self.emit(
-                    E5092,
-                    node_override=nd,
-                    kind="expression",
-                    name=f"keyword argument '{kname}'"
-                );
-                continue;
+                return None;
             }
             k = self._make_global_string(kname, name_prefix=".kwname");
             _lkh = ir.Constant(ir.IntType(64), self._static_str_hash(kname));
@@ -813,14 +678,7 @@ impl NaIRGenCalls._codegen_kwargs_dict(
         sp_expr = _payload;
         sv = self._codegen_expr(sp_expr);
         if sv is None {
-            self.emit(
-                E5092,
-                node_override=nd,
-                kind="call argument unpacking",
-                name="**",
-                help_text="The spread operand did not lower to a value."
-            );
-            continue;
+            return None;
         }
 
         for _rec in (bind_records or []) {
@@ -861,12 +719,14 @@ impl NaIRGenCalls._codegen_kwargs_dict(
             self.builder.branch(_cont_bb);
             self.builder.position_at_end(_cont_bb);
         }
-        if not self._merge_dict_into(
-            dv, sv, helpers, dict_key, _loc, skip_keys=_skip_dv
-        ) {
+        _sp_key = self._dict_key_of(sp_expr);
+        if _sp_key != dict_key
+            or not self._merge_dict_into(
+                dv, sv, helpers, dict_key, _loc, skip_keys=_skip_dv
+            ) {
             self.emit(
                 E5092,
-                node_override=nd,
+                node_override=sp_expr,
                 kind="call argument unpacking",
                 name="**",
                 help_text="A `**` spread must be a dict of the same key/value types as the callee's `**kwargs` sink."
@@ -880,7 +740,11 @@ impl NaIRGenCalls._codegen_kwargs_dict(
     if _skip_dv is not None {
         self._emit_rc_release_simple(_skip_dv, op="dict_init", loc=_loc);
     }
-    return self._mark_owned(dv);
+    _dv = self._mark_owned(dv);
+    if expected is not None and _dv.type != expected {
+        _dv = self._coerce_type(_dv, expected);
+    }
+    return _dv;
 }
 
 impl NaIRGenCalls._merge_dict_into(
@@ -999,10 +863,43 @@ impl NaIRGenCalls._emit_take_ref(value: ir.Value, op: str, loc: str = "") -> Non
     }
 }
 
+impl NaIRGenCalls._emit_new(nd: uni.FuncCall) -> (ir.Value | None) {
+    params_l = nd.params or [];
+    if not params_l or any([isinstance(p, uni.KWPair) for p in params_l]) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="new",
+            help_text="new() takes a class followed by positional constructor arguments only."
+        );
+        return None;
+    }
+    _cls_t = self._tb_solve(params_l[0].type);
+    cls_name = (
+        self._tb_class_name(_cls_t)
+            if isinstance(_cls_t, ClassType) and not _cls_t.is_instance()
+            else None
+    );
+    if cls_name is None or cls_name not in self.struct_types {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="new",
+            help_text="new() lowers natively only when the first argument statically names an archetype whose native layout is visible to this module; dynamic class values are not supported in native code."
+        );
+        return None;
+    }
+    return self._codegen_instantiation(
+        nd, type_name_override=cls_name, ctor_params=list(params_l[1:])
+    );
+}
+
 impl NaIRGenCalls._codegen_decorated_call(
     nd: uni.FuncCall, func_name: str
 ) -> (ir.Value | None) {
-    (raw_fn, slot_gv, _dec_names, fnty) = self.decorated_fns[func_name];
+    (raw_fn, slot_gv, _dec_names, fnty, _decl) = self.decorated_fns[func_name];
     args: list[ir.Value] = self._codegen_bound_args(nd, raw_fn, self_offset=0);
     coerced: list[ir.Value] = [];
     for (i, arg) in enumerate(args) {
@@ -1030,61 +927,53 @@ impl NaIRGenCalls._emit_unsupported_builtin_call(
     );
 }
 
-impl NaIRGenCalls._emit_new(nd: uni.FuncCall) -> (ir.Value | None) {
-    params_l = nd.params or [];
-    if not params_l or any([isinstance(p, uni.KWPair) for p in params_l]) {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="builtin call",
-            name="new",
-            help_text="new() takes a class followed by positional constructor arguments only."
-        );
-        return None;
-    }
-    cls_name = self._get_name(params_l[0]);
-    if cls_name is None or cls_name not in self.struct_types {
-        cls_name = self._struct_name_of(nd);
-    }
-    if cls_name is None or cls_name not in self.struct_types {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="builtin call",
-            name="new",
-            help_text="new() lowers natively only when the first argument statically names an archetype whose native layout is visible to this module; dynamic class values are not supported in native code."
-        );
-        return None;
-    }
-    return self._codegen_instantiation(
-        nd, type_name_override=cls_name, ctor_params=list(params_l[1:])
-    );
-}
-
-impl NaIRGenCalls._native_module_call_target(nd: uni.FuncCall) -> (tuple | None) {
+impl NaIRGenCalls._module_call_qualifier(nd: uni.FuncCall) -> (str | None) {
     trailer = nd.target;
     if not isinstance(trailer, uni.AtomTrailer) or not trailer.is_attr {
         return None;
     }
-
-    if isinstance(trailer.target, uni.AtomTrailer) {
+    _recv = trailer.target;
+    _sym = _recv.sym if isinstance(_recv, uni.AstSymbolNode) else None;
+    if _sym is None {
         return None;
     }
-    mod_name = self._get_name(trailer.target);
-    method_name = self._get_name(trailer.right);
-    if mod_name is None or method_name is None {
+    import from jaclang.jac0core.constant { SymbolType }
+    if _sym.sym_type != SymbolType.MODULE {
         return None;
     }
-
-    if (
-        self?._native_module_imports
-        and mod_name in self._native_module_imports
-        and mod_name not in self.local_vars
-        and mod_name not in self.struct_types
-    ) {
-        return (mod_name, method_name);
+    _decl = _sym.decl;
+    _path = _decl if isinstance(_decl, uni.ModulePath) else _decl?.parent;
+    if isinstance(_path, uni.ModulePath) {
+        return _path.dot_path_str.lstrip(".");
     }
-    return None;
+    return _sym.sym_name;
+}
+
+impl NaIRGenCalls._callee_function(
+    nd: uni.FuncCall, func_name: str
+) -> (ir.Function | None) {
+    func = self.func_symtab.get(func_name);
+    _decl = nd.callee_decl;
+    if func is None or _decl is None {
+        return func;
+    }
+    _dm = self._func_def_mod.get(func_name);
+    _decl_mod = _decl.find_parent_of_type(uni.Module);
+    if _dm is not None and _decl_mod is not None and _dm != _decl_mod.name {
+        return None;
+    }
+    return func;
+}
+
+impl NaIRGenCalls._stub_default_value(
+    nd: uni.FuncCall, param: any, expected_type: (ir.Type | None)
+) -> ir.Value {
+    if expected_type is None {
+        raise AssertionError(
+            f"parameter '{param.name}' of the call at {nd.loc} has a stub default but no native slot"
+        );
+    }
+    return self._zero_const(expected_type);
 }
 
 impl NaIRGenCalls._codegen_intrinsic(
@@ -1092,23 +981,13 @@ impl NaIRGenCalls._codegen_intrinsic(
 ) -> (ir.Value | None) {
     import from jaclang.compiler.intrinsic_registry { IntrinsicDispatch }
 
-    positional: list = [];
-    _has_kw = False;
-    for p in (nd.params or []) {
-        if isinstance(p, uni.KWPair) {
-            _has_kw = True;
-        } else {
-            positional.append(p);
-        }
-    }
-    if _has_kw {
-        self._emit_intrinsic_misuse(nd, intr, "keyword arguments are not accepted");
-        return None;
-    }
-    if len(positional) != intr.arity() {
-        self._emit_intrinsic_misuse(
-            nd, intr, f"expected {intr.arity()} argument(s), got {len(positional)}"
-        );
+    positional: list = [
+        p
+        for p in (nd.params or [])
+        if not isinstance(p, uni.KWPair)
+    ];
+    if len(positional) != intr.arity()
+        or any(isinstance(p, uni.KWPair) for p in (nd.params or [])) {
         return None;
     }
     handler = {
@@ -1130,6 +1009,30 @@ impl NaIRGenCalls._codegen_intrinsic(
     return handler(nd, intr, positional);
 }
 
+impl NaIRGenCalls._intrinsic_operand(
+    nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
+) -> (ir.Value | None) {
+    _kind = self._tb_kind(self._flow_narrowed_type_of(arg));
+    if _kind not in ("int", "bool", "float") {
+        self._emit_intrinsic_misuse(
+            nd,
+            intr,
+            f"operand of type {self._flow_narrowed_type_of(
+                arg
+            )} does not fit registered parameter type {spec}"
+        );
+        return None;
+    }
+    arg_val = self._codegen_expr(arg);
+    if arg_val is None {
+        return None;
+    }
+    if spec == "f64" {
+        return self._coerce_type(arg_val, ir.DoubleType());
+    }
+    return self._coerce_type(arg_val, ir.IntType(64));
+}
+
 impl NaIRGenCalls._emit_intrinsic_misuse(
     nd: uni.FuncCall, intr: object, reason: str
 ) -> None {
@@ -1144,34 +1047,6 @@ impl NaIRGenCalls._emit_intrinsic_misuse(
         }
     }
     self.emit(E5095, node_override=nd, name=intr.name, reason=reason);
-}
-
-impl NaIRGenCalls._intrinsic_operand(
-    nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
-) -> (ir.Value | None) {
-    arg_val = self._codegen_expr(arg);
-    if arg_val is None {
-        self._emit_intrinsic_misuse(nd, intr, "operand did not lower to a value");
-        return None;
-    }
-    if not isinstance(arg_val.type, (ir.IntType, ir.FloatType, ir.DoubleType)) {
-        self._emit_intrinsic_misuse(
-            nd,
-            intr,
-            f"operand of type {arg_val.type} does not fit registered parameter type {spec}"
-        );
-        return None;
-    }
-    if spec == "f64" {
-        if not isinstance(arg_val.type, ir.DoubleType) {
-            arg_val = self._coerce_type(arg_val, ir.DoubleType());
-        }
-        return arg_val;
-    }
-    if not isinstance(arg_val.type, ir.IntType) or arg_val.type.width != 64 {
-        arg_val = self._coerce_type(arg_val, ir.IntType(64));
-    }
-    return arg_val;
 }
 
 impl NaIRGenCalls._emit_intrinsic_rc_runtime(
@@ -1208,7 +1083,6 @@ impl NaIRGenCalls._emit_intrinsic_bits_float(
 }
 
 impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
-    import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
     import from jaclang.compiler.symbol_utils {
         erased_field_marker_default,
         erased_identity_call_arg,
@@ -1228,41 +1102,55 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     _call_kind = nd.call_kind;
-
     _mod_qual: (str | None) = None;
-    if _call_kind in ("method", "module_function") {
-        _mod_fn = self._native_module_call_target(nd);
-        if _mod_fn is None {
+    func_name: (str | None) = None;
+    if _call_kind == "method" {
+        return self._codegen_method_call(nd);
+    }
+    if _call_kind == "module_function" {
+        _mod_qual = self._module_call_qualifier(nd);
+        if (
+            _mod_qual is None
+            or _mod_qual not in self._native_module_imports
+            or _mod_qual in self.local_vars
+            or _mod_qual in self.struct_types
+        ) {
             return self._codegen_method_call(nd);
         }
-        (_mod_qual, func_name) = _mod_fn;
+        func_name = self._get_name(nd.target.right);
+        if func_name is None {
+            raise AssertionError(
+                f"module function call at {nd.loc} has no member name"
+            );
+        }
     } else {
         func_name = self._get_name(nd.target);
-        if func_name is None {
-            _erased_ctor = self._erased_generic_ctor(nd);
-            if _erased_ctor is not None {
-                return self._codegen_instantiation(nd, type_name_override=_erased_ctor);
-            }
-            return None;
-        }
     }
 
-    _intrinsic_entry = INTRINSIC_REGISTRY.get(func_name);
-    if _intrinsic_entry is not None {
+    if _call_kind == "intrinsic" {
+        import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+        _intrinsic_entry = INTRINSIC_REGISTRY.get(func_name);
+        if _intrinsic_entry is None {
+            raise AssertionError(
+                f"call at {nd.loc} is classified intrinsic but '{func_name}' is not registered"
+            );
+        }
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
-    if _call_kind not in ("method", "module_function")
-        and func_name not in self.local_vars {
-        _ec_name = self._enum_ctor_target(nd);
-        if _ec_name is not None {
+    _tt = self._tb_solve(nd.target.type);
+    _cls_form = (
+        isinstance(_tt, ClassType) and _tt._shared is not None and not _tt.is_instance()
+    );
+    if _cls_form and _tt.shared.is_enum_class {
+        _ec_name = self._tb_class_name(_tt);
+        if _ec_name is not None and self._enum_ctor_layout(_ec_name) is not None {
             return self._codegen_enum_ctor(nd, _ec_name);
         }
     }
 
-    import from jaclang.compiler.type_system { types as jtypes }
-    _callee_t = nd.target?.type;
-    if isinstance(_callee_t, jtypes.ClassType)
+    _callee_t = nd.target.type;
+    if isinstance(_callee_t, ClassType)
         and _callee_t.private.distinct_key is not None {
         _cast_params = nd.params or [];
         if len(_cast_params) == 1 {
@@ -1296,600 +1184,30 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     if _call_kind == "builtin" {
-        if func_name == "print" {
-            return self._emit_print(nd);
+        _builtin_res = self._codegen_builtin_call(nd, func_name);
+        if _builtin_res is not None {
+            return _builtin_res;
         }
-
-        if func_name == "managed" {
-            params_l = nd.params or [];
-            if params_l {
-                return self._codegen_expr(params_l[0]);
-            }
-            return None;
-        }
-
-        if func_name == "new" {
-            return self._emit_new(nd);
-        }
-
-        if func_name == "Region" {
-            import from jaclang.compiler.expr_keys { is_builtin_region_name }
-            if is_builtin_region_name(nd.target) {
-                self._emit_arena_helpers();
-                return self.builder.call(self.region_new_fn, [], name="region.new");
-            }
-            if "Region" in self.struct_types {
-                return self._codegen_instantiation(nd);
-            }
-        }
-
-        if func_name == "isinstance" {
-            return self._emit_isinstance(nd);
-        }
-
-        if func_name == "type" {
-            _cid_params = nd.params or [];
-            if len(_cid_params) == 1 {
-                _cid = self._codegen_class_id(_cid_params[0]);
-                if _cid is not None {
-                    return _cid;
-                }
-            }
-        }
-
-        if func_name == "len" {
-            params_l = nd.params or [];
-            if params_l {
-                elem_type_name: (str | None) = None;
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None
-                    and self._opt_payload_of(arg_val.type) is not None {
-                    arg_val = self._coerce_type(
-                        arg_val, self._opt_payload_of(arg_val.type)
-                    );
-                }
-                if arg_val is not None {
-                    _len_result: (ir.Value | None) = None;
-
-                    if self._str_desc_ty is not None
-                        and arg_val.type == self._str_desc_ty {
-                        _len_result = self.builder.extract_value(
-                            arg_val,
-                            len(list(self._str_desc_ty.elements)) - 1,
-                            name="s.len.o1"
-                        );
-                    }
-
-                    if _len_result is None
-                        and self?.jacval_type
-                        and arg_val.type == self.jacval_type {
-                        _len_result = self._codegen_any_len(arg_val);
-                    }
-
-                    if _len_result is None and self._is_bytes_value(arg_val) {
-                        _len_result = self._bytes_len_val(arg_val);
-                    }
-
-                    if _len_result is None {
-                        for (dict_key, helpers) in self.dict_helpers.items() {
-                            dict_type = self.dict_types.get(dict_key);
-                            if dict_type is not None
-                                and arg_val.type == dict_type.as_pointer() {
-                                _len_result = self.builder.call(
-                                    helpers["len"], [arg_val], name="dict.len"
-                                );
-                                break;
-                            }
-                        }
-                    }
-
-                    if _len_result is None {
-                        for (set_key, helpers) in self.set_helpers.items() {
-                            set_type = self.set_types.get(set_key);
-                            if set_type is not None
-                                and arg_val.type == set_type.as_pointer() {
-                                _len_result = self.builder.call(
-                                    helpers["len"], [arg_val], name="set.len"
-                                );
-                                break;
-                            }
-                        }
-                    }
-
-                    if _len_result is None {
-                        if elem_type_name is None {
-                            elem_type_name = self._infer_list_elem_type(arg_val);
-                        }
-                        if elem_type_name is not None {
-                            helpers = self.list_helpers.get(elem_type_name);
-                            if helpers is not None {
-                                _len_result = self.builder.call(
-                                    helpers["len"], [arg_val], name="list.len"
-                                );
-                            }
-                        }
-                    }
-
-                    if _len_result is None
-                        and arg_val.type == ir.IntType(8).as_pointer() {
-                        _len_result = self._call_str_len(
-                            self.builder, arg_val, name="str.len"
-                        );
-                    }
-                    if _len_result is not None {
-                        if isinstance(arg_val.type, ir.PointerType)
-                            and self._is_owned(arg_val) {
-                            self._emit_rc_release_simple(arg_val, op="len_arg", loc="");
-                        }
-                        return _len_result;
-                    }
-                }
-            }
-        }
-
-        if func_name == "iter" {
-            built = self._build_iter_from_expr(nd);
-            if built is not None {
-                (iter_val, _ename, _etype) = built;
-                return iter_val;
-            }
-            self._emit_unsupported_builtin_call(nd, "iter");
-            return None;
-        }
-        if func_name == "next" {
-            return self._codegen_next(nd);
-        }
-
-        if func_name == "complex" {
-            params_l = nd.params or [];
-            if len(params_l) >= 2 {
-                real_val = self._codegen_expr(params_l[0]);
-                imag_val = self._codegen_expr(params_l[1]);
-                if real_val is not None and imag_val is not None {
-                    f64 = ir.DoubleType();
-                    i64 = ir.IntType(64);
-                    real_f = self._coerce_type(real_val, f64)
-                        if not isinstance(real_val.type, ir.DoubleType)
-                        else real_val;
-                    imag_f = self._coerce_type(imag_val, f64)
-                        if not isinstance(imag_val.type, ir.DoubleType)
-                        else imag_val;
-                    ctype = self.complex_struct_type;
-                    raw = self.builder.call(
-                        self.rc_alloc_fn, [ir.Constant(i64, 16)], name="complex.raw"
-                    );
-                    ptr = self.builder.bitcast(
-                        raw, ctype.as_pointer(), name="complex.ptr"
-                    );
-                    rp = self.builder.gep(
-                        ptr,
-                        [
-                            ir.Constant(ir.IntType(32), 0),
-                            ir.Constant(ir.IntType(32), 0)
-                        ],
-                        name="complex.re.ptr"
-                    );
-                    ip = self.builder.gep(
-                        ptr,
-                        [
-                            ir.Constant(ir.IntType(32), 0),
-                            ir.Constant(ir.IntType(32), 1)
-                        ],
-                        name="complex.im.ptr"
-                    );
-                    self.builder.store(real_f, rp);
-                    self.builder.store(imag_f, ip);
-                    return ptr;
-                }
-            }
-        }
-
-        if func_name == "range" {
-            params_l = nd.params or [];
-            i64 = ir.IntType(64);
-            i32 = ir.IntType(32);
-            start_v: (ir.Value | None) = None;
-            stop_v: (ir.Value | None) = None;
-            step_v: (ir.Value | None) = None;
-            if len(params_l) == 1 {
-                start_v = ir.Constant(i64, 0);
-                stop_v = self._codegen_expr(params_l[0]);
-                step_v = ir.Constant(i64, 1);
-            } elif len(params_l) == 2 {
-                start_v = self._codegen_expr(params_l[0]);
-                stop_v = self._codegen_expr(params_l[1]);
-                step_v = ir.Constant(i64, 1);
-            } elif len(params_l) >= 3 {
-                start_v = self._codegen_expr(params_l[0]);
-                stop_v = self._codegen_expr(params_l[1]);
-                step_v = self._codegen_expr(params_l[2]);
-            }
-            if start_v is not None and stop_v is not None and step_v is not None {
-                start_v = self._coerce_type(start_v, i64);
-                stop_v = self._coerce_type(stop_v, i64);
-                step_v = self._coerce_type(step_v, i64);
-                rtype = self.range_struct_type;
-                raw = self.builder.call(
-                    self.rc_alloc_fn, [ir.Constant(i64, 24)], name="range.raw"
-                );
-                ptr = self.builder.bitcast(raw, rtype.as_pointer(), name="range.ptr");
-                z0 = ir.Constant(i32, 0);
-                self.builder.store(
-                    start_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 0)], name="range.sp")
-                );
-                self.builder.store(
-                    stop_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 1)], name="range.ep")
-                );
-                self.builder.store(
-                    step_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 2)], name="range.tp")
-                );
-                return ptr;
-            }
-        }
-
-        if func_name == "slice" {
-            params_l = nd.params or [];
-            i64 = ir.IntType(64);
-            i32 = ir.IntType(32);
-            start_v: (ir.Value | None) = None;
-            stop_v: (ir.Value | None) = None;
-            step_v: (ir.Value | None) = None;
-            if len(params_l) == 1 {
-                start_v = ir.Constant(i64, 0);
-                stop_v = self._codegen_expr(params_l[0]);
-                step_v = ir.Constant(i64, 1);
-            } elif len(params_l) == 2 {
-                start_v = self._codegen_expr(params_l[0]);
-                stop_v = self._codegen_expr(params_l[1]);
-                step_v = ir.Constant(i64, 1);
-            } elif len(params_l) >= 3 {
-                start_v = self._codegen_expr(params_l[0]);
-                stop_v = self._codegen_expr(params_l[1]);
-                step_v = self._codegen_expr(params_l[2]);
-            }
-            if start_v is not None and stop_v is not None and step_v is not None {
-                start_v = self._coerce_type(start_v, i64);
-                stop_v = self._coerce_type(stop_v, i64);
-                step_v = self._coerce_type(step_v, i64);
-                stype = self.slice_struct_type;
-                raw = self.builder.call(
-                    self.rc_alloc_fn, [ir.Constant(i64, 24)], name="slice.raw"
-                );
-                ptr = self.builder.bitcast(raw, stype.as_pointer(), name="slice.ptr");
-                z0 = ir.Constant(i32, 0);
-                self.builder.store(
-                    start_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 0)], name="slice.sp")
-                );
-                self.builder.store(
-                    stop_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 1)], name="slice.ep")
-                );
-                self.builder.store(
-                    step_v,
-                    self.builder.gep(ptr, [z0, ir.Constant(i32, 2)], name="slice.tp")
-                );
-                return ptr;
-            }
-        }
-
-        if func_name
-            in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all", "format") {
-            params_l = nd.params or [];
-            arg_vals: list[ir.Value] = [];
-            arg_nodes: list = [];
-            for param in params_l {
-                v = self._codegen_expr(param);
-                if v is not None {
-                    arg_vals.append(v);
-                    arg_nodes.append(param);
-                }
-            }
-            if arg_vals {
-                result = self._dispatch_builtin(
-                    func_name, arg_vals, arg_nodes=arg_nodes
-                );
-
-                for _barg in arg_vals {
-                    if isinstance(_barg.type, ir.PointerType)
-                        and self._is_owned(_barg) {
-                        self._emit_rc_release_simple(_barg, op="builtin_arg", loc="");
-                    }
-                }
-                if result is not None {
-                    return result;
-                }
-
-                self._emit_unsupported_builtin_call(nd, func_name);
-                return None;
-            }
-        }
-
-        if func_name == "bytearray" and not (nd.params or []) {
-            _ba_empty = self._dispatch_builtin(
-                "bytearray", [], kwargs=self._split_call_kwargs(nd), kw_node=nd
-            );
-            if _ba_empty is not None {
-                return _ba_empty;
-            }
-            self._emit_unsupported_builtin_call(nd, func_name);
-            return None;
-        }
-
-        if func_name
-            in (
-                "ord",
-                "int",
-                "chr",
-                "str",
-                "hex",
-                "oct",
-                "bin",
-                "round",
-                "float",
-                "bool",
-                "sorted",
-                "reversed",
-                "list",
-                "set",
-                "frozenset",
-                "dict",
-                "bytes",
-                "bytearray",
-                "id",
-                "hash",
-                "repr",
-                "ascii"
-            ) {
-            params_l = nd.params or [];
-            _ez_peer = self._spec_from_container_ptr(self._peer_container_ty)
-                if not params_l and func_name in ("list", "set")
-                else None;
-            if not params_l
-                and func_name in ("list", "set")
-                and (self._empty_ctor_args_of(nd) or _ez_peer is not None) {
-                _ez_args = self._empty_ctor_args_of(nd);
-                _ez_elem: ir.Type = ir.IntType(8).as_pointer();
-                _ez_spec = "ptr";
-                if not _ez_args and _ez_peer is not None {
-                    _ez_pt = self.set_helpers
-                        if func_name == "set"
-                        else self.list_helpers;
-                    _ez_ph = _ez_pt.get(_ez_peer);
-                    if _ez_ph is not None {
-                        return self.builder.call(
-                            _ez_ph["new"], [], name=f"{func_name}.empty"
-                        );
-                    }
-                }
-                if _ez_args {
-                    _ez_low = self._elem_storage_llvm(_ez_args[0]);
-                    if _ez_low is not None {
-                        if self._str_desc_ty is not None
-                            and _ez_low == self._str_desc_ty {
-                            _ez_low = ir.IntType(8).as_pointer();
-                        }
-                        _ez_elem = _ez_low;
-                        if isinstance(_ez_low, ir.DoubleType) {
-                            _ez_spec = "f64";
-                        } elif isinstance(_ez_low, ir.PointerType) {
-                            _ez_spec = "ptr";
-                        } else {
-                            _ez_spec = "i64";
-                        }
-                    }
-                }
-                if func_name == "set" {
-                    self._emit_set_helpers(_ez_spec, _ez_elem);
-                    _ez_h = self.set_helpers.get(_ez_spec);
-                } else {
-                    self._emit_list_helpers(_ez_spec, _ez_elem);
-                    _ez_h = self.list_helpers.get(_ez_spec);
-                }
-                if _ez_h is not None {
-                    return self.builder.call(
-                        _ez_h["new"], [], name=f"{func_name}.empty"
-                    );
-                }
-                self._emit_unsupported_builtin_call(nd, func_name);
-                return None;
-            }
-            if params_l {
-                arg_val = self._codegen_expr(params_l[0]);
-                if arg_val is not None {
-                    result = self._dispatch_builtin(
-                        func_name,
-                        [arg_val],
-                        kwargs=self._split_call_kwargs(nd),
-                        kw_node=nd,
-                        type_key=(self._type_key_of(params_l[0]) or "")
-                    );
-
-                    if isinstance(arg_val.type, ir.PointerType)
-                        and self._is_owned(arg_val) {
-                        self._emit_rc_release_simple(
-                            arg_val, op="builtin1_arg", loc=""
-                        );
-                    }
-                    if result is not None {
-                        return result;
-                    }
-
-                    if not self._split_call_kwargs(nd) {
-                        self._emit_unsupported_builtin_call(nd, func_name);
-                    }
-                    return None;
-                }
-            }
-        }
-
-        if func_name == "input" {
-            i8p = ir.IntType(8).as_pointer();
-            params_l = nd.params or [];
-
-            if params_l {
-                prompt_val = self._codegen_expr(params_l[0]);
-                if prompt_val is not None {
-                    _prompt_orig = prompt_val;
-                    printf = self._get_printf();
-                    fmt = self._get_fmt_string("%s");
-                    fmt_ptr = self.builder.bitcast(fmt, i8p, name="fmt.ptr");
-
-                    if isinstance(prompt_val.type, ir.PointerType)
-                        and prompt_val.type != i8p {
-                        prompt_val = self.builder.bitcast(
-                            prompt_val, i8p, name="prompt.cast"
-                        );
-                    }
-                    self.builder.call(printf, [fmt_ptr, prompt_val]);
-
-                    if isinstance(_prompt_orig.type, ir.PointerType)
-                        and self._is_owned(_prompt_orig) {
-                        self._emit_rc_release_simple(
-                            _prompt_orig, op="input_prompt", loc=""
-                        );
-                    }
-                }
-            }
-
-            buf_size = 256;
-            buf_type = ir.ArrayType(ir.IntType(8), buf_size);
-            buf = self.builder.alloca(buf_type, name="input.buf");
-            buf_ptr = self.builder.bitcast(buf, i8p, name="input.ptr");
-
-            import platform;
-            stdin_name = "__stdinp" if platform.system() == "Darwin" else "stdin";
-            if stdin_name not in self.extern_funcs {
-                stdin_type = i8p;
-                stdin_global = ir.GlobalVariable(
-                    self.llvm_module, stdin_type, name=stdin_name
-                );
-                stdin_global.linkage = "external";
-                if "windows" in str(self.llvm_module.triple or "") {
-                    stdin_global.storage_class = "dllimport";
-                }
-                self.extern_funcs[stdin_name] = stdin_global;
-            }
-            stdin_var = self.extern_funcs[stdin_name];
-            stdin_val = self.builder.load(stdin_var, name="stdin.val");
-            fgets = self._get_or_declare_extern(
-                "fgets", i8p, [i8p, ir.IntType(32), i8p]
-            );
-            size_val = ir.Constant(ir.IntType(32), buf_size);
-            fgets_ret = self.builder.call(
-                fgets, [buf_ptr, size_val, stdin_val], name="fgets.result"
-            );
-
-            func = self.builder.function;
-            eof_bb = func.append_basic_block(name="input.eof");
-            ok_bb = func.append_basic_block(name="input.ok");
-            merge_bb = func.append_basic_block(name="input.merge");
-            null_ptr = ir.Constant(i8p, None);
-            is_eof = self.builder.icmp_signed("==", fgets_ret, null_ptr, name="is.eof");
-            self.builder.cbranch(is_eof, eof_bb, ok_bb);
-
-            self.builder.position_at_start(eof_bb);
-            eof_str = self._str_alloc(
-                self.builder, ir.Constant(ir.IntType(64), 1), name="eof.str"
-            );
-            self._str_finish(self.builder, eof_str, ir.Constant(ir.IntType(64), 0));
-            self.builder.branch(merge_bb);
-            eof_bb_end = self.builder.block;
-
-            self.builder.position_at_start(ok_bb);
-
-            slen = self._call_str_len_raw(self.builder, buf_ptr, name="input.len");
-
-            alloc_size = self.builder.add(
-                slen, ir.Constant(ir.IntType(64), 1), name="alloc.size"
-            );
-            result_ptr = self._str_alloc(self.builder, alloc_size, name="input.result");
-            memcpy = self._get_or_declare_extern(
-                "memcpy", i8p, [i8p, i8p, ir.IntType(64)]
-            );
-            self.builder.call(memcpy, [result_ptr, buf_ptr, alloc_size]);
-
-            has_len = self.builder.icmp_signed(
-                ">", slen, ir.Constant(ir.IntType(64), 0), name="has.len"
-            );
-            strip_bb = func.append_basic_block(name="input.strip");
-            nostrip_bb = func.append_basic_block(name="input.nostrip");
-            self.builder.cbranch(has_len, strip_bb, nostrip_bb);
-            self.builder.position_at_start(strip_bb);
-            last_idx = self.builder.sub(
-                slen, ir.Constant(ir.IntType(64), 1), name="last.idx"
-            );
-            last_ptr = self.builder.gep(result_ptr, [last_idx], name="last.ptr");
-            last_byte = self.builder.load(last_ptr, name="last.byte");
-            is_newline = self.builder.icmp_signed(
-                "==", last_byte, ir.Constant(ir.IntType(8), 10), name="is.nl"
-            );
-
-            null_byte = ir.Constant(ir.IntType(8), 0);
-            store_val = self.builder.select(
-                is_newline, null_byte, last_byte, name="strip.nl"
-            );
-            self.builder.store(store_val, last_ptr);
-
-            strip_cr_bb = func.append_basic_block(name="input.strip.cr");
-            self.builder.cbranch(is_newline, strip_cr_bb, nostrip_bb);
-            self.builder.position_at_start(strip_cr_bb);
-
-            has_cr_len = self.builder.icmp_signed(
-                ">=", slen, ir.Constant(ir.IntType(64), 2), name="has.cr.len"
-            );
-            strip_cr_check_bb = func.append_basic_block(name="input.strip.cr.check");
-            self.builder.cbranch(has_cr_len, strip_cr_check_bb, nostrip_bb);
-            self.builder.position_at_start(strip_cr_check_bb);
-
-            cr_idx = self.builder.sub(
-                slen, ir.Constant(ir.IntType(64), 2), name="cr.idx"
-            );
-            cr_ptr = self.builder.gep(result_ptr, [cr_idx], name="cr.ptr");
-            cr_byte = self.builder.load(cr_ptr, name="cr.byte");
-            is_cr = self.builder.icmp_signed(
-                "==", cr_byte, ir.Constant(ir.IntType(8), 13), name="is.cr"
-            );
-
-            store_cr_val = self.builder.select(
-                is_cr, null_byte, cr_byte, name="strip.cr"
-            );
-            self.builder.store(store_cr_val, cr_ptr);
-            self.builder.branch(nostrip_bb);
-            self.builder.position_at_start(nostrip_bb);
-            final_len = self._call_str_len(
-                self.builder, result_ptr, name="input.final.len"
-            );
-            self._str_finish(self.builder, result_ptr, final_len);
-            self.builder.branch(merge_bb);
-            ok_bb_end = self.builder.block;
-
-            self.builder.position_at_start(merge_bb);
-            phi = self.builder.phi(i8p, name="input.phi");
-            phi.add_incoming(eof_str, eof_bb_end);
-            phi.add_incoming(result_ptr, ok_bb_end);
-            return phi;
-        }
-
-        if func_name == "open" {
-            _open_result = self._emit_open(nd);
-            if _open_result is not None {
-                return _open_result;
-            }
-            self.emit(E5092, node_override=nd, kind="function", name=func_name);
+        if not _cls_form and func_name not in self.func_symtab {
             return None;
         }
     }
 
-    if func_name in self.struct_types {
-        return self._codegen_instantiation(nd);
-    }
-    _alias_arch = self._arch_alias_target(nd.target);
-    if _alias_arch is not None and _alias_arch in self.struct_types {
-        return self._codegen_instantiation(nd, type_name_override=_alias_arch);
+    if _cls_form and not _tt.shared.is_enum_class {
+        _cls = self._tb_class_name(_tt);
+        if _cls is not None and _cls in self.struct_types {
+            return self._codegen_instantiation(nd, type_name_override=_cls);
+        }
+        if _call_kind == "instantiation" {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor",
+                name=_cls or func_name,
+                help_text="This class has no native layout visible to this module, so its constructor cannot lower here."
+            );
+            return None;
+        }
     }
     if (
         func_name in self._native_skipped_methods and func_name not in self.generic_fns
@@ -1906,27 +1224,25 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         );
         return None;
     }
-    if func_name in self.decorated_fns {
+    _dec_entry = self.decorated_fns.get(func_name);
+    if _dec_entry is not None and _dec_entry[4] is nd.callee_decl {
         return self._codegen_decorated_call(nd, func_name);
     }
-    func = self.func_symtab.get(func_name);
-    if func is not None and _mod_qual is not None {
-        _dm = self._func_def_mod.get(func_name);
-        if _dm is not None and _dm != _mod_qual {
-            func = None;
-        }
-    }
+    func = self._callee_function(nd, func_name);
     if func is None {
         manifest = self.ir_in.gen.interop_manifest;
         binding = manifest.bindings.get(func_name);
-        _src_ab: (uni.Ability | None) = None;
+        _src_ab: (uni.Ability | None) = nd.callee_decl;
+        if _src_ab is None
+            and binding is not None
+            and isinstance(binding.ast_node, uni.Ability) {
+            _src_ab = binding.ast_node;
+        }
         if binding is not None
-            and binding.source_module is not None
+            and _src_ab is not None
+            and _src_ab.type_params
             and func_name not in self.generic_fns {
-            _src_ab = self._find_source_ability(binding.source_module, func_name);
-            if _src_ab is not None and _src_ab.type_params {
-                self.generic_fns[func_name] = _src_ab;
-            }
+            self.generic_fns[func_name] = _src_ab;
         }
         if binding is not None
             and func_name not in self.generic_fns
@@ -1937,43 +1253,50 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     and binding.source_module is not None
                 )
             ) {
-            sig = _src_ab.signature
-                if _src_ab is not None
-                    and isinstance(_src_ab.signature, uni.FuncSignature)
-                else None;
-            if sig is None {
-                sig = self._callee_sig_of(nd);
-            }
-            if sig is None
-                and isinstance(binding.ast_node, uni.Ability)
-                and isinstance(binding.ast_node.signature, uni.FuncSignature) {
-                sig = binding.ast_node.signature;
-            }
-            if sig is None {
+            _ext_fn = nd.resolved_callee;
+            if _ext_fn is None or _ext_fn.parameters is None {
                 self.emit(
                     E5092, node_override=nd, kind="function signature", name=func_name
                 );
                 return None;
             }
-            if sig.varargs is not None or sig.kwargs is not None {
+            import from jaclang.compiler.type_system.types { ParamKind }
+            for _ep in _ext_fn.parameters {
+                if _ep.param_kind in (ParamKind.VARARG, ParamKind.KWARG) {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="function",
+                        name=func_name,
+                        help_text="A variadic function cannot be called across the native interop boundary yet; wrap it in a fixed-arity function on the defining side."
+                    );
+                    return None;
+                }
+            }
+            param_ir_types: list = [];
+            for _ep in _ext_fn.parameters {
+                _ept = self._lower_type(_ep.param_type);
+                if _ept is None {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="function signature",
+                        name=f"{func_name} parameter '{_ep.name}' ({_ep.param_type})"
+                    );
+                    return None;
+                }
+                param_ir_types.append(_ept);
+            }
+            ret_ir_type = self._lower_type(_ext_fn.return_type);
+            if ret_ir_type is None {
                 self.emit(
                     E5092,
                     node_override=nd,
-                    kind="function",
-                    name=func_name,
-                    help_text="A variadic function cannot be called across the native interop boundary yet; wrap it in a fixed-arity function on the defining side."
+                    kind="function signature",
+                    name=f"{func_name} return type ({_ext_fn.return_type})"
                 );
                 return None;
             }
-            param_ir_types: list = [];
-            for p in sig.get_parameters() {
-                param_ir_types.append(
-                    self._resolve_jac_type(p.type_tag)
-                        if p.type_tag is not None
-                        else ir.IntType(64)
-                );
-            }
-            ret_ir_type = self._resolve_jac_type(sig.return_type);
             func = self._get_or_declare_extern(func_name, ret_ir_type, param_ir_types);
         }
     }
@@ -2050,26 +1373,32 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     args: list[ir.Value] = self._codegen_bound_args(nd, func, self_offset=0);
 
-    if func_name in self.clib_fn_abi {
+    if _call_kind == "clib" and func_name in self.clib_fn_abi {
         return self._codegen_clib_call(func, func_name, args);
     }
 
-    _is_foreign = func_name in self.clib_extern_names;
+    _is_foreign = _call_kind == "clib" and func_name in self.clib_extern_names;
     coerced: list[ir.Value] = [];
 
     _clib_str_args: set = set();
     _clib_str_ret = False;
+    _clib_ret_struct: (str | None) = None;
     if _is_foreign {
         import from jaclang.compiler.targets.foreign { declared_type_name }
-        _clib_sig = self._callee_sig_of(nd);
-        if _clib_sig is not None {
+        _clib_decl = nd.callee_decl;
+        _clib_sig = _clib_decl.signature if _clib_decl is not None else None;
+        if isinstance(_clib_sig, uni.FuncSignature) {
             for (_ci, _cp) in enumerate(_clib_sig.get_parameters()) {
                 if _cp.type_tag is not None
                     and declared_type_name(_cp.type_tag.tag) == "str" {
                     _clib_str_args.add(_ci);
                 }
             }
-            _clib_str_ret = declared_type_name(_clib_sig.return_type) == "str";
+            _clib_ret_name = declared_type_name(_clib_sig.return_type);
+            _clib_str_ret = _clib_ret_name == "str";
+            if _clib_ret_name in self.clib_struct_names {
+                _clib_ret_struct = _clib_ret_name;
+            }
         }
     }
     release_args: list[ir.Value] = [];
@@ -2104,75 +1433,13 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
     if self._nogc_headerless() {
-        _skip_own: set = set();
-        _is_ctor = isinstance(nd.target, uni.Name)
-            and (
-                nd.target.sym_name in self.arch_ast_map
-                or self._arch_alias_target(nd.target) in self.arch_ast_map
-            );
-        _sig = None if _is_ctor else self._callee_sig_of(nd);
-        _sig_params = _sig.get_parameters() if _sig is not None else [];
-        if _is_ctor {
-            for _oi in range(len(release_args)) {
-                _skip_own.add(_oi);
-            }
-        } elif _sig is not None and len(_sig_params) == len(release_args) {
-            for (_oi, _op) in enumerate(_sig_params) {
-                if _op.type_tag is not None
-                    and _op.type_tag.ownership == OwnershipKind.OWN {
-                    _skip_own.add(_oi);
-                }
-            }
-        }
-        if _skip_own {
-            _kept: list = [];
-            for (_ri, _rv) in enumerate(release_args) {
-                if _ri not in _skip_own {
-                    _kept.append(_rv);
-                }
-            }
-            release_args = _kept;
-            _param_idx: dict = {};
-            for (_pi2, _p2) in enumerate(_sig_params) {
-                _param_idx[_p2.name.sym_name] = _pi2;
-            }
-            _pos = 0;
-            for _pa in (nd.params or []) {
-                _aidx = -1;
-                _anode: (uni.Expr | None) = None;
-                if isinstance(_pa, uni.KWPair) {
-                    _anode = _pa.value;
-                    _k = _pa.key.sym_name if _pa.key is not None else None;
-                    if _k is not None and _k in _param_idx {
-                        _aidx = _param_idx[_k];
-                    }
-                } else {
-                    _anode = _pa;
-                    _aidx = _pos;
-                    _pos += 1;
-                }
-                if not (_is_ctor or _aidx in _skip_own) {
-                    continue;
-                }
-                if not isinstance(_anode, uni.Name) {
-                    continue;
-                }
-                _salloca = self.local_vars.get(_anode.sym_name);
-                if _salloca is not None
-                    and isinstance(_salloca.type, ir.PointerType)
-                    and isinstance(_salloca.type.pointee, ir.PointerType) {
-                    self.builder.store(
-                        ir.Constant(_salloca.type.pointee, None), _salloca
-                    );
-                }
-            }
-        }
+        release_args = self._nogc_owned_release_args(nd, release_args);
     }
     if not self._call_args_lowered(nd, func, func_name, coerced) {
         return None;
     }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
-    if func_name in self.clib_extern_names {
+    if _is_foreign {
         result = self._clib_sext_ret(func_name, result);
         if _clib_str_ret and isinstance(result.type, ir.PointerType) {
             result = self._membrane_str_in(self.builder, result);
@@ -2181,85 +1448,111 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     self._release_owned_args(release_args, op="call_arg");
 
-    if func_name in self.clib_extern_names {
-        for (sname, abi_type) in self.clib_struct_abi_types.items() {
-            if result.type == abi_type {
-                result = self._coerce_type(
-                    result, self.struct_types[sname].as_pointer()
-                );
-                break;
-            }
-        }
-
-        if not isinstance(result.type, ir.PointerType) {
-            for (sname, stype) in self.struct_types.items() {
-                if sname in self.clib_struct_names and result.type == stype {
-                    result = self._coerce_type(result, stype.as_pointer());
-                    break;
-                }
-            }
+    if _is_foreign and _clib_ret_struct is not None {
+        _abi_type = self.clib_struct_abi_types.get(_clib_ret_struct);
+        _struct_ptr = self.struct_types[_clib_ret_struct].as_pointer();
+        if _abi_type is not None and result.type == _abi_type {
+            result = self._coerce_type(result, _struct_ptr);
+        } elif not isinstance(result.type, ir.PointerType)
+            and result.type == self.struct_types[_clib_ret_struct] {
+            result = self._coerce_type(result, _struct_ptr);
         }
     }
 
     return result;
 }
 
-impl NaIRGenCalls._jacval_tags_for_type(name: str) -> list[int] {
-    if name == "int" {
-        return [0, 7];
+impl NaIRGenCalls._nogc_owned_release_args(
+    nd: uni.FuncCall, release_args: list
+) -> list {
+    _skip_own: set = set();
+    _is_ctor = nd.call_kind == "instantiation";
+    _callee = nd.resolved_callee;
+    _params = list(_callee.parameters or []) if _callee is not None else [];
+    if _is_ctor {
+        for _oi in range(len(release_args)) {
+            _skip_own.add(_oi);
+        }
+    } elif _params and len(_params) == len(release_args) {
+        for (_oi, _op) in enumerate(_params) {
+            if _op.ownership == OwnershipKind.OWN {
+                _skip_own.add(_oi);
+            }
+        }
     }
-    if name == "bool" {
-        return [7];
+    if not _skip_own {
+        return release_args;
     }
-    if name == "float" {
-        return [1];
+    _kept: list = [];
+    for (_ri, _rv) in enumerate(release_args) {
+        if _ri not in _skip_own {
+            _kept.append(_rv);
+        }
     }
-    if name == "str" {
-        return [2];
+    _param_idx: dict = {};
+    for (_pi2, _p2) in enumerate(_params) {
+        _param_idx[id(_p2)] = _pi2;
     }
-    if name == "list" {
-        return [3];
+    for _pa in (nd.params or []) {
+        _bound = (nd.arg_params or {}).get(_pa);
+        _aidx = _param_idx.get(id(_bound), -1) if _bound is not None else -1;
+        _anode = _pa.value if isinstance(_pa, uni.KWPair) else _pa;
+        if not (_is_ctor or _aidx in _skip_own) {
+            continue;
+        }
+        if not isinstance(_anode, uni.Name) {
+            continue;
+        }
+        _salloca = self.local_vars.get(_anode.sym_name);
+        if _salloca is not None
+            and isinstance(_salloca.type, ir.PointerType)
+            and isinstance(_salloca.type.pointee, ir.PointerType) {
+            self.builder.store(ir.Constant(_salloca.type.pointee, None), _salloca);
+        }
     }
-    if name == "dict" {
-        return [4];
-    }
-    if name == "set" or name == "frozenset" {
-        return [5];
-    }
-    if name == "NoneType" {
-        return [8];
-    }
-    return [];
+    return _kept;
+}
+
+impl NaIRGenCalls._jacval_tags_for_kind(kind: str) -> list[int] {
+    _tags: dict = {
+        "int": [0, 7],
+        "bool": [7],
+        "float": [1],
+        "str": [2],
+        "list": [3],
+        "dict": [4],
+        "set": [5],
+        "none": [8]
+    };
+    return list(_tags.get(kind, []));
 }
 
 impl NaIRGenCalls._isinstance_static_verdict(
-    name: str, operand: ir.Value
+    kind: str, operand_t: any
 ) -> (bool | None) {
     """Answer the arms whose native representation carries no JacVal tag.
 
     A native tuple is an unboxed literal struct and a `bytes` / `bytearray` is
     a pointer to its own runtime struct, so none of the three is reachable
-    through a tag compare -- but each is fully decided by the operand's LLVM
-    type, which is known here. Returning `True`/`False` settles that arm at
-    compile time; `None` means the name is not one of these and falls through
-    to the tag and vtable machinery.
+    through a tag compare -- but each is fully decided by the operand's
+    declared type. Returning `True`/`False` settles that arm at compile time;
+    `None` means the arm is not one of these (or the operand is a union that
+    only partly inhabits it) and falls through to the tag and vtable machinery.
     """;
-    if name == "tuple" {
-        return self._tuple_struct_of_value(operand) is not None;
+    if kind not in ("tuple", "bytes", "bytearray") {
+        return None;
     }
-    if name == "bytes" {
-        return self._is_bytes_value(operand);
+    _kinds = {self._tb_kind(m) for m in self._tb_non_none(operand_t)};
+    if not _kinds {
+        return None;
     }
-    if name == "bytearray" {
-        _ba = self.list_types.get("u8");
-        return _ba is not None and operand.type == _ba.as_pointer();
+    if kind not in _kinds {
+        return False;
     }
-    return None;
+    return True if len(_kinds) == 1 else None;
 }
 
-impl NaIRGenCalls._isinstance_abc_reduction(
-    type_expr: uni.UniNode, name: str
-) -> (list[str] | None) {
+impl NaIRGenCalls._isinstance_abc_reduction(t: any, name: str) -> (list[str] | None) {
     """The native shapes an `isinstance` arm naming a stdlib ABC reduces to.
 
     A `collections.abc` class is a Python object no native unit can host, so a
@@ -2278,7 +1571,6 @@ impl NaIRGenCalls._isinstance_abc_reduction(
     if name in self.struct_types or name in self.enum_types {
         return None;
     }
-    t = type_expr.type if isinstance(type_expr, uni.Expr) else None;
     if not isinstance(t, ClassType) or t._shared is None {
         return None;
     }
@@ -2293,6 +1585,38 @@ impl NaIRGenCalls._isinstance_abc_reduction(
         return [];
     }
     return None;
+}
+
+impl NaIRGenCalls._isinstance_arm_class(v: uni.UniNode) -> any {
+    """The class an `isinstance` arm names, as the instance-form ClassType.
+
+    The arm's expression is typed `type[X]` by the checker (a class-form
+    ClassType, or the builtin `type` specialised on X); a `type[T]` over a
+    generic parameter resolves through the active mono solution.
+    """;
+    if (
+        isinstance(v, uni.FuncCall)
+        and v.call_kind == "builtin"
+        and self._get_name(v.target) == "type"
+        and v.params
+        and len(v.params) == 1
+        and isinstance(v.params[0], uni.Null)
+    ) {
+        return self._tb_solve(v.params[0].type);
+    }
+    t = v.type if isinstance(v, uni.Expr) else None;
+    t = self._tb_solve(t);
+    if isinstance(t, ClassType) and t._shared is not None and t.is_builtin("type") {
+        _targs = t.private.type_args or [];
+        t = self._tb_solve(_targs[0]) if _targs else None;
+    }
+    if isinstance(t, EnumMemberType) {
+        t = t.enum_class;
+    }
+    if isinstance(t, ClassType) and t._shared is not None and not t.is_instance() {
+        return t.clone_as_instance();
+    }
+    return t;
 }
 
 impl NaIRGenCalls._isinstance_target_names(
@@ -2311,11 +1635,21 @@ impl NaIRGenCalls._isinstance_target_names(
     pyb_operand = self._isinstance_operand_is_pyb(nd, operand);
     names: list[str] = [];
     for v in raw {
-        nm = self._isinstance_type_name(v);
+        _cls = self._isinstance_arm_class(v);
+        nm = self._tb_class_name(_cls);
         if nm is None {
-            continue;
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="builtin call",
+                name="isinstance against a runtime class value",
+                help_text=f"The class arm is typed `{v.type
+                    if isinstance(v, uni.Expr)
+                    else None}` rather than `type[X]`; only statically named classes (or a runtime class tuple over a pointer operand) lower natively."
+            );
+            return None;
         }
-        reduced = self._isinstance_abc_reduction(v, nm);
+        reduced = self._isinstance_abc_reduction(_cls, nm);
         if reduced is None {
             if nm not in names {
                 names.append(nm);
@@ -2348,143 +1682,41 @@ impl NaIRGenCalls._isinstance_target_names(
     return names;
 }
 
-impl NaIRGenCalls._isinstance_operand_is_pyb(
-    nd: uni.FuncCall, operand: ir.Value
-) -> bool {
-    """Does the operand's class reach its bases through the Python bridge?
+impl NaIRGenCalls._isinstance_name_kinds(
+    type_arg: uni.UniNode, names: list[str]
+) -> dict {
+    """Map each target name to the native kind its class lowers as.
 
-    A class with a Python-side base carries an MRO this unit never modelled --
-    `PyBase(ABC)` in the interop fixtures is exactly that shape -- so which
-    abstract base classes such an instance inhabits is not answerable from the
-    native layout. Only the reduction cares: an archetype arm still answers
-    through the vtable, whose MRO covers the layout-trusted bases.
+    Names produced by an ABC reduction are builtin container names whose kind
+    is the name itself; every other name came from a typed arm.
     """;
-    arch = self._isinstance_operand_arch(nd, operand);
-    if arch is None {
-        return False;
-    }
-    for cand in self._mro_of(arch) {
-        if self._pyb_base_of(cand) is not None {
-            return True;
+    raw: list = list(type_arg.values or [])
+        if isinstance(type_arg, uni.TupleVal)
+        else [type_arg];
+    kinds: dict = {};
+    for v in raw {
+        _cls = self._isinstance_arm_class(v);
+        nm = self._tb_class_name(_cls);
+        if nm is not None {
+            kinds[nm] = self._tb_kind(_cls);
         }
     }
-    return False;
-}
-
-impl NaIRGenCalls._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
-    if (
-        isinstance(nd, uni.FuncCall)
-        and self._get_name(nd.target) == "type"
-        and nd.params
-        and len(nd.params) == 1
-        and isinstance(nd.params[0], uni.Null)
-    ) {
-        import from jaclang.compiler.symbol_utils { classify_call, CallKind }
-        if classify_call(nd) == CallKind.BUILTIN {
-            return "NoneType";
-        }
-        return None;
-    }
-    _mn_nd = nd;
-    while isinstance(_mn_nd, uni.AtomUnit) and _mn_nd.value is not None {
-        _mn_nd = _mn_nd.value;
-    }
-    if self._mono_mangle_map
-        and isinstance(_mn_nd, uni.Name)
-        and _mn_nd.sym is not None {
-        nd = _mn_nd;
-        _mn_decl = nd.sym.decl.name_of if nd.sym.decl is not None else None;
-        if isinstance(_mn_decl, uni.ParamVar) and _mn_decl.type_tag is not None {
-            _mn_tag = _mn_decl.type_tag.tag;
-            while isinstance(_mn_tag, uni.AtomUnit) and _mn_tag.value is not None {
-                _mn_tag = _mn_tag.value;
-            }
-            if (
-                isinstance(_mn_tag, uni.AtomTrailer)
-                and isinstance(_mn_tag.target, uni.Name)
-                and _mn_tag.target.value == "type"
-                and isinstance(_mn_tag.right, uni.IndexSlice)
-                and len(_mn_tag.right.slices) == 1
-            ) {
-                _mn_inner = _mn_tag.right.slices[0].start;
-                if isinstance(_mn_inner, uni.Name)
-                    and _mn_inner.value in self._mono_mangle_map {
-                    return self._mono_mangle_map[_mn_inner.value];
-                }
-            }
-        }
-    }
-    _alias_nm = self._arch_alias_target(nd);
-    if _alias_nm is not None {
-        return _alias_nm;
-    }
-    return self._get_name(nd);
-}
-
-impl NaIRGenCalls._enum_union_tags(
-    operand_expr: uni.UniNode, names: list[str]
-) -> tuple {
-    t = operand_expr.type if isinstance(operand_expr, uni.Expr) else None;
-    members: list = [];
-    if isinstance(t, UnionType) {
-        members = list(t.types or []);
-    } elif t is not None {
-        members = [t];
-    }
-    if not members {
-        return ([], names, );
-    }
-    member_rows: list = [];
-    for m in members {
-        cls = m.enum_class if isinstance(m, EnumMemberType) else m;
-        if not isinstance(cls, ClassType) or cls._shared is None {
-            return ([], names, );
-        }
-        cn = cls.shared.class_name;
-        if cls.is_enum_class() {
-            member_rows.append((cn, True, [0], ));
-        } elif cn in ("NoneType", "None") {
-            member_rows.append((cn, False, [8], ));
-        } elif cn == "bool" {
-            member_rows.append((cn, False, [7], ));
-        } elif cn == "int" {
-            member_rows.append((cn, False, [0, 7], ));
-        } elif cn == "float" {
-            member_rows.append((cn, False, [1], ));
-        } elif cn == "str" {
-            member_rows.append((cn, False, [2], ));
-        } elif cn in ("list", "dict", "set", "tuple") {
-            member_rows.append((cn, False, [3, 4, 5], ));
-        } else {
-            member_rows.append((cn, False, [6], ));
-        }
-    }
-    resolved: list[int] = [];
-    still: list[str] = [];
+    _builtin_kinds: dict = {
+        "list": "list",
+        "tuple": "tuple",
+        "str": "str",
+        "bytes": "bytes",
+        "bytearray": "bytearray",
+        "dict": "dict",
+        "set": "set",
+        "frozenset": "set"
+    };
     for nm in names {
-        hit = False;
-        for row in member_rows {
-            if row[0] == nm and row[1] {
-                clash = False;
-                for other in member_rows {
-                    if other[0] != nm and (0 in other[2]) {
-                        clash = True;
-                        break;
-                    }
-                }
-                hit = not clash;
-                break;
-            }
-        }
-        if hit {
-            if 0 not in resolved {
-                resolved.append(0);
-            }
-        } else {
-            still.append(nm);
+        if nm not in kinds {
+            kinds[nm] = _builtin_kinds.get(nm, "object");
         }
     }
-    return (resolved, still, );
+    return kinds;
 }
 
 impl NaIRGenCalls._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
@@ -2567,6 +1799,8 @@ impl NaIRGenCalls._emit_isinstance_core(
     if names is None {
         return None;
     }
+    _name_kinds = self._isinstance_name_kinds(type_arg, names);
+    _operand_t = self._flow_narrowed_type_of(params[0]);
     _short = self._isinstance_unprovable_class(
         names, self._isinstance_operand_arch(nd, operand)
     );
@@ -2587,13 +1821,14 @@ impl NaIRGenCalls._emit_isinstance_core(
     static_seen = False;
     static_hit = False;
     for nm in names {
-        verdict = self._isinstance_static_verdict(nm, operand);
+        _nk = _name_kinds.get(nm, "object");
+        verdict = self._isinstance_static_verdict(_nk, _operand_t);
         if verdict is not None {
             static_seen = True;
             static_hit = static_hit or verdict;
             continue;
         }
-        nm_tags = self._jacval_tags_for_type(nm);
+        nm_tags = self._jacval_tags_for_kind(_nk);
         if not nm_tags {
             unresolved.append(nm);
         }
@@ -2640,7 +1875,9 @@ impl NaIRGenCalls._emit_isinstance_core(
         }
         return _pt_res;
     }
-    boxed = self._box_to_jacval(operand);
+    boxed = self._box_to_jacval(
+        operand, ty=self._expr_type_of(nd.params[0]) if nd.params else None
+    );
     tag = self.builder.extract_value(boxed, 0, name="isinst.tag");
     result: (ir.Value | None) = None;
     for t in sorted(tags) {
@@ -2656,6 +1893,95 @@ impl NaIRGenCalls._emit_isinstance_core(
         self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
     }
     return result;
+}
+
+impl NaIRGenCalls._isinstance_operand_is_pyb(
+    nd: uni.FuncCall, operand: ir.Value
+) -> bool {
+    """Does the operand's class reach its bases through the Python bridge?
+
+    A class with a Python-side base carries an MRO this unit never modelled --
+    `PyBase(ABC)` in the interop fixtures is exactly that shape -- so which
+    abstract base classes such an instance inhabits is not answerable from the
+    native layout. Only the reduction cares: an archetype arm still answers
+    through the vtable, whose MRO covers the layout-trusted bases.
+    """;
+    arch = self._isinstance_operand_arch(nd, operand);
+    if arch is None {
+        return False;
+    }
+    for cand in self._mro_of(arch) {
+        if self._pyb_base_of(cand) is not None {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenCalls._enum_union_tags(
+    operand_expr: uni.UniNode, names: list[str]
+) -> tuple {
+    t = operand_expr.type if isinstance(operand_expr, uni.Expr) else None;
+    members: list = [];
+    if isinstance(t, UnionType) {
+        members = list(t.types or []);
+    } elif t is not None {
+        members = [t];
+    }
+    if not members {
+        return ([], names, );
+    }
+    member_rows: list = [];
+    for m in members {
+        cls = m.enum_class if isinstance(m, EnumMemberType) else m;
+        if not isinstance(cls, ClassType) or cls._shared is None {
+            return ([], names, );
+        }
+        cn = cls.shared.class_name;
+        if cls.is_enum_class() {
+            member_rows.append((cn, True, [0], ));
+        } elif cn in ("NoneType", "None") {
+            member_rows.append((cn, False, [8], ));
+        } elif cn == "bool" {
+            member_rows.append((cn, False, [7], ));
+        } elif cn == "int" {
+            member_rows.append((cn, False, [0, 7], ));
+        } elif cn == "float" {
+            member_rows.append((cn, False, [1], ));
+        } elif cn == "str" {
+            member_rows.append((cn, False, [2], ));
+        } elif cn in ("list", "dict", "set", "tuple") {
+            member_rows.append((cn, False, [3, 4, 5], ));
+        } else {
+            member_rows.append((cn, False, [6], ));
+        }
+    }
+    resolved: list[int] = [];
+    still: list[str] = [];
+    for nm in names {
+        hit = False;
+        for row in member_rows {
+            if row[0] == nm and row[1] {
+                clash = False;
+                for other in member_rows {
+                    if other[0] != nm and (0 in other[2]) {
+                        clash = True;
+                        break;
+                    }
+                }
+                hit = not clash;
+                break;
+            }
+        }
+        if hit {
+            if 0 not in resolved {
+                resolved.append(0);
+            }
+        } else {
+            still.append(nm);
+        }
+    }
+    return (resolved, still, );
 }
 
 impl NaIRGenCalls._emit_isinstance_ptr_tags(
@@ -2743,7 +2069,9 @@ impl NaIRGenCalls._emit_isinstance_mixed(
         return None;
     }
 
-    boxed = self._box_to_jacval(operand);
+    boxed = self._box_to_jacval(
+        operand, ty=self._expr_type_of(nd.params[0]) if nd.params else None
+    );
     tag = self.builder.extract_value(boxed, 0, name="isinst.tag");
     payload = self.builder.extract_value(boxed, 1, name="isinst.payload");
 
@@ -3031,14 +2359,17 @@ impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) 
         return None;
     }
     fname = call.target.sym_name;
-    callee = self.func_symtab.get(fname);
+    callee = self._callee_function(call, fname);
     if callee is None
         or not isinstance(callee, ir.Function)
-        or fname in self.clib_fn_abi
-        or fname in self.clib_extern_names {
+        or call.call_kind == "clib" {
         return None;
     }
-    _res_ty = callee.function_type.return_type;
+    _rc = call.resolved_callee;
+    _res_ty = self._lower_type(_rc.return_type) if _rc is not None else None;
+    if _res_ty is None or _res_ty != callee.function_type.return_type {
+        return None;
+    }
     _res_ok = (isinstance(_res_ty, ir.IntType) and _res_ty.width == 64)
         or isinstance(_res_ty, ir.DoubleType)
         or isinstance(_res_ty, ir.PointerType);
@@ -3049,17 +2380,7 @@ impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) 
     if h is None {
         return None;
     }
-    _argv: list = [];
-    for p in (call.params or []) {
-        if isinstance(p, uni.KWPair) {
-            return None;
-        }
-        _v = self._codegen_expr(p);
-        if _v is None {
-            return None;
-        }
-        _argv.append(_v);
-    }
+    _argv: list = self._codegen_bound_args(call, callee, self_offset=0);
     if len(_argv) != len(callee.args) {
         return None;
     }
@@ -3161,34 +2482,6 @@ impl NaIRGenCalls._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) 
     return _hraw;
 }
 
-impl NaIRGenCalls._empty_ctor_args_of(nd: uni.FuncCall) -> list {
-    _own = self._container_type_args(nd?.type);
-    if _own {
-        return _own;
-    }
-    _cur: (uni.UniNode | None) = nd;
-    _par = _cur?.parent;
-    while isinstance(_par, uni.CfgExpr) {
-        _cur = _par;
-        _par = _par.parent;
-    }
-    if isinstance(_par, uni.IfElseExpr) {
-        _sib = _par.else_value if _par.value is _cur else _par.value;
-        if _sib is not _cur {
-            return self._container_type_args(self._unwrap_cfg_expr(_sib)?.type);
-        }
-    }
-    return [];
-}
-
-impl NaIRGenCalls._unwrap_cfg_expr(e: any) -> any {
-    _cur = e;
-    while isinstance(_cur, uni.CfgExpr) {
-        _cur = _cur.expr;
-    }
-    return _cur;
-}
-
 impl NaIRGenCalls._call_args_lowered(
     nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
 ) -> bool {
@@ -3285,4 +2578,507 @@ impl NaIRGenCalls._prep_kwbind_record(
         rec["missing_msg"] = f"missing 1 required {required_kind} argument: '{name}'";
     }
     return rec;
+}
+
+impl NaIRGenCalls._codegen_builtin_call(
+    nd: uni.FuncCall, func_name: str
+) -> (ir.Value | None) {
+    if func_name == "print" {
+        return self._emit_print(nd);
+    }
+
+    if func_name == "managed" {
+        params_l = nd.params or [];
+        if params_l {
+            return self._codegen_expr(params_l[0]);
+        }
+        return None;
+    }
+
+    if func_name == "new" {
+        return self._emit_new(nd);
+    }
+
+    if func_name == "Region" {
+        import from jaclang.compiler.expr_keys { is_builtin_region_name }
+        if is_builtin_region_name(nd.target) {
+            self._emit_arena_helpers();
+            return self.builder.call(self.region_new_fn, [], name="region.new");
+        }
+        return None;
+    }
+
+    if func_name == "isinstance" {
+        return self._emit_isinstance(nd);
+    }
+
+    if func_name == "type" {
+        _cid_params = nd.params or [];
+        if len(_cid_params) == 1 {
+            _cid = self._codegen_class_id(_cid_params[0]);
+            if _cid is not None {
+                return _cid;
+            }
+        }
+        return None;
+    }
+
+    if func_name == "len" {
+        return self._codegen_len_call(nd);
+    }
+
+    if func_name == "iter" {
+        built = self._build_iter_from_expr(nd);
+        if built is not None {
+            (iter_val, _ename, _etype) = built;
+            return iter_val;
+        }
+        self._emit_unsupported_builtin_call(nd, "iter");
+        return None;
+    }
+    if func_name == "next" {
+        return self._codegen_next(nd);
+    }
+
+    if func_name == "complex" {
+        params_l = nd.params or [];
+        if len(params_l) >= 2 {
+            real_val = self._codegen_expr(params_l[0]);
+            imag_val = self._codegen_expr(params_l[1]);
+            if real_val is not None and imag_val is not None {
+                f64 = ir.DoubleType();
+                i64 = ir.IntType(64);
+                real_f = self._coerce_type(real_val, f64)
+                    if not isinstance(real_val.type, ir.DoubleType)
+                    else real_val;
+                imag_f = self._coerce_type(imag_val, f64)
+                    if not isinstance(imag_val.type, ir.DoubleType)
+                    else imag_val;
+                ctype = self.complex_struct_type;
+                raw = self.builder.call(
+                    self.rc_alloc_fn, [ir.Constant(i64, 16)], name="complex.raw"
+                );
+                ptr = self.builder.bitcast(raw, ctype.as_pointer(), name="complex.ptr");
+                rp = self.builder.gep(
+                    ptr,
+                    [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
+                    name="complex.re.ptr"
+                );
+                ip = self.builder.gep(
+                    ptr,
+                    [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 1)],
+                    name="complex.im.ptr"
+                );
+                self.builder.store(real_f, rp);
+                self.builder.store(imag_f, ip);
+                return ptr;
+            }
+        }
+        return None;
+    }
+
+    if func_name in ("range", "slice") {
+        return self._codegen_range_or_slice(nd, func_name);
+    }
+
+    if func_name
+        in ("abs", "min", "max", "pow", "divmod", "sum", "any", "all", "format") {
+        params_l = nd.params or [];
+        arg_vals: list[ir.Value] = [];
+        arg_nodes: list = [];
+        for param in params_l {
+            v = self._codegen_expr(param);
+            if v is not None {
+                arg_vals.append(v);
+                arg_nodes.append(param);
+            }
+        }
+        if arg_vals {
+            result = self._dispatch_builtin(func_name, arg_vals, arg_nodes=arg_nodes);
+
+            for _barg in arg_vals {
+                if isinstance(_barg.type, ir.PointerType) and self._is_owned(_barg) {
+                    self._emit_rc_release_simple(_barg, op="builtin_arg", loc="");
+                }
+            }
+            if result is not None {
+                return result;
+            }
+
+            self._emit_unsupported_builtin_call(nd, func_name);
+        }
+        return None;
+    }
+
+    if func_name == "bytearray" and not (nd.params or []) {
+        _ba_empty = self._dispatch_builtin(
+            "bytearray", [], kwargs=self._split_call_kwargs(nd), kw_node=nd
+        );
+        if _ba_empty is not None {
+            return _ba_empty;
+        }
+        self._emit_unsupported_builtin_call(nd, func_name);
+        return None;
+    }
+
+    if func_name
+        in (
+            "ord",
+            "int",
+            "chr",
+            "str",
+            "hex",
+            "oct",
+            "bin",
+            "round",
+            "float",
+            "bool",
+            "sorted",
+            "reversed",
+            "list",
+            "set",
+            "frozenset",
+            "dict",
+            "bytes",
+            "bytearray",
+            "id",
+            "hash",
+            "repr",
+            "ascii"
+        ) {
+        params_l = nd.params or [];
+        if not params_l and func_name in ("list", "set") {
+            return self._codegen_empty_container_ctor(nd, func_name);
+        }
+        if params_l {
+            arg_val = self._codegen_expr(params_l[0]);
+            if arg_val is not None {
+                result = self._dispatch_builtin(
+                    func_name,
+                    [arg_val],
+                    kwargs=self._split_call_kwargs(nd),
+                    kw_node=nd,
+                    type_key=(self._type_key_of(params_l[0]) or "")
+                );
+
+                if isinstance(arg_val.type, ir.PointerType)
+                    and self._is_owned(arg_val) {
+                    self._emit_rc_release_simple(arg_val, op="builtin1_arg", loc="");
+                }
+                if result is not None {
+                    return result;
+                }
+
+                if not self._split_call_kwargs(nd) {
+                    self._emit_unsupported_builtin_call(nd, func_name);
+                }
+                return None;
+            }
+        }
+        return None;
+    }
+
+    if func_name == "input" {
+        return self._codegen_input_call(nd);
+    }
+
+    if func_name == "open" {
+        _open_result = self._emit_open(nd);
+        if _open_result is not None {
+            return _open_result;
+        }
+        self.emit(E5092, node_override=nd, kind="function", name=func_name);
+        return None;
+    }
+    return None;
+}
+
+impl NaIRGenCalls._codegen_len_call(nd: uni.FuncCall) -> (ir.Value | None) {
+    params_l = nd.params or [];
+    if not params_l {
+        return None;
+    }
+    _arg_nd = params_l[0];
+    _arg_t = self._flow_narrowed_type_of(_arg_nd);
+    _kind = self._tb_kind(_arg_t);
+    if _kind == "optional" {
+        _arg_t = self._tb_opt_payload(_arg_t);
+        _kind = self._tb_kind(_arg_t);
+    }
+    arg_val = self._codegen_expr(_arg_nd);
+    if arg_val is None {
+        return None;
+    }
+    if self._opt_payload_of(arg_val.type) is not None {
+        arg_val = self._coerce_type(arg_val, self._opt_payload_of(arg_val.type));
+    }
+    _len_result: (ir.Value | None) = None;
+    if _kind == "str" {
+        if self._str_desc_ty is not None and arg_val.type == self._str_desc_ty {
+            _len_result = self.builder.extract_value(
+                arg_val, len(list(self._str_desc_ty.elements)) - 1, name="s.len.o1"
+            );
+        } else {
+            _len_result = self._call_str_len(self.builder, arg_val, name="str.len");
+        }
+    } elif _kind == "any" {
+        _len_result = self._codegen_any_len(arg_val);
+    } elif _kind == "bytes" {
+        _len_result = self._bytes_len_val(arg_val);
+    } elif _kind == "dict" {
+        _dk = self._dict_key_of(_arg_nd);
+        helpers = self.dict_helpers.get(_dk) if _dk is not None else None;
+        if helpers is not None {
+            _len_result = self.builder.call(helpers["len"], [arg_val], name="dict.len");
+        }
+    } elif _kind == "set" {
+        _sk = self._set_spec_of(_arg_nd);
+        helpers = self.set_helpers.get(_sk) if _sk is not None else None;
+        if helpers is not None {
+            _len_result = self.builder.call(helpers["len"], [arg_val], name="set.len");
+        }
+    } elif _kind in ("list", "bytearray") {
+        _lk = self._list_spec_of(_arg_nd);
+        helpers = self.list_helpers.get(_lk) if _lk is not None else None;
+        if helpers is not None {
+            _len_result = self.builder.call(helpers["len"], [arg_val], name="list.len");
+        }
+    } elif _kind == "tuple" {
+        _tup = self._tuple_struct_of_value(arg_val);
+        if _tup is not None {
+            _len_result = ir.Constant(ir.IntType(64), len(_tup.elements));
+        }
+    }
+    if _len_result is None {
+        self._emit_unsupported_builtin_call(nd, "len");
+        return None;
+    }
+    if isinstance(arg_val.type, ir.PointerType) and self._is_owned(arg_val) {
+        self._emit_rc_release_simple(arg_val, op="len_arg", loc="");
+    }
+    return _len_result;
+}
+
+impl NaIRGenCalls._codegen_empty_container_ctor(
+    nd: uni.FuncCall, func_name: str
+) -> (ir.Value | None) {
+    _targs = self._tb_args(nd.type);
+    _elem_t = _targs[0] if _targs else None;
+    if _elem_t is None or self._tb_kind(_elem_t) in ("unknown", "never") {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name=f"{func_name}() without an element type",
+            help_text=f"An empty `{func_name}()` only lowers when the checker gives it an element type (annotate the target, e.g. `xs: {func_name}[int] = {func_name}()`), because the native container layout is fixed per element type."
+        );
+        return None;
+    }
+    _ez_low = self._elem_storage_llvm(_elem_t);
+    if _ez_low is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name=f"{func_name}[{_elem_t}]()",
+            help_text="The element type has no native layout."
+        );
+        return None;
+    }
+    if self._str_desc_ty is not None and _ez_low == self._str_desc_ty {
+        _ez_low = ir.IntType(8).as_pointer();
+    }
+    if func_name == "set" {
+        _ez_spec = "i64";
+        if isinstance(_ez_low, ir.DoubleType) {
+            _ez_spec = "f64";
+        } elif isinstance(_ez_low, ir.PointerType) {
+            _ez_spec = "ptr";
+        }
+        self._emit_set_helpers(_ez_spec, _ez_low);
+        _ez_h = self.set_helpers.get(_ez_spec);
+    } else {
+        _lp = self._lower_list_for_elem(_ez_low);
+        _ez_h = self.list_helpers.get(self._spec_from_container_ptr(_lp));
+    }
+    if _ez_h is None {
+        raise AssertionError(
+            f"container helpers for `{func_name}[{_elem_t}]()` were not registered at {nd.loc}"
+        );
+    }
+    return self.builder.call(_ez_h["new"], [], name=f"{func_name}.empty");
+}
+
+impl NaIRGenCalls._codegen_range_or_slice(
+    nd: uni.FuncCall, func_name: str
+) -> (ir.Value | None) {
+    params_l = nd.params or [];
+    i64 = ir.IntType(64);
+    i32 = ir.IntType(32);
+    start_v: (ir.Value | None) = None;
+    stop_v: (ir.Value | None) = None;
+    step_v: (ir.Value | None) = None;
+    if len(params_l) == 1 {
+        start_v = ir.Constant(i64, 0);
+        stop_v = self._codegen_expr(params_l[0]);
+        step_v = ir.Constant(i64, 1);
+    } elif len(params_l) == 2 {
+        start_v = self._codegen_expr(params_l[0]);
+        stop_v = self._codegen_expr(params_l[1]);
+        step_v = ir.Constant(i64, 1);
+    } elif len(params_l) >= 3 {
+        start_v = self._codegen_expr(params_l[0]);
+        stop_v = self._codegen_expr(params_l[1]);
+        step_v = self._codegen_expr(params_l[2]);
+    }
+    if start_v is None or stop_v is None or step_v is None {
+        return None;
+    }
+    start_v = self._coerce_type(start_v, i64);
+    stop_v = self._coerce_type(stop_v, i64);
+    step_v = self._coerce_type(step_v, i64);
+    rtype = self.range_struct_type if func_name == "range" else self.slice_struct_type;
+    raw = self.builder.call(
+        self.rc_alloc_fn, [ir.Constant(i64, 24)], name=f"{func_name}.raw"
+    );
+    ptr = self.builder.bitcast(raw, rtype.as_pointer(), name=f"{func_name}.ptr");
+    z0 = ir.Constant(i32, 0);
+    self.builder.store(
+        start_v,
+        self.builder.gep(ptr, [z0, ir.Constant(i32, 0)], name=f"{func_name}.sp")
+    );
+    self.builder.store(
+        stop_v, self.builder.gep(ptr, [z0, ir.Constant(i32, 1)], name=f"{func_name}.ep")
+    );
+    self.builder.store(
+        step_v, self.builder.gep(ptr, [z0, ir.Constant(i32, 2)], name=f"{func_name}.tp")
+    );
+    return ptr;
+}
+
+impl NaIRGenCalls._codegen_input_call(nd: uni.FuncCall) -> (ir.Value | None) {
+    i8p = ir.IntType(8).as_pointer();
+    params_l = nd.params or [];
+
+    if params_l {
+        prompt_val = self._codegen_expr(params_l[0]);
+        if prompt_val is not None {
+            _prompt_orig = prompt_val;
+            printf = self._get_printf();
+            fmt = self._get_fmt_string("%s");
+            fmt_ptr = self.builder.bitcast(fmt, i8p, name="fmt.ptr");
+
+            if isinstance(prompt_val.type, ir.PointerType) and prompt_val.type != i8p {
+                prompt_val = self.builder.bitcast(prompt_val, i8p, name="prompt.cast");
+            }
+            self.builder.call(printf, [fmt_ptr, prompt_val]);
+
+            if isinstance(_prompt_orig.type, ir.PointerType)
+                and self._is_owned(_prompt_orig) {
+                self._emit_rc_release_simple(_prompt_orig, op="input_prompt", loc="");
+            }
+        }
+    }
+
+    buf_size = 256;
+    buf_type = ir.ArrayType(ir.IntType(8), buf_size);
+    buf = self.builder.alloca(buf_type, name="input.buf");
+    buf_ptr = self.builder.bitcast(buf, i8p, name="input.ptr");
+
+    import platform;
+    stdin_name = "__stdinp" if platform.system() == "Darwin" else "stdin";
+    if stdin_name not in self.extern_funcs {
+        stdin_type = i8p;
+        stdin_global = ir.GlobalVariable(self.llvm_module, stdin_type, name=stdin_name);
+        stdin_global.linkage = "external";
+        if "windows" in str(self.llvm_module.triple or "") {
+            stdin_global.storage_class = "dllimport";
+        }
+        self.extern_funcs[stdin_name] = stdin_global;
+    }
+    stdin_var = self.extern_funcs[stdin_name];
+    stdin_val = self.builder.load(stdin_var, name="stdin.val");
+    fgets = self._get_or_declare_extern("fgets", i8p, [i8p, ir.IntType(32), i8p]);
+    size_val = ir.Constant(ir.IntType(32), buf_size);
+    fgets_ret = self.builder.call(
+        fgets, [buf_ptr, size_val, stdin_val], name="fgets.result"
+    );
+
+    func = self.builder.function;
+    eof_bb = func.append_basic_block(name="input.eof");
+    ok_bb = func.append_basic_block(name="input.ok");
+    merge_bb = func.append_basic_block(name="input.merge");
+    null_ptr = ir.Constant(i8p, None);
+    is_eof = self.builder.icmp_signed("==", fgets_ret, null_ptr, name="is.eof");
+    self.builder.cbranch(is_eof, eof_bb, ok_bb);
+
+    self.builder.position_at_start(eof_bb);
+    eof_str = self._str_alloc(
+        self.builder, ir.Constant(ir.IntType(64), 1), name="eof.str"
+    );
+    self._str_finish(self.builder, eof_str, ir.Constant(ir.IntType(64), 0));
+    self.builder.branch(merge_bb);
+    eof_bb_end = self.builder.block;
+
+    self.builder.position_at_start(ok_bb);
+
+    slen = self._call_str_len_raw(self.builder, buf_ptr, name="input.len");
+
+    alloc_size = self.builder.add(
+        slen, ir.Constant(ir.IntType(64), 1), name="alloc.size"
+    );
+    result_ptr = self._str_alloc(self.builder, alloc_size, name="input.result");
+    memcpy = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, ir.IntType(64)]);
+    self.builder.call(memcpy, [result_ptr, buf_ptr, alloc_size]);
+
+    has_len = self.builder.icmp_signed(
+        ">", slen, ir.Constant(ir.IntType(64), 0), name="has.len"
+    );
+    strip_bb = func.append_basic_block(name="input.strip");
+    nostrip_bb = func.append_basic_block(name="input.nostrip");
+    self.builder.cbranch(has_len, strip_bb, nostrip_bb);
+    self.builder.position_at_start(strip_bb);
+    last_idx = self.builder.sub(slen, ir.Constant(ir.IntType(64), 1), name="last.idx");
+    last_ptr = self.builder.gep(result_ptr, [last_idx], name="last.ptr");
+    last_byte = self.builder.load(last_ptr, name="last.byte");
+    is_newline = self.builder.icmp_signed(
+        "==", last_byte, ir.Constant(ir.IntType(8), 10), name="is.nl"
+    );
+
+    null_byte = ir.Constant(ir.IntType(8), 0);
+    store_val = self.builder.select(is_newline, null_byte, last_byte, name="strip.nl");
+    self.builder.store(store_val, last_ptr);
+
+    strip_cr_bb = func.append_basic_block(name="input.strip.cr");
+    self.builder.cbranch(is_newline, strip_cr_bb, nostrip_bb);
+    self.builder.position_at_start(strip_cr_bb);
+
+    has_cr_len = self.builder.icmp_signed(
+        ">=", slen, ir.Constant(ir.IntType(64), 2), name="has.cr.len"
+    );
+    strip_cr_check_bb = func.append_basic_block(name="input.strip.cr.check");
+    self.builder.cbranch(has_cr_len, strip_cr_check_bb, nostrip_bb);
+    self.builder.position_at_start(strip_cr_check_bb);
+
+    cr_idx = self.builder.sub(slen, ir.Constant(ir.IntType(64), 2), name="cr.idx");
+    cr_ptr = self.builder.gep(result_ptr, [cr_idx], name="cr.ptr");
+    cr_byte = self.builder.load(cr_ptr, name="cr.byte");
+    is_cr = self.builder.icmp_signed(
+        "==", cr_byte, ir.Constant(ir.IntType(8), 13), name="is.cr"
+    );
+
+    store_cr_val = self.builder.select(is_cr, null_byte, cr_byte, name="strip.cr");
+    self.builder.store(store_cr_val, cr_ptr);
+    self.builder.branch(nostrip_bb);
+    self.builder.position_at_start(nostrip_bb);
+    final_len = self._call_str_len(self.builder, result_ptr, name="input.final.len");
+    self._str_finish(self.builder, result_ptr, final_len);
+    self.builder.branch(merge_bb);
+    ok_bb_end = self.builder.block;
+
+    self.builder.position_at_start(merge_bb);
+    phi = self.builder.phi(i8p, name="input.phi");
+    phi.add_incoming(eof_str, eof_bb_end);
+    phi.add_incoming(result_ptr, ok_bb_end);
+    return phi;
 }

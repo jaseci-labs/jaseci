@@ -49,7 +49,7 @@ import jaclang.jac0core.unitree as uni;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
 
 glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "passes", "main", "fixtures", "layout_acyclicity.jac"
@@ -64,7 +64,7 @@ def _registry -> any {
     prog = JacProgram();
     ir = prog.compile(file_path=FIXTURE, options=CompileOptions(aot_mode=True));
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
-    reg = get_layout_registry(ir, prog);
+    reg = ensure_layout_registry(ir, prog);
     _REG_MEMO.append(reg);
     return reg;
 }

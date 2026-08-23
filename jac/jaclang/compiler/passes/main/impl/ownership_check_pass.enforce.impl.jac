@@ -200,7 +200,7 @@ impl OwnershipCheckPass._nogc_str_slice_value(expr: Expr | None) -> bool {
 }
 
 impl OwnershipCheckPass._nogc_type_is_str(t: TypeBase | None) -> bool {
-    return self._type_is_class_named(t, ("str", "LiteralString"));
+    return self._type_is_class_named(t, ("str", ));
 }
 
 impl OwnershipCheckPass._type_is_class_named(t: TypeBase | None, names: tuple) -> bool {

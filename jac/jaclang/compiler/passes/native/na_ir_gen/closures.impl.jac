@@ -31,7 +31,7 @@ impl NaIRGenClosures._scan_closure_escapes(
         }
     }
     for sub in nd.get_all_sub_nodes(typ=uni.Ability) {
-        if nearest_scope(sub) is not nd or self._ability_is_generator(sub) {
+        if nearest_scope(sub) is not nd or sub.is_generator {
             continue;
         }
         sname = sub.name_ref.sym_name if sub.name_ref else None;
@@ -290,6 +290,33 @@ impl NaIRGenClosures._emit_closure_value(
         return None;
     }
     fnty = fn.function_type;
+    _ref = nd;
+    while isinstance(_ref, (uni.AtomUnit, uni.CfgExpr)) {
+        _ref = _ref.value if isinstance(_ref, uni.AtomUnit) else _ref.expr;
+    }
+    _sym = _ref.sym if isinstance(_ref, uni.AstSymbolNode) else None;
+    _decl_of = _sym.decl.name_of
+        if _sym is not None and _sym.decl is not None
+        else None;
+    if not isinstance(_decl_of, uni.Ability) {
+        raise AssertionError(
+            f"closure value '{var_name}' at {nd.loc} does not resolve to a nested ability"
+        );
+    }
+    _fn_t = _decl_of.name_spec.type;
+    if not isinstance(_fn_t, FunctionType) {
+        raise AssertionError(
+            f"nested ability '{var_name}' at {_decl_of.loc} has no FunctionType on its name (got {_fn_t})"
+        );
+    }
+    _declared_raw = self._lower_function_type_raw(_fn_t).pointee;
+    if len(_declared_raw.args) != declared_count {
+        raise AssertionError(
+            f"nested ability '{var_name}' declares {len(
+                _declared_raw.args
+            )} parameters but its native definition has {declared_count} before its captures"
+        );
+    }
     declared_fnty = ir.FunctionType(fnty.return_type, list(fnty.args)[:declared_count]);
     cap_info: list = [];
     for (i, (cname, cmode)) in enumerate(caps) {
@@ -298,41 +325,64 @@ impl NaIRGenClosures._emit_closure_value(
     return self._emit_closure_pair(fn, declared_fnty, cap_info);
 }
 
-impl NaIRGenClosures._emit_closure_escape_error(
-    var_name: str, nd: uni.UniNode
-) -> None {
-    self.emit(
-        E5092,
-        node_override=nd,
-        kind="expression",
-        name=f"'{var_name}' (capturing closure used as a value)",
-        help_text="This closure's captured variables could not be promoted to shared heap cells in this frame (e.g. the capture is itself borrowed from an outer function, or the closure is a generator), so it can only be called directly here. Move the captured state into this frame, or use an object holding the state."
-    );
-}
-
 impl NaIRGenClosures._codegen_closure_call(
     nd: uni.FuncCall, clos_val: ir.Value, struct_name: str
 ) -> (ir.Value | None) {
     (_st, fnty_env) = self.closure_sig_registry[struct_name];
     i32 = ir.IntType(32);
     declared = list(fnty_env.args)[:-1];
+    _callee_t = self._tb_solve(nd.target.type);
+    _params = (
+        list(_callee_t.parameters or []) if isinstance(_callee_t, FunctionType) else []
+    );
     raw_args: list = [];
-    for p in (nd.params or []) {
-        v = self._codegen_expr(p);
-        if v is not None {
-            raw_args.append(v);
-        }
-    }
     coerced: list = [];
-    for (i, a) in enumerate(raw_args) {
-        if i < len(declared) {
-            coerced.append(self._coerce_type(a, declared[i]));
-        } else {
-            coerced.append(a);
+    for (i, p) in enumerate(nd.params or []) {
+        if isinstance(p, uni.KWPair) {
+            self.emit(
+                E5092,
+                node_override=p,
+                kind="call",
+                name="keyword argument to a closure value",
+                help_text="A closure value is called positionally; its parameters carry no names at the call site."
+            );
+            return None;
         }
+        if i >= len(declared) {
+            self.emit(
+                E5092,
+                node_override=p,
+                kind="call",
+                name=f"argument {i + 1} to a closure value",
+                help_text="The closure's declared signature has no slot for this argument."
+            );
+            return None;
+        }
+        v = self._codegen_expr(p);
+        if v is None {
+            return None;
+        }
+        raw_args.append(v);
+        coerced.append(self._coerce_type(v, declared[i]));
     }
     while len(coerced) < len(declared) {
-        coerced.append(self._default_arg_fallback(declared[len(coerced)]));
+        _i = len(coerced);
+        _dflt = _params[_i].default_value if _i < len(_params) else None;
+        if _dflt is None {
+            raise AssertionError(
+                f"closure call at {nd.loc} bound {len(
+                    coerced
+                )} arguments but the closure takes {len(
+                    declared
+                )}; the checker owns the arity diagnostic"
+            );
+        }
+        _dv = self._codegen_expr(_dflt);
+        if _dv is None {
+            return None;
+        }
+        raw_args.append(_dv);
+        coerced.append(self._coerce_type(_dv, declared[_i]));
     }
     fn_slot = self.builder.gep(
         clos_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ccall.fn.slot"
@@ -358,4 +408,16 @@ impl NaIRGenClosures._codegen_closure_call(
         self._emit_rc_release_simple(clos_val, op="ccall_target", loc="");
     }
     return result;
+}
+
+impl NaIRGenClosures._emit_closure_escape_error(
+    var_name: str, nd: uni.UniNode
+) -> None {
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="expression",
+        name=f"'{var_name}' (capturing closure used as a value)",
+        help_text="This closure's captured variables could not be promoted to shared heap cells in this frame (e.g. the capture is itself borrowed from an outer function, or the closure is a generator), so it can only be called directly here. Move the captured state into this frame, or use an object holding the state."
+    );
 }

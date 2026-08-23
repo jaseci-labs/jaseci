@@ -3,10 +3,14 @@ import from jaclang.jac0core.unitree {
     Archetype,
     Assignment,
     Enum,
+    FuncCall,
     Int,
+    Module,
+    ModuleItem,
     Name,
     NameAtom,
-    String
+    String,
+    UniNode
 }
 import from .types { ClassType, EnumMemberInfo, TypeBase }
 import type from .type_evaluator { TypeEvaluator, PrefetchedTypes }
@@ -24,6 +28,8 @@ glob ENUM_RESERVED_NAMES: set[str] = {
      };
 
 def is_excluded_enum_member_name(name: str) -> bool;
+
+def is_enum_auto_call(value_expr: UniNode | None) -> bool;
 
 def create_enum_member_info(
     assignment: Assignment, evaluator: TypeEvaluator

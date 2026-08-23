@@ -2,6 +2,7 @@ import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.diagnostics { E5092 }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.type_system.types { ClassType }
 
 obj NaIRGenEnums(NaIRGenState) {
     def _ensure_enum_lowered(t: any) -> (ir.Type | None);
@@ -9,6 +10,8 @@ obj NaIRGenEnums(NaIRGenState) {
     def _codegen_class_form_enum_member(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
+    def _enum_layout_of(enum_name: str) -> (any | None);
+    def _enum_member_const(t: any) -> (ir.Constant | None);
     def _enum_ctor_layout(enum_name: str) -> (any | None);
     def _enum_ctor_target(nd: uni.FuncCall) -> (str | None);
     def _emit_enum_ctor_refusal(nd: uni.FuncCall, enum_name: str, why: str) -> None;

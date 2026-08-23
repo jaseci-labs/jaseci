@@ -1027,7 +1027,7 @@ impl NaIRGenArena._try_partition_sugar_assign(nd: uni.Assignment) -> bool {
     _recv_nm = _tr.target;
     _recv_name = _recv_nm.sym_name if isinstance(_recv_nm, uni.Name) else None;
     if not (
-        self._type_key_of(_tr.target) == "Region"
+        self._tb_kind(self._expr_type_of(_tr.target)) == "region"
         or (_recv_name is not None and _recv_name in self.region_handle_vars)
     ) {
         return False;

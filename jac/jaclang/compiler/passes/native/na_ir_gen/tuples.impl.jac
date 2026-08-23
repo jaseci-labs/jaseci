@@ -61,33 +61,11 @@ impl NaIRGenTuples._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
     return val;
 }
 
-impl NaIRGenTuples._infer_unpack_struct_ptr(nd: object) -> (ir.Type | None) {
-    list_name: (str | None) = None;
-    list_expr: (object | None) = None;
-    if isinstance(nd, uni.FuncCall) {
-        tgt = nd.target;
-        if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
-            list_name = self._get_name(tgt.target);
-            list_expr = tgt.target;
-        }
-    } elif isinstance(nd, uni.AtomTrailer) and not nd.is_attr and nd.right?.slices {
-        list_name = self._get_name(nd.target);
-        list_expr = nd.target;
-    }
-    if list_name is None {
-        return None;
-    }
-
-    cast = self._list_elem_llvm_of(list_expr);
-    if cast is not None and isinstance(cast, ir.PointerType) {
-        return cast;
-    }
-
-    return self.var_list_elem_struct.get(list_name);
-}
-
 impl NaIRGenTuples._codegen_tuple_unpack(
-    targets: list, tuple_val: ir.Value, tuple_node: (object | None)
+    targets: list,
+    tuple_val: ir.Value,
+    tuple_node: (object | None),
+    tuple_ty: any = None
 ) -> bool {
     _elem_owned = tuple_val?.na_tuple_owned;
     _tu_opt = self._opt_payload_of(tuple_val.type);
@@ -107,8 +85,11 @@ impl NaIRGenTuples._codegen_tuple_unpack(
 
     if struct_type is None
         and isinstance(tuple_val.type, ir.PointerType)
-        and tuple_node is not None {
-        cast_ptr_type = self._infer_unpack_struct_ptr(tuple_node);
+        and (tuple_node is not None or tuple_ty is not None) {
+        _rhs_ty = tuple_ty if tuple_ty is not None else self._expr_type_of(tuple_node);
+        cast_ptr_type = self._lower_type(self._tb_opt_payload(_rhs_ty) or _rhs_ty)
+            if self._tb_kind(_rhs_ty) in ("tuple", "optional")
+            else None;
         if cast_ptr_type is not None
             and isinstance(cast_ptr_type, ir.PointerType)
             and isinstance(cast_ptr_type.pointee, ir.LiteralStructType) {
@@ -164,12 +145,18 @@ impl NaIRGenTuples._codegen_tuple_unpack(
             }
             self.builder.store(stored, alloca);
         } else {
-            alloca = self._entry_alloca(elem_val.type, var_name);
+            _slot_ty = self._unpack_slot_llvm(target, elem_val.type);
+            if _slot_ty != elem_val.type {
+                elem_val = self._coerce_typed(
+                    elem_val, _slot_ty, self._sym_type_of(target)
+                );
+            }
+            alloca = self._entry_alloca(_slot_ty, var_name);
             new_ref = self._rc_slot_ref(elem_val) if rc_ok else None;
             if new_ref is not None {
                 _saved_block = self.builder.block;
                 self.builder.position_after(alloca);
-                self.builder.store(ir.Constant(elem_val.type, None), alloca);
+                self.builder.store(ir.Constant(_slot_ty, None), alloca);
                 self.builder.position_at_end(_saved_block);
                 if not moved {
                     self._emit_rc_retain(new_ref, op="unpack", loc="");
@@ -187,6 +174,28 @@ impl NaIRGenTuples._codegen_tuple_unpack(
         self._emit_rc_release_simple(_orig_tv, op="unpack_box", loc="");
     }
     return True;
+}
+
+impl NaIRGenTuples._unpack_slot_llvm(
+    target: uni.UniNode, elem_llvm: ir.Type
+) -> ir.Type {
+    _ty = self._sym_type_of(target);
+    if _ty is None or self._tb_kind(_ty) in ("unknown", "any", "never", "typevar") {
+        return elem_llvm;
+    }
+    _low = self._lower_type(_ty);
+    if _low is None or isinstance(_low, ir.VoidType) {
+        return elem_llvm;
+    }
+    if self._str_desc_ty is not None and _low == self._str_desc_ty {
+        _low = ir.IntType(8).as_pointer();
+    }
+    if not (
+        isinstance(elem_llvm, ir.PointerType) and isinstance(_low, ir.PointerType)
+    ) {
+        return elem_llvm;
+    }
+    return _low;
 }
 
 impl NaIRGenTuples._get_struct_size(struct_type: ir.LiteralStructType) -> int {
@@ -379,7 +388,7 @@ impl NaIRGenTuples._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None)
 }
 
 impl NaIRGenTuples._tuple_seq_coerce(
-    val: ir.Value, target_type: ir.Type
+    val: ir.Value, target_type: ir.Type, src_ty: any = None
 ) -> (ir.Value | None) {
     """Materialize a tuple value into the sequence a variadic tuple lowers to.
 
@@ -397,16 +406,45 @@ impl NaIRGenTuples._tuple_seq_coerce(
     if self.list_types[spec].as_pointer() != target_type {
         return None;
     }
-    st = self._tuple_struct_of_value(val);
-    if st is None {
+    _elems: (list | None) = None;
+    if src_ty is not None and self._tb_kind(src_ty) == "tuple" {
+        _elems = self._tuple_elem_llvms(src_ty);
+    } else {
+        st = self._tuple_struct_of_value(val);
+        _elems = [e for e in st.elements] if st is not None else None;
+    }
+    if _elems is None {
         return None;
     }
-    flavor = self._tuple_seq_flavor([e for e in st.elements]);
+    flavor = self._tuple_seq_flavor(_elems);
     if flavor is None or flavor[0] != spec {
         return None;
     }
-    seq = self._tuple_iter_seq(None, val);
+    seq = self._tuple_iter_seq(None, val, src_ty);
     return seq[0] if seq is not None else None;
+}
+
+impl NaIRGenTuples._tuple_elem_llvms(t: any) -> (list | None) {
+    _args = self._tb_args(self._tb_opt_payload(t) or t);
+    if self._tuple_has_variadic_arg(_args) {
+        return None;
+    }
+    out: list = [];
+    for _a in _args {
+        _et = self._lower_type(_a);
+        if _et is None {
+            return None;
+        }
+        if self._str_desc_ty is not None and _et == self._str_desc_ty {
+            _et = ir.IntType(8).as_pointer();
+        }
+        out.append(_et);
+    }
+    return out;
+}
+
+impl NaIRGenTuples._tuple_has_variadic_arg(type_args: list) -> bool {
+    return any(isinstance(a, UnknownType) for a in type_args);
 }
 
 impl NaIRGenTuples._tuple_struct_of_value(
@@ -428,26 +466,11 @@ impl NaIRGenTuples._tuple_struct_of_value(
 impl NaIRGenTuples._tuple_iter_shape(
     expr: (uni.UniNode | None), val: (ir.Value | None)
 ) -> bool {
-    _lit = expr;
-    while isinstance(_lit, uni.AtomUnit) {
-        _lit = _lit.value;
-    }
-    if isinstance(_lit, uni.TupleVal) and not _lit.values {
-        return True;
-    }
-    if val is None {
-        return False;
-    }
-    _t = val.type;
-    _pl = self._opt_payload_of(_t);
-    if _pl is not None {
-        _t = _pl;
-    }
-    if isinstance(_t, ir.LiteralStructType) {
-        return True;
-    }
-    return isinstance(_t, ir.PointerType)
-        and isinstance(_t.pointee, ir.LiteralStructType);
+    _ty = self._expr_type_of(expr);
+    _pl = self._tb_opt_payload(_ty);
+    _ty = _pl if _pl is not None else _ty;
+    return self._tb_kind(_ty) == "tuple"
+        and not self._tuple_has_variadic_arg(self._tb_args(_ty));
 }
 
 impl NaIRGenTuples._tuple_seq_flavor(elem_types: list) -> (tuple | None) {
@@ -480,17 +503,17 @@ impl NaIRGenTuples._tuple_seq_flavor(elem_types: list) -> (tuple | None) {
 }
 
 impl NaIRGenTuples._tuple_iter_seq(
-    expr: (uni.UniNode | None), val: (ir.Value | None)
+    expr: (uni.UniNode | None), val: (ir.Value | None), src_ty: any = None
 ) -> (tuple | None) {
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
-    _lit = expr;
-    while isinstance(_lit, uni.AtomUnit) {
-        _lit = _lit.value;
+    _ty = src_ty if src_ty is not None else self._expr_type_of(expr);
+    elem_types = self._tuple_elem_llvms(_ty) if _ty is not None else None;
+    if elem_types is None {
+        return None;
     }
-    empty_lit = isinstance(_lit, uni.TupleVal) and not _lit.values;
     struct_type: (ir.LiteralStructType | None) = None;
-    if not empty_lit {
+    if elem_types {
         if val is None {
             return None;
         }
@@ -498,12 +521,12 @@ impl NaIRGenTuples._tuple_iter_seq(
         if _opt_pl is not None {
             val = self._coerce_type(val, _opt_pl);
         }
-        struct_type = self._tuple_struct_of_value(val);
-        if struct_type is None {
-            return None;
+        struct_type = self._tuple_struct_of(elem_types);
+        if isinstance(val.type, ir.PointerType)
+            and val.type != struct_type.as_pointer() {
+            val = self.builder.bitcast(val, struct_type.as_pointer(), name="tseq.cast");
         }
     }
-    elem_types: list = [] if struct_type is None else [e for e in struct_type.elements];
     flavor = self._tuple_seq_flavor(elem_types);
     if flavor is None {
         return None;

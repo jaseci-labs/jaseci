@@ -399,7 +399,6 @@ def get_ir_gen_sched(
 
         import jaclang.compiler.symbol_utils;
         import jaclang.compiler.expr_keys;
-        import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
         import jaclang.project.client_kind;
@@ -468,6 +467,7 @@ def get_analysis_sched -> list[type[Transform]] {
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
         import jaclang.compiler.passes.main.pyast_load_pass;
+        import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.passes.main.rc_facts_pass;
         import jaclang.compiler.type_system.type_utils;
         import jaclang.compiler.type_system.ts_decl_parser;
@@ -569,12 +569,13 @@ def get_py_code_gen(
 
         passes: list[type[Transform]] = [EsastGenPass];
         if native {
+            import from jaclang.compiler.passes.main.layout_pass { LayoutPass }
             import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
             import from jaclang.compiler.passes.native {
                 NaIRGenPass,
                 NativeCompilePass
             }
-            passes.extend([RcFactsPass, NaIRGenPass, NativeCompilePass]);
+            passes.extend([LayoutPass, RcFactsPass, NaIRGenPass, NativeCompilePass]);
             _note_native_schedule_failure(None);
         }
         passes.extend(_py_codegen_tail());

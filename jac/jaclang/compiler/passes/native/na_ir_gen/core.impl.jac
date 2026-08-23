@@ -299,35 +299,54 @@ impl NaIRGenCore._export_native_layout -> None {
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
-        enum_types = self.struct_field_enum_type.get(arch_name, {});
-        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
+        _lay = self._arch_layout(arch_name);
+        _finfo_by_name: dict = {};
+        if _lay is not None {
+            for _fi in _lay.fields {
+                _finfo_by_name[_fi.name] = _fi;
+            }
+        }
         _foreign_flds = self.struct_field_foreign.get(arch_name, set());
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
-            llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
+            if ftype is None {
+                raise AssertionError(
+                    f"native layout export: {arch_name}.{fname} has no lowered type"
+                );
+            }
+            llvm_t = self._llvm_type_str(ftype);
 
             is_fn_ptr = False;
             fn_param_types: (list[str] | None) = None;
             fn_ret_type: (str | None) = None;
             if (
-                ftype is not None
-                and isinstance(ftype, ir.PointerType)
+                isinstance(ftype, ir.PointerType)
                 and isinstance(ftype.pointee, ir.FunctionType)
             ) {
                 is_fn_ptr = True;
                 fn_param_types = [self._llvm_type_str(a) for a in ftype.pointee.args];
                 fn_ret_type = self._llvm_type_str(ftype.pointee.return_type);
             }
+            _finfo = _finfo_by_name.get(fname);
+            _ftb = _finfo.type if _finfo is not None else None;
+            _enum_t: (str | None) = None;
+            if self._tb_kind(self._tb_non_none_one(_ftb)) == "enum" {
+                _enum_t = self._tb_class_name(self._tb_non_none_one(_ftb));
+                if _enum_t is not None and _enum_t not in self.enum_types {
+                    _enum_t = None;
+                }
+            }
+            _elem_keys = self._elem_keys_of_type(_ftb);
             fields.append(
                 NativeFieldInfo(
                     name=fname,
                     llvm_type=llvm_t,
                     index=idx,
-                    enum_type=enum_types.get(fname),
+                    enum_type=_enum_t,
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
                     func_ret_type=fn_ret_type,
-                    elem_keys=elem_keys.get(fname),
+                    elem_keys=_elem_keys,
                     foreign=fname in _foreign_flds
                 )
             );
@@ -355,6 +374,17 @@ impl NaIRGenCore._export_native_layout -> None {
         );
     }
 
+    _fn_types: dict[str, any] = {};
+    for _stmt in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE) {
+        if (
+            isinstance(_stmt, uni.Ability)
+            and _stmt.name_ref is not None
+            and isinstance(_stmt.signature, uni.FuncSignature)
+        ) {
+            _fn_types[_stmt.name_ref.sym_name] = _stmt.name_spec.type;
+        }
+    }
+
     method_names = set(self.method_funcs.keys());
     for (fname, func) in self.func_symtab.items() {
         if fname.startswith("__") or fname == "jac_entry" or fname in method_names {
@@ -371,6 +401,8 @@ impl NaIRGenCore._export_native_layout -> None {
         ret_type = self._llvm_type_str(func.function_type.return_type);
         ret_struct: (str | None) = None;
         ret_tuple: (NativeTupleLayout | None) = None;
+        _ft = _fn_types.get(fname);
+        _ret_tb = _ft.return_type if isinstance(_ft, FunctionType) else None;
         if isinstance(func.function_type.return_type, ir.PointerType) {
             for (sn, st) in self.struct_types.items() {
                 if func.function_type.return_type.pointee == st {
@@ -384,7 +416,7 @@ impl NaIRGenCore._export_native_layout -> None {
                     if func.function_type.return_type.pointee == ttype {
                         ret_tuple = layout.tuples.get(tkey);
                         if ret_tuple is not None {
-                            hints = self._ret_tuple_hints(fname, ret_tuple);
+                            hints = self._ret_tuple_hints(_ret_tb, ret_tuple);
                             if hints is not None {
                                 ret_tuple = NativeTupleLayout(
                                     key=ret_tuple.key,
@@ -402,19 +434,11 @@ impl NaIRGenCore._export_native_layout -> None {
 
         ret_enum: (str | None) = None;
         if ret_type in ("i64", "opt.i64") {
-            _rkey = self.func_ret_type_key.get(fname);
-            if _rkey is not None {
-                if _rkey in self.enum_types {
-                    ret_enum = _rkey;
-                } elif "|" in _rkey {
-                    _rnon = [
-                        s.strip()
-                        for s in _rkey.split("|")
-                        if s.strip() not in ("None", "NoneType")
-                    ];
-                    if len(_rnon) == 1 and _rnon[0] in self.enum_types {
-                        ret_enum = _rnon[0];
-                    }
+            _rnon = self._tb_non_none_one(_ret_tb);
+            if self._tb_kind(_rnon) == "enum" {
+                _ren = self._tb_class_name(_rnon);
+                if _ren is not None and _ren in self.enum_types {
+                    ret_enum = _ren;
                 }
             }
         }
@@ -425,7 +449,7 @@ impl NaIRGenCore._export_native_layout -> None {
             or ret_type.startswith("Dict.")
             or ret_type.startswith("Set.")
         ) {
-            ret_elem = self.func_ret_elem_keys.get(fname);
+            ret_elem = self._elem_keys_of_type(_ret_tb);
         }
         layout.functions[fname] = NativeFuncLayout(
             name=fname,
@@ -476,6 +500,29 @@ impl NaIRGenCore._export_native_layout -> None {
     self.ir_in.gen.native_layout = layout;
 }
 
+impl NaIRGenCore._tb_non_none_one(t: any) -> any {
+    if t is None {
+        return None;
+    }
+    if self._tb_kind(t) == "optional" {
+        return self._tb_opt_payload(t);
+    }
+    _parts = self._tb_non_none(t);
+    return _parts[0] if len(_parts) == 1 else t;
+}
+
+impl NaIRGenCore._elem_keys_of_type(t: any) -> (list | None) {
+    t = self._tb_non_none_one(t);
+    if self._tb_kind(t) not in ("list", "dict", "set", "tuple") {
+        return None;
+    }
+    keys: list = [];
+    for a in self._tb_args(t) {
+        keys.append(a.mangle() if a is not None else None);
+    }
+    return keys;
+}
+
 impl NaIRGenCore._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
     out: dict[(str, dict[(str, str)])] = {};
     lay = self._arch_layout(arch_name);
@@ -499,22 +546,27 @@ impl NaIRGenCore._exported_accessors(arch_name: str) -> dict[(str, dict[(str, st
     return out;
 }
 
-impl NaIRGenCore._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
-    keys = self.func_ret_elem_keys.get(fname);
-    if not keys or len(keys) != len(ret_tuple.element_types) {
+impl NaIRGenCore._ret_tuple_hints(ret_tb: any, ret_tuple: any) -> (list | None) {
+    _args = self._tb_args(self._tb_non_none_one(ret_tb));
+    if not _args or len(_args) != len(ret_tuple.element_types) {
         return None;
     }
     hints: list = [];
     _any = False;
-    for k in keys {
+    for a in _args {
         hint: (str | None) = None;
-        if k is not None {
-            if k in self.struct_types {
-                hint = k;
-            } elif k.startswith("list[") and k.endswith("]") {
-                _inner = k[5:-1];
-                if _inner in self.struct_types {
-                    hint = _inner;
+        _ak = self._tb_kind(a);
+        if _ak == "struct" {
+            _sn = self._tb_class_name(a);
+            if _sn is not None and _sn in self.struct_types {
+                hint = _sn;
+            }
+        } elif _ak == "list" {
+            _el = self._tb_elem(a);
+            if self._tb_kind(_el) == "struct" {
+                _en = self._tb_class_name(_el);
+                if _en is not None and _en in self.struct_types {
+                    hint = _en;
                 }
             }
         }
@@ -528,184 +580,55 @@ impl NaIRGenCore._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
 
 impl NaIRGenCore._register_imported_struct_types -> None {
     import os;
-    import from jaclang.jac0core.codeinfo {
-        resolve_native_module,
-        is_bundled_native_module
-    }
-
-    processed_modules: set[str] = set();
-    imported_mods: list = [];
+    import from jaclang.jac0core.codeinfo { native_module_key, native_stdlib_root }
     manifest = self.ir_in.gen.interop_manifest;
+    reg = self._registry();
+    _own_real = os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
+    imported_mods: list = [
+        m
+        for m in reg.dep_modules
+        if m is not self.ir_in
+            and not (m.loc and os.path.realpath(m.loc.mod_path) == _own_real)
+    ];
 
     entry_base = os.path.dirname(os.path.abspath(self.ir_in.loc.mod_path))
         if (self.ir_in?.loc)
         else os.getcwd();
-
-    _native_ids: set = {
-        id(_s)
-        for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
-    };
-    _has_native_code: bool = len(_native_ids) > 0;
-    _nested_native = ModuleCodegenPass.iter_nested_imports(
-        self.ir_in, CodeContext.NATIVE
-    );
-    for _nested_imp in _nested_native {
-        _native_ids.add(id(_nested_imp));
-    }
-    wq: list = [];
-    for imp in ModuleCodegenPass.iter_module_imports(self.ir_in) + _nested_native {
-        mod_name = self._extract_import_module_name(imp);
-        if not mod_name {
+    _stdlib_root = native_stdlib_root();
+    _stdlib_real = os.path.realpath(_stdlib_root) if _stdlib_root else None;
+    for dep in imported_mods {
+        _dep_path = dep.loc.mod_path if dep.loc else "";
+        if not _dep_path {
             continue;
         }
-        if (not imp.from_loc) and (not imp.is_absorb) {
-            if not _has_native_code {
-                continue;
-            }
-            if not is_bundled_native_module(mod_name) {
-                _item0 = next(
-                    (
-                        i
-                        for i in imp.items
-                        if isinstance(i, uni.ModulePath)
-                    ),
-                    None
-                );
-                if (
-                    id(imp) not in _native_ids
-                    or _item0 is None
-                    or _item0.alias is not None
-                    or len(_item0.path) != 1
-                    or resolve_native_module(mod_name, entry_base)[1] is None
-                ) {
-                    continue;
-                }
-            }
-        }
-        wq.append((mod_name, entry_base, None));
-    }
-
-    _self_key = (
-        os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
-    );
-    import from jaclang.jac0core.codeinfo { native_module_key }
-
-    _canon_src: dict = {};
-    _src_keys: dict[str, str] = {};
-    dep_edges: dict = {};
-    qi = 0;
-    while qi < len(wq) {
-        (mod_name, cur_base, parent_key) = wq[qi];
-        qi += 1;
-        (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
-        if src_mod_str is None or full_path is None {
-            continue;
-        }
-        if _self_key is not None and os.path.realpath(full_path) == _self_key {
-            continue;
-        }
-        abs_key = os.path.abspath(full_path);
-        if parent_key in dep_edges {
-            dep_edges[parent_key].append(abs_key);
-        } else {
-            dep_edges[parent_key] = [abs_key];
-        }
-        if abs_key in processed_modules {
-            continue;
-        }
-
-        imported_mod = self.prog.mod.hub.get(full_path);
-        if imported_mod is None {
-            imported_mod = self.prog.mod.hub.get(abs_key);
-        }
-
-        if imported_mod is None and os.path.isfile(full_path) {
-            _saved_opts = self.prog._compile_options;
-            try {
-                imported_mod = self.prog.compile(
-                    full_path, no_cgen=True, symtab_ir_only=True
-                );
-            } except Exception {
-                imported_mod = None;
-            } finally {
-                self.prog._compile_options = _saved_opts;
-            }
-        }
-        if imported_mod is None {
-            continue;
-        }
-        self._ensure_dep_inference(imported_mod);
-        processed_modules.add(abs_key);
-        _canon_src[abs_key] = src_mod_str;
-        imported_mods.append((src_mod_str, imported_mod));
-        _src_keys[src_mod_str] = native_module_key(full_path);
-
-        sub_base = os.path.dirname(os.path.abspath(full_path));
-        for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
-            + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
-            sub_name = self._extract_import_module_name(sub_imp);
-            if sub_name {
-                wq.append((sub_name, sub_base, abs_key));
-            }
-        }
-    }
-
-    self._foreign_modules = [m for (_s, m) in imported_mods];
-
-    _own_code_keys: set = set();
-    for (_abs_key, (_src_mod_str, imported_mod)) in zip(
-        _canon_src.keys(), imported_mods
-    ) {
         _has_own_code = any(
             not isinstance(s, uni.Import)
-            for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
+            for s in ModuleCodegenPass.iter_context_stmts(dep)
         );
-        if _has_own_code {
-            _own_code_keys.add(_abs_key);
+        if not _has_own_code {
+            continue;
         }
-    }
-    _visited: set = set();
-    _order_stack: list = [(None, 0)];
-    while _order_stack {
-        (_nd, _idx) = _order_stack.pop();
-        _kids = dep_edges.get(_nd, []);
-        if _idx < len(_kids) {
-            _order_stack.append((_nd, _idx + 1));
-            _kid = _kids[_idx];
-            if _kid not in _visited {
-                _visited.add(_kid);
-                _order_stack.append((_kid, 0));
-            }
-        } elif (
-            _nd is not None
-            and _nd in _own_code_keys
-            and _canon_src.get(_nd) is not None
-            and _canon_src[_nd] not in manifest.native_transitive_sources
-        ) {
-            manifest.native_transitive_sources.append(_canon_src[_nd]);
-            manifest.native_transitive_keys.append(_src_keys.get(_canon_src[_nd], ""));
+        _real = os.path.realpath(_dep_path);
+        if _stdlib_real is not None and _real.startswith(_stdlib_real + os.sep) {
+            _label = os.path.splitext(os.path.relpath(_real, _stdlib_real))[0];
+        } else {
+            _label = os.path.relpath(_real, entry_base);
+        }
+        if _label not in manifest.native_transitive_sources {
+            manifest.native_transitive_sources.append(_label);
+            manifest.native_transitive_keys.append(native_module_key(_dep_path));
         }
     }
 
+    self._foreign_modules = list(imported_mods);
     imported_mods = self._permuted_walk_order(imported_mods);
 
-    for (_, imported_mod) in imported_mods {
+    for imported_mod in imported_mods {
         self._process_clib_imports(imported_mod);
     }
 
-    for (_, imported_mod) in imported_mods {
-        self._walk_imported_module_type_names(imported_mod);
-    }
-
-    for (_, imported_mod) in imported_mods {
-        self._register_imported_hierarchy(imported_mod);
-    }
-
-    import from jaclang.compiler.passes.main.layout_pass { adopt_imported_bases }
-    adopt_imported_bases(self.ir_in);
-
-    for (_, imported_mod) in imported_mods {
-        self._walk_imported_module_types(imported_mod);
+    for imported_mod in imported_mods {
+        self._register_dep_module_layouts(imported_mod);
     }
 
     _self_real = os.path.realpath(self.ir_in.loc.mod_path)
@@ -715,12 +638,75 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         self.prog._na_dep_inflight.add(_self_real);
     }
     try {
-        for (_, imported_mod) in imported_mods {
+        for imported_mod in imported_mods {
             self._walk_imported_module_abilities(imported_mod);
         }
     } finally {
         if _self_real is not None {
             self.prog._na_dep_inflight.discard(_self_real);
+        }
+    }
+}
+
+impl NaIRGenCore._register_dep_module_layouts(imported_mod: uni.Module) -> None {
+    import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
+    dep_reg = ensure_layout_registry(imported_mod, self.prog);
+    self._registry().merge_from(dep_reg);
+    _ordered: list = [];
+    for _name in dep_reg.topo_order {
+        if _name not in dep_reg.local_names {
+            continue;
+        }
+        _lay = dep_reg.layouts.get(_name);
+        if _lay is None or _lay.decl_node is None {
+            continue;
+        }
+        if (
+            isinstance(_lay.decl_node, uni.ContextAwareNode)
+            and _lay.decl_node.code_context == CodeContext.CLIENT
+        ) {
+            continue;
+        }
+        if _lay.is_clib {
+            continue;
+        }
+        _ordered.append(_lay);
+        if _name not in self.struct_types {
+            self.struct_types[_name] = self.llvm_module.context.get_identified_type(
+                _name
+            );
+        }
+        if _name not in self._struct_source_name {
+            self._struct_source_name[_name] = imported_mod.name;
+        }
+    }
+    for _ename in dep_reg.local_enum_names {
+        if _ename not in self._enum_source_name {
+            self._enum_source_name[_ename] = imported_mod.name;
+        }
+    }
+    for _lay in _ordered {
+        if _lay.name in self._struct_bodies_done {
+            continue;
+        }
+        self._codegen_archetype(_lay.decl_node);
+    }
+    for _ename in dep_reg.local_enum_names {
+        _elay = dep_reg.enums.get(_ename);
+        if _elay is not None and _elay.decl_node is not None {
+            self._codegen_enum(_elay.decl_node);
+        }
+    }
+    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.code_context == CodeContext.CLIENT
+        ) {
+            continue;
+        }
+        if isinstance(stmt, uni.GlobalVars) {
+            _imp_path = imported_mod.loc.mod_path if imported_mod?.loc else "";
+            self._register_imported_globals(stmt, _imp_path);
         }
     }
 }
@@ -742,87 +728,11 @@ impl NaIRGenCore._permuted_walk_order(mods: list) -> list {
     raise ValueError(f"unknown native_module_walk_order: {_spec!r}");
 }
 
-impl NaIRGenCore._extract_import_module_name(imp: uni.Import) -> (str | None) {
-    if imp.clib_decls {
-        return None;
-    }
-    if not imp.from_loc or not isinstance(imp.from_loc, uni.ModulePath) {
-        if imp.items {
-            for it in imp.items {
-                if isinstance(it, uni.ModulePath) and it.path {
-                    return '.'.join(getattr(p, 'value', str(p)) for p in it.path);
-                }
-            }
-        }
-        return None;
-    }
-
-    if imp.clib_decls {
-        return None;
-    }
-    if imp.from_loc.string_path_value is not None {
-        return None;
-    }
-    mod_name = imp.from_loc?.dot_path_str;
-    if not mod_name and imp.from_loc?.path and imp.from_loc.path {
-        mod_name = '.'.join(getattr(p, 'value', str(p)) for p in imp.from_loc.path);
-    }
-    return mod_name;
-}
-
-impl NaIRGenCore._walk_imported_module_type_names(imported_mod: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
-        if (
-            isinstance(stmt, uni.ContextAwareNode)
-            and stmt.code_context == CodeContext.CLIENT
-        ) {
-            continue;
-        }
-        if isinstance(stmt, uni.Archetype) {
-            aname = stmt.name.value if stmt.name else None;
-            if aname is not None and aname not in self.struct_types {
-                struct_type = self.llvm_module.context.get_identified_type(aname);
-                self.struct_types[aname] = struct_type;
-            }
-            if aname is not None and aname not in self._struct_source_name {
-                self._struct_source_name[aname] = imported_mod.name;
-            }
-        } elif isinstance(stmt, uni.Enum) {
-            ename = stmt.name.value if stmt.name else None;
-            if ename is not None and ename not in self._enum_source_name {
-                self._enum_source_name[ename] = imported_mod.name;
-            }
-        }
-    }
-}
-
-impl NaIRGenCore._walk_imported_module_types(imported_mod: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
-        if (
-            isinstance(stmt, uni.ContextAwareNode)
-            and stmt.code_context == CodeContext.CLIENT
-        ) {
-            continue;
-        }
-        if isinstance(stmt, uni.Archetype) {
-            self._register_imported_archetype(stmt);
-
-            _aname = stmt.name.value if stmt.name else None;
-            if (_aname is not None) and (stmt.arch_kind is not None) {
-                self.imported_osp_archs[_aname] = (stmt.arch_kind, imported_mod.name);
-            }
-        } elif isinstance(stmt, uni.Enum) {
-            self._codegen_enum(stmt);
-        } elif isinstance(stmt, uni.GlobalVars) {
-            _imp_path = imported_mod.loc.mod_path if imported_mod?.loc else "";
-            self._register_imported_globals(stmt, _imp_path);
-        }
-    }
-}
-
 impl NaIRGenCore._walk_imported_module_abilities(
     imported_mod: uni.Module, with_fn_verdicts: bool = True
 ) -> None {
+    import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
+    dep_reg = ensure_layout_registry(imported_mod, self.prog);
     _imp_layout = imported_mod.gen.native_layout;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os;
@@ -916,20 +826,21 @@ impl NaIRGenCore._walk_imported_module_abilities(
                 and isinstance(_uv_stmt.signature, uni.FuncSignature)
             ) {
                 _uv_names.add(_uv_stmt.name_ref.sym_name);
-            } elif isinstance(_uv_stmt, uni.Archetype)
-                and _uv_stmt.body is not None
-                and _uv_stmt.name is not None {
-                for _uv_meth in _uv_stmt.body {
-                    if (
-                        isinstance(_uv_meth, uni.Ability)
-                        and _uv_meth.name_ref
-                        and _uv_meth.body is not None
-                        and isinstance(_uv_meth.signature, uni.FuncSignature)
-                    ) {
-                        _uv_names.add(
-                            f"{_uv_stmt.name.value}.{_uv_meth.name_ref.sym_name}"
-                        );
-                    }
+            }
+        }
+        for _uv_name in dep_reg.local_names {
+            _uv_lay = dep_reg.layouts.get(_uv_name);
+            if _uv_lay is None {
+                continue;
+            }
+            for _uv_slot in self._own_method_slots(_uv_lay) {
+                _uv_meth = _uv_slot.ability;
+                if (
+                    _uv_slot.field is None
+                    and _uv_meth.body is not None
+                    and isinstance(_uv_meth.signature, uni.FuncSignature)
+                ) {
+                    _uv_names.add(f"{_uv_name}.{_uv_slot.name}");
                 }
             }
         }
@@ -938,49 +849,40 @@ impl NaIRGenCore._walk_imported_module_abilities(
             _uv_rec[_uv_callee] = set(_uv_rec.get(_uv_callee) or set()) | _uv_names;
         }
     }
-    for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
-        if not isinstance(_imp_arch, uni.Archetype)
-            or _imp_arch.body is None
-            or _imp_arch.name is None {
+    for _ia_name in dep_reg.local_names {
+        _ia_lay = dep_reg.layouts.get(_ia_name);
+        if _ia_lay is None or _ia_lay.decl_node is None {
             continue;
         }
-        _ia_name = _imp_arch.name.value;
-        for _imp_stmt in _imp_arch.body {
-            if (
-                isinstance(_imp_stmt, uni.Ability)
-                and _imp_stmt.name_ref
-                and isinstance(_imp_stmt.signature, uni.FuncSignature)
-            ) {
-                _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
-                if (
-                    _imp_layout is not None
-                    and _im_full not in _imp_layout.methods
-                    and not _imp_stmt.type_params
-                )
-                    or (_imp_layout is None and _wl_internal) {
-                    self._native_skipped_methods.add(_im_full);
-                }
+        for _ia_slot in self._own_method_slots(_ia_lay) {
+            _ia_meth = _ia_slot.ability;
+            if _ia_slot.field is None
+                and not isinstance(_ia_meth.signature, uni.FuncSignature) {
+                continue;
             }
-        }
-
-        for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
-            _im_full = f"{_ia_name}.{_ia_slot}";
-            if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+            _im_full = f"{_ia_name}.{_ia_slot.name}";
+            if (
+                _imp_layout is not None
+                and _im_full not in _imp_layout.methods
+                and not _ia_meth.type_params
+            )
                 or (_imp_layout is None and _wl_internal) {
                 self._native_skipped_methods.add(_im_full);
             }
         }
     }
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for _fd_name in dep_reg.local_names {
+        _fd_lay = dep_reg.layouts.get(_fd_name);
+        if _fd_lay is None or _fd_lay.decl_node is None {
+            continue;
+        }
         if (
-            isinstance(stmt, uni.ContextAwareNode)
-            and stmt.code_context == CodeContext.CLIENT
+            isinstance(_fd_lay.decl_node, uni.ContextAwareNode)
+            and _fd_lay.decl_node.code_context == CodeContext.CLIENT
         ) {
             continue;
         }
-        if isinstance(stmt, uni.Archetype) {
-            self._forward_declare_archetype_methods(stmt);
-        }
+        self._forward_declare_archetype_methods(_fd_lay);
     }
 
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
@@ -996,126 +898,32 @@ impl NaIRGenCore._walk_imported_module_abilities(
     }
 }
 
-impl NaIRGenCore._forward_declare_archetype_methods(arch: uni.Archetype) -> None {
-    aname = arch.name.value if arch.name else None;
-    if aname is None or arch.body is None {
-        return;
-    }
-    for stmt in arch.body {
-        if isinstance(stmt, uni.Ability) {
-            if stmt.signature is not None
-                and isinstance(stmt.signature, uni.FuncSignature) {
-                self._forward_declare_method(aname, stmt, imported=True);
-            } elif isinstance(stmt.signature, uni.EventSignature)
-                and (arch.arch_kind is not None) {
-                self._forward_declare_event_method(aname, stmt);
-                self._emit_osp_thunk(aname, stmt);
-            }
-        }
-    }
-    for (_slot, _accvar, _acc) in archetype_accessors(arch) {
-        self._forward_declare_method(aname, _acc, field=_accvar, imported=True);
-    }
-}
-
-impl NaIRGenCore._register_imported_hierarchy(imported_mod: uni.Module) -> None {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    _imp_reg = get_layout_registry(imported_mod, self.prog);
-    _cons_reg = get_layout_registry(self.ir_in, self.prog);
-    for (_name, _parents) in _imp_reg.class_parents.items() {
-        if _name not in _cons_reg.class_parents
-            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
-            _cons_reg.class_parents[_name] = _parents;
-        }
-    }
-    for (_name, _pmods) in _imp_reg.parent_mods.items() {
-        if _name not in _cons_reg.parent_mods {
-            _cons_reg.parent_mods[_name] = _pmods;
-        }
-    }
-    for (_name, _mro) in _imp_reg.mro_order.items() {
-        if _name not in _cons_reg.mro_order
-            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
-            _cons_reg.mro_order[_name] = _mro;
-        }
-    }
-    for (_name, _lay) in _imp_reg.layouts.items() {
-        if _name not in _cons_reg.layouts {
-            _cons_reg.layouts[_name] = _lay;
-        }
-    }
-
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
-        if (
-            isinstance(stmt, uni.ContextAwareNode)
-            and stmt.code_context == CodeContext.CLIENT
-        ) {
-            continue;
-        }
-        if isinstance(stmt, uni.Archetype) {
-            _aname = stmt.name.value if stmt.name else None;
-            if (_aname is not None) and (_aname not in self.arch_ast_map) {
-                self.arch_ast_map[_aname] = stmt;
-            }
-        }
-    }
-}
-
-impl NaIRGenCore._register_imported_archetype(arch: uni.Archetype) -> None {
-    aname = arch.name.value if arch.name else None;
-    if aname is None {
-        return;
-    }
-
-    _arch_mod = arch.find_parent_of_type(uni.Module);
-    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
-    _seen_src = self._struct_source_mod.get(aname);
-    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
-        import sys as _rc_sys;
-        _rc_sys.stderr.write(
-            f"warning: native struct name collision -- '{aname}' from "
-            f"{_arch_src} shadows the one from {_seen_src}; skipping "
-            f"re-registration\n"
-        );
-        return;
-    }
-    if _arch_src {
-        self._struct_source_mod[aname] = _arch_src;
-    }
-
+impl NaIRGenCore._forward_declare_archetype_methods(lay: ArchetypeLayout) -> None {
+    aname = lay.name;
     if aname not in self.struct_types {
-        struct_type = self.llvm_module.context.get_identified_type(aname);
-        self.struct_types[aname] = struct_type;
-    }
-
-    if aname in self._struct_bodies_done {
         return;
     }
-
-    for _anc in self._mro_of(aname) {
-        if (
-            _anc != aname
-            and _anc in self.arch_ast_map
-            and _anc not in self._struct_bodies_done
-        ) {
-            _anc_arch = self.arch_ast_map[_anc];
-            if isinstance(_anc_arch, uni.Archetype) {
-                self._register_imported_archetype(_anc_arch);
-            }
+    for mslot in self._own_method_slots(lay) {
+        stmt = mslot.ability;
+        if mslot.field is not None {
+            self._forward_declare_method(aname, stmt, field=mslot.field, imported=True);
+        } elif stmt.signature is not None
+            and isinstance(stmt.signature, uni.FuncSignature) {
+            self._forward_declare_method(aname, stmt, imported=True);
+        } elif isinstance(stmt.signature, uni.EventSignature) and lay.is_osp {
+            self._forward_declare_event_method(aname, stmt);
+            self._emit_osp_thunk(aname, stmt);
         }
     }
-    if aname in self._struct_bodies_done {
-        return;
-    }
-    self._struct_bodies_done.add(aname);
-
-    self._codegen_archetype(arch);
 }
 
 impl NaIRGenCore._register_imported_globals(
     nd: uni.GlobalVars, source_path: str = ""
 ) -> None {
     for assign in nd.assignments {
+        if ModuleCodegenPass.is_erased_type_decl(assign) {
+            continue;
+        }
         targets = assign.target
             if isinstance(assign.target, (list, tuple))
             else [(assign.target)];
@@ -1124,15 +932,27 @@ impl NaIRGenCore._register_imported_globals(
             if var_name is None or var_name in self.global_vars {
                 continue;
             }
-            var_type: ir.Type = ir.IntType(64);
+            var_type: (ir.Type | None) = None;
             if assign.type_tag and assign.type_tag.tag {
-                if (
-                    self._quiet_glob_type(assign.type_tag.tag) is None
-                    and not self._glob_native_use_exists(target)
-                ) {
+                var_type = self._quiet_glob_type(assign.type_tag);
+                if var_type is None and not self._glob_native_use_exists(target) {
                     continue;
                 }
-                var_type = self._resolve_jac_type(assign.type_tag.tag);
+                if var_type is None {
+                    var_type = self._resolve_decl_type(assign.type_tag, assign.value);
+                }
+            } elif isinstance(target, uni.Expr) {
+                var_type = self._lower_type(target.type);
+            }
+            if var_type is None {
+                self.emit(
+                    E5092,
+                    node_override=target,
+                    kind="imported global",
+                    name=var_name,
+                    help_text="The global's type has no native lowering."
+                );
+                continue;
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);
             global_var.linkage = "external";
@@ -1171,30 +991,6 @@ impl NaIRGenCore._forward_declare_imported_ability(
         }
     }
     self._maybe_declare_ability(nd);
-}
-
-impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
-    _provided = self.prog._analyses_run.get(id(dep_mod));
-    if _provided is None {
-        _provided = set();
-        self.prog._analyses_run[id(dep_mod)] = _provided;
-    }
-    if 'inference' in _provided {
-        return;
-    }
-    _provided.add('inference');
-    try {
-        import from jaclang.jac0core.compiler { run_pass }
-        import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-        import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-        if 'cfg' not in _provided {
-            run_pass(CFGBuildPass, dep_mod, self.prog);
-            _provided.add('cfg');
-        }
-        run_pass(TypeCheckPass, dep_mod, self.prog);
-    } except Exception {
-        ;
-    }
 }
 
 impl NaIRGenCore._imported_function_demotions(

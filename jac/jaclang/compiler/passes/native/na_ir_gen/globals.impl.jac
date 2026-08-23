@@ -130,7 +130,7 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
                 continue;
             }
 
-            var_type: ir.Type = ir.IntType(64);
+            var_type: (ir.Type | None) = None;
             if assign.type_tag is not None {
                 _widened = self._widened_tuple_decl_type(assign.type_tag, assign.value);
                 if (
@@ -142,10 +142,20 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
                 }
                 var_type = self._resolve_decl_type(assign.type_tag, assign.value);
             } elif assign.value is not None {
-                inferred = self._infer_global_init_type(assign.value);
-                if inferred is not None {
-                    var_type = inferred;
-                }
+                var_type = self._infer_global_init_type(assign.value);
+            }
+            if var_type is None and isinstance(target, uni.Expr) {
+                var_type = self._lower_type(target.type);
+            }
+            if var_type is None {
+                self.emit(
+                    E5092,
+                    node_override=target,
+                    kind="global",
+                    name=var_name,
+                    help_text="The global's declared or inferred type has no native lowering."
+                );
+                continue;
             }
 
             try {
@@ -209,37 +219,10 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
 impl NaIRGenGlobals._infer_global_init_type(
     value_node: uni.UniNode
 ) -> (ir.Type | None) {
-    if isinstance(value_node, uni.Expr) and value_node?.type is not None {
-        lowered = self._lower_type(value_node.type);
-        if lowered is not None {
-            return lowered;
-        }
+    if not isinstance(value_node, uni.Expr) {
+        return None;
     }
-
-    if isinstance(value_node, uni.FuncCall) {
-        call_name = self._get_name(value_node.target);
-        if call_name is not None and call_name in self.struct_types {
-            return self.struct_types[call_name].as_pointer();
-        }
-    }
-
-    if isinstance(value_node, uni.AtomTrailer) {
-        target_name = self._get_name(value_node.target);
-        if target_name is not None and target_name in self.struct_types {
-            return self.struct_types[target_name].as_pointer();
-        }
-
-        right_name = self._get_name(value_node.right);
-        if target_name == "sys" and right_name == "argv" {
-            i8p = ir.IntType(8).as_pointer();
-            self._emit_list_helpers("ptr", i8p);
-            list_type = self.list_types.get("ptr");
-            if list_type is not None {
-                return list_type.as_pointer();
-            }
-        }
-    }
-    return None;
+    return self._lower_type(self._flow_narrowed_type_of(value_node));
 }
 
 impl NaIRGenGlobals._codegen_const_expr(

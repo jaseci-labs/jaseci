@@ -754,6 +754,7 @@ impl TypeCheckPass.enter_ability(self: TypeCheckPass, nd: Ability) -> None {
 }
 
 impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
+    self.evaluator.get_type_of_ability(nd);
     self.evaluator.validate_typevar_variance(nd);
 
     self._check_intrinsic_collision(nd);
@@ -1206,6 +1207,12 @@ impl TypeCheckPass.exit_param_var(self: TypeCheckPass, nd: ParamVar) -> None {
     if (sym := nd.sym) {
         declared_type = self.evaluator.get_type_of_symbol(sym);
         nd.type = declared_type;
+        if nd.value is not None and self._lambda_depth == 0 {
+            self.evaluator.get_type_of_expression(
+                nd.value,
+                expected_type=self.evaluator._convert_to_instance(declared_type)
+            );
+        }
 
         if (
             nd.type_tag and nd.type_tag.tag and nd.find_parent_of_type(ImplDef) is None

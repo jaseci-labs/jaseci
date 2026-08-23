@@ -5,7 +5,6 @@ import from jaclang.jac0core.diagnostics { E5092, E9002 }
 import jaclang.jac0core.unitree as uni;
 import os;
 import from jaclang.jac0core.constant { OwnershipKind }
-import from jaclang.compiler.type_system.type_utils { convert_to_instance }
 
 obj NaIRGenStmt(NaIRGenState) {
     def _codegen_body(stmts: (list | tuple)) -> None;
@@ -70,7 +69,19 @@ obj NaIRGenStmt(NaIRGenState) {
         pat: uni.MatchPattern, subj: ir.Value, subj_ty: (object | None) = None
     ) -> None;
 
-    def _bind_match_capture(cap_name: str, val: ir.Value, owned: bool = False) -> None;
+    def _bind_match_capture(
+        cap_name: str,
+        val: ir.Value,
+        owned: bool = False,
+        cap_node: (uni.UniNode | None) = None
+    ) -> None;
+
+    def _match_subj_kind(subj_ty: (object | None)) -> str;
+    def _match_field_ty(arch_ty: (object | None), fname: str) -> (object | None);
+    def _match_arch_static(
+        pat: uni.MatchArch, subj: ir.Value, subj_ty: (object | None)
+    ) -> tuple;
+
     def _bind_match_seq(
         pat: uni.MatchSequence, subj: ir.Value, subj_ty: (object | None) = None
     ) -> None;
@@ -91,6 +102,15 @@ obj NaIRGenStmt(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;
+    def _for_target_slot_llvm(
+        target: (uni.UniNode | None), storage: ir.Type
+    ) -> ir.Type;
+
+    def _aug_op_token(aug_op: str) -> (str | None);
+    def _codegen_aug_value(
+        nd: uni.Assignment, target_expr: uni.Expr, current: ir.Value, value: ir.Value
+    ) -> tuple;
+
     def _na_chunks_shape(expr: object) -> (tuple | None);
     def _try_chunked_for(nd: uni.InForStmt) -> bool;
     def _emit_chunk_header(

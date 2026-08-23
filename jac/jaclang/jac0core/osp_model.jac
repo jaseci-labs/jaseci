@@ -85,7 +85,8 @@ obj OspModel {
 def get_osp_model(
     module: uni.Module,
     archetypes: (list[uni.Archetype] | None) = None,
-    context: (CodeContext | None) = None
+    context: (CodeContext | None) = None,
+    mro_of: (dict[(str, list[str])] | None) = None
 ) -> OspModel {
     existing = module.gen.osp_model;
     if existing is not None {
@@ -94,7 +95,7 @@ def get_osp_model(
     archs = archetypes
         if archetypes is not None
         else module.get_all_sub_nodes(uni.Archetype);
-    model = OspAnalysis.compute(module, archs, context);
+    model = OspAnalysis.compute(module, archs, context, mro_of);
     module.gen.osp_model = model;
     return model;
 }
@@ -183,7 +184,8 @@ obj OspAnalysis {
     static def compute(
         module: uni.Module,
         archetypes: list[uni.Archetype],
-        context: (CodeContext | None) = None
+        context: (CodeContext | None) = None,
+        mro_of: (dict[(str, list[str])] | None) = None
     ) -> OspModel {
         model = OspModel();
         _archs: dict[(str, uni.Archetype)] = {};
@@ -210,15 +212,27 @@ obj OspAnalysis {
         }
 
         for _name in _archs.keys() {
-            model.isa[_name] = OspAnalysis._isa_closure(_name, _archs);
+            model.isa[_name] = OspAnalysis._isa_closure(_name, _archs, mro_of);
             model.slots.extend(OspAnalysis.arch_slots(_archs[_name]));
         }
         model.uses_construct = OspAnalysis._uses_construct(module, context);
         return model;
     }
 
-    static def _isa_closure(name: str, archs: dict[(str, uni.Archetype)]) -> list[str] {
+    static def _isa_closure(
+        name: str,
+        archs: dict[(str, uni.Archetype)],
+        mro_of: (dict[(str, list[str])] | None) = None
+    ) -> list[str] {
         out: list[str] = [name];
+        if mro_of is not None {
+            for _anc in mro_of.get(name, [name]) {
+                if (_anc in archs) and (_anc not in out) {
+                    out.append(_anc);
+                }
+            }
+            return out;
+        }
         seen: set[str] = set();
         seen.add(name);
         work: list[str] = [name];

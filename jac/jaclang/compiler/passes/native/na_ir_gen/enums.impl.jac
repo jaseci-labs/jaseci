@@ -1,9 +1,9 @@
 impl NaIRGenEnums._class_form_enum_self_type(arch_name: str) -> (ir.Type | None) {
-    _arch = self.arch_ast_map.get(arch_name);
-    if _arch is None or not (_arch?.name) {
+    lay = self._arch_layout(arch_name);
+    if lay is None or lay.class_type is None {
         return None;
     }
-    return self._ensure_enum_lowered(_arch.name.type);
+    return self._ensure_enum_lowered(lay.class_type);
 }
 
 impl NaIRGenEnums._codegen_class_form_enum_member(
@@ -63,23 +63,7 @@ impl NaIRGenEnums._codegen_enum_layout(
     if enum_name in self.enum_types {
         return;
     }
-
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    candidates: list = [];
-    if owner is not None {
-        candidates.append(owner);
-    }
-    candidates.append(self.ir_in);
-    for _fm in (self?._foreign_modules or []) {
-        candidates.append(_fm);
-    }
-    lay = None;
-    for _cand in candidates {
-        lay = get_layout_registry(_cand, self.prog).get_enum_layout(enum_name);
-        if lay is not None and lay.members {
-            break;
-        }
-    }
+    lay = self._enum_layout_of(enum_name);
     if lay is None or not lay.members {
         return;
     }
@@ -103,17 +87,41 @@ impl NaIRGenEnums._codegen_enum_layout(
         self._build_enum_string_table(enum_name, entries);
     } else {
         name_entries: list = [];
-        int_entries: list = [];
         for m in lay.members {
             full_name = f"{enum_name}.{m.name}";
             self.enum_values[full_name] = ir.Constant(i64, m.int_value);
             self.enum_member_ordinal[full_name] = m.ordinal;
             name_entries.append((m.name, "", m.ordinal));
-            int_entries.append((m.int_value, m.ordinal));
         }
-        self.enum_int_values[enum_name] = int_entries;
         self._build_enum_string_table(enum_name, name_entries, with_values=False);
     }
+}
+
+impl NaIRGenEnums._enum_layout_of(enum_name: str) -> (any | None) {
+    return self._registry().get_enum_layout(enum_name);
+}
+
+impl NaIRGenEnums._enum_member_const(t: any) -> (ir.Constant | None) {
+    import from jaclang.compiler.type_system.types { EnumMemberType }
+    if not isinstance(t, EnumMemberType) or t.member_info is None {
+        return None;
+    }
+    enum_name = self._tb_class_name(t.enum_class);
+    if enum_name is None {
+        return None;
+    }
+    lay = self._enum_layout_of(enum_name);
+    if lay is None or lay.is_class_form {
+        return None;
+    }
+    for m in lay.members {
+        if m.name == t.member_info.member_name {
+            return ir.Constant(
+                ir.IntType(64), m.ordinal if lay.is_string_enum else m.int_value
+            );
+        }
+    }
+    return None;
 }
 
 impl NaIRGenEnums._build_enum_string_table(
@@ -207,7 +215,11 @@ impl NaIRGenEnums._wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None) {
 }
 
 impl NaIRGenEnums._enum_is_string_valued(enum_name: str) -> bool {
-    return enum_name in self.enum_string_values;
+    if enum_name in self.enum_string_values {
+        return True;
+    }
+    lay = self._enum_layout_of(enum_name);
+    return lay is not None and lay.is_string_enum and not lay.is_class_form;
 }
 
 impl NaIRGenEnums._enum_ordinal_fn(enum_name: str) -> (ir.Function | None) {
@@ -215,8 +227,8 @@ impl NaIRGenEnums._enum_ordinal_fn(enum_name: str) -> (ir.Function | None) {
     if _cached is not None {
         return _cached;
     }
-    entries = self.enum_int_values.get(enum_name);
-    if not entries {
+    lay = self._enum_layout_of(enum_name);
+    if lay is None or lay.is_class_form or lay.is_string_enum or not lay.members {
         return None;
     }
     i64 = ir.IntType(64);
@@ -228,12 +240,12 @@ impl NaIRGenEnums._enum_ordinal_fn(enum_name: str) -> (ir.Function | None) {
     b = ir.IRBuilder(fn.append_basic_block("entry"));
     seen: set = set();
     ordered: list = [];
-    for (_iv, _ord) in entries {
-        if _iv in seen {
+    for m in lay.members {
+        if m.int_value in seen {
             continue;
         }
-        seen.add(_iv);
-        ordered.append((_iv, _ord));
+        seen.add(m.int_value);
+        ordered.append((m.int_value, m.ordinal));
     }
     acc: any = ir.Constant(i64, 0);
     for (_iv, _ord) in ordered[::-1] {
@@ -279,39 +291,22 @@ impl NaIRGenEnums._codegen_enum_attr_runtime(
 }
 
 impl NaIRGenEnums._enum_ctor_layout(enum_name: str) -> (any | None) {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    candidates: list = [];
-    _arch = self.arch_ast_map.get(enum_name);
-    if _arch is not None {
-        _own = _arch.find_parent_of_type(uni.Module);
-        if _own is not None {
-            candidates.append(_own);
-        }
-    }
-    candidates.append(self.ir_in);
-    for _fm in (self?._foreign_modules or []) {
-        candidates.append(_fm);
-    }
-    for _cand in candidates {
-        lay = get_layout_registry(_cand, self.prog).get_enum_layout(enum_name);
-        if lay is not None and lay.members {
-            return lay;
-        }
-    }
-    return None;
+    lay = self._enum_layout_of(enum_name);
+    return lay if (lay is not None and lay.members) else None;
 }
 
 impl NaIRGenEnums._enum_ctor_target(nd: uni.FuncCall) -> (str | None) {
-    _key = self._type_key_of(nd.target);
-    if _key is None {
+    _tt = nd.target.type if isinstance(nd.target, uni.Expr) else None;
+    if (
+        not isinstance(_tt, ClassType)
+        or _tt._shared is None
+        or _tt.is_instance()
+        or not _tt.shared.is_enum_class
+    ) {
         return None;
     }
-    _key = _key.replace(" ", "");
-    if not _key.startswith("type[") or not _key.endswith("]") {
-        return None;
-    }
-    _name = _key[5:-1];
-    if not _name or not _name.isidentifier() {
+    _name = self._tb_class_name(_tt);
+    if not _name {
         return None;
     }
     return _name if self._enum_ctor_layout(_name) is not None else None;

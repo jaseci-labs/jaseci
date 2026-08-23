@@ -6,12 +6,12 @@ tracks function pointer fields.
 """
 
 import from jaclang.compiler.passes.main.layout_pass {
-    LAYOUT_COMPATIBLE_PRIMITIVES,
+    layout_scalar_names,
     FieldInfo,
     ArchetypeLayout,
     LayoutRegistry,
     LayoutPass,
-    get_layout_registry
+    ensure_layout_registry
 }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
@@ -29,11 +29,11 @@ def get_registry(fixture: str) -> LayoutRegistry {
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)));
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    return get_layout_registry(ir, prog);
+    return ensure_layout_registry(ir, prog);
 }
 
-# ── LAYOUT_COMPATIBLE_PRIMITIVES ──────────────────────────────
-test "LAYOUT_COMPATIBLE_PRIMITIVES contains all expected types" {
+# ── layout_scalar_names ──────────────────────────────────────
+test "layout_scalar_names contains all expected types" {
     expected = {
         "int",
         "float",
@@ -51,17 +51,17 @@ test "LAYOUT_COMPATIBLE_PRIMITIVES contains all expected types" {
         "f32",
         "f64"
     };
-    assert LAYOUT_COMPATIBLE_PRIMITIVES == expected;
+    assert layout_scalar_names() == expected;
 }
 
 # ── FieldInfo.is_func_ptr ────────────────────────────────────
 test "FieldInfo default is_func_ptr is False" {
-    fi = FieldInfo(name="x", index=0, type_tag="int");
+    fi = FieldInfo(name="x", index=0);
     assert fi.is_func_ptr == False;
 }
 
 test "FieldInfo is_func_ptr can be set True" {
-    fi = FieldInfo(name="cb", index=0, type_tag="fn", is_func_ptr=True);
+    fi = FieldInfo(name="cb", index=0, is_func_ptr=True);
     assert fi.is_func_ptr == True;
 }
 
@@ -145,7 +145,7 @@ test "child obj inherits parent fields in MRO order" {
 test "obj with Any field triggers warning" {
     prog = JacProgram();
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, "invalid_any.jac")));
-    get_layout_registry(ir, prog);
+    ensure_layout_registry(ir, prog);
     # Should compile (warnings, not errors) but produce a warning
     warnings = [str(w) for w in prog.warnings_had] if prog.warnings_had else [];
     found = any("layout-compatible" in w for w in warnings);
@@ -157,7 +157,7 @@ test "layout warnings report correct line numbers for fields" {
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, "invalid_any_multifield.jac"))
     );
-    get_layout_registry(ir, prog);
+    ensure_layout_registry(ir, prog);
     layout_warnings = [
         w
         for w in (prog.warnings_had or [])

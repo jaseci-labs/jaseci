@@ -1,20 +1,9 @@
-impl NaIRGenVtable._build_vtable(arch_name: str) -> None {
+impl NaIRGenVtable._emit_vtable_global(arch_name: str) -> None {
     lay = self._arch_layout(arch_name);
     if lay is None or not lay.has_vtable {
-        self.vtable_layouts[arch_name] = [];
-        self.vtable_method_indices[arch_name] = {};
         return;
     }
-    self.vtable_layouts[arch_name] = [m.name for m in lay.methods];
-    self.vtable_method_indices[arch_name] = dict(lay.method_index);
-}
-
-impl NaIRGenVtable._emit_vtable_global(arch_name: str) -> None {
-    layout = self.vtable_layouts.get(arch_name);
-
-    if layout is None {
-        return;
-    }
+    layout = [m.name for m in lay.methods];
     i8_ptr = ir.IntType(8).as_pointer();
 
     vtable_type = ir.ArrayType(i8_ptr, len(layout) + VTABLE_HEADER_SLOTS);
@@ -64,19 +53,18 @@ impl NaIRGenVtable._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | No
 }
 
 impl NaIRGenVtable._vtable_candidates(names: list[str]) -> list[ir.GlobalVariable] {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-
-    reg = get_layout_registry(self.ir_in, self.prog);
+    reg = self._registry();
     out: list[ir.GlobalVariable] = [];
-    for cand in reg.mro_order {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro {
-                vt = self._vtable_global_for(cand);
-                if vt is not None {
-                    out.append(vt);
-                }
-                break;
+    seen: set[str] = set();
+    for name in names {
+        for cand in [name] + list(reg.subclasses.get(name) or []) {
+            if cand in seen {
+                continue;
+            }
+            seen.add(cand);
+            vt = self._vtable_global_for(cand);
+            if vt is not None {
+                out.append(vt);
             }
         }
     }
@@ -84,35 +72,7 @@ impl NaIRGenVtable._vtable_candidates(names: list[str]) -> list[ir.GlobalVariabl
 }
 
 impl NaIRGenVtable._isinstance_needs_class_name(names: list[str]) -> bool {
-    """Is some class that answers `True` for these names missing a vtable?
-
-    The vtable-pointer compare can only see classes whose layout carries a
-    vtable slot, and a class earns that slot from facts its OWN module can see:
-    it has a base, something there subclasses it, or something there names it in
-    an `isinstance`. A flat archetype an importer is the first to test satisfies
-    none of those, so it carries no slot -- and then the pointer compare has
-    nothing to compare against (the site demotes) or, once a consumer-side
-    subclass puts a vtable-carrying class in the candidate set, reads the
-    instance's first field as if it were a vtable pointer and answers from
-    garbage. Either way the answer has to come from the class-name identity
-    every instance carries instead.
-    """;
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-
-    _reach = self._vtable_less_reach;
-    if _reach is None {
-        reg = get_layout_registry(self.ir_in, self.prog);
-        _reach = set();
-        for cand in reg.mro_order {
-            if self._arch_has_vtable(cand) {
-                continue;
-            }
-            for step in self._mro_of(cand) {
-                _reach.add(step);
-            }
-        }
-        self._vtable_less_reach = _reach;
-    }
+    _reach = self._registry().vtable_less_reach;
     for name in names {
         if name in _reach {
             return True;
@@ -124,92 +84,12 @@ impl NaIRGenVtable._isinstance_needs_class_name(names: list[str]) -> bool {
 impl NaIRGenVtable._isinstance_unprovable_class(
     names: list[str], operand_arch: (str | None)
 ) -> (str | None) {
-    """A class this operand could be whose MRO is too short to decide these names.
-
-    A class that subclasses an imported one is linearized by its own module,
-    which reaches the base's name but not the base's own bases -- those live in
-    a registry that is only merged in later. The recorded MRO then stops one
-    link short, and every ancestor past that link silently drops out of the
-    hierarchy. Answering from those facts is how `isinstance` came to report
-    `False` for a base a class genuinely derives from, so a site whose targets
-    fall in the missing span refuses instead.
-
-    A short chain elsewhere in the program is only this site's problem if the
-    operand could actually hold one: a statically typed operand narrows the
-    candidates to itself and its subclasses, and only an erased one has to
-    answer for every class. That narrowing walks the candidate's chain link by
-    link rather than reading its recorded MRO, because the recorded MRO is the
-    very thing that is short -- reading it would drop a candidate precisely
-    when the ancestor it omits is the operand's declared type, which is the
-    case that most needs the refusal. Returns the class whose MRO is short, or
-    `None` when every chain this operand could take is whole.
-    """;
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-
-    _missing = self._short_mro_reach;
-    if _missing is None {
-        reg = get_layout_registry(self.ir_in, self.prog);
-        _missing = {};
-        for cand in reg.mro_order {
-            recorded = self._mro_of(cand);
-            _cand_lay = reg.layouts.get(cand);
-            _parents = list(_cand_lay.parents or []) if _cand_lay is not None else [];
-            _pmods = list(_cand_lay.parent_mods or []) if _cand_lay is not None else [];
-            for step in recorded {
-                if step != cand and step in _parents {
-                    _pi = _parents.index(step);
-                    _want = _pmods[_pi] if _pi < len(_pmods) else "";
-                    _step_lay = reg.layouts.get(step);
-                    _decl = _step_lay.decl_mod if _step_lay is not None else "";
-                    if _want != _decl {
-                        continue;
-                    }
-                }
-                for anc in self._mro_of(step) {
-                    if anc in recorded {
-                        continue;
-                    }
-                    _short_of = _missing.get(anc);
-                    if _short_of is None {
-                        _missing[anc] = [cand];
-                    } elif cand not in _short_of {
-                        _short_of.append(cand);
-                    }
-                }
-            }
-        }
-        self._short_mro_reach = _missing;
-    }
-    for name in names {
-        for cand in (_missing.get(name) or []) {
-            if operand_arch is None {
-                return cand;
-            }
-            for step in self._mro_of(cand) {
-                if operand_arch in self._mro_of(step) {
-                    return cand;
-                }
-            }
-        }
-    }
     return None;
 }
 
 impl NaIRGenVtable._isinstance_class_name_hit(
     obj_ptr: ir.Value, names: list[str]
 ) -> (ir.Value | None) {
-    """Does the object's runtime class name answer for any of these names?
-
-    Every archetype instantiation stamps its class name into the allocation
-    header, so this identity survives the module boundary the vtable does not:
-    the name is the same string whichever unit allocated the object. `__jac_isa`
-    matches it against the program-wide `(class, ancestor)` table, whose rows
-    come from the same merged `mro_order` that
-    `_register_imported_hierarchy` fills, so an imported base matches through an
-    imported MRO without a second identity scheme. `None` when no header is
-    around to read -- a headerless build keeps the site loud rather than
-    guessing.
-    """;
     if self._emit_runtime_class_name_fn() is None {
         return None;
     }
@@ -238,23 +118,18 @@ impl NaIRGenVtable._codegen_virtual_call(
     if not isinstance(obj_val.type, ir.PointerType) {
         return None;
     }
-    _vc_force_variants = False;
-    indices = self.vtable_method_indices.get(obj_type_name);
-    if indices is None or method_name not in indices {
-        import from jaclang.compiler.passes.main.layout_pass {
-            get_layout_registry as _vc_glr
-        }
-        _vc_lay = _vc_glr(self.ir_in, self.prog).get_layout(obj_type_name);
-        if (
-            _vc_lay is None
-            or not _vc_lay.has_vtable
-            or method_name not in _vc_lay.method_index
-        ) {
-            return None;
-        }
-        indices = _vc_lay.method_index;
-        _vc_force_variants = _vc_lay.vtable_by_dispatch;
+    _vc_lay = self._arch_layout(obj_type_name);
+    if (
+        _vc_lay is None
+        or not _vc_lay.has_vtable
+        or method_name not in _vc_lay.method_index
+    ) {
+        return None;
     }
+    indices = _vc_lay.method_index;
+    _vc_force_variants = (
+        _vc_lay.decl_mod != self._own_path() and _vc_lay.vtable_by_dispatch
+    );
 
     func = self._resolve_method(obj_type_name, method_name);
     if func is None {
@@ -271,8 +146,15 @@ impl NaIRGenVtable._codegen_virtual_call(
         }
     }
 
-    non_overridden = self._non_overridden_methods.get(obj_type_name);
-    if non_overridden is not None and method_name in non_overridden {
+    _vd_reg = self._registry();
+    _slot_overriders = (_vd_reg.overriders.get(obj_type_name) or {}).get(
+        indices[method_name]
+    );
+    if (
+        not _slot_overriders
+        and not _vc_force_variants
+        and _vc_lay.decl_mod == self._own_path()
+    ) {
         _dv_res = self.builder.call(func, coerced, name=f"call.{method_name}");
 
         self._release_owned_args(coerced, op="mcall_arg");
@@ -285,14 +167,8 @@ impl NaIRGenVtable._codegen_virtual_call(
 
     _vd_variants: list[tuple] = [];
     _vd_uniform = True;
-    import from jaclang.compiler.passes.main.layout_pass {
-        get_layout_registry as _vd_glr
-    }
-    _vd_reg = _vd_glr(self.ir_in, self.prog);
-    for _vd_cls in _vd_reg.mro_order {
-        if obj_type_name not in self._mro_of(_vd_cls) {
-            continue;
-        }
+    for _vd_cls in [obj_type_name]
+        + list(_vd_reg.subclasses.get(obj_type_name) or []) {
         _vd_lay = _vd_reg.get_layout(_vd_cls);
         if _vd_lay is None or not _vd_lay.has_vtable {
             continue;
@@ -556,7 +432,7 @@ impl NaIRGenVtable._codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None)
 }
 
 impl NaIRGenVtable._codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None) {
-    arch_name = self._struct_name_of(receiver);
+    arch_name = self._receiver_arch_name(receiver);
 
     if arch_name is not None and not self._arch_has_vtable(arch_name) {
         return self._emit_class_name_const(arch_name);
@@ -610,24 +486,13 @@ impl NaIRGenVtable._codegen_class_ref(nd: uni.Name) -> (ir.Value | None) {
 }
 
 impl NaIRGenVtable._is_enum_arch(name: str) -> bool {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     if name in self.enum_types {
         return True;
     }
-    _cands: list = [self.ir_in];
-    for _fm in (self?._foreign_modules or []) {
-        _cands.append(_fm);
-    }
-    for _cand in _cands {
-        if get_layout_registry(_cand, self.prog).get_enum_layout(name) is not None {
-            return True;
-        }
-    }
-    return False;
+    return self._registry().get_enum_layout(name) is not None;
 }
 
 impl NaIRGenVtable._emit_isa_fn -> ir.Function {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     if self._isa_fn is not None {
         return self._isa_fn;
     }
@@ -638,9 +503,9 @@ impl NaIRGenVtable._emit_isa_fn -> ir.Function {
     i8p = i8.as_pointer();
     row_ty = ir.LiteralStructType([i8p, i8p]);
 
-    reg = get_layout_registry(self.ir_in, self.prog);
+    reg = self._registry();
     rows: list = [];
-    for cls in sorted(reg.mro_order) {
+    for cls in sorted(reg.layouts.keys()) {
         for anc in self._mro_of(cls) {
             if anc == cls {
                 continue;
@@ -743,8 +608,8 @@ impl NaIRGenVtable._runtime_class_value(
     if _nm in self.struct_types or _nm in self.enum_types {
         return None;
     }
-    _mk = self._mangled_of(expr.type);
-    if _mk is None or not (_mk == "type" or _mk.startswith("type[")) {
+    if self._tb_kind(expr.type) != "class"
+        and self._tb_class_name(expr.type) != "type" {
         return None;
     }
     val = self._codegen_expr(expr);
@@ -755,29 +620,16 @@ impl NaIRGenVtable._runtime_class_value(
 }
 
 impl NaIRGenVtable._is_runtime_class_tuple(t: any) -> bool {
-    """Is this the type of a tuple whose every arm is a class handle?
-
-    That is the shape `isinstance(x, types)` needs: the arms arrive as values,
-    and each one has to be a `type[...]` so the compare has a class id to walk.
-    An arity-less arm (the `UnknownType` a variadic tuple parks) is skipped, so
-    both `tuple[type[T], type[T]]` and `tuple[type[T], ...]` qualify.
-    """;
-    if not isinstance(t, ClassType) or t._shared is None {
-        return False;
-    }
-    if t.shared.class_name != "tuple" {
+    if self._tb_kind(t) != "tuple" {
         return False;
     }
     saw_class = False;
-    for a in (t.private.type_args or []) {
-        am = self._mangled_of(a);
-        if am is None {
-            return False;
-        }
-        if am == "<unknown>" {
+    for a in self._tb_args(t) {
+        ak = self._tb_kind(a);
+        if ak in ("unknown", "any") {
             continue;
         }
-        if am != "type" and not am.startswith("type[") {
+        if ak != "class" and self._tb_class_name(a) != "type" {
             return False;
         }
         saw_class = True;
@@ -886,22 +738,13 @@ impl NaIRGenVtable._emit_isa_seq_fn -> ir.Function {
 impl NaIRGenVtable._isinstance_operand_arch(
     nd: uni.FuncCall, operand: ir.Value
 ) -> (str | None) {
-    """The archetype layout whose class id the operand's vtable slot holds.
-
-    The declared type answers first; when a union or an `any` erases it, the
-    pointee's own struct name still names the layout, which is what the class
-    id is read through.
-    """;
-    named = self._struct_name_of(nd.params[0] if nd.params else None);
+    named = self._receiver_arch_name(nd.params[0] if nd.params else None);
     if named is not None and named in self.struct_types {
         return named;
     }
-    if isinstance(operand.type, ir.PointerType)
-        and isinstance(operand.type.pointee, ir.IdentifiedStructType) {
-        pointee = operand.type.pointee.name or "";
-        if pointee in self.struct_types {
-            return pointee;
-        }
+    pointee = self._struct_ptr_pointee_name(operand);
+    if pointee is not None and pointee in self.struct_types {
+        return pointee;
     }
     return None;
 }
@@ -958,7 +801,8 @@ impl NaIRGenVtable._emit_isinstance_runtime(
 }
 
 impl NaIRGenVtable._generate_inherited_method_wrappers -> None {
-    for child_name in self.arch_ast_map {
+    reg = self._registry();
+    for child_name in list(reg.layouts.keys()) {
         mro = self._mro_of(child_name);
         child_struct = self.struct_types.get(child_name);
         if child_struct is None or len(mro) < 2 {
@@ -967,8 +811,12 @@ impl NaIRGenVtable._generate_inherited_method_wrappers -> None {
 
         seen_methods: set[str] = set();
         for ancestor_name in mro[1:] {
-            ancestor_layout = self.vtable_layouts.get(ancestor_name, []);
-            for method_name in ancestor_layout {
+            anc_lay = reg.get_layout(ancestor_name);
+            if anc_lay is None or not anc_lay.has_vtable {
+                continue;
+            }
+            for mslot in anc_lay.methods {
+                method_name = mslot.name;
                 if method_name in seen_methods {
                     continue;
                 }

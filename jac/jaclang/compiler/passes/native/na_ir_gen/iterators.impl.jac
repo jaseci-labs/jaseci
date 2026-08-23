@@ -597,64 +597,63 @@ impl NaIRGenIterators._make_iter_from_value(
     val: ir.Value, expr: uni.UniNode
 ) -> (tuple | None) {
     i8p = ir.IntType(8).as_pointer();
+    _ty = self._expr_type_of(expr);
+    _kind = self._tb_kind(self._tb_opt_payload(_ty) or _ty);
 
-    _checked_list = self._list_spec_of(expr);
-    if _checked_list is not None and _checked_list in self.list_helpers {
-        lt = self.list_types.get(_checked_list);
-        if lt is not None and val.type == lt.as_pointer() {
-            elem_type = self.list_helpers[_checked_list]["elem_type"];
-            return (
-                self._make_list_iter(val, _checked_list, elem_type),
-                _checked_list,
-                elem_type,
-
-            );
+    if _kind in ("list", "bytearray", "tuple") {
+        _lspec = self._list_spec_for_expr(expr);
+        if _lspec is None or _lspec not in self.list_helpers {
+            return None;
         }
+        elem_type = self.list_helpers[_lspec]["elem_type"];
+        val = self._coerce_type(val, self.list_types[_lspec].as_pointer());
+        return (self._make_list_iter(val, _lspec, elem_type), _lspec, elem_type);
     }
-    for (lk, lt) in self.list_types.items() {
-        if val.type == lt.as_pointer() {
-            elem_type = self.list_helpers[lk]["elem_type"];
-            return (self._make_list_iter(val, lk, elem_type), lk, elem_type);
-        }
-    }
-
-    if self?.range_struct_type and val.type == self.range_struct_type.as_pointer() {
+    if _kind == "range" {
         return (self._make_range_iter(val), "range", ir.IntType(64));
     }
-
-    for (dk, dt) in self.dict_types.items() {
-        if val.type == dt.as_pointer() {
-            key_type = self.dict_helpers[dk]["key_type"];
-            return (self._make_dict_iter(val, dk), dk, key_type);
+    if _kind == "dict" {
+        _dspec = self._dict_spec_for_type(_ty);
+        if _dspec is None {
+            return None;
         }
+        key_type = self.dict_helpers[_dspec]["key_type"];
+        val = self._coerce_type(val, self.dict_types[_dspec].as_pointer());
+        return (self._make_dict_iter(val, _dspec), _dspec, key_type);
     }
-
-    for (sk, st) in self.set_types.items() {
-        if val.type == st.as_pointer() {
-            elem_type = self.set_helpers[sk]["elem_type"];
-            return (self._make_set_iter(val, sk, elem_type), sk, elem_type);
+    if _kind == "set" {
+        _sspec = self._set_spec_for_type(_ty);
+        if _sspec is None {
+            return None;
         }
+        elem_type = self.set_helpers[_sspec]["elem_type"];
+        val = self._coerce_type(val, self.set_types[_sspec].as_pointer());
+        return (self._make_set_iter(val, _sspec, elem_type), _sspec, elem_type);
     }
-
-    if self._is_bytes_value(val) {
+    if _kind == "bytes" {
         return (self._make_bytes_iter(val), "bytes", ir.IntType(64));
     }
-    if isinstance(val.type, ir.PointerType) and val.type == i8p {
-        return (self._make_str_iter(val), "str", i8p);
+    if _kind == "str" {
+        return (self._make_str_iter(self._coerce_type(val, i8p)), "str", i8p);
     }
-    if self._jac_iter_type is not None
-        and val.type == self._jac_iter_type.as_pointer() {
+    if _kind == "iterator" {
         if not self._is_owned(val) {
             self._emit_rc_retain(val, op="iter_alias");
             self._mark_owned(val);
         }
-        et = self._iter_elem_llvm_of(expr);
-        return (val, "iter", et if et is not None else i8p);
+        et = self._iter_elem_llvm(_ty);
+        if et is None {
+            raise AssertionError(
+                f"native: iterator `{_ty}` carries no lowerable element type"
+            );
+        }
+        return (val, "iter", et);
     }
-
-    ustruct = self._struct_name_of(expr);
-    if ustruct is not None and self._arch_implements_iter(ustruct) {
-        return self._make_user_iter_from_obj(val, ustruct, expr);
+    if _kind in ("struct", "object") {
+        ustruct = self._tb_class_name(self._tb_opt_payload(_ty) or _ty);
+        if ustruct is not None and self._arch_implements_iter(ustruct) {
+            return self._make_user_iter_from_obj(val, ustruct, expr);
+        }
     }
     return None;
 }
@@ -725,12 +724,13 @@ impl NaIRGenIterators._adapter_callee(fn_expr: uni.UniNode) -> (tuple | None) {
 impl NaIRGenIterators._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
     self._ensure_iter_types();
     if isinstance(expr, uni.FuncCall) {
-        cname = self._get_name(expr.target);
         params = expr.params or [];
-
-        if cname in ("map", "filter", "enumerate", "zip", "iter")
-            and expr.call_kind != "builtin" {
-            cname = None;
+        cname: (str | None) = None;
+        for _adapter in ("map", "filter", "enumerate", "zip", "iter") {
+            if self._builtin_call_is(expr, _adapter) {
+                cname = _adapter;
+                break;
+            }
         }
         if cname == "map" and len(params) == 2 {
             fn = self._adapter_callee(params[0]);
@@ -1223,10 +1223,21 @@ impl NaIRGenIterators._make_user_iter_from_obj(
     it_obj = self.builder.call(iter_fn, [obj_val], name="usr.iter");
     self._mark_owned(it_obj);
 
-    iter_struct = self._infer_type_name(it_obj);
-    built = self._make_user_iter(it_obj, iter_struct)
-        if iter_struct is not None
-        else None;
+    _iter_ret = self._member_return_type(self._expr_type_of(expr), "__iter__");
+    iter_struct = self._tb_class_name(self._tb_opt_payload(_iter_ret) or _iter_ret);
+    if iter_struct is None {
+        raise AssertionError(
+            f"native: `{struct_name}.__iter__` has no class-typed return type stamped ({_iter_ret})"
+        );
+    }
+    if isinstance(it_obj.type, ir.PointerType)
+        and iter_struct in self.struct_types
+        and it_obj.type != self.struct_types[iter_struct].as_pointer() {
+        it_obj = self.builder.bitcast(
+            it_obj, self.struct_types[iter_struct].as_pointer(), name="usr.iter.cast"
+        );
+    }
+    built = self._make_user_iter(it_obj, iter_struct);
     if built is None {
         self._emit_rc_release_simple(it_obj, op="user_iter_unresolved");
         return None;
@@ -1238,6 +1249,32 @@ impl NaIRGenIterators._make_user_iter_from_obj(
     return built;
 }
 
+impl NaIRGenIterators._iter_elem_llvm(iter_ty: any) -> (ir.Type | None) {
+    _elem = self._tb_elem(iter_ty);
+    if _elem is None {
+        return None;
+    }
+    _low = self._elem_storage_llvm(_elem);
+    if _low is not None and isinstance(_low, ir.VoidType) {
+        return ir.IntType(64);
+    }
+    return _low;
+}
+
+impl NaIRGenIterators._member_return_type(owner_ty: any, name: str) -> any {
+    _owner = self._tb_solve(self._tb_opt_payload(owner_ty) or owner_ty);
+    _lookup = _owner?.lookup_member_symbol;
+    _sym = _lookup(name) if _lookup is not None else None;
+    if _sym is None {
+        return None;
+    }
+    _fty = self.prog.get_type_evaluator().get_type_of_symbol(_sym);
+    if self._tb_kind(_fty) != "fn" {
+        return None;
+    }
+    return _fty.return_type;
+}
+
 impl NaIRGenIterators._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     params = nd.params or [];
     if len(params) != 1 {
@@ -1245,7 +1282,10 @@ impl NaIRGenIterators._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
         return None;
     }
     arg = params[0];
-    elem_type = self._iter_elem_llvm_of(arg);
+    _next_ty = self._expr_type_of(nd);
+    elem_type = self._lower_type(_next_ty)
+        if self._tb_kind(_next_ty) not in ("unknown", "never")
+        else None;
     iter_val = self._codegen_expr(arg);
     if iter_val is None or elem_type is None {
         self._emit_unsupported_builtin_call(nd, "next");
@@ -1275,32 +1315,38 @@ impl NaIRGenIterators._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     coll = nd.collection;
     self._ensure_iter_types();
 
-    is_adapter_call = (
-        isinstance(coll, uni.FuncCall)
-        and self._get_name(coll.target) in ["map", "filter", "enumerate", "zip", "iter"]
-        and coll.call_kind == "builtin"
+    is_adapter_call = any(
+        self._builtin_call_is(coll, _a)
+        for _a in ("map", "filter", "enumerate", "zip", "iter")
     );
-
-    _ustruct = self._struct_name_of(coll) if not is_adapter_call else None;
+    _coll_ty = self._expr_type_of(coll);
+    _coll_kind = self._tb_kind(self._tb_opt_payload(_coll_ty) or _coll_ty);
+    _ustruct = self._tb_class_name(self._tb_opt_payload(_coll_ty) or _coll_ty)
+        if (_coll_kind in ("struct", "object") and not is_adapter_call)
+        else None;
     is_user_iterable = _ustruct is not None and self._arch_implements_iter(_ustruct);
     built: (tuple | None) = None;
     owns_iter = False;
     _saved_srcs = self._iter_owned_srcs;
     _iter_srcs: list = [];
-    if is_adapter_call or is_user_iterable {
+    _range_value = _coll_kind == "range" and not self._builtin_call_is(coll, "range");
+    if is_adapter_call or is_user_iterable or _range_value {
         self._iter_owned_srcs = _iter_srcs;
         built = self._build_iter_from_expr(coll);
         self._iter_owned_srcs = _saved_srcs;
         owns_iter = True;
-    } else {
-        elem_t = self._iter_elem_llvm_of(coll);
-        if elem_t is not None {
-            iv = self._codegen_expr(coll);
-            if iv is not None {
-                ename = "tuple" if isinstance(elem_t, ir.LiteralStructType) else "iter";
-                built = (iv, ename, elem_t);
-                owns_iter = self._is_owned(iv);
-            }
+    } elif _coll_kind == "iterator" {
+        elem_t = self._iter_elem_llvm(_coll_ty);
+        if elem_t is None {
+            raise AssertionError(
+                f"native: iterator `{_coll_ty}` carries no lowerable element type"
+            );
+        }
+        iv = self._codegen_expr(coll);
+        if iv is not None {
+            ename = "tuple" if isinstance(elem_t, ir.LiteralStructType) else "iter";
+            built = (iv, ename, elem_t);
+            owns_iter = self._is_owned(iv);
         }
     }
     if built is None {
@@ -1331,21 +1377,37 @@ impl NaIRGenIterators._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     }
 
     elem_slot = self._entry_alloca(elem_type, "iter.elem");
-    a0: (ir.Value | None) = None;
-    a1: (ir.Value | None) = None;
+    _tup_allocas: list = [];
     if is_tuple_target {
         targets = nd.target.values or [];
-        if len(targets) != 2 {
-            return False;
+        _tup_elems = (
+            list(elem_type.elements)
+                if isinstance(elem_type, ir.LiteralStructType)
+                else (
+                    list(elem_type.pointee.elements)
+                        if (
+                            isinstance(elem_type, ir.PointerType)
+                            and isinstance(elem_type.pointee, ir.LiteralStructType)
+                        )
+                        else []
+                )
+        );
+        if len(targets) != len(_tup_elems) {
+            self.emit(
+                E5092,
+                node_override=nd.target,
+                kind="for-loop target",
+                name=f"{len(targets)}-name unpack of {_coll_ty}",
+                help_text="The iterator yields a tuple of a different arity than the loop target binds."
+            );
+            return True;
         }
-        t0_type = elem_type.elements[0];
-        t1_type = elem_type.elements[1];
-        n0 = self._get_name(targets[0]);
-        n1 = self._get_name(targets[1]);
-        a0 = self._entry_alloca(t0_type, n0);
-        a1 = self._entry_alloca(t1_type, n1);
-        self.local_vars[n0] = a0;
-        self.local_vars[n1] = a1;
+        for (_ti, _tgt) in enumerate(targets) {
+            _tn = self._get_name(_tgt);
+            _ta = self._entry_alloca(_tup_elems[_ti], _tn);
+            self.local_vars[_tn] = _ta;
+            _tup_allocas.append(_ta);
+        }
     } else {
         loop_var_name = self._get_name(nd.target);
         self.local_vars[loop_var_name] = elem_slot;
@@ -1366,8 +1428,14 @@ impl NaIRGenIterators._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     self.builder.position_at_end(body_bb);
     if is_tuple_target {
         tup = self.builder.load(elem_slot, name="iterf.tup");
-        self.builder.store(self.builder.extract_value(tup, 0, name="iterf.t0"), a0);
-        self.builder.store(self.builder.extract_value(tup, 1, name="iterf.t1"), a1);
+        if isinstance(tup.type, ir.PointerType) {
+            tup = self.builder.load(tup, name="iterf.tup.v");
+        }
+        for (_ti, _ta) in enumerate(_tup_allocas) {
+            self.builder.store(
+                self.builder.extract_value(tup, _ti, name=f"iterf.t{_ti}"), _ta
+            );
+        }
     }
     import from jaclang.compiler.passes.main.rc_facts_pass { loop_body_locals }
     _saved = loop_body_locals(nd.body if isinstance(nd.body, (list, tuple)) else None);

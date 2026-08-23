@@ -5,7 +5,6 @@ import jaclang.jac0core.unitree as uni;
 import os;
 
 obj NaIRGenDicts(NaIRGenState) {
-    def _peer_dict_key -> (str | None);
     def _dict_key_spec(key_type: ir.Type) -> tuple;
     def _dict_val_spec(val_type: ir.Type) -> str;
     def _unwrap_opt_container(val: ir.Value) -> ir.Value;
@@ -37,7 +36,8 @@ obj NaIRGenDicts(NaIRGenState) {
         scan_bb: ir.Block
     ) -> ir.Block;
 
-    def _box_to_jacval(value: ir.Value) -> ir.Value;
+    def _jacval_tag_for_type(ty: any) -> (int | None);
+    def _box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(

@@ -24,10 +24,9 @@ import from jaclang.jac0core.codeinfo {
 import jaclang.jac0core.unitree as uni;
 
 obj NaIRGenRefcount(NaIRGenState) {
-    def _emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None);
-    def _drop_fn_for(mangle: str) -> (ir.Function | None);
-    def _drop_spec_for_mangle(mangle: str) -> (tuple | None);
-    def _nogc_type_arg_mangles_of_str(m: str) -> list;
+    def _emit_jacval_slot_drop_fn(elem_ty: any) -> (ir.Function | None);
+    def _drop_fn_for_type(t: any) -> (ir.Function | None);
+    def _struct_field_checker_types(type_name: str) -> list;
     def _gc_mode -> str;
     def _emit_rc_helpers -> None;
     def _emit_str_len_helpers -> None;
@@ -82,12 +81,11 @@ obj NaIRGenRefcount(NaIRGenState) {
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None);
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
     def _nogc_elem_drop_slot_ty -> ir.Type;
-    def _nogc_stamp_elem_drops(cont: ir.Value | None, elem_mangles: list) -> None;
+    def _nogc_stamp_elem_drops(cont: ir.Value | None, elem_types: list) -> None;
     def _nogc_elem_prep(
         expr: uni.UniNode | None, val: ir.Value | None
     ) -> (ir.Value | None);
 
-    def _nogc_type_arg_mangles(expr: uni.UniNode | None) -> list;
     def _nogc_emit_drop(val: ir.Value, op: str = "", loc: str = "") -> bool;
     def _nogc_str_free_owned(val: ir.Value) -> None;
     def _nogc_free_scratch(val: ir.Value, op: str) -> None;

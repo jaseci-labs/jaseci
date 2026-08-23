@@ -30,6 +30,8 @@ impl create_enum_member_info(
         } elif isinstance(val, String) {
             value_type = evaluator.prefetch.str_class if evaluator.prefetch else None;
             literal_value = val.value;
+        } elif is_enum_auto_call(val) {
+            value_type = evaluator.prefetch.int_class if evaluator.prefetch else None;
         } else {
             value_type = evaluator.get_type_of_expression(val);
             (folded, fval) = fold_const(val);
@@ -42,6 +44,32 @@ impl create_enum_member_info(
     return EnumMemberInfo(
         member_name=member_name, value_type=value_type, literal_value=literal_value
     );
+}
+
+impl is_enum_auto_call(value_expr: UniNode | None) -> bool {
+    if not isinstance(value_expr, FuncCall) or value_expr.params {
+        return False;
+    }
+    target = value_expr.target;
+    if not isinstance(target, Name) {
+        return False;
+    }
+    sym = target.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    item = decl.find_parent_of_type(ModuleItem);
+    if item is not None and item.name is not None {
+        from_loc = item.from_parent.from_loc;
+        return (
+            from_loc is not None
+            and from_loc.dot_path_str == "enum"
+            and item.name.value == "auto"
+        );
+    }
+    mod = decl.find_parent_of_type(Module);
+    return mod is not None and mod.name == "enum" and sym.sym_name == "auto";
 }
 
 impl validate_enum_member_annotation(
@@ -76,7 +104,8 @@ impl build_enum_members(
     }
 
     int_type = evaluator.prefetch.int_class if evaluator.prefetch else None;
-    auto_value = 1;
+    max_assigned: int | None = None;
+    auto_blocked = False;
 
     all_stmts: list = [
         sym.decl.parent if isinstance(sym.decl.parent, Assignment) else sym.decl
@@ -87,9 +116,18 @@ impl build_enum_members(
     for stmt in all_stmts {
         if isinstance(stmt, Assignment) {
             if member_info := create_enum_member_info(stmt, evaluator) {
-                if member_info.value_type is None {
+                generated = member_info.value_type is None
+                    or (
+                        member_info.literal_value is None
+                        and is_enum_auto_call(stmt.value)
+                    );
+                if generated {
                     member_info.value_type = int_type;
-                    member_info.literal_value = auto_value;
+                    if not auto_blocked {
+                        member_info.literal_value = (
+                            1 if max_assigned is None else max_assigned + 1
+                        );
+                    }
                 }
 
                 if enum_value_type
@@ -107,18 +145,27 @@ impl build_enum_members(
                 validate_enum_member_annotation(stmt, member_info, evaluator);
                 members[member_info.member_name] = member_info;
 
-                auto_value = member_info.literal_value + 1
-                    if isinstance(member_info.literal_value, int)
-                    else auto_value;
+                lit = member_info.literal_value;
+                if isinstance(lit, int) and not isinstance(lit, bool) {
+                    if max_assigned is None or lit > max_assigned {
+                        max_assigned = lit;
+                    }
+                } elif lit is not None or not generated {
+                    auto_blocked = True;
+                }
             }
         } elif (
             isinstance(stmt, Name)
             and not is_excluded_enum_member_name(member_name := stmt.value)
         ) {
+            next_value: int | None = None;
+            if not auto_blocked {
+                next_value = 1 if max_assigned is None else max_assigned + 1;
+                max_assigned = next_value;
+            }
             members[member_name] = EnumMemberInfo(
-                member_name=member_name, value_type=int_type, literal_value=auto_value
+                member_name=member_name, value_type=int_type, literal_value=next_value
             );
-            auto_value += 1;
         }
     }
     return members;

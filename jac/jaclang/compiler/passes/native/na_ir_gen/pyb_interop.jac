@@ -6,6 +6,7 @@ import os;
 
 obj NaIRGenPybInterop(NaIRGenState) {
     def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_class_site(t: any) -> tuple;
     def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
     def _pyb_native_override_owner(arch_name: str, meth: str) -> (str | None);
     def _pyb_shadowed_dispatch(arch_name: str, method_name: str) -> (tuple | None);
@@ -23,8 +24,8 @@ obj NaIRGenPybInterop(NaIRGenState) {
     def _pyb_owner_addr(obj_val: ir.Value) -> ir.Value;
     def _pyb_shadow_of_val(obj_val: ir.Value) -> ir.Value;
     def _pyb_to_py(nd: (uni.UniNode | None), val: ir.Value) -> (ir.Value | None);
-    def _pyb_ret_key(nd: uni.FuncCall) -> (str | None);
-    def _pyb_from_py(handle: ir.Value, type_key: (str | None)) -> (ir.Value | None);
+    def _pyb_ret_type(nd: uni.FuncCall) -> any;
+    def _pyb_from_py(handle: ir.Value, t: any) -> (ir.Value | None);
     def _pyb_build_args(params: list, skip_kwargs: bool = False) -> (tuple | None);
     def _pyb_bridge_call(fn_name: str, args: list[ir.Value]) -> ir.Value;
     def _codegen_pyb_field_load(

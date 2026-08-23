@@ -137,35 +137,6 @@ impl NaIRGenContainerHelpers._emit_elem_release(
     );
 }
 
-impl NaIRGenContainerHelpers._reject_ptr_into_raw_slot(
-    nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
-) -> bool {
-    if not isinstance(value.type, ir.PointerType) {
-        return False;
-    }
-    if isinstance(value.type.pointee, ir.FunctionType) {
-        return False;
-    }
-    if self._elem_kind(elem_type) != "raw" {
-        return False;
-    }
-    if not isinstance(elem_type, ir.IntType) or elem_type.width < 64 {
-        return False;
-    }
-    if nd is not None {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="expression",
-            name=what,
-            help_text="A pointer value cannot be stored into a scalar container slot: the container would hold a raw address invisible to memory management. Declare the container with a matching element type, or mix element types so it lowers to tagged storage."
-        );
-    } else {
-        self.emit(E5092, kind="expression", name=what);
-    }
-    return True;
-}
-
 impl NaIRGenContainerHelpers._spread_operand(
     nd: (uni.UniNode | None)
 ) -> (uni.Expr | None) {
@@ -178,89 +149,278 @@ impl NaIRGenContainerHelpers._spread_operand(
 }
 
 impl NaIRGenContainerHelpers._container_src_info(
-    val: (ir.Value | None)
+    val: (ir.Value | None), operand: (uni.UniNode | None)
 ) -> (dict | None) {
     if val is None or not isinstance(val.type, ir.PointerType) {
         return None;
     }
-    for (_lspec, _ltype) in self.list_types.items() {
-        if _ltype.as_pointer() == val.type {
-            _lhelpers = self.list_helpers.get(_lspec);
-            if _lhelpers is not None {
-                return {
-                    "kind": "list",
-                    "spec": _lspec,
-                    "helpers": _lhelpers,
-                    "value": val
-                };
-            }
+    _lspec = self._list_spec_for_expr(operand);
+    if _lspec is not None {
+        _lhelpers = self.list_helpers.get(_lspec);
+        if _lhelpers is not None {
+            _lt = self.list_types[_lspec].as_pointer();
+            _lv = val if val.type == _lt else self._coerce_type(val, _lt);
+            return {"kind": "list", "spec": _lspec, "helpers": _lhelpers, "value": _lv};
         }
     }
-    for (_sspec, _stype) in self.set_types.items() {
-        if _stype.as_pointer() == val.type {
-            _shelpers = self.set_helpers.get(_sspec);
-            if _shelpers is not None {
-                return {
-                    "kind": "set",
-                    "spec": _sspec,
-                    "helpers": _shelpers,
-                    "value": val
-                };
-            }
+    _sspec = self._set_spec_for_expr(operand);
+    if _sspec is not None {
+        _shelpers = self.set_helpers.get(_sspec);
+        if _shelpers is not None {
+            _st = self.set_types[_sspec].as_pointer();
+            _sv = val if val.type == _st else self._coerce_type(val, _st);
+            return {"kind": "set", "spec": _sspec, "helpers": _shelpers, "value": _sv};
         }
     }
     return None;
 }
 
-impl NaIRGenContainerHelpers._spread_elem_storage(
-    src_info: dict, operand: (uni.Expr | None)
-) -> (ir.Type | None) {
-    _erased = src_info["helpers"]["elem_type"];
-    if src_info["kind"] != "list" or src_info["spec"] != "ptr" {
-        return _erased;
+impl NaIRGenContainerHelpers._expr_type_of(expr: (uni.UniNode | None)) -> any {
+    if isinstance(expr, uni.CfgExpr) {
+        return self._expr_type_of(expr.expr);
     }
-    _static = self._static_elem_llvm_of(operand);
-    if _static is None {
-        return None;
+    if isinstance(expr, uni.AtomUnit) {
+        return self._expr_type_of(expr.value);
     }
-    if isinstance(_static, ir.PointerType)
-        and isinstance(_static.pointee, ir.LiteralStructType) {
-        return _static;
-    }
-    return _erased;
+    return self._flow_narrowed_type_of(expr);
 }
 
-impl NaIRGenContainerHelpers._reject_spread_slot_mismatch(
-    nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
-) -> bool {
-    if src_elem == dest_elem {
-        return False;
+impl NaIRGenContainerHelpers._sym_type_of(nd: (uni.UniNode | None)) -> any {
+    _sym = nd?.sym if isinstance(nd, uni.NameAtom) else None;
+    if _sym is not None {
+        _t = self.prog.get_type_evaluator().get_type_of_symbol(_sym);
+        if _t is not None and self._tb_kind(_t) not in ("unknown", "never") {
+            return _t;
+        }
     }
-    if isinstance(src_elem, ir.PointerType)
-        and self._reject_ptr_into_raw_slot(
-            nd, ir.Constant(src_elem, None), dest_elem, what
-        ) {
-        return True;
+    return self._expr_type_of(nd);
+}
+
+impl NaIRGenContainerHelpers._elem_slot_llvm(t: any) -> (ir.Type | None) {
+    _low = self._elem_storage_llvm(t);
+    if _low is None {
+        return None;
     }
-    if self?.jacval_type
-        and (src_elem == self.jacval_type or dest_elem == self.jacval_type) {
-        return False;
+    if self._str_desc_ty is not None and _low == self._str_desc_ty {
+        return ir.IntType(8).as_pointer();
     }
-    _numeric = (ir.IntType, ir.DoubleType, ir.FloatType);
-    if isinstance(src_elem, _numeric) and isinstance(dest_elem, _numeric) {
-        return False;
+    if isinstance(_low, ir.VoidType) {
+        return ir.IntType(64);
     }
-    if isinstance(src_elem, ir.PointerType) and isinstance(dest_elem, ir.PointerType) {
-        return False;
+    return _low;
+}
+
+impl NaIRGenContainerHelpers._list_spec_for_elem_llvm(elem_llvm: ir.Type) -> str {
+    _elem = elem_llvm;
+    if self._str_desc_ty is not None and _elem == self._str_desc_ty {
+        _elem = ir.IntType(8).as_pointer();
     }
-    self.emit(
-        E5092,
-        node_override=nd,
-        kind="expression",
-        name=what,
-        help_text="A spread copies the source's elements into the display's own storage, so the two element types have to share a representation. Give the spread source the display's element type, or write the elements out."
-    );
-    return True;
+    spec = "i64";
+    if isinstance(_elem, ir.DoubleType) {
+        spec = "f64";
+    } elif isinstance(_elem, ir.PointerType) {
+        spec = "ptr";
+        _elem = ir.IntType(8).as_pointer();
+    } elif self?.jacval_type and _elem == self.jacval_type {
+        spec = "jacval";
+    } else {
+        _elem = ir.IntType(64);
+    }
+    self._emit_list_helpers(spec, _elem);
+    return spec;
+}
+
+impl NaIRGenContainerHelpers._list_spec_for_type(t: any) -> (str | None) {
+    _members = self._tb_non_none(t);
+    if not _members {
+        return None;
+    }
+    _spec: (str | None) = None;
+    for _m in _members {
+        _k = self._tb_kind(_m);
+        _s: (str | None) = None;
+        if _k == "bytearray" {
+            self._ensure_bytearray_type();
+            _s = "u8";
+        } elif _k == "list" {
+            _elem = self._tb_elem(_m);
+            if _elem is None {
+                return None;
+            }
+            _low = self._elem_slot_llvm(_elem);
+            if _low is None {
+                return None;
+            }
+            _s = self._list_spec_for_elem_llvm(_low);
+        } elif _k == "tuple" and self._tuple_has_variadic_arg(self._tb_args(_m)) {
+            _velems = [
+                _a
+                for _a in self._tb_args(_m)
+                if not isinstance(_a, UnknownType)
+            ];
+            _low = self._elem_slot_llvm(_velems[0]) if _velems else None;
+            if _low is None {
+                return None;
+            }
+            _s = self._list_spec_for_elem_llvm(_low);
+        } else {
+            return None;
+        }
+        if _spec is None {
+            _spec = _s;
+        } elif _spec != _s {
+            return None;
+        }
+    }
+    return _spec;
+}
+
+impl NaIRGenContainerHelpers._dict_spec_for_type(t: any) -> (str | None) {
+    _members = self._tb_non_none(t);
+    if not _members {
+        return None;
+    }
+    _spec: (str | None) = None;
+    for _m in _members {
+        if self._tb_kind(_m) != "dict" {
+            return None;
+        }
+        _kt = self._tb_elem(_m, 0);
+        _vt = self._tb_elem(_m, 1);
+        if _kt is None or _vt is None {
+            return None;
+        }
+        _kl = self._elem_slot_llvm(_kt);
+        _vl = self._elem_slot_llvm(_vt);
+        if _kl is None or _vl is None {
+            return None;
+        }
+        if self?.jacval_type and _kl == self.jacval_type {
+            return None;
+        }
+        (_ks, _ksz) = self._dict_key_spec(_kl);
+        _vs = self._dict_val_spec(_vl);
+        self._emit_dict_helpers(_ks, _vs, _kl, _vl, _ksz);
+        _s = f"{_ks}:{_vs}";
+        if _spec is None {
+            _spec = _s;
+        } elif _spec != _s {
+            return None;
+        }
+    }
+    return _spec;
+}
+
+impl NaIRGenContainerHelpers._set_spec_for_type(t: any) -> (str | None) {
+    _members = self._tb_non_none(t);
+    if not _members {
+        return None;
+    }
+    _spec: (str | None) = None;
+    for _m in _members {
+        if self._tb_kind(_m) != "set" {
+            return None;
+        }
+        _et = self._tb_elem(_m);
+        if _et is None {
+            return None;
+        }
+        _el = self._elem_slot_llvm(_et);
+        if _el is None or (self?.jacval_type and _el == self.jacval_type) {
+            return None;
+        }
+        _s = "i64";
+        _esize = 0;
+        if isinstance(_el, ir.DoubleType) {
+            _s = "f64";
+        } elif isinstance(_el, ir.PointerType) {
+            _s = "ptr";
+            if isinstance(_el.pointee, ir.LiteralStructType) {
+                _esize = self._get_struct_size(_el.pointee);
+                _s = self._tuple_spec_name(_el.pointee);
+            }
+        }
+        self._emit_set_helpers(_s, _el, _esize);
+        if _spec is None {
+            _spec = _s;
+        } elif _spec != _s {
+            return None;
+        }
+    }
+    return _spec;
+}
+
+impl NaIRGenContainerHelpers._aos_spec_for_expr(
+    expr: (uni.UniNode | None)
+) -> (str | None) {
+    if not self._nogc_headerless() or not isinstance(expr, uni.NameAtom) {
+        return None;
+    }
+    _sym = expr.sym;
+    _decl = _sym.decl if _sym is not None else None;
+    _holder = _decl.parent if _decl is not None else None;
+    _tag = _holder?.type_tag
+        if isinstance(_holder, (uni.Assignment, uni.ParamVar, uni.HasVar))
+        else None;
+    _aos_t = self._aos_elem_of(_tag) if _tag is not None else None;
+    if _aos_t is None {
+        return None;
+    }
+    self._emit_aos_list_helpers(_aos_t);
+    return f"aos.{_aos_t}";
+}
+
+impl NaIRGenContainerHelpers._list_spec_for_expr(
+    expr: (uni.UniNode | None)
+) -> (str | None) {
+    _aos = self._aos_spec_for_expr(expr);
+    if _aos is not None {
+        return _aos;
+    }
+    return self._list_spec_for_type(self._expr_type_of(expr));
+}
+
+impl NaIRGenContainerHelpers._dict_spec_for_expr(
+    expr: (uni.UniNode | None)
+) -> (str | None) {
+    return self._dict_spec_for_type(self._expr_type_of(expr));
+}
+
+impl NaIRGenContainerHelpers._set_spec_for_expr(
+    expr: (uni.UniNode | None)
+) -> (str | None) {
+    return self._set_spec_for_type(self._expr_type_of(expr));
+}
+
+impl NaIRGenContainerHelpers._list_helpers_for(
+    expr: (uni.UniNode | None)
+) -> (dict | None) {
+    _spec = self._list_spec_for_expr(expr);
+    return self.list_helpers.get(_spec) if _spec is not None else None;
+}
+
+impl NaIRGenContainerHelpers._to_bool_of(
+    val: ir.Value, expr: (uni.UniNode | None)
+) -> ir.Value {
+    return self._to_bool(val, ty=self._expr_type_of(expr));
+}
+
+impl NaIRGenContainerHelpers._coerce_typed(
+    val: ir.Value, target_type: ir.Type, src_ty: any
+) -> ir.Value {
+    return self._coerce_type(val, target_type, src_ty=src_ty);
+}
+
+impl NaIRGenContainerHelpers._binop_typed(
+    op: str, left: ir.Value, right: ir.Value, lty: any, rty: any, resolved: any = None
+) -> (ir.Value | None) {
+    return self._emit_binary_op(op, left, right, lty=lty, rty=rty, resolved=resolved);
+}
+
+impl NaIRGenContainerHelpers._cmp_typed(
+    op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+) -> (ir.Value | None) {
+    return self._emit_comparison(op, left, right, is_float, lty=lty, rty=rty);
 }
 
 impl NaIRGenContainerHelpers._emit_spread_copy(
@@ -269,7 +429,8 @@ impl NaIRGenContainerHelpers._emit_spread_copy(
     dest: ir.Value,
     dest_helpers: dict,
     dest_kind: str,
-    loc: str
+    loc: str,
+    src_elem_ty: any = None
 ) -> None {
     i64 = ir.IntType(64);
     i8p = ir.IntType(8).as_pointer();
@@ -296,7 +457,7 @@ impl NaIRGenContainerHelpers._emit_spread_copy(
     if isinstance(_elem.type, ir.PointerType) and _dest_elem == i8p {
         _elem = self.builder.bitcast(_elem, i8p, name="spread.elem.cast");
     } else {
-        _elem = self._coerce_type(_elem, _dest_elem);
+        _elem = self._coerce_typed(_elem, _dest_elem, src_elem_ty);
     }
     if dest_kind == "set" {
         self._rc_call_with_ctx(
@@ -433,7 +594,11 @@ impl NaIRGenContainerHelpers._emit_live_slot_loop(
 }
 
 impl NaIRGenContainerHelpers._emit_container_new_fn(
-    fn_name: str, container_ptr_type: ir.Type, layout: dict, dtor_fn: object = None
+    fn_name: str,
+    container_ptr_type: ir.Type,
+    layout: dict,
+    dtor_fn: object = None,
+    type_name: str = "container"
 ) -> ir.Function {
     new_fnty = ir.FunctionType(container_ptr_type, []);
     new_fn = ir.Function(self.llvm_module, new_fnty, name=fn_name);
@@ -463,14 +628,10 @@ impl NaIRGenContainerHelpers._emit_container_new_fn(
         dtor_fn = None;
     }
     if dtor_fn is not None and self.rc_set_type_fn is not None {
-        _dtor_name = dtor_fn?.name or str(dtor_fn);
-        _type_name = _dtor_name[len("__rc_release_"):]
-            if _dtor_name.startswith("__rc_release_")
-            else "container";
         _cont_raw_i8 = b.bitcast(
             container_ptr, ir.IntType(8).as_pointer(), name="new.i8"
         );
-        self._emit_set_type_tag(b, _cont_raw_i8, _type_name);
+        self._emit_set_type_tag(b, _cont_raw_i8, type_name);
     }
 
     if dtor_fn is not None {
@@ -487,7 +648,7 @@ impl NaIRGenContainerHelpers._emit_container_new_fn(
     }
 
     _managed_fields = self._container_managed_fields(layout);
-    _cont_type_name = self._container_type_name(dtor_fn);
+    _cont_type_name = type_name if dtor_fn is not None else "container";
     _cont_has_trace = False;
     if _managed_fields and self._gc_mode() == "cycles" {
         _cont_trace_fn = self._emit_container_trace_fn(
@@ -498,17 +659,6 @@ impl NaIRGenContainerHelpers._emit_container_new_fn(
     self._require_trace_fn(_cont_type_name, bool(_managed_fields), _cont_has_trace);
     b.ret(container_ptr);
     return new_fn;
-}
-
-impl NaIRGenContainerHelpers._container_type_name(dtor_fn: object) -> str {
-    if dtor_fn is None {
-        return "container";
-    }
-    _dtor_name = dtor_fn?.name or str(dtor_fn);
-    if _dtor_name.startswith("__rc_release_") {
-        return _dtor_name[len("__rc_release_"):];
-    }
-    return "container";
 }
 
 impl NaIRGenContainerHelpers._emit_container_trace_fn(
@@ -1155,4 +1305,79 @@ impl NaIRGenContainerHelpers._emit_tuple_box_lifecycle(
         has_trace = self._register_trace_pair(rel_fn, trace_fn);
     }
     self._require_trace_fn("tuple", True, has_trace);
+}
+
+impl NaIRGenContainerHelpers._callee_name_of(
+    call: (uni.UniNode | None)
+) -> (str | None) {
+    if not isinstance(call, uni.FuncCall) {
+        return None;
+    }
+    _rc = call.resolved_callee;
+    if _rc is not None
+        and _rc.func_name
+        and _rc.func_name not in ("__init__", "__new__", "init") {
+        return _rc.func_name;
+    }
+    _tgt = call.target;
+    if isinstance(_tgt, uni.AtomTrailer) and _tgt.is_attr {
+        _tgt = _tgt.right;
+    }
+    _sym = _tgt.sym if isinstance(_tgt, uni.NameAtom) else None;
+    return _sym.sym_name if _sym is not None else None;
+}
+
+impl NaIRGenContainerHelpers._builtin_call_is(
+    call: (uni.UniNode | None), name: str
+) -> bool {
+    return isinstance(call, uni.FuncCall)
+        and call.call_kind == "builtin"
+        and self._callee_name_of(call) == name;
+}
+
+impl NaIRGenContainerHelpers._method_call_is(
+    call: (uni.UniNode | None), name: str, owner_kinds: tuple
+) -> bool {
+    if not isinstance(call, uni.FuncCall)
+        or call.call_kind not in ("method", "builtin") {
+        return False;
+    }
+    _tgt = call.target;
+    if not (isinstance(_tgt, uni.AtomTrailer) and _tgt.is_attr) {
+        return False;
+    }
+    if self._callee_name_of(call) != name {
+        return False;
+    }
+    _recv_ty = self._expr_type_of(_tgt.target);
+    _kind = self._tb_kind(self._tb_opt_payload(_recv_ty) or _recv_ty);
+    return _kind in owner_kinds;
+}
+
+impl NaIRGenContainerHelpers._module_member_is(
+    expr: (uni.UniNode | None), module: str, member: str
+) -> bool {
+    if not (isinstance(expr, uni.AtomTrailer) and expr.is_attr) {
+        return False;
+    }
+    _right = expr.right;
+    _mod = expr.target;
+    if not (isinstance(_right, uni.NameAtom) and isinstance(_mod, uni.NameAtom)) {
+        return False;
+    }
+    if _right.sym_name != member {
+        return False;
+    }
+    _msym = _mod.sym;
+    _mdecl = _msym.decl if _msym is not None else None;
+    _imp = _mdecl.find_parent_of_type(uni.Import) if _mdecl is not None else None;
+    if _imp is None {
+        return False;
+    }
+    for _mp in _imp.get_all_sub_nodes(uni.ModulePath) {
+        if _mp.dot_path_str == module {
+            return True;
+        }
+    }
+    return False;
 }
