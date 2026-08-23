@@ -423,6 +423,18 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Distinct from item 39 (WRITE on base instances) - this is READ on
     subclass instances. Found fuzz round 43. YoungHawk candidate.
 
+46. **[HIGH][FIXED 79ddec285 UltraMoon] List/tuple repetition copied instead of
+    aliasing** - root cause: sequence-*int had no native slot, fell through to
+    host_binop whose to_host/from_host round-trip turned references into copies.
+    Native kind-5 arm + reflected-repeat step. 9-point driver green.
+
+49. **[HIGH-adjacent] INPLACE ops REBIND instead of MUTATE.** a = b = [];
+    a += [1]: b stays [0], a is b -> False. CPython list.__iadd__/__imul__
+    mutate in place and return self; jacpython rebinds to fresh object.
+    Confirmed on lists (+/*) AND sets (-=); str/immutable forms correct.
+    Same silent-wrong-answers family as 46. Owner: YoungHawk queue after 40
+    (or UltraMoon lane when ceval frees).
+
 47. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
     TypeAlias slice 0c5a15a61, byte-exact compiler side). `type X = int`
     compiles but runtime raises unsupported-opcode until VM arm lands.
