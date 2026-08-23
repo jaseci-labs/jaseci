@@ -63,6 +63,14 @@ def _jac_is_type_type(value):
     # build a class object (type.__new__), not a plain instance.
     return value is type
 
+def _jac_is_range_type(value):
+    # True iff value is exactly the builtin `range` type. The py_call_host ctor
+    # interception must match ONLY the exact builtin -- never a subclass -- so
+    # this mirrors _jac_is_object_type/_jac_is_type_type rather than routing
+    # through _jac_builtin_base_name (whose membership list feeds Track B
+    # subclass machinery that range must NOT join).
+    return value is range
+
 def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
@@ -1051,6 +1059,104 @@ obj PyHostProxy(PyObj) {
     }
 }
 
+# ---------------- native range (TODO item 19) --------------------------------
+# Heap-type wrapper over the lifted leaf math in rangeobject.jac: identity and
+# O(1) len/contains/index/slice arithmetic instead of materializing elements
+# across the bridge. Design: docs/RANGE_BRIDGE_DESIGN.md.
+obj PyRange(PyObj) {
+    has start: int,
+        stop: int,
+        step: int;
+
+    def length -> int {
+        return get_len_of_range(self.start, self.stop, self.step);
+    }
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "start" {
+            return PyInt(t="int", val=self.start);
+        }
+        if name == "stop" {
+            return PyInt(t="int", val=self.stop);
+        }
+        if name == "step" {
+            return PyInt(t="int", val=self.step);
+        }
+        # .index()/.count() are P2; everything else misses like CPython.
+        return py_error("AttributeError", name);
+    }
+
+    def tp_iter -> PyObj {
+        # Fresh cursor per iteration: ranges are re-iterable.
+        return PyRangeIter(
+            t="rangeiter", cur=self.start, remaining=self.length(), step=self.step
+        );
+    }
+
+    def tp_bool -> bool {
+        return self.length() > 0;
+    }
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        if isinstance(index, PySlice) {
+            err = _zero_step_error(index as PySlice);
+            if is_error(err) {
+                return err;
+            }
+            b = slice_indices(index as PySlice, self.length());
+            count = get_len_of_range(b[0], b[1], b[2]);
+            new_start = self.start + b[0] * self.step;
+            new_step = self.step * b[2];
+            return PyRange(
+                t="range",
+                start=new_start,
+                stop=new_start + count * new_step,
+                step=new_step,
+            );
+        }
+        idx_obj = index.to_index();
+        if is_error(idx_obj) {
+            return py_error(
+                "TypeError",
+                "range indices must be integers or slices, not '" + index.t + "'",
+            );
+        }
+        i = (idx_obj as PyInt).val;
+        n = self.length();
+        if i < 0 {
+            i = n + i;
+        }
+        if i >= 0 and i < n {
+            return PyInt(t="int", val=self.start + i * self.step);
+        }
+        return py_error("IndexError", "range object index out of range");
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # CPython range_richcompare: eq/ne via length-normalized comparison
+        # (range(0,10,3) == range(0,12,3)); ordering is NotImplemented.
+        if kind == 2 or kind == 3 {
+            if isinstance(other, PyRange) {
+                og = other as PyRange;
+                same = range_equals_longs(
+                    self.start, self.stop, self.step, og.start, og.stop, og.step
+                );
+                return PyBool(t="bool", val=same == (kind == 2));
+            }
+            return PY_NOT_IMPLEMENTED;
+        }
+        return PY_NOT_IMPLEMENTED;
+    }
+}
+
+# One-shot cursor over a PyRange: arithmetic per step, no materialization.
+# Driven by the explicit send_into arm (design Q3: hot-loop path).
+obj PyRangeIter(PyObj) {
+    has cur: int,
+        remaining: int,
+        step: int;
+}
+
 obj PyClass(PyObj) {
     has name: str,
         attrs: dict[str, PyObj],
@@ -1739,11 +1845,9 @@ def from_host(raw: any) -> PyObj {
         return PyBytes(t="bytes", val=byte_values);
     }
     if isinstance(raw, range) {
-        range_values: list[PyObj] = [];
-        for item in raw {
-            range_values.append(PyInt(t="int", val=item));
-        }
-        return PyList(t="list", items=range_values);
+        # Native PyRange preserves identity AND laziness (TODO item 19): no
+        # element drain -- start/stop/step carry all the information.
+        return PyRange(t="range", start=raw.start, stop=raw.stop, step=raw.step);
     }
     if isinstance(raw, slice) {
         # A dynamic host slice (slice(1, 7, 2) built by bridged guest code)
