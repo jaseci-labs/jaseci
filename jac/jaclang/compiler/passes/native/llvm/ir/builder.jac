@@ -324,7 +324,9 @@ class IRBuilder(object) {
             name = -arg
         """
     @_unop('fneg')
-    def fneg(self: IRBuilder, arg: any, name: any = '', flags: any = ()) -> values.Value { }
+    def fneg(
+        self: IRBuilder, arg: any, name: any = '', flags: any = ()
+    ) -> values.Value { }
 
     def _icmp(
         self: IRBuilder, prefix: str, cmpop: any, lhs: any, rhs: any, name: any
@@ -427,7 +429,9 @@ class IRBuilder(object) {
             name = (typ) value
         """
     @_castop('trunc')
-    def trunc(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def trunc(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Zero-extending integer upcast to a larger type:
@@ -448,62 +452,89 @@ class IRBuilder(object) {
             name = (typ) value
         """
     @_castop('fptrunc')
-    def fptrunc(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def fptrunc(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Floating-point upcast to a more precise type:
             name = (typ) value
         """
     @_castop('fpext')
-    def fpext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def fpext(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Pointer cast to a different pointer type:
             name = (typ) value
         """
     @_castop('bitcast')
-    def bitcast(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def bitcast(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Convert unsigned integer to floating-point:
             name = (typ) value
         """
     @_castop('uitofp')
-    def uitofp(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def uitofp(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Convert floating-point to signed integer:
             name = (typ) value
         """
     @_castop('fptosi')
-    def fptosi(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def fptosi(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
+
+    """
+        Convert floating-point to unsigned integer:
+            name = (typ) value
+        """
+    @_castop('fptoui')
+    def fptoui(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Convert signed integer to floating-point:
             name = (typ) value
         """
     @_castop('sitofp')
-    def sitofp(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def sitofp(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Cast pointer to integer:
             name = (typ) value
         """
     @_castop('ptrtoint')
-    def ptrtoint(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def ptrtoint(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Cast integer to pointer:
             name = (typ) value
         """
     @_castop('inttoptr')
-    def inttoptr(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def inttoptr(
+        self: IRBuilder, value: any, typ: any, name: any = ''
+    ) -> values.Value { }
 
     """
         Stack-allocate a slot for *size* elements of the given type.
         (default one element)
         """
-    def alloca(self: IRBuilder, typ: any, size: any = None, name: any = '') -> values.Value {
+    def alloca(
+        self: IRBuilder, typ: any, size: any = None, name: any = ''
+    ) -> values.Value {
         if (size is None) {
             ;
         } elif isinstance(size, (values.Value, values.Constant)) {
@@ -537,7 +568,9 @@ class IRBuilder(object) {
         Store value to pointer, with optional guaranteed alignment:
             *ptr = name
         """
-    def store(self: IRBuilder, value: any, ptr: any, align: any = None) -> values.Value {
+    def store(
+        self: IRBuilder, value: any, ptr: any, align: any = None
+    ) -> values.Value {
         if not isinstance(ptr.type, types.PointerType) {
             msg = "cannot store to value of type %s (%r): not a pointer";
             raise TypeError((msg % (ptr.type, str(ptr))));
@@ -668,7 +701,9 @@ class IRBuilder(object) {
     """
         Extract member number *idx* from aggregate.
         """
-    def extract_value(self: IRBuilder, agg: any, idx: any, name: any = '') -> values.Value {
+    def extract_value(
+        self: IRBuilder, agg: any, idx: any, name: any = ''
+    ) -> values.Value {
         if not isinstance(idx, (`tuple, `list)) {
             idx = [idx];
         }
@@ -691,7 +726,9 @@ class IRBuilder(object) {
         return instr;
     }
 
-    def phi(self: IRBuilder, typ: any, name: any = '', flags: any = ()) -> instructions.PhiInstr {
+    def phi(
+        self: IRBuilder, typ: any, name: any = '', flags: any = ()
+    ) -> instructions.PhiInstr {
         inst = instructions.PhiInstr(self.block, typ, name=name, flags=flags);
         self._insert(inst);
         return inst;

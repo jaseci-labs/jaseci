@@ -100,7 +100,7 @@ def:pub evp_digest(md: int, chunks: list[bytes], digest_size: int) -> bytes {
         raise ValueError("EVP_DigestInit_ex failed");
     }
     for c in chunks {
-        if EVP_DigestUpdate(ctx, c, len(c)) != 1 {
+        if EVP_DigestUpdate(ctx, c, u64(len(c))) != 1 {
             EVP_MD_CTX_free(ctx);
             raise ValueError("EVP_DigestUpdate failed");
         }
@@ -124,12 +124,12 @@ def:pub hmac_digest(
     if ctx == 0 {
         raise ValueError("HMAC_CTX_new failed (out of memory)");
     }
-    if HMAC_Init_ex(ctx, key, len(key), md, 0) != 1 {
+    if HMAC_Init_ex(ctx, key, i32(len(key)), md, 0) != 1 {
         HMAC_CTX_free(ctx);
         raise ValueError("HMAC_Init_ex failed");
     }
     for c in chunks {
-        if HMAC_Update(ctx, c, len(c)) != 1 {
+        if HMAC_Update(ctx, c, u64(len(c))) != 1 {
             HMAC_CTX_free(ctx);
             raise ValueError("HMAC_Update failed");
         }

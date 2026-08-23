@@ -358,22 +358,26 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
 
     if node_.find_parent_of_type(Import) is not None {
         extern_params: list[Parameter] = [];
+        ret_type: TypeBase = AnyType(is_foreign=True);
         if isinstance(node_.signature, FuncSignature) {
             for extern_param in node_.signature.get_parameters() {
                 extern_params.append(
                     Parameter(
                         name=extern_param.name.value,
                         category=_get_param_category(extern_param),
-                        param_type=AnyType(is_foreign=True),
+                        param_type=self._extern_scalar_type(
+                            extern_param.type_tag.tag if extern_param.type_tag else None
+                        ),
                         default_value=extern_param.value,
                         param_kind=_convert_param_kind(extern_param.param_kind),
                     )
                 );
             }
+            ret_type = self._extern_scalar_type(node_.signature.return_type);
         }
         extern_fn = FunctionType(
             func_name=node_.name_spec.sym_name,
-            return_type=AnyType(is_foreign=True),
+            return_type=ret_type,
             parameters=extern_params,
         );
         node_.name_spec.type = extern_fn;
@@ -691,4 +695,103 @@ impl TypeEvaluator._super_owner_for(
         }
     }
     return rest[0];
+}
+
+impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if isinstance(type_expr, Name) {
+        name = type_expr.sym_name;
+        if JAC_TYPE_REGISTRY.is_sized(name) {
+            declared = self.get_type_of_expression(type_expr);
+            if isinstance(declared, ClassType) {
+                return self._convert_to_instance(declared);
+            }
+        }
+        if JAC_TYPE_REGISTRY.is_numeric(name) {
+            return AnyType(is_foreign=True, foreign_scalar=name);
+        }
+    }
+    return AnyType(is_foreign=True);
+}
+
+impl TypeEvaluator._check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None {
+    fields = arch.get_has_vars();
+    by_name: dict[str, HasVar] = {};
+    for hv in fields {
+        by_name[hv.name.sym_name] = hv;
+    }
+    pos = 0;
+    for param in expr.params {
+        field: HasVar | None = None;
+        arg: Expr = param;
+        if isinstance(param, KWPair) {
+            if param.key is None {
+                continue;
+            }
+            field = by_name.get(param.key.sym_name);
+            arg = param.value;
+        } else {
+            field = fields[pos] if pos < len(fields) else None;
+            pos += 1;
+        }
+        if field is None {
+            continue;
+        }
+        dest = self._extern_field_type(field);
+        if isinstance(dest, AnyType) and dest.foreign_scalar is None {
+            continue;
+        }
+        src = self.get_type_of_expression(arg);
+        verdict = self.assign_expr(arg, src, dest, strict=self._is_strict_site(arg));
+        if not verdict.ok and not verdict.diagnosed {
+            self.emit_diag(
+                E1053,
+                arg,
+                actual=str(src),
+                name=field.name.sym_name,
+                expected=str(dest)
+            );
+        }
+    }
+}
+
+impl TypeEvaluator._extern_member_type(arch: Archetype, name: str) -> TypeBase {
+    for hv in arch.get_has_vars() {
+        if hv.name.sym_name == name {
+            return self._extern_field_type(hv);
+        }
+    }
+    return AnyType(is_foreign=True);
+}
+
+impl TypeEvaluator._extern_field_type(field: HasVar) -> TypeBase {
+    import from jaclang.compiler.type_system.types { create_callable_type }
+    import from jaclang.compiler.type_system.fixed_width { numeric_name_of }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    tag = field.type_tag.tag;
+    declared = self.get_type_of_expression(tag);
+    if isinstance(declared, FunctionType) {
+        param_types: list[TypeBase] = [];
+        typed = False;
+        for p in declared.parameters or [] {
+            pn = numeric_name_of(p.param_type);
+            if pn is not None and JAC_TYPE_REGISTRY.is_sized(pn) {
+                param_types.append(p.param_type);
+                typed = True;
+            } else {
+                param_types.append(AnyType(is_foreign=True, foreign_scalar=pn));
+            }
+        }
+        rn = numeric_name_of(declared.return_type);
+        ret_type: TypeBase = AnyType(is_foreign=True, foreign_scalar=rn);
+        if rn is not None and JAC_TYPE_REGISTRY.is_sized(rn) {
+            ret_type = declared.return_type;
+            typed = True;
+        }
+        if typed {
+            return create_callable_type(param_types, ret_type, is_gradual=False);
+        }
+        return AnyType(is_foreign=True);
+    }
+    return self._extern_scalar_type(tag);
 }
