@@ -31,7 +31,7 @@
   <text class="mono dim" x="440" y="184" font-size="11.5" text-anchor="middle">sv · cl · na</text>
   <line x1="340" y1="210" x2="526" y2="210" stroke="#ff9100" stroke-width="2"/>
   <path d="M526,203 L544,210 L526,217 Z" fill="#ff9100"/>
-  <text class="mono acc" x="440" y="244" font-size="12" text-anchor="middle">jac build · jac start</text>
+  <text class="mono acc" x="440" y="244" font-size="12" text-anchor="middle">jac build · jac run --serve</text>
   <text class="mono dim" x="440" y="264" font-size="10.5" text-anchor="middle">Python bytecode · JS · native</text>
 
   <!-- Right panel: the artifacts -->

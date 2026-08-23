@@ -4,7 +4,7 @@ Full-stack app in one markerless file (the walkers stay server, the JSX
 component infers client) runnable as a native desktop binary:
 
     cd jac/examples/todo_app
-    jac start --client desktop
+    jac run --client desktop
 """
 
 node Todo {

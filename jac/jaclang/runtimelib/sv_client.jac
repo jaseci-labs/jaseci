@@ -12,7 +12,7 @@ glob _registry: dict[str, str] = {},
      _registered_env_keys: set[str] = set();
 
 def headless_start_args(entry_file: str, port: int) -> list[str] {
-    return ["start", entry_file, "--port", str(port), "--no-client"];
+    return ["run", "--serve", "--port", str(port), "--no-client", entry_file];
 }
 
 def register(module_name: str, url: str) {

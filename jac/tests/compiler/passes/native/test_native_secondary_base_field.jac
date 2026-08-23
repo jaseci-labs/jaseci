@@ -25,27 +25,11 @@ in the sealed native parser.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+import from tests.support { TESTS_DIR, compile_native, native_force_opts }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine plus the compiled module."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
 
 """Call `name` in the JIT engine over the five fixture instances."""
 def probe(eng: any, name: str) -> list[int] {

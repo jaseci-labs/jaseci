@@ -163,7 +163,7 @@ def kitchen_sink(
     return "ok";
 }
 
-# Public function (becomes API endpoint with `jac start`)
+# Public function (becomes API endpoint with `jac run`)
 def:pub get_items() -> list {
     return [];
 }
@@ -427,7 +427,7 @@ obj:pub Profile {
     has:priv ssn: str;          # member: this class only
 }
 
-# Public walker becomes REST endpoint with `jac start`
+# Public walker becomes REST endpoint with `jac run`
 walker:pub GetUsers {
     can get with Root entry {
         report [-->];
@@ -1065,7 +1065,7 @@ with entry {
 # ============================================================
 # Walkers as REST APIs
 # ============================================================
-# Public walkers become HTTP endpoints with `jac start`
+# Public walkers become HTTP endpoints with `jac run`
 
 walker:pub add_todo {
     has title: str;          # Becomes request body field
