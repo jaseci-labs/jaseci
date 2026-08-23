@@ -112,3 +112,41 @@ are bit-exact per the parity suite.
 If the VM gains raw-address introspection, a warnings subsystem, or
 registered-iterator invalidation, revisit each item: emit the host
 behavior, flip pins to two-sided parity, mark this entry =SUPERSEDED=.
+
+* D03 -- waves 17-19 facades: documented divergences
+:PROPERTIES:
+:ID: wave17-19-divergences
+:END:
+
+**Decision**
+Ship _csv, _random, and _collections facades with the following pinned
+deviations, each documented in facade headers:
+1. Module exception types (csv.Error) raise as plain Exception with
+   byte-exact messages (facade policy until facade-defined exception
+   types are supported).
+2. Deque uses a flat list + state counter instead of CPython's 64-slot
+   block links; iterator type identity (_P2DequeIter vs
+   collections._deque_iterator) and __sizeof__ differ.
+3. defaultdict stores parallel lists with == lookup instead of hashkey
+   buckets; heap-type subclass dispatch in copy() unmodeled.
+4. csv Sniffer/Dialect registry pre-seeding absent (lives in Lib/csv.py,
+   out of accelerator scope).
+
+**Context**
+These follow from Jac-runtime substrate limits and the facade policy
+established in D01/D02; observable value semantics are host-exact per
+parity suites.
+
+**Options considered**
+1. Emulate internals faithfully (block links, hash buckets, exception
+   hierarchy) — rejected: needs runtime primitives not yet expressible.
+2. Document + pin with reversal conditions — chosen.
+
+**Tradeoff**
+Memory profile and introspection-level identity differ; value/error
+semantics bit-exact.
+
+**Reversal condition**
+When ceval wires PyObj/PyDict-backed storage for facade containers or
+facade-defined exceptions land, migrate each item, flip parity pins to
+two-sided, mark =SUPERSEDED=.

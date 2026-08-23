@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave18",
+  "description": "P2 wave-18 conformance manifest (randommodule facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "randommodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_random_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade archetypes mirroring pinned CPython algorithms; host-oracle parity tests"
+    }
+  ]
+}

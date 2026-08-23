@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave17",
+  "description": "P2 wave-17 conformance manifest (_csv accelerator facade, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "_csv",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_csv_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade archetypes mirroring pinned CPython algorithms; host-oracle parity tests"
+    }
+  ]
+}

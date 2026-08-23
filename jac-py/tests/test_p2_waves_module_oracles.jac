@@ -108,6 +108,22 @@ def _expected_stems(wave: int) -> list {
     if wave == 14 {
         return ["arraymodule"];
     }
+    if wave == 15 {
+        return ["jsonmodule"];
+    }
+    if wave == 16 {
+        return ["binasciimodule"];
+    }
+    if wave == 17 {
+        return ["_csv"];
+    }
+    if wave == 18 {
+        return ["randommodule"];
+    }
+    if wave == 19 {
+        return ["collectionsmodule"];
+    }
+
     return [];
 }
 

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave19",
+  "description": "P2 wave-19 conformance manifest (collectionsmodule facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "collectionsmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_collections_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade archetypes mirroring pinned CPython algorithms; host-oracle parity tests"
+    }
+  ]
+}

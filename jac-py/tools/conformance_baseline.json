@@ -2,7 +2,7 @@
   "schema": 1,
   "updated": "2026-08-22",
   "description": "Pinned D2 conformance pass-set (grow-only ratchet). Regenerate with: python3 tools/conformance_dashboard.py --update-baseline",
-  "entry_count": 53,
+  "entry_count": 58,
   "entries": {
     "_bisectmodule": {
       "wave": "p2_wave1",
@@ -10,6 +10,13 @@
       "status": "gated",
       "cases_passed": 0,
       "cases_total": 2
+    },
+    "_csv": {
+      "wave": "p2_wave17",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
     },
     "_heapqmodule": {
       "wave": "p2_wave1",
@@ -34,6 +41,20 @@
     },
     "arraymodule": {
       "wave": "p2_wave14",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "binasciimodule": {
+      "wave": "p2_wave16",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "collectionsmodule": {
+      "wave": "p2_wave19",
       "gate_type": "oracle",
       "status": "gated",
       "cases_passed": null,
@@ -69,6 +90,13 @@
     },
     "itertoolsmodule": {
       "wave": "p2_wave12",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "jsonmodule": {
+      "wave": "p2_wave15",
       "gate_type": "oracle",
       "status": "gated",
       "cases_passed": null,
@@ -349,6 +377,13 @@
     },
     "pystrnicmp": {
       "wave": "p2_wave2",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": null,
+      "cases_total": null
+    },
+    "randommodule": {
+      "wave": "p2_wave18",
       "gate_type": "oracle",
       "status": "gated",
       "cases_passed": null,
