@@ -102,7 +102,7 @@ def _check_manifest(wave: int) -> str {
         modules = manifest["modules"] as list;
         expected = _expected_stems(wave);
         actual = sorted([row["stem"] for row in modules]);
-        assert len(modules) == 4, len(modules);
+        assert len(modules) == len(expected), len(modules);
         assert actual == expected, actual;
         return "";
     } except Exception as e {

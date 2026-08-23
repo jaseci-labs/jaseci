@@ -115,8 +115,9 @@ def _check_wave(wave: int) -> str {
             REPO_ROOT, manifest["lift_output"], "project.c2jac.report.json"
         );
         current = _load_json(current_path);
-        assert len(manifest["files"] as list) == 4;
-        assert len(current["files"] as list) == 4, current;
+        expected = _expected_stems(wave);
+        assert len(manifest["files"] as list) == len(expected);
+        assert len(current["files"] as list) == len(expected), current;
         assert (current["tier_b_total"] as int) <= (baseline["tier_b_total"] as int), (
             f"Tier-B regressed: {current['tier_b_total']} > baseline {baseline['tier_b_total']}"
         );

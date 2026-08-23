@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave15",
+  "description": "P2 wave-15 conformance manifest (_json accelerator facade, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "jsonmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_json_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "scanner+encoder facade mirroring pinned CPython _json.c; host-oracle parity tests"
+    }
+  ]
+}
