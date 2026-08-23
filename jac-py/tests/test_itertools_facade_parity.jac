@@ -621,3 +621,49 @@ def _make_p2_combos(seq: any) -> any {
 def _make_host_combos(seq: any) -> any {
     return host_it.combinations(seq, 2);
 }
+
+
+test "wave20 accumulate initial seeds without pulling and stays lazy" {
+    # initial is yielded first; the source iterator is untouched until the
+    # second pull (CPython accumulate_next seeds total = initial).
+    got = _take(_p2_accumulate([1, 2, 3], None, 10), 4);
+    want = _take(host_it.accumulate([1, 2, 3], initial=10), 4);
+    assert got == want , (got, want);
+
+    got = _p2_take_until_stop(_p2_accumulate([1, 2, 3], lambda (a: any, b: any) { a * b; }, 2));
+    want = _p2_take_until_stop(host_it.accumulate([1, 2, 3], lambda (x: any, y: any) { x * y; }, initial=2));
+    assert got == want , (got, want);
+
+    # empty source with initial yields exactly [initial] on both sides
+    assert _p2_take_until_stop(_p2_accumulate([], None, 5)) == [5];
+    assert _p2_take_until_stop(host_it.accumulate([], initial=5)) == [5];
+
+    # laziness: creating the accumulator pulls nothing past __iter__
+    src = iter([1, 2, 3]);
+    acc = _p2_accumulate(src);
+    assert next(acc) == 1;
+    assert next(acc) == 3;
+    assert list(src) == [3];
+
+    src = iter([7, 8]);
+    acc2 = _p2_accumulate(src, None, 100);
+    pulled: list = [];
+    assert next(acc2) == 100;
+    assert pulled == [] , "initial must not consume the source";
+    assert next(acc2) == 107;
+
+    # no-initial form still matches host
+    assert _p2_take_until_stop(_p2_accumulate([1, 2, 3])) == [1, 3, 6];
+}
+
+
+def _p2_take_until_stop(it: any) -> list {
+    out: list = [];
+    while True {
+        try {
+            out.append(_advance(it));
+        } except StopIteration {
+            return out;
+        }
+    }
+}

@@ -768,11 +768,19 @@ def _p2_starmap(func: any, iterable: any) -> _P2Starmap {
     return lz;
 }
 
+# Sentinel separating "initial omitted" from an explicit initial=None
+# (accumulate's initial parameter is keyword-only with no default value).
+obj _AccInitial {
+}
+
+glob ACC_INITIAL_MISSING: _AccInitial = _AccInitial();
+
 obj _P2Accumulate {
     has it: any = None,
         func: any = None,
         total: any = None,
-        started: bool = False;
+        started: bool = False,
+        seeded: bool = False;
 
 
     def __iter__ -> any {
@@ -781,6 +789,10 @@ obj _P2Accumulate {
     def __next__ -> any {
         if not self.started {
             self.started = True;
+            if self.seeded {
+                # An explicit initial is yielded verbatim, source untouched.
+                return self.total;
+            }
             self.total = _advance(self.it);
             return self.total;
         }
@@ -794,8 +806,19 @@ obj _P2Accumulate {
     }
 }
 
-def _p2_accumulate(iterable: any, func: any = None) -> _P2Accumulate {
-    lz = _P2Accumulate(it=_get_iter(iterable), func=func);
+def _p2_accumulate(
+    iterable: any, func: any = None, initial: any = ACC_INITIAL_MISSING
+) -> _P2Accumulate {
+    # Mirrors accumulate_new + accumulate_next: an explicit initial seeds the
+    # running total and is yielded FIRST without pulling from the iterator.
+    lz: _P2Accumulate;
+    if initial is ACC_INITIAL_MISSING {
+        lz = _P2Accumulate(it=_get_iter(iterable), func=func);
+        return lz;
+    }
+    lz = _P2Accumulate(
+        it=_get_iter(iterable), func=func, total=initial, seeded=True
+    );
     return lz;
 }
 
