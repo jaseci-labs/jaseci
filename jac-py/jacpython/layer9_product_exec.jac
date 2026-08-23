@@ -1868,3 +1868,90 @@ test "layer9: COPY_FREE_VARS precedes MAKE_CELL in nested prologues" {
     assert inner_u.co_code[2] == OP_MAKE_CELL;
     assert inner_u.co_code == inner_e.co_code;
 }
+
+# ---------------- Dynamic MAKE_CELL / cell-targeted comprehensions (F4) ------
+
+# Two comprehension-bound lambda sets over the SAME target name in ONE scope:
+# each comprehension execution must mint fresh cells (mid-frame MAKE_CELL), so
+# the second run's stores must not clobber cells captured by the first. Before
+# dynamic slot conversion this produced [9, 9, 9] for the first set.
+test "layer9: two cell-targeted comprehensions keep per-run cells" {
+    src = "def f():\n"
+        + "    x = [lambda: i for i in range(3)]\n"
+        + "    y = [lambda: i for i in range(5)]\n"
+        + "    return x, y\n"
+        + "x, y = f()\n"
+        + "a = [g() for g in x]\n"
+        + "b = [g() for g in y]\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    a = ns["a"];
+    b = ns["b"];
+    # Late binding: both sets read their target AFTER both comprehensions ran
+    # (a sees i=2, b sees i=4) -- but through their OWN per-run cells.
+    assert expect_int(py_subscript(a, PyInt(t="int", val=0))) == 2;
+    assert expect_int(py_subscript(b, PyInt(t="int", val=0))) == 4;
+}
+
+# Same source must execute identically under the host oracle's bytecode and the
+# product compiler's -- guards against route divergence on the new shape.
+test "layer9: cell-targeted comprehensions agree with host oracle" {
+    src = "def f():\n"
+        + "    x = [lambda: i for i in range(3)]\n"
+        + "    y = [lambda: i for i in range(5)]\n"
+        + "    return ([g() for g in x], [g() for g in y])\n"
+        + "R = f()\n";
+    ons: dict[str, PyObj] = {};
+    oout = exec_code(oracle_exec(src) as PyCode, [], ons);
+    pns: dict[str, PyObj] = {};
+    pout = exec_code(product_exec(src) as PyCode, [], pns);
+    assert not is_error(oout);
+    assert not is_error(pout);
+    assert expect_int(py_subscript(ons["R"], PyInt(t="int", val=0))) ==
+        expect_int(py_subscript(pns["R"], PyInt(t="int", val=0)));
+    assert expect_int(py_subscript(pns["R"], PyInt(t="int", val=1))) == 444;
+}
+
+# The tail STORE_FAST restore must put back the ORIGINAL binding even though a
+# mid-frame MAKE_CELL replaced the slot with a fresh cell; immediate calls pin
+# per-iteration values while the outer local survives untouched.
+test "layer9: comprehension save/restore preserves converted slot binding" {
+    src = "def h():\n"
+        + "    i = 7\n"
+        + "    fs = [(lambda: i)() for i in range(3)]\n"
+        + "    return fs + [i]\n"
+        + "R = h()\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    r = ns["R"];
+    assert expect_int(py_subscript(r, PyInt(t="int", val=0))) == 0;
+    assert expect_int(py_subscript(r, PyInt(t="int", val=1))) == 1;
+    assert expect_int(py_subscript(r, PyInt(t="int", val=2))) == 2;
+    assert expect_int(py_subscript(r, PyInt(t="int", val=3))) == 7;
+}
+
+# Cell-targeted set/dict comprehension variants bind through the same path.
+test "layer9: set/dict cell-targeted comprehensions execute" {
+    src = "def f():\n"
+        + "    s = {(lambda: m)() for m in range(3)}\n"
+        + "    d = {n: (lambda: n)() for n in range(3)}\n"
+        + "    return sorted(s), sorted(d.values())\n"
+        + "R = f()\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    t = ns["R"];
+    s_list = py_subscript(t, PyInt(t="int", val=0));
+    d_list = py_subscript(t, PyInt(t="int", val=1));
+    si = 0;
+    while si < 3 {
+        assert expect_int(py_subscript(s_list, PyInt(t="int", val=si))) == si;
+        assert expect_int(py_subscript(d_list, PyInt(t="int", val=si))) == si;
+        si = si + 1;
+    }
+}
