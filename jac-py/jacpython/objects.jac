@@ -1642,7 +1642,11 @@ obj PyException(PyObj) {
         context: any = None,
         # StopIteration payload: `return x` in a generator surfaces as
         # StopIteration(x); .send()/next() carry the value here.
-        value: any = None;
+        value: any = None,
+        # Writable BaseException attributes (CPython allows assignment to all
+        # four). Defaults mirror the unset state; reads fall back to None.
+        traceback: any = None,
+        suppress_context: any = None;
 
     # Attribute reads on a caught exception. `args` is served natively as a real
     # tuple; a user-exception instance (kept in `raw`) delegates to its own
@@ -1684,7 +1688,56 @@ obj PyException(PyObj) {
         if name == "__class__" {
             return py_exception_type(self.type_name);
         }
-        if name == "__traceback__" or name == "__suppress_context__" {
+        if name == "__traceback__" {
+            if self.traceback is not None {
+                return self.traceback as PyObj;
+            }
+            return py_none();
+        }
+        if name == "__suppress_context__" {
+            if self.suppress_context is not None {
+                return self.suppress_context as PyObj;
+            }
+            return py_none();
+        }
+        return py_error("AttributeError", name);
+    }
+
+    # Attribute writes on a caught exception. CPython's BaseException exposes
+    # args, __traceback__, __cause__, __context__, and __suppress_context__ as
+    # writable; everything else stays read-only (AttributeError), matching the
+    # tp_getattro surface above. Unknown-attribute writes keep raising because
+    # these instances carry no user attribute dict.
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        if name == "args" {
+            # BaseException.args_setter converts via PySequence_Tuple: tuples
+            # pass through, lists convert, anything else raises TypeError.
+            items: list[PyObj] = [];
+            if isinstance(value, PyTuple) {
+                items.extend((value as PyTuple).items);
+            } elif isinstance(value, PyList) {
+                items.extend((value as PyList).items);
+            } else {
+                return py_error("TypeError", "'" + value.t + "' object is not iterable");
+            }
+            self.args = [];
+            self.args.extend(items);
+            return py_none();
+        }
+        if name == "__traceback__" {
+            self.traceback = value;
+            return py_none();
+        }
+        if name == "__cause__" {
+            self.cause = value;
+            return py_none();
+        }
+        if name == "__context__" {
+            self.context = value;
+            return py_none();
+        }
+        if name == "__suppress_context__" {
+            self.suppress_context = value;
             return py_none();
         }
         return py_error("AttributeError", name);
