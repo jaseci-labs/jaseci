@@ -101,6 +101,7 @@ glob CAPABILITY_CLOSURE: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
