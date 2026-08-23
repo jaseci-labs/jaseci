@@ -30,7 +30,7 @@ def:pub last_errno -> int {
 
 
 def:pub errno_message -> str {
-    return strerror(last_errno());
+    return strerror(i32(last_errno()));
 }
 
 
@@ -45,12 +45,12 @@ def:pub resolve_all(host: str, service: str) -> tuple[(list[bytes], int)] {
     cur = head;
     while cur != 0 {
         ai = b"\x00" * _AI_SIZE;
-        memcpy(ai, cur, _AI_SIZE);
+        memcpy(ai, cur, u64(_AI_SIZE));
         addrlen = int.from_bytes(ai[_AI_ADDRLEN_OFF:_AI_ADDRLEN_OFF + 4], "little");
         addr = int.from_bytes(ai[_AI_ADDR_OFF:_AI_ADDR_OFF + 8], "little");
         if addr != 0 and addrlen > 0 and addrlen <= _SOCKADDR_MAX {
             sa = b"\x00" * addrlen;
-            memcpy(sa, addr, addrlen);
+            memcpy(sa, addr, u64(addrlen));
             out.append(sa);
         }
         cur = int.from_bytes(ai[_AI_NEXT_OFF:_AI_NEXT_OFF + 8], "little");
@@ -63,17 +63,17 @@ def:pub resolve_all(host: str, service: str) -> tuple[(list[bytes], int)] {
 
 
 def:pub gai_str(rc: int) -> str {
-    return gai_strerror(rc);
+    return gai_strerror(i32(rc));
 }
 
 
 def:pub sock_open(family: int, socktype: int, proto: int) -> int {
-    return socket(family, socktype, proto);
+    return socket(i32(family), i32(socktype), i32(proto));
 }
 
 
 def:pub sock_connect(fd: int, sa: bytes) -> int {
-    return connect(fd, sa, len(sa));
+    return connect(i32(fd), sa, i32(len(sa)));
 }
 
 
@@ -83,7 +83,7 @@ def:pub sock_send(fd: int, data: bytes, off: int) -> int {
         return 0;
     }
     chunk = data[off:n];
-    sent = send(fd, chunk, len(chunk), 0);
+    sent = send(i32(fd), chunk, u64(len(chunk)), 0);
     return sent;
 }
 
@@ -93,7 +93,7 @@ def:pub sock_recv(fd: int, bufsize: int) -> bytes {
         return b"";
     }
     buf = b"\x00" * bufsize;
-    got = recv(fd, buf, bufsize, 0);
+    got = recv(i32(fd), buf, u64(bufsize), 0);
     if got < 0 {
         raise OSError("recv failed: " + errno_message());
     }
@@ -106,6 +106,6 @@ def:pub sock_recv(fd: int, bufsize: int) -> bytes {
 
 def:pub sock_close(fd: int) {
     if fd >= 0 {
-        close(fd);
+        close(i32(fd));
     }
 }
