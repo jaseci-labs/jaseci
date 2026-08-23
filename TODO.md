@@ -422,6 +422,11 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
+    e.args = ('y',) -> AttributeError('args'); CPython allows args (and
+    other BaseException attrs) reassignment. Read-only exception objects.
+    Family: item 32 (__traceback__ surface). Ownerless, YoungHawk candidate.
+
 38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
     __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
     RecursionError - super() in that context re-binds to the defining method
@@ -814,6 +819,11 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
+    e.args = ('y',) -> AttributeError('args'); CPython allows args (and
+    other BaseException attrs) reassignment. Read-only exception objects.
+    Family: item 32 (__traceback__ surface). Ownerless, YoungHawk candidate.
 
 38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
     __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
