@@ -11,12 +11,16 @@ engine, and the fixture's single test compiles once and calls them in order. A
 failing probe still names itself in the traceback.
 
 The probes of one fixture SHARE that engine, so they also share the module's
-globals -- what a probe writes, later probes in the same test see. That is
-fine for the fixtures merged here (their tested functions either touch no
-glob or reset it before use), but it is the reason a fixture whose tests
-depend on a pristine global stays split into separate tests: see the two
-`glob scoping:` tests, which each compile `glob_scoping.jac` for themselves.
-Keep a new probe order-independent, or give it its own test.
+globals -- what a probe writes, later probes in the same test see. A fixture
+that reaches a mutated module glob, in itself or in any fixture it imports,
+is therefore NOT merged: its cases stay separate tests so each compiles for
+itself and starts from a pristine global. `fix_subscript_entry.jac` is why
+the rule is mechanical rather than case-by-case -- its `ITEMS` glob lives in
+the imported `fix_subscript_outer.jac`, three probes each `push_item` before
+reading, and merged they read a list three pushes deep.
+
+So: if a new fixture declares a glob anything writes, or imports one that
+does, give each of its cases its own test.
 """
 
 import ctypes;
@@ -1751,33 +1755,32 @@ test "aug_assign" {
     _aug_assign__aug_assign_count_primes(_eng, _ir);
 }
 
-# --- TestNativeChess ---
-"""chess compiles"""
-def _chess__chess_compiles(eng: any, ir: any) {
+test "chess compiles" {
+    (eng, ir) = compile_native("chess.jac");
     assert ir.gen.llvm_ir is not None;
 }
 
-"""chess opposite color"""
-def _chess__chess_opposite_color(eng: any, _ir: any) {
+test "chess opposite color" {
+    (eng, _ir) = compile_native("chess.jac");
     opp = get_func(eng, "opposite_color", ctypes.c_int64, ctypes.c_int64);
     assert opp(0) == 1;  # WHITE -> BLACK
     assert opp(1) == 0;  # BLACK -> WHITE
 }
 
-"""chess create piece"""
-def _chess__chess_create_piece(eng: any, _ir: any) {
+test "chess create piece" {
+    (eng, _ir) = compile_native("chess.jac");
     addr = eng.get_function_address("create_piece");
     assert addr != 0;
 }
 
-"""chess has entry"""
-def _chess__chess_has_entry(eng: any, _ir: any) {
+test "chess has entry" {
+    (eng, _ir) = compile_native("chess.jac");
     addr = eng.get_function_address("jac_entry");
     assert addr != 0;
 }
 
-"""chess all piece types"""
-def _chess__chess_all_piece_types(eng: any, _ir: any) {
+test "chess all piece types" {
+    (eng, _ir) = compile_native("chess.jac");
     # Verify all piece class methods are callable.
     piece_types = ["Pawn", "Knight", "Bishop", "Rook", "Queen", "King"];
     for piece_type in piece_types {
@@ -1786,8 +1789,8 @@ def _chess__chess_all_piece_types(eng: any, _ir: any) {
     }
 }
 
-"""chess board methods"""
-def _chess__chess_board_methods(eng: any, _ir: any) {
+test "chess board methods" {
+    (eng, _ir) = compile_native("chess.jac");
     # Verify Board methods are callable.
     methods = [
         "Board.is_valid_pos",
@@ -1803,8 +1806,8 @@ def _chess__chess_board_methods(eng: any, _ir: any) {
     }
 }
 
-"""chess game methods"""
-def _chess__chess_game_methods(eng: any, _ir: any) {
+test "chess game methods" {
+    (eng, _ir) = compile_native("chess.jac");
     # Verify Game methods are callable.
     methods = [
         "Game.find_king",
@@ -1818,17 +1821,6 @@ def _chess__chess_game_methods(eng: any, _ir: any) {
         addr = eng.get_function_address(method);
         assert addr != 0 , f"{method} not found";
     }
-}
-
-test "chess" {
-    (_eng, _ir) = compile_native("chess.jac");
-    _chess__chess_compiles(_eng, _ir);
-    _chess__chess_opposite_color(_eng, _ir);
-    _chess__chess_create_piece(_eng, _ir);
-    _chess__chess_has_entry(_eng, _ir);
-    _chess__chess_all_piece_types(_eng, _ir);
-    _chess__chess_board_methods(_eng, _ir);
-    _chess__chess_game_methods(_eng, _ir);
 }
 
 test "chess play random moves stress" {
@@ -1968,106 +1960,105 @@ test "isinstance_user" {
     _isinstance_user__isinstance_user_no_vtable_operand_is_clean_false(_eng, _ir);
 }
 
-# --- TestNativeDicts ---
-"""dicts dict new empty"""
-def _dicts_sets__dicts_dict_new_empty(eng: any, _ir: any) {
+test "dicts dict new empty" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_new_empty", ctypes.c_int64);
     assert f() == 0;
 }
 
-"""dicts dict literal len"""
-def _dicts_sets__dicts_dict_literal_len(eng: any, _ir: any) {
+test "dicts dict literal len" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_literal_len", ctypes.c_int64);
     assert f() == 3;
 }
 
-"""dicts dict get value"""
-def _dicts_sets__dicts_dict_get_value(eng: any, _ir: any) {
+test "dicts dict get value" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_value", ctypes.c_int64);
     assert f() == 200;
 }
 
-"""dicts dict set value"""
-def _dicts_sets__dicts_dict_set_value(eng: any, _ir: any) {
+test "dicts dict set value" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_set_value", ctypes.c_int64);
     assert f() == 20;
 }
 
-"""dicts dict update value"""
-def _dicts_sets__dicts_dict_update_value(eng: any, _ir: any) {
+test "dicts dict update value" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_update_value", ctypes.c_int64);
     assert f() == 99;
 }
 
-"""dicts dict len after set"""
-def _dicts_sets__dicts_dict_len_after_set(eng: any, _ir: any) {
+test "dicts dict len after set" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_len_after_set", ctypes.c_int64);
     assert f() == 3;
 }
 
-"""dicts dict contains true"""
-def _dicts_sets__dicts_dict_contains_true(eng: any, _ir: any) {
+test "dicts dict contains true" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_contains_true", ctypes.c_int64);
     assert f() == 1;
 }
 
-"""dicts dict contains false"""
-def _dicts_sets__dicts_dict_contains_false(eng: any, _ir: any) {
+test "dicts dict contains false" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_contains_false", ctypes.c_int64);
     assert f() == 0;
 }
 
-"""dicts dict string keys"""
-def _dicts_sets__dicts_dict_string_keys(eng: any, _ir: any) {
+test "dicts dict string keys" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_string_keys", ctypes.c_int64);
     assert f() == 2;
 }
 
-"""dicts dict string values"""
-def _dicts_sets__dicts_dict_string_values(eng: any, _ir: any) {
+test "dicts dict string values" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_string_values", ctypes.c_char_p);
     result = f();
     assert result == b"two";
 }
 
-"""dicts dict sum values"""
-def _dicts_sets__dicts_dict_sum_values(eng: any, _ir: any) {
+test "dicts dict sum values" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_sum_values", ctypes.c_int64);
     assert f() == 100;
 }
 
-"""dicts dict overwrite"""
-def _dicts_sets__dicts_dict_overwrite(eng: any, _ir: any) {
+test "dicts dict overwrite" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_overwrite", ctypes.c_int64);
     assert f() == 30;
 }
 
-"""dicts dict multiple types"""
-def _dicts_sets__dicts_dict_multiple_types(eng: any, _ir: any) {
+test "dicts dict multiple types" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_multiple_types", ctypes.c_int64);
     assert f() == 300;
 }
 
-"""dicts dict get first"""
-def _dicts_sets__dicts_dict_get_first(eng: any, _ir: any) {
+test "dicts dict get first" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_first", ctypes.c_int64);
     assert f() == 100;
 }
 
-"""dicts dict get third"""
-def _dicts_sets__dicts_dict_get_third(eng: any, _ir: any) {
+test "dicts dict get third" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_third", ctypes.c_int64);
     assert f() == 300;
 }
 
-"""dicts dict set then get"""
-def _dicts_sets__dicts_dict_set_then_get(eng: any, _ir: any) {
+test "dicts dict set then get" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_set_then_get", ctypes.c_int64);
     assert f() == 1500;
 }
 
-"""dicts global dict get"""
-def _dicts_sets__dicts_global_dict_get(eng: any, _ir: any) {
+test "dicts global dict get" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     # Need to call jac_entry first to initialize globals
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
@@ -2075,88 +2066,86 @@ def _dicts_sets__dicts_global_dict_get(eng: any, _ir: any) {
     assert f() == 200;
 }
 
-"""dicts global dict len"""
-def _dicts_sets__dicts_global_dict_len(eng: any, _ir: any) {
+test "dicts global dict len" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "global_dict_len", ctypes.c_int64);
     assert f() == 3;
 }
 
-# --- TestNativeSets ---
-"""sets set new empty"""
-def _dicts_sets__sets_set_new_empty(eng: any, _ir: any) {
+test "sets set new empty" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_new_empty", ctypes.c_int64);
     assert f() == 0;
 }
 
-"""sets set literal len"""
-def _dicts_sets__sets_set_literal_len(eng: any, _ir: any) {
+test "sets set literal len" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_literal_len", ctypes.c_int64);
     assert f() == 5;
 }
 
-"""sets set add element"""
-def _dicts_sets__sets_set_add_element(eng: any, _ir: any) {
+test "sets set add element" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_add_element", ctypes.c_int64);
     assert f() == 4;
 }
 
-"""sets set add duplicate"""
-def _dicts_sets__sets_set_add_duplicate(eng: any, _ir: any) {
+test "sets set add duplicate" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_add_duplicate", ctypes.c_int64);
     assert f() == 3;  # Duplicates shouldn't increase length
 }
 
-"""sets set contains true"""
-def _dicts_sets__sets_set_contains_true(eng: any, _ir: any) {
+test "sets set contains true" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_contains_true", ctypes.c_int64);
     assert f() == 1;
 }
 
-"""sets set contains false"""
-def _dicts_sets__sets_set_contains_false(eng: any, _ir: any) {
+test "sets set contains false" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_contains_false", ctypes.c_int64);
     assert f() == 0;
 }
 
-"""sets set string elements"""
-def _dicts_sets__sets_set_string_elements(eng: any, _ir: any) {
+test "sets set string elements" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_string_elements", ctypes.c_int64);
     assert f() == 1;
 }
 
-"""sets set multiple adds"""
-def _dicts_sets__sets_set_multiple_adds(eng: any, _ir: any) {
+test "sets set multiple adds" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "set_multiple_adds", ctypes.c_int64);
     assert f() == 3;  # 1, 2, 3 (duplicates ignored)
 }
 
-"""sets global set contains"""
-def _dicts_sets__sets_global_set_contains(eng: any, _ir: any) {
+test "sets global set contains" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "global_set_contains", ctypes.c_int64);
     assert f() == 1;
 }
 
-"""sets global set len"""
-def _dicts_sets__sets_global_set_len(eng: any, _ir: any) {
+test "sets global set len" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "global_set_len", ctypes.c_int64);
     assert f() == 5;
 }
 
-"""dicts items iteration sum"""
-def _dicts_sets__dicts_items_iteration_sum(eng: any, _ir: any) {
+test "dicts items iteration sum" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_items_iter_sum", ctypes.c_int64);
     assert f() == 60;
 }
 
-# --- TestNativeEmptyGlobDict (regression: empty-dict-glob-var-init-null-ptr) ---
-"""dicts empty glob dict set and get"""
-def _dicts_sets__dicts_empty_glob_dict_set_and_get(eng: any, _ir: any) {
+test "dicts empty glob dict set and get" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     # glob x: dict[K,V] = {} previously left the global as null -> segfault on first access.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
@@ -2164,109 +2153,65 @@ def _dicts_sets__dicts_empty_glob_dict_set_and_get(eng: any, _ir: any) {
     assert f() == 7;
 }
 
-# --- TestNativeDictDeleteRemove (regression: dict-delete-silently-dropped) ---
-"""dicts dict remove method"""
-def _dicts_sets__dicts_dict_remove_method(eng: any, _ir: any) {
+test "dicts dict remove method" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_remove_method", ctypes.c_int64);
     assert f() == 1;  # key must be absent after .remove()
 }
 
-"""dicts dict delete keyword"""
-def _dicts_sets__dicts_dict_delete_keyword(eng: any, _ir: any) {
+test "dicts dict delete keyword" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_delete_keyword", ctypes.c_int64);
     assert f() == 1;  # key must be absent after del d[k]
 }
 
-"""dicts dict.get found"""
-def _dicts_sets__dicts_dict_get_found(eng: any, _ir: any) {
+test "dicts dict.get found" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_found", ctypes.c_int64);
     assert f() == 10 , f"Expected 10, got {f()}";
 }
 
-"""dicts dict.get not found"""
-def _dicts_sets__dicts_dict_get_not_found(eng: any, _ir: any) {
+test "dicts dict.get not found" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_notfound", ctypes.c_int64);
     assert f() == -99 , f"Expected -99, got {f()}";
 }
 
-"""dicts dict.get no default"""
-def _dicts_sets__dicts_dict_get_no_default(eng: any, _ir: any) {
+test "dicts dict.get no default" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     f = get_func(eng, "dict_get_no_default", ctypes.c_int64);
     assert f() == 100 , f"Expected 100, got {f()}";
 }
 
-"""dicts global dict.get method"""
-def _dicts_sets__dicts_global_dict_get_method(eng: any, _ir: any) {
+test "dicts global dict.get method" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "global_dict_get_method", ctypes.c_int64);
     assert f() == 200 , f"Expected 200, got {f()}";
 }
 
-"""dicts global dict.get not found method"""
-def _dicts_sets__dicts_global_dict_get_not_found_method(eng: any, _ir: any) {
+test "dicts global dict.get not found method" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "global_dict_get_notfound_method", ctypes.c_int64);
     assert f() == -42 , f"Expected -42, got {f()}";
 }
 
-"""dicts for-in-dict param iteration"""
-def _dicts_sets__dicts_for_in_dict_param_iteration(eng: any, _ir: any) {
+test "dicts for-in-dict param iteration" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     # for k in d where d is a dict parameter was always elided (body never ran).
     f = get_func(eng, "dict_param_iter_sum_fixture", ctypes.c_int64);
     assert f() == 60;
 }
 
-"""dicts for-in-dict field access iteration"""
-def _dicts_sets__dicts_for_in_dict_field_access_iteration(eng: any, _ir: any) {
+test "dicts for-in-dict field access iteration" {
+    (eng, _ir) = compile_native("dicts_sets.jac");
     # for k in c.props where c is a struct with a dict field used to segfault
     # because the AtomTrailer expression had no bare name to look up in var_dict_type.
     f = get_func(eng, "dict_field_iter_sum_fixture", ctypes.c_int64);
     assert f() == 60;
-}
-
-test "dicts_sets" {
-    (_eng, _ir) = compile_native("dicts_sets.jac");
-    _dicts_sets__dicts_dict_new_empty(_eng, _ir);
-    _dicts_sets__dicts_dict_literal_len(_eng, _ir);
-    _dicts_sets__dicts_dict_get_value(_eng, _ir);
-    _dicts_sets__dicts_dict_set_value(_eng, _ir);
-    _dicts_sets__dicts_dict_update_value(_eng, _ir);
-    _dicts_sets__dicts_dict_len_after_set(_eng, _ir);
-    _dicts_sets__dicts_dict_contains_true(_eng, _ir);
-    _dicts_sets__dicts_dict_contains_false(_eng, _ir);
-    _dicts_sets__dicts_dict_string_keys(_eng, _ir);
-    _dicts_sets__dicts_dict_string_values(_eng, _ir);
-    _dicts_sets__dicts_dict_sum_values(_eng, _ir);
-    _dicts_sets__dicts_dict_overwrite(_eng, _ir);
-    _dicts_sets__dicts_dict_multiple_types(_eng, _ir);
-    _dicts_sets__dicts_dict_get_first(_eng, _ir);
-    _dicts_sets__dicts_dict_get_third(_eng, _ir);
-    _dicts_sets__dicts_dict_set_then_get(_eng, _ir);
-    _dicts_sets__dicts_global_dict_get(_eng, _ir);
-    _dicts_sets__dicts_global_dict_len(_eng, _ir);
-    _dicts_sets__sets_set_new_empty(_eng, _ir);
-    _dicts_sets__sets_set_literal_len(_eng, _ir);
-    _dicts_sets__sets_set_add_element(_eng, _ir);
-    _dicts_sets__sets_set_add_duplicate(_eng, _ir);
-    _dicts_sets__sets_set_contains_true(_eng, _ir);
-    _dicts_sets__sets_set_contains_false(_eng, _ir);
-    _dicts_sets__sets_set_string_elements(_eng, _ir);
-    _dicts_sets__sets_set_multiple_adds(_eng, _ir);
-    _dicts_sets__sets_global_set_contains(_eng, _ir);
-    _dicts_sets__sets_global_set_len(_eng, _ir);
-    _dicts_sets__dicts_items_iteration_sum(_eng, _ir);
-    _dicts_sets__dicts_empty_glob_dict_set_and_get(_eng, _ir);
-    _dicts_sets__dicts_dict_remove_method(_eng, _ir);
-    _dicts_sets__dicts_dict_delete_keyword(_eng, _ir);
-    _dicts_sets__dicts_dict_get_found(_eng, _ir);
-    _dicts_sets__dicts_dict_get_not_found(_eng, _ir);
-    _dicts_sets__dicts_dict_get_no_default(_eng, _ir);
-    _dicts_sets__dicts_global_dict_get_method(_eng, _ir);
-    _dicts_sets__dicts_global_dict_get_not_found_method(_eng, _ir);
-    _dicts_sets__dicts_for_in_dict_param_iteration(_eng, _ir);
-    _dicts_sets__dicts_for_in_dict_field_access_iteration(_eng, _ir);
 }
 
 # --- TestNativeExceptions ---
@@ -4312,80 +4257,66 @@ test "elf linker emits DT_RUNPATH=$ORIGIN (issue #6353 gap 4)" {
     assert struct.pack("<q", 29) in out , "DT_RUNPATH (tag 29) dynamic entry missing";
 }
 
-# --- TestNativeListBugs ---
-"""list_bugs pop local removes element"""
-def _list_bugs__list_bugs_pop_local_removes_element(eng: any, _ir: any) {
+test "list_bugs pop local removes element" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     f = get_func(eng, "pop_and_len", ctypes.c_int64);
     assert f() == 2;
 }
 
-"""list_bugs pop local returns last value"""
-def _list_bugs__list_bugs_pop_local_returns_last_value(eng: any, _ir: any) {
+test "list_bugs pop local returns last value" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     f = get_func(eng, "pop_value", ctypes.c_int64);
     assert f() == 30;
 }
 
-"""list_bugs pop loop drains list"""
-def _list_bugs__list_bugs_pop_loop_drains_list(eng: any, _ir: any) {
+test "list_bugs pop loop drains list" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     f = get_func(eng, "pop_loop", ctypes.c_int64);
     assert f() == 3;
 }
 
-"""list_bugs pop global removes element"""
-def _list_bugs__list_bugs_pop_global_removes_element(eng: any, _ir: any) {
+test "list_bugs pop global removes element" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "pop_global_len", ctypes.c_int64);
     assert f() == 2;
 }
 
-"""list_bugs obj list field access"""
-def _list_bugs__list_bugs_obj_list_field_access(eng: any, _ir: any) {
+test "list_bugs obj list field access" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     f = get_func(eng, "obj_list_field", ctypes.c_int64);
     assert f() == 42;
 }
 
-"""list_bugs obj list two items"""
-def _list_bugs__list_bugs_obj_list_two_items(eng: any, _ir: any) {
+test "list_bugs obj list two items" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     f = get_func(eng, "obj_list_two_items", ctypes.c_int64);
     assert f() == 40;
 }
 
-"""list_bugs obj global list"""
-def _list_bugs__list_bugs_obj_global_list(eng: any, _ir: any) {
+test "list_bugs obj global list" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "obj_global_list", ctypes.c_int64);
     assert f() == 100;
 }
 
-"""list_bugs reassign int list with empty literal"""
-def _list_bugs__list_bugs_reassign_int_list_with_empty_literal(eng: any, _ir: any) {
+test "list_bugs reassign int list with empty literal" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "reassign_int_list", ctypes.c_int64);
     assert f() == 99;
 }
 
-"""list_bugs reassign str list with empty literal"""
-def _list_bugs__list_bugs_reassign_str_list_with_empty_literal(eng: any, _ir: any) {
+test "list_bugs reassign str list with empty literal" {
+    (eng, _ir) = compile_native("list_bugs.jac");
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "reassign_str_list", ctypes.c_int64);
     assert f() == 1;
-}
-
-test "list_bugs" {
-    (_eng, _ir) = compile_native("list_bugs.jac");
-    _list_bugs__list_bugs_pop_local_removes_element(_eng, _ir);
-    _list_bugs__list_bugs_pop_local_returns_last_value(_eng, _ir);
-    _list_bugs__list_bugs_pop_loop_drains_list(_eng, _ir);
-    _list_bugs__list_bugs_pop_global_removes_element(_eng, _ir);
-    _list_bugs__list_bugs_obj_list_field_access(_eng, _ir);
-    _list_bugs__list_bugs_obj_list_two_items(_eng, _ir);
-    _list_bugs__list_bugs_obj_global_list(_eng, _ir);
-    _list_bugs__list_bugs_reassign_int_list_with_empty_literal(_eng, _ir);
-    _list_bugs__list_bugs_reassign_str_list_with_empty_literal(_eng, _ir);
 }
 
 # --- String Enum Tests ---
@@ -5006,10 +4937,8 @@ test "cross module glob init compiles without errors" {
     assert ir.gen.native_engine is not None , "No native engine created";
 }
 
-"""cross module glob init: imported glob is non-null on first access"""
-def _cross_module_glob_init__cross_module_glob_init_imported_glob_is_non_null_on_first_access(
-    eng: any, _ir: any
-) {
+test "cross module glob init: imported glob is non-null on first access" {
+    (eng, _ir) = compile_native("cross_module_glob_init.jac");
     # Before the fix, _TABLE in the library module stayed null after import,
     # causing table_len() to return garbage and table_push() to segfault.
     # After the fix, jac_entry calls __jac_glob_init_cross_module_glob_init_lib_na
@@ -5023,10 +4952,8 @@ def _cross_module_glob_init__cross_module_glob_init_imported_glob_is_non_null_on
     assert result == 102 , f"Expected 102 (0 items, then 1, then 2), got {result}";
 }
 
-"""cross module glob init: pushed values are readable"""
-def _cross_module_glob_init__cross_module_glob_init_pushed_values_are_readable(
-    eng: any, _ir: any
-) {
+test "cross module glob init: pushed values are readable" {
+    (eng, _ir) = compile_native("cross_module_glob_init.jac");
     # Verify table_get(0) and table_get(1) return the values pushed by run_test.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
@@ -5036,16 +4963,6 @@ def _cross_module_glob_init__cross_module_glob_init_pushed_values_are_readable(
     get_second = get_func(eng, "get_second", ctypes.c_int64);
     assert get_first() == 42 , f"Expected 42, got {get_first()}";
     assert get_second() == 99 , f"Expected 99, got {get_second()}";
-}
-
-test "cross_module_glob_init" {
-    (_eng, _ir) = compile_native("cross_module_glob_init.jac");
-    _cross_module_glob_init__cross_module_glob_init_imported_glob_is_non_null_on_first_access(
-        _eng, _ir
-    );
-    _cross_module_glob_init__cross_module_glob_init_pushed_values_are_readable(
-        _eng, _ir
-    );
 }
 
 """transitive import: function call through two import hops returns correct value"""
@@ -5314,10 +5231,8 @@ test "cross-module subscript: compiles without errors" {
     assert ir.gen.native_engine is not None , "No native engine";
 }
 
-"""cross-module subscript: inline ITEMS[0].value returns correct value"""
-def _fix_subscript_entry__cross_module_subscript_inline_items_0_value_returns_correct_value(
-    eng: any, _ir: any
-) {
+test "cross-module subscript: inline ITEMS[0].value returns correct value" {
+    (eng, _ir) = compile_native("fix_subscript_entry.jac");
     # push_item(42, 7) then ITEMS[0].value inline (no typed local); expect 42.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();  # initialises ITEMS glob in fix_subscript_outer
@@ -5326,10 +5241,8 @@ def _fix_subscript_entry__cross_module_subscript_inline_items_0_value_returns_co
     assert result == 42 , f"Expected 42, got {result}";
 }
 
-"""cross-module subscript: inline ITEMS[0].extra returns correct value"""
-def _fix_subscript_entry__cross_module_subscript_inline_items_0_extra_returns_correct_value(
-    eng: any, _ir: any
-) {
+test "cross-module subscript: inline ITEMS[0].extra returns correct value" {
+    (eng, _ir) = compile_native("fix_subscript_entry.jac");
     # push_item(42, 7) then ITEMS[0].extra inline; expect 7.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
@@ -5338,29 +5251,14 @@ def _fix_subscript_entry__cross_module_subscript_inline_items_0_extra_returns_co
     assert result == 7 , f"Expected 7, got {result}";
 }
 
-"""cross-module subscript: inline access to second item returns correct value"""
-def _fix_subscript_entry__cross_module_subscript_inline_access_to_second_item_returns_correct_va(
-    eng: any, _ir: any
-) {
+test "cross-module subscript: inline access to second item returns correct value" {
+    (eng, _ir) = compile_native("fix_subscript_entry.jac");
     # push (42,7) then (99,3); ITEMS[1].value inline; expect 99.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     f = get_func(eng, "test_subscript_second_item", ctypes.c_int64);
     result = f();
     assert result == 99 , f"Expected 99, got {result}";
-}
-
-test "fix_subscript_entry" {
-    (_eng, _ir) = compile_native("fix_subscript_entry.jac");
-    _fix_subscript_entry__cross_module_subscript_inline_items_0_value_returns_correct_value(
-        _eng, _ir
-    );
-    _fix_subscript_entry__cross_module_subscript_inline_items_0_extra_returns_correct_value(
-        _eng, _ir
-    );
-    _fix_subscript_entry__cross_module_subscript_inline_access_to_second_item_returns_correct_va(
-        _eng, _ir
-    );
 }
 
 test "transitive glob init: compiles without errors" {
@@ -5376,10 +5274,8 @@ test "transitive glob init: compiles without errors" {
     assert ir.gen.native_engine is not None , "No native engine created";
 }
 
-"""transitive glob init: glob list in deep module is not null (no segfault)"""
-def _fix_transitive_glob_entry__transitive_glob_init_glob_list_in_deep_module_is_not_null_no_segfault(
-    eng: any, _ir: any
-) {
+test "transitive glob init: glob list in deep module is not null (no segfault)" {
+    (eng, _ir) = compile_native("fix_transitive_glob_entry.jac");
     # Before the fix this would SIGSEGV because _TABLE in deep was never initialised.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
@@ -5388,26 +5284,14 @@ def _fix_transitive_glob_entry__transitive_glob_init_glob_list_in_deep_module_is
     assert result == 0 , f"Expected initial list length 0, got {result}";
 }
 
-"""transitive glob init: push through mid updates deep glob list"""
-def _fix_transitive_glob_entry__transitive_glob_init_push_through_mid_updates_deep_glob_list(
-    eng: any, _ir: any
-) {
+test "transitive glob init: push through mid updates deep glob list" {
+    (eng, _ir) = compile_native("fix_transitive_glob_entry.jac");
     # Verifies the glob list in the transitive module is live and mutable.
     entry_fn = get_func(eng, "jac_entry", None);
     entry_fn();
     push_fn = get_func(eng, "run_transitive_glob_push_and_len", ctypes.c_int64);
     result = push_fn();
     assert result == 1 , f"Expected list length 1 after push, got {result}";
-}
-
-test "fix_transitive_glob_entry" {
-    (_eng, _ir) = compile_native("fix_transitive_glob_entry.jac");
-    _fix_transitive_glob_entry__transitive_glob_init_glob_list_in_deep_module_is_not_null_no_segfault(
-        _eng, _ir
-    );
-    _fix_transitive_glob_entry__transitive_glob_init_push_through_mid_updates_deep_glob_list(
-        _eng, _ir
-    );
 }
 
 # ─── FIX: Transitive C-library dependency loading ────────────────────────────
