@@ -13,64 +13,79 @@
 # Allowed importers: layer4_compile.jac plus bootstrap allowlist in
 # jac-py/tools/p4_import_gate.py.
 
-::py::
-import shutil
-import subprocess
-import sys
-from pathlib import Path
+import shutil;
+import subprocess;
+import sys;
+import from pathlib { Path }
 
 
-def _runner_python():
-    for name in ("python3.14", "python3", "python"):
-        found = shutil.which(name)
-        if found:
-            return found
-    return sys.executable
+def _runner_python() -> str {
+    for name in ("python3.14", "python3", "python") {
+        found = shutil.which(name);
+        if found {
+            return found;
+        }
+    }
+    return sys.executable;
+}
 
 
-def _bridge_path():
-    roots = [Path.cwd()]
-    walk = Path.cwd()
-    for _ in range(6):
-        if walk not in roots:
-            roots.append(walk)
-        if walk.parent == walk:
-            break
-        walk = walk.parent
-    for root in roots:
-        script = root / "jac-py" / "tools" / "host_compile_marshal_bridge.py"
-        if script.is_file():
-            return str(script)
-    raise RuntimeError("host_compile_marshal_bridge.py not found")
+def _bridge_path() -> str {
+    roots = [Path.cwd()];
+    walk = Path.cwd();
+    for _ in range(6) {
+        if walk not in roots {
+            roots.append(walk);
+        }
+        if walk.parent == walk {
+            break;
+        }
+        walk = walk.parent;
+    }
+    for base in roots {
+        script = Path(base, "jac-py", "tools", "host_compile_marshal_bridge.py");
+        if script.is_file() {
+            return str(script);
+        }
+    }
+    raise RuntimeError("host_compile_marshal_bridge.py not found");
+}
 
 
-_BRIDGE = _bridge_path()
+glob _BRIDGE = _bridge_path();
 
 
-def _host_compile_marshal_py(source, filename, mode, optimize=0):
-    payload = source
-    if isinstance(source, str):
-        payload = source.encode("utf-8")
+def _host_compile_marshal_py(source: any, filename: str, mode: str, optimize: int = 0) -> bytes {
+    payload = source;
+    if isinstance(source, str) {
+        payload = source.encode("utf-8");
+    }
     proc = subprocess.run(
         [_runner_python(), _BRIDGE, filename, mode, str(optimize)],
         input=payload,
         capture_output=True,
         check=True,
-    )
-    return proc.stdout
+    );
+    return proc.stdout;
+}
 
 
-def _host_c_tokenize_py(source):
-    import _tokenize
-    lines = [source + "\n", ""]
-    def readline():
-        if lines:
-            return lines.pop(0)
-        return ""
-    out = []
-    it = _tokenize.TokenizerIter(readline, extra_tokens=False)
-    for info in it:
-        typ, spell, start, end = info[0], info[1], info[2], info[3]
+def _host_c_tokenize_py(source: str) -> list {
+    import _tokenize;
+    lines = [source + "\n", ""];
+    def readline() -> str {
+        if lines {
+            return lines.pop(0);
+        }
+        return "";
+    }
+    out = [];
+    it = _tokenize.TokenizerIter(readline, extra_tokens=False);
+    for info in it {
+        typ = info[0];
+        spell = info[1];
+        start = info[2];
+        end = info[3];
         out.append(
             {
                 "type": typ,
@@ -80,9 +95,10 @@ def _host_c_tokenize_py(source):
                 "end_lineno": end[0],
                 "end_col_offset": end[1],
             }
-        )
-    return out
-::py::
+        );
+    }
+    return out;
+}
 
 
 
