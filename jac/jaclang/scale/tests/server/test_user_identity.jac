@@ -28,7 +28,7 @@ glob FIXTURES_DIR: Path = Path(__file__).parent.parent
 # =============================================================================
 def _cleanup {
     for pattern in ["*.db", "*.db-wal", "*.db-shm"] {
-        for f in glob.glob(str(FIXTURES_DIR / pattern)) {
+        for f in `glob.`glob(str(FIXTURES_DIR / pattern)) {
             with contextlib.suppress(Exception) {
                 Path(f).unlink();
             }
@@ -80,7 +80,7 @@ def _start_server(port: int) -> subprocess.Popen {
         }
     }
     proc.terminate();
-    proc.wait();
+    proc.`wait();
     raise RuntimeError("Server failed to start within 30s");
 }
 
@@ -88,11 +88,11 @@ def _stop_server(proc: subprocess.Popen | None) {
     if proc {
         proc.terminate();
         with contextlib.suppress(subprocess.TimeoutExpired) {
-            proc.wait(timeout=5);
+            proc.`wait(timeout=5);
         }
         with contextlib.suppress(Exception) {
             proc.kill();
-            proc.wait();
+            proc.`wait();
         }
     }
     time.sleep(0.2);
@@ -123,14 +123,14 @@ test "add_identity_contract" {
         assert r.status_code == 401;
 
         # 2. Add second username → 200 added (verified=False).
-        r = requests.post(
+        rj = requests.post(
             f"{base}/user/add-identity",
             json={"identity": {"type": "username", "value": secondary}},
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(r)["status"] == "added";
-        assert _data(r)["verified"] == False;
+        assert _data(rj)["status"] == "added";
+        assert _data(rj)["verified"] == False;
 
         # 3. Duplicate identity → 409 IDENTITY_TAKEN.
         r = requests.post(
@@ -143,24 +143,24 @@ test "add_identity_contract" {
         assert r.json()["error"]["code"] == "IDENTITY_TAKEN";
 
         # 4. Add an email → 200 added, verified=False, NO email sent yet.
-        r = requests.post(
+        rj = requests.post(
             f"{base}/user/add-identity",
             json={"identity": {"type": "email", "value": email_addr}},
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(r)["status"] == "added";
-        assert _data(r)["verified"] == False;
+        assert _data(rj)["status"] == "added";
+        assert _data(rj)["verified"] == False;
 
         # 5. send-verification for that email → 202 pending_verification + mail sent.
-        r = requests.post(
+        rj = requests.post(
             f"{base}/user/send-verification",
             json={"identity": {"type": "email", "value": email_addr}},
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(r)["status"] == "pending_verification";
-        assert _data(r)["email_sent"] == True;
+        assert _data(rj)["status"] == "pending_verification";
+        assert _data(rj)["email_sent"] == True;
 
         # 6. send-verification with no auth → 401.
         r = requests.post(

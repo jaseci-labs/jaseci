@@ -6,7 +6,7 @@ one cannot be built by appending `values` one for one. Native used to walk
 propagated, but every later element was appended under an `if val is not
 None` with no `else`, so a spread anywhere but the front vanished. The
 container came out short, the program kept running, and nothing was
-written to stderr -- a wrong answer no seam census counting E5092 could
+written to stderr -- a wrong answer no seam coverage counting E5092 could
 see.
 
 So every assertion here reads the container back as a number that encodes
@@ -87,7 +87,7 @@ def _compile -> object {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: object, name: str) -> object {
+def _get(eng: any, name: str) -> object {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);

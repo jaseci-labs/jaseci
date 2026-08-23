@@ -70,7 +70,7 @@ def _compiled -> tuple {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(name: str) -> object {
+def _get(name: str) -> any {
     (eng, _) = _compiled();
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
@@ -107,7 +107,7 @@ def _fn_ir(name: str) -> str {
 
 
 """Import the same fixture through the sv/bytecode pathway."""
-def _sv_module -> object {
+def _sv_module -> any {
     prev = get_effective_default_codespace_override();
     set_effective_default_codespace("server");
     try {

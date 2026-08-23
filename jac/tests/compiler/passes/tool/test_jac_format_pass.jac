@@ -171,7 +171,7 @@ test "fstring comment not injected" {
     }
 
     # Check 2: Body-level comments must stay next to their statements
-    before_idx = next(
+    before_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -179,7 +179,7 @@ test "fstring comment not injected" {
         ),
         None
     );
-    fstring_idx = next(
+    fstring_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -187,7 +187,7 @@ test "fstring comment not injected" {
         ),
         None
     );
-    after_idx = next(
+    after_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -225,7 +225,7 @@ test "jsx hash text preserved" {
     );
 
     lines = formatted.splitlines();
-    hash_idx = next(
+    hash_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -233,7 +233,7 @@ test "jsx hash text preserved" {
         ),
         None,
     );
-    close_p_idx = next(
+    close_p_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -281,7 +281,7 @@ test "native block comments stay in place" {
     lines = formatted.splitlines();
 
     # Comments must appear between "obj Ops {" and its closing "}", not at EOF
-    na_start = next(
+    na_start: any = next(
         (
             i
             for (i, ln) in enumerate(lines)
@@ -622,7 +622,7 @@ test "if statement outside lambda still breaks" {
 
     # Top-level `if a { b(); }` must break — the opening brace and `b();`
     # must be on different lines.
-    if_a_idx = next(
+    if_a_idx: any = next(
         (
             i
             for (i, ln) in enumerate(lines)

@@ -109,8 +109,9 @@ impl JacClientConfig.get_default_config(self: JacClientConfig) -> dict[str, any]
 }
 
 impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
-    if self._config is not None {
-        return self._config;
+    cached = self._config;
+    if cached is not None {
+        return cached;
     }
     default_config = self.get_default_config();
     jac_config = self.get_jac_config();
@@ -158,8 +159,9 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
             'devDependencies': npm_dev_deps
         }
     };
-    self._config = deep_merge(default_config, user_config);
-    return self._config;
+    merged = deep_merge(default_config, user_config);
+    self._config = merged;
+    return merged;
 }
 
 impl JacClientConfig.get_package_config(self: JacClientConfig) -> dict[str, any] {

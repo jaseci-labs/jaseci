@@ -75,7 +75,7 @@ def _check(src: str, search_dir: str) -> JacProgram {
     modules_before = set(sys.modules.keys());
     try {
         prog = JacProgram();
-        prog.compile(file_path="untyped_tp_src.jac", use_str=src, type_check=True);
+        prog.compile(file_path="untyped_tp_src.jac", use_str=src);
         return prog;
     } finally {
         sys.path.remove(search_dir);

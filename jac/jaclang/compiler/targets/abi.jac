@@ -175,7 +175,10 @@ def classify_struct(size: int, align: int, scalars: list, triple: str) -> dict {
 }
 
 def classify_foreign_fn(
-    structs: dict, params: list, ret_tname: (str | None), triple: str
+    structs: dict,
+    params: list[tuple[(str | None), (str | None)]],
+    ret_tname: (str | None),
+    triple: str
 ) -> (dict | None) {
     import from jaclang.compiler.targets.foreign { foreign_struct_layout }
     has_struct = ret_tname is not None and ret_tname in structs;

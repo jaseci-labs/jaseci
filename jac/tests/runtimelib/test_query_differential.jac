@@ -11,6 +11,10 @@ import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor, Root }
 import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 node DA {
     has val: int = 0;
 }
@@ -41,7 +45,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
         nanch = arch.__jac__;
         nanch.persistent = True;
         eanch = EdgeAnchor(
-            archetype=DE(w=w), source=ranch, target=nanch, is_undirected=False
+            archetype=_as_any(DE(w=w)), source=ranch, target=nanch, is_undirected=False
         );
         eanch.persistent = True;
         ranch.edges.append(eanch);
@@ -52,7 +56,9 @@ def _seed(ctx: ExecutionContext) -> UUID {
     }
     leaf = DB(tag="leaf").__jac__;
     leaf.persistent = True;
-    e2 = EdgeAnchor(archetype=DE(w=9), source=das[1], target=leaf, is_undirected=False);
+    e2 = EdgeAnchor(
+        archetype=_as_any(DE(w=9)), source=das[1], target=leaf, is_undirected=False
+    );
     e2.persistent = True;
     das[1].edges.append(e2);
     leaf.edges.append(e2);
@@ -135,6 +141,7 @@ test "cost invariant through real syntax: fetches == |result|" {
         JacRuntime.exec_ctx = ctx2;
         try {
             ranch = ctx2.mem.get(root_id);
+            assert ranch is not None;
             origin = ranch.archetype;
             ctx2.mem.reset_fetch_count();
             winners = [origin-->[?:DA, val==2]];

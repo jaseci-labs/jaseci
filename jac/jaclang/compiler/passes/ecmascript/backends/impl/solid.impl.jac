@@ -1,4 +1,5 @@
 import jaclang.compiler.passes.ecmascript.estree as es;
+import type from jaclang.compiler.passes.ecmascript.view_ir { ViewChild }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -90,13 +91,17 @@ impl SolidBackend._noloc(es_node: any, jac_node: any = None) -> any {
 }
 
 impl SolidBackend._jsx_tag_name(
-    expr: es.Expression
+    expr: (es.Expression | None)
 ) -> (es.JsxIdentifier | es.JsxMemberExpression | None) {
     if isinstance(expr, es.Identifier) {
         return es.JsxIdentifier(name=expr.name);
     }
     if isinstance(expr, es.MemberExpression) and not expr.computed {
-        obj_node = self._jsx_tag_name(expr.object);
+        obj_expr = expr.object;
+        if obj_expr is None {
+            return None;
+        }
+        obj_node = self._jsx_tag_name(obj_expr);
         prop = expr.property;
         if obj_node is not None and isinstance(prop, es.Identifier) {
             return es.JsxMemberExpression(
@@ -150,8 +155,12 @@ impl SolidBackend._jsx_attr(
             value = sync_loc(
                 es.JsxExpressionContainer(expression=attr.value), jac_node=attr.jac_node
             );
-        } else {
+        } elif isinstance(attr.value, es.Literal) {
             value = attr.value;
+        } else {
+            value = sync_loc(
+                es.JsxExpressionContainer(expression=attr.value), jac_node=attr.jac_node
+            );
         }
     } elif isinstance(attr, EventAttr) {
         value = sync_loc(
@@ -167,7 +176,7 @@ impl SolidBackend._jsx_attr(
     );
 }
 
-impl SolidBackend._jsx_child_nodes(children: list, sync_loc: any) -> list {
+impl SolidBackend._jsx_child_nodes(children: list[ViewChild], sync_loc: any) -> list {
     import from jaclang.compiler.passes.ecmascript.view_ir {
         TextChild,
         DynamicChild,
@@ -222,7 +231,7 @@ impl SolidBackend._jsx_child_nodes(children: list, sync_loc: any) -> list {
 }
 
 impl SolidBackend._view_children_as_expr(
-    children: list, sync_loc: any
+    children: list[ViewChild], sync_loc: any
 ) -> es.Expression {
     import from jaclang.compiler.passes.ecmascript.view_ir { ElementChild, FragmentTag }
     if (
@@ -272,7 +281,7 @@ impl SolidBackend._jsx_show(child: any, sync_loc: any) -> es.JsxElement {
         es.JsxAttribute(
             name=sync_loc(es.JsxIdentifier(name="when"), jac_node=child.jac_node),
             value=sync_loc(
-                es.JsxExpressionContainer(expression=child.test),
+                es.JsxExpressionContainer(expression=child.`test),
                 jac_node=child.jac_node
             )
         ),
@@ -470,7 +479,6 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
     import from jaclang.compiler.passes.ecmascript.view_ir {
         ViewElement,
         ComponentTag,
-        FragmentTag,
         DynamicAttr,
         DynamicChild,
         ElementChild
@@ -492,13 +500,9 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
     if len(a.except_exprs) == 1 {
         except_fallback: es.Expression = a.except_exprs[0];
     } else {
-        except_fragment = ViewElement(
-            tag=FragmentTag(jac_node=jn),
-            attrs=[],
-            children=[DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs],
-            jac_node=jn
+        except_fallback = self._view_children_as_expr(
+            [DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs], self._noloc
         );
-        except_fallback = self.lower_view(except_fragment, self._noloc);
     }
     error_view = ViewElement(
         tag=ComponentTag(ref=es.Identifier(name='ErrorBoundary'), jac_node=jn),

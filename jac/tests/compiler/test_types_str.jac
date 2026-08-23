@@ -92,7 +92,7 @@ test "all type str methods" {
     assert str(union3) == "<Unknown> | <Never> | <any>";
 
     # ClassType
-    mock_module = MagicMock(spec=Module);
+    mock_module: any = MagicMock(spec=Module);
     mock_module.names_in_scope = {};
     mock_module.names_in_scope_overload = {};
 

@@ -15,7 +15,7 @@ These tests pin the protocol that closes the gap: the importer learns the
 dependency's demotion verdicts before its own emission (compiling the
 dependency for them when nothing has cached a verdict yet), refuses call
 sites into demoted callees with the same E5092 an intra-module refusal
-gets, and cascades the caller into a census seam whose reason names the
+gets, and cascades the caller into a coverage seam whose reason names the
 cross-module callee. The linked IR must carry no declaration of the
 renamed symbol, the importer's layout must not advertise the demoted
 callee or its cascaded caller, and the artifact must pass the same
@@ -40,7 +40,7 @@ import sys;
 import tempfile;
 import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from tests.support { TESTS_DIR }
 
@@ -79,11 +79,10 @@ glob FIXTURES = os.path.join(
          "print('CANARY_OK' if made else 'jac_str_new returned NULL')\n"
      );
 
-"""The seal's compile options, up to the census."""
+"""The seal's compile options, up to the coverage."""
 def _seal_opts -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode='cycles',
@@ -91,23 +90,23 @@ def _seal_opts -> CompileOptions {
     );
 }
 
-"""Compile a fixture under the census; return (program, module, census)."""
-def _compile_with_census(fixture: str) -> tuple {
+"""Compile a fixture under the coverage; return (program, module, coverage)."""
+def _compile_with_coverage(fixture: str) -> tuple {
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture), options=_seal_opts()
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    return (prog, ir, census);
+    return (prog, ir, coverage);
 }
 
-"""The census seam list recorded for a fixture path."""
-def _seams_of(census: dict, fixture: str) -> list[str] {
-    rec = census.get(os.path.realpath(os.path.join(FIXTURES, fixture)));
+"""The coverage seam list recorded for a fixture path."""
+def _seams_of(coverage: dict, fixture: str) -> list[str] {
+    rec = coverage.get(os.path.realpath(os.path.join(FIXTURES, fixture)));
     if rec is None {
         return [];
     }
@@ -126,7 +125,7 @@ def _dangling_declares(llvm_ir_text: str, symbol: str) -> list[str] {
 
 """Link the module the way the seal does and run the dlopen canary on it,
 subprocess-isolated; returns the canary verdict line."""
-def _link_and_canary(ir: object, stem: str) -> str {
+def _link_and_canary(ir: any, stem: str) -> str {
     layout = ir.gen.native_layout;
     clib_syms = set((ir.gen._clib_symbol_lib or {}).keys());
     exports = sorted(
@@ -166,7 +165,7 @@ stay lowered."""
 def _assert_link_protocol(
     fixture: str, stem: str, callee: str, caller: str, clean_caller: str
 ) {
-    (prog, ir, census) = _compile_with_census(fixture);
+    (prog, ir, coverage) = _compile_with_coverage(fixture);
     errors = [str(e) for e in prog.errors_had];
     assert not prog.errors_had , (
         f"a cross-module demotion must cascade, not fail the compile: {errors}"
@@ -192,14 +191,14 @@ def _assert_link_protocol(
         f"the linked IR still declares the renamed symbol '{callee}', which "
         f"can never resolve: {dangling}"
     );
-    seams = _seams_of(census, fixture);
+    seams = _seams_of(coverage, fixture);
     cascade = [
         s
         for s in seams
         if s.startswith(f"{caller}: ")
     ];
     assert cascade , (
-        f"the census must record '{caller}' as a seam of the importer: {seams}"
+        f"the coverage must record '{caller}' as a seam of the importer: {seams}"
     );
     assert callee in cascade[0] , (
         f"the cascade reason must name the cross-module callee '{callee}': "
@@ -232,8 +231,8 @@ test "an emit-time-demoted cross-module callee cascades its caller" {
 }
 
 test "the dependency's demotion is still recorded as the dependency's seam" {
-    (prog, ir, census) = _compile_with_census("xmod_demote_main.jac");
-    dep_seams = _seams_of(census, "xmod_demote_lib.jac");
+    (prog, ir, coverage) = _compile_with_coverage("xmod_demote_main.jac");
+    dep_seams = _seams_of(coverage, "xmod_demote_lib.jac");
     assert any(s.startswith("pyonly_len: ") for s in dep_seams) , (
         f"the dependency's own seam must stay attributed to it: {dep_seams}"
     );

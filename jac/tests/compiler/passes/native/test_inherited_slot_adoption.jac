@@ -29,7 +29,7 @@ to, and the splice happens only where that matches the ancestor layout's
 own `decl_mod`.
 
 Pinned here two ways. The fixtures measure the mechanism directly, so a
-regression names itself here rather than as a seam count in a census. The
+regression names itself here rather than as a seam count in a coverage report. The
 flat-header configuration over the same fixtures is owned by
 `test_inherited_slot_headers.jac` (#8343), where `relax_vtable_header`
 made the pair agree; this file measures the linearization repair.
@@ -38,7 +38,7 @@ made the pair agree; this file measures the linearization repair.
 import os;
 import jaclang;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image }
 
@@ -52,7 +52,7 @@ glob FIXTURES = os.path.join(
      ),
      _MEMO: dict[(str, dict)] = {};
 
-"""Seams the native census records for `rel`, keyed by callable."""
+"""Seams the native coverage records for `rel`, keyed by callable."""
 def _seams(rel: str) -> dict[(str, str)] {
     if _jaclang_image() is not None {
         testskip("a sealed image measures its trust boundary, not this");
@@ -62,13 +62,12 @@ def _seams(rel: str) -> dict[(str, str)] {
     }
     path = os.path.join(FIXTURES, rel);
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -76,9 +75,9 @@ def _seams(rel: str) -> dict[(str, str)] {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(os.path.realpath(path));
+    rec = coverage.get(os.path.realpath(path));
     assert rec is not None and rec["outcome"] == "native" , (
         f"{rel} never compiled as a native root, so nothing below measures " "anything"
     );
@@ -114,13 +113,12 @@ test "the pass chain's traversal methods lower" {
     }
     pkg = os.path.dirname(os.path.realpath(jaclang.__file__));
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         prog.compile(
             file_path=os.path.join(pkg, "jac0core", "passes", "uni_pass.jac"),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -128,12 +126,12 @@ test "the pass chain's traversal methods lower" {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(
+    rec = coverage.get(
         os.path.realpath(os.path.join(pkg, "jac0core", "passes", "uni_pass.jac"))
     );
-    assert rec is not None , "uni_pass.jac never entered the census";
+    assert rec is not None , "uni_pass.jac never entered the coverage";
     names: set[str] = set();
     for seam in (rec["seams"] or []) {
         names.add(str(seam).partition(": ")[0]);

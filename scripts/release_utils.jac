@@ -66,7 +66,7 @@ def get_current_version(repo_root: Path, pkg_dir: str) -> str {
     Raises ValueError if version format is invalid or bump type is unrecognized.
     """
 def bump_version(current: str, bump_type: str) -> str {
-    if not re.match(r"^\d+\.\d+\.\d+$", current) {
+    if not re.`match(r"^\d+\.\d+\.\d+$", current) {
         raise ValueError(
             f"Invalid version format '{current}': expected X.Y.Z where X, Y, Z are integers"
         );

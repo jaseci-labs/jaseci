@@ -1229,7 +1229,7 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
 class NativeFrozensetEmitter(FrozensetEmitter[(ir.Value, NativeEmitCtx)]) {
     def _get_set_emitter(
         self: NativeFrozensetEmitter, ctx: NativeEmitCtx
-    ) -> (object | None);
+    ) -> (NativeSetEmitter | None);
 
     def emit_union(
         self: NativeFrozensetEmitter,
@@ -1292,7 +1292,7 @@ class NativeFrozensetEmitter(FrozensetEmitter[(ir.Value, NativeEmitCtx)]) {
 class NativeTupleEmitter(TupleEmitter[(ir.Value, NativeEmitCtx)]) {
     def _get_struct_info(
         self: NativeTupleEmitter, ctx: NativeEmitCtx, target: ir.Value
-    ) -> (object | None);
+    ) -> (ir.LiteralStructType | None);
 
     def emit_count(
         self: NativeTupleEmitter,

@@ -36,7 +36,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -90,7 +90,7 @@ test "clib SysV: by-value float structs pass and return in SSE registers" {
             f"    return ptd_sum(p);\n"
             f"}}\n"
             f"def use_ptf(a: f64, b: f64) -> f64 {{\n"
-            f"    p = PtF(a=a, b=b);\n"
+            f"    p = PtF(a=f32(a), b=f32(b));\n"
             f"    return ptf_sum(p);\n"
             f"}}\n"
             f"def roundtrip(x: f64, y: f64) -> f64 {{\n"
