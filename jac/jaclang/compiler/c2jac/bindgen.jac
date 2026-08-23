@@ -138,12 +138,12 @@ def ffi_type(
         return "int";
     }
     if chain.kind == TypeKind.PTR {
-        return _ptr_ffi(chain.node, tds, structs);
+        return _ptr_ffi(chain.c_node, tds, structs);
     }
     if chain.kind == TypeKind.NONE {
         return "int";
     }
-    scalar = chain.node;
+    scalar = chain.c_node;
     if isinstance(scalar.type, c_ast.Struct)
     and scalar.type.name
     and structs
