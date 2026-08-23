@@ -413,30 +413,106 @@ def _jac_host_convert(value, conv):
         return (False, type(exc).__name__, str(exc))
 
 def _jac_module_info(absname):
-    # Layer 3 module locator: resolve a fully-qualified module name to its source.
-    # Returns (status, source, is_pkg, origin):
-    #   "py"      -> pure-Python module; `source` is its text, run in-VM proxy-free
-    #   "native"  -> built-in / frozen / C extension (no .py); caller host-proxies it
-    #   "missing" -> no such module (ModuleNotFoundError)
-    # find_spec locates the file the same way CPython's import system does; it may
-    # host-import parent packages purely to read their __path__ (never the module
-    # itself), which is fine -- only the .py bytes cross back for in-VM execution.
-    import importlib.util as _u
-    try:
-        spec = _u.find_spec(absname)
-    except BaseException:
-        return ("missing", "", False, "")
-    if spec is None:
-        return ("missing", "", False, "")
-    origin = spec.origin or ""
-    is_pkg = spec.submodule_search_locations is not None
-    if origin.endswith(".py"):
+    # Layer 3 module locator: resolve a fully-qualified module name to its source
+    # by walking sys.path in order -- no importlib.util.find_spec, which would
+    # import parent packages on the host (executing their bodies there) and leak
+    # host-side module objects into the very namespace the VM must own.
+    # Returns (status, source, is_pkg, origin, detail):
+    #   "py"          -> pure-Python module/package; `source` is its text, run
+    #                    in-VM proxy-free
+    #   "native"      -> built-in / frozen / C extension / namespace package:
+    #                    nothing to run in-VM; caller host-proxies it
+    #   "missing"     -> ModuleNotFoundError("No module named '<absname>'")
+    #   "not-package" -> ModuleNotFoundError(detail) where detail is CPython's
+    #                    "No module named '<abs>'; '<parent>' is not a package"
+    import os
+    import sys
+    import _imp
+    import importlib.machinery as machinery
+    parts = absname.split(".")
+    if _imp.is_builtin(parts[0]) or _imp.is_frozen(parts[0]):
+        return ("native", "", False, "", "")
+
+    def locate(base_dir, part):
+        # One directory scan: regular package > plain module > extension >
+        # namespace portion. Returns (kind, payload) or None.
+        pkg_dir = os.path.join(base_dir, part)
+        init_py = os.path.join(pkg_dir, "__init__.py")
+        if os.path.isfile(init_py):
+            return ("pkg", pkg_dir)
+        mod_py = os.path.join(base_dir, part + ".py")
+        if os.path.isfile(mod_py):
+            return ("py", mod_py)
+        for suf in machinery.EXTENSION_SUFFIXES:
+            ext = os.path.join(base_dir, part + suf)
+            if os.path.isfile(ext):
+                return ("ext", ext)
+        if os.path.isdir(pkg_dir):
+            return ("ns", pkg_dir)
+        return None
+
+    def read_source(path):
         try:
-            with open(origin, "r", encoding="utf-8") as fh:
-                return ("py", fh.read(), is_pkg, origin)
+            with open(path, "r", encoding="utf-8") as fh:
+                return fh.read()
         except OSError:
-            return ("native", "", is_pkg, origin)
-    return ("native", "", is_pkg, origin)
+            return None
+
+    def finish(kind, payload):
+        if kind == "pkg":
+            src = read_source(os.path.join(payload, "__init__.py"))
+            if src is not None:
+                return ("py", src, True, os.path.join(payload, "__init__.py"), "")
+            return ("native", "", True, payload, "")
+        if kind == "py":
+            src = read_source(payload)
+            if src is not None:
+                return ("py", src, False, payload, "")
+            return ("native", "", False, payload, "")
+        return ("native", "", False, "", "")
+
+    # Top-level scan: first regular hit across sys.path wins; the first
+    # namespace portion is remembered in case no regular hit exists anywhere
+    # (CPython's namespace-package rule).
+    top = None
+    ns_portion = None
+    for entry in sys.path:
+        d = entry or os.getcwd()
+        if not os.path.isdir(d):
+            continue
+        hit = locate(d, parts[0])
+        if hit is None:
+            continue
+        if hit[0] == "ns":
+            if ns_portion is None:
+                ns_portion = hit[1]
+        elif top is None:
+            top = hit
+    if top is None:
+        # Namespace packages have no body to run in-VM; hand them to the host
+        # importer, which resolves their full __path__ the same way.
+        if ns_portion is not None:
+            return ("native", "", True, ns_portion, "")
+        return ("missing", "", False, "", "")
+    if len(parts) == 1:
+        return finish(top[0], top[1])
+    # Descend through subpackages. A non-package parent anywhere along the chain
+    # yields CPython's "... is not a package" variant.
+    loc = top
+    depth = 1
+    while depth < len(parts):
+        if loc[0] != "pkg":
+            return (
+                "not-package", "", False, "",
+                "No module named '" + absname + "'; '"
+                    + ".".join(parts[:depth]) + "' is not a package",
+            )
+        nxt = locate(loc[1], parts[depth])
+        if nxt is None:
+            return ("missing", "", False, "", "")
+        loc = nxt
+        depth = depth + 1
+    return finish(loc[0], loc[1])
 
 def _jac_star_names(host_val):
     # `from proxied_module import *` name set: __all__ if defined, else every
@@ -954,6 +1030,9 @@ def import_native(absname: str) -> PyObj {
     if status == "missing" {
         return py_error("ModuleNotFoundError", "No module named '" + absname + "'");
     }
+    if status == "not-package" {
+        return py_error("ModuleNotFoundError", str(info[4]));
+    }
     if status == "native" {
         # C extension / built-in / frozen: no source to run in-VM. Proxy the real
         # host module (fromlist truthy so importlib returns the named submodule,
@@ -1060,17 +1139,38 @@ def import_star_into(module: PyObj, globals: dict[str, PyObj]) -> PyObj {
 def py_import_name(
     name: str, fromlist: PyObj, level: int, globals: dict[str, PyObj]
 ) -> PyObj {
+    # CPython's import_name package-derivation rule: an explicit string
+    # __package__ wins verbatim (even empty -- no fallback); otherwise the
+    # parent of __name__ ("a.b.m" -> "a.b"); a dotless name has no parent.
+    # Relative imports with no parent at all raise "attempted relative import
+    # with no known parent package"; climbing past the top raises
+    # "attempted relative import beyond top-level package".
     current_package = "";
+    saw_package_str = False;
     if "__package__" in globals {
         pkg = globals["__package__"];
         if isinstance(pkg, PyStr) {
             current_package = (pkg as PyStr).val;
+            saw_package_str = True;
         }
     }
-    if current_package == "" and "__name__" in globals {
+    if not saw_package_str and "__name__" in globals {
         nm = globals["__name__"];
         if isinstance(nm, PyStr) {
-            current_package = (nm as PyStr).val;
+            current_package = _parent_package((nm as PyStr).val);
+        }
+    }
+    if level > 0 {
+        if current_package == "" {
+            return py_error(
+                "ImportError", "attempted relative import with no known parent package"
+            );
+        }
+        bits = current_package.split(".");
+        if len(bits) < level {
+            return py_error(
+                "ImportError", "attempted relative import beyond top-level package"
+            );
         }
     }
     absname = _resolve_relative(current_package, name, level);
@@ -10947,6 +11047,35 @@ def run_frame(frame: PyFrame) -> PyObj {
             module = stack[len(stack) - 1];
             result = py_attr(module, co.names[arg]);
             if is_error(result) {
+                # CPython's import_from converts a bare AttributeError into
+                # "ImportError: cannot import name 'x' from 'mod' (__file__)"
+                # -- every other error propagates unchanged.
+                exc = (result as PyError).exception;
+                if exc.type_name == "AttributeError" {
+                    modname = "<unknown>";
+                    nmobj = py_attr(module, "__name__");
+                    if not is_error(nmobj) and isinstance(nmobj, PyStr) {
+                        modname = (nmobj as PyStr).val;
+                    }
+                    origin = "";
+                    fileobj = py_attr(module, "__file__");
+                    if not is_error(fileobj) and isinstance(fileobj, PyStr) {
+                        origin = (fileobj as PyStr).val;
+                    }
+                    if origin != "" {
+                        result = py_error(
+                            "ImportError",
+                            "cannot import name '" + co.names[arg] + "' from '"
+                                + modname + "' (" + origin + ")"
+                        );
+                    } else {
+                        result = py_error(
+                            "ImportError",
+                            "cannot import name '" + co.names[arg] + "' from '"
+                                + modname + "'"
+                        );
+                    }
+                }
                 target = recover_exception(co, result, offset, stack);
                 if target >= 0 {
                     ip = target;
