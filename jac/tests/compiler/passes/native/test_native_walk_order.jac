@@ -16,7 +16,7 @@ type. The slot does erase to an opaque pointer now -- a `has` type is resolved
 while the archetype is laid out, outside every ability body, so there was no
 demotion window to spend the refusal in and it withheld the whole module's IR
 instead. `_opaque_field_if_unlowerable` gives the declaration its own: the
-E5092 is re-published as a census seam keyed on the field, and the slot joins
+E5092 is re-published as a coverage seam keyed on the field, and the slot joins
 `struct_field_foreign`.
 
 That is only honest because the erasure is not a rescue. The slot holds
@@ -34,7 +34,7 @@ import os;
 import from pathlib { Path }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures"),
      WALK_ORDERS: list = [None, "reverse", "shuffle:1337", "shuffle:7", "shuffle:42"];
@@ -43,7 +43,6 @@ glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures"),
 def compile_ir_text(fixture: str, walk_order: str | None) -> str {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         skip_native_engine=True,
@@ -108,9 +107,7 @@ test "imported obj-field chain IR is walk-order independent" {
 
 test "imported obj-field chain executes correctly" {
     prog = JacProgram();
-    opts = CompileOptions(
-        type_check=False, force_codespace='native', force_target_program=True
-    );
+    opts = CompileOptions(force_codespace='native', force_target_program=True);
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, "xmodfield_entry.jac"), options=opts
     );
@@ -127,16 +124,13 @@ test "imported obj-field chain executes correctly" {
 test "an unlowerable field erases loudly: the declaration seams, every touch refuses" {
     prog = JacProgram();
     opts = CompileOptions(
-        type_check=False,
-        force_codespace='native',
-        force_target_program=True,
-        skip_native_engine=True
+        force_codespace='native', force_target_program=True, skip_native_engine=True
     );
-    na_census_begin();
+    na_coverage_begin();
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, "unlowerable_field.jac"), options=opts
     );
-    snap = na_census_end();
+    snap = na_coverage_end();
     seams: list = [];
     for (path, rec) in snap.items() {
         if os.path.basename(path) == "unlowerable_field.jac" {

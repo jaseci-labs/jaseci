@@ -67,7 +67,7 @@ def _mk_store(td: str) -> tuple {
 
 
 def _peer(info: ConnInfo, app_name: str) -> any {
-    last: any = None;
+    last: Exception | None = None;
     for _ in range(30) {
         try {
             return pg_connect(
@@ -87,6 +87,7 @@ def _peer(info: ConnInfo, app_name: str) -> any {
             time.sleep(1.0);
         }
     }
+    assert last is not None;
     raise last;
 }
 
@@ -116,7 +117,7 @@ def _release(peer: any) {
 
 def _armed_peer(info: ConnInfo, app_name: str) -> any {
     # Peer with an open write transaction, re-armed through restarts.
-    last: any = None;
+    last: Exception | None = None;
     for _ in range(10) {
         peer = _peer(info, app_name);
         try {
@@ -131,6 +132,7 @@ def _armed_peer(info: ConnInfo, app_name: str) -> any {
             time.sleep(1.0);
         }
     }
+    assert last is not None;
     raise last;
 }
 

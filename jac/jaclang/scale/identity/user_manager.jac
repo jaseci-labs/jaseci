@@ -32,7 +32,7 @@ glob _jwt_config = get_scale_config().get_jwt_config(),
      SSO_HOST = _sso_config['host'],
      logger = logging.getLogger(__name__),
      _root_id_request_cache: ContextVar[dict[str, str] | None] = ContextVar(
-         '_jaclang_scale_root_id_cache', default=None
+         '_jaclang_scale_root_id_cache', `default=None
      );
 
 enum UserRole { ADMIN = 'admin', SYSTEM = 'system', USER = 'user', }

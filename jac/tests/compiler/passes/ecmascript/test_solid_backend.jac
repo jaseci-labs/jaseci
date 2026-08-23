@@ -103,7 +103,9 @@ test "solid reports signals runtime symbols for reactive lowering" {
 test "solid read seam lowers a reactive read to an accessor call" {
     read_node = SolidBackend().lower_state_read("count");
     assert isinstance(read_node, es.CallExpression);
-    assert read_node.callee.name == "count";
+    callee = read_node.callee;
+    assert isinstance(callee, es.Identifier);
+    assert callee.name == "count";
     assert read_node.arguments == [];
 }
 
@@ -132,6 +134,18 @@ test "solid counter fixture: createSignal, accessor reads, setter writes (fixtur
     assert "{count()}" in js , "dynamic child should be an un-thunked accessor read";
     assert "{name()}" in js;
     assert "() => count()" not in js , "JSX path must not thunk dynamic reads";
+}
+
+test "solid keeps the signal destructure for a setter used as a value" {
+    # Solid always bound `setX` through the createSignal destructure, so the
+    # #8224 fix on the React family must leave this shape exactly as it was.
+    js = compile_fixture_with_backend("state_setter_value_ref.jac", SolidBackend());
+    assert 'const [theme, setTheme] = createSignal("dark")' in js , (
+        f"solid state lowering must stay a signal destructure; got:\n{js}"
+    );
+    assert "setTheme: setTheme" in js;
+    assert "useJacState" not in js;
+    assert "__jacS_theme" not in js;
 }
 
 test "solid aug-assign fixture emits functional updaters (fixture #3)" {

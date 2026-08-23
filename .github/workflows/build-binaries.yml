@@ -24,9 +24,10 @@ on:
       only:
         # Diagnostic lane: build ONE leg instead of the whole matrix, so a
         # single red platform can be iterated on without burning three other
-        # runners per attempt (macos-seal-probe.yml is the caller). Empty (the
-        # default) keeps the channel's full leg list -- no release path ever
-        # sets this, so a release can never ship a partial matrix by mistake.
+        # runners per attempt. Empty (the default) keeps the channel's full
+        # leg list. `plan` rejects a non-empty filter whenever `tag` is set,
+        # so a release can never ship a partial matrix by mistake -- that
+        # guard is what lets workflow_dispatch expose this too.
         description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list."
         required: false
         default: ""
@@ -47,6 +48,21 @@ on:
         # duplicate release. Empty = build the artifact only, attach nothing.
         description: "Canonical release tag to upload assets to (e.g. v0.30.1). Empty = artifact only."
         required: false
+        type: string
+      # `channel` and `only` mirror the workflow_call inputs so a one-leg
+      # diagnostic build is a dispatch away. This replaces macos-seal-probe.yml,
+      # a wrapper whose whole body was a workflow_call with only=macos-aarch64
+      # and which was never run once.
+      channel:
+        description: "release: cold + glibc-pinned; dev: cached + host-native."
+        required: false
+        default: release
+        type: choice
+        options: [release, dev]
+      only:
+        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list. Rejected when `tag` is set."
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -76,8 +92,8 @@ jobs:
   # floor for versioned releases, and on the dev channel it was the
   # critical path (~24 min/merge on the slow Intel runners) for a
   # rolling prerelease Intel users don't consume. Versioned releases
-  # still ship macos-x86_64: inputs.channel is empty on release/dispatch
-  # events, so those keep the full list.
+  # still ship macos-x86_64: inputs.channel is empty on the release event and
+  # defaults to `release` on dispatch, so those keep the full list.
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -88,6 +104,7 @@ jobs:
         env:
           CHANNEL: ${{ inputs.channel }}
           ONLY: ${{ inputs.only }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           LEGS='[
@@ -98,6 +115,14 @@ jobs:
           ]'
           if [ "$CHANNEL" = "dev" ]; then
             LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
+          fi
+          # `only` is a diagnostic lane, never a release path: uploading a
+          # filtered matrix to a real tag would publish a release missing
+          # assets for the legs it dropped. workflow_call never pairs them;
+          # this guard is what makes the dispatch input safe to expose.
+          if [ -n "${ONLY:-}" ] && [ -n "${TAG:-}" ]; then
+            echo "::error::platform filter '$ONLY' cannot be combined with tag '$TAG': a filtered matrix would publish a release missing assets."
+            exit 1
           fi
           if [ -n "${ONLY:-}" ]; then
             LEGS="$(jq -c --arg only "$ONLY" \
@@ -144,10 +169,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
-          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
-      # Keyed on llvm_release.zig to match the entries setup-jac seeds (the
-      # old release-dev key hashed payload.zig, so it never matched them and
+      # Keyed on bootstrap/pins.json to match the entries setup-jac seeds (the
+      # old release-dev key hashed the payload tool, so it never matched them and
       # duplicated the ~0.5 GB tree into the cache pool).
       - name: Restore cached LLVM (dev channel)
         if: inputs.channel == 'dev' && steps.shim-cache.outputs.cache-hit != 'true'
@@ -155,7 +180,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.llvm-build
-          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
+          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       # Identity of the compiler this build runs, as git blob ids over the same
       # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
@@ -211,7 +236,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.pbs-build
-          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/payload.zig') }}
+          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       - name: Restore cached bun runtime (dev channel)
         if: inputs.channel == 'dev'
@@ -229,7 +254,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.payload-layers
-          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
           restore-keys: |
             payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -248,7 +273,7 @@ jobs:
         id: shim-fetch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
         run: |
           set -euo pipefail
           EXT=so
@@ -268,15 +293,15 @@ jobs:
           fi
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      # The Zig package store (.zig-cache/p): the neovim fork + its transitive
-      # PUC Lua source off lua.org's FTP (the build's flakiest fetch), mini.nvim,
-      # tree-sitter-jac, etc. Content-addressed source packages -- immutable, so
-      # (unlike the payload-artifact caches above, kept dev-only to avoid
-      # shipping stale bits) this is safe on BOTH channels, and a release is
-      # exactly when a lua.org blip must not fail the build. Same key as
-      # setup-jac so the Linux-x86_64 leg reuses the entry main seeds; a cross
-      # -Dtarget build fetches the same source, so os/arch is the right axis.
-      - name: Cache the Zig package store (avoids re-fetching Lua/neovim deps)
+      # The Zig package store (.zig-cache/p): every git/tarball dependency
+      # `zig build` fetches, as pinned by build.zig.zon. Content-addressed
+      # source packages -- immutable, so (unlike the payload-artifact caches
+      # above, kept dev-only to avoid shipping stale bits) this is safe on BOTH
+      # channels, and a release is exactly when an upstream fetch blip must not
+      # fail the build. Same key as setup-jac so the Linux-x86_64 leg reuses the
+      # entry main seeds; a cross -Dtarget build fetches the same source, so
+      # os/arch is the right axis.
+      - name: Cache the Zig package store (avoids re-fetching zon deps)
         uses: actions/cache@v4
         with:
           path: .zig-cache/p
@@ -791,7 +816,7 @@ jobs:
           # The admin console is a pure client app; its client bundle is
           # type-checked by the client toolchain during `build`. Skip the
           # whole-program gate, which applies native rules to `.cl.jac` code.
-          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac --no_typecheck )
+          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac )
           DIST=jac/jaclang/scale/admin/ui/.jac/client/dist
           test -f "$DIST/index.html"
           mkdir -p dist

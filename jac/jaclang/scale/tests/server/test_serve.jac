@@ -29,6 +29,10 @@ import from jaclang.scale.tests.server_support {
     _extract_transport_response_data
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def register_payload(username: str, password: str) -> dict[str, any] {
     return {
         "identities": [{"type": "username", "value": username}],
@@ -131,10 +135,10 @@ def _stop_server(server_process: subprocess.Popen | None) {
     if server_process {
         server_process.terminate();
         try {
-            server_process.wait(timeout=5);
+            server_process.`wait(timeout=5);
         } except subprocess.TimeoutExpired {
             server_process.kill();
-            server_process.wait();
+            server_process.`wait();
         }
     }
     time.sleep(0.2);
@@ -205,7 +209,9 @@ test "static and schema endpoints" {
         assert "cross-origin-embedder-policy" in response.headers;
         assert response.headers["cross-origin-embedder-policy"] == "require-corp";
 
-        openapi_spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        openapi_spec = srv.server.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;
@@ -1739,7 +1745,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1767,7 +1773,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -2004,7 +2010,7 @@ test "server startup - port fallback integration" {
         if sp2 {
             sp2.terminate();
             try {
-                sp2.wait(timeout=5);
+                sp2.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 sp2.kill();
             }
@@ -2190,7 +2196,7 @@ theme_color = "#000000"
         } finally {
             server.terminate();
             try {
-                server.wait(timeout=5);
+                server.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 server.kill();
             }

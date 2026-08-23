@@ -15,7 +15,8 @@ impl JacClient.render_page(
         raise ValueError(f"Client function '{function_name}' not found");
     }
     import from jaclang.project.config { find_project_root, get_config }
-    base_path_dir = Path(Jac.get_base_path_dir());
+    base_path_str = Jac.get_base_path_dir();
+    base_path_dir = Path(base_path_str) if base_path_str else Path.cwd();
     project_root_result = find_project_root(base_path_dir);
     if project_root_result {
         (base_path, _) = project_root_result;
@@ -89,7 +90,8 @@ impl JacClient.render_page(
 impl JacClient.get_client_js(introspector: ModuleIntrospector) -> str {
     import from jaclang.project.config { find_project_root, get_config }
 
-    base_path_dir = Path(Jac.get_base_path_dir());
+    base_path_str = Jac.get_base_path_dir();
+    base_path_dir = Path(base_path_str) if base_path_str else Path.cwd();
     project_root_result = find_project_root(base_path_dir);
     if project_root_result {
         (base_path, _) = project_root_result;
@@ -106,7 +108,7 @@ impl JacClient.get_client_js(introspector: ModuleIntrospector) -> str {
 
     is_pwa = dist_dir.exists() and (dist_dir / 'manifest.json').exists();
     if is_pwa {
-        for client_js in dist_dir.glob('client.*.js') {
+        for client_js in dist_dir.`glob('client.*.js') {
             return client_js.read_text(encoding='utf-8');
         }
     }
@@ -279,7 +281,7 @@ impl HeaderBuilder._build_special_tags -> list[str] {
     return lines;
 }
 
-impl HeaderBuilder._get_value(key: str) -> str {
+impl HeaderBuilder._get_value(key: str) -> (str | None) {
     return self.meta_data.get(key) or self.DEFAULTS.get(key);
 }
 

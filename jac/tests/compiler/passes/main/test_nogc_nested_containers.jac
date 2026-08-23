@@ -32,7 +32,7 @@ def _compile(path: str) -> tuple {
         ir = prog.compile(
             path,
             options=CompileOptions(
-                aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
+                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
             )
         );
         codes = [

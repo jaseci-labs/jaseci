@@ -138,21 +138,26 @@ def _trie_common_prefix(a: str, b: str) -> int {
     return i;
 }
 
+obj _ExportTrieNode {
+    has term: (int | None) = None,
+        kids: dict[str, _ExportTrieNode] = {};
+}
+
 def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
     if len(symbols) == 0 {
         return bytes([0, 0]);
     }
 
-    trie_root: dict = {"term": None, "kids": {}};
+    trie_root = _ExportTrieNode();
     for (name, addr) in symbols {
         cur = trie_root;
         rest = name;
         while True {
             if rest == "" {
-                cur["term"] = addr;
+                cur.term = addr;
                 break;
             }
-            kids = cur["kids"];
+            kids = cur.kids;
             matched = False;
             for label in list(kids.keys()) {
                 c = _trie_common_prefix(label, rest);
@@ -163,7 +168,7 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
                     cur = kids[label];
                 } else {
                     child = kids.pop(label);
-                    mid = {"term": None, "kids": {label[c:]: child}};
+                    mid = _ExportTrieNode(term=None, kids={label[c:]: child});
                     kids[label[:c]] = mid;
                     cur = mid;
                 }
@@ -172,22 +177,22 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
                 break;
             }
             if not matched {
-                kids[rest] = {"term": addr, "kids": {}};
+                kids[rest] = _ExportTrieNode(term=addr, kids={});
                 break;
             }
         }
     }
 
-    order: list = [];
-    stack: list = [trie_root];
+    order: list[_ExportTrieNode] = [];
+    stack: list[_ExportTrieNode] = [trie_root];
     while stack {
         nd = stack.pop();
         order.append(nd);
-        for label in sorted(nd["kids"].keys(), reverse=True) {
-            stack.append(nd["kids"][label]);
+        for label in sorted(nd.kids.keys(), reverse=True) {
+            stack.append(nd.kids[label]);
         }
     }
-    node_index: dict = {};
+    node_index: dict[int, int] = {};
     for (i, nd) in enumerate(order) {
         node_index[id(nd)] = i;
     }
@@ -197,16 +202,17 @@ def _build_export_trie(symbols: list[tuple[str, int]]) -> bytes {
     for _iter in range(16) {
         encs = [];
         for nd in order {
-            if nd["term"] is not None {
+            term_addr = nd.term;
+            if term_addr is not None {
                 info = _encode_uleb128(EXPORT_SYMBOL_FLAGS_KIND_REGULAR)
-                    + _encode_uleb128(nd["term"]);
+                    + _encode_uleb128(term_addr);
                 e = _encode_uleb128(len(info)) + info;
             } else {
                 e = _encode_uleb128(0);
             }
-            e += bytes([len(nd["kids"])]);
-            for label in sorted(nd["kids"].keys()) {
-                child = nd["kids"][label];
+            e += bytes([len(nd.kids)]);
+            for label in sorted(nd.kids.keys()) {
+                child = nd.kids[label];
                 e += label.encode("utf-8")
                     + b"\x00"
                     + _encode_uleb128(offsets[node_index[id(child)]]);
@@ -940,7 +946,8 @@ impl MachOLinker.build_executable -> bytes {
         }
     }
 
-    internal_got_syms: list[str] = [];
+    internal_got_idx: list[int] = [];
+    internal_got_seen: set[int] = set();
     all_extern_names: set = set(extern_func_syms) | set(extern_data_syms);
     for rel in self.relocations {
         is_got_rel = False;
@@ -954,15 +961,16 @@ impl MachOLinker.build_executable -> bytes {
             sname = self.symbols[rel.symbolnum].name;
             if sname
                 and sname not in all_extern_names
-                and sname not in internal_got_syms {
-                internal_got_syms.append(sname);
+                and rel.symbolnum not in internal_got_seen {
+                internal_got_seen.add(rel.symbolnum);
+                internal_got_idx.append(rel.symbolnum);
             }
         }
     }
 
     num_extern_got = len(extern_func_syms) + len(extern_data_syms);
     num_stubs = len(extern_func_syms);
-    num_got = num_extern_got + len(internal_got_syms);
+    num_got = num_extern_got + len(internal_got_idx);
     stubs_total_size = _align(num_stubs * stub_size, 4) if num_stubs > 0 else 0;
     got_total_size = num_got * 8;
 
@@ -1161,7 +1169,7 @@ impl MachOLinker.build_executable -> bytes {
         }
     }
 
-    for k in range(len(internal_got_syms)) {
+    for k in range(len(internal_got_idx)) {
         rebase_offsets.append((num_extern_got + k) * 8);
     }
 
@@ -1249,7 +1257,7 @@ impl MachOLinker.build_executable -> bytes {
         indirect_syms.extend(struct.pack("<I", n_defined + i));
     }
 
-    for i in range(len(internal_got_syms)) {
+    for i in range(len(internal_got_idx)) {
         indirect_syms.extend(struct.pack("<I", INDIRECT_SYMBOL_LOCAL));
     }
 
@@ -1300,8 +1308,10 @@ impl MachOLinker.build_executable -> bytes {
         got_addr_map[extern_data_syms[i]] = got_sec_vaddr
             + (len(extern_func_syms) + i) * 8;
     }
-    for i in range(len(internal_got_syms)) {
-        got_addr_map[internal_got_syms[i]] = got_sec_vaddr + (num_extern_got + i) * 8;
+    internal_got_addr: dict[int, int] = {};
+    for i in range(len(internal_got_idx)) {
+        internal_got_addr[internal_got_idx[i]] = got_sec_vaddr
+            + (num_extern_got + i) * 8;
     }
 
     code_bytes = bytearray(code_data);
@@ -1330,7 +1340,10 @@ impl MachOLinker.build_executable -> bytes {
             }
 
             if is_got_reloc {
-                got_addr = got_addr_map.get(sym_name);
+                got_addr = internal_got_addr.get(rel.symbolnum);
+                if got_addr is None {
+                    got_addr = got_addr_map.get(sym_name);
+                }
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
@@ -1687,10 +1700,13 @@ impl MachOLinker.build_executable -> bytes {
         output[const_sec_foff:const_sec_foff + len(rodata_bytes)] = bytes(rodata_bytes);
     }
 
-    for i in range(len(internal_got_syms)) {
-        isym_name = internal_got_syms[i];
+    for i in range(len(internal_got_idx)) {
+        isym_idx = internal_got_idx[i];
         isym_vaddr = 0;
-        place = local_sym_map.get(isym_name);
+        place = sym_idx_map.get(isym_idx);
+        if place is None {
+            place = local_sym_map.get(self.symbols[isym_idx].name);
+        }
         if place is not None {
             (seg, seg_off) = place;
             isym_vaddr = _resolve_seg_vaddr(
@@ -1863,7 +1879,8 @@ impl MachOLinker.build_shared_object -> bytes {
         }
     }
 
-    internal_got_syms: list[str] = [];
+    internal_got_idx: list[int] = [];
+    internal_got_seen: set[int] = set();
     all_extern_names: set = set(extern_func_syms) | set(extern_data_syms);
     for rel in self.relocations {
         is_got_rel = False;
@@ -1877,8 +1894,9 @@ impl MachOLinker.build_shared_object -> bytes {
             sname = self.symbols[rel.symbolnum].name;
             if sname
                 and sname not in all_extern_names
-                and sname not in internal_got_syms {
-                internal_got_syms.append(sname);
+                and rel.symbolnum not in internal_got_seen {
+                internal_got_seen.add(rel.symbolnum);
+                internal_got_idx.append(rel.symbolnum);
             }
         }
     }
@@ -1893,7 +1911,7 @@ impl MachOLinker.build_shared_object -> bytes {
 
     num_extern_got = len(extern_func_syms) + len(extern_data_syms);
     num_stubs = len(extern_func_syms);
-    num_got = num_extern_got + len(internal_got_syms);
+    num_got = num_extern_got + len(internal_got_idx);
     stubs_total_size = _align(num_stubs * stub_size, 4) if num_stubs > 0 else 0;
     got_total_size = num_got * 8;
     mod_init_size = len(init_macho_names) * 8;
@@ -2094,7 +2112,7 @@ impl MachOLinker.build_shared_object -> bytes {
             }
         }
     }
-    for k in range(len(internal_got_syms)) {
+    for k in range(len(internal_got_idx)) {
         rebase_offsets.append((num_extern_got + k) * 8);
     }
 
@@ -2177,7 +2195,7 @@ impl MachOLinker.build_shared_object -> bytes {
     for i in range(num_extern_got) {
         indirect_syms.extend(struct.pack("<I", n_defined + i));
     }
-    for i in range(len(internal_got_syms)) {
+    for i in range(len(internal_got_idx)) {
         indirect_syms.extend(struct.pack("<I", INDIRECT_SYMBOL_LOCAL));
     }
     for i in range(num_stubs) {
@@ -2235,8 +2253,10 @@ impl MachOLinker.build_shared_object -> bytes {
         got_addr_map[extern_data_syms[i]] = got_sec_vaddr
             + (len(extern_func_syms) + i) * 8;
     }
-    for i in range(len(internal_got_syms)) {
-        got_addr_map[internal_got_syms[i]] = got_sec_vaddr + (num_extern_got + i) * 8;
+    internal_got_addr: dict[int, int] = {};
+    for i in range(len(internal_got_idx)) {
+        internal_got_addr[internal_got_idx[i]] = got_sec_vaddr
+            + (num_extern_got + i) * 8;
     }
     code_bytes = bytearray(code_data);
     rodata_bytes = bytearray(rodata_data);
@@ -2259,7 +2279,10 @@ impl MachOLinker.build_shared_object -> bytes {
                 is_got_reloc = rel.rtype in (X86_64_RELOC_GOT_LOAD, X86_64_RELOC_GOT);
             }
             if is_got_reloc {
-                got_addr = got_addr_map.get(sym_name);
+                got_addr = internal_got_addr.get(rel.symbolnum);
+                if got_addr is None {
+                    got_addr = got_addr_map.get(sym_name);
+                }
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
@@ -2602,10 +2625,13 @@ impl MachOLinker.build_shared_object -> bytes {
     if len(rodata_bytes) > 0 {
         output[const_sec_foff:const_sec_foff + len(rodata_bytes)] = bytes(rodata_bytes);
     }
-    for i in range(len(internal_got_syms)) {
-        isym_name = internal_got_syms[i];
+    for i in range(len(internal_got_idx)) {
+        isym_idx = internal_got_idx[i];
         isym_vaddr = 0;
-        place = local_sym_map.get(isym_name);
+        place = sym_idx_map.get(isym_idx);
+        if place is None {
+            place = local_sym_map.get(self.symbols[isym_idx].name);
+        }
         if place is not None {
             (seg, seg_off) = place;
             isym_vaddr = _resolve_seg_vaddr(

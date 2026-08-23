@@ -32,7 +32,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     functype = ctypes.CFUNCTYPE(restype, *argtypes);
@@ -117,6 +117,6 @@ test "str(obj) on a null (None) struct pointer renders \"None\", not a crash" {
 # --- print(obj) ---
 test "print(obj) writes __str__ to stdout" {
     (eng, _) = compile_native("obj_str.jac");
-    entry = get_func(eng, "jac_entry", None);
-    assert capture_stdout(entry) == b"printed\n";
+    `entry = get_func(eng, "jac_entry", None);
+    assert capture_stdout(`entry) == b"printed\n";
 }

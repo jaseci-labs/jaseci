@@ -24,7 +24,7 @@ obj HeaderBuilder {
     def build_head -> str;
     def build_scripts -> list[str];
     def _script_tag(spec: dict) -> str;
-    def _get_value(key: str) -> str;
+    def _get_value(key: str) -> (str | None);
     def _og_property(suffix: str) -> str;
     def _build_special_tags -> list[str];
     def _build_meta_tags -> list[str];

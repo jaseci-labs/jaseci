@@ -2,6 +2,7 @@ import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
     Assignment,
+    AstSymbolNode,
     AtomTrailer,
     BinaryExpr,
     Bool,
@@ -17,12 +18,15 @@ import from jaclang.jac0core.unitree {
     FuncSignature,
     Int,
     KWPair,
+    ListVal,
     Module,
     MultiString,
     Name,
     NameAtom,
     String,
     Symbol,
+    Token,
+    TupleVal,
     UniNode,
     UniScopeNode,
     VisitStmt
@@ -40,7 +44,6 @@ import from jaclang.jac0core.mtp {
     type_to_str
 }
 
-import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
 
 glob PRIMITIVE_TYPES: list[str] = [
@@ -74,9 +77,10 @@ obj MTIRGenPass(Transform) {
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
     def _is_primitive_type(type_expr: Expr | None) -> bool;
+    def _doc_text(doc: String | None) -> str | None;
     def _parse_type_expr(
         type_expr: Expr | None, scope: UniScopeNode
-    ) -> ClassInfo | str | tuple | None;
+    ) -> ClassInfo | EnumInfo | str | tuple | None;
 
     def _extract_type_symbol(
         type_expr: Expr | None, scope: UniScopeNode

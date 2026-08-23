@@ -17,6 +17,10 @@ import from jaclang.runtimelib.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Skip a test unless client integration is explicitly enabled.
 
 Rendering a client page now runs the real Vite/Bun pipeline (bun + npm install
@@ -68,7 +72,7 @@ def make_client_app_client(tmp_path: str) -> JacTestClient {
     module_name = f"client_app_{unique_id}";
     fixtures_dest = Path(tmp_path) / module_name;
     fixtures_dest.mkdir(parents=True, exist_ok=True);
-    for f in fixtures_src.glob("*.jac") {
+    for f in fixtures_src.`glob("*.jac") {
         if f.is_file() {
             dest_name = f.name;
             if f.name == "client_app.jac" {
@@ -228,7 +232,7 @@ def make_spa_client(tmp_path: str) -> JacTestClient {
     module_name = f"spa_app_{unique_id}";
     fixtures_dest = Path(tmp_path) / module_name;
     fixtures_dest.mkdir(parents=True, exist_ok=True);
-    for f in fixtures_src.glob("*.jac") {
+    for f in fixtures_src.`glob("*.jac") {
         if f.is_file() {
             dest_name = f.name;
             if f.name == "client_app.jac" {
@@ -603,13 +607,13 @@ test "serve spawn walker" {
         data = response.data;
         assert "result" in data or "reports" in data;
         # Get jid from response for later use
-        jid = data.get("reports", [{}])[0].get("_jac_id", "");
+        jid = _as_any(data).get("reports", [{}])[0].get("_jac_id", "");
         # Spawn ListTasks walker to verify task was created
         response2 = client.post("/walker/ListTasks", json={});
         assert response2.ok;
         data2 = response2.data;
         assert "result" in data2 or "reports" in data2;
-        rpt = data2.get("reports", "")[0];
+        rpt = _as_any(data2).get("reports", "")[0];
         assert "Test Task" in rpt[0].get("title", "");
         assert rpt[0].get("completed", False) is True;
         # Get Task node using GetTask walker
@@ -2105,12 +2109,13 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
                 exec_mgr.spawn_walker(walker_cls, {"sleep_s": 0.1}, uname)
                 for uname in users
             ];
-            return await asyncio.gather(*tasks);
+            gathered = await asyncio.gather(*tasks);
+            return _as_any(gathered);
         }
         # Async walker path - most sensitive: the await inside the walker
         # guarantees interleaving at the point a shared-ctx bug would
         # manifest. Each task must still observe its own user_root.
-        async_results = asyncio.run(run_probe(async_walker));
+        async_results = _as_any(asyncio.run(run_probe(async_walker)));
         for (uname, result) in zip(users, async_results) {
             assert "error" not in result , f"async whoami failed for {uname}: {result}";
             reports = result["reports"];
@@ -2129,7 +2134,7 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
         }
         # Sync walker path - proves isolation propagates across the
         # asyncio.to_thread boundary (ContextVars copy into the worker).
-        sync_results = asyncio.run(run_probe(sync_walker));
+        sync_results = _as_any(asyncio.run(run_probe(sync_walker)));
         for (uname, result) in zip(users, sync_results) {
             assert "error" not in result , f"sync whoami failed for {uname}: {result}";
             reports = result["reports"];
@@ -2301,7 +2306,7 @@ test "concurrent ensure_bundle callers share one build instead of each running t
     try {
         results = list(executor.map(_one, range(6)));
     } finally {
-        executor.shutdown(wait=True);
+        executor.shutdown(`wait=True);
     }
     assert builder.calls == 1 , (
         f"the bundle was built {builder.calls} times for 6 concurrent callers; "

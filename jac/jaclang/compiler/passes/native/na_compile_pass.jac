@@ -1,4 +1,9 @@
 import jaclang.compiler.passes.native.llvm.binding as llvm;
+import type from jaclang.compiler.passes.native.llvm.binding {
+    ModuleRef,
+    TargetMachine,
+    ValueRef
+}
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { Transform }
 import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
@@ -57,12 +62,15 @@ obj NativeCompilePass(Transform) {
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
     def _compile_and_link_native_imports(
-        module: uni.Module, main_mod: object, imports: list, target_machine: object
+        module: uni.Module,
+        main_mod: ModuleRef,
+        imports: list,
+        target_machine: TargetMachine
     ) -> None;
 
     def _jit_load_clib(lib_path: str) -> bool;
-    def _link_osp_kernel(main_mod: object) -> None;
-    def _references_undefined_osp_kernel(main_mod: object) -> bool;
-    def _link_fmt_kernel(main_mod: object) -> None;
-    def _references_undefined_fmt_kernel(main_mod: object) -> bool;
+    def _link_osp_kernel(main_mod: ModuleRef) -> None;
+    def _references_undefined_osp_kernel(main_mod: ModuleRef) -> bool;
+    def _link_fmt_kernel(main_mod: ModuleRef) -> None;
+    def _references_undefined_fmt_kernel(main_mod: ModuleRef) -> bool;
 }

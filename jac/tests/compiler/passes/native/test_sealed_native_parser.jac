@@ -479,7 +479,7 @@ test "materializer parity holds across the jac0core source corpus" {
     # ships. Fixture-wide equivalence ran once on the integration branch
     # (1410 files, zero divergence); this keeps a representative slice green
     # in CI without that cost.
-    corpus = sorted((PKG_PATH / "jac0core").glob("*.jac"));
+    corpus = sorted((PKG_PATH / "jac0core").`glob("*.jac"));
     assert len(corpus) > 10;
     for src_file in corpus {
         _assert_parity(src_file.read_text(encoding="utf-8"), str(src_file));
@@ -652,7 +652,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
 test "refcount soundness: repeated materialization is object-count stable" {
     # Parity cannot see a leak, only a corruption (#8139 Step 2). Assert the
     # class-handle/key/enum registry does not accumulate references and that
-    # dropped trees actually die: live UniNode census and sampled refcounts
+    # dropped trees actually die: live UniNode coverage and sampled refcounts
     # return to baseline across repeated parses.
     (np, _out, _rec) = _build_binding();
     src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
@@ -809,8 +809,8 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     } finally {
         sealed.native_tier_required = saved_fn;
         frontend._NATIVE_PARSE_MEMO.clear();
-        for entry in saved_memo {
-            frontend._NATIVE_PARSE_MEMO.append(entry);
+        for `entry in saved_memo {
+            frontend._NATIVE_PARSE_MEMO.append(`entry);
         }
     }
 }

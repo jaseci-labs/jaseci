@@ -164,8 +164,8 @@ impl _should_ignore(path: str, ignore: list[str]) -> bool {
         if not raw {
             continue;
         }
-        entry = os.path.abspath(raw);
-        if (target == entry) or target.startswith(entry + os.sep) {
+        `entry = os.path.abspath(raw);
+        if (target == `entry) or target.startswith(`entry + os.sep) {
             return True;
         }
     }
@@ -189,13 +189,13 @@ impl _suite_source(filepath: str) -> str {
             import from jaclang.jac0core.bccache { discover_base_file }
             base = discover_base_file(filepath);
             if base {
-                return os.path.abspath(base);
+                return os.path.realpath(base);
             }
         } except Exception {
             ;
         }
     }
-    return os.path.abspath(filepath);
+    return os.path.realpath(filepath);
 }
 
 impl _iter_candidate_files(start: str, ignore: (list[str] | None) = None) -> list[str] {
@@ -556,8 +556,8 @@ impl JacTestResult._exc_info_to_string(err: any, `test: any) -> str {
         } except Exception {
             src = "";
         }
-        entry = (filename, lineno, funcname, src);
-        last = entry;
+        `entry = (filename, lineno, funcname, src);
+        last = `entry;
         vendored = False;
         for marker in (".venv/", "site-packages/", "/unittest/") {
             if marker in filename {
@@ -570,7 +570,7 @@ impl JacTestResult._exc_info_to_string(err: any, `test: any) -> str {
         if ("/jaclang/" in filename) and ("/tests/" not in filename) {
             continue;
         }
-        entries.append(entry);
+        entries.append(`entry);
     }
     lines: list[str] = [];
     for (filename, lineno, funcname, src) in entries {
@@ -665,10 +665,10 @@ impl run_file(
         roots.append(package_root);
     }
     injected: list[str] = [];
-    for entry in (roots + [basedir, real_dir]) {
-        if entry not in sys.path {
-            sys.path.insert(0, entry);
-            injected.append(entry);
+    for `entry in (roots + [basedir, real_dir]) {
+        if `entry not in sys.path {
+            sys.path.insert(0, `entry);
+            injected.append(`entry);
         }
     }
     import_error = "";
@@ -755,9 +755,9 @@ impl run_file(
             }
         }
     } finally {
-        for entry in injected {
+        for `entry in injected {
             try {
-                sys.path.remove(entry);
+                sys.path.remove(`entry);
             } except ValueError {
                 ;
             }
@@ -913,6 +913,14 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
 impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     import json;
     install_warning_filters();
+
+    _recycle = 25;
+    try {
+        _recycle = int(os.environ.get("JAC_TEST_RECYCLE", "25") or "25");
+    } except ValueError {
+        _recycle = 25;
+    }
+    _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
         line = reader.readline();
@@ -950,12 +958,21 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
                 )
             ];
         }
+        _served += 1;
+        _retire = _recycle > 0 and _served >= _recycle;
         payload = json.dumps(
-            {"idx": request["idx"], "outcomes": [o.to_wire() for o in outcomes]}
+            {
+                "idx": request["idx"],
+                "outcomes": [o.to_wire() for o in outcomes],
+                "retire": _retire
+            }
         );
         try {
             os.write(result_fd, (payload + "\n").encode("utf-8"));
         } except OSError {
+            break;
+        }
+        if _retire {
             break;
         }
     }
@@ -1003,6 +1020,15 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
+    if record.get("retire") {
+        kid["retired"] = True;
+        if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+            replacement = self._spawn(kid["slot"]);
+            self.kids.append(replacement);
+            self._dispatch(replacement);
+        }
+        return;
+    }
     self._dispatch(kid);
 }
 
@@ -1044,7 +1070,11 @@ impl ForkPool._reap(kid: dict[(str, any)]) -> None {
         }
         self.reporter.file_crashed(self.plan.files[idx], detail);
     }
-    if not self._should_stop() and (self.cursor < len(self.plan.files)) {
+    if (
+        not kid.get("retired")
+        and not self._should_stop()
+        and (self.cursor < len(self.plan.files))
+    ) {
         replacement = self._spawn(kid["slot"]);
         self.kids.append(replacement);
         self._dispatch(replacement);

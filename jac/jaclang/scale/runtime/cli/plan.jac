@@ -329,9 +329,9 @@ def _render_totals(bundle: any) {
         ("pdbs", "PDB"),
         ("pvcs", "PVC")
     ] {
-        entry = _n(key, label);
-        if entry {
-            parts.append(entry);
+        `entry = _n(key, label);
+        if `entry {
+            parts.append(`entry);
         }
     }
     if isinstance(bundle, dict) and bundle.get("ingress") {

@@ -15,9 +15,10 @@ class Module(object) {
         self._metadatacache = {};
     }
 
-    def _fix_metadata_operands(self: Module, operands: any) -> object {
-        fixed_ops = [];
-        for op in operands {
+    def _fix_metadata_operands(self: Module, operands: any) -> list[any] {
+        fixed_ops: list[any] = [];
+        for raw_op in operands {
+            op: any = raw_op;
             if (op is None) {
                 op = types.MetaDataType()(None);
             } elif isinstance(op, str) {
@@ -30,8 +31,10 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def _fix_di_operands(self: Module, operands: any) -> object {
-        fixed_ops = [];
+    def _fix_di_operands(
+        self: Module, operands: any
+    ) -> list[tuple[str, any]] {
+        fixed_ops: list[tuple[str, any]] = [];
         for (name, op) in operands {
             if isinstance(op, (`list, `tuple)) {
                 op = self.add_metadata(op);
@@ -41,8 +44,10 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def str_ditok_operands(self: Module, operands: any) -> object {
-        str_ops = [];
+    def str_ditok_operands(
+        self: Module, operands: any
+    ) -> list[tuple[str, any]] {
+        str_ops: list[tuple[str, any]] = [];
         for (name, op) in operands {
             if ((name == 'encoding') and isinstance(op, values.DIToken)) {
                 op = op.value;
@@ -170,17 +175,19 @@ class Module(object) {
         self.globals[globalvalue.name] = globalvalue;
     }
 
-    def get_identified_types(self: Module) -> object {
+    def get_identified_types(
+        self: Module
+    ) -> dict[str, types.IdentifiedStructType] {
         return self.context.identified_types;
     }
 
-    def _get_body_lines(self: Module) -> object {
+    def _get_body_lines(self: Module) -> list[str] {
         lines = [it.get_declaration() for it in self.get_identified_types().values()];
         lines += [str(v) for v in self.globals.values()];
         return lines;
     }
 
-    def _get_metadata_lines(self: Module) -> object {
+    def _get_metadata_lines(self: Module) -> list[str] {
         mdbuf = [];
         for (k, v) in self.namedmetadata.items() {
             mdbuf.append(

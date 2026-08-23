@@ -46,7 +46,7 @@ def _compile_ir(fixture: str, triple: str) -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(aot_mode=True, type_check=False)
+            options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
@@ -106,7 +106,7 @@ def _inject_elf(ir_txt: str) -> str {
 """Locate a bundled archive by name from any pbs build, or None."""
 def _find_bundled(libname: str) -> (str | None) {
     jac_dir = Path(__file__).resolve().parents[4];
-    hits = list(jac_dir.glob(f".pbs-build/*/python/build/lib/{libname}"));
+    hits = list(jac_dir.`glob(f".pbs-build/*/python/build/lib/{libname}"));
     return str(hits[0]) if hits else None;
 }
 

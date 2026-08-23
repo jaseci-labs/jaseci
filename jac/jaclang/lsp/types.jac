@@ -1,4 +1,5 @@
 import from enum { IntEnum, StrEnum }
+import types as pytypes;
 import from typing { Optional, Union }
 
 glob TEXT_DOCUMENT_DID_OPEN = "textDocument/didOpen",
@@ -102,7 +103,7 @@ obj Position {
         character: int = 0;
 
     def __repr__ -> str;
-    def __eq__(other: object) -> bool;
+    def __eq__(other: object) -> (bool | pytypes.NotImplementedType);
     def __hash__ -> int;
 }
 
@@ -111,7 +112,7 @@ obj Range {
         end: Position = Position();
 
     def __repr__ -> str;
-    def __eq__(other: object) -> bool;
+    def __eq__(other: object) -> (bool | pytypes.NotImplementedType);
     def __hash__ -> int;
 }
 
@@ -318,7 +319,7 @@ obj SemanticTokensLegend {
 }
 
 obj FileOperationPattern {
-    has glob: str = "";
+    has `glob: str = "";
 }
 
 obj FileOperationFilter {

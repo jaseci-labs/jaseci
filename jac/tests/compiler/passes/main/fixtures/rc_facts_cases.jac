@@ -1,6 +1,9 @@
 """Fixtures for RcFactsPass move-lowerability proofs. Each function has one `bN = a` candidate; the
-proof must mark exactly the sound ones. Compiled with `type_check=False`, so the
-marks come purely from the native proof, never the ownership checker."""
+proof must mark exactly the sound ones. The marks come purely from the native
+proof, never the ownership checker. The checker runs on every compile now, so
+each hazard source is a plain RC-managed local (the checker only tracks `own`
+bindings, and a real `own` UAF no longer compiles); the proof ignores the
+declaration's ownership either way -- it reasons from uses and liveness."""
 
 obj Box {
     has v: int = 0;
@@ -12,6 +15,10 @@ obj Holder {
 
 def take(x: Box) -> int {
     return 1;
+}
+
+def consume(x: str) -> int {
+    return len(x);
 }
 
 # 1. Safe straight-line last-use move: `a` is a local whose only use is the move,
@@ -30,16 +37,18 @@ def f_param(a: own Box) -> int {
 }
 
 # 3. Source is passed as a call-arg (a non-alias use) -> disqualified -> b3 NOT.
+#    Plain local: an `own` source re-read after the call is E1301 and cannot compile.
 def f_callarg -> int {
-    a: own Box = Box(v=1);
+    a: Box = Box(v=1);
     take(a);
     b3 = a;
     return take(b3);
 }
 
 # 4. Source stored into a field (escapes) -> disqualified -> b4 NOT.
+#    Plain local: an `own` source re-read after the field store cannot compile.
 def f_fieldstore -> int {
-    a: own Box = Box(v=1);
+    a: Box = Box(v=1);
     h = Holder(inner=Box());
     h.inner = a;
     b4 = a;
@@ -55,25 +64,28 @@ def f_closure -> int {
 }
 
 # 6. Source captured by a concurrent payload -> disqualified -> b6 NOT.
+#    The payload is a sendable str (a plain Box is not sendable, E1308, and an
+#    `own` Box re-read after the capture is E1301); str is still RC-managed.
 def f_concurrent -> int {
-    a: own Box = Box(v=1);
-    flow take(a) ;
+    a: str = "payload";
+    flow consume(a) ;
     b6 = a;
-    return take(b6);
+    return consume(b6);
 }
 
 # 7. Source borrowed (`&a`, a non-alias use) -> disqualified -> b7 NOT.
 def f_borrow -> int {
     a: own Box = Box(v=1);
-    r: &Box = & a;
+    r: &Box = &a;
     b7 = a;
     return take(b7);
 }
 
 # 8. Loop hazard: `a` defined OUTSIDE the loop, moved inside with no redefinition.
 #    A later use is reached via the back-edge, so `a` is live-out -> b8 NOT.
+#    Plain local: an `own` local moved under a deeper loop is E1301 and cannot compile.
 def f_loop_hazard(n: int) -> int {
-    a: own Box = Box(v=0);
+    a: Box = Box(v=0);
     total = 0;
     i = 0;
     while i < n {

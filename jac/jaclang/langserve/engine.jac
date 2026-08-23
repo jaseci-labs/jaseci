@@ -35,10 +35,13 @@ import from . { utils }
 import from .module_manager { ModuleManager }
 import from .rwlock { ReadWriteLock }
 
+def _uri_of(path: str) -> str;
+def _path_of(uri: str) -> str;
+
 obj Task {
     has file_uri: str,
         task_id: int postinit,
-        cancel_token: threading.Event | None postinit;
+        cancel_token: threading.Event postinit;
 
     static has _task_id: int = 0;
 
@@ -47,7 +50,7 @@ obj Task {
 
 obj JacLangServer(JacProgram, LanguageServer) {
     has sem_managers: dict[str, SemTokManager] = {},
-        module_manager: ModuleManager | None postinit,
+        module_manager: ModuleManager postinit,
         pipe: deque = deque(maxlen=1),
         dirty_files: dict[str, bool] = {},
         last_task: Task | None = None,
@@ -80,7 +83,7 @@ obj JacLangServer(JacProgram, LanguageServer) {
     def _fanout_dependents(file_uri: str) -> None;
     def get_token_at_position(
         file_path: str, position: lspt.Position
-    ) -> Optional[uni.UniNode];
+    ) -> Optional[uni.AstSymbolNode];
 
     def debug(msg: str) -> None;
     def wait_till_idle_sync(file_uri: str) -> None;
