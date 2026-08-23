@@ -307,11 +307,14 @@ def class_def_loc(cd: ClassDef) -> cloc {
 }
 
 
-def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
+def emit_class_body_prologue(g: cfg_builder, class_qname: str, body_firstlineno: int) {
     # CPython 3.14 locations: MAKE_CELL carries NO_LOCATION; RESUME and the
-    # __name__/__module__/__qualname__ boilerplate all sit on the class
-    # statement line with zero-width columns.
-    cloc = loc(cd.lineno, cd.lineno, 0, 0);
+    # __name__/__module__/__qualname__ boilerplate all sit on the scope's
+    # first line (the first decorator's line for a decorated class) with
+    # zero-width columns. CPython spans for `class` statements run through
+    # the last body statement (same parser-end_tok overshoot as
+    # function_def_loc, see codegen_util).
+    cloc = loc(body_firstlineno, body_firstlineno, 0, 0);
     noloc = no_loc();
     # CPython order: COPY_FREE_VARS (class-body free vars) precedes MAKE_CELLs.
     if len(g.u.freevars) > 0 {
@@ -325,7 +328,7 @@ def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
             ci = ci + 1;
         }
     }
-    g.emit_op(OP_RESUME, 0, loc(cd.lineno, cd.lineno, 0, 0));
+    g.emit_op(OP_RESUME, 0, cloc);
     nidx = g.u.add_name("__name__");
     g.emit_op(OP_LOAD_NAME, nidx, cloc);
     midx = g.u.add_name("__module__");
@@ -334,7 +337,7 @@ def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
     g.emit_op(OP_LOAD_CONST, qidx, cloc);
     qnidx = g.u.add_name("__qualname__");
     g.emit_op(OP_STORE_NAME, qnidx, cloc);
-    emit_folded_int(g, cd.lineno, cloc);
+    emit_folded_int(g, body_firstlineno, cloc);
     flidx = g.u.add_name("__firstlineno__");
     g.emit_op(OP_STORE_NAME, flidx, cloc);
     if len(g.u.cellvars) > 0 {
@@ -378,7 +381,25 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
         codegen_fail(g, "SystemError", "missing symtable for class " + cd.name);
         return stmt_cont(loc=cloc);
     }
-    u_cls = compile_class_cfg(cd, g.u.filename, sym_cls, g.private);
+    decorators = cd.decorator_list;
+    if decorators is None {
+        decorators = [];
+    }
+    # CPython codegen_class: decorator expressions evaluate in the ENCLOSING
+    # scope, left-to-right, before the class body is compiled -- their
+    # names/consts therefore precede the body's in both tables.
+    di = 0;
+    while di < len(decorators) {
+        visit_expr(g, decorators[di], False, False);
+        if codegen_busy(g) {
+            return stmt_cont(loc=cloc);
+        }
+        di = di + 1;
+    }
+    u_cls = compile_class_cfg(
+        cd, g.u.filename, sym_cls, g.private,
+        decorators[0].lineno if len(decorators) > 0 else None
+    );
     if u_cls.diag is not None {
         g.u.diag = u_cls.diag;
         return stmt_cont(loc=cloc);
@@ -417,6 +438,15 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
     if codegen_busy(g) {
         return stmt_cont(loc=cloc);
     }
+    # Apply decorators outermost-last: CALL 0 per decorator, right-to-left
+    # through decorator_list, each row carrying that decorator's span
+    # (CPython codegen_apply_decorators).
+    ri = len(decorators) - 1;
+    while ri >= 0 {
+        dec = decorators[ri];
+        g.emit_op(OP_CALL, 0, expr_loc(dec));
+        ri = ri - 1;
+    }
     if g.sym_top is not None and g.sym_top.block_type == "function" {
         fi = fast_local_index(g, cd.name);
         if fi < 0 {
@@ -439,11 +469,19 @@ def compile_class_cfg(
     cd: ClassDef,
     filename: str,
     sym_cls: sym_block,
-    enclosing_private: str | None = None
+    enclosing_private: str | None = None,
+    body_firstlineno: int | None = None
 ) -> unverified_cfg {
+    # CPython codegen_class scopes the class body at the first decorator's
+    # line when decorated (drives co_firstlineno, RESUME/boilerplate rows,
+    # and __firstlineno__); otherwise the `class` line.
+    if body_firstlineno is None {
+        body_firstlineno = cd.lineno;
+    }
     class_qname = sym_class_qualname(cd, sym_cls, enclosing_private);
     u = unverified_cfg(
-        filename=filename, name=cd.name, qualname=class_qname, firstlineno=cd.lineno
+        filename=filename, name=cd.name, qualname=class_qname,
+        firstlineno=body_firstlineno
     );
     if sym_cls.nested {
         u.flags = CO_NESTED;
@@ -463,7 +501,7 @@ def compile_class_cfg(
     }
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_cls, cd.name);
-    emit_class_body_prologue(g, cd, class_qname);
+    emit_class_body_prologue(g, class_qname, body_firstlineno);
     emit_class_annotation_setup(g, ann_plan, nloc(cd.lineno, cd.end_lineno,
         cd.col_offset, cd.end_col_offset));
     last = loc(0, cd.lineno, 0, 0);
@@ -510,7 +548,8 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
         decorators = [];
     }
     u_fn = compile_fn_cfg(
-        fd.name, fd.args, fd.body, fd.lineno, g.u.filename, sym_fn, g.private
+        fd.name, fd.args, fd.body, fd.lineno, g.u.filename, sym_fn, g.private,
+        decorators[0].lineno if len(decorators) > 0 else None
     );
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
@@ -569,7 +608,8 @@ def visit_async_function_def(g: cfg_builder, afd: AsyncFunctionDef) -> stmt_cont
         decorators = [];
     }
     u_fn = compile_fn_cfg(
-        afd.name, afd.args, afd.body, afd.lineno, g.u.filename, sym_fn, g.private
+        afd.name, afd.args, afd.body, afd.lineno, g.u.filename, sym_fn, g.private,
+        decorators[0].lineno if len(decorators) > 0 else None
     );
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
@@ -619,10 +659,18 @@ def compile_fn_cfg(
     lineno: int,
     filename: str,
     sym_fn: sym_block,
-    private: str | None = None
+    private: str | None = None,
+    body_firstlineno: int | None = None
 ) -> unverified_cfg {
+    # CPython codegen_function scopes the body at the first decorator's line
+    # when decorated (drives co_firstlineno and the prologue rows).
+    if body_firstlineno is None {
+        body_firstlineno = lineno;
+    }
     (argcount, posonly, kwonly) = function_argcounts(args);
-    u = unverified_cfg(filename=filename, name=name, qualname=name, firstlineno=lineno);
+    u = unverified_cfg(
+        filename=filename, name=name, qualname=name, firstlineno=body_firstlineno
+    );
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
@@ -638,8 +686,8 @@ def compile_fn_cfg(
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_fn, private);
-    protect_start = emit_function_prologue(g, sym_fn, lineno, is_suspendable);
-    last = loc(0, lineno, 0, 0);
+    protect_start = emit_function_prologue(g, sym_fn, body_firstlineno, is_suspendable);
+    last = loc(0, body_firstlineno, 0, 0);
     terminated = False;
     bi = 0;
     while bi < len(body) {

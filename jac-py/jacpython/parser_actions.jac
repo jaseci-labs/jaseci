@@ -74,6 +74,7 @@ import from ast_nodes {
     Break,
     Continue,
     FunctionDef,
+    ClassDef,
     AsyncFunctionDef,
     pattern,
     arguments,
@@ -1619,6 +1620,24 @@ def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
 }
 
 def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
+    # Mirrors _PyPegen_class_def_decorators: attach the decorators to the
+    # ClassDef produced by class_def_raw. Node spans stay anchored on the
+    # `class` keyword (CPython never extends them over the decorator lines).
+    if isinstance(stmt, ClassDef) {
+        cd = stmt as ClassDef;
+        return ClassDef(
+            name=cd.name,
+            bases=cd.bases,
+            keywords=cd.keywords,
+            body=cd.body,
+            decorator_list=decs,
+            type_params=cd.type_params,
+            lineno=cd.lineno,
+            col_offset=cd.col_offset,
+            end_lineno=cd.end_lineno,
+            end_col_offset=cd.end_col_offset
+        );
+    }
     return stmt;
 }
 

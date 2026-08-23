@@ -1265,6 +1265,19 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         if not b.add_def(cd.name, DEF_LOCAL, cd.lineno, cd.col_offset) {
             return False;
         }
+        # Decorators evaluate in the ENCLOSING scope (CPython symtable.c
+        # ClassDef_kind visits decorator_list before entering the class block).
+        decs = cd.decorator_list;
+        if decs is None {
+            decs = [];
+        }
+        di = 0;
+        while di < len(decs) {
+            if not sym_visit_load_expr(b, decs[di]) {
+                return False;
+            }
+            di = di + 1;
+        }
         saved_private = b.private;
         nested = b.cur.block_type != "module";
         if not b.push_block("class", cd.name, cd.lineno, nested) {
