@@ -18,6 +18,21 @@ def _u64(x: int) -> int {
     return int(x) & _U64;
 }
 
+# xxHash-style lane mixing for combined hashes -- the SIZEOF_PY_UHASH_T > 4
+# constants from CPython (tupleobject.c defines them beside tuplehash();
+# sliceobject.c's slice_hash reuses the same values and rotate).
+glob _PyHASH_XXPRIME_1: int = 11400714785074694791,
+     _PyHASH_XXPRIME_2: int = 14029467366897019727,
+     _PyHASH_XXPRIME_5: int = 2870177450012600261;
+
+# One ``acc += lane * PRIME_2; rotate; acc *= PRIME_1`` step, shared by
+# tuple_hash and slice_hash.
+def xx_hash_mix(acc: int, lane: int) -> int {
+    acc = _u64(acc + _u64(lane) * _PyHASH_XXPRIME_2);
+    acc = _rotl64(acc, 31);
+    return _u64(acc * _PyHASH_XXPRIME_1);
+}
+
 def _pyhash_t(x: int) -> int {
     x = _u64(x);
     if x >= 0x8000000000000000 {

@@ -3,25 +3,19 @@
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/tupleobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/tupleobject_core.jac``).
 import from objects { PyObj, PyTuple, PyBool, PyInt, is_error, _cmp3, _bool_from_cmp, _signed_hash, Py_EQ, Py_NE, }
+import from pyhash { xx_hash_mix, _PyHASH_XXPRIME_5, }
 import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_RichCompare,
     PyObject_RichCompareBool,
 }
 
-glob _PyTuple_HASH_XXPRIME_1: int = 11400714785074694791,
-     _PyTuple_HASH_XXPRIME_2: int = 14029467366897019727,
-     _PyTuple_HASH_XXPRIME_5: int = 2870177450012600261,
-     _PyTuple_MASK: int = 0xFFFFFFFFFFFFFFFF;
+glob _PyTuple_MASK: int = 0xFFFFFFFFFFFFFFFF;
 
-
-def _tuple_xxrotate(acc: int) -> int {
-    return ((acc << 31) | (acc >> 33)) & _PyTuple_MASK;
-}
-
-# CPython ``tuple_hash`` (xxHash-style lane mixing from ``tupleobject.c``).
+# CPython ``tuple_hash`` (xxHash-style lane mixing from ``tupleobject.c``;
+# the constants/rotate live in ``pyhash.xx_hash_mix``).
 def tuple_hash(v: PyTuple) -> PyObj {
-    acc = _PyTuple_HASH_XXPRIME_5;
+    acc = _PyHASH_XXPRIME_5;
     tlen = len(v.items);
     i = 0;
     while i < tlen {
@@ -29,14 +23,10 @@ def tuple_hash(v: PyTuple) -> PyObj {
         if is_error(lane_obj) {
             return lane_obj;
         }
-        lane = (lane_obj as PyInt).val;
-        acc = (acc + ((lane & _PyTuple_MASK) * _PyTuple_HASH_XXPRIME_2))
-            & _PyTuple_MASK;
-        acc = _tuple_xxrotate(acc);
-        acc = (acc * _PyTuple_HASH_XXPRIME_1) & _PyTuple_MASK;
+        acc = xx_hash_mix(acc, (lane_obj as PyInt).val);
         i = i + 1;
     }
-    acc = (acc + (tlen ^ (_PyTuple_HASH_XXPRIME_5 ^ 3527539))) & _PyTuple_MASK;
+    acc = (acc + (tlen ^ (_PyHASH_XXPRIME_5 ^ 3527539))) & _PyTuple_MASK;
     if acc == _PyTuple_MASK {
         acc = 1546275796;
     }
