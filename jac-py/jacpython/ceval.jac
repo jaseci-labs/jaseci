@@ -1086,8 +1086,24 @@ obj PyRange(PyObj) {
         if name == "step" {
             return PyInt(t="int", val=self.step);
         }
-        # .index()/.count() are P2; everything else misses like CPython.
+        if name == "index" or name == "count" {
+            return PyRangeMethod(t="range_method", target=self, name=name);
+        }
         return py_error("AttributeError", name);
+    }
+
+    # CPython range_hash: the None-stub triple collapses equal ranges that
+    # differ in constructor args (len 0 ignores start/step; len 1 ignores
+    # step). Encode exactly those equivalence classes.
+    def tp_hashkey -> str {
+        n = self.length();
+        if n == 0 {
+            return "r:e";
+        }
+        if n == 1 {
+            return "r:1:" + str(self.start);
+        }
+        return "r:n:" + str(n) + ":" + str(self.start) + ":" + str(self.step);
     }
 
     def tp_iter -> PyObj {
@@ -1159,6 +1175,74 @@ obj PyRangeIter(PyObj) {
     has cur: int,
         remaining: int,
         step: int;
+}
+
+# Bound .index()/.count() methods over a PyRange (CPython range_index/
+# range_count): exact-int needles take O(1) arithmetic from the lifted leaf;
+# everything else scans with real == (_PySequence_IterSearch semantics).
+obj PyRangeMethod(PyObj) {
+    has target: PyRange,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 or len(args) != 1 {
+            return py_error(
+                "TypeError",
+                self.name + "() takes exactly one argument (" + str(len(args) + len(kwargs)) + " given)",
+            );
+        }
+        rg = self.target;
+        value = args[0];
+        is_int = isinstance(value, PyInt) or isinstance(value, PyBool);
+        if self.name == "count" {
+            if is_int {
+                v = (value as PyInt).val;
+                hit = range_contains_longs(rg.start, rg.stop, rg.step, v);
+                return PyInt(t="int", val=1 if hit else 0);
+            }
+            hits = 0;
+            cursor = rg.tp_iter();
+            while True {
+                scan_step = send_into(cursor, py_none());
+                if scan_step.t == "genstop" {
+                    return PyInt(t="int", val=hits);
+                }
+                cmp = py_compare(2, value, scan_step);
+                if is_error(cmp) {
+                    return cmp;
+                }
+                if cmp.tp_bool() {
+                    hits = hits + 1;
+                }
+            }
+        }
+        # .index(value)
+        if is_int {
+            v = (value as PyInt).val;
+            if range_contains_longs(rg.start, rg.stop, rg.step, v) {
+                pos = (v - rg.start) // rg.step;
+                return PyInt(t="int", val=pos);
+            }
+            return py_error("ValueError", "range.index(x): x not in range");
+        }
+        cursor = rg.tp_iter();
+        position = 0;
+        while True {
+            scan_step2 = send_into(cursor, py_none());
+            if scan_step2.t == "genstop" {
+                break;
+            }
+            cmp = py_compare(2, value, scan_step2);
+            if is_error(cmp) {
+                return cmp;
+            }
+            if cmp.tp_bool() {
+                return PyInt(t="int", val=position);
+            }
+            position = position + 1;
+        }
+        return py_error("ValueError", "sequence.index(x): x not in sequence");
+    }
 }
 
 obj PyClass(PyObj) {
@@ -2363,11 +2447,8 @@ def py_repr(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyRange) {
         rg = value as PyRange;
-        # CPython range_repr: stop-only when start==0 and step==1; two-arg when
-        # step==1; else all three (host-verified incl. negative steps).
-        if rg.start == 0 and rg.step == 1 {
-            return PyStr(t="str", val="range(" + str(rg.stop) + ")");
-        }
+        # CPython range_repr: ALWAYS two-arg when step==1 -- there is no
+        # stop-only form (host oracle: repr(range(5)) == 'range(0, 5)').
         if rg.step == 1 {
             return PyStr(
                 t="str",
