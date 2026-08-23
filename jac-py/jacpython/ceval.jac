@@ -7678,6 +7678,23 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 continue;
             }
+            if top.t == "rangeiter" {
+                nxt = send_into(top, py_none());
+                if nxt.t == "genstop" {
+                    stack.pop();
+                    ip = ip + 2 * arg;
+                } elif is_error(nxt) {
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                    } else {
+                        return nxt;
+                    }
+                } else {
+                    stack.append(nxt);
+                }
+                continue;
+            }
             iterator = top as PyIter;
             if iterator.index < len(iterator.items) {
                 stack.append(iterator.items[iterator.index]);
