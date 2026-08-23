@@ -7440,6 +7440,11 @@ def exec_code_frame(
         fast.append(closure[fi] as PyObj);
         fi = fi + 1;
     }
+    # The bound-tracking flags cover the FULL merged localsplus (a cell-targeted
+    # comprehension's tail STORE_FAST restore addresses appended slots too).
+    while len(assigned) < len(fast) {
+        assigned.append(False);
+    }
     frame = PyFrame(
         t="frame",
         co=co,
