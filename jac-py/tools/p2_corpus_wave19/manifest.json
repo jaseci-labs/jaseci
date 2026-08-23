@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave19",
+  "description": "P2 wave 19: _collections deque integer kernels (valid_index bounds check, NEEDS_TRIM unsigned maxlen test, deque_index start/stop normalization ladder, _deque_rotate halflen step reduction, block-locate div/mod arithmetic, insert path selection, inplace repeat maxlen caps, __sizeof__ block counting)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave19",
+  "baseline_report": "jac-py/tools/p2_corpus_wave19/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "collectionsmodule",
+      "source": "jac-py/tools/p2_corpus_wave19/corpus/collectionsmodule.c",
+      "header_free": true
+    }
+  ]
+}

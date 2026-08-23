@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave19",
+  "description": "P2 wave 19 staging policy (_collections deque integer kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave19",
+  "modules": [
+    {
+      "stem": "collectionsmodule",
+      "staging": "lift"
+    }
+  ]
+}
