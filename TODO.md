@@ -416,6 +416,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     - py_none() mints fresh instances with no richcompare arm, so None in {None}
     returned False. Fixed via eq/ne-vs-PyNoneType arm; None==0/'' correctly False.
 
+48. **[MED] User exception subclass loses .args READ.** str(e.args) where
+    e = MyErr('m') (user subclass of Exception) raises AttributeError('args');
+    base builtin exceptions read fine. The class-attr lookup through the
+    native-base Exception layout misses the args slot for subclasses.
+    Distinct from item 39 (WRITE on base instances) - this is READ on
+    subclass instances. Found fuzz round 43. YoungHawk candidate.
+
 47. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
     TypeAlias slice 0c5a15a61, byte-exact compiler side). `type X = int`
     compiles but runtime raises unsupported-opcode until VM arm lands.
