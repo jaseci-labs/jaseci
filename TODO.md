@@ -412,6 +412,12 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
+    __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
+    RecursionError - super() in that context re-binds to the defining method
+    instead of object.__init_subclass__. Found via fuzz round 35
+    (init-subclass-hook). Family: user-class super() dispatch.
+
 35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
     object-is-not-iterable** - PyBytes was the only core sequence without
     tp_iter. Fixed: yields ints per CPython bytes_iterator semantics.
@@ -798,6 +804,12 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+38. **[MED] super().__init_subclass__() recurses infinitely.** Class with
+    __init_subclass__(cls, **kw) calling super().__init_subclass__() hits
+    RecursionError - super() in that context re-binds to the defining method
+    instead of object.__init_subclass__. Found via fuzz round 35
+    (init-subclass-hook). Family: user-class super() dispatch.
 
 35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
     object-is-not-iterable** - PyBytes was the only core sequence without
