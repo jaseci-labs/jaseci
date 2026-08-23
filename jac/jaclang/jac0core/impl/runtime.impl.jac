@@ -189,16 +189,11 @@ impl JacAccessValidation.check_access_level(
 
 
 impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    sv_register_hydrated(jroot, fetch_stubs=True);
     out: list[str] = [];
-    for e in jroot.edges {
-        if not e.is_populated() {
-            continue;
-        }
-        src = e.source;
-        tgt = e.target;
-        if src is not None and tgt is not None and src.id == jroot.id {
-            out.append(str(tgt.id));
-        }
+    for grp in sv_live_edges(jroot, EdgeDir.OUT.value, None, False) {
+        out.append(str(grp.id));
     }
     return out;
 }

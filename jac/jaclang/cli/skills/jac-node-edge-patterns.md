@@ -45,7 +45,7 @@ with entry {
 - **Reference semantics: deduplicated, ordered, eager.** One reference returns each destination once (parallel edges and diamond paths collapse); results come back in edge-creation order unless an ordering term asks otherwise (see below); and the reference is evaluated where it appears - nodes attached after the line are not in its result. A traversal read *on the spot* (`len([a-->])`, `if [a-->]`) answers from the query without materialising the neighbourhood, which changes the cost, not the result.
 - **Order and bound inside the reference, not after it.** An ordering term is a bare field name (ascending) or its negation (descending), written in the same comma list as the predicates, in the position that says which side it reads: the hop slot names the edge, the filter bracket names the node. Ordering terms come after every predicate on that hop, and only the final hop of a chain may carry one.
 
-```jac
+```
 [chan ->:Posted:-sent:-> [?:Msg]]           # by the carrying edge's field, descending
 [chan ->:Posted:-> [?:Msg, -at]]            # by the node's field, descending
 [chan ->:Posted:-> [?:Msg, at > 3, -at]]    # filter, then order

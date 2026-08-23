@@ -62,7 +62,7 @@ user +>:Wrote(at="..."):+> existing_post;  # attach an existing node
 
 **Ask the store, not the process.** A predicate, an ordering term and a bound inside the reference all compile into one SQL statement, so the query answers the question instead of the neighbourhood being loaded and filtered in Python:
 
-```jac
+```
 [u ->:Wrote:-> [?:Post, published, -at]][:20]   # WHERE + ORDER BY + LIMIT, one query
 len([u ->:Wrote:-> [?:Post]])                   # a COUNT; deserializes nothing
 if [u ->:Wrote:-> [?:Post, published]] { ... }  # stops at the first row
@@ -81,7 +81,7 @@ Without this a `[?:Post, -at]` still returns the right rows -- correctness never
 
 **Sharing: name a group, not every grantee.** `allow_root(obj, root_id)` writes one entry per grantee into the object's own permission map, so sharing with an audience of N costs N entries on that object -- re-serialised on every write to it. `allow_group(obj, group_id, level)` is one entry, and membership is an edge:
 
-```jac
+```
 node Team { has name: str; }
 edge MemberOf {}
 
