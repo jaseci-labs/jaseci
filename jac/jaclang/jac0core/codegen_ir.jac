@@ -108,7 +108,8 @@ def _r_svarint(data: bytes, pos: int, what: str) -> tuple[int, int] {
 }
 
 def _w_str_entry(buf: bytearray, s: str) {
-    raw = s.encode("utf-8");
+    """Encode with surrogatepass so lone surrogates in literals round-trip.""";
+    raw = s.encode("utf-8", errors="surrogatepass");
     _w_varint(buf, len(raw));
     buf.extend(raw);
 }
@@ -120,7 +121,7 @@ def _r_str_entry(data: bytes, pos: int, what: str) -> tuple[str, int] {
             f"truncated container: {what} string body runs past the end"
         );
     }
-    s = data[pos:pos + n].decode("utf-8");
+    s = data[pos:pos + n].decode("utf-8", errors="surrogatepass");
     return (s, pos + n);
 }
 

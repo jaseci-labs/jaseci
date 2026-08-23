@@ -718,6 +718,19 @@ test "unicode string literals" {
     assert "Newline ○" in lines[6];
 }
 
+test "lone surrogate string literals" {
+    output = run_jac(os.path.join(FIXTURES, "lone_surrogate_strings.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "1";
+    assert lines[1] == "True";
+    assert lines[2] == "2";
+    assert lines[3] == "True";
+    assert lines[4] == "3";
+    assert lines[5] == "True";
+    assert lines[6] == "True";
+    assert lines[7] == "True";
+}
+
 test "spawn loc list" {
     output = run_jac(os.path.join(FIXTURES, "spawn_loc_list.jac"));
     lines = output.split("\n");
