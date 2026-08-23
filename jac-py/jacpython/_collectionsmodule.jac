@@ -58,7 +58,8 @@ def _deque_c_imod(a: int, b: int) -> int {
 def _p2_deque_index_arg(v: any) -> int {
     # Mirrors the clinic integer converter for maxlen/index args:
     # "an integer is required" rather than the __index__-protocol message.
-    if not isinstance(v, int) or isinstance(v, bool) {
+    # bool passes: CPython treats it as a PyLong (d[maxlen=True] works).
+    if not isinstance(v, int) {
         raise TypeError("an integer is required");
     }
     return v;
@@ -303,14 +304,14 @@ obj _P2Deque {
         s: int = 0;
         e: int = size;
         if start is not None {
-            if not isinstance(start, int) or isinstance(start, bool) {
+            if not isinstance(start, int) {
                 raise TypeError(
                     "slice indices must be integers or have an __index__ method");
             }
             s = start;
         }
         if stop is not None {
-            if not isinstance(stop, int) or isinstance(stop, bool) {
+            if not isinstance(stop, int) {
                 raise TypeError(
                     "slice indices must be integers or have an __index__ method");
             }
@@ -438,7 +439,7 @@ obj _P2Deque {
         if isinstance(item, slice) {
             raise TypeError("sequence index must be integer, not 'slice'");
         }
-        if not isinstance(item, int) or isinstance(item, bool) {
+        if not isinstance(item, int) {
             raise TypeError("sequence index must be integer, not '"
                             + _p2_deque_type_name(item) + "'");
         }
@@ -456,7 +457,7 @@ obj _P2Deque {
         if isinstance(item, slice) {
             raise TypeError("sequence index must be integer, not 'slice'");
         }
-        if not isinstance(item, int) or isinstance(item, bool) {
+        if not isinstance(item, int) {
             raise TypeError("sequence index must be integer, not '"
                             + _p2_deque_type_name(item) + "'");
         }
@@ -474,7 +475,7 @@ obj _P2Deque {
         if isinstance(item, slice) {
             raise TypeError("sequence index must be integer, not 'slice'");
         }
-        if not isinstance(item, int) or isinstance(item, bool) {
+        if not isinstance(item, int) {
             raise TypeError("sequence index must be integer, not '"
                             + _p2_deque_type_name(item) + "'");
         }
@@ -631,7 +632,7 @@ obj _P2Deque {
 
 
 def _require_repeat_count(n: any) -> int {
-    if not isinstance(n, int) or isinstance(n, bool) {
+    if not isinstance(n, int) {
         raise TypeError("can't multiply sequence by non-int of type '"
                         + _p2_deque_type_name(n) + "'");
     }

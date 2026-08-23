@@ -1240,6 +1240,9 @@ def visit_stmt(
     if isinstance(s, ClassDef) {
         return visit_class_def(g, s as ClassDef);
     }
+    if isinstance(s, TypeAlias) {
+        return visit_type_alias(g, s as TypeAlias);
+    }
     if isinstance(s, Import) {
         return visit_import(g, s as Import);
     }
@@ -1454,5 +1457,6 @@ import from compiler_defs {
     visit_import_from,
     visit_class_def,
     visit_function_def,
-    visit_async_function_def
+    visit_async_function_def,
+    visit_type_alias
 }
