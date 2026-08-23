@@ -262,7 +262,7 @@ obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
-        coerce_to: (TypeBase | None) postinit,
+        coerce_to: (str | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;

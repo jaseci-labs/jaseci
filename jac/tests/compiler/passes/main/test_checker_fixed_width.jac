@@ -411,3 +411,58 @@ test "the native lane reports exactly the diagnostics the server lane reports" {
         ] , sv;
     assert na == sv , f"native {na} != server {sv}";
 }
+
+# ── extern (clib) struct construction ────────────────────────────
+test "sized fields of an extern struct are enforced at construction on every lane" {
+    src = (
+        'import from m {\n'
+        '    obj Color { has r: u8, g: u8, b: u8, a: u8; }\n'
+        '}\n'
+        'def paint(x: int) -> Color {\n'
+        '    c = Color(r=x, g=3, b=300, a=u8(x));\n'
+        '    return Color(x, 1, 2, 3);\n'
+        '}\n'
+    );
+    expected = [("E1127", 5, 17), ("E1126", 5, 27), ("E1127", 6, 18)];
+    assert fw_only(check(src)) == expected , check(src);
+    assert fw_only(check(src, "native")) == expected , check(src, "native");
+}
+
+test "overloaded extern signatures resolve with literal adoption and casts" {
+    src = (
+        'import from "libc.so.6" {\n'
+        '    def memset(s: int, c: i32, n: int) -> int;\n'
+        '}\n'
+        'import from "libSystem.B.dylib" {\n'
+        '    def memset(s: int, c: i32, n: int) -> int;\n'
+        '}\n'
+        'def clear(buf: int, fill: int) -> int {\n'
+        '    memset(buf, 0, 1);\n'
+        '    memset(buf, i32(fill), 4);\n'
+        '    return memset(buf, -1, 2);\n'
+        '}\n'
+    );
+    assert check(src) == [] , check(src);
+    assert check(src, "native") == [] , check(src, "native");
+}
+
+test "sized fields and Callable members of an extern struct are typed on every lane" {
+    src = (
+        'import from m {\n'
+        '    obj Api { has depth: u8 = 0, get_error: Callable[[int, int], i32] = 0, free: Callable[[int], None] = 0; }\n'
+        '}\n'
+        'def drive(api: Api, h: int, n: int) -> int {\n'
+        '    rc = api.get_error(h, h);\n'
+        '    if rc != 0 {\n'
+        '        api.depth = n;\n'
+        '    }\n'
+        '    api.depth = u8(n);\n'
+        '    api.free(h);\n'
+        '    d: int = api.depth;\n'
+        '    return d + rc;\n'
+        '}\n'
+    );
+    expected = [("E1127", 7, 21)];
+    assert fw_only(check(src)) == expected , check(src);
+    assert fw_only(check(src, "native")) == expected , check(src, "native");
+}

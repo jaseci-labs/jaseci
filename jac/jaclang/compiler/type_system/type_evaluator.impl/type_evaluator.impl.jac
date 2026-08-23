@@ -930,7 +930,13 @@ impl TypeEvaluator._get_type_of_expression_core(
                     _attr_arch = base_type.shared.symbol_table;
                     if isinstance(_attr_arch, Archetype)
                         and _attr_arch.find_parent_of_type(Import) is not None {
-                        expr.right.type = AnyType(is_foreign=True);
+                        if _ext_member
+                            := self._lookup_class_member(base_type, expr.right.value) {
+                            _ext_member.symbol.add_use(expr.right);
+                        }
+                        expr.right.type = self._extern_member_type(
+                            _attr_arch, expr.right.sym_name
+                        );
                         return expr.right.type;
                     }
                     if (
@@ -3211,9 +3217,13 @@ impl TypeEvaluator.is_type_var_tuple_class(ty: TypeBase) -> bool {
 }
 
 impl TypeEvaluator.assign_expr(
-    expr: Expr | None, src_type: TypeBase, dest_type: TypeBase, strict: bool = False
+    expr: Expr | None,
+    src_type: TypeBase,
+    dest_type: TypeBase,
+    strict: bool = False,
+    probe: bool = False
 ) -> AssignVerdict {
-    verdict = assign_numeric_expr(self, expr, src_type, dest_type);
+    verdict = assign_numeric_expr(self, expr, src_type, dest_type, probe);
     if verdict is not None {
         return verdict;
     }

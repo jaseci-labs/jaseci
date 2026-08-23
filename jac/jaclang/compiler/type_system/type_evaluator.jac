@@ -472,8 +472,14 @@ obj TypeEvaluator {
     ) -> bool;
 
     def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
+    def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
     def assign_expr(
-        expr: Expr | None, src_type: TypeBase, dest_type: TypeBase, strict: bool = False
+        expr: Expr | None,
+        src_type: TypeBase,
+        dest_type: TypeBase,
+        strict: bool = False,
+        probe: bool = False
     ) -> AssignVerdict;
 
     def get_type_of_magic_method_call(

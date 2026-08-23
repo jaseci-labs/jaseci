@@ -143,9 +143,19 @@ impl JcirGenPass.exit_node(nd: UniNode) -> None {
 }
 
 impl JcirGenPass._apply_coercion(nd: Expr) -> None {
-    target = nd.coerce_to?.shared?.class_name;
+    target = nd.coerce_to;
     got = self.outs(nd);
-    if not isinstance(target, str) or len(got) != 1 or not isinstance(got[0], CgNode) {
+    if target is None or len(got) != 1 or not isinstance(got[0], CgNode) {
+        return;
+    }
+    parent = nd.parent;
+    if (
+        isinstance(parent, FuncCall)
+        and isinstance(parent.target, Name)
+        and parent.target.sym_name == target
+        and parent.params is not None
+        and len(parent.params) == 1
+    ) {
         return;
     }
     if target in self._get_builtin_names() {

@@ -700,7 +700,7 @@ impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     if isinstance(type_expr, Name) {
         name = type_expr.sym_name;
-        if JAC_TYPE_REGISTRY.is_numeric(name) or name == "str" {
+        if JAC_TYPE_REGISTRY.is_sized(name) {
             declared = self.get_type_of_expression(type_expr);
             if isinstance(declared, ClassType) {
                 return self._convert_to_instance(declared);
@@ -708,4 +708,86 @@ impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {
         }
     }
     return AnyType(is_foreign=True);
+}
+
+impl TypeEvaluator._check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None {
+    fields = arch.get_has_vars();
+    by_name: dict[str, HasVar] = {};
+    for hv in fields {
+        by_name[hv.name.sym_name] = hv;
+    }
+    pos = 0;
+    for param in expr.params {
+        field: HasVar | None = None;
+        arg: Expr = param;
+        if isinstance(param, KWPair) {
+            if param.key is None {
+                continue;
+            }
+            field = by_name.get(param.key.sym_name);
+            arg = param.value;
+        } else {
+            field = fields[pos] if pos < len(fields) else None;
+            pos += 1;
+        }
+        if field is None {
+            continue;
+        }
+        dest = self._extern_scalar_type(field.type_tag.tag);
+        if isinstance(dest, AnyType) {
+            continue;
+        }
+        self.assign_expr(
+            arg,
+            self.get_type_of_expression(arg),
+            dest,
+            strict=self._is_strict_site(arg)
+        );
+    }
+}
+
+impl TypeEvaluator._extern_member_type(arch: Archetype, name: str) -> TypeBase {
+    import from jaclang.compiler.type_system.types { create_callable_type }
+    field: HasVar | None = None;
+    for hv in arch.get_has_vars() {
+        if hv.name.sym_name == name {
+            field = hv;
+            break;
+        }
+    }
+    if field is None {
+        return AnyType(is_foreign=True);
+    }
+    tag = field.type_tag.tag;
+    if (
+        isinstance(tag, AtomTrailer)
+        and isinstance(tag.target, Name)
+        and tag.target.sym_name == "Callable"
+        and isinstance(tag.right, IndexSlice)
+        and tag.right.slices
+    ) {
+        args = tag.right.slices[0].start;
+        if (
+            isinstance(args, TupleVal)
+            and len(args.values) >= 2
+            and isinstance(args.values[0], ListVal)
+        ) {
+            param_types: list[TypeBase] = [
+                self._extern_scalar_type(p) for p in args.values[0].values
+            ];
+            ret_type = self._extern_scalar_type(args.values[1]);
+            all_types: list[TypeBase] = list(param_types);
+            all_types.append(ret_type);
+            typed = [
+                t
+                for t in all_types
+                if not isinstance(t, AnyType)
+            ];
+            if typed {
+                return create_callable_type(param_types, ret_type, is_gradual=False);
+            }
+        }
+        return AnyType(is_foreign=True);
+    }
+    return self._extern_scalar_type(tag);
 }

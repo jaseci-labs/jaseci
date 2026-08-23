@@ -1,6 +1,15 @@
-import from jaclang.jac0core.unitree { Expr, FuncCall, Name, UniNode }
-import from jaclang.jac0core.const_fold { fold_const }
-import from jaclang.jac0core.constant { TOKEN_MAP }
+import from jaclang.jac0core.unitree {
+    AtomUnit,
+    Expr,
+    Float,
+    FuncCall,
+    Int,
+    Name,
+    Token,
+    UnaryExpr,
+    UniNode
+}
+import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E1126, E1127, E1128 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import from .types { ClassType, TypeBase, UnionType, UnknownType }
@@ -20,11 +29,32 @@ def numeric_name_of(t: TypeBase | None) -> str | None {
 }
 
 def folded_number(expr: UniNode | None) -> int | float | None {
-    (ok, value) = fold_const(expr);
-    if not ok or isinstance(value, bool) or not isinstance(value, (int, float)) {
-        return None;
+    cur = expr;
+    while isinstance(cur, AtomUnit) {
+        cur = cur.value;
     }
-    return value;
+    if isinstance(cur, Int) {
+        return int(cur.lit_value);
+    }
+    if isinstance(cur, Float) {
+        return float(cur.lit_value);
+    }
+    if isinstance(cur, UnaryExpr) and isinstance(cur.op, Token) {
+        inner = folded_number(cur.operand);
+        if inner is None {
+            return None;
+        }
+        if cur.op.name == Tok.MINUS {
+            if isinstance(inner, int) {
+                return -inner;
+            }
+            return -inner;
+        }
+        if cur.op.name == Tok.PLUS {
+            return inner;
+        }
+    }
+    return None;
 }
 
 def _numeric_dest(evaluator: TypeEvaluator, dest: TypeBase) -> ClassType | None {
@@ -46,21 +76,27 @@ def _numeric_dest(evaluator: TypeEvaluator, dest: TypeBase) -> ClassType | None 
     return None;
 }
 
-def annotate_coercion(expr: Expr | None, target: TypeBase) {
+def annotate_coercion(expr: Expr | None, target: ClassType) {
     if expr is not None {
-        expr.coerce_to = target;
+        expr.coerce_to = target.shared.class_name;
     }
 }
 
 def adopt_literal(
-    evaluator: TypeEvaluator, expr: Expr, value: int | float, target: ClassType
+    evaluator: TypeEvaluator,
+    expr: Expr,
+    value: int | float,
+    target: ClassType,
+    probe: bool = False
 ) -> AssignVerdict {
     name = target.shared.class_name;
     if JAC_TYPE_REGISTRY.literal_fits(name, value) {
-        annotate_coercion(expr, target);
+        if not probe {
+            annotate_coercion(expr, target);
+        }
         return AssignVerdict(ok=True);
     }
-    if isinstance(value, float) {
+    if isinstance(value, float) or probe {
         return AssignVerdict(ok=False);
     }
     (lo, hi) = JAC_TYPE_REGISTRY.range_of(name);
@@ -68,9 +104,20 @@ def adopt_literal(
     return AssignVerdict(ok=False, diagnosed=True);
 }
 
+def is_brand(t: TypeBase | None) -> bool {
+    return isinstance(t, ClassType) and t.private.distinct_key is not None;
+}
+
 def assign_numeric_expr(
-    evaluator: TypeEvaluator, expr: Expr | None, src: TypeBase, dest: TypeBase
+    evaluator: TypeEvaluator,
+    expr: Expr | None,
+    src: TypeBase,
+    dest: TypeBase,
+    probe: bool = False
 ) -> AssignVerdict | None {
+    if is_brand(src) or is_brand(dest) {
+        return None;
+    }
     dest_inst = _numeric_dest(evaluator, dest);
     if dest_inst is None {
         return None;
@@ -80,8 +127,8 @@ def assign_numeric_expr(
     if expr is not None and dest_sized {
         value = folded_number(expr);
         if value is not None {
-            verdict = adopt_literal(evaluator, expr, value, dest_inst);
-            if verdict.ok or verdict.diagnosed {
+            verdict = adopt_literal(evaluator, expr, value, dest_inst, probe);
+            if verdict.ok or verdict.diagnosed or probe {
                 return verdict;
             }
         }
@@ -91,7 +138,7 @@ def assign_numeric_expr(
         return None;
     }
     if JAC_TYPE_REGISTRY.widens_to(sn, dn) {
-        if sn != dn {
+        if sn != dn and not probe and (dest_sized or JAC_TYPE_REGISTRY.is_sized(sn)) {
             annotate_coercion(expr, dest_inst);
         }
         return AssignVerdict(ok=True);
@@ -103,7 +150,7 @@ def assign_numeric_expr(
         and JAC_TYPE_REGISTRY.numeric_kind_of(dn) == NumericKind.IntKind {
         return None;
     }
-    if expr is not None {
+    if expr is not None and not probe {
         evaluator.emit_diag(E1127, expr, src=sn, dest=dn);
         return AssignVerdict(ok=False, diagnosed=True);
     }
@@ -116,7 +163,7 @@ def unify_numeric_operands(
     right_type: TypeBase,
     left_node: Expr | None,
     right_node: Expr | None,
-    diag_node: UniNode,
+    diag_node: UniNode | None,
     op: str
 ) -> TypeBase | None {
     ln = numeric_name_of(left_type);
@@ -126,6 +173,8 @@ def unify_numeric_operands(
         or rn is None
         or not isinstance(left_type, ClassType)
         or not isinstance(right_type, ClassType)
+        or is_brand(left_type)
+        or is_brand(right_type)
     ) {
         return None;
     }
@@ -161,18 +210,23 @@ def unify_numeric_operands(
     }
     unified = JAC_TYPE_REGISTRY.unify(ln, rn);
     if unified is None {
-        evaluator.emit_diag(
-            E1128, diag_node, op=TOKEN_MAP.get(op, op), left=ln, right=rn
-        );
+        if diag_node is not None {
+            evaluator.emit_diag(
+                E1128, diag_node, op=TOKEN_MAP.get(op, op), left=ln, right=rn
+            );
+        }
         return None;
     }
+    sized_pair = JAC_TYPE_REGISTRY.is_sized(ln) or JAC_TYPE_REGISTRY.is_sized(rn);
     if unified == ln {
-        if rn != ln {
+        if rn != ln and sized_pair {
             annotate_coercion(right_node, left_inst);
         }
         return left_inst;
     }
-    annotate_coercion(left_node, right_inst);
+    if sized_pair {
+        annotate_coercion(left_node, right_inst);
+    }
     return right_inst;
 }
 
@@ -193,13 +247,13 @@ def is_unsigned_type(t: TypeBase | None) -> bool {
         and not `entry.signed;
 }
 
-glob WRAPPING_BINARY_BUILTINS: tuple = (
+glob WRAPPING_BINARY_BUILTINS: list[str] = [
          "wrapping_add",
          "wrapping_sub",
          "wrapping_mul",
          "wrapping_shl"
-     ),
-     WRAPPING_UNARY_BUILTINS: tuple = ("wrapping_neg", );
+     ],
+     WRAPPING_UNARY_BUILTINS: list[str] = ["wrapping_neg"];
 
 def _is_jac_builtin_fn(evaluator: TypeEvaluator, callee: Expr, name: str) -> bool {
     if not isinstance(callee, Name) or callee.sym_name != name {
@@ -271,4 +325,49 @@ def fixed_width_call_type(
         }
     }
     return None;
+}
+
+def shift_result_type(
+    evaluator: TypeEvaluator,
+    left_type: TypeBase,
+    right_type: TypeBase,
+    left_node: Expr | None,
+    right_node: Expr | None
+) -> TypeBase | None {
+    ln = numeric_name_of(left_type);
+    rn = numeric_name_of(right_type);
+    if (
+        ln is None
+        or rn is None
+        or not isinstance(left_type, ClassType)
+        or not isinstance(right_type, ClassType)
+    ) {
+        return None;
+    }
+    if JAC_TYPE_REGISTRY.is_sized(rn)
+        and not JAC_TYPE_REGISTRY.is_sized(ln)
+        and left_node is not None {
+        value = folded_number(left_node);
+        if value is not None {
+            verdict = adopt_literal(evaluator, left_node, value, right_type);
+            if verdict.diagnosed {
+                return UnknownType(is_diagnosed=True);
+            }
+            if verdict.ok {
+                return right_type;
+            }
+        }
+    }
+    if JAC_TYPE_REGISTRY.is_sized(ln)
+        and not JAC_TYPE_REGISTRY.is_sized(rn)
+        and right_node is not None {
+        value = folded_number(right_node);
+        if value is not None {
+            verdict = adopt_literal(evaluator, right_node, value, left_type);
+            if verdict.diagnosed {
+                return UnknownType(is_diagnosed=True);
+            }
+        }
+    }
+    return left_type;
 }

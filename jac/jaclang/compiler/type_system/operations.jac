@@ -33,7 +33,13 @@ import from jaclang.jac0core.diagnostics {
     E1115,
     E1118
 }
-import from .fixed_width { both_numeric, numeric_name_of, unify_numeric_operands }
+import from .fixed_width {
+    both_numeric,
+    folded_number,
+    numeric_name_of,
+    shift_result_type,
+    unify_numeric_operands
+}
 import type from .type_evaluator { TypeEvaluator }
 
 glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
@@ -147,22 +153,9 @@ def get_numeric_promotion_type(
         if not is_int_kind_type(left_type) or not is_int_kind_type(right_type) {
             return None;
         }
-        unified = unify_numeric_operands(
-            evaluator,
-            left_type,
-            right_type,
-            left_node,
-            right_node,
-            diag_node or left_node,
-            op
+        return shift_result_type(
+            evaluator, left_type, right_type, left_node, right_node
         );
-        if unified is None {
-            return UnknownType(is_diagnosed=True);
-        }
-        if left_node is not None and left_node.coerce_to is not None {
-            return left_node.coerce_to;
-        }
-        return left_type;
     }
     if op in BITWISE_OPERATORS
         and not (is_int_kind_type(left_type) and is_int_kind_type(right_type)) {
@@ -174,7 +167,7 @@ def get_numeric_promotion_type(
         right_type,
         left_node,
         right_node,
-        diag_node or left_node,
+        diag_node if diag_node is not None else left_node,
         op
     );
     if unified is None {
@@ -197,7 +190,7 @@ def get_pow_result_type(
     evaluator: TypeEvaluator,
     left_type: TypeBase,
     right_type: TypeBase,
-    right_node: (UniNode | None),
+    right_node: (Expr | None),
     left_node: Expr | None = None,
     diag_node: UniNode | None = None
 ) -> (TypeBase | None) {

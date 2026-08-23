@@ -136,19 +136,19 @@ def shift_count(name: str, count: any) -> int {
 }
 
 def shift_left(a: any, b: any) -> any {
-    target = unify_operands(a, b, "<<");
-    if not shape(target).sized {
+    name = scalar_name_of(a);
+    if name is None or not shape(name).sized {
         return int(a) << int(b);
     }
-    return checked_int(target, int(a) << shift_count(target, b));
+    return checked_int(name, int(a) << shift_count(name, b));
 }
 
 def shift_right(a: any, b: any) -> any {
-    target = unify_operands(a, b, ">>");
-    if not shape(target).sized {
+    name = scalar_name_of(a);
+    if name is None or not shape(name).sized {
         return int(a) >> int(b);
     }
-    return make_int(target, int(a) >> shift_count(target, b));
+    return make_int(name, int(a) >> shift_count(name, b));
 }
 
 def negate(a: any) -> any {

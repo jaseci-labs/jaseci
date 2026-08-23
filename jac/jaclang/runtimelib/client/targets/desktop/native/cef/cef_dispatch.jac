@@ -640,12 +640,12 @@ def:pub cef_dispatch_window_info_create(title: str, width: int, height: int) -> 
     g_wi.bounds_x = 100;
     g_wi.bounds_y = 100;
     if width > 0 {
-        g_wi.bounds_w = width;
+        g_wi.bounds_w = i32(width);
     } else {
         g_wi.bounds_w = 800;
     }
     if height > 0 {
-        g_wi.bounds_h = height;
+        g_wi.bounds_h = i32(height);
     } else {
         g_wi.bounds_h = 600;
     }
@@ -716,7 +716,7 @@ def:pub cef_dispatch_startup(cache_path: str, no_sandbox: int) -> i32 {
     cef_platform_bootstrap();
     _init_vtables();
     _log("startup: initializing CEF");
-    settings: int = cef_dispatch_settings_create(no_sandbox, cache_path);
+    settings: int = cef_dispatch_settings_create(i32(no_sandbox), cache_path);
 
     if g_cached_args == 0 {
         g_cached_args = cef_dispatch_main_args_create();

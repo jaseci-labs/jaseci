@@ -36,14 +36,12 @@ impl TypeEvaluator.validate_arg_types(
         }
 
         verdict = self.assign_expr(
-            value, arg_type, expected, strict=self._is_strict_site(arg)
-        )
-            if not checking_overload
-            else AssignVerdict(
-                ok=self.assign_type(
-                    arg_type, expected, strict=self._is_strict_site(arg)
-                )
-            );
+            value,
+            arg_type,
+            expected,
+            strict=self._is_strict_site(arg),
+            probe=checking_overload
+        );
         if not verdict.ok {
             has_errors = True;
             if not checking_overload and not verdict.diagnosed {
@@ -441,6 +439,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         ctor_arch = caller_type.shared.symbol_table;
         if isinstance(ctor_arch, Archetype)
             and ctor_arch.find_parent_of_type(Import) is not None {
+            self._check_extern_ctor_args(expr, ctor_arch);
             return caller_type.clone_as_instance();
         }
 

@@ -153,13 +153,13 @@ test "true division yields float for int-kinds and the sized float otherwise" {
 }
 
 test "power keeps the type for a non-negative int exponent and traps on overflow" {
-    assert u8(2) ** u8(7) == 128;
-    assert type(u8(2) ** u8(7)) is u8;
+    assert u8(2) ** 7 == 128;
+    assert type(u8(2) ** 7) is u8;
     with testraises(OverflowError) {
-        _ = u8(2) ** u8(8);
+        _ = u8(2) ** 8;
     }
     with testraises(OverflowError) {
-        _ = i64(3) ** i64(1000000);
+        _ = i64(3) ** 1000000;
     }
     assert i8(2) ** -1 == 0.5;
     assert type(f32(2.0) ** f32(0.5)) is f32;
@@ -182,9 +182,13 @@ test "shifts: arithmetic for signed, logical for unsigned, counts range-checked"
     with testraises(OverflowError, `match="shift count") {
         _ = i8(1) << i8(-1);
     }
-    n: int = 20;
-    assert u8(1) << n == 1048576;
-    assert type(u8(1) << n) is int;
+    n: int = 3;
+    assert u8(1) << n == 8;
+    assert type(u8(1) << n) is u8;
+    big_count: int = 8;
+    with testraises(OverflowError, `match="shift count") {
+        _ = u8(1) << big_count;
+    }
     assert u64(1) << 63 == 9223372036854775808;
 }
 

@@ -1,5 +1,15 @@
-import from jaclang.jac0core.scalars { NUMERIC_SHAPES, ScalarShape }
-import jaclang.jac0core.scalars as scalars;
+import from jaclang.jac0core.scalars {
+    NUMERIC_SHAPES,
+    ScalarShape,
+    is_sized,
+    literal_fits,
+    range_of,
+    sized_float_names,
+    sized_int_names,
+    sized_scalar_names,
+    unify,
+    widens_to
+}
 
 enum NumericKind {
     NotNumeric = "not_numeric",
@@ -45,7 +55,7 @@ def _numeric_entry(shape: ScalarShape, emitter_suffix: str) -> JacTypeEntry {
     );
 }
 
-def _numeric_entries -> dict[str, JacTypeEntry] {
+def _registry_entries -> dict[str, JacTypeEntry] {
     out: dict[str, JacTypeEntry] = {};
     for shape in NUMERIC_SHAPES {
         suffix = "BoolEmitter"
@@ -53,6 +63,17 @@ def _numeric_entries -> dict[str, JacTypeEntry] {
             else ("FloatEmitter" if shape.is_float else "IntEmitter");
         out[shape.name] = _numeric_entry(shape, suffix);
     }
+    out["complex"] = JacTypeEntry(name="complex", emitter_suffix="ComplexEmitter");
+    out["str"] = JacTypeEntry(name="str", emitter_suffix="StrEmitter", width=64);
+    out["bytes"] = JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter");
+    out["list"] = JacTypeEntry(name="list", emitter_suffix="ListEmitter");
+    out["dict"] = JacTypeEntry(name="dict", emitter_suffix="DictEmitter");
+    out["set"] = JacTypeEntry(name="set", emitter_suffix="SetEmitter");
+    out["frozenset"] = JacTypeEntry(
+        name="frozenset", emitter_suffix="FrozensetEmitter"
+    );
+    out["tuple"] = JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter");
+    out["range"] = JacTypeEntry(name="range", emitter_suffix="RangeEmitter");
     return out;
 }
 
@@ -106,35 +127,35 @@ obj JacTypeRegistry {
     }
 
     def is_sized(name: str) -> bool {
-        return scalars.is_sized(name);
+        return is_sized(name);
     }
 
     def sized_int_names -> list[str] {
-        return scalars.sized_int_names();
+        return sized_int_names();
     }
 
     def sized_float_names -> list[str] {
-        return scalars.sized_float_names();
+        return sized_float_names();
     }
 
     def sized_scalar_names -> list[str] {
-        return scalars.sized_scalar_names();
+        return sized_scalar_names();
     }
 
     def range_of(name: str) -> tuple[int, int] {
-        return scalars.range_of(name);
+        return range_of(name);
     }
 
     def literal_fits(name: str, value: int | float) -> bool {
-        return scalars.literal_fits(name, value);
+        return literal_fits(name, value);
     }
 
     def widens_to(src: str, dst: str) -> bool {
-        return scalars.widens_to(src, dst);
+        return widens_to(src, dst);
     }
 
     def unify(a: str, b: str) -> str | None {
-        return scalars.unify(a, b);
+        return unify(a, b);
     }
 
     def is_exception(name: str) -> bool {
@@ -177,88 +198,83 @@ obj JacTypeRegistry {
     }
 }
 
-glob JAC_TYPE_REGISTRY = JacTypeRegistry(
-         _entries=_numeric_entries()
-             | {
-                 "complex": JacTypeEntry(
-                     name="complex", emitter_suffix="ComplexEmitter"
-                 ),
-                 "str": JacTypeEntry(name="str", emitter_suffix="StrEmitter", width=64),
-                 "bytes": JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter"),
-                 "list": JacTypeEntry(name="list", emitter_suffix="ListEmitter"),
-                 "dict": JacTypeEntry(name="dict", emitter_suffix="DictEmitter"),
-                 "set": JacTypeEntry(name="set", emitter_suffix="SetEmitter"),
-                 "frozenset": JacTypeEntry(
-                     name="frozenset", emitter_suffix="FrozensetEmitter"
-                 ),
-                 "tuple": JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter"),
-                 "range": JacTypeEntry(name="range", emitter_suffix="RangeEmitter")
-             },
-         _builtin_names=frozenset(
-             {
-                 "print",
-                 "input",
-                 "len",
-                 "abs",
-                 "round",
-                 "min",
-                 "max",
-                 "sum",
-                 "sorted",
-                 "reversed",
-                 "enumerate",
-                 "zip",
-                 "map",
-                 "filter",
-                 "any",
-                 "all",
-                 "isinstance",
-                 "issubclass",
-                 "type",
-                 "callable",
-                 "id",
-                 "hash",
-                 "jid",
-                 "new",
-                 "unsafe_html",
-                 "managed",
-                 "Region",
-                 "repr",
-                 "format",
-                 "ascii",
-                 "chr",
-                 "ord",
-                 "hex",
-                 "oct",
-                 "bin",
-                 "pow",
-                 "divmod",
-                 "iter",
-                 "next",
-                 "getattr",
-                 "setattr",
-                 "hasattr",
-                 "delattr",
-                 "vars",
-                 "dir",
-                 "open",
-                 "str",
-                 "int",
-                 "float",
-                 "bool",
-                 "list",
-                 "dict",
-                 "set",
-                 "tuple",
-                 "frozenset",
-                 "bytes",
-                 "complex",
-                 "range",
-                 "slice",
-                 "bytearray",
+def _builtin_name_set -> frozenset[str] {
+    names: set[str] = {
+        "wrapping_add",
+        "wrapping_sub",
+        "wrapping_mul",
+        "wrapping_shl",
+        "wrapping_neg",
+        "print",
+        "input",
+        "len",
+        "abs",
+        "round",
+        "min",
+        "max",
+        "sum",
+        "sorted",
+        "reversed",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "any",
+        "all",
+        "isinstance",
+        "issubclass",
+        "type",
+        "callable",
+        "id",
+        "hash",
+        "jid",
+        "new",
+        "unsafe_html",
+        "managed",
+        "Region",
+        "repr",
+        "format",
+        "ascii",
+        "chr",
+        "ord",
+        "hex",
+        "oct",
+        "bin",
+        "pow",
+        "divmod",
+        "iter",
+        "next",
+        "getattr",
+        "setattr",
+        "hasattr",
+        "delattr",
+        "vars",
+        "dir",
+        "open",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "frozenset",
+        "bytes",
+        "complex",
+        "range",
+        "slice",
+        "bytearray"
+    };
+    for sized in sized_scalar_names() {
+        names.add(sized);
+    }
+    return frozenset(names);
+}
 
-             }
-         ),
+glob JAC_TYPE_REGISTRY = JacTypeRegistry(
+         _entries=_registry_entries(),
+         _builtin_names=_builtin_name_set(),
          _exception_parents={
              "BaseException": None,
              "Exception": "BaseException",
