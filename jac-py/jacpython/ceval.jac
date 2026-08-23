@@ -1293,6 +1293,26 @@ obj PyRangeIter(PyObj) {
         step: int;
 }
 
+# Owner-prefixed method-descriptor arg errors, byte-matching CPython's
+# descriptor wording: `set.add() takes exactly one argument (2 given)`,
+# `dict.keys() takes no arguments (1 given)`, and the kwargs refusal form.
+def meth_takes_one(owner: str, name: str, n: int) -> PyObj {
+    return py_error(
+        "TypeError",
+        owner + "." + name + "() takes exactly one argument (" + str(n) + " given)",
+    );
+}
+
+def meth_takes_none(owner: str, name: str, n: int) -> PyObj {
+    return py_error(
+        "TypeError", owner + "." + name + "() takes no arguments (" + str(n) + " given)"
+    );
+}
+
+def meth_no_kwargs(owner: str, name: str) -> PyObj {
+    return py_error("TypeError", owner + "." + name + "() takes no keyword arguments");
+}
+
 # Bound .index()/.count() methods over a PyRange (CPython range_index/
 # range_count): exact-int needles take O(1) arithmetic from the lifted leaf;
 # everything else scans with real == (_PySequence_IterSearch semantics).
@@ -1301,11 +1321,11 @@ obj PyRangeMethod(PyObj) {
         name: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(kwargs) > 0 or len(args) != 1 {
-            return py_error(
-                "TypeError",
-                self.name + "() takes exactly one argument (" + str(len(args) + len(kwargs)) + " given)",
-            );
+        if len(kwargs) > 0 {
+            return meth_no_kwargs("range", self.name);
+        }
+        if len(args) != 1 {
+            return meth_takes_one("range", self.name, len(args));
         }
         rg = self.target;
         value = args[0];
@@ -5805,8 +5825,13 @@ obj PyNativeBuiltin(PyObj) {
             return builtin_sorted_min_max(self.name, args, kwargs);
         }
         if self.name == "id" {
-            if len(args) == 0 {
-                return py_error("TypeError", "id() takes exactly one argument (0 given)");
+            if len(kwargs) > 0 {
+                return py_error("TypeError", "id() takes no keyword arguments");
+            }
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError", "id() takes exactly one argument (" + str(len(args)) + " given)"
+                );
             }
             return PyInt(t="int", val=py_id(args[0]));
         }
@@ -5889,8 +5914,8 @@ obj PyNativeBuiltin(PyObj) {
             return PyBool(t="bool", val=not is_error(probe));
         }
         if self.name == "setattr" {
-            if len(args) < 3 {
-                return py_error("TypeError", "setattr expected 3 arguments");
+            if len(args) != 3 {
+                return py_error("TypeError", "setattr expected 3 arguments, got " + str(len(args)));
             }
             return py_set_attr(args[0], expect_str(args[1]), args[2]);
         }
@@ -5923,7 +5948,10 @@ obj PyNativeBuiltin(PyObj) {
         }
         # next(iterator[, default])
         if len(args) == 0 {
-            return py_error("TypeError", "next expected at least 1 argument");
+            return py_error("TypeError", "next expected at least 1 argument, got 0");
+        }
+        if len(args) > 2 {
+            return py_error("TypeError", "next expected at most 2 arguments, got " + str(len(args)));
         }
         step = send_into(args[0], py_none());
         if step.t == "genstop" {
@@ -6176,10 +6204,29 @@ obj PySetMethod(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         n = self.name;
         s = self.target;
-        if n == "__contains__" {
-            if len(args) < 1 {
-                return py_error("TypeError", "__contains__ expected 1 argument");
+        # CPython's set method descriptors enforce arity up front (owner-prefixed
+        # TypeErrors) instead of silently ignoring extras; only the *others
+        # set-algebra families are variadic. update takes no kwargs either.
+        variadic = n == "union"
+            or n == "intersection"
+            or n == "difference"
+            or n == "update"
+            or n == "difference_update"
+            or n == "intersection_update"
+            or n == "symmetric_difference_update";
+        if len(kwargs) > 0 {
+            return meth_no_kwargs("set", n);
+        }
+        if not variadic {
+            if n == "pop" or n == "copy" or n == "clear" {
+                if len(args) != 0 {
+                    return meth_takes_none("set", n, len(args));
+                }
+            } elif len(args) != 1 {
+                return meth_takes_one("set", n, len(args));
             }
+        }
+        if n == "__contains__" {
             return s.set_lookup(args[0]);
         }
         # --- no-arg mutating / accessor methods ---
@@ -6193,21 +6240,12 @@ obj PySetMethod(PyObj) {
             return s.set_clear();
         }
         if n == "add" {
-            if len(args) < 1 {
-                return py_error("TypeError", "add expected 1 argument");
-            }
             return s.set_add(args[0]);
         }
         if n == "discard" {
-            if len(args) < 1 {
-                return py_error("TypeError", "discard expected 1 argument");
-            }
             return s.set_discard(args[0]);
         }
         if n == "remove" {
-            if len(args) < 1 {
-                return py_error("TypeError", "remove expected 1 argument");
-            }
             if not s.set_contains(args[0]) {
                 return py_error("KeyError", dict_key_repr(args[0]));
             }
@@ -6215,9 +6253,6 @@ obj PySetMethod(PyObj) {
         }
         # --- single-iterable-arg predicates ---
         if n == "issubset" or n == "issuperset" or n == "isdisjoint" {
-            if len(args) < 1 {
-                return py_error("TypeError", n + " expected 1 argument");
-            }
             other = coerce_set(args[0]);
             if is_error(other) {
                 return other;
@@ -6387,11 +6422,10 @@ def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj
         }
     }
     if is_sorted {
-        if len(args) == 0 {
-            return py_error("TypeError", name + " expected at least 1 argument, got 0");
-        }
-        if len(args) > 1 {
-            return py_error("TypeError", name + " expected at most 1 argument, got " + str(len(args)));
+        # CPython's sorted is (iterable, /): both under- and over-calls report
+        # the plain "expected 1 argument" clinic wording.
+        if len(args) != 1 {
+            return py_error("TypeError", name + " expected 1 argument, got " + str(len(args)));
         }
         drained = iter_drain(args[0]);
         if is_error(drained) {
@@ -6730,6 +6764,38 @@ obj PyDictMethod(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         n = self.name;
         d = self.target;
+        # CPython method-descriptor arity contracts, byte-exact: fixed-arity
+        # methods raise instead of ignoring extras; only update consumes **kwds.
+        if n != "update" and len(kwargs) > 0 {
+            return meth_no_kwargs("dict", n);
+        }
+        if n == "popitem" or n == "clear" or n == "copy" {
+            if len(args) != 0 {
+                return meth_takes_none("dict", n, len(args));
+            }
+        }
+        if n == "__contains__" or n == "__getitem__" {
+            if len(args) != 1 {
+                return meth_takes_one("dict", n, len(args));
+            }
+        }
+        if n == "__setitem__" and len(args) != 2 {
+            return py_error("TypeError", "__setitem__ expected 2 arguments, got " + str(len(args)));
+        }
+        if n == "__delitem__" and len(args) != 1 {
+            return py_error("TypeError", "expected 1 argument, got " + str(len(args)));
+        }
+        if n == "get" or n == "setdefault" or n == "pop" {
+            if len(args) < 1 {
+                return py_error("TypeError", n + " expected at least 1 argument, got 0");
+            }
+            if len(args) > 2 {
+                return py_error("TypeError", n + " expected at most 2 arguments, got " + str(len(args)));
+            }
+        }
+        if n == "update" and len(args) > 1 {
+            return py_error("TypeError", "update expected at most 1 argument, got " + str(len(args)));
+        }
         if n == "get" {
             if d.dict_contains(args[0]) {
                 return d.mp_subscript(args[0]);
@@ -6917,6 +6983,12 @@ obj PyDictViewCtor(PyObj) {
         mode: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return meth_no_kwargs("dict", self.mode);
+        }
+        if len(args) != 0 {
+            return meth_takes_none("dict", self.mode, len(args));
+        }
         return PyDictView(t="dictview_obj", d=self.d, mode=self.mode);
     }
 }
