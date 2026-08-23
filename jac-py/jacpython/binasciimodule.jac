@@ -226,6 +226,10 @@ def _b64_value(raw: int) -> int {
     return 255;
 }
 
+# ---------------------------------------------------------------------------
+# uuencode: a2b_uu/b2a_uu
+#
+
 def _b64_len1_error(nbytes_emitted: int) {
     _binascii_error(
         "Invalid base64-encoded string: number of data characters ("
@@ -378,4 +382,97 @@ def a2b_hex(hexstr: any) -> bytes {
 
 def unhexlify(hexstr: any) -> bytes {
     return a2b_hex(hexstr);
+}
+
+
+# ---------------------------------------------------------------------------
+# uuencode: a2b_uu/b2a_uu
+#
+
+def a2b_uu(data: any) -> bytes {
+    buf = _ascii_buffer(data);
+    ascii_len = len(buf);
+    if ascii_len == 0 {
+        _binascii_error("Missing length byte");
+    }
+    # First byte: binary data length (in bytes). C's unsigned-char
+    # arithmetic makes negative differences wrap within & 077.
+    bin_len = (buf[0] - 32) % 64;
+    if bin_len < 0 {
+        bin_len += 64;
+    }
+    out: list[int] = [];
+    leftchar = 0;
+    leftbits = 0;
+    i = 1;  # ascii_data cursor (after length byte)
+    while bin_len > 0 {
+        this_ch = buf[i] if i < ascii_len else 0;
+        if this_ch == 10 or this_ch == 13 or i >= ascii_len {
+            # Whitespace: some spaces got eaten at end-of-line.
+            this_ch = 0;
+        } elif this_ch < 32 or this_ch > 96 {  # ' ' .. ' '+64
+            _binascii_error("Illegal char");
+        } else {
+            this_ch = (this_ch - 32) % 64;
+        }
+        leftchar = ((leftchar << 6) | this_ch) & 0xFFFF;
+        leftbits += 6;
+        if leftbits >= 8 {
+            leftbits -= 8;
+            out.append((leftchar >> leftbits) & 0xFF);
+            leftchar &= (1 << leftbits) - 1;
+            bin_len -= 1;
+        }
+        i += 1;
+    }
+    # Trailing bytes must be whitespace-only (' ' or '`' padding, CR/LF).
+    j = i;
+    while j < ascii_len {
+        ch = buf[j];
+        if ch != 32 and ch != 96 and ch != 10 and ch != 13 {
+            _binascii_error("Trailing garbage");
+        }
+        j += 1;
+    }
+    return bytes(out);
+}
+
+def b2a_uu(data: any, backtick: bool = False) -> bytes {
+    buf = _ascii_buffer(data);
+    bin_len = len(buf);
+    if bin_len > 45 {
+        # The 45 is a limit that appears in all uuencodes.
+        _binascii_error("At most 45 bytes at once");
+    }
+    out: list[int] = [];
+    # Length byte ('`' encodes empty data in backtick mode).
+    if backtick and not bin_len {
+        out.append(96);  # '`'
+    } else {
+        out.append(32 + bin_len);
+    }
+    leftchar = 0;
+    leftbits = 0;
+    k = 0;
+    while bin_len > 0 or leftbits != 0 {
+        if bin_len > 0 {
+            leftchar = (leftchar << 8) | buf[k];
+        } else {
+            leftchar <<= 8;  # padding
+        }
+        leftbits += 8;
+        while leftbits >= 6 {
+            this_ch = (leftchar >> (leftbits - 6)) & 0x3F;
+            leftbits -= 6;
+            if backtick and not this_ch {
+                out.append(96);
+            } else {
+                out.append(this_ch + 32);
+            }
+        }
+        bin_len -= 1;
+        k += 1;
+    }
+    out.append(10);  # courtesy newline
+    return bytes(out);
 }

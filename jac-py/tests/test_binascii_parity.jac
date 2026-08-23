@@ -11,8 +11,10 @@ authoring time.
 import from binasciimodule {
     a2b_base64,
     a2b_hex,
+    a2b_uu,
     b2a_base64,
     b2a_hex,
+    b2a_uu,
     hexlify,
     unhexlify,
 }
@@ -157,6 +159,87 @@ test "wave16 base64 decode length errors match host" {
     _expect_b64_error("two chars", b"Yg", False, "Incorrect padding");
     _expect_b64_error("ignored junk two chars", b"Yg*", False,
                       "Incorrect padding");
+}
+
+
+test "wave16 uuencode matches host" {
+    assert b2a_uu(b"hello world")
+        == _b(43, 58, 38, 53, 76, 59, 38, 92, 64, 61, 86, 93, 82, 59, 38, 48, 32, 10);
+    assert b2a_uu(b"") == _b(32, 10);
+    assert b2a_uu(b"", True) == _b(96, 10);
+    assert a2b_uu(b"+:&5L;&\\@=V]R;&0 \n") == b"hello world";
+    # Empty length byte ('\n' = 10) declares (10-32)&077 = 42 zero bytes.
+    assert len(a2b_uu(b"\n")) == 42;
+    assert a2b_uu(b"%\n") == _b(0, 0, 0, 0, 0);
+}
+
+
+test "wave16 uuencode errors match host" {
+    raised = False;
+    got = "";
+    try {
+        a2b_uu(_b());
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert raised and got == "Missing length byte" , got;
+
+    raised = False;
+    try {
+        b2a_uu("x" * 46);
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert raised and got == "At most 45 bytes at once" , got;
+
+    raised = False;
+    try {
+        a2b_uu(b"\x01abc");
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert raised and got == "Illegal char" , got;
+
+    raised = False;
+    try {
+        a2b_uu(b"#abc!\n");
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    # 'a' (97) exceeds ' ' + 64.
+    assert raised and got == "Illegal char" , got;
+
+    raised = False;
+    try {
+        a2b_uu(b"&9FIO\n\`\n");
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert not raised , got;
+
+    raised = False;
+    try {
+        a2b_uu(b"&9FIO\nx");
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    # 'x' (120) exceeds ' ' + 64 inside the data run.
+    assert raised and got == "Illegal char" , got;
+
+    raised = False;
+    try {
+        a2b_uu(b"! \`\n\n\nz");
+    } except Exception as e {
+        raised = True;
+        got = str(e);
+    }
+    assert raised and got == "Trailing garbage" , got;
 }
 
 
