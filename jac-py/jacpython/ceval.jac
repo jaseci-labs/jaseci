@@ -8504,15 +8504,28 @@ def run_frame(frame: PyFrame) -> PyObj {
             if isinstance(it, PyIter) {
                 unpacked = (it as PyIter).items;
             } elif it.t == "generator" {
+                drain_failed = False;
                 while True {
                     nxt = gen_resume(it as PyGenerator, py_none());
                     if is_error(nxt) {
-                        return nxt;
+                        # Drain error (guest raise inside the generator) must
+                        # dispatch to a same-frame handler.
+                        target = recover_exception(co, nxt, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                            drain_failed = True;
+                        } else {
+                            return nxt;
+                        }
+                        break;
                     }
                     if nxt.t == "genstop" {
                         break;
                     }
                     unpacked.append(nxt);
+                }
+                if drain_failed {
+                    continue;
                 }
             }
             unpack_err: PyObj = py_none();
@@ -8566,15 +8579,27 @@ def run_frame(frame: PyFrame) -> PyObj {
             if isinstance(it, PyIter) {
                 unpacked = (it as PyIter).items;
             } elif it.t == "generator" {
+                drain_failed = False;
                 while True {
                     nxt = gen_resume(it as PyGenerator, py_none());
                     if is_error(nxt) {
-                        return nxt;
+                        # Same-frame dispatch for the UNPACK_EX drain error.
+                        target = recover_exception(co, nxt, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                            drain_failed = True;
+                        } else {
+                            return nxt;
+                        }
+                        break;
                     }
                     if nxt.t == "genstop" {
                         break;
                     }
                     unpacked.append(nxt);
+                }
+                if drain_failed {
+                    continue;
                 }
             }
             m = len(unpacked);
@@ -9300,6 +9325,13 @@ def run_frame(frame: PyFrame) -> PyObj {
             fn_ex = stack.pop();
             ex_args_list = members_of(callargs_obj);
             if is_error(ex_args_list) {
+                # members_of TypeError (non-iterable *args) must dispatch to a
+                # same-frame handler.
+                target = recover_exception(co, ex_args_list, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return ex_args_list;
             }
             ex_call_args: list[PyObj] = (ex_args_list as PyList).items;
