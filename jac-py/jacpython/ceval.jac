@@ -463,11 +463,13 @@ import from objects {
 }
 import from abstract_protocol {
     PyObject_GetIter,
+    PyIter_Check,
     PyObject_HashNotImplemented,
     PyObject_RichCompare,
     PyObject_RichCompareBool,
 }
 import from tupleobject { tuple_hash, tuple_richcompare, }
+import from rangeobject { get_len_of_range, range_contains_longs, range_equals_longs, }
 import from longobject { long_hash_obj, int_repr, }
 import from setobject { set_hash_obj, set_richcompare, }
 import from typeobject {
@@ -486,6 +488,8 @@ import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
 import from objects {
     _py_container_del,
+    _zero_step_error,
+    slice_indices,
     PyObj,
     PyInt,
     PyStr,
@@ -1982,6 +1986,12 @@ def to_host(value: PyObj) -> any {
                 to_host(value.start), to_host(value.stop), to_host(value.step)
             );
 
+        case PyRange():
+            # A real host range, so host consumers see the reference type. Note:
+            # a NEW host object per crossing -- identity does not round-trip
+            # (accepted deviation D-RANGE-ID, docs/RANGE_BRIDGE_DESIGN.md).
+            return range(value.start, value.stop, value.step);
+
         case PyFunction():
             # A native function crossing to the host becomes a trampoline that
             # calls back into ceval (see _jac_make_host_trampoline). This is what
@@ -2350,6 +2360,30 @@ def py_type_same(a: PyObj, b: PyObj) -> bool {
 def py_repr(value: PyObj) -> PyObj {
     if isinstance(value, PyException) {
         return baseexception_repr(value as PyException, py_repr);
+    }
+    if isinstance(value, PyRange) {
+        rg = value as PyRange;
+        # CPython range_repr: stop-only when start==0 and step==1; two-arg when
+        # step==1; else all three (host-verified incl. negative steps).
+        if rg.start == 0 and rg.step == 1 {
+            return PyStr(t="str", val="range(" + str(rg.stop) + ")");
+        }
+        if rg.step == 1 {
+            return PyStr(
+                t="str",
+                val="range(" + str(rg.start) + ", " + str(rg.stop) + ")",
+            );
+        }
+        return PyStr(
+            t="str",
+            val="range("
+                + str(rg.start)
+                + ", "
+                + str(rg.stop)
+                + ", "
+                + str(rg.step)
+                + ")",
+        );
     }
     if isinstance(value, PyTuple) {
         return tuple_repr(value as PyTuple);
@@ -2810,6 +2844,33 @@ def py_subscript(container: PyObj, index: PyObj) -> PyObj {
 # protocol; other container shapes route through the host so `in` stays
 # consistent for opaque proxies during bootstrap.
 def py_contains(container: PyObj, member: PyObj) -> PyObj {
+    if isinstance(container, PyRange) {
+        rg = container as PyRange;
+        # Exact-int needles (incl. bool, per CPython's int-instance check) take
+        # the O(1) arithmetic path from the lifted leaf.
+        if isinstance(member, PyInt) or isinstance(member, PyBool) {
+            v = (member as PyInt).val;
+            return PyBool(
+                t="bool", val=range_contains_longs(rg.start, rg.stop, rg.step, v)
+            );
+        }
+        # Non-int needles scan item by item with real == (CPython's
+        # _PySequence_IterSearch fallback); same O(n) behavior as CPython.
+        cursor = rg.tp_iter();
+        while True {
+            scan_step = send_into(cursor, py_none());
+            if scan_step.t == "genstop" {
+                return PyBool(t="bool", val=False);
+            }
+            cmp = py_compare(2, member, scan_step);
+            if is_error(cmp) {
+                return cmp;
+            }
+            if cmp.tp_bool() {
+                return PyBool(t="bool", val=True);
+            }
+        }
+    }
     if isinstance(container, PyDictView) {
         return view_contains(container as PyDictView, member);
     }
@@ -3073,7 +3134,7 @@ def py_iter(value: PyObj) -> PyObj {
             # A plain object returned by __iter__ that defines __next__ IS an
             # iterator (the self-returning class-iterator idiom): CPython fills
             # tp_iternext from __next__, so PyIter_Check accepts it.
-            if not (res.t == "iter" or res.t == "generator" or res.t == "dictiter")
+            if not PyIter_Check(res)
                 and not (
                     isinstance(res, PyUserObj)
                     and user_has_dunder(res as PyUserObj, "__next__")
@@ -3190,6 +3251,9 @@ def py_anext(aiter: PyObj) -> PyObj {
 }
 
 def py_len(value: PyObj) -> PyObj {
+    if isinstance(value, PyRange) {
+        return PyInt(t="int", val=(value as PyRange).length());
+    }
     if isinstance(value, PyStr) {
         return PyInt(t="int", val=len((value as PyStr).val));
     }
@@ -3866,6 +3930,35 @@ def py_call_host(
         it = py_iter(args[0]);
         if not is_error(it) {
             return drain_to_list(it);
+        }
+    }
+    # The `range` constructor builds a native PyRange in-VM: identity + laziness
+    # (TODO item 19). Args must each be int-like (to_index unwraps bool and
+    # boxed-int subclasses); ANY other arg shape -- non-int args, wrong arity,
+    # keyword args, step == 0 -- falls through to the host call so error
+    # messages stay byte-exact CPython.
+    if len(kwargs) == 0 and _jac_is_range_type(fn.val)
+        and (len(args) > 0 and len(args) < 4) {
+        vals: list[int] = [];
+        all_int = True;
+        for a in args {
+            iv = a.to_index();
+            if is_error(iv) or not isinstance(iv, PyInt) {
+                all_int = False;
+                break;
+            }
+            vals.append((iv as PyInt).val);
+        }
+        if all_int {
+            if len(args) == 1 {
+                return PyRange(t="range", start=0, stop=vals[0], step=1);
+            }
+            if len(args) == 2 {
+                return PyRange(t="range", start=vals[0], stop=vals[1], step=1);
+            }
+            if vals[2] != 0 {
+                return PyRange(t="range", start=vals[0], stop=vals[1], step=vals[2]);
+            }
         }
     }
     raw_args: list[any] = [];
@@ -6410,6 +6503,19 @@ def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
     # a generator -- `await` lowers to the same SEND loop `yield from` uses.
     if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_resume(receiver as PyGenerator, sent);
+    }
+    if receiver.t == "rangeiter" {
+        ri = receiver as PyRangeIter;
+        if sent.t != "none" {
+            return py_error("AttributeError", "send");
+        }
+        if ri.remaining > 0 {
+            ritem = PyInt(t="int", val=ri.cur);
+            ri.cur = ri.cur + ri.step;
+            ri.remaining = ri.remaining - 1;
+            return ritem;
+        }
+        return PyGenStop(t="genstop", val=py_none());
     }
     if receiver.t == "iter" {
         it = receiver as PyIter;

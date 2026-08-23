@@ -96,7 +96,8 @@ def PyObject_Hash(v: PyObj) -> PyObj {
 
 # ``abstract.c`` iterator surface: ``tp_iter`` + iterator-type check.
 def PyIter_Check(value: PyObj) -> bool {
-    return value.t == "iter" or value.t == "generator" or value.t == "dictiter";
+    return value.t == "iter" or value.t == "generator" or value.t == "dictiter"
+        or value.t == "rangeiter";
 }
 
 def PyObject_GetIter(o: PyObj) -> PyObj {
