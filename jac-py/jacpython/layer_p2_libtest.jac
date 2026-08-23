@@ -80,6 +80,16 @@ import from pyc_first {
     to_host,
     from_host,
 }
+import from objects { PyDict, PyTuple }
+import from ceval { py_attr, py_set_attr }
+import from _functoolsmodule {
+    P2_MISSING,
+    P2_WRAPPER_ASSIGNMENTS,
+    _p2_reduce,
+    _p2_partial,
+    _p2_lru_cache,
+    _p2_cmp_to_key,
+}
 
 def _p2_wrap_snippet(source: str) -> str {
     return (
@@ -503,6 +513,168 @@ obj P2StatFilemodeFn(PyObj) {
     }
 }
 
+# ---- wave 20: functools facade shims ---------------------------------------
+# reduce / partial / lru_cache / cmp_to_key are value-in/callable-out: they
+# cross the host boundary through to_host/from_host (native functions become
+# trampolines both ways with identity recovery). wraps and update_wrapper
+# mutate native objects, so they run natively over PyObj via
+# py_attr/py_set_attr. total_ordering stays gated by the parity suite only:
+# filling in derived dunders needs a receiver-binding synthetic callable,
+# which the VM cannot mint yet (call_user_dunder binds only real functions).
+# The itertools facade is likewise parity-suite-gated only: its lazy (often
+# infinite) iterators cannot survive GET_ITER's eager host drain.
+
+obj P2LibReduceFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return py_error("TypeError", "reduce() takes no keyword arguments");
+        }
+        if len(args) < 2 {
+            return py_error(
+                "TypeError",
+                "reduce expected at least 2 arguments, got " + str(len(args)),
+            );
+        }
+        if len(args) > 3 {
+            return py_error(
+                "TypeError",
+                "reduce expected at most 3 arguments, got " + str(len(args)),
+            );
+        }
+        fn_h: any = to_host(args[0]);
+        seq_h: any = to_host(args[1]);
+        try {
+            if len(args) == 3 {
+                got: any = _p2_reduce(fn_h, seq_h, to_host(args[2]));
+            } else {
+                got = _p2_reduce(fn_h, seq_h);
+            }
+        } except TypeError as e {
+            return py_error("TypeError", str(e));
+        }
+        return from_host(got);
+    }
+}
+
+obj P2LibPartialFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) == 0 {
+            return py_error("TypeError", "partial expected at least 1 argument, got 0");
+        }
+        pos_h: list = [];
+        for i in range(1, len(args)) {
+            pos_h.append(to_host(args[i]));
+        }
+        kw_h: dict = {};
+        for key in kwargs {
+            kw_h[key] = to_host(kwargs[key]);
+        }
+        made = _p2_partial(to_host(args[0]), tuple(pos_h), kw_h);
+        return from_host(made);
+    }
+}
+
+obj P2LibLruCacheFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        typed_h: any = False;
+        if "typed" in kwargs {
+            tv: PyObj = kwargs["typed"];
+            typed_h = to_host(tv);
+        }
+        if len(args) == 1 {
+            # Single positional: function (apply now) or maxsize (decorator).
+            made = _p2_lru_cache(to_host(args[0]), typed_h);
+            return from_host(made);
+        }
+        maxsize_h: any = 128;
+        if len(args) == 2 {
+            maxsize_h = to_host(args[0]);
+        } elif "maxsize" in kwargs {
+            maxsize_h = to_host(kwargs["maxsize"]);
+        }
+        deco = _p2_lru_cache(maxsize_h, typed_h);
+        return from_host(deco);
+    }
+}
+
+obj P2LibCmpToKeyFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "cmp_to_key expected exactly 1 argument");
+        }
+        made = _p2_cmp_to_key(to_host(args[0]));
+        return from_host(made);
+    }
+}
+
+# Native update_wrapper over PyObj: copies WRAPPER_ASSIGNMENTS that exist on
+# the wrapped object, merges __dict__, sets __wrapped__ last.
+def _p2_lib_native_update_wrapper(wrapper: PyObj, wrapped: PyObj) -> PyObj {
+    for attr in P2_WRAPPER_ASSIGNMENTS {
+        v: PyObj = py_attr(wrapped, attr);
+        if not is_error(v) {
+            err: PyObj = py_set_attr(wrapper, attr, v);
+            if is_error(err) {
+                return err;
+            }
+        }
+    }
+    # updated=('__dict__',): function __dict__ reads are snapshots, so merge
+    # by re-storing each entry through setattr rather than dict.update.
+    src: PyObj = py_attr(wrapped, "__dict__");
+    if not is_error(src) and isinstance(src, PyDict) {
+        srcd: PyDict = src as PyDict;
+        for hk in srcd.items {
+            `entry = srcd.items[hk];
+            kobj: PyObj = `entry.key;
+            if isinstance(kobj, PyStr) {
+                errk: PyObj = py_set_attr(
+                    wrapper, (kobj as PyStr).val, `entry.value
+                );
+                if is_error(errk) {
+                    return errk;
+                }
+            }
+        }
+    }
+    # Set last so the __dict__ merge cannot copy a stale __wrapped__ through.
+    err2: PyObj = py_set_attr(wrapper, "__wrapped__", wrapped);
+    if is_error(err2) {
+        return err2;
+    }
+    return wrapper;
+}
+
+obj P2LibUpdateWrapperFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 2 {
+            return py_error("TypeError", "update_wrapper expected 2 arguments");
+        }
+        return _p2_lib_native_update_wrapper(args[0], args[1]);
+    }
+}
+
+obj P2LibWrapsDecorator(PyObj) {
+    has wrapped: PyObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "wraps() expects one wrapper function");
+        }
+        return _p2_lib_native_update_wrapper(args[0], self.wrapped);
+    }
+}
+
+obj P2LibWrapsFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "wraps expected exactly 1 argument");
+        }
+        deco = P2LibWrapsDecorator(t="function", wrapped=args[0]);
+        return deco;
+    }
+}
+
 def _p2_opcode_pred_result(fn: any, args: list[PyObj]) -> PyObj {
     arg: PyObj = _p2_single_int_arg(args);
     if is_error(arg) { return arg; }
@@ -708,6 +880,17 @@ def p2_libtest_reset {
         "warnings",
         PyModule(t="module", name="warnings", attrs=warnings_module_attrs())
     );
+    functools_attrs: dict[str, PyObj] = {
+        "reduce": P2LibReduceFn(t="function"),
+        "partial": P2LibPartialFn(t="function"),
+        "lru_cache": P2LibLruCacheFn(t="function"),
+        "cmp_to_key": P2LibCmpToKeyFn(t="function"),
+        "wraps": P2LibWrapsFn(t="function"),
+        "update_wrapper": P2LibUpdateWrapperFn(t="function"),
+    };
+    register_shim_module(
+        "functools", PyModule(t="module", name="functools", attrs=functools_attrs)
+    );
 }
 
 
@@ -873,6 +1056,7 @@ test "layer_p2_libtest: opcode_stack_effect snippet prints ok on JacPython" {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 test "layer_p2_libtest: warnings record mode snippet prints ok on JacPython" {
     snippet = (
         "import warnings\n"
@@ -924,12 +1108,27 @@ test "layer_p2_libtest: collections_counter snippet prints ok on JacPython" {
         "pos = +c\n"
         "assert pos['w'] == 7 and 'z' not in pos\n"
 >>>>>>> 7263bd72c (feat(jac-py): native collections facade for Counter/OrderedDict/namedtuple + shim registration)
+=======
+test "layer_p2_libtest: functools_reduce snippet prints ok on JacPython" {
+    snippet = (
+        "import functools\n"
+        "assert functools.reduce(lambda a, b: a + b, [1, 2, 3, 4]) == 10\n"
+        "assert functools.reduce(lambda a, b: a + b, [], 7) == 7\n"
+        "assert functools.reduce(lambda a, b: a if a > b else b, [3, 9, 2]) == 9\n"
+        "try:\n"
+        "    functools.reduce(lambda a, b: a + b, [])\n"
+        "except TypeError as e:\n"
+        "    assert str(e) == 'reduce() of empty iterable with no initial value', e\n"
+        "else:\n"
+        "    raise AssertionError('expected TypeError')\n"
+>>>>>>> afd83e84a (feat(jac-py): register functools facade as libtest shim with snippet gates)
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
     assert ok , detail;
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 test "layer_p2_libtest: warnings error action snippet raises UserWarning" {
     snippet = (
@@ -961,12 +1160,37 @@ test "layer_p2_libtest: collections_defaultdict snippet prints ok on JacPython" 
         "    got = str(e)\n"
         "assert got == \"'x'\", got\n"
 >>>>>>> 7263bd72c (feat(jac-py): native collections facade for Counter/OrderedDict/namedtuple + shim registration)
+=======
+test "layer_p2_libtest: functools_partial_lru snippet prints ok on JacPython" {
+    snippet = (
+        "import functools\n"
+        "def add(a=0, b=0, c=0):\n"
+        "    return a + b + c\n"
+        "p = functools.partial(add, 1, b=2)\n"
+        "assert p() == 3 and p(c=4) == 7\n"
+        "pp = functools.partial(p, c=10)\n"
+        "assert pp() == 13\n"
+        "calls = []\n"
+        "def g(x):\n"
+        "    calls.append(x)\n"
+        "    return x * 10\n"
+        "cached = functools.lru_cache(maxsize=2)(g)\n"
+        "for i in (1, 2, 1, 3, 1):\n"
+        "    cached(i)\n"
+        "assert calls == [1, 2, 3], calls\n"
+        "info = cached.cache_info()\n"
+        "assert str(info) == 'CacheInfo(hits=2, misses=3, maxsize=2, currsize=2)', info\n"
+        "cached.cache_clear()\n"
+        "assert str(cached.cache_info()) == 'CacheInfo(hits=0, misses=0, maxsize=2, currsize=0)'\n"
+        "assert cached.cache_parameters() == {'maxsize': 2, 'typed': False}\n"
+>>>>>>> afd83e84a (feat(jac-py): register functools facade as libtest shim with snippet gates)
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
     assert ok , detail;
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 test "layer_p2_libtest: warn_explicit record positions pin on JacPython" {
     snippet = (
@@ -992,12 +1216,27 @@ test "layer_p2_libtest: collections_ordereddict snippet prints ok on JacPython" 
         "assert list(o1.items()) == [('a', 1), ('b', 2)]\n"
         "assert repr(o1) == \"OrderedDict({'a': 1, 'b': 2})\"\n"
 >>>>>>> 7263bd72c (feat(jac-py): native collections facade for Counter/OrderedDict/namedtuple + shim registration)
+=======
+test "layer_p2_libtest: functools_cmp_to_key snippet prints ok on JacPython" {
+    snippet = (
+        "import functools\n"
+        "K = functools.cmp_to_key(lambda x, y: (x > y) - (x < y))\n"
+        "data = [3, 1, 4, 1, 5]\n"
+        "assert sorted(data, key=K) == sorted(data)\n"
+        "kd = functools.cmp_to_key(lambda x, y: y - x)\n"
+        "assert sorted(data, key=kd) == sorted(data, reverse=True)\n"
+        "assert K(2).obj == 2\n"
+        "words = ['pear', 'fig', 'banana']\n"
+        "by_len = functools.cmp_to_key(lambda x, y: len(x) - len(y))\n"
+        "assert sorted(words, key=by_len) == ['fig', 'pear', 'banana']\n"
+>>>>>>> afd83e84a (feat(jac-py): register functools facade as libtest shim with snippet gates)
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
     assert ok , detail;
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 test "layer_p2_libtest: warning call-site line reaches traceback on JacPython" {
     # simplefilter('error') makes warn() return an error to the VM, so
@@ -1035,9 +1274,33 @@ test "layer_p2_libtest: collections_namedtuple snippet prints ok on JacPython" {
         "assert R._fields == ('x', '_1')\n"
         "Q = collections.namedtuple('Q', ['x', 'y'])\n"
         "assert Q._fields == ('x', 'y')\n"
+=======
+test "layer_p2_libtest: functools_wraps_update_wrapper snippet prints ok on JacPython" {
+    snippet = (
+        "import functools\n"
+        "def real(x):\n"
+        "    'the real doc'\n"
+        "    return x\n"
+        "@functools.wraps(real)\n"
+        "def wrapped(x):\n"
+        "    return real(x)\n"
+        "assert wrapped.__name__ == 'real', wrapped.__name__\n"
+        "assert wrapped.__doc__ == 'the real doc'\n"
+        "assert wrapped.__wrapped__ is real\n"
+        "assert wrapped(41) == 41\n"
+        "def donor(): pass\n"
+        "donor.extra = 42\n"
+        "def sink(): pass\n"
+        "functools.update_wrapper(sink, donor)\n"
+        "assert sink.extra == 42\n"
+        "assert sink.__wrapped__ is donor\n"
+>>>>>>> afd83e84a (feat(jac-py): register functools facade as libtest shim with snippet gates)
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
     assert ok , detail;
+<<<<<<< HEAD
 >>>>>>> 7263bd72c (feat(jac-py): native collections facade for Counter/OrderedDict/namedtuple + shim registration)
+=======
+>>>>>>> afd83e84a (feat(jac-py): register functools facade as libtest shim with snippet gates)
 }
