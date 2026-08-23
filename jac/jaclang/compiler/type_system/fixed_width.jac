@@ -12,8 +12,14 @@ import from jaclang.jac0core.unitree {
 import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E1126, E1127, E1128 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
-import from .types { AnyType, ClassType, TypeBase, UnionType, UnknownType }
-import type from .type_evaluator { TypeEvaluator }
+import from jaclang.compiler.type_system.types {
+    AnyType,
+    ClassType,
+    TypeBase,
+    UnionType,
+    UnknownType
+}
+import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
 obj AssignVerdict {
     has ok: bool,

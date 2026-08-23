@@ -1,7 +1,7 @@
 import math;
 import struct;
 import from jaclang.jac0core.scalars {
-    NUMERIC_SHAPES,
+    numeric_shapes,
     ScalarShape,
     range_of,
     shape_of,
@@ -306,7 +306,7 @@ def sized_value(name: str, value: any) -> any {
 }
 
 def _build_family {
-    for row in NUMERIC_SHAPES {
+    for row in numeric_shapes() {
         if not row.sized {
             continue;
         }

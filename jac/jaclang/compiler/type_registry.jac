@@ -1,14 +1,11 @@
 import from jaclang.jac0core.scalars {
-    NUMERIC_SHAPES,
     ScalarShape,
-    is_sized,
-    literal_fits,
-    range_of,
-    sized_float_names,
-    sized_int_names,
+    numeric_shapes,
     sized_scalar_names,
-    unify,
-    widens_to
+    shape_literal_fits,
+    shape_range,
+    shapes_unify,
+    shapes_widen_to
 }
 
 enum NumericKind {
@@ -57,7 +54,7 @@ def _numeric_entry(shape: ScalarShape, emitter_suffix: str) -> JacTypeEntry {
 
 def _registry_entries -> dict[str, JacTypeEntry] {
     out: dict[str, JacTypeEntry] = {};
-    for shape in NUMERIC_SHAPES {
+    for shape in numeric_shapes() {
         suffix = "BoolEmitter"
             if shape.name == "bool"
             else ("FloatEmitter" if shape.is_float else "IntEmitter");
@@ -80,7 +77,12 @@ def _registry_entries -> dict[str, JacTypeEntry] {
 obj JacTypeRegistry {
     has _entries: dict[str, JacTypeEntry],
         _builtin_names: frozenset[str],
-        _exception_parents: dict[str, str | None];
+        _exception_parents: dict[str, str | None],
+        _shapes: dict[str, ScalarShape];
+
+    def shape_of(name: str) -> ScalarShape | None {
+        return self._shapes.get(name, None);
+    }
 
     def get(name: str) -> JacTypeEntry | None {
         return self._entries.get(name, None);
@@ -127,35 +129,64 @@ obj JacTypeRegistry {
     }
 
     def is_sized(name: str) -> bool {
-        return is_sized(name);
+        shape = self._shapes.get(name, None);
+        return shape is not None and shape.sized;
     }
 
     def sized_int_names -> list[str] {
-        return sized_int_names();
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized and not s.is_float
+        ];
     }
 
     def sized_float_names -> list[str] {
-        return sized_float_names();
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized and s.is_float
+        ];
     }
 
     def sized_scalar_names -> list[str] {
-        return sized_scalar_names();
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized
+        ];
     }
 
     def range_of(name: str) -> tuple[int, int] {
-        return range_of(name);
+        shape = self._shapes.get(name, None);
+        if shape is None {
+            raise KeyError(name);
+        }
+        return shape_range(shape);
     }
 
     def literal_fits(name: str, value: int | float) -> bool {
-        return literal_fits(name, value);
+        shape = self._shapes.get(name, None);
+        return shape is not None and shape_literal_fits(shape, value);
     }
 
     def widens_to(src: str, dst: str) -> bool {
-        return widens_to(src, dst);
+        if src == dst {
+            return True;
+        }
+        s = self._shapes.get(src, None);
+        d = self._shapes.get(dst, None);
+        return s is not None and d is not None and shapes_widen_to(s, d);
     }
 
     def unify(a: str, b: str) -> str | None {
-        return unify(a, b);
+        s = self._shapes.get(a, None);
+        d = self._shapes.get(b, None);
+        if s is None or d is None {
+            return None;
+        }
+        out = shapes_unify(s, d);
+        return None if out is None else out.name;
     }
 
     def is_exception(name: str) -> bool {
@@ -272,8 +303,17 @@ def _builtin_name_set -> frozenset[str] {
     return frozenset(names);
 }
 
+def _shape_table -> dict[str, ScalarShape] {
+    out: dict[str, ScalarShape] = {};
+    for shape in numeric_shapes() {
+        out[shape.name] = shape;
+    }
+    return out;
+}
+
 glob JAC_TYPE_REGISTRY = JacTypeRegistry(
          _entries=_registry_entries(),
+         _shapes=_shape_table(),
          _builtin_names=_builtin_name_set(),
          _exception_parents={
              "BaseException": None,

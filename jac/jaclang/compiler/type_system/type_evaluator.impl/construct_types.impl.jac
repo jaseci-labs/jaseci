@@ -765,34 +765,30 @@ impl TypeEvaluator._extern_member_type(arch: Archetype, name: str) -> TypeBase {
 
 impl TypeEvaluator._extern_field_type(field: HasVar) -> TypeBase {
     import from jaclang.compiler.type_system.types { create_callable_type }
+    import from jaclang.compiler.type_system.fixed_width { numeric_name_of }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     tag = field.type_tag.tag;
-    if (
-        isinstance(tag, AtomTrailer)
-        and isinstance(tag.target, Name)
-        and tag.target.sym_name == "Callable"
-        and isinstance(tag.right, IndexSlice)
-        and tag.right.slices
-    ) {
-        args = tag.right.slices[0].start;
-        if (
-            isinstance(args, TupleVal)
-            and len(args.values) >= 2
-            and isinstance(args.values[0], ListVal)
-        ) {
-            param_types: list[TypeBase] = [
-                self._extern_scalar_type(p) for p in args.values[0].values
-            ];
-            ret_type = self._extern_scalar_type(args.values[1]);
-            all_types: list[TypeBase] = list(param_types);
-            all_types.append(ret_type);
-            typed = [
-                t
-                for t in all_types
-                if not isinstance(t, AnyType)
-            ];
-            if typed {
-                return create_callable_type(param_types, ret_type, is_gradual=False);
+    declared = self.get_type_of_expression(tag);
+    if isinstance(declared, FunctionType) {
+        param_types: list[TypeBase] = [];
+        typed = False;
+        for p in declared.parameters or [] {
+            pn = numeric_name_of(p.param_type);
+            if pn is not None and JAC_TYPE_REGISTRY.is_sized(pn) {
+                param_types.append(p.param_type);
+                typed = True;
+            } else {
+                param_types.append(AnyType(is_foreign=True, foreign_scalar=pn));
             }
+        }
+        rn = numeric_name_of(declared.return_type);
+        ret_type: TypeBase = AnyType(is_foreign=True, foreign_scalar=rn);
+        if rn is not None and JAC_TYPE_REGISTRY.is_sized(rn) {
+            ret_type = declared.return_type;
+            typed = True;
+        }
+        if typed {
+            return create_callable_type(param_types, ret_type, is_gradual=False);
         }
         return AnyType(is_foreign=True);
     }

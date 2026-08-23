@@ -1535,9 +1535,9 @@ def _build_types_runtime_js -> str {
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
     }
-    import from jaclang.jac0core.scalars { NUMERIC_SHAPES }
+    import from jaclang.jac0core.scalars { numeric_shapes }
     sized_lines: list[str] = [];
-    for shape in NUMERIC_SHAPES {
+    for shape in numeric_shapes() {
         if not shape.sized {
             continue;
         }
@@ -1578,9 +1578,9 @@ def _build_types_runtime_js -> str {
 }
 
 def _build_fw_runtime_js -> str {
-    import from jaclang.jac0core.scalars { NUMERIC_SHAPES }
+    import from jaclang.jac0core.scalars { numeric_shapes }
     rows: list[str] = [];
-    for shape in NUMERIC_SHAPES {
+    for shape in numeric_shapes() {
         if not shape.sized {
             continue;
         }

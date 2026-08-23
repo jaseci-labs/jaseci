@@ -399,9 +399,9 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._validate_component_jsx_props",
              "TypeEvaluator._validate_intrinsic_jsx_props",
              "TypeEvaluator.assign_expr",
-             "TypeEvaluator.assign_type_to_type_var",
-             "TypeEvaluator.validate_arg_types"
+             "TypeEvaluator.assign_type_to_type_var"
          ),
+         "method 'TypeEvaluator.assign_expr'": ("TypeEvaluator.validate_arg_types", ),
          "expression 'FuncCall'": (
              "TypeEvaluator.__post_init__",
              "TypeEvaluator._extract_tuple_element_type",
