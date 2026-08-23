@@ -473,6 +473,7 @@ import from objects {
 import from abstract_protocol {
     PyObject_GetIter,
     PyIter_Check,
+    PyObject_Hash,
     PyObject_HashNotImplemented,
     PyObject_RichCompare,
     PyObject_RichCompareBool,
@@ -1065,6 +1066,24 @@ obj PyHostProxy(PyObj) {
         if len(args) == 1 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
             return py_type_of(args[0]);
         }
+        # The conversion constructors int()/float()/bool() over a NATIVE operand
+        # answer through the implicit slot machinery instead of crossing the
+        # bridge: to_host of a plain user object is None, so the host constructor
+        # saw nothing (bool(obj) was literally False; int(obj)/float(obj) raised).
+        bname = str(_jac_builtin_base_name(self.val));
+        if len(args) >= 1 and (bname == "int" or bname == "float" or bname == "bool") {
+            for a in args {
+                if isinstance(a, PyUserObj) {
+                    if bname == "bool" {
+                        return py_slot_truth(args[0]);
+                    }
+                    if bname == "int" {
+                        return py_convert_int(args[0]);
+                    }
+                    return py_convert_float(args[0]);
+                }
+            }
+        }
         return py_call_host(self, args, kwargs);
     }
 
@@ -1537,6 +1556,13 @@ obj PyUserObj(PyObj) {
         if name == "__class__" {
             return self.cls;
         }
+        # object's attribute-protocol methods are real attributes of every
+        # instance (hasattr(inst, '__getattribute__') is True); expose them as
+        # bound slot wrappers over the generic attribute dispatch.
+        if name == "__getattribute__" or name == "__setattr__"
+            or name == "__delattr__" {
+            return PyObjectAttrSlot(t="obj_attr_slot", target=self as PyObj, op=name);
+        }
         return py_error("AttributeError", name);
     }
 
@@ -1572,6 +1598,22 @@ obj PyUserObj(PyObj) {
     }
 
     def to_index -> PyObj {
+        # A user-defined __index__ IS the index slot (operator.index()).
+        if user_has_dunder(self, "__index__") {
+            res = call_user_dunder(self, "__index__", []);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyBool) {
+                return PyInt(t="int", val=1 if (res as PyBool).val else 0);
+            }
+            if isinstance(res, PyInt) {
+                return res;
+            }
+            return py_error(
+                "TypeError", "__index__ returned non-int of type '" + res.t + "'"
+            );
+        }
         # A builtin-int subclass instance (re._constants._NamedIntConstant, an
         # IntEnum member, ...) indexes as its boxed int.
         if self._has_base() {
@@ -1581,18 +1623,29 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_hashkey -> str {
-        if self._has_base() {
-            return self._base_obj().tp_hashkey();
-        }
         # A user-defined __hash__ keys the object by value (shares the numeric
-        # "n:" namespace so hash()-equal objects bucket together); otherwise a
-        # plain user object hashes by identity, distinct per object.
+        # "n:" namespace so hash()-equal objects bucket together); it overrides
+        # a boxed builtin base's own keying, as CPython's slot inheritance does.
         if user_has_dunder(self, "__hash__") {
             h = call_user_dunder(self, "__hash__", []);
+            if isinstance(h, PyBool) {
+                h = PyInt(t="int", val=1 if (h as PyBool).val else 0);
+            }
             if isinstance(h, PyInt) {
                 return "n:" + str((h as PyInt).val);
             }
         }
+        if self._has_base() {
+            return self._base_obj().tp_hashkey();
+        }
+        # CPython type.__new__: __eq__ without an explicit __hash__ anywhere in
+        # the MRO leaves tp_hash NULL -- instances are unhashable. The empty
+        # string is the established unhashable sentinel; dict/set keying and
+        # PyObject_Hash both turn it into the TypeError.
+        if user_has_dunder(self, "__eq__") {
+            return "";
+        }
+        # Default object.__hash__: identity-keyed, distinct per object.
         return "obj:" + str(id(self));
     }
 
@@ -1758,7 +1811,68 @@ obj PyProperty(PyObj) {
         if name == "fget" {
             return self.fget if self.fget is not None else py_none();
         }
+        # The descriptor protocol surface itself: property.__get__/__set__/
+        # __delete__ are real attributes in CPython (C.v.__get__(inst) runs the
+        # accessor directly).
+        if name == "__get__" or name == "__set__" or name == "__delete__" {
+            return PyPropAccess(t="prop_access", prop=self, op=name);
+        }
+        # A property object is itself an object: its attribute protocol answers
+        # through the same bound slot wrapper instances get.
+        if name == "__getattribute__" {
+            return PyObjectAttrSlot(t="obj_attr_slot", target=self as PyObj, op=name);
+        }
         return py_error("AttributeError", name);
+    }
+}
+
+# The bound property.__get__/__set__/__delete__ accessors (descriptor-protocol
+# parity: the same operations implicit attribute dispatch uses, invocable by
+# hand as CPython's slot wrappers are).
+obj PyPropAccess(PyObj) {
+    has prop: PyProperty,
+        op: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        p = self.prop;
+        if self.op == "__get__" {
+            if len(args) < 1 {
+                return py_error(
+                    "TypeError",
+                    "__get__ expected at least 1 argument, got " + str(len(args)),
+                );
+            }
+            if isinstance(args[0], PyNoneType) {
+                # obj.__get__(None, owner): class-level access returns the
+                # property object itself.
+                return p as PyObj;
+            }
+            if p.fget is None {
+                return py_error("AttributeError", "property has no getter");
+            }
+            return py_invoke(p.fget as PyObj, [args[0]], {});
+        }
+        if self.op == "__set__" {
+            if len(args) < 2 {
+                return py_error(
+                    "TypeError", "__set__ expected 2 arguments, got " + str(len(args))
+                );
+            }
+            if p.fset is None {
+                return py_error("AttributeError", "property has no setter");
+            }
+            return py_invoke(p.fset as PyObj, [args[0], args[1]], {});
+        }
+        if len(args) < 1 {
+            return py_error(
+                "TypeError",
+                "__delete__ expected at least 1 argument, got " + str(len(args)),
+            );
+        }
+        if p.fdel is None {
+            return py_error("AttributeError", "property has no deleter");
+        }
+        return py_invoke(p.fdel as PyObj, [args[0]], {});
     }
 }
 
@@ -1785,6 +1899,42 @@ obj PyPropModifier(PyObj) {
 obj PyNoOpInit(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         return py_none();
+    }
+}
+
+# Bound object.__getattribute__/__setattr__/__delattr__ over a native instance:
+# the generic attribute protocol exposed AS attributes, exactly as CPython's
+# slot wrappers are (hasattr(inst, '__getattribute__') is True).
+obj PyObjectAttrSlot(PyObj) {
+    has target: PyObj,
+        op: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.op == "__getattribute__" {
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    "__getattribute__ expected 1 argument, got " + str(len(args)),
+                );
+            }
+            return py_attr(self.target, expect_str(args[0]));
+        }
+        if self.op == "__setattr__" {
+            if len(args) != 2 {
+                return py_error(
+                    "TypeError",
+                    "__setattr__ expected 2 arguments, got " + str(len(args)),
+                );
+            }
+            return py_set_attr(self.target, expect_str(args[0]), args[1]);
+        }
+        if len(args) != 1 {
+            return py_error(
+                "TypeError",
+                "__delattr__ expected 1 argument, got " + str(len(args)),
+            );
+        }
+        return py_del_attr(self.target, expect_str(args[0]));
     }
 }
 
@@ -2441,11 +2591,138 @@ def host_setattr(value: PyObj, name: str, field: PyObj) -> PyObj {
 # ---------------- ceval ----------------
 # Opcode numbers and cache metadata: opcode_meta.jac (PLAN.md P0.1).
 
+# ---------------- implicit type-slot machinery ------------------------------
+# CPython fills each type's slots (tp_bool/sq_contains/nb_int/nb_float/tp_hash)
+# from dunder presence when the heap type is created. jacpython's heap types
+# (PyClass/PyUserObj) have no frozen vtable to patch: the same protocols resolve
+# through MRO dunder lookup AT DISPATCH, funneled through the helpers below so
+# every entry point -- branch truthiness, bool(), `in`, hash()/dict-keying,
+# int()/float() -- shares one set of semantics.
+
+# Truthiness slot (nb_bool + sq_length; CPython PyObject_IsTrue): __bool__,
+# then __len__, then a boxed builtin base's own truthiness, then True.
+def py_slot_truth(value: PyObj) -> PyObj {
+    if isinstance(value, PyUserObj) {
+        u = value as PyUserObj;
+        if user_has_dunder(u, "__bool__") {
+            res = call_user_dunder(u, "__bool__", []);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyBool) {
+                return res;
+            }
+            return py_error("TypeError", "__bool__ should return bool");
+        }
+        if user_has_dunder(u, "__len__") {
+            ln = py_len(value);
+            if is_error(ln) {
+                return ln;
+            }
+            return PyBool(t="bool", val=(ln as PyInt).val != 0);
+        }
+        if u._has_base() {
+            return py_slot_truth(u._base_obj());
+        }
+        return PyBool(t="bool", val=True);
+    }
+    return PyBool(t="bool", val=value.tp_bool());
+}
+
+# int(x) conversion slot (nb_int over dunders): __int__, then the index slot
+# (__index__ / a boxed int base), then a boxed non-int base converted on its
+# own terms; nothing applicable is CPython's TypeError.
+def py_convert_int(x: PyObj) -> PyObj {
+    if isinstance(x, PyUserObj) {
+        u = x as PyUserObj;
+        if user_has_dunder(u, "__int__") {
+            res = call_user_dunder(u, "__int__", []);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyBool) {
+                return PyInt(t="int", val=1 if (res as PyBool).val else 0);
+            }
+            if isinstance(res, PyInt) {
+                return res;
+            }
+            return py_error(
+                "TypeError", "__int__ returned non-int of type '" + res.t + "'"
+            );
+        }
+        idx = (u as PyObj).to_index();
+        if not is_error(idx) {
+            return idx;
+        }
+        if u._has_base() {
+            return py_convert_int(u._base_obj());
+        }
+        return py_error(
+            "TypeError",
+            "int() argument must be a string, a bytes-like object or a real number, not '"
+                + u.cls.name + "'",
+        );
+    }
+    return py_host_convert("int", x);
+}
+
+# float(x) conversion slot (nb_float over dunders): __float__, then the index
+# slot / boxed base; nothing applicable is CPython's TypeError.
+def py_convert_float(x: PyObj) -> PyObj {
+    if isinstance(x, PyUserObj) {
+        u = x as PyUserObj;
+        if user_has_dunder(u, "__float__") {
+            res = call_user_dunder(u, "__float__", []);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyFloat) {
+                return res;
+            }
+            return py_error(
+                "TypeError", "__float__ returned non-float of type '" + res.t + "'"
+            );
+        }
+        idx = (u as PyObj).to_index();
+        if not is_error(idx) {
+            return PyFloat(t="float", val=float((idx as PyInt).val));
+        }
+        if u._has_base() {
+            return py_convert_float(u._base_obj());
+        }
+        return py_error(
+            "TypeError",
+            "float() argument must be a string or a real number, not '"
+                + u.cls.name + "'",
+        );
+    }
+    return py_host_convert("float", x);
+}
+
+# The host constructor of `name` over a value with no native slot answer
+# (str/bytes parsing, float truncation, opaque proxies). Exact legacy behavior.
+def py_host_convert(name: str, x: PyObj) -> PyObj {
+    result = _jac_host_builtin(name);
+    if host_result_ok(result) {
+        fn = PyHostProxy(t="host", val=result[1]);
+        return fn.tp_call([x], {});
+    }
+    return py_error(str(result[1]), str(result[2]));
+}
+
 # The dispatchers below are thin adapters over the object model's virtual
 # slots: they exist only so the ceval reads naturally. Behavior selection is
 # the method call (self's vtable), never a tag comparison.
 def py_truth(value: PyObj) -> bool {
-    return value.tp_bool();
+    # Implicit-truth slot consultation (__bool__/__len__ on user objects). A
+    # raising dunder cannot propagate through this bool-valued adapter -- the
+    # opcode-level entry points (branching, TO_BOOL, UNARY_NOT, bool(), `in`)
+    # call py_slot_truth directly so the exception surfaces like PyObject_IsTrue.
+    result = py_slot_truth(value);
+    if is_error(result) {
+        return value.tp_bool();
+    }
+    return (result as PyBool).val;
 }
 
 # A key/value that is NOT a builtin (a user object or a host proxy) can carry a
@@ -3252,6 +3529,49 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
         }
         return PyBool(t="bool", val=False);
     }
+    # Implicit sq_contains slot on user classes: __contains__ wins; without it
+    # CPython's default sq_contains iterates with real ==; neither available
+    # is the TypeError.
+    if isinstance(container, PyUserObj) {
+        u = container as PyUserObj;
+        if user_has_dunder(u, "__contains__") {
+            hit = call_user_dunder(u, "__contains__", [member]);
+            if is_error(hit) {
+                return hit;
+            }
+            truth = py_slot_truth(hit);
+            if is_error(truth) {
+                return truth;
+            }
+            return truth;
+        }
+        cursor = (u as PyObj).tp_iter();
+        if is_error(cursor) {
+            return py_error(
+                "TypeError", "argument of type '" + u.cls.name + "' is not iterable"
+            );
+        }
+        while True {
+            scan = send_into(cursor, py_none());
+            if scan.t == "genstop" {
+                return PyBool(t="bool", val=False);
+            }
+            if is_error(scan) {
+                return scan;
+            }
+            cmp2 = py_compare(2, member, scan);
+            if is_error(cmp2) {
+                return cmp2;
+            }
+            found = py_slot_truth(cmp2);
+            if is_error(found) {
+                return found;
+            }
+            if (found as PyBool).val {
+                return PyBool(t="bool", val=True);
+            }
+        }
+    }
     result = _jac_host_contains(to_host(member), to_host(container));
     if host_result_ok(result) {
         return from_host(result[1]);
@@ -3539,6 +3859,9 @@ def py_hash(value: PyObj) -> PyObj {
             if is_error(h) {
                 return h;
             }
+            if isinstance(h, PyBool) {
+                h = PyInt(t="int", val=1 if (h as PyBool).val else 0);
+            }
             if isinstance(h, PyInt) {
                 return h;
             }
@@ -3547,7 +3870,14 @@ def py_hash(value: PyObj) -> PyObj {
         if u._has_base() {
             return py_hash(u._base_obj());
         }
-        return PyObject_HashNotImplemented(value);
+        # Default tp_hash: object.__hash__ (the identity-keyed digest), or the
+        # __eq__-without-__hash__ unhashable rule -- both owned by tp_hashkey,
+        # so hash() and dict/set keying cannot disagree.
+        hk = u.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type: '" + u.cls.name + "'");
+        }
+        return PyObject_Hash(value);
     }
     if isinstance(value, PyTuple) {
         return tuple_hash(value as PyTuple);
@@ -3660,7 +3990,14 @@ def py_len(value: PyObj) -> PyObj {
             if is_error(res) {
                 return res;
             }
+            if isinstance(res, PyBool) {
+                # bool IS an int subclass in CPython: True/False are valid lens.
+                res = PyInt(t="int", val=1 if (res as PyBool).val else 0);
+            }
             if isinstance(res, PyInt) {
+                if (res as PyInt).val < 0 {
+                    return py_error("ValueError", "__len__() should return >= 0");
+                }
                 return res;
             }
             return py_error("TypeError", "'__len__' should return an integer");
@@ -8196,10 +8533,22 @@ def run_frame(frame: PyFrame) -> PyObj {
             or op == OP_POP_JUMP_IF_NOT_NONE {
             condition = stack.pop();
             jump = False;
-            if op == OP_POP_JUMP_IF_FALSE {
-                jump = not py_truth(condition);
-            } elif op == OP_POP_JUMP_IF_TRUE {
-                jump = py_truth(condition);
+            if op == OP_POP_JUMP_IF_FALSE or op == OP_POP_JUMP_IF_TRUE {
+                # Implicit-truth slot with a real error channel: a raising
+                # __bool__/__len__ propagates like CPython's PyObject_IsTrue.
+                truth = py_slot_truth(condition);
+                if is_error(truth) {
+                    target = recover_exception(co, truth, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return truth;
+                }
+                jump = (truth as PyBool).val;
+                if op == OP_POP_JUMP_IF_FALSE {
+                    jump = not jump;
+                }
             } elif op == OP_POP_JUMP_IF_NONE {
                 jump = condition.t == "none";
             } else {
@@ -8236,7 +8585,17 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_UNARY_NOT {
-            stack.append(PyBool(t="bool", val=not py_truth(stack.pop())));
+            operand = stack.pop();
+            truth = py_slot_truth(operand);
+            if is_error(truth) {
+                target = recover_exception(co, truth, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return truth;
+            }
+            stack.append(PyBool(t="bool", val=not (truth as PyBool).val));
             continue;
         }
         if op == OP_UNARY_NEGATIVE {
@@ -8736,7 +9095,16 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_TO_BOOL {
             condition = stack.pop();
-            stack.append(PyBool(t="bool", val=py_truth(condition)));
+            truth = py_slot_truth(condition);
+            if is_error(truth) {
+                target = recover_exception(co, truth, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return truth;
+            }
+            stack.append(truth);
             continue;
         }
         if op == OP_CONTAINS_OP {

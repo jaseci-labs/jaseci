@@ -679,3 +679,110 @@ test "layer1: user subclass construction after type_ready (P5 heap types)" {
 
 # P3 corpus ratchet tests live in ``layer0_replay_p3_gate.jac`` so they run in
 # isolation (this file's 56 replay regression tests mutate ceval state).
+
+# ---- implicit type-slot machinery (branch truthiness, bool(), `in`, hash(),
+# int()/float() conversions, descriptor/attribute protocol attributes) -------
+
+test "layer1: implicit slots - truthiness membership and conversions" {
+    src = "class TestImplicitSlots(unittest.TestCase):\n"
+    "    def test_bool_dunder(self):\n"
+    "        class Falsy:\n"
+    "            def __bool__(self):\n"
+    "                return False\n"
+    "        f = Falsy()\n"
+    "        self.assertFalse(bool(f))\n"
+    "        self.assertEqual('no' if f else 'yes', 'yes')\n"
+    "    def test_len_dunder(self):\n"
+    "        class Empty:\n"
+    "            def __len__(self):\n"
+    "                return 0\n"
+    "        e = Empty()\n"
+    "        self.assertFalse(bool(e))\n"
+    "        self.assertFalse(e)\n"
+    "    def test_plain_truthy(self):\n"
+    "        class Plain:\n"
+    "            pass\n"
+    "        p = Plain()\n"
+    "        self.assertTrue(p)\n"
+    "        self.assertTrue(bool(p))\n"
+    "    def test_contains_dunder(self):\n"
+    "        class Bag:\n"
+    "            def __init__(self):\n"
+    "                self.items = [1, 2]\n"
+    "            def __contains__(self, x):\n"
+    "                return x in self.items\n"
+    "        b = Bag()\n"
+    "        self.assertTrue(2 in b)\n"
+    "        self.assertTrue(9 not in b)\n"
+    "    def test_contains_iter_fallback(self):\n"
+    "        class IterBag:\n"
+    "            def __init__(self):\n"
+    "                self.items = ['a']\n"
+    "            def __iter__(self):\n"
+    "                return iter(self.items)\n"
+    "        ib = IterBag()\n"
+    "        self.assertTrue('a' in ib)\n"
+    "        self.assertTrue('z' not in ib)\n"
+    "    def test_int_float_dunders(self):\n"
+    "        class N:\n"
+    "            def __int__(self):\n"
+    "                return 7\n"
+    "            def __float__(self):\n"
+    "                return 2.5\n"
+    "        n = N()\n"
+    "        self.assertEqual(int(n), 7)\n"
+    "        self.assertEqual(float(n), 2.5)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 6;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
+
+test "layer1: implicit slots - hash defaults and descriptor attributes" {
+    src = "class TestHashDescSlots(unittest.TestCase):\n"
+    "    def test_default_hash(self):\n"
+    "        class R:\n"
+    "            pass\n"
+    "        r1 = R()\n"
+    "        r2 = R()\n"
+    "        self.assertTrue(hash(r1) == hash(r1))\n"
+    "        self.assertFalse(hash(r1) == hash(r2))\n"
+    "    def test_hash_eq_dict_keys(self):\n"
+    "        class Key:\n"
+    "            def __init__(self, k):\n"
+    "                self.k = k\n"
+    "            def __hash__(self):\n"
+    "                return self.k\n"
+    "            def __eq__(self, o):\n"
+    "                return self.k == o.k\n"
+    "        d = {Key(7): 'v'}\n"
+    "        self.assertEqual(d[Key(7)], 'v')\n"
+    "    def test_eq_without_hash_unhashable(self):\n"
+    "        class EqOnly:\n"
+    "            def __eq__(self, o):\n"
+    "                return True\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            hash(EqOnly())\n"
+    "    def test_property_get_dunder(self):\n"
+    "        class Prop:\n"
+    "            def __init__(self):\n"
+    "                self.x = 5\n"
+    "            def getx(self):\n"
+    "                return self.x\n"
+    "            v = property(getx)\n"
+    "        p = Prop()\n"
+    "        self.assertEqual(Prop.v.__get__(p), 5)\n"
+    "    def test_attribute_protocol_attrs(self):\n"
+    "        class Plain:\n"
+    "            pass\n"
+    "        c = Plain()\n"
+    "        c.name = 'x'\n"
+    "        self.assertTrue(hasattr(c, '__getattribute__'))\n"
+    "        self.assertEqual(c.__getattribute__('name'), 'x')\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 5;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
