@@ -517,6 +517,10 @@ impl CompareExpr.accept_exit(v: UniPass) -> None {
     v.exit_compare_expr(self);
 }
 
+impl Complex.accept_exit(v: UniPass) -> None {
+    v.exit_complex(self);
+}
+
 impl ConcurrentExpr.accept_exit(v: UniPass) -> None {
     v.exit_concurrent_expr(self);
 }

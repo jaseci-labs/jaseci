@@ -17,6 +17,8 @@ import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.parser { parse as rd_parse }
+import from jaclang.jac0core.parser.lexer { tokenize, tokenize_full }
+import from jaclang.jac0core.parser.tokens { TokenKind }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
 import from jaclang.runtimelib.test { parametrize }
@@ -877,4 +879,38 @@ test "reparsing a module with generated test names yields an identical tree (#81
     assert print_ast_tree(m1) == print_ast_tree(m2) , (
         "two parses of one source produced different trees"
     );
+}
+
+test "complex literal lexes as IMAG" {
+    (tokens, errs) = tokenize("1j 0.5j 1e-3J 10_000j .25j 0J", "");
+    assert not errs;
+    imag_toks = [t for t in tokens if t.kind == TokenKind.IMAG];
+    assert [t.value for t in imag_toks]
+        == ["1j", "0.5j", "1e-3J", "10_000j", ".25j", "0J"];
+    # Without a j/J suffix the same spellings stay INT/FLOAT.
+    (plain, errs2) = tokenize("1 0.5 1e-3 .25", "");
+    assert not errs2;
+    assert all(t.kind != TokenKind.IMAG for t in plain);
+}
+
+test "complex literal parse and value" {
+    (module, had_error) = rd_parse('glob z = 1.5j;', "");
+    assert not had_error;
+    cplx = [
+        nd for nd in module._in_mod_nodes
+        if isinstance(nd, uni.Complex)
+    ];
+    assert len(cplx) == 1;
+    assert cplx[0].value == "1.5j";
+    assert cplx[0].lit_value == 1.5j;
+}
+
+test "complex suffix rejected on radix literals" {
+    for src in ['glob a = 0x1j;', 'glob b = 0b1j;', 'glob c = 0o7j;'] {
+        (_tokens, _comments, lex_diags, lex_errs) = tokenize_full(src, "");
+        assert lex_errs == 1 , f"expected one lexer error for {src}";
+        assert any("complex suffix 'j' is not allowed" in d.message for d in lex_diags), (
+            f"unclear diagnostic for {src}"
+        );
+    }
 }

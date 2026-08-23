@@ -517,6 +517,10 @@ impl UniPass.exit_compare_expr(nd: CompareExpr) -> None {
     self.default_exit(nd);
 }
 
+impl UniPass.exit_complex(nd: Complex) -> None {
+    self.default_exit(nd);
+}
+
 impl UniPass.exit_concurrent_expr(nd: ConcurrentExpr) -> None {
     self.default_exit(nd);
 }

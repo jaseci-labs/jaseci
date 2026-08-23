@@ -20,6 +20,7 @@ import from jaclang.jac0core.unitree {
     CodeBlockStmt,
     CommentToken,
     CompareExpr,
+    Complex,
     ConcurrentExpr,
     ConnectOp,
     ContextAwareNode,
@@ -477,6 +478,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def exit_binary_expr(nd: BinaryExpr) -> None;
     def translate_jac_bin_op(nd: BinaryExpr) -> list;
     def exit_compare_expr(nd: CompareExpr) -> None;
+    def exit_complex(nd: Complex) -> None;
     def exit_cfg_expr(nd: CfgExpr) -> None;
     def exit_bool_expr(nd: BoolExpr) -> None;
     def exit_lambda_expr(nd: LambdaExpr) -> None;

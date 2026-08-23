@@ -2503,6 +2503,10 @@ impl BuiltinType.lit_value.getter -> type {
     raise TypeError(f"ICE: {self.value} is not a callable builtin");
 }
 
+impl Complex.lit_value.getter -> complex {
+    return complex(0.0, float(self.value[:-1]));
+}
+
 impl Float.lit_value.getter -> float {
     return float(self.value);
 }

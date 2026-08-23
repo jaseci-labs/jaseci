@@ -309,6 +309,10 @@ impl DocIRGenPass.exit_float(nd: uni.Float) -> None {
     nd.gen.doc_ir = self.text(nd.value, source_token=nd);
 }
 
+impl DocIRGenPass.exit_complex(nd: uni.Complex) -> None {
+    nd.gen.doc_ir = self.text(nd.value, source_token=nd);
+}
+
 impl DocIRGenPass.exit_builtin_type(nd: uni.BuiltinType) -> None {
     nd.gen.doc_ir = self.text(nd.value, source_token=nd);
 }

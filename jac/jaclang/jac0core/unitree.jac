@@ -1647,6 +1647,16 @@ obj BuiltinType(Name, Literal) {
     has lit_value: type { getter; }
 }
 
+obj Complex(Literal) {
+    def accept_exit(v: UniPass) -> None;
+
+    with entry {
+        SYMBOL_TYPE = SymbolType.NUMBER;
+    }
+
+    has lit_value: complex { getter; }
+}
+
 obj Float(Literal) {
     def accept_exit(v: UniPass) -> None;
 

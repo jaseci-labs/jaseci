@@ -150,6 +150,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                 return self._convert_to_instance(self.get_type_of_float(expr));
             }
 
+        case Complex():
+            if self.prefetch {
+                return self._convert_to_instance(self.get_type_of_complex(expr));
+            }
+
         case Null():
             if self.prefetch and self.prefetch.none_type_class {
                 return self._convert_to_instance(self.prefetch.none_type_class);

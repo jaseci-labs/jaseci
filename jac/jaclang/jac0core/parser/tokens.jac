@@ -4,6 +4,7 @@ enum TokenKind {
     BIN = "BIN",
     OCT = "OCT",
     FLOAT = "FLOAT",
+    IMAG = "IMAG",
     STRING = "STRING",
     BOOL = "BOOL",
     NULL = "NULL",

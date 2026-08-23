@@ -1,4 +1,5 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+import from jaclang.jac0core.diagnostics { E5017 }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -482,6 +483,10 @@ impl EsastGenPass.exit_float(nd: uni.Float) -> None {
         es.Literal(value=float(nd.value), raw=nd.value), jac_node=nd
     );
     nd.gen.es_ast = float_lit;
+}
+
+impl EsastGenPass.exit_complex(nd: uni.Complex) -> None {
+    self.emit(E5017, node_override=nd, construct="complex literal");
 }
 
 impl EsastGenPass.exit_int(nd: uni.Int) -> None {

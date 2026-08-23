@@ -267,6 +267,12 @@ impl TypeEvaluator.get_type_of_float(nd: Float) -> TypeBase {
     return self.prefetch.float_class;
 }
 
+impl TypeEvaluator.get_type_of_complex(nd: Complex) -> TypeBase {
+    complex_class = self.get_builtin_class("complex");
+    assert complex_class is not None;
+    return complex_class;
+}
+
 impl TypeEvaluator.get_type_of_int(nd: Int) -> TypeBase {
     assert self.prefetch.int_class is not None;
     return self.prefetch.int_class;

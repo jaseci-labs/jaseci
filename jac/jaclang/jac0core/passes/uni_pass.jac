@@ -17,6 +17,7 @@ import from jaclang.jac0core.unitree {
     CfgExpr,
     CommentToken,
     CompareExpr,
+    Complex,
     ConcurrentExpr,
     ConnectOp,
     CtrlStmt,
@@ -266,6 +267,7 @@ obj UniPass(ModuleCodegenPass) {
     def exit_cfg_expr(nd: CfgExpr) -> None;
     def exit_comment_token(nd: CommentToken) -> None;
     def exit_compare_expr(nd: CompareExpr) -> None;
+    def exit_complex(nd: Complex) -> None;
     def exit_concurrent_expr(nd: ConcurrentExpr) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;
     def exit_ctrl_stmt(nd: CtrlStmt) -> None;

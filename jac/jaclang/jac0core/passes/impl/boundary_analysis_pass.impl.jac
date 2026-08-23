@@ -912,7 +912,7 @@ impl BoundaryAnalysisPass._literal_default(
     if isinstance(expr, Null) {
         return (True, None);
     }
-    if isinstance(expr, (Bool, Int, Float)) {
+    if isinstance(expr, (Bool, Int, Float, Complex)) {
         return (True, expr.lit_value);
     }
     if isinstance(expr, MultiString) {
@@ -929,7 +929,7 @@ impl BoundaryAnalysisPass._literal_default(
     if (
         isinstance(expr, UnaryExpr)
         and expr.op.value == '-'
-        and isinstance(expr.operand, (Int, Float))
+        and isinstance(expr.operand, (Int, Float, Complex))
     ) {
         return (True, -expr.operand.lit_value);
     }

@@ -72,6 +72,10 @@ impl UnparsePass.exit_float(nd: uni.Float) -> None {
     nd.gen.jac = nd.value;
 }
 
+impl UnparsePass.exit_complex(nd: uni.Complex) -> None {
+    nd.gen.jac = nd.value;
+}
+
 impl UnparsePass.exit_bool(nd: uni.Bool) -> None {
     nd.gen.jac = nd.value;
 }
