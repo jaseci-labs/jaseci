@@ -11,9 +11,11 @@ authoring time.
 import from binasciimodule {
     a2b_base64,
     a2b_hex,
+    a2b_qp,
     a2b_uu,
     b2a_base64,
     b2a_hex,
+    b2a_qp,
     b2a_uu,
     hexlify,
     unhexlify,
@@ -254,4 +256,34 @@ test "wave16 unhexlify errors match host" {
                         "string argument should contain only ASCII characters");
     _expect_unhex_error("int arg", 5, "TypeError",
                         "argument should be bytes, buffer or ASCII string, not 'int'");
+}
+
+
+def _expect_qp_decode(label: str, arg: any, header: bool, want: bytes) {
+    got = a2b_qp(arg, header);
+    assert got == want , (label, got, want);
+}
+
+
+test "wave16 quoted-printable decode matches host" {
+    _expect_qp_decode("hex pairs", b"a=3Db=20c\nd=ZZ", False, b"a=b c\nd=ZZ");
+    _expect_qp_decode("soft lf", b"a=\nb", False, b"ab");
+    _expect_qp_decode("soft crlf", b"a=\r\nb", False, b"ab");
+    _expect_qp_decode("double eq", b"a==b", False, b"a=b");
+    _expect_qp_decode("trailing eq", b"ab=", False, b"ab");
+    _expect_qp_decode("lowercase hex", b"=ff", False, _b(0xFF));
+    _expect_qp_decode("header underscore", b"a_b", True, b"a b");
+}
+
+
+test "wave16 quoted-printable encode matches host" {
+    assert b2a_qp(b"hello world\r\n") == b"hello world\r\n";
+    assert b2a_qp(b"a\tb c\t") == b"a\tb c=09";
+    assert b2a_qp(b"a\tb c\t", True) == b"a=09b=20c=09";
+    assert b2a_qp(b"a=b") == b"a=3Db";
+    assert b2a_qp(_b(0xE9)) == b"=E9";
+    assert b2a_qp(b"a b", False, True, True) == b"a_b";
+    assert b2a_qp(b"ab \n") == b"ab=20\n";
+    assert b2a_qp(b"ab \n", False, False) == b"ab =0A";
+    assert len(b2a_qp("x" * 100)) == 102;
 }

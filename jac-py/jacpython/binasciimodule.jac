@@ -476,3 +476,238 @@ def b2a_uu(data: any, backtick: bool = False) -> bytes {
     out.append(10);  # courtesy newline
     return bytes(out);
 }
+
+
+# ---------------------------------------------------------------------------
+# quoted-printable: a2b_qp/b2a_qp
+#
+
+glob _QP_MAXLINESIZE: int = 76;
+
+def _qp_hexdigit(v: int) -> int {
+    digits = "0123456789ABCDEF";
+    return ord(digits[v]);
+}
+
+def a2b_qp(data: any, header: bool = False) -> bytes {
+    buf = _ascii_buffer(data);
+    datalen = len(buf);
+    out: list[int] = [];
+    i = 0;
+    while i < datalen {
+        if buf[i] == 61 {  # '='
+            i += 1;
+            if i >= datalen {
+                break;
+            }
+            if buf[i] == 10 or buf[i] == 13 {  # soft line break
+                if buf[i] != 10 {
+                    while i < datalen and buf[i] != 10 {
+                        i += 1;
+                    }
+                }
+                if i < datalen {
+                    i += 1;
+                }
+            } elif buf[i] == 61 {  # broken case from broken python qp
+                out.append(61);
+                i += 1;
+            } elif (
+                i + 1 < datalen
+                and _is_hex_digit(buf[i])
+                and _is_hex_digit(buf[i + 1])
+            ) {
+                out.append(((_hex_val(buf[i]) << 4) + _hex_val(buf[i + 1])) & 0xFF);
+                i += 2;
+            } else {
+                out.append(61);
+            }
+        } elif header and buf[i] == 95 {  # '_' -> ' '
+            out.append(32);
+            i += 1;
+        } else {
+            out.append(buf[i]);
+            i += 1;
+        }
+    }
+    return bytes(out);
+}
+
+def _is_hex_digit(c: int) -> bool {
+    return (c >= 48 and c <= 57) or (c >= 65 and c <= 70) or (c >= 97 and c <= 102);
+}
+
+def _hex_val(c: int) -> int {
+    if c <= 57 {
+        return c - 48;
+    }
+    if c <= 70 {
+        return c - 55;
+    }
+    return c - 87;
+}
+
+def b2a_qp(data: any, quotetabs: bool = False, istext: bool = True,
+           header: bool = False) -> bytes {
+    buf = _ascii_buffer(data);
+    datalen = len(buf);
+
+    # CRLF detection: a '\n' whose predecessor is '\r'.
+    crlf = False;
+    nl = _memchr(buf, 10);
+    if nl > 0 and buf[nl - 1] == 13 {
+        crlf = True;
+    }
+
+    # Sizing pass (verbatim predicates/order from binascii_b2a_qp_impl).
+    odatalen = 0;
+    linelen = 0;
+    i = 0;
+    while i < datalen {
+        delta = 0;
+        if _qp_needs_encode(buf, datalen, i, linelen, quotetabs, istext, header) {
+            if linelen + 3 >= _QP_MAXLINESIZE {
+                linelen = 0;
+                delta += 3 if crlf else 2;
+            }
+            linelen += 3;
+            delta += 3;
+            i += 1;
+        } elif istext and (
+            buf[i] == 10 or (i + 1 < datalen and buf[i] == 13 and buf[i + 1] == 10)
+        ) {
+            linelen = 0;
+            # Protect against whitespace on end of line.
+            if i > 0 and (buf[i - 1] == 32 or buf[i - 1] == 9) {
+                delta += 2;
+            }
+            delta += 2 if crlf else 1;
+            if buf[i] == 13 {
+                i += 2;
+            } else {
+                i += 1;
+            }
+        } else {
+            if i + 1 != datalen and buf[i + 1] != 10 and linelen + 1 >= _QP_MAXLINESIZE {
+                linelen = 0;
+                delta += 3 if crlf else 2;
+            }
+            linelen += 1;
+            delta += 1;
+            i += 1;
+        }
+        odatalen += delta;
+    }
+
+    out: list[int] = [0] * odatalen;
+    o = 0;
+    linelen = 0;
+    i = 0;
+    while i < datalen {
+        ch = buf[i];
+        if _qp_needs_encode(buf, datalen, i, linelen, quotetabs, istext, header) {
+            if linelen + 3 >= _QP_MAXLINESIZE {
+                out[o] = 61;
+                o += 1;
+                if crlf {
+                    out[o] = 13;
+                    o += 1;
+                }
+                out[o] = 10;
+                o += 1;
+                linelen = 0;
+            }
+            out[o] = 61;
+            out[o + 1] = _qp_hexdigit(ch // 16);
+            out[o + 2] = _qp_hexdigit(ch % 16);
+            o += 3;
+            i += 1;
+            linelen += 3;
+        } elif istext and (
+            ch == 10 or (i + 1 < datalen and ch == 13 and buf[i + 1] == 10)
+        ) {
+            linelen = 0;
+            if o > 0 and (out[o - 1] == 32 or out[o - 1] == 9) {
+                prev = out[o - 1];
+                out[o - 1] = 61;
+                out[o] = _qp_hexdigit(prev // 16);
+                out[o + 1] = _qp_hexdigit(prev % 16);
+                o += 2;
+            }
+            if crlf {
+                out[o] = 13;
+                o += 1;
+            }
+            out[o] = 10;
+            o += 1;
+            if ch == 13 {
+                i += 2;
+            } else {
+                i += 1;
+            }
+        } else {
+            if i + 1 != datalen and buf[i + 1] != 10 and linelen + 1 >= _QP_MAXLINESIZE {
+                out[o] = 61;
+                o += 1;
+                if crlf {
+                    out[o] = 13;
+                    o += 1;
+                }
+                out[o] = 10;
+                o += 1;
+                linelen = 0;
+            }
+            linelen += 1;
+            if header and ch == 32 {
+                out[o] = 95;  # '_' encodes space in header mode
+                o += 1;
+            } else {
+                out[o] = ch;
+                o += 1;
+            }
+            i += 1;
+        }
+    }
+    return bytes(out[:o]);
+}
+
+# First index of byte `v` in buf, or -1. (memchr stand-in)
+def _memchr(buf: list[int], v: int) -> int {
+    for k in range(len(buf)) {
+        if buf[k] == v {
+            return k;
+        }
+    }
+    return -1;
+}
+
+# Shared need-encode predicate of both b2a_qp passes; order matches the C
+# disjunction exactly so boundary behavior stays identical.
+def _qp_needs_encode(buf: list[int], datalen: int, i: int, linelen: int,
+                     quotetabs: bool, istext: bool, header: bool) -> bool {
+    c = buf[i];
+    if c > 126 {
+        return True;
+    }
+    if c == 61 {  # '='
+        return True;
+    }
+    if header and c == 95 {  # '_'
+        return True;
+    }
+    if c == 46 and linelen == 0 and (
+        i + 1 == datalen or buf[i + 1] == 10 or buf[i + 1] == 13 or buf[i + 1] == 0
+    ) {
+        return True;
+    }
+    if not istext and (c == 13 or c == 10) {
+        return True;
+    }
+    if (c == 9 or c == 32) and i + 1 == datalen {
+        return True;
+    }
+    if c < 33 and c != 13 and c != 10 and (quotetabs or (c != 9 and c != 32)) {
+        return True;
+    }
+    return False;
+}
