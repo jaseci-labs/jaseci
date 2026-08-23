@@ -289,9 +289,6 @@ def collect_method_names(arch: Archetype) -> set[str] {
     return names;
 }
 
-# Client bare-call classification for W6010/E6010. There is deliberately no
-# name registry here: a host constructor is whatever js_globals.pyi declares
-# as a class, and the type-driven codegen lowers those calls to `new`.
 def _client_bare_call_target_kind(nd: FuncCall) -> (str | None) {
     if not nd.in_client_context() {
         return None;
