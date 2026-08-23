@@ -107,7 +107,7 @@ test "a failed bundle build is retried on a later request, not cached until rest
         import from jaclang.scale.runtime.context.util { jac_executable }
         port = get_free_port();
         proc = subprocess.Popen(
-            [jac_executable(), "start", "brokenapp.jac", "--port", str(port)],
+            [jac_executable(), "run", "--serve", "--port", str(port), "brokenapp.jac"],
             stdout=handle,
             stderr=subprocess.STDOUT,
             cwd=str(proj)

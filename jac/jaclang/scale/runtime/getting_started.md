@@ -58,11 +58,11 @@ my_service = "/api/my"
 via `sv import`. Then:
 
 ```bash
-jac start main.jac --scale
+jac scale deploy main.jac
 ```
 
 No Dockerfile and no registry config, on any cluster: nothing is built
-and nothing is pushed. `jac start --scale` packs your source into a
+and nothing is pushed. `jac scale deploy` packs your source into a
 bundle and copies it into the cluster on a PVC, boots every pod from a
 stock base image (a bootstrap initContainer unpacks the bundle and
 installs the pinned `jac` runtime), spins up a Postgres StatefulSet,
@@ -112,7 +112,7 @@ enabled         = true
 max_unavailable = 1
 ```
 
-Re-run `jac start --scale` to apply; K8s handles the rolling update.
+Re-run `jac scale deploy` to apply; K8s handles the rolling update.
 
 ## Tear down
 

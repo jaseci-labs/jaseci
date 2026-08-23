@@ -141,7 +141,7 @@ def start_app_server(project_path: any, extra_args: list | None = None) -> tuple
     port = get_free_port();
     jac_cmd = get_jac_command();
     env = get_env_with_bun();
-    args = [*jac_cmd, "start"];
+    args = [*jac_cmd, "run", "--serve"];
     if extra_args {
         args = [*args, *extra_args];
     }

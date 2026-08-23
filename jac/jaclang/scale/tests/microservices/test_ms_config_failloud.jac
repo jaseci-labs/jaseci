@@ -42,7 +42,7 @@ test "a reserved route name stops startup loudly instead of serving a monolith" 
     project_dir = _bad_route_project();
     try {
         result = subprocess.run(
-            [jac_executable(), "start", "main.jac"],
+            [jac_executable(), "run", "--serve", "main.jac"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),

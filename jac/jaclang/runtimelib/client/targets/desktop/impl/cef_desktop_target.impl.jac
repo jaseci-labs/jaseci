@@ -309,6 +309,6 @@ impl CefDesktopTarget.dev(
     raise RuntimeError(
         "CEF desktop HMR is not supported yet. CEF routes RPC through the "
         "loopback broker, so a Vite dev origin breaks the app. Use "
-        "`jac start --client desktop` (native webview) or web mode for HMR."
+        "`jac run --client desktop` (native webview) or web mode for HMR."
     );
 }

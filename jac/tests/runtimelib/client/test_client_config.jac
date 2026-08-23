@@ -252,7 +252,7 @@ test "syntax error surfaces a console diagnostic" {
         captured = "";
         try {
             result = run(
-                [*jac_cmd, "start", "main.jac", "-p", str(port)],
+                [*jac_cmd, "run", "--serve", "-p", str(port), "main.jac"],
                 cwd=project_path,
                 env=env,
                 capture_output=True,

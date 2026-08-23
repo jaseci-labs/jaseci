@@ -148,7 +148,7 @@ def call_walker(
 """Start `jac start` in fixtures_dir and block until /healthz responds."""
 def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Popen {
     import from jaclang.scale.runtime.context.util { jac_executable }
-    cmd = [jac_executable(), "start", str(jac_file.name), "--port", str(port)];
+    cmd = [jac_executable(), "run", "--serve", "--port", str(port), str(jac_file.name)];
     env = os.environ.copy();
     server = subprocess.Popen(
         cmd,

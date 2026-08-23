@@ -567,7 +567,7 @@ Jac provides two ways to expose server logic: `def:pub` functions and `walker` t
 
 ### Walkers as REST APIs
 
-Public walkers automatically become HTTP endpoints when you run `jac start`:
+Public walkers automatically become HTTP endpoints when you run `jac run`:
 
 ```jac
 node Todo {
@@ -594,11 +594,11 @@ walker list_todos {
 ```
 
 !!! note
-    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
 # Run as API server
-jac start
+jac run
 
 # Call via HTTP
 curl -X POST http://localhost:8000/walker/add_todo \

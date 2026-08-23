@@ -691,7 +691,7 @@ impl __getApiBaseUrl -> str {
         globalThis.__jacWarnedMissingApiBaseUrl__ = True;
         console.warn(
             "[jac-native-runtime] Missing API base URL. Set expo.extra.apiBaseUrl "
-            "or run jac start --client react-native --dev so it is injected."
+            "or run jac run --client react-native --dev so it is injected."
         );
     }
     return "";

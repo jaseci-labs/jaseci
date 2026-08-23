@@ -1131,7 +1131,7 @@ test "start dev with client does initial compilation" {
             os.chdir(test_project_name);
             # Run jac start --dev main.jac (should auto-install watchdog and compile)
             process = Popen(
-                ["jac", "start", "--dev", "main.jac"],
+                ["jac", "run", "--dev", "main.jac"],
                 stdout=PIPE,
                 stderr=PIPE,
                 text=True,

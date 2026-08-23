@@ -319,7 +319,7 @@ test "jac cli alert based err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err2.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err2.jac"), entry_name="speak", args=[]);
     } except Exception as e {
         print(f"Error: {e}");
     }
@@ -401,7 +401,7 @@ test "jac impl err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err.jac"), entry_name="speak", args=[]);
     } except Exception {
         traceback.print_exc();
     }

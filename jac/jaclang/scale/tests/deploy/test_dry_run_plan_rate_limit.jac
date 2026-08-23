@@ -47,7 +47,7 @@ def _dry_run_plan(rate_limit: str) -> tuple[int, str] {
     }
     try {
         result = subprocess.run(
-            [jac_executable(), "start", "--scale", "--dry-run", "main.jac"],
+            [jac_executable(), "scale", "deploy", "main.jac", "--dry-run"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),
