@@ -819,6 +819,9 @@ impl Session._flush_locked(full: bool) -> None {
 impl Session._serialize(anchor: Anchor) -> AnchorRow {
     import from jaclang.runtimelib.serializer { Serializer }
     props = Serializer.serialize(anchor, include_type=True);
+    if isinstance(props, dict) {
+        props.pop('edges', None);
+    }
     arch = anchor.archetype;
     arch_type = '';
     arch_module = '';
