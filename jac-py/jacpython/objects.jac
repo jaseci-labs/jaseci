@@ -575,7 +575,12 @@ obj PyNoneType(PyObj) {
     }
 
     def tp_hashkey -> str {
-        return "none";
+        # Byte-parity with the host oracle: CPython hash(None) is process-
+        # stable (4238894112 on the pinned 3.14), and the "n:" namespace
+        # passes numeric digests through verbatim (see _hashkey_digest). The
+        # old bare "none" string FNV-digested to a value no host comparison
+        # could ever match (item 41).
+        return "n:4238894112";
     }
 }
 
