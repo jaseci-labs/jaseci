@@ -194,6 +194,14 @@ class JacAccessValidation {
         level: (AccessLevel | int | str | None) = None
     ) -> None;
 
+    static def allow_group(
+        archetype: Archetype,
+        group_id: UUID,
+        level: (AccessLevel | int | str | None) = None
+    ) -> None;
+
+    static def disallow_group(archetype: Archetype, group_id: UUID) -> None;
+    static def _groups_of(jroot: NodeAnchor) -> list[str];
     static def disallow_root(
         archetype: Archetype,
         root_id: UUID,

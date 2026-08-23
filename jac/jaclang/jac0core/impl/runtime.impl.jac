@@ -68,6 +68,28 @@ impl JacAccessValidation.allow_root(
     }
 }
 
+impl JacAccessValidation.allow_group(
+    archetype: Archetype, group_id: UUID, level: (AccessLevel | int | str | None) = None
+) -> None {
+    if (level is None) {
+        level = AccessLevel.READ;
+    }
+    level = access_level_cast(level);
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    access = anchor.access.groups;
+    _group_id = str(group_id);
+    if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
+        access.anchors[_group_id] = level;
+        jctx.mem.put(anchor);
+    }
+}
+
+impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
+    (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    anchor.access.groups.anchors.pop(str(group_id), None);
+    jctx.mem.put(anchor);
+}
+
 impl JacAccessValidation.disallow_root(
     archetype: Archetype, root_id: UUID, level: (AccessLevel | int | str | None) = None
 ) -> None {
@@ -154,7 +176,31 @@ impl JacAccessValidation.check_access_level(
     if ((level := to_access.roots.check(str(jroot.id))) is not None) {
         access_level = level;
     }
+    if to_access.groups.anchors {
+        for gid in JacAccessValidation._groups_of(jroot) {
+            if ((glevel := to_access.groups.check(gid)) is not None)
+                and glevel.value > access_level.value {
+                access_level = glevel;
+            }
+        }
+    }
     return access_level;
+}
+
+
+impl JacAccessValidation._groups_of(jroot: NodeAnchor) -> list[str] {
+    out: list[str] = [];
+    for e in jroot.edges {
+        if not e.is_populated() {
+            continue;
+        }
+        src = e.source;
+        tgt = e.target;
+        if src is not None and tgt is not None and src.id == jroot.id {
+            out.append(str(tgt.id));
+        }
+    }
+    return out;
 }
 
 impl JacWalker.`visit(

@@ -93,6 +93,9 @@ impl Serializer._serialize_value(
             'all': val.all.value,
             'roots': Serializer._serialize_value(
                 val.roots, include_type, api_mode, ref_mode, _seen
+            ),
+            'groups': Serializer._serialize_value(
+                val.groups, include_type, api_mode, ref_mode, _seen
             )
         };
     }
@@ -946,6 +949,9 @@ impl Serializer._deserialize_permission(data: object) -> Permission {
     perm.all = access_level_cast(data.get('all', -1));
     if (roots := data.get('roots')) {
         perm.roots = Serializer._deserialize_access(roots);
+    }
+    if (groups := data.get('groups')) {
+        perm.groups = Serializer._deserialize_access(groups);
     }
     return perm;
 }
