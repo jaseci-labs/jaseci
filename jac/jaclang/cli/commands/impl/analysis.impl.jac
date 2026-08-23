@@ -700,6 +700,9 @@ impl format(
     total_files = len(all_files);
 
     if total_files == 0 {
+        if cache_stats is not None {
+            cache_stats["changed"] = 0;
+        }
         return 1 if had_path_errors else 0;
     }
 
@@ -859,6 +862,13 @@ impl format(
         }
     }
 
+    # Machine-readable "did fmt rewrite anything" channel, decoupled from
+    # the exit code (consumed by ``precommit``). Unlike hits/misses this is
+    # populated regardless of whether caching is enabled.
+    if cache_stats is not None {
+        cache_stats["changed"] = changed_files;
+    }
+
     if failed_results {
         import from jaclang.cli.check_report { separator }
         console.print("");
@@ -910,13 +920,13 @@ impl format(
             console.success(summary_msg);
         }
     }
+    # Exit contract: 0 = success (including "reformatted N files");
+    # 1 = operational failure only (syntax/format errors, bad paths, or
+    # unfixable lint errors). CI gating belongs to ``--check``.
     if failed_files > 0 or had_path_errors {
         return 1;
     }
     if total_errors > 0 {
-        return 1;
-    }
-    if changed_files > 0 {
         return 1;
     }
     return 0;
@@ -1063,6 +1073,9 @@ impl precommit(
         }
     }
     console.print("precommit: formatting (--lintfix)", style="muted");
+    # Own the stats dict when the caller didn't supply one, so `format` can
+    # report how many files it changed (see issue #8536).
+    stats: dict = cache_stats if cache_stats is not None else {};
     fmt_ret = format(
         fmt_targets,
         to_screen=False,
@@ -1071,21 +1084,21 @@ impl precommit(
         cache=True,
         cache_anchor=git_root,
         path_map=path_map,
-        cache_stats=cache_stats
+        cache_stats=stats
     );
     if tmp_root {
         shutil.rmtree(tmp_root, ignore_errors=True);
     }
     console.print("[precommit] Running check...");
     check_ret = check(targets);
-    if not verify
-        and check_ret == 0
-        and fmt_ret == 0
-        and staged
-        and _staged_dirty_files(git_root, rel_targets) {
-        fmt_ret = 1;
-    }
-    if not verify and check_ret == 0 and fmt_ret != 0 {
+    # Detect "fmt applied changes" via the stats channel rather than fmt's
+    # exit code: since issue #8536 a successful reformat exits 0.
+    fixes_applied = (
+        int(stats.get("changed", 0)) > 0
+        or (staged and _staged_dirty_files(git_root, rel_targets))
+        or fmt_ret != 0
+    );
+    if not verify and check_ret == 0 and fixes_applied {
         console.warning(
             "Pre-commit applied formatting/lint fixes — review the changes, "
             "re-stage them, and commit again."
