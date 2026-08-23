@@ -400,6 +400,13 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
 
+33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
+    handler never matched** - exception_matches treated tuple targets as
+    unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
+    propagated every raise. Single-type handlers worked, masking the gap.
+    Fix: recursive per-item match mirroring PyErr_GivenExceptionMatches.
+    Corpus: gen-exc-003 + gen-exc-008 flipped green at HEAD.
+
 31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
 
@@ -763,6 +770,13 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
+    handler never matched** - exception_matches treated tuple targets as
+    unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
+    propagated every raise. Single-type handlers worked, masking the gap.
+    Fix: recursive per-item match mirroring PyErr_GivenExceptionMatches.
+    Corpus: gen-exc-003 + gen-exc-008 flipped green at HEAD.
 
 31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
