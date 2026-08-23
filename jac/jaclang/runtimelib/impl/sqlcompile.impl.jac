@@ -176,6 +176,26 @@ def _pred_cond(
 }
 
 
+def _acl_cond(alias: str, root_id: str, params: dict, pfx: str) -> str {
+    mu = f"{pfx}mu";
+    mt = f"{pfx}mt";
+    params[mu] = root_id;
+    params[mt] = root_id;
+    return (
+        f"({alias}.root_id = CAST(:{mu} AS uuid)"
+        f" OR ({alias}.props->'access'->>'all')::int > -1"
+        f" OR ({alias}.props->'access'->'roots'->'anchors')"
+        f" ? CAST(:{mt} AS text)"
+        f" OR EXISTS ("
+        f"SELECT 1 FROM anchors ge"
+        f" WHERE ge.kind = 'EdgeAnchor' AND ge.src = CAST(:{mu} AS uuid)"
+        f" AND ({alias}.props->'access'->'groups'->'anchors')"
+        f" ? CAST(ge.dst AS text)"
+        f"))"
+    );
+}
+
+
 def _dir_cond(alias: str, fid: str, dir: int) -> str {
     if dir == 1 {
         return (
@@ -204,7 +224,11 @@ def _nd_types(hop: QHop) -> list {
 
 
 impl compile_query(
-    q: GraphQuery, upto: int, promotions: (dict | None) = None, count_only: bool = False
+    q: GraphQuery,
+    upto: int,
+    promotions: (dict | None) = None,
+    count_only: bool = False,
+    acl_root: (str | None) = None
 ) -> CompiledQuery {
     out = CompiledQuery();
     params: dict = {};
@@ -256,6 +280,9 @@ impl compile_query(
             } else {
                 nconds.append(cond);
             }
+        }
+        if acl_root is not None {
+            nconds.append(_acl_cond(nd_alias, acl_root, params, f"h{n}a"));
         }
         want = hop.only_ids();
         if want is not None {

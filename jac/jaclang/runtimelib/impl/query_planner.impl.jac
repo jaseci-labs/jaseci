@@ -41,6 +41,31 @@ def _effective_bound(q: GraphQuery) -> (tuple[(int | None), int] | None) {
 }
 
 
+def _acl_pushdown_root(q: GraphQuery, upto: int) -> (str | None) {
+    if not _acl_gated() {
+        return None;
+    }
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    import from jaclang.jac0core.archetype { Archetype }
+    base = Archetype?.__jac_access__;
+    for hop in q.hops[:upto] {
+        nd = hop.nd;
+        if nd is None {
+            return None;
+        }
+        types = nd if isinstance(nd, tuple) else (nd, );
+        for nt in types {
+            if nt?.__jac_access__ is not base {
+                return None;
+            }
+        }
+    }
+    jctx = JacRuntimeInterface.get_context();
+    ur = jctx?.user_root;
+    return str(ur.id) if ur is not None else None;
+}
+
+
 def _bound_pushable -> bool {
     return not _acl_gated();
 }
@@ -68,8 +93,9 @@ impl _sql_pairs(
         return ([], []);
     }
     mem.read_barrier();
+    acl_root = _acl_pushdown_root(q, upto);
     bound = _effective_bound(q);
-    push = bound is not None and _bound_pushable();
+    push = bound is not None and (acl_root is not None or _bound_pushable());
     eff = q;
     if bound is not None {
         eff = GraphQuery(
@@ -84,7 +110,7 @@ impl _sql_pairs(
         );
         eff.from_visit = q.from_visit;
     }
-    cq = compile_query(eff, upto, promotions=store?.promotions);
+    cq = compile_query(eff, upto, promotions=store?.promotions, acl_root=acl_root);
     tail: list[QPred] = [];
     if cq.residual {
         last = upto - 1;
@@ -325,7 +351,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
             if _tail_ok(a, tail)
         ];
     }
-    if _acl_gated() {
+    if _acl_gated() and not _acl_fully_pushed(mem, q) {
         out = [
             a
             for a in out
@@ -334,7 +360,7 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
     }
     bound = _effective_bound(q);
     if bound is not None {
-        if not _pushed_bound(mem, q) {
+        if not (_pushed_bound(mem, q) or _acl_fully_pushed(mem, q)) {
             stop = None if bound[0] is None else bound[1] + bound[0];
             out = out[bound[1]:stop];
         }
@@ -342,6 +368,23 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
         out = out[q.slc];
     }
     return out;
+}
+
+
+def _acl_fully_pushed(mem: Session, q: GraphQuery) -> bool {
+    if mem.store is None or _acl_pushdown_root(q, len(q.hops)) is None {
+        return False;
+    }
+    origins = _origin_anchors(q);
+    if not origins {
+        return False;
+    }
+    for oanch in origins {
+        if not oanch.persistent {
+            return False;
+        }
+    }
+    return True;
 }
 
 

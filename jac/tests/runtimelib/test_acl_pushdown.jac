@@ -17,9 +17,6 @@ SQL form, so those must decline any pushdown and keep the object-space filter.
 The decline is the point: correctness never depends on whether a query could be
 compiled.
 
-Compiling the permission test into the query is not done yet. Measured baseline
-for that work, from a cold context: a gated read of 30 docs of which 3 are
-visible materialises 31 anchors to return 3.
 """
 
 import from pathlib { Path }
@@ -86,6 +83,83 @@ def _seed(ctx: ExecutionContext, hub: any, owner: any, n: int, granted: int) {
         hub.edges.append(e);
         d.edges.append(e);
         ctx.mem.put(e);
+    }
+}
+
+
+test "a gated read does not materialize rows it may not return" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx1 = _ctx(td);
+        JacRuntime.exec_ctx = ctx1;
+        hub_id: str;
+        try {
+            owner = _mk_root(ctx1.mem);
+            other = _mk_root(ctx1.mem);
+            _seed(ctx1, other, owner, 30, 3);
+            ctx1.mem.commit();
+            hub_id = str(other.id);
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx1.close();
+        }
+        # A cold context: nothing is in __mem__, so every row the read touches
+        # is a real store fetch and the counter means something.
+        ctx2 = _ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ctx2.set_user_root(hub_id);
+            hub = ctx2.mem.get(UUID(hub_id));
+            assert hub is not None;
+            ctx2.mem.reset_fetch_count();
+            visible = len([x for x in [_as_any(hub).archetype-->[?:Doc]]]);
+            fetched = ctx2.mem.get_fetch_count();
+            assert visible == 3 , f"expected the 3 granted docs, got {visible}";
+            assert fetched <= 3 , (
+                f"a gated read materialized {fetched} anchors to return 3; the "
+                f"permission test belongs in the query"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
+    }
+}
+
+
+test "a bound is pushed even when the request is gated" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        hub_id: str;
+        try {
+            owner = _mk_root(ctx.mem);
+            other = _mk_root(ctx.mem);
+            _seed(ctx, other, owner, 30, 20);
+            ctx.mem.commit();
+            hub_id = str(other.id);
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+        ctx2 = _ctx(td);
+        JacRuntime.exec_ctx = ctx2;
+        try {
+            ctx2.set_user_root(hub_id);
+            hub = ctx2.mem.get(UUID(hub_id));
+            assert hub is not None;
+            ctx2.mem.reset_fetch_count();
+            head = [_as_any(hub).archetype-->[?:Doc]][:4];
+            fetched = ctx2.mem.get_fetch_count();
+            assert len(head) == 4 , len(head);
+            assert fetched <= 4 , (
+                f"a bounded gated read materialized {fetched} anchors for 4 rows"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx2.close();
+        }
     }
 }
 
