@@ -19,37 +19,44 @@ import from opcode_meta {
     OP_POP_JUMP_IF_NONE
 }
 
-::py::
-def _vm_host_exec(setup_src, body_src, mode="exec"):
-    ns = {"__builtins__": __builtins__}
-    if setup_src:
-        exec(compile(setup_src, "<vm-host-setup>", "exec"), ns)
-    if mode == "eval":
-        ns["result"] = eval(compile(body_src, "<vm-host-body>", "eval"), ns)
-    else:
-        exec(compile(body_src, "<vm-host-body>", "exec"), ns)
-    return ns
+def _vm_host_exec(setup_src: str, body_src: str, mode: str = "exec") -> dict {
+    ns = {"__builtins__": __builtins__};
+    if setup_src {
+        exec(compile(setup_src, "<vm-host-setup>", "exec"), ns);
+    }
+    if mode == "eval" {
+        ns["result"] = eval(compile(body_src, "<vm-host-body>", "eval"), ns);
+    } else {
+        exec(compile(body_src, "<vm-host-body>", "exec"), ns);
+    }
+    return ns;
+}
 
 
-def _vm_host_equal(a, b):
-    try:
-        if a != a and b != b:
-            return True
-        return bool(a == b)
-    except BaseException:
-        return False
+def _vm_host_equal(a: any, b: any) -> bool {
+    try {
+        if a != a and b != b {
+            return True;
+        }
+        return bool(a == b);
+    } except BaseException {
+        return False;
+    }
+}
 
 
-def _vm_host_raises(setup_src, body_src):
-    ns = {"__builtins__": __builtins__}
-    if setup_src:
-        exec(compile(setup_src, "<vm-host-setup>", "exec"), ns)
-    try:
-        exec(compile(body_src, "<vm-host-body>", "exec"), ns)
-        return None
-    except BaseException as exc:
-        return type(exc).__name__, str(exc)
-::py::
+def _vm_host_raises(setup_src: str, body_src: str) -> tuple | None {
+    ns = {"__builtins__": __builtins__};
+    if setup_src {
+        exec(compile(setup_src, "<vm-host-setup>", "exec"), ns);
+    }
+    try {
+        exec(compile(body_src, "<vm-host-body>", "exec"), ns);
+        return None;
+    } except BaseException as exc {
+        return (type(exc).__name__, str(exc));
+    }
+}
 
 
 
