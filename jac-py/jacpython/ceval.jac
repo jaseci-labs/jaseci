@@ -6196,10 +6196,21 @@ def compute_class_slots(
     class_name: str, bases: list[PyObj], namespace: dict[str, PyObj]
 ) -> PyObj {
     if "__slots__" not in namespace {
+        # No own declaration: the class keeps a permissive dict, but the
+        # EFFECTIVE layout still carries every inherited slot member -- the
+        # dict VIEW must keep hiding their storage (host: B(A) with A slotted
+        # answers b.__dict__ == {'zz': 1} after b.zz = 1; b.a = 2, even though
+        # both live on the same attribute map).
         return PyTuple(
             t="tuple",
             items=[
-                PyList(t="list", items=[]),
+                PyList(
+                    t="list",
+                    items=[
+                        PyStr(t="str", val=m)
+                        for m in _inherited_slot_members(bases)
+                    ],
+                ),
                 PyBool(t="bool", val=False),
                 PyBool(t="bool", val=True),
             ],
@@ -6256,7 +6267,7 @@ def compute_class_slots(
         local.append(mangled);
     }
     # Merge inherited members and OR the base dict flags across all bases.
-    inherited: list[str] = [];
+    inherited = _inherited_slot_members(bases);
     base_has_dict = False;
     nonempty_layout_bases = 0;
     for b in bases {
@@ -6264,7 +6275,6 @@ def compute_class_slots(
             continue;
         }
         bc = b as PyClass;
-        inherited = type_slots_merge_names([], inherited + bc.slot_members);
         if bc.instance_has_dict {
             base_has_dict = True;
         }
@@ -6287,6 +6297,20 @@ def compute_class_slots(
             PyBool(t="bool", val=has_dict),
         ],
     );
+}
+
+# Union of all PyClass bases' slot members, in MRO-ish declaration order
+# (deduped): the inherited half of a subclass's effective slot layout.
+def _inherited_slot_members(bases: list[PyObj]) -> list[str] {
+    inherited: list[str] = [];
+    for b in bases {
+        if isinstance(b, PyClass) {
+            inherited = type_slots_merge_names(
+                [], inherited + (b as PyClass).slot_members
+            );
+        }
+    }
+    return inherited;
 }
 
 def _slot_item_type_name(v: PyObj) -> str {
