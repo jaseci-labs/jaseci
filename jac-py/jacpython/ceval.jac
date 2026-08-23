@@ -72,7 +72,7 @@ def _jac_is_range_type(value):
     return value is range
 
 def _jac_conversion_ctor_kind(value):
-    # Which conversion constructor ("int"/"float"/"bool") value is, or "".
+    # Which conversion constructor ("int"/"float"/"bool"/"str") value is, or "".
     # Identity against the exact host builtins -- the same mechanism-level
     # idiom as _jac_is_object_type/_jac_is_range_type -- because the tp_call
     # fast path below must match ONLY the real constructors: name matching
@@ -85,7 +85,16 @@ def _jac_conversion_ctor_kind(value):
         return "float"
     if value is builtins.bool:
         return "bool"
+    if value is builtins.str:
+        return "str"
     return ""
+
+def _jac_is_builtin_func(value, name):
+    # True iff value is EXACTLY the builtin function `name` (repr/format/print).
+    # Identity, never name matching: a user-defined callable merely named
+    # "repr" must keep its own call path.
+    import builtins
+    return value is getattr(builtins, name, None)
 
 def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
@@ -546,6 +555,7 @@ import from objects {
     PyObject_RichCompareBool,
     py_ordering_type_error,
     _base_type_name,
+    _uint_to_str,
 }
 import from abstract_protocol {
     PyObject_GetIter,
@@ -614,6 +624,7 @@ import from objects {
     py_exception_type,
     dict_key_repr,
     _pyobj_repr,
+    str_mod_format,
     is_error,
     hashkey_str,
     PY_NOT_IMPLEMENTED
@@ -636,6 +647,7 @@ import from opcode_meta {
     OP_UNARY_NOT,
     OP_WITH_EXCEPT_START,
     OP_BINARY_OP,
+    NB_REMAINDER,
     NB_AND,
     NB_INPLACE_ADD,
     NB_INPLACE_AND,
@@ -1156,12 +1168,13 @@ obj PyHostProxy(PyObj) {
         if len(args) == 1 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
             return py_type_of(args[0]);
         }
-        # The conversion constructors int()/float()/bool() over a NATIVE operand
-        # answer through the implicit slot machinery instead of crossing the
-        # bridge: to_host of a plain user object is None, so the host constructor
-        # saw nothing (bool(obj) was literally False; int(obj)/float(obj) raised).
-        # Each native operand found converts ITSELF (never args[0]): multi-arg
-        # shapes like int("ff", user_base) route the native operand only.
+        # The conversion constructors int()/float()/bool()/str() over a NATIVE
+        # operand answer through the implicit slot machinery instead of crossing
+        # the bridge: to_host of a plain user object is None, so the host
+        # constructor saw nothing (bool(obj) was literally False; int(obj),
+        # float(obj) raised; str(obj) yielded 'None'). Each native operand found
+        # converts ITSELF (never args[0]): multi-arg shapes like int("ff",
+        # user_base) route the native operand only.
         ckind = str(_jac_conversion_ctor_kind(self.val));
         if len(args) >= 1 and ckind != "" {
             for a in args {
@@ -1171,6 +1184,9 @@ obj PyHostProxy(PyObj) {
                     }
                     if ckind == "int" {
                         return py_convert_int(a);
+                    }
+                    if ckind == "str" {
+                        return py_str(a);
                     }
                     return py_convert_float(a);
                 }
@@ -2791,10 +2807,38 @@ def host_exception(exc: PyException) -> any {
     return fallback[1];
 }
 
-# f-string / format machinery. Formatting is delegated to host CPython's
-# format()/repr()/ascii() during bootstrap -- the __format__ / __str__ protocols
-# are not natively ported yet, and routing here keeps objects.jac na-clean.
+# f-string / format() machinery. The __format__ / __str__ protocols resolve
+# NATIVELY for user instances (to_host of a plain user object is None -- the
+# host bridge would answer on a lost value); everything else stays delegated
+# to host CPython's format()/repr()/ascii(), which keeps objects.jac na-clean.
 def host_format(value: PyObj, spec: str) -> PyObj {
+    if isinstance(value, PyUserObj) {
+        u = value as PyUserObj;
+        # An explicit __format__ receives the raw spec (empty included) and its
+        # result must be str; a raised exception propagates verbatim.
+        if user_has_dunder(u, "__format__") {
+            res = call_user_dunder(u, "__format__", [PyStr(t="str", val=spec)]);
+            if is_error(res) {
+                return res;
+            }
+            if isinstance(res, PyStr) {
+                return res;
+            }
+            return py_error(
+                "TypeError",
+                "__format__ must return a str, not " + _slot_result_type_name(res),
+            );
+        }
+        # object.__format__: empty spec delegates exactly like str(); a non-
+        # empty spec is CPython's TypeError verbatim.
+        if spec != "" {
+            return py_error(
+                "TypeError",
+                "unsupported format string passed to " + u.cls.name + ".__format__",
+            );
+        }
+        return py_str(value);
+    }
     result = _jac_host_format(to_host(value), spec);
     if host_result_ok(result) {
         return from_host(result[1]);
@@ -2803,6 +2847,16 @@ def host_format(value: PyObj, spec: str) -> PyObj {
 }
 
 def host_convert(value: PyObj, conv: int) -> PyObj {
+    # str()/repr() over a native user instance answer in-VM (see host_format);
+    # ascii() keeps the host path (its non-ASCII escaping is not ported).
+    if isinstance(value, PyUserObj) {
+        if conv == 1 {
+            return py_str(value);
+        }
+        if conv == 2 {
+            return py_repr(value);
+        }
+    }
     result = _jac_host_convert(to_host(value), conv);
     if host_result_ok(result) {
         return from_host(result[1]);
@@ -3031,6 +3085,126 @@ def tuple_repr(v: PyTuple) -> PyObj {
     return PyStr(t="str", val=out + ")");
 }
 
+# ---------------- tp_str/tp_repr/tp_format slots -----------------------------
+# Same implicit-slot convention as py_slot_truth/py_convert_int: heap types
+# have no frozen vtable, so __str__/__repr__/__format__ resolve through MRO
+# dunder lookup AT DISPATCH (never instance getattribute), before any to_host
+# bridging -- a plain user object marshals as None, so the host would answer
+# 'None' or raise on a lost value.
+
+# CPython type name of a slot RESULT for the __str__/__repr__ non-string TypeErrors.
+def _slot_result_type_name(v: PyObj) -> str {
+    if isinstance(v, PyUserObj) {
+        return (v as PyUserObj).cls.name;
+    }
+    if isinstance(v, PyClass) {
+        return (v as PyClass).name;
+    }
+    return _base_type_name(v);
+}
+
+# True iff a str-% argument carries a native user instance whose %s/%r piece
+# needs slot dispatch (scalar-only args stay on the lifted fast path). One level
+# of tuple/dict nesting is scanned; deeper nesting remains a residual.
+def mod_args_need_user_slots(args: PyObj) -> bool {
+    if isinstance(args, PyUserObj) {
+        return True;
+    }
+    if isinstance(args, PyTuple) {
+        for item in (args as PyTuple).items {
+            if isinstance(item, PyUserObj) {
+                return True;
+            }
+        }
+        return False;
+    }
+    if isinstance(args, PyDict) {
+        for hk in (args as PyDict).items {
+            pair = (args as PyDict).items[hk];
+            if isinstance(pair.value, PyUserObj) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+# CPython object.__repr__: '<module.Class object at 0x..>' (bare class name when
+# no __module__), address = lowercase hex of id(), byte-exact vs the host.
+def default_obj_repr_text(u: PyUserObj) -> str {
+    mod = "";
+    if "__module__" in u.cls.attrs {
+        m = u.cls.attrs["__module__"];
+        if isinstance(m, PyStr) {
+            mod = (m as PyStr).val;
+        }
+    }
+    return "<" + type_tp_name(u.cls.name, mod) + " object at 0x"
+        + _uint_to_str(py_id(u as PyObj), 16, "0123456789abcdef") + ">";
+}
+
+# The repr slot: explicit __repr__, then a boxed builtin base's own repr,
+# then the default identity form.
+def user_repr_slot(u: PyUserObj) -> PyObj {
+    if user_has_dunder(u, "__repr__") {
+        res = call_user_dunder(u, "__repr__", []);
+        if is_error(res) {
+            return res;
+        }
+        if isinstance(res, PyStr) {
+            return res;
+        }
+        return py_error(
+            "TypeError",
+            "__repr__ returned non-string (type '" + _slot_result_type_name(res)
+                + "')",
+        );
+    }
+    if u._has_base() {
+        return py_repr(u._base_obj());
+    }
+    return PyStr(t="str", val=default_obj_repr_text(u));
+}
+
+# The str slot: explicit __str__, else the type's repr slot (object.__str__ IS
+# object.__repr__ in CPython, including the default identity form).
+def user_str_slot(u: PyUserObj) -> PyObj {
+    if user_has_dunder(u, "__str__") {
+        res = call_user_dunder(u, "__str__", []);
+        if is_error(res) {
+            return res;
+        }
+        if isinstance(res, PyStr) {
+            return res;
+        }
+        return py_error(
+            "TypeError",
+            "__str__ returned non-string (type '" + _slot_result_type_name(res)
+                + "')",
+        );
+    }
+    # A boxed builtin base contributes ITS str slot (str.__str__ returns the
+    # value itself: str(SS('ab')) == 'ab', not repr); only object.__str__ -- the
+    # no-base case -- collapses to the repr form above.
+    if u._has_base() {
+        return py_str(u._base_obj());
+    }
+    return user_repr_slot(u);
+}
+
+# Native str(): exceptions read their args natively, user instances through the
+# str slot; every other shape has a faithful host form and delegates so the
+# bytes stay exact CPython.
+def py_str(value: PyObj) -> PyObj {
+    if isinstance(value, PyException) {
+        return baseexception_str(value as PyException);
+    }
+    if isinstance(value, PyUserObj) {
+        return user_str_slot(value as PyUserObj);
+    }
+    return host_convert(value, 1);
+}
+
 # Native repr(): scalars, containers, class + user __repr__ in-VM; remainder
 # falls back to host_convert(..., 2).
 def py_obj_is_type(value: PyObj) -> bool {
@@ -3119,17 +3293,7 @@ def py_repr(value: PyObj) -> PyObj {
         return PyStr(t="str", val=_pyobj_repr(value));
     }
     if isinstance(value, PyUserObj) {
-        method = py_attr(value, "__repr__");
-        if not is_error(method) {
-            res = py_invoke(method, [], {});
-            if is_error(res) {
-                return res;
-            }
-            if isinstance(res, PyStr) {
-                return res;
-            }
-            return py_error("TypeError", "__repr__ returned non-string");
-        }
+        return user_repr_slot(value as PyUserObj);
     }
     # Native bound-method/builtin wrappers have no faithful host form (to_host
     # drops them to None, which would repr as 'None'), so synthesize the
@@ -3700,6 +3864,16 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         kind = kind - NB_INPLACE_ADD;
     }
     # A user-class operand routes through the operator-overload protocol first.
+    # EXCEPT str %-format over a native operand carrying user instances: CPython
+    # calls str.__mod__ FIRST -- %s/%r stringify through the operand's own
+    # __str__/__repr__ slots -- and never falls back to __rmod__ past its real
+    # TypeError ('%d' % X() raises even when X defines __rmod__). The result,
+    # success or error, propagates; scalar-only args keep the lifted fast path
+    # with its host-bridge error fallback below.
+    if kind == NB_REMAINDER and isinstance(lhs, PyStr)
+        and mod_args_need_user_slots(rhs) {
+        return str_mod_format((lhs as PyStr).val, rhs, py_str, py_repr);
+    }
     if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
         return user_binop(kind, lhs, rhs);
     }
@@ -5106,6 +5280,38 @@ def py_call_host(
                 return PyRange(t="range", start=vals[0], stop=vals[1], step=vals[2]);
             }
         }
+    }
+    # repr()/format()/print() stringify their NATIVE operands in-VM BEFORE any
+    # bridge attempt -- same family-C call-site rule as the list ctor above:
+    # to_host of a plain user object is None, so the host builtin would answer
+    # repr(None)/format(None, spec)/print(None) on a lost value. Anything that
+    # is not a single native operand (arity errors, non-str format specs,
+    # keyword-only shapes) falls through to the host call so error messages
+    # stay byte-exact CPython.
+    if len(kwargs) == 0 and len(args) == 1 and _jac_is_builtin_func(fn.val, "repr") {
+        return py_repr(args[0]);
+    }
+    if len(kwargs) == 0 and len(args) >= 1 and len(args) <= 2
+        and _jac_is_builtin_func(fn.val, "format")
+        and (len(args) == 1 or isinstance(args[1], PyStr)) {
+        spec = "";
+        if len(args) == 2 {
+            spec = (args[1] as PyStr).val;
+        }
+        return host_format(args[0], spec);
+    }
+    if _jac_is_builtin_func(fn.val, "print") {
+        # print() applies str() to every positional argument natively
+        # (PyObject_Str semantics); sep/end/file/flush kwargs pass through.
+        printed: list[PyObj] = [];
+        for item in args {
+            s = py_str(item);
+            if is_error(s) {
+                return s;
+            }
+            printed.append(s);
+        }
+        args = printed;
     }
     raw_args: list[any] = [];
     for item in args {
