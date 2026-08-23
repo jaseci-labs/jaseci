@@ -658,10 +658,12 @@ E5092 CROSS-REF (YoungHawk): from PROXY_HASH_FINDINGS.md - PyHostProxy
     itself = item 57 (status logged at 9c121d634); numbering reconciled.
 
 CLOSURE RECONCILIATION (YoungHawk, r61): YoungHawk reports items
-    4/5/19/28/29/39/40/41/43-collab/58-harness CLOSED per their closure run
-    (verification-owner assertion recorded verbatim; individual status
-    lines to be flipped as each gets re-checked). test_set baseline bump
-    5->7 pending embed-verification closure run.
+    4/5/19/28/29/39/40/41/58-harness CLOSED per their closure run; item
+    43 landed by UltraMoon's msg-fidelity lane (JadeUnion f0629c2df) with
+    YoungHawk co-verifying ordering only (verification-owner assertion
+    recorded verbatim; individual status lines to be flipped as each gets
+    re-checked). test_set baseline bump 5->7 pending embed-verification
+    closure run.
 
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
