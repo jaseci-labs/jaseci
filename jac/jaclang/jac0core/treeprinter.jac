@@ -209,7 +209,11 @@ def print_ast_tree(
     output_file: (str | None) = None,
     max_depth: (int | None) = None
 ) -> str {
-    import from jaclang.jac0core.unitree { AstSymbolNode, Token }
+    import from jaclang.jac0core.unitree {
+    AstSymbolNode,
+    Complex,
+    Token,
+}
     print_py_raise: bool = False;
     def __node_repr_in_tree(nd: UniNode) -> str {
         access = f"Access: {nd.access.tag.value} ,"
