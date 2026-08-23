@@ -67,6 +67,7 @@ import from compiler_ir {
     cloc,
     loc,
     new_cfg_builder,
+    no_loc,
     stmt_cont,
     unverified_cfg,
 }
@@ -288,18 +289,39 @@ def class_body_has_function(cd: ClassDef) -> bool {
 }
 
 
+# Class-body prologue locations (CPython 3.14): MAKE_CELL carries NO_LOCATION;
+# RESUME points at the class statement line (def-line form, like nested scopes).
+# CPython spans for `class` statements run through the last body statement
+# (same parser-end_tok overshoot as function_def_loc, see codegen_util).
+def class_def_loc(cd: ClassDef) -> cloc {
+    last = cd.body[len(cd.body) - 1];
+    end_ln = last.lineno;
+    end_col = last.col_offset;
+    if last.end_lineno is not None {
+        end_ln = last.end_lineno;
+    }
+    if last.end_col_offset is not None {
+        end_col = last.end_col_offset;
+    }
+    return loc(cd.lineno, end_ln, cd.col_offset, end_col);
+}
+
+
 def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
-    cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
-    ploc = loc(0, cd.lineno, 0, 0);
+    # CPython 3.14 locations: MAKE_CELL carries NO_LOCATION; RESUME and the
+    # __name__/__module__/__qualname__ boilerplate all sit on the class
+    # statement line with zero-width columns.
+    cloc = loc(cd.lineno, cd.lineno, 0, 0);
+    noloc = no_loc();
     if len(g.u.cellvars) > 0 {
         ci = 0;
         while ci < len(g.u.cellvars) {
             lp = localsplus_index_u(g.u, g.u.cellvars[ci]);
-            g.emit_op(OP_MAKE_CELL, lp, ploc);
+            g.emit_op(OP_MAKE_CELL, lp, noloc);
             ci = ci + 1;
         }
     }
-    g.emit_op(OP_RESUME, 0, ploc);
+    g.emit_op(OP_RESUME, 0, loc(cd.lineno, cd.lineno, 0, 0));
     nidx = g.u.add_name("__name__");
     g.emit_op(OP_LOAD_NAME, nidx, cloc);
     midx = g.u.add_name("__module__");
@@ -340,7 +362,9 @@ def emit_class_body_epilogue(g: cfg_builder, last: cloc) {
 
 # Lower `class name: ...` at module/class scope into nested PyCode + LOAD_BUILD_CLASS.
 def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
-    cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
+    # Module-level LOAD_BUILD_CLASS sequence rows carry the full class span
+    # (through the last body statement), matching CPython's LOC(cls).
+    cloc = class_def_loc(cd);
     if g.sym_top is None {
         codegen_fail(g, "SystemError", "class definition without symtable");
         return stmt_cont(loc=cloc);
@@ -683,19 +707,20 @@ def typealias_value_cfg(
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_v, private);
     # Prologue: COPY_FREE_VARS, MAKE_CELL(s), RESUME (CPython flowgraph order).
+    # Nested-scope locations: NO_LOCATION for cell plumbing, def-line RESUME.
     u.cellvars = cellvars_from_sym(sym_v);
-    ploc = loc(0, ta.lineno, 0, 0);
+    noloc = no_loc();
     if len(u.freevars) > 0 {
-        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), noloc);
     }
     ci = 0;
     while ci < len(u.cellvars) {
         g.emit_op(
-            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), ploc
+            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), noloc
         );
         ci = ci + 1;
     }
-    g.emit_op(OP_RESUME, 0, ploc);
+    g.emit_op(OP_RESUME, 0, loc(ta.lineno, ta.lineno, 0, 0));
     hloc = nloc(ta.lineno, ta.end_lineno, ta.col_offset, ta.end_col_offset);
     # Guard: if .format > 2: raise NotImplementedError (formats 0/1 only).
     g.emit_op(OP_LOAD_FAST_BORROW, localsplus_index_u(u, ".format"), hloc);
@@ -750,18 +775,18 @@ def typealias_genparams_cfg(
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_gp, private);
     u.cellvars = cellvars_from_sym(sym_gp);
-    ploc = loc(0, ta.lineno, 0, 0);
+    noloc = no_loc();
     if len(u.freevars) > 0 {
-        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), noloc);
     }
     ci = 0;
     while ci < len(u.cellvars) {
         g.emit_op(
-            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), ploc
+            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), noloc
         );
         ci = ci + 1;
     }
-    g.emit_op(OP_RESUME, 0, ploc);
+    g.emit_op(OP_RESUME, 0, loc(ta.lineno, ta.lineno, 0, 0));
     tloc = nloc(ta.lineno, ta.end_lineno, ta.col_offset, ta.end_col_offset);
     nidx = g.u.add_const(PyStr(t="str", val=name));
     g.emit_op(OP_LOAD_CONST, nidx, tloc);

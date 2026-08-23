@@ -1313,6 +1313,11 @@ def visit_stmt(
 def visit_return_stmt(
     g: cfg_builder, r: Return, check_fast: bool = False, borrow_fast: bool = False
 ) {
+    # CPython 3.14 return locations (codegen_return): value-expression
+    # instructions carry their own spans; RETURN_VALUE carries the statement
+    # span -- except for Constant values, where the folded NOP/LOAD_CONST pair
+    # pins BOTH the load and RETURN_VALUE to the value's span. Fast-local loads
+    # keep the Name node's own span.
     rloc = nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
     if r.value is not None {
         if isinstance(r.value, Name) {
@@ -1320,19 +1325,24 @@ def visit_return_stmt(
             name = codegen_mangle(g, n.id);
             fi = fast_local_index(g, name);
             if fi >= 0 {
+                nloc_name = nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset);
                 if check_fast {
-                    g.emit_op(OP_LOAD_FAST_CHECK, fi, rloc);
+                    g.emit_op(OP_LOAD_FAST_CHECK, fi, nloc_name);
                 } elif borrow_fast {
-                    g.emit_op(OP_LOAD_FAST_BORROW, fi, rloc);
+                    g.emit_op(OP_LOAD_FAST_BORROW, fi, nloc_name);
                 } else {
-                    g.emit_op(OP_LOAD_FAST, fi, rloc);
+                    g.emit_op(OP_LOAD_FAST, fi, nloc_name);
                 }
                 g.emit_op(OP_RETURN_VALUE, 0, rloc);
                 return;
             }
         }
         visit_expr(g, r.value);
-        g.emit_op(OP_RETURN_VALUE, 0, rloc);
+        ret_loc = rloc;
+        if isinstance(r.value, Constant) {
+            ret_loc = expr_loc(r.value);
+        }
+        g.emit_op(OP_RETURN_VALUE, 0, ret_loc);
         return;
     }
     none_idx = g.u.add_const(py_none());

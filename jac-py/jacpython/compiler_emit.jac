@@ -478,34 +478,43 @@ def localsplus_index(g: cfg_builder, name: str) -> int {
 
 # CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME. Generators
 # and coroutines prepend RETURN_GENERATOR; POP_TOP before RESUME (protect region
-# starts at the following block).
+# starts at the following block). Nested-scope locations (CPython 3.14):
+# MAKE_CELL / COPY_FREE_VARS carry NO_LOCATION; RETURN_GENERATOR / POP_TOP sit
+# on the def line with no columns (NO_COLUMNS linetable form); only RESUME
+# carries a full location -- the def line, full-width zero columns.
+# (Module scope differs: its RESUME uses lineno 0; see compile_exec.)
+def def_line_no_columns(firstlineno: int) -> cloc {
+    return loc(firstlineno, firstlineno, -1, -1);
+}
+
 def emit_function_prologue(
     g: cfg_builder, sym_fn: sym_block, firstlineno: int, is_suspendable: bool = False
 ) -> int {
     u = g.u;
     u.cellvars = cellvars_from_sym(sym_fn);
     u.freevars = freevars_from_sym(sym_fn);
-    ploc = loc(0, firstlineno, 0, 0);
+    noloc = no_loc();
     ci = 0;
     while ci < len(u.cellvars) {
         lp = localsplus_index_u(u, u.cellvars[ci]);
-        g.emit_op(OP_MAKE_CELL, lp, ploc);
+        g.emit_op(OP_MAKE_CELL, lp, noloc);
         ci = ci + 1;
     }
     if len(u.freevars) > 0 {
-        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), noloc);
     }
     protect_start = -1;
     g.generator_protect_start = -1;
     if is_suspendable {
-        g.emit_op(OP_RETURN_GENERATOR, 0, ploc);
-        g.emit_op(OP_POP_TOP, 0, ploc);
+        suspend_loc = def_line_no_columns(firstlineno);
+        g.emit_op(OP_RETURN_GENERATOR, 0, suspend_loc);
+        g.emit_op(OP_POP_TOP, 0, suspend_loc);
         resume_blk = g.new_block();
         g.use(resume_blk);
         protect_start = resume_blk.id;
         g.generator_protect_start = protect_start;
     }
-    g.emit_op(OP_RESUME, 0, ploc);
+    g.emit_op(OP_RESUME, 0, loc(firstlineno, firstlineno, 0, 0));
     return protect_start;
 }
 
@@ -539,175 +548,6 @@ def emit_generator_except_handler(g: cfg_builder, protect_start: int) {
         }
         pi = pi + 1;
     }
-}
-
-# GET_YIELD_FROM_ITER / GET_AWAITABLE + SEND loop shared by yield-from and await.
-def emit_send_delegation_loop(
-    g: cfg_builder,
-    get_iter_op: int,
-    get_iter_arg: int,
-    resume_after_yield_arg: int,
-    yloc: cloc
-) {
-    als = emit_await_send_loop_header(
-        g, get_iter_op, get_iter_arg, resume_after_yield_arg, yloc
-    );
-    (ct, cj) = emit_await_send_loop_footer(g, als, yloc);
-    emit_await_send_except_regions(g, als, ct, cj, 3, -1);
-    g.use(als.end_send_blk);
-}
-
-# GET_AWAITABLE / GET_YIELD_FROM_ITER + SEND loop (footer deferred for async-with).
-
-# Record the first codegen diagnostic on the builder's unit.
-def codegen_fail(g: cfg_builder, kind: str, message: str) {
-    u = g.u;
-    if u.diag is None {
-        u.diag = lowering_diagnostic(kind=kind, message=message);
-    }
-}
-
-def codegen_busy(g: cfg_builder) -> bool {
-    return g.u.diag is not None;
-}
-
-# Class-body private name mangling (__x -> _C__x) for bytecode name tables.
-def codegen_mangle(g: cfg_builder, name: str) -> str {
-    return mangle_name(g.private, name);
-}
-
-# Fast locals for a compile unit. Module scope: comprehension iteration variables
-# only. Function scope: parameters (definition order) then other locals (sorted).
-def fast_varnames_from_sym(block: sym_block) -> list[str] {
-    if block.block_type == "function" {
-        out: list[str] = [];
-        pi = 0;
-        while pi < len(block.varnames) {
-            out.append(block.varnames[pi]);
-            pi = pi + 1;
-        }
-        li = 0;
-        while li < len(block.local_varnames) {
-            name = block.local_varnames[li];
-            flags = sym_dict_get(block.symbols, name, 0);
-            if sym_scope_of(flags) == SCOPE_LOCAL {
-                found = False;
-                fi = 0;
-                while fi < len(out) {
-                    if out[fi] == name {
-                        found = True;
-                    }
-                    fi = fi + 1;
-                }
-                if not found {
-                    out.append(name);
-                }
-            }
-            li = li + 1;
-        }
-        return out;
-    }
-    names = sym_sorted_names(block.symbols);
-    out: list[str] = [];
-    ni = 0;
-    while ni < len(names) {
-        name = names[ni];
-        flags = block.symbols[name];
-        if block.block_type == "module" {
-            if sym_flag_set(flags, DEF_COMP_ITER) {
-                out.append(name);
-            }
-        } elif sym_scope_of(flags) == SCOPE_LOCAL {
-            out.append(name);
-        }
-        ni = ni + 1;
-    }
-    return out;
-}
-
-def cellvars_from_sym(block: sym_block) -> list[str] {
-    return sym_block_tuple_names(block.symbols, SCOPE_CELL);
-}
-
-def freevars_from_sym(block: sym_block) -> list[str] {
-    return sym_block_tuple_names(block.symbols, SCOPE_FREE);
-}
-
-def varname_index(u: unverified_cfg, name: str) -> int {
-    vi = 0;
-    while vi < len(u.varnames) {
-        if u.varnames[vi] == name {
-            return vi;
-        }
-        vi = vi + 1;
-    }
-    return -1;
-}
-
-# Merged locals-plus index for MAKE_CELL / LOAD_DEREF / LOAD_FAST_BORROW (CPython 3.11+).
-def localsplus_index_u(u: unverified_cfg, name: str) -> int {
-    vi = varname_index(u, name);
-    if vi >= 0 {
-        return vi;
-    }
-    idx = len(u.varnames);
-    ci = 0;
-    while ci < len(u.cellvars) {
-        cname = u.cellvars[ci];
-        if varname_index(u, cname) < 0 {
-            if cname == name {
-                return idx;
-            }
-            idx = idx + 1;
-        }
-        ci = ci + 1;
-    }
-    fi = 0;
-    while fi < len(u.freevars) {
-        if u.freevars[fi] == name {
-            return idx;
-        }
-        idx = idx + 1;
-        fi = fi + 1;
-    }
-    return -1;
-}
-
-def localsplus_index(g: cfg_builder, name: str) -> int {
-    return localsplus_index_u(g.u, name);
-}
-
-# CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME. Generators
-# and coroutines prepend RETURN_GENERATOR; POP_TOP before RESUME (protect region
-# starts at the following block).
-def emit_function_prologue(
-    g: cfg_builder, sym_fn: sym_block, firstlineno: int, is_suspendable: bool = False
-) -> int {
-    u = g.u;
-    u.cellvars = cellvars_from_sym(sym_fn);
-    u.freevars = freevars_from_sym(sym_fn);
-    ploc = loc(0, firstlineno, 0, 0);
-    ci = 0;
-    while ci < len(u.cellvars) {
-        lp = localsplus_index_u(u, u.cellvars[ci]);
-        g.emit_op(OP_MAKE_CELL, lp, ploc);
-        ci = ci + 1;
-    }
-    if len(u.freevars) > 0 {
-        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
-    }
-    protect_start = -1;
-    g.generator_protect_start = -1;
-    if is_suspendable {
-        g.emit_op(OP_RETURN_GENERATOR, 0, ploc);
-        g.emit_op(OP_POP_TOP, 0, ploc);
-        resume_blk = g.new_block();
-        g.use(resume_blk);
-        protect_start = resume_blk.id;
-        g.generator_protect_start = protect_start;
-    }
-    g.emit_op(OP_RESUME, 0, ploc);
-    return protect_start;
 }
 
 # GET_YIELD_FROM_ITER / GET_AWAITABLE + SEND loop shared by yield-from and await.
