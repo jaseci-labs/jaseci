@@ -592,8 +592,12 @@ ROUTE-DIVERGENCE META-NOTE (expanded r63/r64): items 49/50/51/53/60/61/63/64/65/
     The actionable meta-bug: layer1_replay route diverges from production; fix the
     route (or retire it) rather than the individual behaviors.
 
-65. **[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
-    silent None.** C.v.fget(c) works but C.v.__get__(c) returns None;
+65. ~~[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
+    silent None.~~ FIXED 2026-08-23 by 3830be5f0 (vm-slots lane: dispatch-time MRO
+    dunder lookup for heap-type implicit slots, ceval.jac + layer0_replay.jac).
+    Verified BOTH routes by CalmKnight: pin_65 PASS on production path AND replay-
+    route driver probes (layer1_replay_source) green incl. __get__ visibility +
+    hasattr(inst,'__getattribute__'). C.v.fget(c) works but C.v.__get__(c) returns None;
     same for __get__ on plain funcs/classmethods/staticmethods; and
     hasattr(inst, '__setattr__'/'__getattribute__') is False. IMPLICIT
     protocol fully correct (property get/set/del dispatch right) - only
@@ -613,40 +617,49 @@ ROUTE-DIVERGENCE META-NOTE (expanded r63/r64): items 49/50/51/53/60/61/63/64/65/
     the scalar-isinstance special case lives in ceval's MATCH_CLASS arm -
     compiler-adjacent, route with match-stmt work, not generic VM slots.
 
-67. **[HIGH][ROUTE-REPLAY-ONLY] Instance truthiness ignores __bool__ AND __len__ on replay route -
-    truthy.** if obj: takes TRUE branch even when __bool__ returns False
+67. ~~[HIGH][ROUTE-REPLAY-ONLY] Instance truthiness ignores __bool__ AND __len__ on replay route -
+    truthy.~~ FIXED 2026-08-23 by 3830be5f0 (py_slot_truth incl. POP_JUMP_IF arms).
+    Verified both routes by CalmKnight (pin_67 PASS; replay probes green). if obj: takes TRUE branch even when __bool__ returns False
     or __len__ returns 0. POP_JUMP_IF path never consults either dunder.
     Silent-wrong control flow on every user-class conditional. Found fuzz
     r60b, verified by CalmKnight pin.
 
-68. **[MED][ROUTE-REPLAY-ONLY] bool(obj) returns False for ANY user instance (replay route).** Even plain
+68. ~~[MED][ROUTE-REPLAY-ONLY] bool(obj) returns False for ANY user instance (replay route).~~ FIXED
+    2026-08-23 by 3830be5f0. Even plain
     objects and __bool__-returning-True classes: builtin bool() yields
     literal False. Independent path from 67 (conditionals always-true vs
     bool() always-false). Native-Jac classes unaffected - confined to
     Python-source/ceval class path. Found fuzz r60b, verified.
 
-69. **[HIGH][ROUTE-REPLAY-ONLY] `in` on user class returns None - __contains__ undispatched
-    via operator ON REPLAY ROUTE (production green).** n.__contains__(x) direct call works; `x in n` yields
+69. ~~[HIGH][ROUTE-REPLAY-ONLY] `in` on user class returns None - __contains__ undispatched
+    via operator ON REPLAY ROUTE (production green).~~ FIXED 2026-08-23 by 3830be5f0
+    (__contains__ -> iteration fallback -> TypeError). Verified both routes
+    (pin_69 PASS; replay probes green incl. iter-fallback case). n.__contains__(x) direct call works; `x in n` yields
     None (sq_contains slot/fallback unwired; no iteration fallback,
     consistent with 63). Silent-wrong. Found fuzz r60b, verified.
 
-70. **[HIGH][ROUTE-REPLAY-ONLY] Default hash of plain instances raises unhashable (replay route).
+70. ~~[HIGH][ROUTE-REPLAY-ONLY] Default hash of plain instances raises unhashable (replay route).~~
+    FIXED 2026-08-23 by 3830be5f0 (default identity tp_hash + CPython
+    unhashable-eqonly rule). Verified both routes (pin_70 PASS; replay probes
+    green incl. eq-only-unhashable rule). Original text:
     hash(R()) on a bare class -> RuntimeError('unhashable type:
     ''instance'''); two distinct instances also fail. Default tp_hash
     slot missing on ceval-created classes. User-defined __hash__ works;
     instance-keyed dicts work when populated directly (identity-eq).
     Found fuzz r60b, verified.
 
-71. **[MED][ROUTE-REPLAY-ONLY] int(obj)/float(obj) return None (replay route). User __int__/__float__
-    defined and callable directly, but conversion builtins yield None -
-    nb_int/nb_float slots never look up the dunders. Found fuzz r60b,
-    verified.
+71. ~~[MED][ROUTE-REPLAY-ONLY] int(obj)/float(obj) return None (replay route).~~ FIXED 2026-08-23
+    by 3830be5f0 (conversion builtins over user instances). User __int__/__float__
+    now dispatched from int()/float(). Verified both routes (pin_71 PASS; replay
+    probes green). Original finding:
 
-CONSOLIDATION (r60): 65+67+68+69+70+71 share one root shape - implicit
+CONSOLIDATION (r60): 65+67+68+69+70+71 shared one root shape - implicit
     slot machinery (nb_bool/sq_contains/tp_hash/nb_int/descriptor dunders)
-    is not wired to dunder lookup on the Python-source/ceval class path.
-    Likely ONE slot-init/dispatch fix family; native-Jac classes unaffected
-    throughout. Owner: VM lane (ceval/type-ready slot init).
+    was not wired to dunder lookup on the Python-source/ceval class path.
+    RESOLVED AS PREDICTED: one fix (3830be5f0, landed from IronArrow's
+    fix/vm-slot-machinery c2594ade0) closed the whole family on BOTH routes.
+    CalmKnight re-verified 2026-08-23: pins 65/67-71 PASS + fresh replay-route
+    driver (/tmp/fuzz_slotfix_r26.json) all green.
 
 72. **[LOW-MED] int-subclass user __init__ with kwargs fails.**
     class N(int): def __init__(self, v, **kw): super().__init__(v); then
