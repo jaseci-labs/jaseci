@@ -24,6 +24,7 @@ import from marshal_reader { unmarshal, }
 import from opcode_meta { NB_LSHIFT, NB_TRUE_DIVIDE }
 
 import from ceval {
+    py_slot_truth,
     PyClass,
     PyFunction,
     PyModule,
