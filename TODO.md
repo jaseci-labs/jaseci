@@ -474,6 +474,9 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     goldens (wave-18 parity suite gates on exactly this). Repro by
     OakArrow, verified by BrightTiger + proxy-hash-probe agent tracing locus.
     Fix-spec pending from trace.
+    SCOPE HINT (r63 hand-sweep): user __str__ DOES dispatch correctly on
+    EXCEPTION subclasses (str(CustomErr()) -> custom text) - item 53's gap
+    is confined to PLAIN user classes; exception str path already wired.
     STATUS (UltraMoon, r60): FIX LANDED (72204a6e9, jac/launcher/embed.zig
     +23; str hash routes through pyhash SipHash at 3244919ae) - END-TO-END
     VERIFICATION PENDING BINARY REBUILD. Installed ~/.local/bin/jac is a
