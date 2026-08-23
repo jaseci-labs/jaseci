@@ -428,6 +428,17 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     host_binop whose to_host/from_host round-trip turned references into copies.
     Native kind-5 arm + reflected-repeat step. 9-point driver green.
 
+51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
+    __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
+    descriptors exist in layout (Band 5 codegen oracles) but instance-level
+    restriction absent. Walker family.
+
+50. **[MED] C.__mro__ returns tuple of Nones.** Diamond-inheritance class:
+    str(C.__mro__) -> '(None, None, None, None)' instead of the class tuple.
+    MRO linearization itself works (pin-item2-mro-c3 exercises order via
+    resolution, and issubclass/isinstance pass) - the __mro__ ATTRIBUTE
+    exposes unfilled slots. Display/attr-materialization gap.
+
 49. **[HIGH-adjacent] INPLACE ops REBIND instead of MUTATE.** a = b = [];
     a += [1]: b stays [0], a is b -> False. CPython list.__iadd__/__imul__
     mutate in place and return self; jacpython rebinds to fresh object.
