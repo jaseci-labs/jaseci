@@ -416,6 +416,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     - py_none() mints fresh instances with no richcompare arm, so None in {None}
     returned False. Fixed via eq/ne-vs-PyNoneType arm; None==0/'' correctly False.
 
+46. **[HIGH] List/tuple repetition copies instead of aliasing.** [[0]]*3:
+    rows[0] is rows[1] -> False on jacpython; CPython True (shallow repetition
+    repeats references, never copies). rows[0].append(1) then shows [0] at
+    rows[1]. Silently breaks matrix-init and shared-reference idioms.
+    Suspect: BUILD_LIST-from-repeat path deep-copying element lists. Found in
+    fuzz round 41. Ownerless; runtime lane urgent.
+
 44. **[MED] Old-style __getitem__ iteration protocol not implemented.**
     list(obj) where obj defines only __getitem__ (+IndexError terminator)
     raises TypeError("'NoneType' object is not iterable") - py_iter returns
