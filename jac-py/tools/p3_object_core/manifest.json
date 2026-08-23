@@ -471,7 +471,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "enumobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/enumobject.jac"
    }
   },
   {
@@ -528,7 +528,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "iterobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/iterobject.jac"
    }
   },
   {
@@ -604,7 +604,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "weakrefobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/weakrefobject.jac"
    }
   },
   {
@@ -623,7 +623,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "bytearrayobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/bytearrayobject.jac"
    }
   },
   {
@@ -642,7 +642,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "memoryobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/memoryobject.jac"
    }
   },
   {
@@ -661,7 +661,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "frameobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/frameobject.jac"
    }
   },
   {
@@ -680,7 +680,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "genobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/genobject.jac"
    }
   },
   {
@@ -699,7 +699,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "odictobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/odictobject.jac"
    }
   },
   {
@@ -775,7 +775,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "structseq.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/structseq.jac"
    }
   },
   {
@@ -832,7 +832,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "bytes_methods.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/bytes_methods.jac"
    }
   },
   {
@@ -965,7 +965,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "unicodectype.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/unicodectype.jac"
    }
   },
   {
@@ -984,7 +984,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "unicodeobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/unicodeobject.jac"
    }
   }
  ]
