@@ -4,7 +4,9 @@
 Hand-staged modules (see ``p2_staged_manifest*.json``) intentionally diverge from
 fresh c2jac lift output. After tier-B burn-down on the staged oracle, copy the
 staged file into ``_lifted/p2_corpus_wave*/`` so density metrics and T8 queues
-reflect the oracle truth.
+reflect the oracle truth. The staged per-file sidecar is synced alongside so
+the lifted Tier-B counts stay auditable against the staged oracle instead of
+being silently reset to a clean slate.
 
 Usage:
     python jac-py/tools/sync_staged_to_lifted.py
@@ -22,19 +24,17 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parent.parent
-_MANIFESTS = {
-    "wave1": _HERE / "p2_staged_manifest.json",
-    "wave2": _HERE / "p2_staged_manifest_wave2.json",
-    "wave3": _HERE / "p2_staged_manifest_wave3.json",
-    "wave4": _HERE / "p2_staged_manifest_wave4.json",
-    "wave5": _HERE / "p2_staged_manifest_wave5.json",
-    "wave6": _HERE / "p2_staged_manifest_wave6.json",
-    "wave7": _HERE / "p2_staged_manifest_wave7.json",
-    "wave8": _HERE / "p2_staged_manifest_wave8.json",
-    "wave9": _HERE / "p2_staged_manifest_wave9.json",
-    "wave10": _HERE / "p2_staged_manifest_wave10.json",
-    "wave11": _HERE / "p2_staged_manifest_wave11.json",
-}
+
+
+def _discover_manifests() -> dict[str, Path]:
+    """Map wave name -> staged manifest path (wave1 uses the unsuffixed file)."""
+    manifests: dict[str, Path] = {"wave1": _HERE / "p2_staged_manifest.json"}
+    for path in sorted(_HERE.glob("p2_staged_manifest_wave*.json")):
+        manifests[path.stem.removeprefix("p2_staged_manifest_")] = path
+    return manifests
+
+
+_MANIFESTS = _discover_manifests()
 
 
 def _load_manifest(wave: str) -> dict:
@@ -56,14 +56,26 @@ def _sidecar_for_output(output: Path) -> Path:
     return stem.parent / f"{stem.name}.c2jac.report.json"
 
 
-def _mark_sidecar_clean(sidecar: Path) -> None:
-    if not sidecar.is_file():
-        return
-    data = json.loads(sidecar.read_text(encoding="utf-8"))
-    data["sites"] = []
-    data["tier_b_count"] = 0
-    data["quarantined_functions"] = []
-    sidecar.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _sync_sidecar(stem: str, staged_dir: Path, lifted_dir: Path) -> None:
+    """Mirror the staged sidecar into the lifted tree with counts preserved.
+
+    Zeroing the lifted sidecar here used to silently reset the staged oracle's
+    Tier-B counts to a clean slate after every sync, leaving no audit trail of
+    how many sites the canonical oracle still carries. Copying the staged
+    sidecar (with a ``staged_sync`` provenance marker) keeps the aggregate
+    ratchet truthful; a fresh lift overwrites it again from real output.
+    """
+    src = staged_dir / f"{stem}.c2jac.report.json"
+    dst = lifted_dir / f"{stem}.c2jac.report.json"
+    if not src.is_file():
+        raise FileNotFoundError(
+            f"missing staged sidecar {src} — refresh tier-B measurements for "
+            "the staged oracle before syncing"
+        )
+    data = json.loads(src.read_text(encoding="utf-8"))
+    data["output"] = (lifted_dir / f"{stem}.jac").relative_to(_REPO).as_posix()
+    data["staged_sync"] = True
+    dst.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def refresh_wave_aggregate(manifest: dict) -> None:
@@ -100,11 +112,14 @@ def sync_hand_staged(
             return 1
         if dry_run:
             print(f"would copy {src.relative_to(_REPO)} -> {dst.relative_to(_REPO)}")
-            print(f"would clear sidecar {_sidecar_for_output(dst).relative_to(_REPO)}")
+            print(
+                f"would sync sidecar "
+                f"{_sidecar_for_output(dst).relative_to(_REPO)} (counts preserved)"
+            )
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-            _mark_sidecar_clean(_sidecar_for_output(dst))
+            _sync_sidecar(name, staged_dir, lifted_dir)
             print(f"copied {src.relative_to(_REPO)} -> {dst.relative_to(_REPO)}")
         copied += 1
 
