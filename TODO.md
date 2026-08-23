@@ -1344,6 +1344,13 @@ HARNESS GOTCHA (r60c): a case whose body fails to parse/indent prints `ok ... pa
 - ALWAYS check passed > 0, absence of FUZZFAIL proves nothing. Setup exceptions surface
 only as `errors: ['test_case']` with no message; capture stderr via a standalone probe.
 Also: driver hardcodes /tmp/fuzz_cases.json - concurrent agents must sed a unique path.
+HARNESS SOUNDNESS (r61b): (1) L1 harvester STRIPS decorator lines on defs inside test
+bodies -> @-on-def cases run UNDECORATED = vacuous greens; use standalone-diff instead.
+(2) Hand-built layer1_run_setup probes WRAP functions in PyObj - binding semantics differ
+from real execution; produced 3 false 'finds' (instance-attr fn binding, partial collision
+TypeErrors, lru_cache method) all disproven by `python3 x.py` vs `jac run x.py` diff.
+STANDALONE .py DIFFERENTIAL IS THE GOLD STANDARD. (3) Cross-leg identity asserts
+(assertEqual(p.func, p)) can never match across interpreters - design around.
 
 Infra: `/tmp/gen_fuzz.py`, `/tmp/gen_fuzz2.py` (corpus generators),
 `jac-py/jacpython/_fuzz_smoke.jac` (driver, reads /tmp/fuzz_cases.json),
