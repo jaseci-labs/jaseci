@@ -527,6 +527,22 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Same silent-wrong-answers family as 46. Owner: YoungHawk queue after 40
     (or UltraMoon lane when ceval frees).
 
+62. **[MED] `!=` ignores user `__eq__` - identity fallback.** class V with
+    __eq__ returning True: V(1) != V(1) (distinct objects) yields True.
+    Default __ne__ not derived from user __eq__; falls back to identity so
+    any ==-but-not-same object compares unequal. Sneaky: pin tests where
+    objects differ pass by accident of the same fallback. Found fuzz r59
+    via richcmp pin-down (individual <, ==, != ops green; combo case red).
+
+63. **[MED-HIGH] for-loop over user iterator ERRORS.** class with
+    __iter__/__next__/StopIteration: `for x in obj` raises, while
+    list(obj) and comprehensions over the SAME class work. GET_ITER/FOR_ITER
+    path skips guest dunder dispatch; only the list() builtin route
+    resolves it. Found fuzz r59.
+
+64. **[MED] two-arg iter(callable, sentinel) errors.** it = iter(pop, 9)
+    raises before first next(); one-arg iter fine. Found fuzz r59.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
