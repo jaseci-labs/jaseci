@@ -1714,12 +1714,16 @@ test "pyc-first: set literal first-value-wins + native .pop()/methods (Track d/e
     assert expect_int(err["h2"]) == 1;
 
     # M9: issubset / isdisjoint use element ``==``, not hashkey bucket only.
-    # Identity-keyed user objects (no ``__hash__``) can be ``==`` without sharing
-    # a hashkey — CPython set algebra still treats them as members.
+    # CPython 3.14 pins defining ``__eq__`` without ``__hash__`` to unhashable
+    # (the set literal itself raises), so the class carries an explicit shared
+    # ``__hash__``: both instances land in the same bucket and the confirm
+    # compare runs their ``__eq__`` -- exactly CPython's set_add_entry path.
     subset_eq = run_source(
         "class AlwaysEq:\n"
         "    def __eq__(self, other):\n"
         "        return isinstance(other, AlwaysEq)\n"
+        "    def __hash__(self):\n"
+        "        return 42\n"
         "a, b = AlwaysEq(), AlwaysEq()\n"
         "sub = {a}.issubset({b})\n"
         "le = {a} <= {b}\n"
@@ -1730,6 +1734,22 @@ test "pyc-first: set literal first-value-wins + native .pop()/methods (Track d/e
     assert expect_bool(subset_eq["le"]) == True;
     assert expect_bool(subset_eq["dis"]) == False;
     assert expect_bool(subset_eq["mem"]) == True;
+
+    # The correct new-behavior pin (CPython 3.14): ``__eq__`` without
+    # ``__hash__`` leaves tp_hash NULL, so set construction raises TypeError
+    # with the host-exact two-part message quoting the real class name.
+    eq_only = run_source(
+        "msg = ''\n"
+        "class EqOnly:\n"
+        "    def __eq__(self, other):\n"
+        "        return isinstance(other, EqOnly)\n"
+        "try:\n"
+        "    {EqOnly()}\n"
+        "except TypeError as e:\n"
+        "    msg = str(e)\n"
+    );
+    assert expect_str(eq_only["msg"])
+        == "cannot use 'EqOnly' as a set element (unhashable type: 'EqOnly')";
 }
 
 test "pyc-first: dict mutation during iteration raises RuntimeError (Track b)" {
