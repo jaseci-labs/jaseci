@@ -42,19 +42,7 @@ def _jac_host_call(fn, args, kwargs):
     try:
         return (True, fn(*args, **kwargs), None, None)
     except BaseException as exc:
-<<<<<<< HEAD
         return _jac_host_error(exc)
-=======
-        # Full fidelity: carry the FULL BaseException.args tuple back so the
-        # guest-side PyException keeps e.args (struct.error('bad char') must
-        # round-trip args, not just str(exc)); the name stays SHORT
-        # (type(e).__name__ == 'error', matching CPython display).
-        try:
-            exc_args = [from_host(a) for a in getattr(exc, "args", ())]
-        except BaseException:
-            exc_args = []
-        return (False, type(exc).__name__, str(exc), exc_args)
->>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 
 def _jac_host_is_callable(value):
     return callable(value)
@@ -3546,7 +3534,6 @@ def to_host(value: PyObj) -> any {
             return _jac_user_standin(value);
 
         case PyGenerator():
-<<<<<<< HEAD
             if value.t == "coroutine" {
                 # A guest coroutine crossing to the host becomes a REAL host
                 # awaitable (send/throw/close/__await__, asyncio.iscoroutine
@@ -3557,24 +3544,12 @@ def to_host(value: PyObj) -> any {
             if value.t == "async_generator" {
                 return _jac_make_guest_async_generator(value);
             }
-            # A native genexpr reaching the host boundary (list(gen)/tuple(gen)/
-            # sum(gen)/...) is drained through the real suspend/resume machinery
-            # into a host list, which every iterable-consuming builtin accepts.
-            drained = gen_drain(value);
-            return to_host(drained);
-=======
-            # LAZY_ITER: the generator is driven ONE step per host __next__
-            # through the real suspend/resume machinery -- laziness preserved,
-            # no silent drain, shared consumption position.
+            # LAZY_ITER: a plain generator/genexpr crossing to the host is
+            # driven ONE step per host __next__ through the real suspend/resume
+            # machinery -- laziness preserved, no silent drain, shared
+            # consumption position (islice-then-next keeps working).
             return _jac_make_host_iterator(value);
 
-        case PyClass():
-            # A guest class crossing to the host presents as its name-faithful
-            # cached stand-in class (previously None): repr/type-name reads and
-            # host isinstance checks see the real name, and from_host recovers
-            # the ORIGINAL PyClass via the marker attribute.
-            return _jac_standin_class(value);
->>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 
         case PyDictView():
             # Rebuild a real host dict and hand back the matching live view, so
@@ -3607,6 +3582,18 @@ def to_host(value: PyObj) -> any {
         + str(policy)
         + " but no to_host conversion arm"
     );
+}
+
+# Guest->host ARGUMENT channel (py_call_host, host binops, constructors, ...):
+# a FAIL-policy operand surfaces as a guest-visible TypeError -- CPython also
+# raises TypeError for unrepresentable arguments -- instead of unwinding the
+# VM. Returns the host value, or a PyError the caller must propagate.
+def to_host_coerce(value: PyObj) -> tuple[bool, any] {
+    try {
+        return (True, to_host(value));
+    } except RuntimeError as e {
+        return (False, py_error("TypeError", str(e)));
+    }
 }
 
 def host_builtin(name: str) -> PyObj {
@@ -3749,7 +3736,15 @@ def py_type_of(o: PyObj) -> PyObj {
         # `iterator` type (PySeqIter_Type), not list_iterator.
         return from_host(_jac_seq_iterator_type());
     }
-    return from_host(_jac_host_type(to_host(o)));
+    ho_r = to_host_coerce(o);
+    ho = ho_r[1];
+    if not ((ho_r[0] as bool)) {
+        # A FAIL-tag operand has no host type answer at all (VM-internal tag);
+        # degrade to `object` rather than the old lie of NoneType. Unreachable
+        # for every tag guests can hold as a first-class value.
+        return from_host(_jac_host_type(object()));
+    }
+    return from_host(_jac_host_type(ho));
 }
 
 # Build a real host exception instance from a native PyException, so the host's
@@ -3823,7 +3818,12 @@ def host_format(value: PyObj, spec: str) -> PyObj {
         }
         return py_str(value);
     }
-    result = _jac_host_format(to_host(value), spec);
+    hv_r = to_host_coerce(value);
+    hv = hv_r[1];
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    result = _jac_host_format(hv, spec);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -3846,7 +3846,11 @@ def host_convert(value: PyObj, conv: int) -> PyObj {
     if isinstance(value, PyMemberDescr) {
         return py_repr(value);
     }
-    result = _jac_host_convert(to_host(value), conv);
+    hv_r = to_host_coerce(value);
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    result = _jac_host_convert(hv_r[1], conv);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -3854,7 +3858,12 @@ def host_convert(value: PyObj, conv: int) -> PyObj {
 }
 
 def host_getattr(value: PyObj, name: str) -> PyObj {
-    result = _jac_host_getattr(to_host(value), name);
+    hv_r = to_host_coerce(value);
+    hv = hv_r[1];
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    result = _jac_host_getattr(hv, name);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -3862,7 +3871,17 @@ def host_getattr(value: PyObj, name: str) -> PyObj {
 }
 
 def host_getitem(value: PyObj, index: PyObj) -> PyObj {
-    result = _jac_host_getitem(to_host(value), to_host(index));
+    hv_r = to_host_coerce(value);
+    hv = hv_r[1];
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    hi_r = to_host_coerce(index);
+    hi = hi_r[1];
+    if not ((hi_r[0] as bool)) {
+        return hi_r[1] as PyObj;
+    }
+    result = _jac_host_getitem(hv, hi);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -3870,7 +3889,17 @@ def host_getitem(value: PyObj, index: PyObj) -> PyObj {
 }
 
 def host_setattr(value: PyObj, name: str, field: PyObj) -> PyObj {
-    result = _jac_host_setattr(to_host(value), name, to_host(field));
+    hv_r = to_host_coerce(value);
+    hv = hv_r[1];
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    hf_r = to_host_coerce(field);
+    hf = hf_r[1];
+    if not ((hf_r[0] as bool)) {
+        return hf_r[1] as PyObj;
+    }
+    result = _jac_host_setattr(hv, name, hf);
     if host_result_ok(result) {
         return py_none();
     }
@@ -4356,7 +4385,17 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # for == and TypeError for ordering (item 27 bytearray half).
     if isinstance(lhs, PyBytes) != isinstance(rhs, PyBytes)
         and (isinstance(lhs, PyHostProxy) or isinstance(rhs, PyHostProxy)) {
-        res = _jac_host_richcompare(kind, to_host(lhs), to_host(rhs));
+        hl_r = to_host_coerce(lhs);
+        hl = hl_r[1];
+        if not ((hl_r[0] as bool)) {
+            return hl_r[1] as PyObj;
+        }
+        hr_r = to_host_coerce(rhs);
+        hr = hr_r[1];
+        if not ((hr_r[0] as bool)) {
+            return hr_r[1] as PyObj;
+        }
+        res = _jac_host_richcompare(kind, hl, hr);
         if not ((res[0] as bool)) {
             return host_result_error(res);
         }
@@ -4391,7 +4430,17 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
 # when both operands are host-backed. Purely additive: only a native error
 # triggers the fallback, so ported semantics always win.
 def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
-    result = _jac_host_binop(kind, to_host(lhs), to_host(rhs));
+    hl_r = to_host_coerce(lhs);
+    hl = hl_r[1];
+    if not ((hl_r[0] as bool)) {
+        return hl_r[1] as PyObj;
+    }
+    hr_r = to_host_coerce(rhs);
+    hr = hr_r[1];
+    if not ((hr_r[0] as bool)) {
+        return hr_r[1] as PyObj;
+    }
+    result = _jac_host_binop(kind, hl, hr);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -5033,7 +5082,17 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
             }
         }
     }
-    result = _jac_host_contains(to_host(member), to_host(container));
+    hm_r = to_host_coerce(member);
+    hm = hm_r[1];
+    if not ((hm_r[0] as bool)) {
+        return hm_r[1] as PyObj;
+    }
+    hc_r = to_host_coerce(container);
+    hc = hc_r[1];
+    if not ((hc_r[0] as bool)) {
+        return hc_r[1] as PyObj;
+    }
+    result = _jac_host_contains(hm, hc);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
@@ -5267,7 +5326,12 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
         }
         return py_error("AttributeError", name);
     }
-    result = _jac_host_delattr(to_host(value), name);
+    hv_r = to_host_coerce(value);
+    hv = hv_r[1];
+    if not ((hv_r[0] as bool)) {
+        return hv_r[1] as PyObj;
+    }
+    result = _jac_host_delattr(hv, name);
     if host_result_ok(result) {
         return py_none();
     }
@@ -5588,7 +5652,12 @@ def py_len(value: PyObj) -> PyObj {
     if isinstance(value, PyHostProxy) {
         # A proxied host object (e.g. a namedtuple instance produced by
         # tuple.__new__, or any C-extension container) answers len() on the host.
-        result = _jac_host_len(to_host(value));
+        hv_r = to_host_coerce(value);
+        hv = hv_r[1];
+        if not ((hv_r[0] as bool)) {
+            return hv_r[1] as PyObj;
+        }
+        result = _jac_host_len(hv);
         if host_result_ok(result) {
             return from_host(result[1]);
         }
@@ -6419,27 +6488,27 @@ def py_call_host(
     }
     raw_args: list[any] = [];
     for item in args {
-        raw_args.append(to_host(item));
+        hi_r = to_host_coerce(item);
+        hi = hi_r[1];
+        if not ((hi_r[0] as bool)) {
+            return hi_r[1] as PyObj;
+        }
+        raw_args.append(hi);
     }
     raw_kwargs: dict[str, any] = {};
     for key in kwargs {
-        raw_kwargs[key] = to_host(kwargs[key]);
+        hk_r = to_host_coerce(kwargs[key]);
+        hk = hk_r[1];
+        if not ((hk_r[0] as bool)) {
+            return hk_r[1] as PyObj;
+        }
+        raw_kwargs[key] = hk;
     }
     result = _jac_host_call(fn.val, raw_args, raw_kwargs);
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-<<<<<<< HEAD
     return host_result_error(result);
-=======
-    # Host-raised exceptions keep their FULL args tuple (e.args round-trips);
-    # the message stays empty because args carry it (BaseException_str rule).
-    err_args: list[PyObj] = [];
-    for a in result[3] {
-        err_args.append(a as PyObj);
-    }
-    return py_error_with_args(str(result[1]), "", err_args);
->>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 }
 
 def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -6834,7 +6903,12 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
 def construct_native_base(name: str, args: list[PyObj]) -> PyObj {
     raw_args: list[any] = [];
     for a in args {
-        raw_args.append(to_host(a));
+        ha_r = to_host_coerce(a);
+        ha = ha_r[1];
+        if not ((ha_r[0] as bool)) {
+            return ha_r[1] as PyObj;
+        }
+        raw_args.append(ha);
     }
     result = _jac_construct_builtin(name, raw_args);
     if host_result_ok(result) {
@@ -6938,7 +7012,12 @@ def py_isinstance(ob: PyObj, typ: PyObj) -> bool {
         if name != "" {
             return obj_is_builtin(ob, name);
         }
-        return bool(_jac_host_isinstance(to_host(ob), host_type));
+        hob_r = to_host_coerce(ob);
+        hob = hob_r[1];
+        if not ((hob_r[0] as bool)) {
+            return False;
+        }
+        return bool(_jac_host_isinstance(hob, host_type));
     }
     return False;
 }
@@ -7765,7 +7844,12 @@ obj PyNsMethod(PyObj) {
                 if isinstance(src, PyDict) {
                     pairs = src;
                 } else {
-                    pairs = from_host(to_host(src));
+                    hsrc_r = to_host_coerce(src);
+                    hsrc = hsrc_r[1];
+                    if not ((hsrc_r[0] as bool)) {
+                        return hsrc_r[1] as PyObj;
+                    }
+                    pairs = from_host(hsrc);
                 }
                 if isinstance(pairs, PyDict) {
                     smap = (pairs as PyDict).dict_str_map();
@@ -7868,7 +7952,12 @@ def members_of(arg: PyObj) -> PyObj {
     }
     it = py_iter(arg);
     if is_error(it) {
-        it = host_iter(PyHostProxy(t="host", val=to_host(arg)));
+        harg_r = to_host_coerce(arg);
+        harg = harg_r[1];
+        if not ((harg_r[0] as bool)) {
+            return harg_r[1] as PyObj;
+        }
+        it = host_iter(PyHostProxy(t="host", val=harg));
         if is_error(it) {
             return it;
         }
@@ -10927,7 +11016,17 @@ def run_frame(frame: PyFrame) -> PyObj {
                 host_map: dict[any, any] = {};
                 j = 0;
                 while j < arg {
-                    host_map[to_host(popped[j * 2])] = to_host(popped[j * 2 + 1]);
+                    hk_r = to_host_coerce(popped[j * 2]);
+                    hk = hk_r[1];
+                    if not ((hk_r[0] as bool)) {
+                        return hk_r[1] as PyObj;
+                    }
+                    hv2_r = to_host_coerce(popped[j * 2 + 1]);
+                    hv2 = hv2_r[1];
+                    if not ((hv2_r[0] as bool)) {
+                        return hv2_r[1] as PyObj;
+                    }
+                    host_map[hk] = hv2;
                     j = j + 1;
                 }
                 stack.append(PyHostProxy(t="host", val=host_map));
@@ -10974,7 +11073,12 @@ def run_frame(frame: PyFrame) -> PyObj {
             iterable = stack.pop();
             target_index = len(stack) - arg;
             target_set: PySet = stack[target_index] as PySet;
-            for hostel in to_host(iterable) {
+            hiter_r = to_host_coerce(iterable);
+            hiter = hiter_r[1];
+            if not ((hiter_r[0] as bool)) {
+                return hiter_r[1] as PyObj;
+            }
+            for hostel in hiter {
                 target_set.set_add(from_host(hostel));
             }
             continue;
@@ -12036,7 +12140,12 @@ def run_frame(frame: PyFrame) -> PyObj {
             } elif kwargs_obj.t != "none" {
                 # A non-dict, non-NULL mapping (e.g. a proxied host mapping):
                 # normalize through from_host(to_host(...)) into a PyDict.
-                coerced = from_host(to_host(kwargs_obj));
+                hkw_r = to_host_coerce(kwargs_obj);
+                hkw = hkw_r[1];
+                if not ((hkw_r[0] as bool)) {
+                    return hkw_r[1] as PyObj;
+                }
+                coerced = from_host(hkw);
                 if isinstance(coerced, PyDict) {
                     ex_kwargs = (coerced as PyDict).dict_str_map();
                 }
