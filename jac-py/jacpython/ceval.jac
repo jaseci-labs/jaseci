@@ -4234,7 +4234,7 @@ def user_str_slot(u: PyUserObj) -> PyObj {
 # bytes stay exact CPython.
 def py_str(value: PyObj) -> PyObj {
     if isinstance(value, PyException) {
-        return baseexception_str(value as PyException);
+        return baseexception_str(value as PyException, py_repr);
     }
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
@@ -12233,7 +12233,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 # Bare `raise`: re-raise the exception currently being handled.
                 raised = exc_handling[len(exc_handling) - 1];
             }
-            result = py_raise_value(raised);
+            if arg == 0 and raised.t == "none" {
+                # CPython bare `raise` outside any handler is RuntimeError
+                # (PyErr_GetReraised), not the generic not-an-exception TypeError.
+                result = py_error("RuntimeError", "No active exception to re-raise");
+            } else {
+                result = py_raise_value(raised);
+            }
             # Implicit chaining (CPython PyErr_SetObject): raising while another
             # exception is being handled records the handled one as the new
             # exception's __context__ -- unless the raised object IS that
@@ -12257,13 +12263,23 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
             }
             # `raise X from Y`: record Y on the raised exception so e.__cause__
-            # reads it back (skip `from None`, which carries no cause object).
-            if arg == 2 and isinstance(result, PyError) and raise_cause.t != "none" {
-                cause_err = py_raise_value(raise_cause);
-                if isinstance(cause_err, PyError) {
-                    (result as PyError).exception.cause = (
-                        cause_err as PyError
-                    ).exception;
+            # reads it back. `from None` carries no cause object but still sets
+            # __suppress_context__ (CPython PyErr_SetCause semantics).
+            if arg == 2 and isinstance(result, PyError) {
+                if raise_cause.t != "none" {
+                    cause_err = py_raise_value(raise_cause);
+                    if isinstance(cause_err, PyError) {
+                        cause_exc = (cause_err as PyError).exception;
+                        (result as PyError).exception.cause = cause_exc;
+                        # PyErr_SetCause: a real cause implies __suppress_context__.
+                        (result as PyError).exception.suppress_context = PyBool(
+                            t="bool", val=True
+                        );
+                    }
+                } else {
+                    (result as PyError).exception.suppress_context = PyBool(
+                        t="bool", val=True
+                    );
                 }
             }
             target = recover_exception(co, result, offset, stack);
