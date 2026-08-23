@@ -605,6 +605,8 @@ import from opcode_meta {
     OP_RESUME,
     OP_LOAD_BUILD_CLASS,
     OP_LOAD_LOCALS,
+    OP_LOAD_FROM_DICT_OR_DEREF,
+    OP_LOAD_FROM_DICT_OR_GLOBALS,
     OP_NOT_TAKEN,
     OP_POP_TOP,
     OP_PUSH_EXC_INFO,
@@ -4542,6 +4544,52 @@ def resolve_cell(fast: list[PyObj], arg: int) -> PyCell | None {
     return None;
 }
 
+# Name of merged-localsplus slot `arg`: [varnames] [cellvars not shadowing a
+# varname, in cellvar order] [freevars] -- the layout frame setup builds.
+def localsplus_name(co: PyCode, arg: int) -> str {
+    nv = len(co.varnames);
+    if arg < nv {
+        return co.varnames[arg];
+    }
+    off = nv;
+    ci = 0;
+    while ci < len(co.cellvars) {
+        if find_name(co.varnames, co.cellvars[ci]) < 0 {
+            if arg == off {
+                return co.cellvars[ci];
+            }
+            off = off + 1;
+        }
+        ci = ci + 1;
+    }
+    return co.freevars[arg - off];
+}
+
+# CPython _PyEval_FormatExcUnbound (Python/ceval.c): a localsplus index below
+# the free region is an UnboundLocalError; at or above it, the free-variable
+# NameError. Message text byte-exact with the host.
+def format_exc_unbound(co: PyCode, arg: int) -> PyObj {
+    lpname = localsplus_name(co, arg);
+    ncell = 0;
+    ci = 0;
+    while ci < len(co.cellvars) {
+        if find_name(co.varnames, co.cellvars[ci]) < 0 {
+            ncell = ncell + 1;
+        }
+        ci = ci + 1;
+    }
+    if arg < len(co.varnames) + ncell {
+        return py_error(
+            "UnboundLocalError",
+            "cannot access local variable '" + lpname + "' where it is not associated with a value",
+        );
+    }
+    return py_error(
+        "NameError",
+        "cannot access free variable '" + lpname + "' where it is not associated with a value in enclosing scope",
+    );
+}
+
 def fast_value(co: PyCode, arg: int, fast: list[PyObj]) -> PyObj {
     # A converted (cell) slot yields the CELL OBJECT -- that is how LOAD_FAST /
     # LOAD_FAST_BORROW fetch a live cell to seed an inner function's closure
@@ -5725,13 +5773,22 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     }
     # Default `type`: execute the body into a plain namespace and box a PyClass.
     namespace: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
+    body_cells: dict[str, PyCell] = {};
     body_result = exec_code_frame(
-        body.code, [], {}, body.globals, namespace, body.closure, [], {}
+        body.code, [], {}, body.globals, namespace, body.closure, [], {}, body_cells
     );
     if body_result.t == "error" {
         return body_result;
     }
     cls = make_pyclass_from_map(class_name, bases, namespace, None);
+    # CPython bltinmodule.c __build_class__: when the body declares a __class__
+    # cellvar, the finished class object is written into that live cell so the
+    # methods' captured closures deref it for zero-arg super().
+    if "__class__" in body_cells {
+        cc = body_cells["__class__"];
+        cc.val = cls;
+        cc.filled = True;
+    }
     ordered: list[str] = [];
     for k in namespace {
         ordered.append(k);
@@ -5803,15 +5860,24 @@ def build_class_via_metaclass(
             namespace2[pk] = prep_map[pk];
         }
     }
+    body_cells2: dict[str, PyCell] = {};
     body_result2 = exec_code_frame(
-        body.code, [], {}, body.globals, namespace2, body.closure, [], {}
+        body.code, [], {}, body.globals, namespace2, body.closure, [], {}, body_cells2
     );
     if body_result2.t == "error" {
         return body_result2;
     }
     ns_dict = dict_from_str_map(namespace2);
     call_args2: list[PyObj] = [PyStr(t="str", val=class_name), bases_tuple, ns_dict];
-    return py_invoke(metaclass, call_args2, class_kwds);
+    made = py_invoke(metaclass, call_args2, class_kwds);
+    if not is_error(made) and "__class__" in body_cells2 {
+        # Same __class__-cell seeding as the default-type path: the metaclass's
+        # returned class object goes into the body's live cell.
+        cc2 = body_cells2["__class__"];
+        cc2.val = made;
+        cc2.filled = True;
+    }
+    return made;
 }
 
 def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> PyObj {
@@ -7754,6 +7820,7 @@ def exec_code_frame(
     closure: list[PyCell],
     defaults: list[PyObj],
     kwdefaults: dict[str, PyObj],
+    cell_out: dict[str, PyCell] | None = None
 ) -> PyObj {
     fast: list[PyObj] = [];
     assigned: list[bool] = [];
@@ -7857,9 +7924,17 @@ def exec_code_frame(
     while ci < len(co.cellvars) {
         fast_index = find_name(co.varnames, co.cellvars[ci]);
         if fast_index >= 0 {
-            fast[fast_index] = PyCell(t="cell", val=fast[fast_index]);
+            # In-place conversion of an already-bound varname slot (the runtime
+            # effect of the prologue MAKE_CELLs): boundness carries over.
+            fast[fast_index] = PyCell(t="cell", val=fast[fast_index], filled=assigned[fast_index]);
         } else {
-            fast.append(PyCell(t="cell", val=py_none()));
+            newcell = PyCell(t="cell", val=py_none());
+            fast.append(newcell);
+            # Class-body frames hand their live cellvars back so the caller can
+            # seed them post-creation (the __class__ cell protocol).
+            if cell_out is not None {
+                (cell_out as dict[str, PyCell])[co.cellvars[ci]] = newcell;
+            }
         }
         ci = ci + 1;
     }
@@ -8094,6 +8169,17 @@ def run_frame(frame: PyFrame) -> PyObj {
             if cell is None {
                 return py_error("NameError", "free variable is not set");
             }
+            # An empty cell is distinct from a None binding: emptiness lives on
+            # the shared cell object (CPython's cell-NULL check), not the slot.
+            if not cell.filled {
+                err = format_exc_unbound(co, arg);
+                target = recover_exception(co, err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return err;
+            }
             stack.append(cell.val);
             continue;
         }
@@ -8105,6 +8191,103 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack.append(cell);
             continue;
         }
+        if op == OP_LOAD_FROM_DICT_OR_DEREF {
+            # CPython TARGET(LOAD_FROM_DICT_OR_DEREF) (generated_cases.c.h):
+            # pop the mapping pushed by LOAD_LOCALS (class namespace), look up
+            # the localsplus name; on a miss deref the cell in slot `arg`, and
+            # raise the exact unbound error when that is empty too.
+            mapping = stack.pop();
+            lpname = localsplus_name(co, arg);
+            keyname = PyStr(t="str", val=lpname);
+            value = py_none();
+            hit = False;
+            if isinstance(mapping, PyDict) {
+                dmap = mapping as PyDict;
+                if dmap.dict_contains(keyname) {
+                    value = dmap.mp_subscript(keyname);
+                    hit = True;
+                }
+            } else {
+                got = mapping.mp_subscript(keyname);
+                if is_error(got) {
+                    if ((got as PyError).exception.type_name != "KeyError") {
+                        target = recover_exception(co, got, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                            continue;
+                        }
+                        return got;
+                    }
+                } else {
+                    value = got;
+                    hit = True;
+                }
+            }
+            if not hit {
+                cell = resolve_cell(fast, arg);
+                if cell is None or not cell.filled {
+                    err = format_exc_unbound(co, arg);
+                    target = recover_exception(co, err, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return err;
+                }
+                value = cell.val;
+            }
+            stack.append(value);
+            continue;
+        }
+        if op == OP_LOAD_FROM_DICT_OR_GLOBALS {
+            # CPython TARGET(LOAD_FROM_DICT_OR_GLOBALS): pop the module-or-class
+            # dict, look up co_names[arg]; on a miss fall back to globals then
+            # builtins; still missing -> NAME_ERROR_MSG byte-exact.
+            mapping = stack.pop();
+            gname = co.names[arg];
+            keyname = PyStr(t="str", val=gname);
+            value = py_none();
+            hit = False;
+            if isinstance(mapping, PyDict) {
+                dmap = mapping as PyDict;
+                if dmap.dict_contains(keyname) {
+                    value = dmap.mp_subscript(keyname);
+                    hit = True;
+                }
+            } else {
+                got = mapping.mp_subscript(keyname);
+                if is_error(got) {
+                    if ((got as PyError).exception.type_name != "KeyError") {
+                        target = recover_exception(co, got, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                            continue;
+                        }
+                        return got;
+                    }
+                } else {
+                    value = got;
+                    hit = True;
+                }
+            }
+            if not hit {
+                if gname in globals {
+                    value = globals[gname];
+                } else {
+                    value = load_name_fallback(gname);
+                    if is_error(value) {
+                        target = recover_exception(co, value, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                            continue;
+                        }
+                        return value;
+                    }
+                }
+            }
+            stack.append(value);
+            continue;
+        }
         if op == OP_STORE_DEREF {
             value = stack.pop();
             cell = resolve_cell(fast, arg);
@@ -8112,6 +8295,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                 return py_error("NameError", "free variable is not set");
             }
             cell.val = value;
+            cell.filled = True;
             continue;
         }
         if op == OP_MAKE_CELL {
@@ -8124,7 +8308,14 @@ def run_frame(frame: PyFrame) -> PyObj {
             # sets captured by earlier comprehensions keep their own cells.
             # Idempotent on already-converted slots (prologue MAKE_CELLs).
             if arg < len(fast) and not isinstance(fast[arg], PyCell) {
-                fast[arg] = PyCell(t="cell", val=fast[arg]);
+                # A None slot is the VM's unset placeholder (LOAD_FAST_AND_CLEAR
+                # nulls the slot before comprehension conversions); anything else
+                # was genuinely bound and stays readable through the cell.
+                fast[arg] = PyCell(
+                    t="cell",
+                    val=fast[arg],
+                    filled=(not isinstance(fast[arg], PyNoneType)),
+                );
             }
             continue;
         }
@@ -8203,7 +8394,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                     if item.t == "cell" {
                         function.closure.append(item as PyCell);
                     } else {
-                        function.closure.append(PyCell(t="cell", val=item));
+                        function.closure.append(PyCell(t="cell", val=item, filled=True));
                     }
                 }
             }

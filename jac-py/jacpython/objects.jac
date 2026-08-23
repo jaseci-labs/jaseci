@@ -1095,7 +1095,13 @@ obj PyCode(PyObj) {
 }
 
 obj PyCell(PyObj) {
-    has val: PyObj;
+    has val: PyObj,
+        # CPython cells distinguish NULL (unbound) from a None binding; this VM
+        # stores None in `val`, so emptiness is carried here. Lives on the cell
+        # (shared across frames) exactly like the C NULL -- a per-frame bound
+        # flag cannot work: an enclosing function's STORE_DEREF must make the
+        # same cell readable inside a class body it was captured into.
+        filled: bool = False;
 }
 
 # Backing slot for the hash-key protocol: the original key object is kept next
