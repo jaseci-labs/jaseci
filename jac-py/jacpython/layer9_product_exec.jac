@@ -21,12 +21,14 @@ import from objects {
     PyBool,
     PyDict,
     PySet,
+    PyList,
     expect_int,
     expect_str,
     is_error,
     PyError,
     py_none
 }
+import from opcode_meta { OP_COPY_FREE_VARS, OP_MAKE_CELL }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code, gen_send, py_subscript, PyGenerator }
@@ -1753,4 +1755,116 @@ test "layer9: local AnnAssign stores and reads back in ceval" {
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- closure cells through class bodies ----------------
+
+test "layer9: class body captures enclosing function cell (PyCode parity)" {
+    # A method inside a class body mutates a cell of the enclosing function.
+    # CPython threads the cell through the class body: the body code object
+    # carries freevars ('log',), __build_class__ receives the closure tuple,
+    # and the class prologue opens with COPY_FREE_VARS before MAKE_CELL.
+    src = (
+        "def mk():\n"
+        + "    log = []\n"
+        + "    class G:\n"
+        + "        def m(self):\n"
+        + "            log.append(1)\n"
+        + "    return G, log\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    mk_u = nested_code_by_name(act, "mk");
+    mk_e = nested_code_by_name(exp, "mk");
+    assert mk_u.co_code == mk_e.co_code;
+    g_u = nested_code_by_name(mk_u, "G");
+    g_e = nested_code_by_name(mk_e, "G");
+    assert g_u.co_code == g_e.co_code;
+    assert g_u.freevars == ["log"];
+    assert g_e.freevars == ["log"];
+    m_u = nested_code_by_name(g_u, "m");
+    m_e = nested_code_by_name(g_e, "m");
+    assert m_u.co_code == m_e.co_code;
+    assert m_u.freevars == ["log"];
+}
+
+test "layer9: class body method mutates enclosing function cell in ceval" {
+    src = (
+        "def mk():\n"
+        + "    log = []\n"
+        + "    class G:\n"
+        + "        def m(self):\n"
+        + "            log.append(1)\n"
+        + "    return G, log\n"
+        + "G2, log2 = mk()\n"
+        + "G2().m()\n"
+        + "result = log2\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    logged = ns["result"];
+    assert isinstance(logged, PyList);
+    items = (logged as PyList).items;
+    assert len(items) == 1;
+    assert expect_int(items[0]) == 1;
+}
+
+test "layer9: class body reads enclosing cell directly in ceval" {
+    # Non-method capture: the class body itself references the enclosing
+    # function's cell (LOAD_DEREF inside the body).
+    src = (
+        "def mk(v):\n"
+        + "    x = v\n"
+        + "    class G:\n"
+        + "        y = x\n"
+        + "    return G\n"
+        + "result = mk(7).y\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    exp = expected as PyCode;
+    mk_u = nested_code_by_name(actual as PyCode, "mk");
+    mk_e = nested_code_by_name(exp, "mk");
+    g_u = nested_code_by_name(mk_u, "G");
+    g_e = nested_code_by_name(mk_e, "G");
+    assert g_u.co_code == g_e.co_code;
+    assert g_u.freevars == ["x"];
+    co = actual as PyCode;
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+}
+
+test "layer9: COPY_FREE_VARS precedes MAKE_CELL in nested prologues" {
+    # CPython 3.14 flowgraph order for scopes with both free vars and cells:
+    # COPY_FREE_VARS n first, then the MAKE_CELLs. Pin the byte order so the
+    # prologue emitter cannot regress to the reversed layout.
+    src = (
+        "def outer():\n"
+        + "    log = []\n"
+        + "    def inner(a):\n"
+        + "        z = a + 1\n"
+        + "        def deep():\n"
+        + "            return z + log[0]\n"
+        + "        return deep\n"
+        + "    return inner\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    exp = expected as PyCode;
+    inner_u = nested_code_by_name(actual as PyCode, "inner");
+    inner_e = nested_code_by_name(exp, "inner");
+    assert len(inner_u.co_code) >= 4;
+    assert inner_u.co_code[0] == OP_COPY_FREE_VARS;
+    assert inner_u.co_code[2] == OP_MAKE_CELL;
+    assert inner_u.co_code == inner_e.co_code;
 }
