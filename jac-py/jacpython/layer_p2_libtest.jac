@@ -20,6 +20,16 @@ import from _warningsmodule {
     warnings_module_attrs,
     _p2_warn_state_reset,
 }
+import from ceval { _sys3_forget, set_layer3_active, }
+import from _collectionsmodule {
+    _p2_deque,
+    _p2_defaultdict,
+}
+import from _collections_pylib {
+    _p2_counter,
+    _p2_namedtuple,
+    _p2_ordereddict,
+}
 import from _statmodule {
     _p2_S_ISDIR,
     _p2_S_ISCHR,
@@ -343,6 +353,73 @@ def _p2_single_int_arg(args: list[PyObj]) -> PyObj {
         return py_error("TypeError", "expected exactly one int argument");
     }
     return args[0];
+}
+
+obj P2LibtestCollectionsCtor(PyObj) {
+    # Builds a native collections object and hands the VM a proxy around it;
+    # every subsequent method/subscript/repr routes back through the facade.
+    has kind: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.kind == "deque" {
+            iterable: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                iterable = to_host(args[0]);
+            }
+            maxlen: any = None;
+            if "maxlen" in kwargs and kwargs["maxlen"].t != "none" {
+                maxlen = to_host(kwargs["maxlen"]);
+            }
+            return from_host(_p2_deque(iterable, maxlen));
+        }
+        if self.kind == "defaultdict" {
+            factory: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                factory = to_host(args[0]);
+            }
+            initial: any = None;
+            if len(args) > 1 {
+                initial = to_host(args[1]);
+            }
+            return from_host(_p2_defaultdict(factory, initial));
+        }
+        if self.kind == "Counter" or self.kind == "OrderedDict" {
+            initial: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                initial = to_host(args[0]);
+            }
+            # Keyword counts/entries share the mapping-update path.
+            kw: dict[str, any] = {};
+            for k in kwargs.keys() {
+                kw[k] = to_host(kwargs[k]);
+            }
+            if self.kind == "Counter" {
+                built: any = _p2_counter(initial);
+                if len(kw) > 0 {
+                    built.update(kw);
+                }
+            } else {
+                built = _p2_ordereddict(initial);
+                if len(kw) > 0 {
+                    built.update(kw);
+                }
+            }
+            return from_host(built);
+        }
+        # namedtuple(typename, field_names, rename=..., defaults=...)
+        typename = to_host(args[0]);
+        field_names = to_host(args[1]);
+        rename: bool = False;
+        defaults: any = None;
+        if "rename" in kwargs and kwargs["rename"].t == "bool" {
+            rename = (kwargs["rename"] as PyBool).val;
+        }
+        if "defaults" in kwargs and kwargs["defaults"].t != "none" {
+            defaults = to_host(kwargs["defaults"]);
+        }
+        return from_host(
+            _p2_namedtuple(typename, field_names, rename, defaults));
+    }
 }
 
 obj P2StatSIsDirFn(PyObj) {
@@ -689,6 +766,14 @@ obj P2OpcodeStackEffectFn(PyObj) {
 
 def p2_libtest_reset {
     clear_shim_modules();
+    # Route IMPORT_NAME through py_import_name so the registered facades win;
+    # with the flag down every snippet import would silently hit the HOST
+    # stdlib instead of the shim under test.
+    set_layer3_active(True);
+    # A prior in-VM leg (e.g. unittest's support closure) may have cached the
+    # HOST collections module in the sys3 cache, which import_native checks
+    # before the shim registry -- drop it so the facade shim always wins.
+    _sys3_forget("collections");
     platform_attrs: dict[str, PyObj] = {
         "platform": P2LibtestPlatformFn(t="function"),
         "system": P2LibtestSystemFn(t="function"),
@@ -745,26 +830,6 @@ def p2_libtest_reset {
         "collections",
         PyModule(t="module", name="collections", attrs=collections_attrs),
     );
-    stat_attrs: dict[str, PyObj] = {
-        "S_ISDIR": P2StatSIsDirFn(t="function"),
-        "S_ISCHR": P2StatSIsChrFn(t="function"),
-        "S_ISBLK": P2StatSIsBlkFn(t="function"),
-        "S_ISREG": P2StatSIsRegFn(t="function"),
-        "S_ISFIFO": P2StatSIsFifoFn(t="function"),
-        "S_ISLNK": P2StatSIsLnkFn(t="function"),
-        "S_ISSOCK": P2StatSIsSockFn(t="function"),
-        "S_IMODE": P2StatSImodeFn(t="function"),
-        "S_IFMT": P2StatSIfmtFn(t="function"),
-        "filemode": P2StatFilemodeFn(t="function"),
-        "S_IFMT_": PyInt(t="int", val=0o170000),
-        "S_IFDIR": PyInt(t="int", val=S_IFDIR),
-        "S_IFCHR": PyInt(t="int", val=S_IFCHR),
-        "S_IFBLK": PyInt(t="int", val=S_IFBLK),
-        "S_IFREG": PyInt(t="int", val=S_IFREG),
-        "S_IFIFO": PyInt(t="int", val=S_IFIFO),
-        "S_IFLNK": PyInt(t="int", val=S_IFLNK),
-        "S_IFSOCK": PyInt(t="int", val=S_IFSOCK),
-    };
     stat_attrs: dict[str, PyObj] = {
         "S_ISDIR": P2StatSIsDirFn(t="function"),
         "S_ISCHR": P2StatSIsChrFn(t="function"),
@@ -1007,6 +1072,47 @@ test "layer_p2_libtest: functools_reduce snippet prints ok on JacPython" {
     assert ok , detail;
 }
 
+test "layer_p2_libtest: collections_deque snippet prints ok on JacPython" {
+    snippet = (
+        "import collections\n"
+        "d = collections.deque([1, 2, 3], maxlen=3)\n"
+        "d.append(4)\n"
+        "assert list(d) == [2, 3, 4]\n"
+        "d.appendleft(9)\n"
+        "assert len(d) == 3 and d.maxlen == 3\n"
+        "d.rotate(-1)\n"
+        "assert d[0] == 2 and d[-1] == 9\n"
+        "got = ''\n"
+        "try:\n"
+        "    d[99]\n"
+        "except IndexError as e:\n"
+        "    got = str(e)\n"
+        "assert got == 'deque index out of range', got\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , "DBG:" + repr(detail);
+}
+
+test "layer_p2_libtest: collections_counter snippet prints ok on JacPython" {
+    snippet = (
+        "import collections\n"
+        "c = collections.Counter('abracadabra')\n"
+        "assert c['a'] == 5 and c['z'] == 0\n"
+        "assert c.most_common(2) == [('a', 5), ('b', 2)]\n"
+        "assert c.total() == 11\n"
+        "c.update({'b': 1}, w=7)\n"
+        "assert c['b'] == 3 and c['w'] == 7\n"
+        "c.subtract('aaa')\n"
+        "assert c['a'] == 2\n"
+        "pos = +c\n"
+        "assert pos['w'] == 7 and 'z' not in pos\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
 test "layer_p2_libtest: functools_partial_lru snippet prints ok on JacPython" {
     snippet = (
         "import functools\n"
@@ -1035,6 +1141,28 @@ test "layer_p2_libtest: functools_partial_lru snippet prints ok on JacPython" {
     assert ok , detail;
 }
 
+test "layer_p2_libtest: collections_defaultdict snippet prints ok on JacPython" {
+    snippet = (
+        "import collections\n"
+        "dd = collections.defaultdict(list)\n"
+        "dd.update({'k': [1]})\n"
+        "assert dd['k'] == [1]\n"
+        "# A miss calls the factory and inserts the fresh default.\n"
+        "assert dd['q'] == []\n"
+        "assert len(dd) == 2 and dd.default_factory is list\n"
+        "plain = collections.defaultdict()\n"
+        "got = ''\n"
+        "try:\n"
+        "    plain['x']\n"
+        "except KeyError as e:\n"
+        "    got = str(e)\n"
+        "assert got == \"'x'\", got\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
 test "layer_p2_libtest: functools_cmp_to_key snippet prints ok on JacPython" {
     snippet = (
         "import functools\n"
@@ -1047,6 +1175,24 @@ test "layer_p2_libtest: functools_cmp_to_key snippet prints ok on JacPython" {
         "words = ['pear', 'fig', 'banana']\n"
         "by_len = functools.cmp_to_key(lambda x, y: len(x) - len(y))\n"
         "assert sorted(words, key=by_len) == ['fig', 'pear', 'banana']\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: collections_ordereddict snippet prints ok on JacPython" {
+    snippet = (
+        "import collections\n"
+        "od = collections.OrderedDict([('a', 1), ('b', 2)])\n"
+        "od.move_to_end('a')\n"
+        "assert list(od.keys()) == ['b', 'a']\n"
+        "assert od.popitem() == ('a', 1)\n"
+        "o1 = collections.OrderedDict([('a', 1), ('b', 2)])\n"
+        "o2 = collections.OrderedDict([('b', 2), ('a', 1)])\n"
+        "assert list(o1.items()) != list(o2.items())\n"
+        "assert list(o1.items()) == [('a', 1), ('b', 2)]\n"
+        "assert repr(o1) == \"OrderedDict({'a': 1, 'b': 2})\"\n"
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
@@ -1072,6 +1218,25 @@ test "layer_p2_libtest: functools_wraps_update_wrapper snippet prints ok on JacP
         "functools.update_wrapper(sink, donor)\n"
         "assert sink.extra == 42\n"
         "assert sink.__wrapped__ is donor\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: collections_namedtuple snippet prints ok on JacPython" {
+    snippet = (
+        "import collections\n"
+        "P = collections.namedtuple('P', ['x', 'y'], defaults=[5])\n"
+        "p = P(1)\n"
+        "assert p.x == 1 and p.y == 5\n"
+        "assert repr(p) == 'P(x=1, y=5)'\n"
+        "assert p._asdict() == {'x': 1, 'y': 5}\n"
+        "assert tuple(p) == (1, 5)\n"
+        "R = collections.namedtuple('R', ['x', 'x'], rename=True)\n"
+        "assert R._fields == ('x', '_1')\n"
+        "Q = collections.namedtuple('Q', ['x', 'y'])\n"
+        "assert Q._fields == ('x', 'y')\n"
         "print('ok')\n"
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
