@@ -422,6 +422,15 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
+    + test_generators 2 errors.** Bisected by BrightTiker through tonight's
+    entire window: red at db7e9edcb, d34b16c7e~1, ce4b400e0, 936df7898,
+    91e4febef (pre-crash) AND 3ba4b1a1a (split commit this morning). NOT
+    caused by PyRange/PyBytes/item-33 trio - UltraMoon's suspicion cleared;
+    attribution now 'pre-existing user-class-subclass-instantiation family'
+    confirmed by bisect. Owner: runtime lane, likely deep (class-call kwargs
+    path through __init__ / __new__ dispatch). Blocks gate-green.
+
 39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
     e.args = ('y',) -> AttributeError('args'); CPython allows args (and
     other BaseException attrs) reassignment. Read-only exception objects.
@@ -819,6 +828,15 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
+    + test_generators 2 errors.** Bisected by BrightTiker through tonight's
+    entire window: red at db7e9edcb, d34b16c7e~1, ce4b400e0, 936df7898,
+    91e4febef (pre-crash) AND 3ba4b1a1a (split commit this morning). NOT
+    caused by PyRange/PyBytes/item-33 trio - UltraMoon's suspicion cleared;
+    attribution now 'pre-existing user-class-subclass-instantiation family'
+    confirmed by bisect. Owner: runtime lane, likely deep (class-call kwargs
+    path through __init__ / __new__ dispatch). Blocks gate-green.
 
 39. **[LOW-MED] Exception attribute reassignment raises AttributeError.**
     e.args = ('y',) -> AttributeError('args'); CPython allows args (and
