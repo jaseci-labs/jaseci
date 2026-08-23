@@ -33,6 +33,9 @@ impl NaIRGenContextMgr._context_manager_class(
     }
     if self._tb_kind(_t) in ("file", "binary_file") {
         self._emit_file_helpers();
+        if self._tb_kind(_t) == "binary_file" {
+            self._emit_binary_file_helpers();
+        }
     } else {
         self._lower_type(_t);
     }
