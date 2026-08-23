@@ -1698,7 +1698,9 @@ obj PyException(PyObj) {
             if self.suppress_context is not None {
                 return self.suppress_context as PyObj;
             }
-            return py_none();
+            # CPython's BaseException_new initializes __suppress_context__ to
+            # False (not None) -- truthiness must be false-yet-bool.
+            return PyBool(t="bool", val=false);
         }
         return py_error("AttributeError", name);
     }
