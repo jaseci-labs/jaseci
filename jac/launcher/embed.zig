@@ -199,7 +199,21 @@ pub const Embed = struct {
         if (std.c.getenv("PYTHONHASHSEED")) |seed_c| {
             const seed_text = std.mem.span(seed_c);
             if (!std.mem.eql(u8, seed_text, "random")) {
-                const seed = std.fmt.parseInt(u32, seed_text, 10) catch {
+                // Match CPython's strtoul(seed, &endptr, 10) + endptr contract
+                // EXACTLY (config_init_hash_seed): optional leading ASCII
+                // whitespace and '+' sign, then base-10 digits only -- no '_'
+                // digit separators, no trailing junk -- fully consumed, value in
+                // [0; 4294967295]. std.fmt.parseInt alone is looser (accepts
+                // "1_0") and stricter (rejects " 5") than CPython.
+                const seed: u32 = blk: {
+                    const body = std.mem.trimStart(u8, seed_text, " \t\n\r\x0b\x0c");
+                    const digits = if (body.len > 0 and body[0] == '+') body[1..] else body;
+                    if (digits.len == 0) break :blk null;
+                    for (digits) |ch| {
+                        if (ch < '0' or ch > '9') break :blk null;
+                    }
+                    break :blk std.fmt.parseInt(u32, digits, 10) catch null;
+                } orelse {
                     std.debug.print(
                         "jac (embed): PYTHONHASHSEED must be \"random\" or an integer in range [0; 4294967295], got '{s}'\n",
                         .{seed_text},
