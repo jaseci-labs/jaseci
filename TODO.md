@@ -395,6 +395,11 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
 
+32. **[MED] e.__traceback__ is None on caught exceptions.** except-block attr
+    read returns None; CPython guarantees a traceback object there (used by
+    logging/trio-style re-raise helpers). Value-mismatch class, not raise.
+    Ownerless; exception-adjacent so YoungHawk candidate.
+
 31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
 
@@ -753,6 +758,11 @@ green. Class-decorator support needs pinning elsewhere.
     emission). Owner: KeenFalcon or compiler lane.
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
+
+32. **[MED] e.__traceback__ is None on caught exceptions.** except-block attr
+    read returns None; CPython guarantees a traceback object there (used by
+    logging/trio-style re-raise helpers). Value-mismatch class, not raise.
+    Ownerless; exception-adjacent so YoungHawk candidate.
 
 31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
     CPython supports slice hash since 3.12. Ownerless.
