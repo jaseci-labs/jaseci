@@ -1178,7 +1178,7 @@ impl MachOLinker._build_macho_image(is_dylib: bool) -> bytes {
                 BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
             );
         } else {
-            ordinal = lib_ordinals.get(_lib, 1);
+            ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
             bind_data.append(0x20);
             bind_data.extend(_encode_uleb128(ordinal));
         }
