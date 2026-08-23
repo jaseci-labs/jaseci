@@ -1469,11 +1469,10 @@ obj PyClass(PyObj) {
             return dict_from_str_map(self.attrs);
         }
         if name == "__mro__" {
-            mro_items: list[PyObj] = [];
-            for klass in class_mro(self) {
-                mro_items.append(klass);
-            }
-            return PyTuple(t="tuple", items=mro_items);
+            return PyTuple(t="tuple", items=class_full_mro(self));
+        }
+        if name == "mro" {
+            return PyClassMroMethod(t="class_mro", cls=self);
         }
         if name == "__bases__" {
             return PyTuple(t="tuple", items=self.bases);
@@ -1941,6 +1940,27 @@ def default_user_delattro(u: PyUserObj, name: str) -> PyObj {
         return py_none();
     }
     return py_error("AttributeError", name);
+}
+
+# type.mro() as a bound method on a class: the C3 linearization with the
+# terminal object appended -- the same list __mro__ displays. A class-dict
+# `mro` entry shadows this via the attrs-first lookup in tp_getattro, matching
+# CPython's overridable type.mro.
+obj PyClassMroMethod(PyObj) {
+    has cls: PyClass;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return py_error("TypeError", "mro() takes no keyword arguments");
+        }
+        if len(args) > 0 {
+            return py_error(
+                "TypeError",
+                self.cls.name + ".mro() takes no arguments (" + str(len(args)) + " given)",
+            );
+        }
+        return PyList(t="list", items=class_full_mro(self.cls));
+    }
 }
 
 obj PyBoundMethod(PyObj) {
@@ -5388,6 +5408,20 @@ def class_mro(cls: PyClass) -> list[PyClass] {
         result.append(klass);
     }
     return result;
+}
+
+# The full CPython MRO: class_mro's linearization plus the terminal object.
+# class_mro stops at the last user class, but CPython's __mro__/mro() end with
+# object -- appended here as the same host-object proxy the guest sees for the
+# global name `object`, so display matches isinstance/issubclass semantics
+# (both answer True for that proxy via obj_is_builtin).
+def class_full_mro(cls: PyClass) -> list[PyObj] {
+    items: list[PyObj] = [];
+    for klass in class_mro(cls) {
+        items.append(klass);
+    }
+    items.append(host_builtin("object"));
+    return items;
 }
 
 # Merge step of C3: repeatedly take the head of some sequence that appears in no

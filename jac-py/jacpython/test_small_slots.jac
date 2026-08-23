@@ -5,6 +5,11 @@
 # CPython's slice_richcompare compares start/stop/step pairwise (eq/ne only;
 # ordering is NotImplemented); hash() already existed from earlier work, so
 # equal slices must now also interoperate as dict keys.
+#
+# Item 76: ``__mro__`` stopped at the last user class -- CPython appends the
+# terminal object -- and type.mro() was absent entirely. Both now end at the
+# same host-object proxy the guest sees for the global name `object`, keeping
+# display aligned with isinstance/issubclass semantics.
 
 import from objects { PyObj, PyStr, PyError, is_error }
 import from host_oracle { host_compile_marshal }
@@ -76,4 +81,35 @@ test "slice ordering is NotImplemented" {
     assert exc.type_name == "TypeError";
     assert exc.message
         == "'<' not supported between instances of 'slice' and 'slice'";
+}
+
+# ---- item 76: terminal object in __mro__, plus the mro() method ------------
+
+def class_ns(src: str) -> dict[str, PyObj] {
+    ns = _fresh_ns();
+    vm_exec_in(ns, src);
+    return ns;
+}
+
+test "__mro__ ends at object and displays like CPython" {
+    ns = class_ns("class B:\n    pass\n\nclass C(B):\n    pass\n");
+    assert to_host(vm_eval_in(ns, "[c.__name__ for c in C.__mro__]"))
+        == ["C", "B", "object"];
+    assert (to_host(vm_eval_in(ns, "type(C.__mro__).__name__")) as str) == "tuple";
+    assert to_host(vm_eval_in(ns, "C.__mro__[-1] is object")) as bool;
+    assert (to_host(vm_eval_in(ns, "repr(C.__mro__)")) as str)
+        == "(<class '__main__.C'>, <class '__main__.B'>, <class 'object'>)";
+}
+
+test "mro() returns the same list as list(__mro__)" {
+    ns = class_ns("class B:\n    pass\n\nclass C(B):\n    pass\n");
+    assert to_host(vm_eval_in(ns, "C.mro() == list(C.__mro__)")) as bool;
+    assert to_host(vm_eval_in(ns, "[c.__name__ for c in C.mro()]"))
+        == ["C", "B", "object"];
+}
+
+test "isinstance/issubclass agree with the displayed MRO" {
+    ns = class_ns("class B:\n    pass\n\nclass C(B):\n    pass\n");
+    assert to_host(vm_eval_in(ns, "isinstance(C(), object)")) as bool;
+    assert to_host(vm_eval_in(ns, "issubclass(C, object)")) as bool;
 }
