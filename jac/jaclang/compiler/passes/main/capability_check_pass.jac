@@ -97,7 +97,7 @@ obj PortabilityWarnPass(Transform) {
     def _find_call_is_js_style(call: FuncCall) -> bool;
     def _check_js_keywords(mod: Module) -> None;
     def _check_js_properties(mod: Module) -> None;
-    def _check_js_host_constructors(mod: Module) -> None;
+    def _check_js_bare_calls(mod: Module) -> None;
 }
 
 obj NativeCapabilityCheckPass(Transform) {

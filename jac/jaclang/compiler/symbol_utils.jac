@@ -26,12 +26,7 @@ import from jaclang.jac0core.unitree {
     UniNode,
     UniScopeNode
 }
-import from jaclang.jac0core.constant {
-    CodeContext,
-    JS_HOST_CONSTRUCTORS,
-    Tokens as Tok,
-    SymbolType
-}
+import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
 import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
 import from jaclang.jac0core.compiler {
     ClientImportVerdict,
@@ -294,22 +289,39 @@ def collect_method_names(arch: Archetype) -> set[str] {
     return names;
 }
 
-def is_js_host_constructor_call(nd: FuncCall) -> bool {
+# Client bare-call classification for W6010/E6010. There is deliberately no
+# name registry here: a host constructor is whatever js_globals.pyi declares
+# as a class, and the type-driven codegen lowers those calls to `new`.
+def _client_bare_call_target_kind(nd: FuncCall) -> (str | None) {
     if not nd.in_client_context() {
-        return False;
+        return None;
     }
     if not isinstance(nd.target, Name) {
-        return False;
+        return None;
     }
     if nd.target.sym_name == "new" {
-        return False;
+        return None;
     }
-
     if nd.target.sym is not None and _is_user_symbol(nd.target.sym) {
-        return False;
+        return None;
     }
+    target_type = nd.target.type;
+    if target_type is not None and target_type.is_instantiable_class() {
+        return "constructible";
+    }
+    if nd.target.sym is None {
+        return "unresolved";
+    }
+    return "non_constructible";
+}
 
-    return nd.target.sym_name in JS_HOST_CONSTRUCTORS;
+def is_unresolved_client_call(nd: FuncCall) -> bool {
+    return _client_bare_call_target_kind(nd) == "unresolved";
+}
+
+def is_non_constructible_client_call(nd: FuncCall) -> bool {
+    kind = _client_bare_call_target_kind(nd);
+    return kind == "non_constructible" or kind == "unresolved";
 }
 
 def resolve_importer_path_from_node(nd: UniNode) -> (str | None) {

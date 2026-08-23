@@ -1802,14 +1802,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      W6010 = _warn(
          "W6010",
          Category.SEMANTIC,
-         "Bare call to JS host constructor '{name}' — use `new({name}, ...)` instead",
-         help="Jac has no `new` keyword. Host constructors like TextEncoder and URL must be created with the portable `new(Cls, ...args)` builtin, which lowers to `Reflect.construct(Cls, [args])` in client code."
+         "Bare call to unresolved name '{name}' in client code",
+         help="'{name}' resolves to no user declaration or host stub. If it is a JS host constructor, construct it with the portable `new({name}, ...args)` builtin, which lowers to a proper `new` expression in client code; otherwise declare or import it."
      ),
      E6010 = _err(
          "E6010",
          Category.CODEGEN,
-         "JS host constructor '{name}' called with keyword arguments — host constructors are positional-only",
-         help="Keyword arguments cannot be mapped onto a JS host constructor's positional parameter list: lowering receives them as an options object the constructor does not understand. Pass the arguments positionally, or use `new({name}, ...)` which validates parameters at compile time."
+         "Keyword arguments on non-constructible client call '{name}'",
+         help="'{name}' does not resolve to an instantiable class, so keyword arguments cannot map onto its parameter list: lowering receives them as a trailing options object the callee does not understand. Pass the arguments positionally, or use `new({name}, ...)` which validates parameters at compile time."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(
