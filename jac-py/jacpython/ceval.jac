@@ -353,6 +353,14 @@ def _jac_list_iterator_type():
     # Native PyIter mirrors list iteration; use the host list_iterator type.
     return type(iter([]))
 
+def _jac_seq_iterator_type():
+    # CPython's plain sequence iterator (PySeqIter_Type) has no reachable
+    # builtin name; synthesize it from a __getitem__-only class.
+    class _S:
+        def __getitem__(self, i):
+            raise IndexError
+    return type(iter(_S()))
+
 def _jac_builtin_function_or_method_type():
     import builtins
     # CPython: type(len) is builtin_function_or_method; grab the type object
@@ -600,6 +608,7 @@ import from objects {
     PyDict,
     PyDictIter,
     PySet,
+    PySeqIter,
     PyExceptionType,
     PyException,
     PyError,
@@ -2794,6 +2803,11 @@ def py_type_of(o: PyObj) -> PyObj {
     if isinstance(o, PyIter) {
         return from_host(_jac_list_iterator_type());
     }
+    if isinstance(o, PySeqIter) {
+        # CPython: iter() over a __getitem__-only object is the plain
+        # `iterator` type (PySeqIter_Type), not list_iterator.
+        return from_host(_jac_seq_iterator_type());
+    }
     return from_host(_jac_host_type(to_host(o)));
 }
 
@@ -4290,6 +4304,48 @@ def calliter_next(it: PyCallableIter) -> PyObj {
     return res;
 }
 
+# One step of the old-style sequence iterator (CPython sq_iterator): fetch
+# seq[index], incrementing; IndexError (matched by type, like
+# PyErr_ExceptionMatches) ends the iteration permanently. Any other error
+# propagates -- notably KeyError does NOT stop a sequence iterator.
+def seqiter_next(it: PySeqIter) -> PyObj {
+    res = it.seq.mp_subscript(PyInt(t="int", val=it.index));
+    if is_error(res) {
+        if error_is_indexerror(res) {
+            it.index = -1;
+            return PyGenStop(t="genstop", val=py_none());
+        }
+        return res;
+    }
+    it.index = it.index + 1;
+    return res;
+}
+
+# True iff an iteration step failed with IndexError or a subclass -- the
+# only exception that stops a sequence iterator (CPython
+# PyErr_ExceptionMatches(PyExc_IndexError) in sq_iterator).
+def error_is_indexerror(err: PyObj) -> bool {
+    if err.t != "error" {
+        return False;
+    }
+    exc = (err as PyError).exception;
+    if exc_name_matches(exc.type_name, "IndexError") {
+        return True;
+    }
+    raw = exc.raw;
+    if raw is not None and isinstance(raw, PyUserObj) {
+        for klass in class_mro((raw as PyUserObj).cls) {
+            for base in klass.bases {
+                if isinstance(base, PyExceptionType)
+                    and (base as PyExceptionType).name == "IndexError" {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
+}
+
 def py_iter(value: PyObj) -> PyObj {
     # A callable-iterator (two-arg iter) is its own iterator.
     if isinstance(value, PyCallableIter) {
@@ -4318,6 +4374,13 @@ def py_iter(value: PyObj) -> PyObj {
         }
         if u._has_base() {
             return PyObject_GetIter(u._base_obj());
+        }
+        # Old-style sequence protocol: __getitem__ without __iter__ synthesizes
+        # a CPython sequence iterator (successive seq[i] until IndexError).
+        # Checked after the boxed-base fallback so a builtin subclass keeps its
+        # inherited tp_iter, matching CPython's slot order.
+        if user_has_dunder(u, "__getitem__") {
+            return PySeqIter(t="seqiter", seq=u as PyObj);
         }
     }
     return PyObject_GetIter(value);
@@ -8064,6 +8127,14 @@ def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
         }
         return calliter_next(receiver as PyCallableIter);
     }
+    if receiver.t == "seqiter" {
+        # next(seqiter) drives the old-style sequence iterator; same no-send
+        # rule as the callable-iterator.
+        if sent.t != "none" {
+            return py_error("AttributeError", "send");
+        }
+        return seqiter_next(receiver as PySeqIter);
+    }
     if receiver.t == "rangeiter" {
         ri = receiver as PyRangeIter;
         if sent.t != "none" {
@@ -9446,6 +9517,23 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             if top.t == "calliter" {
                 nxt = calliter_next(top as PyCallableIter);
+                if nxt.t == "genstop" {
+                    stack.pop();
+                    ip = ip + 2 * arg;
+                } elif is_error(nxt) {
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                    } else {
+                        return nxt;
+                    }
+                } else {
+                    stack.append(nxt);
+                }
+                continue;
+            }
+            if top.t == "seqiter" {
+                nxt = seqiter_next(top as PySeqIter);
                 if nxt.t == "genstop" {
                     stack.pop();
                     ip = ip + 2 * arg;

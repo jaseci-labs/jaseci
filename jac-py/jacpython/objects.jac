@@ -2117,6 +2117,19 @@ obj PyCallableIter(PyObj) {
     }
 }
 
+# Old-style sequence iterator (CPython sq_iterator over __getitem__):
+# successive seq[index] until IndexError stops it. Data-only here so
+# objects.jac stays na-clean; the step logic (seqiter_next) lives in ceval,
+# mirroring the PyCallableIter/calliter_next split.
+obj PySeqIter(PyObj) {
+    has seq: PyObj,
+        index: int = 0;
+
+    def tp_iter -> PyObj {
+        return self;
+    }
+}
+
 obj PyHandler(PyObj) {
     has start: int,
         end: int,

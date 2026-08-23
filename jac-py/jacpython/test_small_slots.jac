@@ -10,6 +10,12 @@
 # terminal object -- and type.mro() was absent entirely. Both now end at the
 # same host-object proxy the guest sees for the global name `object`, keeping
 # display aligned with isinstance/issubclass semantics.
+#
+# Item 44: a class defining ONLY __getitem__ (raising IndexError to stop) had
+# no iter() fallback; CPython synthesizes a sequence iterator there
+# (successive obj[i] until IndexError). Implemented natively (PySeqIter,
+# mirroring the PyCallableIter pattern) in py_iter after the __iter__ /
+# boxed-base fallbacks, before failing.
 
 import from objects { PyObj, PyStr, PyError, is_error }
 import from host_oracle { host_compile_marshal }
@@ -112,4 +118,71 @@ test "isinstance/issubclass agree with the displayed MRO" {
     ns = class_ns("class B:\n    pass\n\nclass C(B):\n    pass\n");
     assert to_host(vm_eval_in(ns, "isinstance(C(), object)")) as bool;
     assert to_host(vm_eval_in(ns, "issubclass(C, object)")) as bool;
+}
+
+# ---- item 44: old-style iteration over a __getitem__-only class ------------
+
+def seq_cls_ns() -> dict[str, PyObj] {
+    return class_ns(
+        "class Seq:\n"
+        "    def __init__(self, n):\n"
+        "        self.n = n\n"
+        "    def __getitem__(self, i):\n"
+        "        if i >= self.n:\n"
+        "            raise IndexError\n"
+        "        return i * i\n"
+    );
+}
+
+test "__getitem__-only class drives for-in, comprehensions, next()" {
+    ns = seq_cls_ns();
+    assert to_host(vm_eval_in(ns, "list(Seq(4))")) == [0, 1, 4, 9];
+    assert to_host(vm_eval_in(ns, "[x for x in Seq(4)]")) == [0, 1, 4, 9];
+    assert to_host(vm_eval_in(ns, "list(iter(Seq(3))) == list(Seq(3))")) as bool;
+    assert to_host(vm_eval_in(ns, "next(iter(Seq(4)))")) == 0;
+    # sorted/max/min drain natively through the same iterator (iter_drain).
+    assert to_host(vm_eval_in(ns, "max(Seq(4))")) == 9;
+    assert to_host(vm_eval_in(ns, "sorted(Seq(4), reverse=True)"))
+        == [9, 4, 1, 0];
+}
+
+test "sequence iterator supports early break" {
+    ns = seq_cls_ns();
+    vm_exec_in(
+        ns,
+        "acc = []\n"
+        "for x in Seq(9):\n"
+        "    acc.append(x)\n"
+        "    if x == 4:\n"
+        "        break\n",
+    );
+    assert to_host(vm_eval_in(ns, "acc")) == [0, 1, 4];
+}
+
+test "sequence iterator reports the plain iterator type" {
+    ns = class_ns(
+        "class Seq:\n"
+        "    def __getitem__(self, i):\n"
+        "        raise IndexError\n"
+    );
+    assert (to_host(vm_eval_in(ns, "type(iter(Seq())).__name__")) as str)
+        == "iterator";
+}
+
+test "non-IndexError from __getitem__ propagates" {
+    ns = class_ns(
+        "class Bad:\n"
+        "    def __getitem__(self, i):\n"
+        "        raise KeyError('k')\n"
+    );
+    outcome = vm_try_in(ns, "for _ in Bad():\n    pass\n", "exec");
+    assert isinstance(outcome, PyError);
+    assert (outcome as PyError).exception.type_name == "KeyError";
+}
+
+test "uniterable objects keep their TypeError" {
+    ns = class_ns("class NoProto:\n    pass\n");
+    outcome = vm_try_in(ns, "iter(NoProto())", "eval");
+    assert isinstance(outcome, PyError);
+    assert (outcome as PyError).exception.type_name == "TypeError";
 }
