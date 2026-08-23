@@ -69,6 +69,7 @@ test "division and modulo use the operand's signedness" {
     assert probe("u8_floordiv_mod") == 66002;
     assert probe("i8_floor_semantics") == -3999;
     assert probe("i8_min_div_m1_traps") == 1;
+    assert probe("i8_min_mod_m1") == 7;
 }
 
 test "negation and abs trap at the signed minimum" {

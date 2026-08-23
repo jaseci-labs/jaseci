@@ -118,6 +118,8 @@ Real types with one contract on every lane (server, native, client). Widening is
 
 `T op int` yields `int` (so `w: i32 = w + n` with `n: int` is E1127); `/` yields `float`; shifts keep the left operand's type with the count range-checked at run time.
 
+On the server lane a sized value is a Python object and each operation is a dunder call, so it runs an order of magnitude slower than plain `int`. Use these types where the width is part of a contract (FFI, native, binary formats, wire fields), not as documentation on a hot loop. On the wire, both lanes encode a 64-bit sized value as a JSON number when it fits in 2^53 and as a JSON string otherwise, and both decoders accept either form.
+
 ## Pitfalls
 
 - **Do NOT fall back to `any` to silence a type error.** It defers the error to the next typed boundary: `len(any)` → E1053, `any + any` → E1055, assigning/returning into a concrete type → E1001/E1002. Fix the actual type (typed field, `T | None` + `is None` guard, or `as` cast at the boundary).

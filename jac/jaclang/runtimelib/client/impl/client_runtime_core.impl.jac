@@ -143,7 +143,12 @@ impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
         headers["Authorization"] = f"Bearer {token}";
     }
     response = await fetch(
-        url, {"method": "POST", "headers": headers, "body": JSON.stringify(fields)}
+        url,
+        {
+            "method": "POST",
+            "headers": headers,
+            "body": JSON.stringify(fields, globalThis.__jacFwReplacer__)
+        }
     );
     if not response.ok {
         if response.status == 401 {
@@ -172,7 +177,11 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
     }
     response = await fetch(
         f"{base_url}/function/{function_name}",
-        {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
+        {
+            "method": "POST",
+            "headers": headers,
+            "body": JSON.stringify(args, globalThis.__jacFwReplacer__)
+        }
     );
     if not response.ok {
         if response.status == 401 {
@@ -249,7 +258,9 @@ impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
         return await __doWalkerFetch(left, right, fields);
     }
     endpoint_key = f"walker:{left}";
-    args_key = f"{endpoint_key}:{right}:{JSON.stringify(fields)}";
+    args_key = f"{endpoint_key}:{right}:{JSON.stringify(
+        fields, globalThis.__jacFwReplacer__
+    )}";
     return await __cachedEndpointCall(
         endpoint_key,
         args_key,
@@ -263,7 +274,7 @@ impl jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
 
 impl __jacCallFunction(function_name: str, args: dict = {}) -> any {
     endpoint_key = f"func:{function_name}";
-    args_key = f"{endpoint_key}:{JSON.stringify(args)}";
+    args_key = f"{endpoint_key}:{JSON.stringify(args, globalThis.__jacFwReplacer__)}";
     return await __cachedEndpointCall(
         endpoint_key,
         args_key,
@@ -306,7 +317,7 @@ impl jacSignup(
         {
             "method": "POST",
             "headers": {"Content-Type": "application/json"},
-            "body": JSON.stringify(body)
+            "body": JSON.stringify(body, globalThis.__jacFwReplacer__)
         }
     );
     if response.ok {

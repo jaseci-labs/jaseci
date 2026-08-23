@@ -11,7 +11,18 @@ import from jaclang.jac0core.scalars {
 
 glob OVERFLOW_MESSAGE: str = "integer overflow",
      SHIFT_MESSAGE: str = "shift count out of range",
-     SIZED_TYPES: dict[str, type] = {};
+     SIZED_TYPES: dict[str, type] = {},
+     JS_SAFE_INT: int = (1 << 53) - 1;
+
+# The jac0core table is a pure table by design (a sealed artifact runs global
+# inits in dependency-walk order, so it can hold no globals of its own) and
+# rebuilds its thirteen rows on every call. Every arithmetic dunder below asks
+# it for a shape, a range and a unification, so the uncached path allocated
+# scores of rows per operation. These caches live on the runtime side, where a
+# global is safe, and _build_family primes them so the hot paths never miss.
+glob _SHAPES: dict[str, ScalarShape] = {},
+     _RANGES: dict[str, tuple[int, int]] = {},
+     _UNIFY: dict[tuple[str, str], str | None] = {};
 
 def scalar_name_of(value: any) -> str | None {
     sized = type(value)?.__jac_sized__;
@@ -31,8 +42,33 @@ def scalar_name_of(value: any) -> str | None {
 }
 
 def shape(name: str) -> ScalarShape {
+    hit = _SHAPES.get(name);
+    if hit is not None {
+        return hit;
+    }
     found = shape_of(name);
     assert found is not None , name;
+    _SHAPES[name] = found;
+    return found;
+}
+
+def bounds(name: str) -> tuple[int, int] {
+    hit = _RANGES.get(name);
+    if hit is not None {
+        return hit;
+    }
+    found = range_of(name);
+    _RANGES[name] = found;
+    return found;
+}
+
+def unified_name(an: str, bn: str) -> str | None {
+    key = (an, bn);
+    if key in _UNIFY {
+        return _UNIFY[key];
+    }
+    found = unify(an, bn);
+    _UNIFY[key] = found;
     return found;
 }
 
@@ -56,7 +92,7 @@ def make_float(name: str, value: float) -> any {
 }
 
 def checked_int(name: str, value: int) -> any {
-    (lo, hi) = range_of(name);
+    (lo, hi) = bounds(name);
     if value < lo or value > hi {
         raise OverflowError(OVERFLOW_MESSAGE);
     }
@@ -72,7 +108,7 @@ def unify_operands(a: any, b: any, op: str) -> str {
             f"'{type(a).__name__}' and '{type(b).__name__}'"
         );
     }
-    target = unify(an, bn);
+    target = an if an == bn else unified_name(an, bn);
     if target is None {
         raise TypeError(
             f"operands of '{op}' have no common fixed-width type ({an} and {bn}); "
@@ -301,11 +337,58 @@ def _float_namespace(name: str) -> dict[str, any] {
     return ns;
 }
 
+"""The wire form of one value.
+
+A 64-bit sized integer leaves as a JSON string when it falls outside the range a
+JSON number survives in an ECMAScript reader, and as a JSON number otherwise.
+Narrower widths and the float kinds always fit, so they pass through unchanged.
+Both lanes encode with this rule and both decoders accept either form.
+"""
+def json_wire_form(value: any) -> any {
+    name = scalar_name_of(value);
+    if name is None {
+        return value;
+    }
+    sh = shape(name);
+    if not sh.sized or sh.is_float or sh.width < 64 {
+        return value;
+    }
+    n = int(value);
+    if n > JS_SAFE_INT or n < -JS_SAFE_INT {
+        return str(n);
+    }
+    return n;
+}
+
+"""Read a wire value back into `name`, accepting either encoding above."""
+def json_wire_read(name: str, value: any) -> any {
+    if isinstance(value, str) {
+        return SIZED_TYPES[name](float(value) if shape(name).is_float else int(value));
+    }
+    return SIZED_TYPES[name](value);
+}
+
 def sized_value(name: str, value: any) -> any {
     return SIZED_TYPES[name](value);
 }
 
+def _prime_caches {
+    rows = numeric_shapes();
+    for row in rows {
+        _SHAPES[row.name] = row;
+        if row.sized and not row.is_float {
+            _RANGES[row.name] = range_of(row.name);
+        }
+    }
+    for a in rows {
+        for b in rows {
+            _UNIFY[(a.name, b.name)] = unify(a.name, b.name);
+        }
+    }
+}
+
 def _build_family {
+    _prime_caches();
     for row in numeric_shapes() {
         if not row.sized {
             continue;

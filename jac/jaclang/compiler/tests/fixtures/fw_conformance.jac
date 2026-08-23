@@ -297,7 +297,19 @@ def fw_na -> dict[str, any] {
     };
 }
 
+"""The JSON boundary, once per lane.
+
+Both bodies build the same values; the equivalence test encodes each one with
+its own lane's encoder and asserts the two produce identical JSON, so the wire
+rule cannot drift between the server and the client again.
+"""
 def fw_json_cl -> dict[str, any] {
+    big: u64 = u64(9223372036854775808);
+    small: u64 = 5;
+    return {"big": big, "small": small, "neg": i64(-7)};
+}
+
+def fw_json_py -> dict[str, any] {
     big: u64 = u64(9223372036854775808);
     small: u64 = 5;
     return {"big": big, "small": small, "neg": i64(-7)};

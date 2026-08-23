@@ -61,7 +61,17 @@ impl Serializer._serialize_value(
     ref_mode: bool = False,
     _seen: (tuple[set, set] | None) = None
 ) -> object {
-    if val is None or isinstance(val, (str, int, float, bool)) {
+    if val is None {
+        return None;
+    }
+    if isinstance(val, (str, int, float, bool)) {
+        # A sized 64-bit integer takes its wire form on the API boundary so the
+        # server and the client encode the same value the same way; persistence
+        # keeps the number, where Python's arbitrary precision is lossless.
+        if api_mode and type(val) not in _PLAIN_WIRE_SCALARS {
+            import from jaclang.runtimelib.sized { json_wire_form }
+            return json_wire_form(val);
+        }
         return val;
     }
     if isinstance(val, UUID) {
@@ -432,6 +442,15 @@ impl Serializer.coerce(val: object, target_type: object) -> tuple {
     }
 
     try {
+        # A fixed-width target accepts either wire form: the JSON number, and
+        # the string a 64-bit value outside the safe-integer range travels as.
+        if (sized_name := getattr(base, '__jac_sized__', None)) is not None {
+            import from jaclang.runtimelib.sized { json_wire_read }
+            if isinstance(val, (bool, int, float, str)) {
+                return (json_wire_read(sized_name, val), True);
+            }
+            return (val, False);
+        }
         if base is bool {
             if isinstance(val, (int, float)) {
                 return (bool(val), True);
