@@ -3619,6 +3619,16 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
         }
         return (target as PyClass).name == exception.type_name;
     }
+    if target.t == "tuple" {
+        # `except (A, B):` - CPython's CHECK_EXC_MATCH delegates to
+        # PyErr_GivenExceptionMatches, which iterates tuple targets.
+        for item in (target as PyTuple).items {
+            if exception_matches(value, item) {
+                return True;
+            }
+        }
+        return False;
+    }
     target_name: str = "";
     if target.t == "exception_type" {
         target_name = (target as PyExceptionType).name;
