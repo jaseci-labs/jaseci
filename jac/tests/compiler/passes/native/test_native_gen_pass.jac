@@ -9,6 +9,14 @@ fixture was recompiled and re-JITed once per assertion group. The per-symbol
 probes are plain functions now, named for the test they replaced and taking the
 engine, and the fixture's single test compiles once and calls them in order. A
 failing probe still names itself in the traceback.
+
+The probes of one fixture SHARE that engine, so they also share the module's
+globals -- what a probe writes, later probes in the same test see. That is
+fine for the fixtures merged here (their tested functions either touch no
+glob or reset it before use), but it is the reason a fixture whose tests
+depend on a pristine global stays split into separate tests: see the two
+`glob scoping:` tests, which each compile `glob_scoping.jac` for themselves.
+Keep a new probe order-independent, or give it its own test.
 """
 
 import ctypes;
@@ -5892,10 +5900,8 @@ def run_sv_source(code: str) -> str {
     return buf.getvalue();
 }
 
-"""glob scoping: bare function-scope assignment does not touch the module global"""
-def _glob_scoping__glob_scoping_bare_function_scope_assignment_does_not_touch_the_module_(
-    eng: any, _ir: any
-) {
+test "glob scoping: bare function-scope assignment does not touch the module global" {
+    (eng, _ir) = compile_native("glob_scoping.jac");
     # bump_local() does `counter = 5;` with no `global` declaration — Python
     # semantics make this a function-local, so the module global stays 0.
     entry_fn = get_func(eng, "jac_entry", None);
@@ -5909,10 +5915,8 @@ def _glob_scoping__glob_scoping_bare_function_scope_assignment_does_not_touch_th
     );
 }
 
-"""glob scoping: explicit `global` still rebinds the module global"""
-def _glob_scoping__glob_scoping_explicit_global_still_rebinds_the_module_global(
-    eng: any, _ir: any
-) {
+test "glob scoping: explicit `global` still rebinds the module global" {
+    (eng, _ir) = compile_native("glob_scoping.jac");
     # bump_global() declares `global counter;` first, so `counter = 99;` is a
     # genuine global store — this must keep working.
     entry_fn = get_func(eng, "jac_entry", None);
@@ -5921,16 +5925,6 @@ def _glob_scoping__glob_scoping_explicit_global_still_rebinds_the_module_global(
     read_global = get_func(eng, "read_global", ctypes.c_int64);
     assert bump_global() == 99;
     assert read_global() == 99 , "explicit `global x;` must rebind the global";
-}
-
-test "glob_scoping" {
-    (_eng, _ir) = compile_native("glob_scoping.jac");
-    _glob_scoping__glob_scoping_bare_function_scope_assignment_does_not_touch_the_module_(
-        _eng, _ir
-    );
-    _glob_scoping__glob_scoping_explicit_global_still_rebinds_the_module_global(
-        _eng, _ir
-    );
 }
 
 test "cross-pathway: glob scoping is identical in the na and sv pathways" {
