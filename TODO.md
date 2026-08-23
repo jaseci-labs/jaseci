@@ -531,7 +531,11 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     __eq__ returning True: V(1) != V(1) (distinct objects) yields True.
     Default __ne__ not derived from user __eq__; falls back to identity so
     any ==-but-not-same object compares unequal. Sneaky: pin tests where
-    objects differ pass by accident of the same fallback. Found fuzz r59
+    objects differ pass by accident of the same fallback. HYGIENE (audited):
+    zero affected pins today - all 8 assertNotEqual pins in layer0_replay.jac
+    compare NATIVE containers (native richcompare path, unaffected). Rule
+    until fixed: never pin user-class != on distinct objects; assert
+    __eq__ directly instead. Found fuzz r59
     via richcmp pin-down (individual <, ==, != ops green; combo case red).
 
 63. **[MED-HIGH] for-loop over user iterator ERRORS.** class with
