@@ -422,6 +422,13 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+19-P2 RESIDUAL (from ratchet window @ 808647626): test_range now 26 passed /
+    2 failed. Remaining: hash() on HUGE-INT ranges only -
+    range(0, 2**100-1, 2) and range(2**200, 2**201-2**99, 2**100) diverge from
+    oracle (guest -4721946697230212988 vs host -993334020012864492 for the
+    first). Small-int hashes byte-correct. Likely bignum reduction step in the
+    None-stub equivalence-class encoding. YoungHawk to close.
+
 34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
     packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
     BUILD_LIST 1/STORE_NAME - byte-exact vs oracle (re-probed at 34bbd0df9 by
@@ -833,6 +840,13 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+19-P2 RESIDUAL (from ratchet window @ 808647626): test_range now 26 passed /
+    2 failed. Remaining: hash() on HUGE-INT ranges only -
+    range(0, 2**100-1, 2) and range(2**200, 2**201-2**99, 2**100) diverge from
+    oracle (guest -4721946697230212988 vs host -993334020012864492 for the
+    first). Small-int hashes byte-correct. Likely bignum reduction step in the
+    None-stub equivalence-class encoding. YoungHawk to close.
 
 34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
     packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
