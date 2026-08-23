@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave18",
+  "description": "P2 wave 18: MT19937 Mersenne Twister kernels (init_genrand Knuth seeding, init_by_array key-mixing passes, N-word twist block, tempering cascade, genrand_res53 double composition, seed/getrandbits size helpers)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave18",
+  "baseline_report": "jac-py/tools/p2_corpus_wave18/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "randommodule",
+      "source": "jac-py/tools/p2_corpus_wave18/corpus/randommodule.c",
+      "header_free": true
+    }
+  ]
+}

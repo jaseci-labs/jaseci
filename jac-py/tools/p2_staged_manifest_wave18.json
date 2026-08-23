@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave18",
+  "description": "P2 wave 18 staging policy (_random MT19937 kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave18",
+  "modules": [
+    {
+      "stem": "randommodule",
+      "staging": "lift"
+    }
+  ]
+}
