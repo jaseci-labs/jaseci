@@ -17,6 +17,8 @@ import from binasciimodule {
     b2a_hex,
     b2a_qp,
     b2a_uu,
+    crc32,
+    crc_hqx,
     hexlify,
     unhexlify,
 }
@@ -286,4 +288,19 @@ test "wave16 quoted-printable encode matches host" {
     assert b2a_qp(b"ab \n") == b"ab=20\n";
     assert b2a_qp(b"ab \n", False, False) == b"ab =0A";
     assert len(b2a_qp("x" * 100)) == 102;
+}
+
+
+test "wave16 crc functions match host" {
+    # Host pins: crc_hqx(b'123456789', 0) == 12739, etc.
+    assert crc_hqx(b"123456789", 0) == 12739;
+    assert crc_hqx(b"", 0x11223344) == 13124;  # crc masked to 16 bits
+    assert crc32(b"123456789") == 3421780262;
+    assert crc32(b"", -1) == 4294967295;  # bitwise converter masks negatives
+    assert crc32(b"123456789", 255) == 2193306989;
+    # Incremental chaining identity.
+    a = crc32(b"hello ");
+    assert crc32(b"world", a) == crc32(b"hello world");
+    h = crc_hqx(b"ab", 0);
+    assert crc_hqx(b"cd", h) == crc_hqx(b"abcd", 0);
 }

@@ -711,3 +711,56 @@ def _qp_needs_encode(buf: list[int], datalen: int, i: int, linelen: int,
     }
     return False;
 }
+
+
+# ---------------------------------------------------------------------------
+# CRC: crc_hqx/crc32
+#
+
+# CRC-CCITT table (crctab_hqx in Modules/binascii.c).
+def _crctab_hqx(i: int) -> int {
+    # Generated per-entry to avoid a 256-literal glob; polynomial 0x1021,
+    # MSB-first -- identical values to the C table.
+    v = i << 8;
+    for _ in range(8) {
+        if v & 0x8000 {
+            v = ((v << 1) ^ 0x1021) & 0xFFFF;
+        } else {
+            v = (v << 1) & 0xFFFF;
+        }
+    }
+    return v;
+}
+
+def crc_hqx(data: any, crc: int) -> int {
+    c = crc & 0xFFFF;
+    buf = _ascii_buffer(data);
+    for k in range(len(buf)) {
+        c = ((c << 8) & 0xFF00) ^ _crctab_hqx((c >> 8) ^ buf[k]);
+    }
+    return c;
+}
+
+# CRC-32 table walk (internal_crc32 / crc_32_tab). Entry i is the CRC of
+# byte i starting from ~0; generated per-entry with polynomial 0xEDB88320.
+def _crctab32(i: int) -> int {
+    v = i;
+    for _ in range(8) {
+        if v & 1 {
+            v = (v >> 1) ^ 0xEDB88320;
+        } else {
+            v >>= 1;
+        }
+    }
+    return v & 0xFFFFFFFF;
+}
+
+def crc32(data: any, crc: int = 0) -> int {
+    # unsigned_int(bitwise=True) converter: mask like the C unsigned int.
+    c = (~crc) & 0xFFFFFFFF;
+    buf = _ascii_buffer(data);
+    for k in range(len(buf)) {
+        c = (_crctab32((c ^ buf[k]) & 0xFF) ^ (c >> 8)) & 0xFFFFFFFF;
+    }
+    return (c ^ 0xFFFFFFFF) & 0xFFFFFFFF;
+}
