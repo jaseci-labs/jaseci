@@ -73,9 +73,8 @@ glob JSON_WIRE: dict[str, any] = {
          "big": "9223372036854775808",
          "small": 5,
          "neg": -7
-     };
-
-glob NARROW_EXPECTED: dict[str, any] = {
+     },
+     NARROW_EXPECTED: dict[str, any] = {
          "min_floordiv_trap": 1,
          "min_mod": 0,
          "mul_trap": 1,

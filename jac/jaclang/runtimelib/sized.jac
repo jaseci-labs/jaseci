@@ -14,12 +14,6 @@ glob OVERFLOW_MESSAGE: str = "integer overflow",
      SIZED_TYPES: dict[str, type] = {},
      JS_SAFE_INT: int = (1 << 53) - 1;
 
-# The jac0core table is a pure table by design (a sealed artifact runs global
-# inits in dependency-walk order, so it can hold no globals of its own) and
-# rebuilds its thirteen rows on every call. Every arithmetic dunder below asks
-# it for a shape, a range and a unification, so the uncached path allocated
-# scores of rows per operation. These caches live on the runtime side, where a
-# global is safe, and _build_family primes them so the hot paths never miss.
 glob _SHAPES: dict[str, ScalarShape] = {},
      _RANGES: dict[str, tuple[int, int]] = {},
      _UNIFY: dict[tuple[str, str], str | None] = {};
@@ -337,13 +331,6 @@ def _float_namespace(name: str) -> dict[str, any] {
     return ns;
 }
 
-"""The wire form of one value.
-
-A 64-bit sized integer leaves as a JSON string when it falls outside the range a
-JSON number survives in an ECMAScript reader, and as a JSON number otherwise.
-Narrower widths and the float kinds always fit, so they pass through unchanged.
-Both lanes encode with this rule and both decoders accept either form.
-"""
 def json_wire_form(value: any) -> any {
     name = scalar_name_of(value);
     if name is None {
@@ -360,7 +347,6 @@ def json_wire_form(value: any) -> any {
     return n;
 }
 
-"""Read a wire value back into `name`, accepting either encoding above."""
 def json_wire_read(name: str, value: any) -> any {
     if isinstance(value, str) {
         return SIZED_TYPES[name](float(value) if shape(name).is_float else int(value));
