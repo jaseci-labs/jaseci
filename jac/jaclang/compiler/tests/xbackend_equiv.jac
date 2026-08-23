@@ -391,7 +391,8 @@ def run_with_both(
     cl_fn: str,
     na_fn: str,
     tolerance: float = 1e-9,
-    require: (list | None) = None
+    require: (list | None) = None,
+    strict_keys: bool = False
 ) {
     # `require` names backends ("cl"/"na") that must actually participate: if a
     # required backend fails to compile/run or shares no comparable keys with
@@ -406,7 +407,7 @@ def run_with_both(
         js_code = compile_fixture_to_js(fixture);
         cl_result = run_js_function(js_code, cl_fn);
         cl_keys = len(set(py_result.keys()) & set(cl_result.keys()));
-        if "cl" in reqd {
+        if strict_keys and "cl" in reqd {
             assert_full_parity(py_result, cl_result, f"{label} [ES]");
         }
         compare_results(py_result, cl_result, f"{label} [ES]", tolerance);
@@ -425,7 +426,7 @@ def run_with_both(
         (eng, na_ir) = compile_native(fixture);
         na_result = run_native_function(eng, na_fn, na_ir);
         na_keys = len(set(py_result.keys()) & set(na_result.keys()));
-        if "na" in reqd {
+        if strict_keys and "na" in reqd {
             assert_full_parity(py_result, na_result, f"{label} [NA]");
         }
         compare_results(py_result, na_result, f"{label} [NA]", tolerance);

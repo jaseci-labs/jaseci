@@ -89,7 +89,8 @@ test "native and client lanes agree with the server lane" {
         "fw_cl",
         "fw_na",
         tolerance=1e-12,
-        require=["na", "cl"]
+        require=["na", "cl"],
+        strict_keys=True
     );
 }
 
@@ -142,7 +143,12 @@ test "the narrow widths match the spec on the server lane" {
 
 test "the narrow widths agree across the native and client lanes" {
     run_with_both(
-        "fw_narrow.jac", "narrow_py", "narrow_cl", "narrow_na", require=["na", "cl"]
+        "fw_narrow.jac",
+        "narrow_py",
+        "narrow_cl",
+        "narrow_na",
+        require=["na", "cl"],
+        strict_keys=True
     );
 }
 
