@@ -1,3 +1,14 @@
+## Ledger ownership
+
+Owner: CalmKnight (de-facto successor to UltraJaguar, since r59/r60).
+Canonical pickup list pending from YoungHawk (relayed names: R3
+int-subclass-kwargs, chained-raise repr loses args, exception-attr
+type-enforcement gap, stale finalize_class_slots correction, E5092
+numbering) - root causes documented in `jac-py/tools/SPEC_ITEM_38.md`,
+`SPEC_ITEM_51.md`, `SPEC_ITEM_52.md`, `PROXY_HASH_FINDINGS.md`. To be
+transcribed as ledger entries once the originals arrive (several may
+overlap existing items 51/52 - reconcile on arrival, do not double-count).
+
 ## Already moved (don’t re-do)
 
 Compare protocol (`NotImplemented`, cross-type `TypeError`, `True == 1`), hash `(-1,)`, Layer-1 probes, CI manifest drift, libtest stdout helper - those were the high-leverage Layer-1 honesty fixes.
