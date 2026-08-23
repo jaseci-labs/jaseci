@@ -502,7 +502,14 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     broken for all custom formatters. Walker/dunder synthesis family.
     Found fuzz r56.
 
-51. **[MED] __slots__ not enforced / no __dict__ suppression.**59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
+61. **[MED-HIGH] Class-body methods can't mutate enclosing function-scope
+    cells.** def mk(): log=[]; class G: __setattr__ appends to log -> stays []
+    after g.x=1. Module-global refs work; plain fn-in-fn closures work; ONLY
+    class-body-method-over-function-local broken. Same cellvar-emission
+    family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
+    closes 30+61. Found fuzz r57 via setattr-intercept pin.
+
+60. **[MED] User __format__ never dispatched.**59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
     (split from 58): guest PyType crossing the bridge yields None; a
     name-faithful mirror (repr/type-name only, NOT identity) would fix
     cosmetic type() displays like 'None' in str(type(u)). Explicitly does
@@ -522,7 +529,14 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     broken for all custom formatters. Walker/dunder synthesis family.
     Found fuzz r56.
 
-51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
+61. **[MED-HIGH] Class-body methods can't mutate enclosing function-scope
+    cells.** def mk(): log=[]; class G: __setattr__ appends to log -> stays []
+    after g.x=1. Module-global refs work; plain fn-in-fn closures work; ONLY
+    class-body-method-over-function-local broken. Same cellvar-emission
+    family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
+    closes 30+61. Found fuzz r57 via setattr-intercept pin.
+
+60. **[MED] User __format__ never dispatched.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
