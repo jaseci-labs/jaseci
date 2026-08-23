@@ -199,6 +199,9 @@ impl GraphQuery.init(
     hops: (list[QHop] | None) = None,
     edges_only: bool = False,
     slc: (slice | None) = None,
+    order: (list[QOrder] | None) = None,
+    limit: (int | None) = None,
+    offset: int = 0,
     level: str = 'default'
 ) -> None {
     self.origin = origin if isinstance(origin, list) else [origin];
@@ -206,6 +209,9 @@ impl GraphQuery.init(
     self.edges_only = edges_only;
     self.from_visit = False;
     self.slc = slc;
+    self.order = order if order is not None else [];
+    self.limit = limit;
+    self.offset = offset;
     self.level = level;
 }
 

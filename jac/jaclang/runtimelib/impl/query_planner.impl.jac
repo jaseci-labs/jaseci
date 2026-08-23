@@ -18,6 +18,11 @@ impl _acl_read_ok(anchor: Anchor) -> bool {
 }
 
 
+def _bound_pushable -> bool {
+    return not _acl_gated();
+}
+
+
 impl _origin_anchors(q: GraphQuery) -> list[Anchor] {
     seen: set[UUID] = set();
     out: list[Anchor] = [];
@@ -40,7 +45,19 @@ impl _sql_pairs(
         return ([], []);
     }
     mem.read_barrier();
-    cq = compile_query(q, upto, promotions=store?.promotions);
+    eff = q;
+    if q.limit is not None and not _bound_pushable() {
+        eff = GraphQuery(
+            q.origin,
+            hops=q.hops,
+            edges_only=q.edges_only,
+            slc=q.slc,
+            order=q.order,
+            level=q.level
+        );
+        eff.from_visit = q.from_visit;
+    }
+    cq = compile_query(eff, upto, promotions=store?.promotions);
     tail: list[QPred] = [];
     if cq.residual {
         last = upto - 1;
@@ -287,6 +304,9 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
             for a in out
             if _acl_read_ok(a)
         ];
+    }
+    if q.limit is not None and not _bound_pushable() {
+        out = out[q.offset:q.offset + q.limit];
     }
     if q.slc is not None {
         out = out[q.slc];

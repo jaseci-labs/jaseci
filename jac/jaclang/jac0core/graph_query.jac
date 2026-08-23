@@ -20,6 +20,13 @@ obj QPred {
 }
 
 
+obj QOrder {
+    has field: str,
+        desc: bool = False,
+        on_edge: bool = False;
+}
+
+
 obj QHop {
     has dir: int,
         `edge: (type | None) = None,
@@ -40,6 +47,9 @@ obj GraphQuery {
         edges_only: bool = False,
         from_visit: bool = False,
         slc: (slice | None) = None,
+        order: list[QOrder] = [],
+        limit: (int | None) = None,
+        offset: int = 0,
         level: str = 'default';
 
     def init(
@@ -47,6 +57,9 @@ obj GraphQuery {
         hops: (list[QHop] | None) = None,
         edges_only: bool = False,
         slc: (slice | None) = None,
+        order: (list[QOrder] | None) = None,
+        limit: (int | None) = None,
+        offset: int = 0,
         level: str = 'default'
     ) -> None;
 

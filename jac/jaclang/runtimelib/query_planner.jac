@@ -9,6 +9,9 @@ glob logger = logging.getLogger(__name__),
      __all__ = ['resolve_query', 'resolve_query_edges', 'resolve_query_prefix'];
 
 
+def _bound_pushable -> bool;
+
+
 def _origin_anchors(q: GraphQuery) -> list[Anchor];
 
 

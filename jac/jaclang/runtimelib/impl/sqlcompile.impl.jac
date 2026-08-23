@@ -210,6 +210,8 @@ impl compile_query(
     order: list[str] = [];
     fid = 'f0.id';
     n = 0;
+    node_names: list[str] = [];
+    edge_names: list[str] = [];
     for (i, hop) in enumerate(q.hops[:upto]) {
         n = i + 1;
         e = f"e{n}";
@@ -219,7 +221,7 @@ impl compile_query(
         if hop.`edge is not None {
             econds.append(_type_cond(e, hop.`edge.__name__, params, pfx_e));
         }
-        edge_names: list[str] = (
+        edge_names = (
             [str(getattr(hop.`edge, '__name__', ''))] if hop.`edge is not None else []
         );
         for (j, p) in enumerate(hop.epreds) {
@@ -241,9 +243,7 @@ impl compile_query(
                 nconds.append(_type_cond(nd_alias, tname, params, f"h{n}n{k}"));
             }
         }
-        node_names: list[str] = [
-            str(getattr(nt, '__name__', '')) for nt in _nd_types(hop)
-        ];
+        node_names = [str(getattr(nt, '__name__', '')) for nt in _nd_types(hop)];
         for (j, p) in enumerate(hop.preds) {
             cond = _pred_cond(
                 nd_alias, p, params, f"h{n}np{j}", node_names, promotions
@@ -272,6 +272,22 @@ impl compile_query(
         out.params = params;
         return out;
     }
+    if q.order {
+        order = [];
+        for spec in q.order {
+            alias = f"e{n}" if spec.on_edge else f"n{n}";
+            names = edge_names if spec.on_edge else node_names;
+            col = _field_expr(alias, spec.field, names, promotions);
+            order.append(f"{col} {'DESC' if spec.desc else 'ASC'}");
+        }
+    }
+    tail = '';
+    if q.limit is not None {
+        tail += f" LIMIT {int(q.limit)}";
+    }
+    if q.offset {
+        tail += f" OFFSET {int(q.offset)}";
+    }
     out.sql = (
         f"SELECT n{n}.id, e{n}.id "
         f"FROM unnest(CAST(:origin AS uuid[])) WITH ORDINALITY AS f0(id, ord) "
@@ -279,6 +295,7 @@ impl compile_query(
         + ' '.join(joins)
         + ' ORDER BY f0.ord, '
         + ', '.join(order)
+        + tail
     );
     out.params = params;
     return out;
