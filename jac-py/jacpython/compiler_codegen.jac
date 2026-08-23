@@ -1256,6 +1256,13 @@ def visit_stmt(
         }
         return visit_try(g, s as Try, more_code_follows, t, tail_idx, tail_join, ann_ctx);
     }
+    if isinstance(s, TryStar) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_try_star(g, s as TryStar, more_code_follows, t, tail_idx, tail_join, ann_ctx);
+    }
     if isinstance(s, Raise) {
         return visit_raise_stmt(g, s as Raise);
     }
@@ -1443,6 +1450,7 @@ import from compiler_exc {
     emit_deferred_comp_handlers,
     visit_raise_stmt,
     visit_try,
+    visit_try_star,
     visit_with,
     visit_async_with
 }

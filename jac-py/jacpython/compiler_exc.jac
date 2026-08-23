@@ -4,8 +4,11 @@
 
 import from objects { py_none }
 import from opcode_meta {
+    OP_BUILD_LIST,
     OP_CALL,
     OP_CALL_INTRINSIC_1,
+    OP_CALL_INTRINSIC_2,
+    OP_CHECK_EG_MATCH,
     OP_CHECK_EXC_MATCH,
     OP_CLEANUP_THROW,
     OP_COPY,
@@ -13,12 +16,15 @@ import from opcode_meta {
     OP_GET_AWAITABLE,
     OP_JUMP_BACKWARD_NO_INTERRUPT,
     OP_JUMP_FORWARD,
+    OP_LIST_APPEND,
     OP_LOAD_CONST,
     OP_LOAD_SPECIAL,
     OP_NOP,
     OP_NOT_TAKEN,
     OP_POP_EXCEPT,
     OP_POP_JUMP_IF_FALSE,
+    OP_POP_JUMP_IF_NONE,
+    OP_POP_JUMP_IF_NOT_NONE,
     OP_POP_JUMP_IF_TRUE,
     OP_POP_TOP,
     OP_PUSH_EXC_INFO,
@@ -38,6 +44,7 @@ import from ast_nodes {
     Raise,
     Return,
     Try,
+    TryStar,
     With,
     stmt,
 }
@@ -1528,6 +1535,423 @@ def visit_try(
     # Publish this statement's last block for an enclosing try whose body is
     # exactly this try/except, so its body span starts after our regions.
     g.u.nested_try_except_end = unwind_blk.id;
+    return stmt_cont(loc=tloc, terminated=True);
+}
+
+
+# once the parser rules set except* ends from their final token.
+def trystar_best_end(base: cloc, ln: int | None, col: int | None) -> cloc {
+    if ln is None {
+        return base;
+    }
+    take = False;
+    if base.end_lineno is None or ln > base.end_lineno {
+        take = True;
+    } elif ln == base.end_lineno {
+        if col is not None
+            and (base.end_col_offset is None or col > base.end_col_offset) {
+            take = True;
+        }
+    }
+    if take {
+        return nloc(base.lineno, ln, base.col_offset, col);
+    }
+    return base;
+}
+
+def trystar_last_body_loc(body: list[stmt]) -> cloc | None {
+    if body is None or len(body) == 0 {
+        return None;
+    }
+    s = body[len(body) - 1];
+    return nloc(s.lineno, s.end_lineno, s.col_offset, s.end_col_offset);
+}
+
+def trystar_handler_loc(h: ExceptHandler) -> cloc {
+    end = trystar_last_body_loc(h.body);
+    el = h.lineno;
+    ec = h.col_offset;
+    if end is not None {
+        if end.end_lineno is not None {
+            el = end.end_lineno;
+        }
+        if end.end_col_offset is not None {
+            ec = end.end_col_offset;
+        }
+    }
+    return nloc(h.lineno, el, h.col_offset, ec);
+}
+
+def trystar_stmt_loc(t: TryStar) -> cloc {
+    best = nloc(t.lineno, t.lineno, t.col_offset, t.col_offset);
+    cand = trystar_last_body_loc(t.body);
+    if cand is not None {
+        best = trystar_best_end(best, cand.end_lineno, cand.end_col_offset);
+    }
+    if t.orelse is not None {
+        cand = trystar_last_body_loc(t.orelse);
+        if cand is not None {
+            best = trystar_best_end(best, cand.end_lineno, cand.end_col_offset);
+        }
+    }
+    if t.finalbody is not None {
+        cand = trystar_last_body_loc(t.finalbody);
+        if cand is not None {
+            best = trystar_best_end(best, cand.end_lineno, cand.end_col_offset);
+        }
+    }
+    hi = 0;
+    while hi < len(t.handlers) {
+        cand = trystar_handler_loc(t.handlers[hi] as ExceptHandler);
+        best = trystar_best_end(best, cand.end_lineno, cand.end_col_offset);
+        hi = hi + 1;
+    }
+    return best;
+}
+
+
+# Lower try/except* (ExceptionGroup handlers). Dispatch + guards; the byte
+# layout lives in visit_try_star_except. CPython: codegen_try_star.
+def visit_try_star(
+    g: cfg_builder,
+    t: TryStar,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
+) -> stmt_cont {
+    tloc = stmt_loc(t);
+    if t.finalbody is not None and len(t.finalbody) > 0 {
+        codegen_fail(g, "NotImplementedError", "except* with finally");
+        return stmt_cont(loc=tloc);
+    }
+    if t.handlers is None or len(t.handlers) == 0 {
+        codegen_fail(g, "NotImplementedError", "try* without except*");
+        return stmt_cont(loc=tloc);
+    }
+    if g.handler_fallthrough_fin is not None {
+        # Plain-except handlers duplicate their epilogue on each nested success
+        # path (handler_fallthrough_* machinery); except* bodies are instead
+        # wrapped per-handler by SETUP_CLEANUP regions. Bridging the two
+        # conventions is its own slice.
+        codegen_fail(g, "NotImplementedError", "except* inside except handler");
+        return stmt_cont(loc=tloc);
+    }
+    return visit_try_star_except(g, t, more_code_follows, tail, tail_idx, tail_join, ann_ctx);
+}
+
+
+# Lower flat try/except*[/else] into CPython 3.14's ExceptionGroup walk:
+# a results list accumulates the unmatched remainder of each CHECK_EG_MATCH
+# split, then INTRINSIC_PREP_RERAISE_STAR recombines it for reraise.
+#
+# Layout (pinned against host dis for bare/bound/multi/else shapes):
+#   [nop] [body] [else] [normal-path continuation]
+#   he: PUSH_EXC_INFO, BUILD_LIST 0, COPY 2, match0, bind0
+#   per handler i>0: match_i, NOT_TAKEN (own block), pre_i (bind store)
+#   per handler: body_i, x_i (success epilogue), ce_i (cleanup_end), nm_i (no-match)
+#   rr_match: PREP_RERAISE_STAR walk, rr_nt: NOT_TAKEN, rr_pt/rr_pe,
+#   reraise, unwind (COPY 3 / POP_EXCEPT / RERAISE 1)
+# The last handler's ewe epilogue (LIST_APPEND 1) folds into x/ce/nm tails;
+# non-last ones jump straight to the next handler's match block.
+def visit_try_star_except(
+    g: cfg_builder,
+    t: TryStar,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None,
+    ann_ctx: ann_scope_plan | None = None
+) -> stmt_cont {
+    tloc = trystar_stmt_loc(t);
+    nh = len(t.handlers);
+    noloc = no_loc();
+    nest = g.handler_nest_depth;
+
+    nop_blk = g.new_block();
+    g.u.nested_try_except_end = -1;
+    try_body = g.new_block();
+    prev_line = -1;
+    if len(g.cur.instrs) > 0 {
+        prev_line = g.cur.instrs[len(g.cur.instrs) - 1].loc.lineno;
+    }
+    g.use(nop_blk);
+    if prev_line != tloc.lineno {
+        g.emit_op(OP_NOP, 0, tloc);
+    }
+    g.use(try_body);
+    protect_start = g.cur.id;
+    try_follows = more_code_follows;
+    if not try_follows and tail is not None and tail_idx < len(tail) {
+        try_follows = True;
+    }
+    body_cont = visit_stmts(g, t.body, 0, try_follows, tail, tail_idx, tail_join, ann_ctx);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    protect_end = g.new_block();
+    g.use(protect_end);
+    normal_terminated = body_cont.terminated;
+    if t.orelse is not None and len(t.orelse) > 0 and not body_cont.terminated {
+        else_cont = visit_stmts(g, t.orelse, 0, try_follows, tail, tail_idx, tail_join, ann_ctx);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        if else_cont.terminated {
+            normal_terminated = True;
+        }
+    }
+    join_blk: basicblock | None = None;
+    if try_follows {
+        # Own block so the nothing-to-reraise path can jump back to it.
+        join_blk = g.new_block();
+        g.use(join_blk);
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
+        if codegen_busy(g) {
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not tail_cont.terminated and not normal_terminated {
+            emit_module_return(g, tail_cont.loc);
+        }
+    } else {
+        if not normal_terminated {
+            emit_module_return(g, body_cont.loc);
+        }
+    }
+
+    # Deferred structural blocks; first use fixes layout order below the
+    # normal-path continuation, matching CPython's label placement.
+    he = g.new_deferred_block();
+    b_blks: list[basicblock] = [];
+    x_blks: list[basicblock] = [];
+    ce_blks: list[basicblock] = [];
+    nm_blks: list[basicblock] = [];
+    match_blks: list[basicblock] = [];
+    nt_blks: list[basicblock] = [];
+    pre_blks: list[basicblock] = [];
+    hi = 0;
+    while hi < nh {
+        b_blks.append(g.new_deferred_block());
+        x_blks.append(g.new_deferred_block());
+        ce_blks.append(g.new_deferred_block());
+        nm_blks.append(g.new_deferred_block());
+        if hi > 0 {
+            match_blks.append(g.new_deferred_block());
+            nt_blks.append(g.new_deferred_block());
+            pre_blks.append(g.new_deferred_block());
+        }
+        hi = hi + 1;
+    }
+    rr_match = g.new_deferred_block();
+    rr_nt = g.new_deferred_block();
+    rr_pt = g.new_deferred_block();
+    rr_pe = g.new_deferred_block();
+    reraise_blk = g.new_deferred_block();
+    unwind_blk = g.new_deferred_block();
+
+    hi = 0;
+    while hi < nh {
+        h = t.handlers[hi] as ExceptHandler;
+        if h.type is None {
+            codegen_fail(g, "SyntaxError", "except* requires an exception type");
+            return stmt_cont(loc=tloc);
+        }
+        hi = hi + 1;
+    }
+
+    spans: list[except_region] = [];
+    spans.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=he.id,
+            stack_depth=1 + nest
+        )
+    );
+    spans.append(
+        except_region(
+            start_block=he.id,
+            end_block=b_blks[0].id,
+            handler_block=unwind_blk.id,
+            stack_depth=3 + nest,
+            preserve_lasti=True
+        )
+    );
+
+    hloc0 = trystar_handler_loc(t.handlers[0] as ExceptHandler);
+    g.use(he);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    g.emit_op(OP_BUILD_LIST, 0, hloc0);
+    g.emit_op(OP_COPY, 2, hloc0);
+    hi = 0;
+    while hi < nh {
+        h = t.handlers[hi] as ExceptHandler;
+        hloc = trystar_handler_loc(h);
+        if hi > 0 {
+            g.use(match_blks[hi - 1]);
+        }
+        visit_expr(g, h.type);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        g.emit_op(OP_CHECK_EG_MATCH, 0, hloc);
+        g.emit_op(OP_COPY, 1, hloc);
+        g.emit_jump(OP_POP_JUMP_IF_NONE, nm_blks[hi].id, hloc);
+        if hi > 0 {
+            # Standalone NOT_TAKEN keeps normalize_jumps from inlining it into
+            # the protected match run (CPython leaves this block uncovered);
+            # it carries the handler span like the rest of the match group.
+            g.use(nt_blks[hi - 1]);
+            g.emit_op(OP_NOT_TAKEN, 0, hloc);
+            g.use(pre_blks[hi - 1]);
+        }
+        if h.name is not None {
+            emit_name_store(g, h.name as str, hloc);
+        } else {
+            g.emit_op(OP_POP_TOP, 0, hloc);
+        }
+        g.use(b_blks[hi]);
+        hbody = visit_stmts(g, h.body, 0, False, None, 0, None, ann_ctx);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        last = hi == nh - 1;
+        if len(b_blks[hi].instrs) == 0 and not hbody.terminated {
+            # Empty handler body (e.g. `pass`): CPython's inner SETUP_CLEANUP
+            # region vanishes and the he/mid spans coalesce into one entry, so
+            # collapse b/x into a single block (the deferred x block is never
+            # placed).
+            x_blks[hi] = b_blks[hi];
+        }
+        g.use(x_blks[hi]);
+        if not hbody.terminated {
+            # CPython propagates the body's trailing location into the success
+            # epilogue (POP_BLOCK/name-clear/jump chain); the no-match path
+            # keeps the handler span.
+            if h.name is not None {
+                emit_except_as_cleanup(g, h.name as str, hbody.loc);
+            }
+            if last {
+                g.emit_op(OP_LIST_APPEND, 1, hbody.loc);
+            }
+            if last {
+                g.emit_jump(OP_JUMP_FORWARD, rr_match.id, hbody.loc);
+            } else {
+                g.emit_jump(OP_JUMP_FORWARD, match_blks[hi].id, hbody.loc);
+            }
+        }
+        g.use(ce_blks[hi]);
+        if h.name is not None {
+            emit_except_as_cleanup(g, h.name as str, noloc);
+        }
+        g.emit_op(OP_LIST_APPEND, 3, noloc);
+        g.emit_op(OP_POP_TOP, 0, noloc);
+        if last {
+            g.emit_op(OP_LIST_APPEND, 1, noloc);
+            g.emit_jump(OP_JUMP_FORWARD, rr_match.id, noloc);
+        } else {
+            g.emit_jump(OP_JUMP_FORWARD, match_blks[hi].id, noloc);
+        }
+        g.use(nm_blks[hi]);
+        g.emit_op(OP_POP_TOP, 0, hloc);
+        if last {
+            g.emit_op(OP_LIST_APPEND, 1, hloc);
+            # Fall through into the reraise-star walk.
+            g.use(rr_match);
+        }
+        hi = hi + 1;
+    }
+    # CALL_INTRINSIC_2 oparg 1 = INTRINSIC_PREP_RERAISE_STAR.
+    g.emit_op(OP_CALL_INTRINSIC_2, 1, noloc);
+    g.emit_op(OP_COPY, 1, noloc);
+    g.emit_jump(OP_POP_JUMP_IF_NOT_NONE, reraise_blk.id, noloc);
+    g.use(rr_nt);
+    g.emit_op(OP_NOT_TAKEN, 0, noloc);
+    g.use(rr_pt);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    g.use(rr_pe);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    if join_blk is not None {
+        g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, join_blk.id, noloc);
+    } else {
+        emit_module_return(g, noloc);
+    }
+    g.use(reraise_blk);
+    g.emit_op(OP_SWAP, 2, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 0, noloc);
+    g.use(unwind_blk);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+
+    # Exception-table spans, in host entry order; merge_except_spans coalesces
+    # the empty-body case where the he span and the mid run become adjacent.
+    hi = 0;
+    while hi < nh {
+        if x_blks[hi].id != b_blks[hi].id {
+            spans.append(
+                except_region(
+                    start_block=b_blks[hi].id,
+                    end_block=x_blks[hi].id,
+                    handler_block=ce_blks[hi].id,
+                    stack_depth=6 + nest,
+                    preserve_lasti=True
+                )
+            );
+        }
+        if hi < nh - 1 {
+            spans.append(
+                except_region(
+                    start_block=x_blks[hi].id,
+                    end_block=nt_blks[hi].id,
+                    handler_block=unwind_blk.id,
+                    stack_depth=3 + nest,
+                    preserve_lasti=True
+                )
+            );
+            spans.append(
+                except_region(
+                    start_block=pre_blks[hi].id,
+                    end_block=b_blks[hi + 1].id,
+                    handler_block=unwind_blk.id,
+                    stack_depth=3 + nest,
+                    preserve_lasti=True
+                )
+            );
+        } else {
+            spans.append(
+                except_region(
+                    start_block=x_blks[hi].id,
+                    end_block=rr_nt.id,
+                    handler_block=unwind_blk.id,
+                    stack_depth=3 + nest,
+                    preserve_lasti=True
+                )
+            );
+        }
+        hi = hi + 1;
+    }
+    spans.append(
+        except_region(
+            start_block=rr_pt.id,
+            end_block=rr_pe.id,
+            handler_block=unwind_blk.id,
+            stack_depth=3 + nest,
+            preserve_lasti=True
+        )
+    );
+    merged = merge_except_spans(g, spans);
+    mi = 0;
+    while mi < len(merged) {
+        g.u.except_regions.append(merged[mi]);
+        mi = mi + 1;
+    }
     return stmt_cont(loc=tloc, terminated=True);
 }
 

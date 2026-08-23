@@ -3862,3 +3862,107 @@ test "compiler_slice: band-11 call-site star unpacking matches oracle bytes" {
         assert consts_equal(actual.consts, exp.consts);
     }
 }
+
+# ---------------- Band 11 slice: try/except* (TryStar) ----------------
+# except* lowers to CPython 3.14's ExceptionGroup walk: a results list
+# accumulates each CHECK_EG_MATCH remainder, then INTRINSIC_PREP_RERAISE_STAR
+# recombines it. Byte-exact against the host oracle including co_names and
+# linetable for the shapes below.
+#
+# Known-blocked shapes (NOT TryStar-lowering bugs):
+#  - any `try` followed by unconsumed module/function code: verify_cfg rejects
+#    with "instructions after terminator" -- pre-existing on HEAD for plain
+#    try too (flip these on when unblocked).
+#  - fresh names bound in an `else` clause get co_names indices allocated at
+#    orelse emit time (before the handler section) instead of CPython's AST
+#    order; reuse existing names in else bodies until that ordering moves.
+
+test "compiler_slice: band11 except* bare handler matches oracle PyCode" {
+    src = (
+        "try:\n"
+        + "    pass\n"
+        + "except* ValueError:\n"
+        + "    pass\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.linetable == exp.linetable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band11 except* as-binding matches oracle PyCode" {
+    src = (
+        "try:\n"
+        + "    x = 1\n"
+        + "except* ValueError as e:\n"
+        + "    y = e\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.linetable == exp.linetable;
+    assert actual.names == exp.names;
+}
+
+test "compiler_slice: band11 multiple except* mixed binds matches oracle PyCode" {
+    src = (
+        "try:\n"
+        + "    x = 1\n"
+        + "except* ValueError:\n"
+        + "    a = 1\n"
+        + "except* TypeError as e:\n"
+        + "    b = e\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.linetable == exp.linetable;
+    assert actual.names == exp.names;
+}
+
+test "compiler_slice: band11 multiple unbound except* matches oracle PyCode" {
+    src = (
+        "try:\n"
+        + "    x = 1\n"
+        + "except* ValueError:\n"
+        + "    a = 1\n"
+        + "except* TypeError:\n"
+        + "    b = 2\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.linetable == exp.linetable;
+    assert actual.names == exp.names;
+}
+
+test "compiler_slice: band11 except* with else reusing names matches oracle PyCode" {
+    src = (
+        "try:\n"
+        + "    x = 1\n"
+        + "except* ValueError as e:\n"
+        + "    y = e\n"
+        + "else:\n"
+        + "    x = 2\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.linetable == exp.linetable;
+}
