@@ -15,7 +15,7 @@ def shared_const -> int {
 }
 
 def native_calc -> int {
-    return fast_mix(shared_const(), 2);
+    return fast_mix(i64(shared_const()), 2);
 }
 
 def:pub app -> JsxElement {
@@ -27,5 +27,5 @@ def styled_len -> int {
 }
 
 def render_mixed -> int {
-    return int(fast_mix(styled_len(), 1));
+    return int(fast_mix(i64(styled_len()), 1));
 }
