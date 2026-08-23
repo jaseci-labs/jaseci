@@ -521,6 +521,7 @@ import from objects {
     PyException,
     PyError,
     PyIter,
+    PyCallableIter,
     PyHandler,
     bytes_value,
     tuple_value,
@@ -3473,7 +3474,34 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     return py_error(str(result[1]), str(result[2]));
 }
 
+# One step of the iter(callable, sentinel) callable-iterator: invoke the
+# callable with no args; a result equal to the sentinel ends the iteration
+# (permanently -- a later next keeps returning StopIteration). Comparison
+# uses the full == protocol; errors propagate.
+def calliter_next(it: PyCallableIter) -> PyObj {
+    if it.exhausted {
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    res = (it.fn as PyObj).tp_call([], {});
+    if is_error(res) {
+        return res;
+    }
+    eq = py_compare(2, res, it.sentinel);
+    if is_error(eq) {
+        return eq;
+    }
+    if py_truth(eq) {
+        it.exhausted = True;
+        return PyGenStop(t="genstop", val=py_none());
+    }
+    return res;
+}
+
 def py_iter(value: PyObj) -> PyObj {
+    # A callable-iterator (two-arg iter) is its own iterator.
+    if isinstance(value, PyCallableIter) {
+        return value;
+    }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if user_has_dunder(u, "__iter__") {
@@ -4341,7 +4369,9 @@ def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
 # host proxies delegate the probe to the wrapped value.
 def obj_is_callable(x: PyObj) -> bool {
     if isinstance(x, (PyFunction, PyNativeBuiltin, PyClass, PyExceptionType,
-                      PyBoundMethod, PyClassMethodCtor, PyStaticMethodCtor)) {
+                      PyBoundMethod, PyClassMethodCtor, PyStaticMethodCtor,
+                      PyListMethod, PyDictMethod, PySetMethod, PyRangeMethod,
+                      PyNsMethod, PyGenMethod, PyBuiltinSuperMethod)) {
         return True;
     }
     if isinstance(x, PyUserObj) {
@@ -5302,6 +5332,16 @@ obj PyNativeBuiltin(PyObj) {
         if self.name == "iter" {
             if len(args) == 0 {
                 return py_error("TypeError", "iter expected at least 1 argument");
+            }
+            if len(args) >= 2 {
+                # Two-arg form (CPython calliterobject). The callable check is
+                # EAGER -- builtin_iter raises "iter(v, w): v must be callable"
+                # at construction time, not on first next(). Iteration then
+                # calls it with no args until the result equals the sentinel.
+                if not obj_is_callable(args[0]) {
+                    return py_error("TypeError", "iter(v, w): v must be callable");
+                }
+                return PyCallableIter(t="calliter", fn=args[0], sentinel=args[1]);
             }
             result = py_iter(args[0]);
             if is_error(result) and isinstance(args[0], PyHostProxy) {
@@ -6553,8 +6593,7 @@ obj PyGenMethod(PyObj) {
 # Resume `gen` with `sent` (the value YIELD_VALUE produces on wake; None for
 # plain iteration). Returns the yielded PyObj on a yield, a PyGenStop on normal
 # return (exhaustion), or a propagating error object on a raise.
-def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {
-    if gen.running {
+def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {    if gen.running {
         # CPython: resuming a generator whose frame is already executing
         # (self-resume via a callback/trampoline) raises ValueError.
         return py_error("ValueError", "generator already executing");
@@ -6890,6 +6929,14 @@ def send_into(receiver: PyObj, sent: PyObj) -> PyObj {
     # a generator -- `await` lowers to the same SEND loop `yield from` uses.
     if receiver.t == "generator" or receiver.t == "coroutine" {
         return gen_resume(receiver as PyGenerator, sent);
+    }
+    if receiver.t == "calliter" {
+        # next(calliter) drives the callable-iterator; send() is not a
+        # calliterobject method (CPython raises AttributeError).
+        if sent.t != "none" {
+            return py_error("AttributeError", "send");
+        }
+        return calliter_next(receiver as PyCallableIter);
     }
     if receiver.t == "rangeiter" {
         ri = receiver as PyRangeIter;
@@ -8076,6 +8123,46 @@ def run_frame(frame: PyFrame) -> PyObj {
                         ip = target;
                     } else {
                         return nxt;
+                    }
+                } else {
+                    stack.append(nxt);
+                }
+                continue;
+            }
+            if top.t == "calliter" {
+                nxt = calliter_next(top as PyCallableIter);
+                if nxt.t == "genstop" {
+                    stack.pop();
+                    ip = ip + 2 * arg;
+                } elif is_error(nxt) {
+                    target = recover_exception(co, nxt, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                    } else {
+                        return nxt;
+                    }
+                } else {
+                    stack.append(nxt);
+                }
+                continue;
+            }
+            if isinstance(top, PyUserObj)
+                and user_has_dunder(top as PyUserObj, "__next__") {
+                # User-defined iterator (class-iterator idiom): FOR_ITER drives
+                # tp_iternext == guest __next__; StopIteration pops the loop.
+                nxt = call_user_dunder(top as PyUserObj, "__next__", []);
+                if is_error(nxt) {
+                    exc_name = (nxt as PyError).exception.type_name;
+                    if exc_name == "StopIteration" {
+                        stack.pop();
+                        ip = ip + 2 * arg;
+                    } else {
+                        target = recover_exception(co, nxt, offset, stack);
+                        if target >= 0 {
+                            ip = target;
+                        } else {
+                            return nxt;
+                        }
                     }
                 } else {
                     stack.append(nxt);

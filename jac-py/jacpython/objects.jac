@@ -1771,6 +1771,19 @@ obj PyIter(PyObj) {
     }
 }
 
+# iter(callable, sentinel) two-argument form (CPython calliterobject): each
+# __next__ calls the callable with no args; equality with the sentinel ends
+# the iteration permanently.
+obj PyCallableIter(PyObj) {
+    has fn: PyObj,
+        sentinel: PyObj,
+        exhausted: bool = False;
+
+    def tp_iter -> PyObj {
+        return self;
+    }
+}
+
 obj PyHandler(PyObj) {
     has start: int,
         end: int,

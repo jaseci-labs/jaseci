@@ -611,9 +611,44 @@ test "layer1: hash routing and compare protocol probes (P3.1e/M10)" {
     "        self.assertFalse(a != b)\n"
     "        c = V(2)\n"
     "        self.assertTrue(a != c)\n"
-    "        self.assertFalse(a == c)\n";
+    "        self.assertFalse(a == c)\n"
+    "    def test_for_loop_over_user_iterator(self):\n"
+    "        class It:\n"
+    "            def __init__(self):\n"
+    "                self.i = 0\n"
+    "            def __iter__(self):\n"
+    "                return self\n"
+    "            def __next__(self):\n"
+    "                if self.i >= 3:\n"
+    "                    raise StopIteration\n"
+    "                self.i += 1\n"
+    "                return self.i\n"
+    "        total = 0\n"
+    "        for x in It():\n"
+    "            total += x\n"
+    "        self.assertEqual(total, 6)\n"
+    "        seen = []\n"
+    "        for x in It():\n"
+    "            seen.append(x)\n"
+    "            if x == 2:\n"
+    "                break\n"
+    "        self.assertEqual(seen, [1, 2])\n"
+    "    def test_iter_two_arg_sentinel(self):\n"
+    "        calls = []\n"
+    "        def popper():\n"
+    "            calls.append(1)\n"
+    "            return len(calls)\n"
+    "        got = []\n"
+    "        for v in iter(popper, 3):\n"
+    "            got.append(v)\n"
+    "        self.assertEqual(got, [1, 2])\n"
+    "        with self.assertRaises(TypeError):\n"
+    "            iter(42, 99)\n"
+    "        it = iter(lambda: 7, 8)\n"
+    "        self.assertEqual(next(it), 7)\n"
+    "        self.assertEqual(list(it), [])\n";
     result = layer1_replay_source(src);
-    assert result.passed == 5;
+    assert result.passed == 7;
     assert result.skipped == 0;
     assert result.failed == 0;
     assert result.errored == 0;
