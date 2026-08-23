@@ -509,34 +509,7 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
     closes 30+61. Found fuzz r57 via setattr-intercept pin.
 
-60. **[MED] User __format__ never dispatched.**59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
-    (split from 58): guest PyType crossing the bridge yields None; a
-    name-faithful mirror (repr/type-name only, NOT identity) would fix
-    cosmetic type() displays like 'None' in str(type(u)). Explicitly does
-    not attempt identity round-trip (unsatisfiable: independent executions).
-    UltraMoon lane after 58-harness.
-
-58. **[MED][RECLASSIFIED]** keywords_in_subclass gate red = identity split
-    across marshal boundary (see reclassified entry above). RESOLUTION:
-    YoungHawk implements atomic guest-side eval of identity-family asserts
-    (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
-    bool. Precedent: D-RANGE-ID document-don't-fake.
-
-60. **[MED] User __format__ never dispatched.** format(obj, spec) with
-    user-defined __format__ raises TypeError('unsupported format string
-    passed to NoneType.__format__') - the dunder is ignored, falls to
-    default object formatting which rejects non-empty specs. f'{obj:spec}'
-    broken for all custom formatters. Walker/dunder synthesis family.
-    Found fuzz r56.
-
-61. **[MED-HIGH] Class-body methods can't mutate enclosing function-scope
-    cells.** def mk(): log=[]; class G: __setattr__ appends to log -> stays []
-    after g.x=1. Module-global refs work; plain fn-in-fn closures work; ONLY
-    class-body-method-over-function-local broken. Same cellvar-emission
-    family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
-    closes 30+61. Found fuzz r57 via setattr-intercept pin.
-
-60. **[MED] User __format__ never dispatched.** p.z = 3 on a
+51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
