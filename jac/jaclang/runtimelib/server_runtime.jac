@@ -227,14 +227,14 @@ def:pub startBunServer(opts: dict) {
             );
         }
 
-        fnMatch = path.match('^/function/([^/]+)$');
+        fnMatch = new(RegExp, '^/function/([^/]+)$').exec(path);
         if fnMatch and method == 'POST' {
             name = decodeURIComponent(fnMatch[1]);
             payload = await handleFunctionCall(req, name, functionFns, params);
             return envelopeResponse(payload);
         }
 
-        walkerMatch = path.match('^/walker/([^/]+)(?:/([^/]+))?$');
+        walkerMatch = new(RegExp, '^/walker/([^/]+)(?:/([^/]+))?$').exec(path);
         if walkerMatch and method == 'POST' {
             name = decodeURIComponent(walkerMatch[1]);
             nodeId = '';

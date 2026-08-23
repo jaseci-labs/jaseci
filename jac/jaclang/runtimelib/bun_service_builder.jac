@@ -204,7 +204,7 @@ def build_bun_service_artifact(
     import from jaclang.jac0core.compile_options { CompileOptions }
     ir = prog.compile(
         file_path=str(module_file),
-        options=CompileOptions(force_codespace='client', type_check=False)
+        options=CompileOptions(force_codespace='client')
     );
     if prog.errors_had {
         errs = '\n'.join(str(e) for e in prog.errors_had);

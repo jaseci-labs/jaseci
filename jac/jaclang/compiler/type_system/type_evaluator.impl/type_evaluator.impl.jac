@@ -2110,6 +2110,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if js_sym is not None {
                             symbol = js_sym;
                         }
+                    }
+                }
                 if symbol {
                     symbol = self.resolve_imported_symbols(symbol);
                     symbol.add_use(expr);

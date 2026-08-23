@@ -41,24 +41,24 @@ def emit_server_entry(
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
     runtime_src = Path(resolve_client_runtime_cl_path('bun'));
     # server_runtime.jac is a JS-interop module: it deliberately uses JS
-    # idioms (Reflect.apply, dot-dict access, `match` attribute names) that
-    # the Jac checker rejects. Compile with type_check=False EXPLICITLY so
-    # this boundary is visible and intentional, not an accident of defaults.
-    # Drift is caught by the bun e2e suites, which execute the artifact
-    # through real Bun.build (mislowered or invalid JS fails the build).
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    # idioms (Reflect.apply, Bun.serve, dynamic wire objects) that the type
+    # checker cannot model, so its diagnostics are expected and do not gate
+    # this internal compile — the same posture main applies to
+    # client_runtime.jac. Since #8399 there is no type_check opt-out; the
+    # gate here is produced JS, and drift is caught by the bun e2e suites,
+    # which execute the artifact through real Bun.build (mislowered or
+    # invalid JS fails the build). User service modules keep the strict
+    # errors_had gate in build_bun_service_artifact.
     prog = JacProgram();
-    rt_mod = prog.compile(
-        str(runtime_src), options=CompileOptions(type_check=False)
-    );
+    rt_mod = prog.compile(str(runtime_src));
     if rt_mod is not None {
         run_pass(EsastGenPass, rt_mod, prog);
     }
-    if prog.errors_had or not rt_mod?.gen?.js {
-        console.error('  server: failed to compile server_runtime.jac');
+    runtime_js = rt_mod?.gen?.js if rt_mod is not None else '';
+    if not (runtime_js or '').strip() {
+        console.error('  server: failed to lower server_runtime.jac');
         return 1;
     }
-    runtime_js = rt_mod.gen.js;
     (out_dir / 'server_runtime.js').write_text(runtime_js, encoding='utf-8');
     import jaclang.runtimelib as _rt_pkg;
     bun_store_src = Path(os.path.dirname(_rt_pkg.__file__)) / 'bun_store.js';

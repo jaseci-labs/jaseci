@@ -61,7 +61,7 @@ def _compile_bun_service(source: str) -> tuple[JacProgram, any] {
             mod = program.compile(
                 main_path,
                 options=CompileOptions(
-                    force_codespace='client', type_check=False
+                    force_codespace='client'
                 )
             );
             assert mod is not None , (

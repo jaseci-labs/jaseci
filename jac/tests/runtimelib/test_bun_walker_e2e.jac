@@ -28,7 +28,7 @@ glob _WALKER_SVC: str = (
          '    has label: str = "made-by-walker";\n'
          '}\n'
          'walker:pub touch {\n'
-         '    can go with `root entry {\n'
+         '    can go with Root entry {\n'
          '        here ++> Thing();\n'
          '        report "ok";\n'
          '    }\n'
