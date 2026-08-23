@@ -1216,23 +1216,35 @@ impl PgStore._promotion_columns -> list[tuple[str, str, str]] {
 }
 
 
+impl PgStore._promoted_column_type(col: str) -> (str | None) {
+    rows = self._run(
+        'SELECT data_type FROM information_schema.columns '
+        'WHERE table_name = :t AND column_name = :c',
+        {'t': 'anchors', 'c': col.lower()}
+    );
+    return str(rows[0][0]) if rows else None;
+}
+
+
 impl PgStore._apply_promotions -> None {
     for (arch, fld, col) in self._promotion_columns() {
         try {
+            have = self._promoted_column_type(col);
+            if have is not None and have != 'jsonb' {
+                logger.info(
+                    f"promotion {arch}.{fld}: rebuilding {col} from {have} to jsonb"
+                );
+                self._run(f'DROP INDEX IF EXISTS idx_{col}', {});
+                self._run(f'ALTER TABLE anchors DROP COLUMN IF EXISTS {col}', {});
+            }
             self._run(
                 f"""
-                ALTER TABLE anchors ADD COLUMN IF NOT EXISTS {col} text
-                GENERATED ALWAYS AS (props->'archetype'->>'{fld}') STORED
+                ALTER TABLE anchors ADD COLUMN IF NOT EXISTS {col} jsonb
+                GENERATED ALWAYS AS (props->'archetype'->'{fld}') STORED
                 """,
                 {}
             );
-            self._run(
-                f"""
-                CREATE INDEX IF NOT EXISTS idx_{col} ON anchors ({col})
-                WHERE arch_type = '{arch}'
-                """,
-                {}
-            );
+            self._run(f'CREATE INDEX IF NOT EXISTS idx_{col} ON anchors ({col})', {});
         } except Exception as e {
             logger.warning(f"promotion {arch}.{fld} failed: {e}");
         }

@@ -56,11 +56,52 @@ def _sql_type_of(v: any) -> str {
 }
 
 
-def _pred_cond(alias: str, p: QPred, params: dict, pfx: str) -> (str | None) {
+def _sanitize_ident(name: str) -> str {
+    out = '';
+    for ch in name.lower() {
+        out += ch if (ch.isalnum() or ch == '_') else '_';
+    }
+    return out;
+}
+
+
+def _promoted_col(
+    alias: str, arch_names: list[str], field: str, promotions: (dict | None)
+) -> (str | None) {
+    if not promotions {
+        return None;
+    }
+    for arch in arch_names {
+        declared = promotions.get(arch);
+        if declared and field in declared {
+            col = f"g_{_sanitize_ident(arch)}_{_sanitize_ident(field)}";
+            return f"{alias}.{col}";
+        }
+    }
+    return None;
+}
+
+
+def _field_expr(
+    alias: str, field: str, arch_names: list[str], promotions: (dict | None)
+) -> str {
+    col = _promoted_col(alias, arch_names, field, promotions);
+    return col if col is not None else f"{alias}.props->'archetype'->'{field}'";
+}
+
+
+def _pred_cond(
+    alias: str,
+    p: QPred,
+    params: dict,
+    pfx: str,
+    arch_names: (list[str] | None) = None,
+    promotions: (dict | None) = None
+) -> (str | None) {
     if not _ident_ok(p.field) or not _pushable_value(p.value) {
         return None;
     }
-    expr = f"{alias}.props->'archetype'->'{p.field}'";
+    expr = _field_expr(alias, p.field, arch_names or [], promotions);
     if p.op == 'in' {
         vals = list(p.value) if isinstance(p.value, (list, tuple, set)) else [p.value];
         parts: list[str] = [];
@@ -127,7 +168,9 @@ def _nd_types(hop: QHop) -> list {
 }
 
 
-impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
+impl compile_query(
+    q: GraphQuery, upto: int, promotions: (dict | None) = None
+) -> CompiledQuery {
     out = CompiledQuery();
     params: dict = {};
     params['origin'] = [];
@@ -144,8 +187,11 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
         if hop.`edge is not None {
             econds.append(_type_cond(e, hop.`edge.__name__, params, pfx_e));
         }
+        edge_names: list[str] = (
+            [str(getattr(hop.`edge, '__name__', ''))] if hop.`edge is not None else []
+        );
         for (j, p) in enumerate(hop.epreds) {
-            cond = _pred_cond(e, p, params, f"{pfx_e}p{j}");
+            cond = _pred_cond(e, p, params, f"{pfx_e}p{j}", edge_names, promotions);
             if cond is None {
                 out.residual.setdefault(i, []).append(p);
             } else {
@@ -163,8 +209,13 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
                 nconds.append(_type_cond(nd_alias, tname, params, f"h{n}n{k}"));
             }
         }
+        node_names: list[str] = [
+            str(getattr(nt, '__name__', '')) for nt in _nd_types(hop)
+        ];
         for (j, p) in enumerate(hop.preds) {
-            cond = _pred_cond(nd_alias, p, params, f"h{n}np{j}");
+            cond = _pred_cond(
+                nd_alias, p, params, f"h{n}np{j}", node_names, promotions
+            );
             if cond is None {
                 out.residual.setdefault(i, []).append(p);
             } else {

@@ -166,6 +166,7 @@ obj PgStore(Store) {
     def _side -> any;
     def _run(sql: str, params: dict) -> list;
     def _promotion_columns -> list[tuple[str, str, str]];
+    def _promoted_column_type(col: str) -> (str | None);
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;

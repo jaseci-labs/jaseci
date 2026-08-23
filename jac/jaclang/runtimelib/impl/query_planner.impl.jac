@@ -40,7 +40,7 @@ impl _sql_pairs(
         return [];
     }
     mem.read_barrier();
-    cq = compile_query(q, upto);
+    cq = compile_query(q, upto, promotions=store?.promotions);
     if cq.residual {
         logger.warning(
             f"graph query has non-pushable predicates at hops "
