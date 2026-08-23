@@ -111,6 +111,10 @@ import from opcode_meta {
     OP_SET_UPDATE,
     OP_BUILD_MAP,
     OP_MAP_ADD,
+    OP_CONVERT_VALUE,
+    OP_FORMAT_SIMPLE,
+    OP_FORMAT_WITH_SPEC,
+    OP_BUILD_STRING,
     OP_LOAD_FAST,
     OP_LOAD_FAST_BORROW,
     OP_LOAD_FAST_CHECK,
@@ -1373,6 +1377,88 @@ def visit_boolop(
     return None;
 }
 
+# F-string lowering (CPython 3.14 shapes, pinned via host dis):
+#   text Constant part            -> LOAD_CONST
+#   FormattedValue                -> <value>
+#                                    [CONVERT_VALUE 1|2|3]  (!s/!r/!a)
+#                                    FORMAT_SIMPLE          (no spec)
+#                                    <spec>; FORMAT_WITH_SPEC
+#   parts joined                  -> BUILD_STRING n
+# The host emits the join only for two or more parts (its optimizer drops
+# BUILD_STRING 1), so a lone part reduces to its own sequence.
+def fstring_conversion_oparg(conversion: int) -> int {
+    # AST conversion codes: -1 none, 115 's', 114 'r', 97 'a' (PEP 501-era
+    # CPython convention); CONVERT_VALUE opargs: 0 none, 1 str, 2 repr,
+    # 3 ascii; -1 flags an unrecognized code (caller reports it).
+    if conversion == -1 {
+        return 0;
+    }
+    if conversion == 115 {
+        return 1;
+    }
+    if conversion == 114 {
+        return 2;
+    }
+    if conversion == 97 {
+        return 3;
+    }
+    return -1;
+}
+
+def emit_joinedstr(g: cfg_builder, js: JoinedStr) {
+    jsloc = nloc(js.lineno, js.end_lineno, js.col_offset, js.end_col_offset);
+    vals = js.values if js.values is not None else [];
+    vi = 0;
+    while vi < len(vals) {
+        v = vals[vi];
+        if isinstance(v, FormattedValue) {
+            fv = v as FormattedValue;
+            vloc = expr_loc(fv);
+            visit_expr(g, fv.value);
+            if codegen_busy(g) {
+                return;
+            }
+            conv = fstring_conversion_oparg(fv.conversion);
+            if conv < 0 {
+                codegen_fail(g, "SyntaxError", "invalid f-string conversion");
+                return;
+            }
+            if conv > 0 {
+                g.emit_op(OP_CONVERT_VALUE, conv, vloc);
+            }
+            if fv.format_spec is not None {
+                visit_expr(g, fv.format_spec);
+                if codegen_busy(g) {
+                    return;
+                }
+                g.emit_op(OP_FORMAT_WITH_SPEC, 0, vloc);
+            } else {
+                g.emit_op(OP_FORMAT_SIMPLE, 0, vloc);
+            }
+        } elif isinstance(v, Constant) {
+            c = v as Constant;
+            idx = g.u.add_const(c.value);
+            g.emit_op(
+                OP_LOAD_CONST,
+                idx,
+                nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset)
+            );
+        } else {
+            # Bare expression part without a FormattedValue wrapper (defensive:
+            # the parser always wraps interpolation parts). Format it directly.
+            visit_expr(g, v);
+            if codegen_busy(g) {
+                return;
+            }
+            g.emit_op(OP_FORMAT_SIMPLE, 0, expr_loc(v));
+        }
+        vi = vi + 1;
+    }
+    if len(vals) >= 2 {
+        g.emit_op(OP_BUILD_STRING, len(vals), jsloc);
+    }
+}
+
 # Visit one expression. Returns a chained-compare cleanup block when the caller
 # must duplicate its suffix (CALL / STORE), else None.
 def visit_expr(
@@ -1876,6 +1962,10 @@ def visit_expr(
         if codegen_busy(g) {
             return None;
         }
+        return None;
+    }
+    if isinstance(e, JoinedStr) {
+        emit_joinedstr(g, e as JoinedStr);
         return None;
     }
     codegen_fail(

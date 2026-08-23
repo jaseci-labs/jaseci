@@ -10,6 +10,7 @@ import from objects {
     PyCode,
     PyInt,
     PyBool,
+    PyStr,
     expect_int,
     expect_str,
     is_error,
@@ -40,6 +41,8 @@ import from ast_nodes {
     Add,
     Mult,
     USub,
+    JoinedStr,
+    FormattedValue,
 }
 import from parser { parse_file }
 import from ast_nodes { Module }
@@ -3965,4 +3968,176 @@ test "compiler_slice: band11 except* with else reusing names matches oracle PyCo
     assert actual.co_code == exp.co_code;
     assert actual.exceptiontable == exp.exceptiontable;
     assert actual.linetable == exp.linetable;
+}
+
+# ---------------- band 12: f-string lowering (JoinedStr/FormattedValue) ----------------
+#
+# The tokenizer still emits f-strings as plain STRING tokens and the fstring
+# parser actions are stubs, so these tests hand-build JoinedStr ASTs with
+# CPython 3.14-exact source spans (host ast.parse verified) and diff the
+# compiled PyCode against the host oracle. Representation contract for the
+# parser lane: text segments are plain Constants; every interpolation part --
+# including bare string literals like {"b"} -- is a FormattedValue (conversion
+# -1/115/114/97, format_spec None or an expr); {x=} debug form arrives as a
+# Constant holding "<expr>=" plus a FormattedValue with conversion 114.
+
+def fs_name(id: str, c0: int, c1: int) -> expr {
+    return Name(
+        id=id, ctx=Load(), lineno=1, col_offset=c0, end_lineno=1, end_col_offset=c1
+    );
+}
+
+def fs_text(s: str, c0: int, c1: int) -> expr {
+    return Constant(
+        value=PyStr(t="str", val=s),
+        kind=None,
+        lineno=1,
+        col_offset=c0,
+        end_lineno=1,
+        end_col_offset=c1
+    );
+}
+
+def fs_fmt(v: expr, conversion: int, spec: expr | None, c0: int, c1: int) -> expr {
+    return FormattedValue(
+        value=v,
+        conversion=conversion,
+        format_spec=spec,
+        lineno=1,
+        col_offset=c0,
+        end_lineno=1,
+        end_col_offset=c1
+    );
+}
+
+def fs_js(vals: list[expr], c0: int, c1: int) -> expr {
+    return JoinedStr(
+        values=vals, lineno=1, col_offset=c0, end_lineno=1, end_col_offset=c1
+    );
+}
+
+test "compiler_slice: f-string text-only matches oracle PyCode" {
+    assert_matches_oracle(fs_js([fs_text("plain", 2, 7)], 0, 8), "f'plain'");
+}
+
+test "compiler_slice: f-string single interpolation omits BUILD_STRING 1" {
+    assert_matches_oracle(
+        fs_js([fs_fmt(fs_name("x", 3, 4), -1, None, 2, 5)], 0, 6), "f'{x}'"
+    );
+}
+
+test "compiler_slice: f-string text + interpolation joins BUILD_STRING 2" {
+    assert_matches_oracle(
+        fs_js([fs_text("plain ", 2, 8), fs_fmt(fs_name("n", 9, 10), -1, None, 8, 11)], 0, 12),
+        "f'plain {n}'"
+    );
+}
+
+test "compiler_slice: f-string conversions !r !s !a emit CONVERT_VALUE" {
+    assert_matches_oracle(
+        fs_js([
+            fs_text("a", 2, 3),
+            fs_fmt(fs_name("x", 4, 5), 114, None, 3, 8),
+            fs_text("b", 8, 9),
+            fs_fmt(fs_name("y", 10, 11), 115, None, 9, 14),
+            fs_fmt(fs_name("z", 15, 16), 97, None, 14, 19)
+        ], 0, 20),
+        "f'a{x!r}b{y!s}{z!a}'"
+    );
+}
+
+test "compiler_slice: f-string constant format spec emits FORMAT_WITH_SPEC" {
+    assert_matches_oracle(
+        fs_js([
+            fs_fmt(fs_name("x", 3, 4), -1, fs_js([fs_text(">8", 5, 7)], 4, 7), 2, 8)
+        ], 0, 9),
+        "f'{x:>8}'"
+    );
+}
+
+test "compiler_slice: f-string dynamic format spec formats the spec expression" {
+    assert_matches_oracle(
+        fs_js([
+            fs_fmt(
+                fs_name("x", 3, 4),
+                -1,
+                fs_js([fs_fmt(fs_name("w", 6, 7), -1, None, 5, 8)], 4, 8),
+                2,
+                9
+            )
+        ], 0, 10),
+        "f'{x:{w}}'"
+    );
+}
+
+test "compiler_slice: f-string debug form keeps <expr>= text and repr conversion" {
+    assert_matches_oracle(
+        fs_js([
+            fs_text("x=", 3, 5),
+            fs_fmt(fs_name("x", 3, 4), 114, None, 2, 6),
+            fs_text(" tail y=", 6, 15),
+            fs_fmt(fs_name("y", 13, 14), 114, None, 12, 16)
+        ], 0, 17),
+        "f'{x=} tail {y=}'"
+    );
+}
+
+test "compiler_slice: f-string nested string literal part is formatted" {
+    assert_matches_oracle(
+        fs_js([fs_fmt(fs_text("b", 3, 6), -1, None, 2, 7)], 0, 8),
+        "f'{\"b\"}'"
+    );
+}
+
+# Function scope: name loads resolve through the symtable inside the nested
+# code; co_code compared here (the nested-function RESUME linetable row is a
+# pre-existing prologue gap tracked separately -- identical delta on a no-fstring
+# control).
+test "compiler_slice: f-string in function scope matches oracle nested co_code" {
+    xarg = arg(
+        arg="x",
+        annotation=None,
+        type_comment=None,
+        lineno=1,
+        col_offset=7,
+        end_lineno=1,
+        end_col_offset=8
+    );
+    fv = fs_fmt(fs_name("x", 16, 17), -1, None, 15, 18);
+    fbody = [
+        Return(
+            value=fs_js([fs_text("v=", 13, 15), fv], 11, 19),
+            lineno=2,
+            col_offset=4,
+            end_lineno=2,
+            end_col_offset=19
+        )
+    ];
+    fdef = FunctionDef(
+        name="f",
+        args=arguments(
+            posonlyargs=[],
+            args=[xarg],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[]
+        ),
+        body=fbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=2,
+        end_col_offset=19
+    );
+    actual = compile_handbuilt_exec([fdef]);
+    expected = oracle_exec("def f(x):\n    return f'v={x}'\n", "<f>");
+    assert isinstance(expected, PyCode);
+    af = nested_code_by_name(actual, "f");
+    ef = nested_code_by_name(expected as PyCode, "f");
+    assert af.co_code == ef.co_code;
 }

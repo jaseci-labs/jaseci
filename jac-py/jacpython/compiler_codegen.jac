@@ -582,7 +582,17 @@ def compile_eval(
         u.flush_late_consts();
         return u;
     }
-    eloc = top_loc(e);
+    # CPython attributes the eval epilogue RETURN_VALUE to the location of the
+    # LAST EMITTED instruction, not the root expression span. The two coincide
+    # for most roots (the final op carries the root span) but diverge for
+    # f-strings: FORMAT_SIMPLE / FORMAT_WITH_SPEC / BUILD_STRING carry inner
+    # FormattedValue / JoinedStr spans.
+    ins_list = g.cur.instrs;
+    if len(ins_list) > 0 {
+        eloc = (ins_list[len(ins_list) - 1] as cinstr).loc;
+    } else {
+        eloc = top_loc(e);
+    }
     g.emit_op(OP_RETURN_VALUE, 0, eloc);
     if cleanup is not None {
         if isinstance(e, Call) {

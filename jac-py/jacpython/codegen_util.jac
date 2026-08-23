@@ -667,6 +667,14 @@ def expr_loc(e: expr) -> cloc {
         l = e as List;
         return nloc(l.lineno, l.end_lineno, l.col_offset, l.end_col_offset);
     }
+    if isinstance(e, FormattedValue) {
+        fv = e as FormattedValue;
+        return nloc(fv.lineno, fv.end_lineno, fv.col_offset, fv.end_col_offset);
+    }
+    if isinstance(e, JoinedStr) {
+        j = e as JoinedStr;
+        return nloc(j.lineno, j.end_lineno, j.col_offset, j.end_col_offset);
+    }
     return loc(1, 1, 0, 0);
 }
 
