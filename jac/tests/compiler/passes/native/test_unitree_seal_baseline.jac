@@ -116,6 +116,7 @@ glob UNITREE_CLOSURE: tuple = (
          "logging.jac",
          "module_codegen_pass.jac",
          "pathlib.jac",
+         "scalars.jac",
          "srcloc.jac",
          "transform.jac",
          "type_registry.jac",
@@ -198,13 +199,8 @@ glob UNITREE_CLOSURE: tuple = (
              "root even though `unitree.jac` is a member."
          ),
          "type_utils.jac::get_completion_items": (
-             "Backend gap: builds completion rows through "
-             "`completion_kind_from_sym`'s unlowerable `match`, waived "
-             "below."
-         ),
-         "type_utils.jac::completion_kind_from_sym": (
-             "Backend gap: a `match` over unitree archetypes; the "
-             "`MatchArch` pattern has no native lowering."
+             "Cascade: walks the class MRO through "
+             "`compute_mro_linearization`, waived below."
          ),
          "type_utils.jac::collect_member_syms": (
              "Cascade: calls `helpers.evaluate_version_condition`, waived "
