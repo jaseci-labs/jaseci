@@ -5,7 +5,10 @@ import from jaclang.jac0core.diagnostics { W5050, E5051 }
 import from jaclang.jac0core.passes { Transform }
 
 obj JacFormatPass(Transform) {
-    has _pending_suffixes: list[str] = [],
+    has indent_size: int = 4,
+        MAX_LINE_LENGTH: int = 88,
+        _probe_cache: dict[tuple[int, int, int], bool] = {},
+        _pending_suffixes: list[str] = [],
         _line_has_content: bool = False,
         _rendering_suffix: bool = False;
 

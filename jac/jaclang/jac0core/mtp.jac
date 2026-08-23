@@ -31,7 +31,7 @@ obj Info {
 }
 
 obj VarInfo(Info) {
-    has type_info: (ClassInfo | str | tuple | None) = None;
+    has type_info: (ClassInfo | EnumInfo | str | tuple | None) = None;
 }
 
 obj ParamInfo(VarInfo) {}
@@ -52,8 +52,8 @@ obj ClassInfo(Info) {
 
 obj FunctionInfo(Info) {
     has params: (list[ParamInfo] | None) = None,
-        return_type: (str | ClassInfo | tuple | None) = None,
-        tools: (list[MethodInfo] | None) = None,
+        return_type: (str | ClassInfo | EnumInfo | tuple | None) = None,
+        tools: (list[FunctionInfo] | None) = None,
         by_call: bool = False;
 
     def postinit -> object;
@@ -86,7 +86,10 @@ def type_to_str(t: object) -> str {
     try {
         import from dataclasses { is_dataclass }
         if (is_dataclass(t) and t?.name) {
-            return t.name;
+            tname = t?.name;
+            if isinstance(tname, str) {
+                return tname;
+            }
         }
     } except Exception {
         ;
@@ -105,7 +108,8 @@ def type_to_str(t: object) -> str {
         if (head == 'union') {
             return '|'.join(type_to_str(x) for x in t[1:]);
         }
-        return (head + '[' + ','.join(type_to_str(x) for x in t[1:]) + ']');
+        inner = ','.join(type_to_str(x) for x in t[1:]);
+        return f"{head}[{inner}]";
     }
     return str(t);
 }

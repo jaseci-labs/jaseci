@@ -26,11 +26,13 @@ def process_list(lst: list[int]) -> int {
     return sum(lst);
 }
 
+obj UnBox {
+    has v: int = 0;
+}
+
 with entry {
-    # Any + int -> Unknown (magic method __add__ unresolved on Any)
-    items: list = [1, 2, 3];
-    any_val = items.pop();
-    unknown_val = any_val + 1;
+    # Subscripting a plain object resolves to nothing: genuine Unknown.
+    unknown_val = UnBox()[0];
 
     # Passing Unknown to typed parameters should not pass silently
     process_int(unknown_val);      # Error: Unknown -> int param

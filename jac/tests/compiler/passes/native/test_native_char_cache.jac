@@ -33,7 +33,7 @@ def _compile(fixture: str) -> tuple {
 }
 
 
-def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);

@@ -200,7 +200,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             response = requests.request(
                 method=method, url=url, json=data, headers=headers, timeout=timeout
@@ -266,7 +266,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             try {
                 response = requests.request(

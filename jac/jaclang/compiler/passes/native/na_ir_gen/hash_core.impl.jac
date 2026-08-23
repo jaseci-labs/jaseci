@@ -687,7 +687,7 @@ impl NaIRGenHashCore._emit_hash_core_helpers(
             bmp.ret(ir.Constant(val_type, None));
         } elif _vt_dyn?.elements and _vt_dyn.elements {
             bmp.ret(
-                ir.Constant(val_type, [ir.Constant(e, 0) for e in _vt_dyn.elements])
+                ir.Constant(val_type, [self._zero_const(e) for e in _vt_dyn.elements])
             );
         } else {
             bmp.ret(ir.Constant(val_type, 0));
@@ -872,7 +872,7 @@ impl NaIRGenHashCore._emit_hash_core_helpers(
             bmi.ret(ir.Constant(val_type, None));
         } elif _vt_dyn?.elements and _vt_dyn.elements {
             bmi.ret(
-                ir.Constant(val_type, [ir.Constant(e, 0) for e in _vt_dyn.elements])
+                ir.Constant(val_type, [self._zero_const(e) for e in _vt_dyn.elements])
             );
         } else {
             bmi.ret(ir.Constant(val_type, 0));
@@ -919,7 +919,7 @@ impl NaIRGenHashCore._emit_hash_core_helpers(
             bvoob.ret(ir.Constant(val_type, None));
         } elif _vt_dyn?.elements and _vt_dyn.elements {
             bvoob.ret(
-                ir.Constant(val_type, [ir.Constant(e, 0) for e in _vt_dyn.elements])
+                ir.Constant(val_type, [self._zero_const(e) for e in _vt_dyn.elements])
             );
         } else {
             bvoob.ret(ir.Constant(val_type, 0));

@@ -28,7 +28,7 @@ import from ....utils.api { getErrorMessage }
 def:pub LogsPage -> JsxElement {
     has isLoading: bool = True,
         isLoadingMore: bool = False,
-        lines: list = [],
+        lines: list[dict] = [],
         services: list = [],
         filterService: str = "",
         filterLevel: str = "",
@@ -49,7 +49,7 @@ def:pub LogsPage -> JsxElement {
         panelIdx: int = -1,
         panelLine: dict = {},
         traceId: str = "",
-        traceLines: list = [],
+        traceLines: list[dict] = [],
         traceServices: list = [],
         traceLoading: bool = False;
 
@@ -89,7 +89,7 @@ def:pub LogsPage -> JsxElement {
                 errorMsg = getErrorMessage(result, "Failed to load logs");
                 # 502 = Loki unreachable. Distinguish so we can show a
                 # helpful hint about logs.enabled / observability stack.
-                if "unavailable" in (errorMsg or "").toLowerCase() {
+                if "unavailable" in (errorMsg or "").lower() {
                     backendOffline = True;
                 }
             }
@@ -121,7 +121,7 @@ def:pub LogsPage -> JsxElement {
                 # Append: newer page is already at the top, older
                 # entries land beneath - the display stays
                 # newest-first end-to-end.
-                lines = lines.concat(older);
+                lines = lines + older;
                 nextBefore = String(result["data"]["next_before"] or "");
             }
         } except Exception as e {
@@ -224,15 +224,16 @@ def:pub LogsPage -> JsxElement {
         hash: int = 0;
         i: int = 0;
         while i < len(name) {
-            hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+            hash = ((hash << 5) - hash + ord(name[i])) | 0;
             i += 1;
         }
-        return palette[Math.abs(hash) % len(palette)];
+        magnitude: int = hash if hash >= 0 else -hash;
+        return palette[magnitude % len(palette)];
     }
 
     def levelBadge(level: str) -> str {
         base = "px-1.5 py-0.5 rounded text-[10px] font-semibold border border-line ";
-        lvl = (level or "INFO").toUpperCase();
+        lvl = (level or "INFO").upper();
         if lvl == "ERROR" or lvl == "CRITICAL" {
             return base + "bg-danger-weak text-danger";
         }
@@ -251,12 +252,12 @@ def:pub LogsPage -> JsxElement {
         }
         d = Reflect.construct(Date, [ts]);
         if isNaN(d.getTime()) {
-            return ts.slice(11, 19);
+            return ts[11:19];
         }
-        hh = String(d.getHours()).padStart(2, "0");
-        mm = String(d.getMinutes()).padStart(2, "0");
-        ss = String(d.getSeconds()).padStart(2, "0");
-        ms = String(d.getMilliseconds()).padStart(3, "0");
+        hh = str(d.getHours()).zfill(2);
+        mm = str(d.getMinutes()).zfill(2);
+        ss = str(d.getSeconds()).zfill(2);
+        ms = str(d.getMilliseconds()).zfill(3);
         return hh + ":" + mm + ":" + ss + "." + ms;
     }
 
@@ -264,8 +265,8 @@ def:pub LogsPage -> JsxElement {
         if not t {
             return "";
         }
-        s = String(t);
-        return s.slice(0, 8);
+        short = str(t);
+        return short[0:8];
     }
 
     # ---- render: main logs view ------------------------------------
@@ -364,7 +365,7 @@ def:pub LogsPage -> JsxElement {
                 <div className="text-accent">Loading logs...</div>
             </div>}
         {not isLoading
-            and lines.length == 0
+            and len(lines) == 0
             and not errorMsg
             and <div
                 className="bg-surface border border-line rounded-lg p-8 text-faint text-center"
@@ -372,23 +373,23 @@ def:pub LogsPage -> JsxElement {
                 No logs in the selected window. Try a longer time range or hit your gateway to generate some traffic.
             </div>}
         {not isLoading
-            and lines.length > 0
+            and len(lines) > 0
             and <div className="text-xs text-faint">
-                {lines.length} log {lines.length == 1 and "line" or "lines"}
+                {len(lines)} log {"line" if len(lines) == 1 else "lines"}
             </div>}
         {not isLoading
-            and lines.length > 0
+            and len(lines) > 0
             and <div
                 className="bg-surface border border-line rounded-lg font-mono text-sm overflow-x-auto max-h-[70vh] overflow-y-auto shadow-sm"
             >
-                {lines.map(
-                    lambda (line: dict, idx: int) { <div
+                {[
+                    <div
                         key={idx}
                         className={"flex items-start gap-3 px-3 py-1.5 border-b border-line hover:bg-surface-2 cursor-pointer transition-colors "
                             + (
-                                panelIdx == idx
-                                and "bg-accent-weak border-l-2 border-l-accent"
-                                or ""
+                                "bg-accent-weak border-l-2 border-l-accent"
+                                    if panelIdx == idx
+                                    else ""
                             )}
                         onClick={lambda { openPanel(idx, line); }}
                     >
@@ -402,7 +403,7 @@ def:pub LogsPage -> JsxElement {
                             {line["service"] or "?"}
                         </span>
                         <span className={levelBadge(line["level"] or "INFO")}>
-                            {(line["level"] or "INFO").toUpperCase()}
+                            {(line["level"] or "INFO").upper()}
                         </span>
                         <span className="text-fg break-all flex-1">
                             {line["msg"] or ""}
@@ -414,11 +415,11 @@ def:pub LogsPage -> JsxElement {
                             >
                                 trace:{shortTrace(String(line["trace_id"]))}
                             </span>}
-                    </div> }
-                )}
+                    </div> for (idx, line) in enumerate(lines)
+                ]}
             </div>}
         {not isLoading
-            and lines.length > 0
+            and len(lines) > 0
             and nextBefore
             and <div className="flex justify-center pt-1">
                 <Button
@@ -444,7 +445,7 @@ def:pub LogsPage -> JsxElement {
                             {panelLine["service"] or "?"}
                         </span>
                         <span className={levelBadge(panelLine["level"] or "INFO")}>
-                            {(panelLine["level"] or "INFO").toUpperCase()}
+                            {(panelLine["level"] or "INFO").upper()}
                         </span>
                         <span className="text-xs text-faint font-mono">
                             {shortTime(panelLine["ts"] or "")}
@@ -507,9 +508,9 @@ def:pub LogsPage -> JsxElement {
                                 className="text-faint text-[10px] uppercase tracking-wide mb-2 flex items-center gap-2"
                             >
                                 <span>Trace journey</span>
-                                {traceServices.length > 0
+                                {len(traceServices) > 0
                                     and <span className="text-faint">·</span>}
-                                {traceServices.length > 0
+                                {len(traceServices) > 0
                                     and [
                                         <span
                                             key={s}
@@ -524,17 +525,17 @@ def:pub LogsPage -> JsxElement {
                                     Loading trace lines...
                                 </div>}
                             {not traceLoading
-                                and traceLines.length == 0
+                                and len(traceLines) == 0
                                 and <div className="text-faint text-center py-3">
                                     No other log lines found for this trace.
                                 </div>}
                             {not traceLoading
-                                and traceLines.length > 0
+                                and len(traceLines) > 0
                                 and <div
                                     className="bg-surface border border-line rounded font-mono overflow-x-auto"
                                 >
-                                    {traceLines.map(
-                                        lambda (tl: dict, ti: int) { <div
+                                    {[
+                                        <div
                                             key={ti}
                                             className="flex items-start gap-2 px-2 py-1 border-b border-line last:border-b-0"
                                         >
@@ -552,8 +553,8 @@ def:pub LogsPage -> JsxElement {
                                             <span className="text-fg break-all">
                                                 {tl["msg"] or ""}
                                             </span>
-                                        </div> }
-                                    )}
+                                        </div> for (ti, tl) in enumerate(traceLines)
+                                    ]}
                                 </div>}
                         </div>}
                 </div>

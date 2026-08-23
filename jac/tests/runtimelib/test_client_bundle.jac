@@ -22,7 +22,9 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures");
 test "base builder compiles a client module to JS and extracts its manifest surface" {
     (module, ) = Jac.jac_import("client_app", FIXTURES);
     builder = ClientBundleBuilder();
-    source_path = Path(module.__file__.replace(".py", ".jac")).resolve();
+    mod_file = module.__file__;
+    assert mod_file is not None;
+    source_path = Path(mod_file.replace(".py", ".jac")).resolve();
     (js, mod) = builder._compile_to_js(source_path);
     assert js;  # ES output was generated
     manifest = mod.gen.client_manifest if mod else None;
@@ -35,7 +37,9 @@ test "base builder compiles a client module to JS and extracts its manifest surf
 test "base builder bundling requires the built-in client framework" {
     (module, ) = Jac.jac_import("client_app", FIXTURES);
     builder = ClientBundleBuilder();
-    source_path = Path(module.__file__.replace(".py", ".jac")).resolve();
+    mod_file = module.__file__;
+    assert mod_file is not None;
+    source_path = Path(mod_file.replace(".py", ".jac")).resolve();
     raised = False;
     try {
         builder._compile_bundle(module, source_path);

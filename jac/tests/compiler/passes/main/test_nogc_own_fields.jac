@@ -33,7 +33,7 @@ def _enforced_codes(name: str) -> list[str] {
         prog.compile(
             os.path.join(FIXDIR, name),
             options=CompileOptions(
-                aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
+                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
             )
         );
         codes = [

@@ -14,15 +14,15 @@ import from .persistence.pg { shared_store as _pg_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
+import from .observability.factory { UtilityFactory }
+import from .deploy.target.factory { DeploymentTargetFactory }
 
 obj DeployFactories {
-    has utility: type,
-        target: type;
+    has utility: type[UtilityFactory],
+        target: type[DeploymentTargetFactory];
 }
 
 def _load_deploy_factories -> DeployFactories {
-    import from .observability.factory { UtilityFactory }
-    import from .deploy.target.factory { DeploymentTargetFactory }
     return DeployFactories(utility=UtilityFactory, target=DeploymentTargetFactory);
 }
 
@@ -207,10 +207,10 @@ def _print_deployment_status(status_data: dict) -> None {
 
 glob registry = get_registry(),
      _sv_sibling_procs: dict[str, any] = {},
-     _sv_spawn_locks: dict[str, any] = {},
+     _sv_spawn_locks: dict[str, threading.Lock] = {},
      _sv_spawn_guard = threading.Lock();
 
-def _sv_spawn_lock(module_name: str) -> any {
+def _sv_spawn_lock(module_name: str) -> threading.Lock {
     with _sv_spawn_guard {
         if module_name not in _sv_spawn_locks {
             _sv_spawn_locks[module_name] = threading.Lock();
@@ -510,8 +510,8 @@ def scale_cmd(
         return 1;
     }
 
-    registry: ServiceRegistry = build_registry(ms_config);
-    deployer = LocalDeployer(registry=registry, target="local");
+    svc_registry: ServiceRegistry = build_registry(ms_config);
+    deployer = LocalDeployer(registry=svc_registry, target="local");
 
     if action == "status" {
         svc_status = deployer.status();

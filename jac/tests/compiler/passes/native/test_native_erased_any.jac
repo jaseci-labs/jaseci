@@ -78,7 +78,7 @@ glob FIXTURES = os.path.join(
 
 
 """Parse a fixture and return its module."""
-def _parse(fixture: str) -> object {
+def _parse(fixture: str) -> any {
     path = os.path.join(FIXTURES, fixture);
     with open(path, encoding='utf-8') as fh {
         src = fh.read();

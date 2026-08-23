@@ -91,7 +91,7 @@ def _apis(ready: int, pods: list) -> tuple {
 }
 
 def _run(
-    target: object, bundle: dict, apps: object, core: object, timeout: int
+    target: any, bundle: dict, apps: object, core: object, timeout: int
 ) -> object {
     err = None;
     with unittest.mock.patch.object(

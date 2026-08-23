@@ -11,6 +11,8 @@ import hashlib
 import importlib.abc
 import importlib.machinery
 import importlib.util
+from importlib.abc import Loader, MetaPathFinder
+from importlib.machinery import ModuleSpec
 import logging
 import marshal
 import os
@@ -134,13 +136,13 @@ def _module_scoped_alerts(program: object, file_path: str) -> list:
     `foo.impl.jac` and `foo.impl/bar.jac`, so errors reported against
     an impl file count as the module's own.
     """
-    norm = os.path.normpath(file_path)
+    norm = os.path.realpath(file_path)
     stem = norm[:-4] if norm.endswith(".jac") else norm
     prefix = stem + "."
     alerts = []
     for alert in getattr(program, "errors_had", []):
         try:
-            alert_path = os.path.normpath(alert.loc.mod_path)
+            alert_path = os.path.realpath(alert.loc.mod_path)
         except Exception:
             continue
         if alert_path == norm or alert_path.startswith(prefix):
@@ -174,7 +176,7 @@ sys.modules["jaclang.jac0core.modresolver"] = _modresolver
 get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
-class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+class JacMetaImporter(MetaPathFinder, Loader):
     """Meta path importer to load .jac modules via Python's import system."""
 
     # Directory containing the jaclang package (for bootstrap detection)
@@ -199,7 +201,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         fullname: str,
         path: Sequence[str] | None = None,
         target: ModuleType | None = None,
-    ) -> importlib.machinery.ModuleSpec | None:
+    ) -> ModuleSpec | None:
         """Find the spec for the module."""
         # Sealed image is authoritative: a sealed binary resolves its modules
         # from the manifest by name, with no filesystem probing for .jac. This

@@ -15,7 +15,7 @@ import from subprocess { run }
 
 
 """Run a snippet in a clean interpreter where jaclang is not pre-imported."""
-def _run_clean(snippet: str) -> object {
+def _run_clean(snippet: str) -> any {
     return run([sys.executable, "-c", snippet], capture_output=True, text=True);
 }
 
@@ -91,15 +91,18 @@ def _fake_source -> str {
 
 """Load the REPO's _jac_finder by path: the copy in sys.modules is the
 binary's materialized runtime file, not the tree under test."""
-def _load_finder -> object {
+def _load_finder -> any {
     import importlib.util;
     import from tests.support { JAC_ROOT }
     finder_path = os.path.join(JAC_ROOT, "_jac_finder.py");
     spec = importlib.util.spec_from_file_location(
         "_jac_finder_under_test", finder_path
     );
+    assert spec is not None;
     mod = importlib.util.module_from_spec(spec);
-    spec.loader.exec_module(mod);
+    loader = spec.loader;
+    assert loader is not None;
+    loader.exec_module(mod);
     return mod;
 }
 

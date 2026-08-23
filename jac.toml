@@ -43,13 +43,6 @@ test_jobs = "8"
 [test]
 directory = "jac/tests"
 
-# The pre-commit hook (`jac precommit --staged --verify`) gates commits on
-# formatting/lint only: the compiler tree itself is not yet `jac check`-clean,
-# so the type-check step would block every commit. Flip to true (or delete)
-# once `jac check jac/` passes.
-[precommit]
-typecheck = false
-
 [check.lint]
 # "all" enables every autolint rule; the two strip-* entries are the opt-in
 # "deslop" rules (W3050/W3051) that remove all comments and docstrings. They

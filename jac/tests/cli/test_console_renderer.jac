@@ -69,7 +69,12 @@ test "renderer implements every drawing primitive (incl. box/spinner)" {
 test "the live console delegates to a real renderer" {
     # Materialize the global singleton and reach the real console object.
     console.print;
-    c = console.__getattr__('print').__self__ if console?.__getattr__ else console;
+    console_dyn: any = console;
+    c = (
+        console_dyn.__getattr__('print').__self__
+            if console_dyn?.__getattr__
+            else console_dyn
+    );
     assert hasattr(c, '_renderer') , "console facade has no _renderer to delegate to";
     assert isinstance(c._renderer, ConsoleRenderer) , f"expected a ConsoleRenderer, got {type(
         c._renderer
