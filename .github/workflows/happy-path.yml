@@ -2,7 +2,7 @@ name: happy-path
 
 # Validates the documented quickstart end to end, exactly as a fresh user runs
 # it: curl-install the self-contained jac binary, clone jac_site, jac install,
-# jac start, then drive the served site headlessly with `jac browse`.
+# jac run --serve, then drive the served site headlessly with `jac browse`.
 #
 # No checkout on purpose: the run must succeed on a bare machine using only
 # the published install script and the released binary it fetches.
@@ -47,11 +47,11 @@ jobs:
         working-directory: jac_site
         run: jac install
 
-      - name: jac start in the background
+      - name: jac run --serve in the background
         working-directory: jac_site
         run: |
-          nohup jac start > "$RUNNER_TEMP/jac-start.log" 2>&1 &
-          echo "jac start launched (pid $!)"
+          nohup jac run --serve > "$RUNNER_TEMP/jac-start.log" 2>&1 &
+          echo "jac run --serve launched (pid $!)"
 
       - name: Wait for http://localhost:8000
         run: |

@@ -172,6 +172,22 @@ def _entry_flags_used(
     return used;
 }
 
+def _kind_serve_flags(
+    plan: (RunPlan | None), kind_serves: bool, serve_mode: (bool | None)
+) -> dict {
+    if not kind_serves or plan is None {
+        return {};
+    }
+    if serve_mode is not True {
+        return dict(plan.flags);
+    }
+    return {
+        k: v
+        for (k, v) in plan.flags.items()
+        if k != "dev"
+    };
+}
+
 def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> int {
     import from jaclang.project.providers { initialize_provider_registry }
 
@@ -510,7 +526,7 @@ impl run(
     if want_serve {
         return _serve_with(
             filename or (plan.entry_path if plan is not None else ""),
-            plan.flags if kind_serves else {},
+            _kind_serve_flags(plan, kind_serves, serve_mode),
             over,
             main
         );

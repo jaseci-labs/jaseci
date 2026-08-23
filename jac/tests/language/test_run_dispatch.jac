@@ -544,3 +544,19 @@ test "a library build kind refuses serve flags" {
     assert rc == 1;
     _cleanup();
 }
+
+test "--serve is a plain serve: the kind's dev default does not ride along" {
+    d = _mk_project("kind = \"web-app\"\nentry-point = \"main.jac\"\n", "main.jac");
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plan = plan_project_run(cfg, d);
+    assert plan is not None and plan.flags.get("dev") == True;
+    # Bare `jac run` takes the kind's default (the dev loop)...
+    assert execution._kind_serve_flags(plan, True, None).get("dev") == True;
+    # ...but `--serve`, the successor to `jac start`, serves plainly.
+    assert "dev" not in execution._kind_serve_flags(plan, True, True);
+    # Kind properties other than the dev default still ride along.
+    svc = _plan("kind = \"service\"\nentry-point = \"api.jac\"\n", "api.jac");
+    assert execution._kind_serve_flags(svc, True, True).get("no_client") == True;
+    _cleanup();
+}
