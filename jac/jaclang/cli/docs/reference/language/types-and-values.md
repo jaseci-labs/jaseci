@@ -32,7 +32,7 @@ Jac is statically typed -- all variables, fields, and function signatures requir
 | `type` | Type object | -- |
 | `None` | Null value | `None` |
 
-**Fixed-width types** (for native code and C interop):
+**Fixed-width types** (real types on every lane, and the vocabulary of C interop):
 
 | Type | Description | C Equivalent |
 |------|-------------|--------------|
@@ -40,11 +40,43 @@ Jac is statically typed -- all variables, fields, and function signatures requir
 | `i16`, `u16` | 16-bit signed/unsigned integer | `int16_t`, `uint16_t` |
 | `i32`, `u32` | 32-bit signed/unsigned integer | `int32_t`, `uint32_t` |
 | `i64`, `u64` | 64-bit signed/unsigned integer | `int64_t`, `uint64_t` |
-| `f32` | 32-bit float | `float` |
-| `f64` | 64-bit float | `double` |
+| `f32` | 32-bit float (IEEE binary32) | `float` |
+| `f64` | 64-bit float (IEEE binary64) | `double` |
 | `c_void` | Opaque pointer | `void*` |
 
-These types are used in native code for C library interop. The compiler automatically coerces between Jac's standard types (`int` = `i64`, `float` = `f64`) and fixed-width types at call boundaries.
+### Fixed-width semantics
+
+The ten sized scalars are distinct types with one contract that the checker and every backend (server, native, client) enforce identically. `int`, `float` and `bool` are unchanged: `int` stays arbitrary-precision on the server and i64-backed natively, `float` is IEEE binary64 everywhere.
+
+- **Implicit widening, explicit narrowing.** A conversion is implicit only when it preserves every value of the source type: `i8 -> i16 -> i32 -> i64 -> int`, `u8 -> u16 -> u32 -> u64 -> int`, unsigned into a strictly wider signed type (`u8 -> i16`, `u16 -> i32`, `u32 -> i64`), exactly-representable ints into floats (`i8`..`u16 -> f32`; `i8`..`u32 -> f64`), `f32 -> f64 -> float` and `float -> f64`, plus the Python rules `bool -> any int-kind` and `any int-kind -> float`. Everything else is a checked cast `T(x)`: narrowing, a same-width sign change (`u8 <-> i8`), `int -> T`, `i64`/`u64` into floats, and any float-kind into an int-kind.
+- **Literals.** An int literal (including a folded unary minus) is accepted where its value is in `[T.MIN, T.MAX]` and rejected at check time otherwise (`x: u8 = 300` is `E1126`, never a silent truncation). In an operator with a sized operand, an in-range literal adopts that operand's type: `w: i32 = 1; w = w + 1` is `i32 + i32`. Float literals are always accepted by `f32` and `f64`.
+- **Operators.** Operands must unify along the lattice; the result is the wider type, or `E1128` when neither side widens into the other (`u8 + i8`, `u64 < i64`, `i32 == u32` need a cast on one side). `T op int` yields `int`, so `w = w + n` with `n: int` is a narrowing error (`E1127`) while `w = w + 1` is fine. `/` on any int-kind yields `float`; `//`, `%` and `**` keep the unified sized type (`**` with a negative or non-literal exponent yields `float`). Shifts keep the left operand's type; the count may be any int-kind and must be in `[0, width)`. `>>` is arithmetic for signed types and logical for unsigned; `~` on an unsigned type is the width mask. Unary minus on an unsigned operand is `E1129`.
+- **Overflow traps.** `+ - * // % ** -x abs() <<` on a sized int raise `OverflowError("integer overflow")` when the mathematical result leaves the type's range, on every lane, including `T.MIN // -1` and `-T.MIN`. Division by zero raises `ZeroDivisionError`. `f32` and `f64` never trap (`inf` and `nan` propagate); `f32` arithmetic rounds to binary32 after every operation.
+- **Casts and the modular family.** `T(x)` range-checks an int-kind or bool source and truncates a float source toward zero before the range check, raising `OverflowError` out of range; a literal argument out of range is a check-time error. `T.wrap(x)` is two's-complement truncation and never traps. `wrapping_add`, `wrapping_sub`, `wrapping_mul`, `wrapping_neg` and `wrapping_shl` are ambient builtins over sized ints that never trap. `T.MIN` and `T.MAX` are the inclusive bounds of each sized int. `int(x)`, `float(x)`, `str(x)` and `bool(x)` accept sized values as before.
+
+```jac
+def checksum(data: bytes) -> u8 {
+    acc: u8 = 0;
+    for b in data {
+        acc = wrapping_add(acc, u8(b));   # modular: never traps
+    }
+    return acc;
+}
+
+with entry {
+    x: u8 = u8.wrap(300);                  # 44
+    w: i32 = i32.MAX;
+    try {
+        w = w + 1;                         # OverflowError on every lane
+    } except OverflowError {
+        w = 0;
+    }
+    n: int = 300;
+    y: u8 = u8(n);                         # raises OverflowError: 300 does not fit
+}
+```
+
+On the server lane each sized type is a real class (`type(x) is i8`, `isinstance(x, int)`), so hints resolve and serializers see ordinary numbers. On the client lane 8-, 16- and 32-bit values and `f32` are JS numbers, while `i64` and `u64` are `BigInt`; a 64-bit value serializes as a JSON number when it fits in 2^53 and as a string otherwise.
 
 ## 2 Type Annotations
 
