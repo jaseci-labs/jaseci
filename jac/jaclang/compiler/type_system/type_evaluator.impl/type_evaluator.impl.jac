@@ -2099,7 +2099,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                         }
                     }
                     js_sym = self.js_globals_module.names_in_scope.get(_js_name);
-                    if js_sym is not None and self.host_provides(expr, 'JS_GLOBALS') {
+                    if (
+                        js_sym is not None
+                        and expr.in_client_context()
+                        and self.host_provides(expr, 'JS_GLOBALS')
+                    ) {
                         import from jaclang.jac0core.host { js_global_requires_dom }
                         if (
                             js_global_requires_dom(expr.value)
