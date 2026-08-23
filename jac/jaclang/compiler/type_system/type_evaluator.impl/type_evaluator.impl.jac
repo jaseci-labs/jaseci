@@ -2091,9 +2091,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                         _js_name = "__import_meta__";
                     }
                     if self.host_provides(expr, 'DOM') {
-                        dom_sym = self.dom_types_module.names_in_scope.get(
-                            expr.value
-                        );
+                        dom_sym = self.dom_types_module.names_in_scope.get(expr.value);
                         if dom_sym is not None {
                             symbol = dom_sym;
                         }
