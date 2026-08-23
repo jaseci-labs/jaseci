@@ -409,6 +409,17 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     being treated as real. Bundles the phantom-cascade pattern seen with
     objects/ceval mid-edits + annotations partials.
 
+44. **[MED] Old-style __getitem__ iteration protocol not implemented.**
+    list(obj) where obj defines only __getitem__ (+IndexError terminator)
+    raises TypeError("'NoneType' object is not iterable") - py_iter returns
+    None instead of synthesizing a sequence iterator. CPython: seq protocol
+    fallback via tp_iter==NULL -> PySeqIter_New. Breaks legacy-style classes.
+
+45. **[MED] User __len__ ignored by bool().** bool(Full()) where __len__
+    returns 2 gives False (default truthiness); CPython consults __len__.
+    bool(Empty()) False is coincidentally right. Asymmetric with len() which
+    presumably works. Family: slot synthesis at value-exit points (walker).
+
 GIT HYGIENE RULE (formalized from tonight's incidents): silent git operations
     are the enemy. Stash cycles sweeping foreign files, checkout wiping reserved
     edits, worktree commits silently no-op'ing - same failure class. Protocol:
