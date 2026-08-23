@@ -547,6 +547,25 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
 64. **[MED] two-arg iter(callable, sentinel) errors.** it = iter(pop, 9)
     raises before first next(); one-arg iter fine. Found fuzz r59.
 
+65. **[MED] Explicit descriptor-protocol dunders absent as attributes -
+    silent None.** C.v.fget(c) works but C.v.__get__(c) returns None;
+    same for __get__ on plain funcs/classmethods/staticmethods; and
+    hasattr(inst, '__setattr__'/'__getattribute__') is False. IMPLICIT
+    protocol fully correct (property get/set/del dispatch right) - only
+    dunder-as-attribute surface missing. list.__getitem__ etc ARE exposed,
+    so gap is specific to attribute/descriptor-protocol slots. Silent-wrong.
+    Verified by CalmKnight pin. Found fuzz r60a.
+
+66. **[MED] Builtin scalar class patterns in match raise on bind.**
+    `match v: case int(s):` with matching subject raises TypeError('type()
+    accepts 0 positional sub-patterns'); wrong-type subject falls through
+    correctly. MATCH_CLASS lacks the implicit one-positional-arg isinstance
+    semantics for bool/int/float/str/bytes/list/tuple/set/dict/frozenset
+    (CPython data-model special case). Sub-symptom: error renders class as
+    'type()' not 'int()'; user classes render + bind correctly. Runtime
+    error (compiles clean). Verified by CalmKnight pin. Found fuzz r60c.
+    Full report: ~/notes/match-stmt-fuzz-r60c.md.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
@@ -1186,6 +1205,10 @@ Known harness limits when writing new probes: asserts must be direct statements 
 `test_*` method (no nesting inside try/with); avoid literal `self` tokens outside the
 assert calls; assert args must be interpreter-independent or folded intra-expression;
 host-baked literal expected values are stronger than self-comparisons.
+HARNESS GOTCHA (r60c): a case whose body fails to parse/indent prints `ok ... passed: 0`
+- ALWAYS check passed > 0, absence of FUZZFAIL proves nothing. Setup exceptions surface
+only as `errors: ['test_case']` with no message; capture stderr via a standalone probe.
+Also: driver hardcodes /tmp/fuzz_cases.json - concurrent agents must sed a unique path.
 
 Infra: `/tmp/gen_fuzz.py`, `/tmp/gen_fuzz2.py` (corpus generators),
 `jac-py/jacpython/_fuzz_smoke.jac` (driver, reads /tmp/fuzz_cases.json),
