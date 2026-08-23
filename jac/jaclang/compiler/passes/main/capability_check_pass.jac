@@ -48,7 +48,7 @@ import from jaclang.jac0core.diagnostics {
     W6002,
     W6003,
     W6004,
-    W6005
+    W6010
 }
 import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
 

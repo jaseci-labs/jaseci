@@ -764,7 +764,7 @@ impl NativeCapabilityCheckPass._check_str_nul_concat(mod: Module) -> None {
             if _concat is not None
                 and isinstance(_concat.op, Token)
                 and _concat.op.name == Tok.PLUS {
-                self.emit(W6005, node_override=_call);
+                self.emit(W6010, node_override=_call);
             }
         }
     }
