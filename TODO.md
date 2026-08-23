@@ -403,6 +403,22 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
+    object-is-not-iterable** - PyBytes was the only core sequence without
+    tp_iter. Fixed: yields ints per CPython bytes_iterator semantics.
+    Corpus unchanged at HEAD (145/24, no drift).
+
+36. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
+    KeenFalcon). `return "\ud800";` passes jac check but jac run dies in
+    jcir_gen_pass with utf-8 encode error - surrogates not allowed. Blocks
+    json round-trip corpora entirely (json round-trips lone surrogates).
+    Fix shape: surrogatepass handling in pyc/cache write or const-string
+    encoding. Pre-existing; separate-branch material.
+
+37. **[MED] e.__traceback__ is None on caught exceptions** - see item 32
+    entry above; renumbered here for owner queueing. Ownerless,
+    exception-adjacent (YoungHawk candidate).
+
 33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
     handler never matched** - exception_matches treated tuple targets as
     unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
@@ -773,6 +789,22 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+35. **[MED][FIXED d34b16c7e BrightTiger] Iterating bytes raised TypeError
+    object-is-not-iterable** - PyBytes was the only core sequence without
+    tp_iter. Fixed: yields ints per CPython bytes_iterator semantics.
+    Corpus unchanged at HEAD (145/24, no drift).
+
+36. **[MED] Lone surrogates in .jac string literals crash emit** (FastYak via
+    KeenFalcon). `return "\ud800";` passes jac check but jac run dies in
+    jcir_gen_pass with utf-8 encode error - surrogates not allowed. Blocks
+    json round-trip corpora entirely (json round-trips lone surrogates).
+    Fix shape: surrogatepass handling in pyc/cache write or const-string
+    encoding. Pre-existing; separate-branch material.
+
+37. **[MED] e.__traceback__ is None on caught exceptions** - see item 32
+    entry above; renumbered here for owner queueing. Ownerless,
+    exception-adjacent (YoungHawk candidate).
 
 33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
     handler never matched** - exception_matches treated tuple targets as
