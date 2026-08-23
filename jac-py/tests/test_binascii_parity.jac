@@ -24,7 +24,7 @@ import from binasciimodule {
 }
 
 
-def _b(*vals: list) -> bytes {
+def _b(*vals: int) -> bytes {
     return bytes(list(vals));
 }
 

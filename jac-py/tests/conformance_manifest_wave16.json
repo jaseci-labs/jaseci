@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "wave": "p2_wave16",
+  "description": "P2 wave-16 conformance manifest (binascii facade port, host-oracle parity)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "binasciimodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_binascii_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "facade mirroring pinned CPython 3.14 binascii; host-oracle parity tests (hqx family absent from 3.14)"
+    }
+  ]
+}
