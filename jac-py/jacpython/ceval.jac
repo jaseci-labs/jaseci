@@ -556,12 +556,17 @@ import from opcode_meta {
     OP_UNARY_NOT,
     OP_WITH_EXCEPT_START,
     OP_BINARY_OP,
+    NB_AND,
     NB_INPLACE_ADD,
     NB_INPLACE_AND,
     NB_INPLACE_MULTIPLY,
     NB_INPLACE_OR,
     NB_INPLACE_SUBTRACT,
     NB_INPLACE_XOR,
+    NB_MULTIPLY,
+    NB_OR,
+    NB_SUBTRACT,
+    NB_XOR,
     OP_BUILD_LIST,
     OP_BUILD_MAP,
     OP_BUILD_TUPLE,
@@ -3410,12 +3415,12 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # declines (immutables, frozen sets), reduce to the base binop (0..12) so
     # `x += y` is `x = x + y` and the trailing STORE rebinds -- CPython's
     # immutable-type fallback.
-    if kind >= 13 and kind <= 25 {
+    if kind >= NB_INPLACE_ADD and kind <= NB_INPLACE_XOR {
         inplace = py_inplace_binop(kind, lhs, rhs);
         if not is_notimplemented(inplace) {
             return inplace;
         }
-        kind = kind - 13;
+        kind = kind - NB_INPLACE_ADD;
     }
     # A user-class operand routes through the operator-overload protocol first.
     if isinstance(lhs, PyUserObj) or isinstance(rhs, PyUserObj) {
@@ -3437,15 +3442,15 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             result = ul.nb_binop(kind, ur);
         }
     }
-    if is_error(result) and kind == 5 and isinstance(rhs, PyList) {
+    if is_error(result) and kind == NB_MULTIPLY and isinstance(rhs, PyList) {
         # Reflected sequence repeat: 3 * [x] -- int.__mul__ declines, so
         # CPython falls through to list.__rmul__ (sq_repeat). Must stay
         # native: the host fallback would to_host() each element and break
         # reference aliasing ([[0]]*3 must share one inner list).
-        return rhs.nb_binop(5, lhs);
+        return rhs.nb_binop(NB_MULTIPLY, lhs);
     }
-    if is_error(result) and kind == 5 and isinstance(rhs, PyTuple) {
-        return rhs.nb_binop(5, lhs);
+    if is_error(result) and kind == NB_MULTIPLY and isinstance(rhs, PyTuple) {
+        return rhs.nb_binop(NB_MULTIPLY, lhs);
     }
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         # Fall back when native slots are incomplete (TypeError, ValueError from
@@ -6009,13 +6014,13 @@ obj PySetMethod(PyObj) {
             or n == "intersection"
             or n == "difference"
             or n == "symmetric_difference" {
-            kind = 7;
+            kind = NB_OR;
             if n == "intersection" {
-                kind = 1;
+                kind = NB_AND;
             } elif n == "difference" {
-                kind = 10;
+                kind = NB_SUBTRACT;
             } elif n == "symmetric_difference" {
-                kind = 12;
+                kind = NB_XOR;
             }
             acc = s.set_copy();
             for a in args {
@@ -6035,13 +6040,13 @@ obj PySetMethod(PyObj) {
             or n == "difference_update"
             or n == "intersection_update"
             or n == "symmetric_difference_update" {
-            kind = 7;
+            kind = NB_OR;
             if n == "difference_update" {
-                kind = 10;
+                kind = NB_SUBTRACT;
             } elif n == "intersection_update" {
-                kind = 1;
+                kind = NB_AND;
             } elif n == "symmetric_difference_update" {
-                kind = 12;
+                kind = NB_XOR;
             }
             acc = s.set_copy();
             for a in args {

@@ -21,6 +21,7 @@
 import marshal;
 
 import from marshal_reader { unmarshal, }
+import from opcode_meta { NB_LSHIFT, NB_TRUE_DIVIDE }
 
 import from ceval {
     PyClass,
@@ -833,11 +834,11 @@ test "pyc-first: true divide, xor, unary neg/invert on non-constant int operands
     assert expect_int(ops["inv"]) == -6;
 
     # int / 0 raises ZeroDivisionError natively rather than returning a bogus int.
-    zdiv = PyInt(t="int", val=1).nb_binop(11, PyInt(t="int", val=0));
+    zdiv = PyInt(t="int", val=1).nb_binop(NB_TRUE_DIVIDE, PyInt(t="int", val=0));
     assert is_error(zdiv);
 
-    # A negative shift count is a ValueError, not a native crash (oparg 3 = <<).
-    negshift = PyInt(t="int", val=1).nb_binop(3, PyInt(t="int", val=-1));
+    # A negative shift count is a ValueError, not a native crash (NB_LSHIFT = <<).
+    negshift = PyInt(t="int", val=1).nb_binop(NB_LSHIFT, PyInt(t="int", val=-1));
     assert is_error(negshift);
 
     # test_augassign::testBasic verbatim: the trailing `x /= 2` on int 6 must
@@ -936,7 +937,7 @@ test "pyc-first: PyFloat nb_binop/tp_richcompare drive natively" {
     assert expect_bool(nans["self_lt"]) == False;
 
     # Division by zero raises rather than falling through to host.
-    zdiv = PyFloat(t="float", val=1.0).nb_binop(11, PyFloat(t="float", val=0.0));
+    zdiv = PyFloat(t="float", val=1.0).nb_binop(NB_TRUE_DIVIDE, PyFloat(t="float", val=0.0));
     assert is_error(zdiv);
 }
 

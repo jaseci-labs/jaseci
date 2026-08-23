@@ -7,6 +7,22 @@
 # module and OVERRIDE these slots via cross-module inheritance; the marshal
 # reader and ceval import FROM here. Jac forbids import cycles, so anything that
 # reaches the host or re-enters the interpreter must stay out of this file.
+# The one allowed import is opcode_meta -- itself a na-clean leaf (no imports,
+# no host calls) -- so the NB_* binop kinds have a single named definition.
+import from opcode_meta {
+    NB_ADD,
+    NB_AND,
+    NB_FLOOR_DIVIDE,
+    NB_LSHIFT,
+    NB_MULTIPLY,
+    NB_OR,
+    NB_POWER,
+    NB_REMAINDER,
+    NB_RSHIFT,
+    NB_SUBTRACT,
+    NB_TRUE_DIVIDE,
+    NB_XOR,
+}
 #
 # Behavior dispatches through virtual slot methods (CPython's tp_*/nb_*/sq_*/mp_*
 # tables as overridable methods -> na vtable, no function-pointer indirection).
@@ -111,57 +127,57 @@ obj PyInt(PyObj) {
         }
         b = (other as PyInt).val;
         a = self.val;
-        if kind == 0 {
+        if kind == NB_ADD {
             return PyInt(t="int", val=a + b);
         }
-        if kind == 5 {
+        if kind == NB_MULTIPLY {
             return PyInt(t="int", val=a * b);
         }
-        if kind == 6 {
+        if kind == NB_REMAINDER {
             if b == 0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyInt(t="int", val=a % b);
         }
-        if kind == 10 {
+        if kind == NB_SUBTRACT {
             return PyInt(t="int", val=a - b);
         }
-        if kind == 1 {
+        if kind == NB_AND {
             return PyInt(t="int", val=a & b);
         }
-        if kind == 2 {
+        if kind == NB_FLOOR_DIVIDE {
             if b == 0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyInt(t="int", val=a // b);
         }
-        if kind == 7 {
+        if kind == NB_OR {
             return PyInt(t="int", val=a | b);
         }
-        # NB_TRUE_DIVIDE (11): int / int is always float, even when it divides
-        # evenly (6 / 2 == 3.0, not 3). NB_XOR is a separate oparg (12).
-        if kind == 11 {
+        # NB_TRUE_DIVIDE: int / int is always float, even when it divides
+        # evenly (6 / 2 == 3.0, not 3).
+        if kind == NB_TRUE_DIVIDE {
             if b == 0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=float(a) / float(b));
         }
-        if kind == 12 {
+        if kind == NB_XOR {
             return PyInt(t="int", val=a ^ b);
         }
-        if kind == 3 {
+        if kind == NB_LSHIFT {
             if b < 0 {
                 return py_error("ValueError", "negative shift count");
             }
             return PyInt(t="int", val=a << b);
         }
-        if kind == 9 {
+        if kind == NB_RSHIFT {
             if b < 0 {
                 return py_error("ValueError", "negative shift count");
             }
             return PyInt(t="int", val=a >> b);
         }
-        if kind == 8 {
+        if kind == NB_POWER {
             # int ** negative -> float (2 ** -1 == 0.5); 0 ** negative raises.
             if b < 0 {
                 if a == 0 {
@@ -250,10 +266,10 @@ obj PyStr(PyObj) {
     has val: str;
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "str" {
+        if kind == NB_ADD and other.t == "str" {
             return PyStr(t="str", val=self.val + (other as PyStr).val);
         }
-        if kind == 6 {
+        if kind == NB_REMAINDER {
             return str_mod_format(self.val, other);
         }
         return py_error("TypeError", "unsupported operand types");
@@ -391,34 +407,34 @@ obj PyFloat(PyObj) {
             return py_error("TypeError", "unsupported operand types");
         }
         a = self.val;
-        if kind == 0 {
+        if kind == NB_ADD {
             return PyFloat(t="float", val=a + b);
         }
-        if kind == 5 {
+        if kind == NB_MULTIPLY {
             return PyFloat(t="float", val=a * b);
         }
-        if kind == 10 {
+        if kind == NB_SUBTRACT {
             return PyFloat(t="float", val=a - b);
         }
-        if kind == 11 {
+        if kind == NB_TRUE_DIVIDE {
             if b == 0.0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a / b);
         }
-        if kind == 6 {
+        if kind == NB_REMAINDER {
             if b == 0.0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a % b);
         }
-        if kind == 2 {
+        if kind == NB_FLOOR_DIVIDE {
             if b == 0.0 {
                 return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a // b);
         }
-        if kind == 8 {
+        if kind == NB_POWER {
             return PyFloat(t="float", val=a ** b);
         }
         return py_error("TypeError", "unsupported operand types");
@@ -679,12 +695,12 @@ obj PyTuple(PyObj) {
     has items: list[PyObj];
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "tuple" {
+        if kind == NB_ADD and other.t == "tuple" {
             return PyTuple(
                 t="tuple", items=concat_items(self.items, (other as PyTuple).items)
             );
         }
-        if kind == 5 {
+        if kind == NB_MULTIPLY {
             # tuple * n -- same reference-duplicating repeat as list
             # (CPython tuple_repeat); elements are shared, not copied.
             idx = other.to_index();
@@ -753,12 +769,12 @@ obj PyList(PyObj) {
     has items: list[PyObj];
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
-        if kind == 0 and other.t == "list" {
+        if kind == NB_ADD and other.t == "list" {
             return PyList(
                 t="list", items=concat_items(self.items, (other as PyList).items)
             );
         }
-        if kind == 5 {
+        if kind == NB_MULTIPLY {
             # list * n -- CPython list_repeat duplicates element REFERENCES,
             # never the elements themselves ([[0]]*3 aliases one inner list).
             # n < 0 behaves as 0; bool indexes as int (True -> 1).
@@ -1361,7 +1377,7 @@ obj PySet(PyObj) {
         }
         o = other as PySet;
         result_items: dict[str, PyObj] = {};
-        if kind == 7 {
+        if kind == NB_OR {
             # union
             for hk in self.items {
                 result_items[hk] = self.items[hk];
@@ -1369,21 +1385,21 @@ obj PySet(PyObj) {
             for hk in o.items {
                 result_items[hk] = o.items[hk];
             }
-        } elif kind == 1 {
+        } elif kind == NB_AND {
             # intersection
             for hk in self.items {
                 if hk in o.items {
                     result_items[hk] = self.items[hk];
                 }
             }
-        } elif kind == 10 {
+        } elif kind == NB_SUBTRACT {
             # difference
             for hk in self.items {
                 if not (hk in o.items) {
                     result_items[hk] = self.items[hk];
                 }
             }
-        } elif kind == 12 {
+        } elif kind == NB_XOR {
             # symmetric difference
             for hk in self.items {
                 if not (hk in o.items) {
