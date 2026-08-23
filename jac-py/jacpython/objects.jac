@@ -1579,6 +1579,10 @@ obj PyException(PyObj) {
         # Explicit chaining: `raise X from Y` records Y here so e.__cause__ reads
         # it back (None when raised without a `from`).
         cause: any = None,
+        # Implicit chaining: raising while another exception is being handled
+        # records that one here so e.__context__ reads it back (None when
+        # raised outside any handler). Set by OP_RAISE_VARARGS in ceval.
+        context: any = None,
         # StopIteration payload: `return x` in a generator surfaces as
         # StopIteration(x); .send()/next() carry the value here.
         value: any = None;
@@ -1612,14 +1616,18 @@ obj PyException(PyObj) {
             }
             return py_none();
         }
+        if name == "__context__" {
+            if self.context is not None {
+                return self.context as PyObj;
+            }
+            return py_none();
+        }
         # Identity dunder: e.__class__ resolves to the exception type object
         # (e.__class__.__name__ on caught exceptions is a core idiom).
         if name == "__class__" {
             return py_exception_type(self.type_name);
         }
-        if name == "__context__"
-            or name == "__traceback__"
-            or name == "__suppress_context__" {
+        if name == "__traceback__" or name == "__suppress_context__" {
             return py_none();
         }
         return py_error("AttributeError", name);

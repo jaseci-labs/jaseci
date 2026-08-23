@@ -8208,6 +8208,28 @@ def run_frame(frame: PyFrame) -> PyObj {
                 raised = exc_handling[len(exc_handling) - 1];
             }
             result = py_raise_value(raised);
+            # Implicit chaining (CPython PyErr_SetObject): raising while another
+            # exception is being handled records the handled one as the new
+            # exception's __context__ -- unless the raised object IS that
+            # exception (bare re-raise keeps its existing chain) or a context
+            # is already recorded. Applies to `raise X from Y` too: cause and
+            # context are independent fields there.
+            if len(exc_handling) > 0 {
+                handled_exc = exc_handling[len(exc_handling) - 1];
+                if (
+                    isinstance(result, PyError)
+                    and not (handled_exc is raised)
+                    and (result as PyError).exception.context is None
+                ) {
+                    if handled_exc.t == "exception" {
+                        (result as PyError).exception.context = (
+                            handled_exc as PyException
+                        );
+                    } elif isinstance(handled_exc, PyUserObj) {
+                        (result as PyError).exception.context = handled_exc;
+                    }
+                }
+            }
             # `raise X from Y`: record Y on the raised exception so e.__cause__
             # reads it back (skip `from None`, which carries no cause object).
             if arg == 2 and isinstance(result, PyError) and raise_cause.t != "none" {
