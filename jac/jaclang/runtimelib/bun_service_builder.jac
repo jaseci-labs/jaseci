@@ -14,20 +14,19 @@ def _is_pub(access: any) -> bool {
 }
 
 
-def _inline_extra_deps(out_dir: Path, chunks: list[str], seen_jac: dict[str, bool]) -> None {
+def _inline_extra_deps(
+    out_dir: Path, chunks: list[str], seen_jac: dict[str, bool]
+) -> None {
     # String-bundler fallback: cl_stdlib dependency artifacts written next to
     # the entry must be inlined too, since the fallback produces ONE file.
     # Relative .js imports between inlined chunks dissolve (their targets are
     # present), and duplicate `const _jac` runtime preludes collapse to the
     # first occurrence.
     import re;
-    bundled_sources = (
-        'server_runtime.js',
-        'bun_schema.js',
-        'bun_store.js'
-    );
+    bundled_sources = ('server_runtime.js', 'bun_schema.js', 'bun_store.js');
     extras = [
-        p for p in sorted(out_dir.iterdir())
+        p
+        for p in sorted(out_dir.iterdir())
         if p.suffix == '.js'
             and p.name not in bundled_sources
             and p.name != 'server.mjs'
@@ -51,9 +50,7 @@ def _inline_extra_deps(out_dir: Path, chunks: list[str], seen_jac: dict[str, boo
             seen_jac['seen'] = True;
             return m.group(0);
         }
-        text = re.sub(
-            r'const _jac = \{.*?\n\};', _jac_repl, text, flags=re.DOTALL
-        );
+        text = re.sub(r'const _jac = \{.*?\n\};', _jac_repl, text, flags=re.DOTALL);
         chunks.append(text);
         seen_jac['seen'] = True;
     }
@@ -81,8 +78,8 @@ def _string_bundle_bun_artifact(out_dir: Path, module_name: str) -> str {
             if not line.startswith('import ') or '{' not in line or '}' not in line {
                 raise RuntimeError(
                     f'String bundler cannot rewrite import line for '
-                    + f'\'{src}\': {line!r}. Bun.build output shape changed; '
-                    + 'fix or remove _string_bundle_bun_artifact.'
+                        + f'\'{src}\': {line!r}. Bun.build output shape changed; '
+                        + 'fix or remove _string_bundle_bun_artifact.'
                 );
             }
             spec = line[len('import {'):line.rindex('}')].strip();
@@ -196,7 +193,9 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
             console.print(f'  Bun.build unavailable ({e}); using string bundler');
         }
     }
-    artifact.write_text(_string_bundle_bun_artifact(out_dir, module_name), encoding='utf-8');
+    artifact.write_text(
+        _string_bundle_bun_artifact(out_dir, module_name), encoding='utf-8'
+    );
 }
 
 
@@ -220,7 +219,11 @@ def _cl_stdlib_specifiers(js_code: str) -> list[str] {
             found.append(spec);
         }
     }
-    return [s for s in found if not s.startswith('.') and not s.startswith('/')];
+    return [
+        s
+        for s in found
+        if not s.startswith('.') and not s.startswith('/')
+    ];
 }
 
 
@@ -248,7 +251,9 @@ def _cl_stdlib_ref(dotted: str) -> tuple[(str, str)] | None {
 }
 
 
-def _rewrite_bare_specifiers(js_code: str, resolved: dict[str, str], depth: int) -> str {
+def _rewrite_bare_specifiers(
+    js_code: str, resolved: dict[str, str], depth: int
+) -> str {
     # Rewrite bare stdlib specifiers to relative artifact paths so Bun.build
     # can resolve them (bare specifiers only resolve through node_modules).
     # `depth` is the nesting level of the file being rewritten under out_dir
@@ -273,9 +278,7 @@ def _rewrite_bare_specifiers(js_code: str, resolved: dict[str, str], depth: int)
         base = spec.split('/')[-1];
         return f'import * as {base} from "{rel}"';
     }
-    return re.sub(
-        r'(from\s+[\"\']|import\s+[\"\'])([^\"\']+)([\"\'])', _sub, js_code
-    );
+    return re.sub(r'(from\s+[\"\']|import\s+[\"\'])([^\"\']+)([\"\'])', _sub, js_code);
 }
 
 
@@ -294,13 +297,11 @@ def _dep_export_names(dep_js: str) -> list[str] {
     }
     names: list[str] = [];
     seen: set[str] = set();
-    for m in re.finditer(r'^(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)', dep_js, re.MULTILINE) {
+    for m in re.finditer(
+        r'^(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)', dep_js, re.MULTILINE
+    ) {
         name = m.group(1);
-        if (
-            name not in seen
-            and not name.startswith('_')
-            and name not in exported
-        ) {
+        if (name not in seen and not name.startswith('_') and name not in exported) {
             seen.add(name);
             names.append(name);
         }
@@ -335,7 +336,9 @@ def _emit_cl_stdlib_deps(js_code: str, prog: any, options: any, out_dir: Path) -
             continue;
         }
         dep_mod = prog.compile(file_path=str(dep_path), options=options);
-        dep_js = dep_mod.gen.js if dep_mod is not None and dep_mod.gen is not None else '';
+        dep_js = dep_mod.gen.js
+            if dep_mod is not None and dep_mod.gen is not None
+            else '';
         if dep_mod is not None and not dep_js.strip() {
             run_pass(EsastGenPass, dep_mod, prog);
             dep_js = dep_mod.gen.js or '';
@@ -362,7 +365,9 @@ def _emit_cl_stdlib_deps(js_code: str, prog: any, options: any, out_dir: Path) -
 }
 
 
-def _extract_endpoints(ir: any, module_name: str) -> (tuple[list[EndpointMeta], list[EndpointMeta]]) {
+def _extract_endpoints(
+    ir: any, module_name: str
+) -> (tuple[list[EndpointMeta], list[EndpointMeta]]) {
     # Pull walker/function endpoint metadata out of a compiled module IR.
     walkers: list[EndpointMeta] = [];
     functions: list[EndpointMeta] = [];
@@ -417,8 +422,7 @@ def build_bun_service_artifact(
     prog = JacProgram();
     import from jaclang.jac0core.compile_options { CompileOptions }
     ir = prog.compile(
-        file_path=str(module_file),
-        options=CompileOptions(force_codespace='client')
+        file_path=str(module_file), options=CompileOptions(force_codespace='client')
     );
     if prog.errors_had {
         errs = '\n'.join(str(e) for e in prog.errors_had);
@@ -460,8 +464,16 @@ def build_bun_service_artifact(
         out_dir,
         pname,
         [{'rel': f"{module_name}.jac", 'js': js_code}],
-        [w for w in walkers if w.`pub],
-        [f for f in functions if f.`pub],
+        [
+            w
+            for w in walkers
+            if w.`pub
+        ],
+        [
+            f
+            for f in functions
+            if f.`pub
+        ],
         promotions=promotions_for(base_path)
     );
     if rc != 0 {

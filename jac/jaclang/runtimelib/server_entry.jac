@@ -76,9 +76,9 @@ def emit_server_entry(
         );
         # Baked at build time from [database.indexes] via promotions_for() so
         # BunStore computes the same schema fingerprint as PgStore.
-        schema_js += 'export const PROMOTIONS = ' + json.dumps(
-            promotions or {}, sort_keys=True
-        ) + ';\n';
+        schema_js += 'export const PROMOTIONS = '
+            + json.dumps(promotions or {}, sort_keys=True)
+            + ';\n';
         (out_dir / 'bun_schema.js').write_text(schema_js, encoding='utf-8');
     }
     for unit in compiled_modules {
