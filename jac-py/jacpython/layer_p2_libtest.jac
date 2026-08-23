@@ -65,8 +65,7 @@ import from pyc_first {
     from_host,
 }
 
-::py::
-def _p2_wrap_snippet(source: str) -> str:
+def _p2_wrap_snippet(source: str) -> str {
     return (
         "_libtest_lines = []\n"
         "def print(*args, **kwargs):\n"
@@ -74,18 +73,20 @@ def _p2_wrap_snippet(source: str) -> str:
         "    _libtest_lines.append(sep.join(str(a) for a in args))\n"
         + source
         + "\n"
-    )
+    );
+}
 
 # ``platform.system`` / ``platform.machine`` are outside the getplatform port;
 # seed shims from host CPython so libtest sees real strings on any OS.
-import platform as _host_platform
+import platform as _host_platform;
 
-def _p2_libtest_host_system() -> str:
-    return _host_platform.system()
+def _p2_libtest_host_system() -> str {
+    return _host_platform.system();
+}
 
-def _p2_libtest_host_machine() -> str:
-    return _host_platform.machine()
-::py::
+def _p2_libtest_host_machine() -> str {
+    return _host_platform.machine();
+}
 
 
 
