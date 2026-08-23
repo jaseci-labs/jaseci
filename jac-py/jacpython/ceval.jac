@@ -468,8 +468,8 @@ import from abstract_protocol {
     PyObject_RichCompare,
     PyObject_RichCompareBool,
 }
-import from tupleobject { tuple_hash, tuple_richcompare, }
 import from rangeobject { get_len_of_range, range_contains_longs, range_equals_longs, }
+import from tupleobject { tuple_hash, tuple_richcompare, }
 import from longobject { long_hash_obj, int_repr, }
 import from setobject { set_hash_obj, set_richcompare, }
 import from typeobject {
@@ -1092,18 +1092,32 @@ obj PyRange(PyObj) {
         return py_error("AttributeError", name);
     }
 
-    # CPython range_hash: the None-stub triple collapses equal ranges that
-    # differ in constructor args (len 0 ignores start/step; len 1 ignores
-    # step). Encode exactly those equivalence classes.
+    # CPython range_hash: hash of the None-stub triple (len, start, step).
+    # Computed via the real lifted tuple/int hash machinery so VALUES are
+    # byte-parity with the host ratchet, not just equivalence classes.
+    # hash(None) is process-stable in CPython (4238894112); substituting an
+    # int of that value keeps every lane's hash identical to the real triple.
     def tp_hashkey -> str {
         n = self.length();
+        triple: list[PyObj] = [PyInt(t="int", val=n)];
         if n == 0 {
-            return "r:e";
+            triple.append(PyInt(t="int", val=4238894112));
+            triple.append(PyInt(t="int", val=4238894112));
+        } else {
+            triple.append(PyInt(t="int", val=self.start));
+            if n == 1 {
+                triple.append(PyInt(t="int", val=4238894112));
+            } else {
+                triple.append(PyInt(t="int", val=self.step));
+            }
         }
-        if n == 1 {
-            return "r:1:" + str(self.start);
+        th = tuple_hash(PyTuple(t="tuple", items=triple));
+        if is_error(th) {
+            return "";
         }
-        return "r:n:" + str(n) + ":" + str(self.start) + ":" + str(self.step);
+        # Already-signed numeric digest: the "n:" namespace passes it through
+        # verbatim (see _hashkey_digest).
+        return "n:" + str((th as PyInt).val);
     }
 
     def tp_iter -> PyObj {
