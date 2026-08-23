@@ -684,6 +684,24 @@ obj PyTuple(PyObj) {
                 t="tuple", items=concat_items(self.items, (other as PyTuple).items)
             );
         }
+        if kind == 5 {
+            # tuple * n -- same reference-duplicating repeat as list
+            # (CPython tuple_repeat); elements are shared, not copied.
+            idx = other.to_index();
+            if is_error(idx) {
+                return py_error(
+                    "TypeError",
+                    "can't multiply sequence by non-int of type '" + other.t + "'",
+                );
+            }
+            n = (idx as PyInt).val;
+            repeated: list[PyObj] = [];
+            while n > 0 {
+                repeated.extend(self.items);
+                n = n - 1;
+            }
+            return PyTuple(t="tuple", items=repeated);
+        }
         return py_error("TypeError", "unsupported operand types");
     }
 
@@ -739,6 +757,25 @@ obj PyList(PyObj) {
             return PyList(
                 t="list", items=concat_items(self.items, (other as PyList).items)
             );
+        }
+        if kind == 5 {
+            # list * n -- CPython list_repeat duplicates element REFERENCES,
+            # never the elements themselves ([[0]]*3 aliases one inner list).
+            # n < 0 behaves as 0; bool indexes as int (True -> 1).
+            idx = other.to_index();
+            if is_error(idx) {
+                return py_error(
+                    "TypeError",
+                    "can't multiply sequence by non-int of type '" + other.t + "'",
+                );
+            }
+            n = (idx as PyInt).val;
+            repeated: list[PyObj] = [];
+            while n > 0 {
+                repeated.extend(self.items);
+                n = n - 1;
+            }
+            return PyList(t="list", items=repeated);
         }
         return py_error("TypeError", "unsupported operand types");
     }

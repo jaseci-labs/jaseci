@@ -2952,6 +2952,16 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             result = ul.nb_binop(kind, ur);
         }
     }
+    if is_error(result) and kind == 5 and isinstance(rhs, PyList) {
+        # Reflected sequence repeat: 3 * [x] -- int.__mul__ declines, so
+        # CPython falls through to list.__rmul__ (sq_repeat). Must stay
+        # native: the host fallback would to_host() each element and break
+        # reference aliasing ([[0]]*3 must share one inner list).
+        return rhs.nb_binop(5, lhs);
+    }
+    if is_error(result) and kind == 5 and isinstance(rhs, PyTuple) {
+        return rhs.nb_binop(5, lhs);
+    }
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         # Fall back when native slots are incomplete (TypeError, ValueError from
         # partial str %-format, ...). Operational numeric errors must stay native
