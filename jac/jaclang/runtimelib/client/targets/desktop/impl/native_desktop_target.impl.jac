@@ -156,7 +156,7 @@ impl NativeDesktopTarget.build(
     console.print(f"\n✅ Desktop app built: {binary}", style="bold green");
     console.print(
         f"   run: (cd {binary.parent} && ./{binary.name}-launch.sh)"
-        "  # or jac start --client desktop",
+        "  # or jac run --client desktop",
         style="muted"
     );
     return binary;

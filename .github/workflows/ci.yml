@@ -1140,7 +1140,7 @@ jobs:
       - name: Start jac_site server in background
         working-directory: jac_site
         run: |
-          timeout 600 jac start main.jac > /tmp/jac-site-server.log 2>&1 &
+          timeout 600 jac run --serve main.jac > /tmp/jac-site-server.log 2>&1 &
           SERVER_PID=$!
           echo "JAC_SITE_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "jac_site server starting with PID $SERVER_PID..."
@@ -1236,7 +1236,7 @@ jobs:
         if: failure()
         run: |
           pip install py-spy >/dev/null 2>&1 || true
-          for p in $(pgrep -f "jac start main.jac"); do
+          for p in $(pgrep -f "jac run --serve main.jac"); do
             echo "=== py-spy dump pid $p ==="
             sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
           done
