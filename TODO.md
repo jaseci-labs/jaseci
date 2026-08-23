@@ -441,6 +441,9 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     -/~ raise with no fallback, from_host lacks complex branch so all
     complex arithmetic lands as opaque PyHostProxy (tag drift + latent
     unhashability). Needs a suite, not a point fix.
+    EXTENSION (fuzz r55): complex(2) == 2.0 -> False (CPython True) -
+    numeric-tower EQUALITY also missing, not just arithmetic. Include eq/ne
+    vs int/float/bool in the suite spec.
 
 56. **[ROOT ENABLER] _host_representable() includes MUTABLE tags**
     (slot-audit): any missing mutable-container slot silently falls to
