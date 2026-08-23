@@ -722,6 +722,20 @@ ASYNC SURFACE VERDICT (fuzz r62a): compiled-Python path (`jac run x.py`) is
     (INTRINSIC_ASYNC_GEN_WRAP) missing from ceval dispatch; (c) lossy
     to_host(coroutine)->[]. Evidence: /tmp/fuzz-r62a/diff/.
 
+78. **[HIGH] Custom metaclass silently ignored.** class A(metaclass=Meta):
+    compiles and runs, but Meta.__new__/__init__ are NEVER invoked -
+    type(A).__name__ stays 'type', side effects lost (cls.tag assignment in
+    Meta.__new__ invisible). Breaks ABCMeta/Enum/ORM-class patterns
+    wholesale, silently. Found fuzz r63 hand-sweep, verified by CalmKnight
+    standalone diff (calls-log probe).
+
+79. **[MED] Class keyword args not forwarded to __init_subclass__.**
+    class C(Base, e='yes') with Base.__init_subclass__(cls, **kw): hook RUNS
+    but kw arrives EMPTY -> cls.extra defaults instead of 'yes'. __set_name__
+    IS green. Same locus family as item 38 (super().__init_subclass__
+    recursion, spec-only) - one class-hook machinery fix likely covers both.
+    Found fuzz r63 hand-sweep, verified by CalmKnight standalone diff.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
