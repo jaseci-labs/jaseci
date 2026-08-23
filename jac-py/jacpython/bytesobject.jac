@@ -2,7 +2,23 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/bytesobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/bytesobject_core.jac``).
-import from objects { PyObj, PyBytes, PyInt, PyStr, PyBool, is_error, py_error, _cmp3, _bool_from_cmp, }
+import from objects {
+    PyObj,
+    PyBytes,
+    PyInt,
+    PyStr,
+    PyBool,
+    is_error,
+    py_error,
+    Py_LT,
+    Py_LE,
+    Py_EQ,
+    Py_NE,
+    Py_GT,
+    Py_GE,
+    _cmp3,
+    _bool_from_cmp,
+}
 import from pyhash { bytes_hash_data, }
 
 def _bytes_compare_eq(a: list[int], b: list[int]) -> bool {
