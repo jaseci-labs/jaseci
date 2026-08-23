@@ -582,7 +582,15 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
 64. **[MED] two-arg iter(callable, sentinel) errors.** it = iter(pop, 9)
     raises before first next(); one-arg iter fine. Found fuzz r59.
 
-65. **[MED] Explicit descriptor-protocol dunders absent as attributes -
+ROUTED-DIVERGENCE META-NOTE (r63 pin suite): items 65/67/68/69/70/71/75/76 were
+    found via the layer1_replay route but are GREEN on the compiled-.py production
+    route (`jac run x.py`) - verified byte-for-byte by ~/notes/jac-fuzz/pins/. Same
+    route-dependent pattern as item 57. They are RECLASSIFIED below as
+    [ROUTE-REPLAY-ONLY]: real divergences, but harness-lane only, NOT user-facing.
+    Fix priority drops accordingly; the meta-bug is 'routes diverge' not the
+    individual behaviors.
+
+65. **[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
     silent None.** C.v.fget(c) works but C.v.__get__(c) returns None;
     same for __get__ on plain funcs/classmethods/staticmethods; and
     hasattr(inst, '__setattr__'/'__getattribute__') is False. IMPLICIT
@@ -603,31 +611,31 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     the scalar-isinstance special case lives in ceval's MATCH_CLASS arm -
     compiler-adjacent, route with match-stmt work, not generic VM slots.
 
-67. **[HIGH] Instance truthiness ignores __bool__ AND __len__ - always
+67. **[HIGH][ROUTE-REPLAY-ONLY] Instance truthiness ignores __bool__ AND __len__ on replay route -
     truthy.** if obj: takes TRUE branch even when __bool__ returns False
     or __len__ returns 0. POP_JUMP_IF path never consults either dunder.
     Silent-wrong control flow on every user-class conditional. Found fuzz
     r60b, verified by CalmKnight pin.
 
-68. **[MED] bool(obj) returns False for ANY user instance.** Even plain
+68. **[MED][ROUTE-REPLAY-ONLY] bool(obj) returns False for ANY user instance (replay route).** Even plain
     objects and __bool__-returning-True classes: builtin bool() yields
     literal False. Independent path from 67 (conditionals always-true vs
     bool() always-false). Native-Jac classes unaffected - confined to
     Python-source/ceval class path. Found fuzz r60b, verified.
 
-69. **[HIGH] `in` on user class returns None - __contains__ undispatched
-    via operator.** n.__contains__(x) direct call works; `x in n` yields
+69. **[HIGH][ROUTE-REPLAY-ONLY] `in` on user class returns None - __contains__ undispatched
+    via operator ON REPLAY ROUTE (production green).** n.__contains__(x) direct call works; `x in n` yields
     None (sq_contains slot/fallback unwired; no iteration fallback,
     consistent with 63). Silent-wrong. Found fuzz r60b, verified.
 
-70. **[HIGH] Default hash of plain instances raises unhashable.**
+70. **[HIGH][ROUTE-REPLAY-ONLY] Default hash of plain instances raises unhashable (replay route).
     hash(R()) on a bare class -> RuntimeError('unhashable type:
     ''instance'''); two distinct instances also fail. Default tp_hash
     slot missing on ceval-created classes. User-defined __hash__ works;
     instance-keyed dicts work when populated directly (identity-eq).
     Found fuzz r60b, verified.
 
-71. **[MED] int(obj)/float(obj) return None.** User __int__/__float__
+71. **[MED][ROUTE-REPLAY-ONLY] int(obj)/float(obj) return None (replay route). User __int__/__float__
     defined and callable directly, but conversion builtins yield None -
     nb_int/nb_float slots never look up the dunders. Found fuzz r60b,
     verified.
@@ -689,14 +697,15 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     fix), NOT caused by the 62 fix. Found r61 during 62-fix verification.
     Owner: QuickViper lane (owns unittest shim + replay pins).
 
-75. **[HIGH] Chained super() dispatch recurses infinitely.** Depth-3+ chain
+75. **[HIGH][ROUTE-REPLAY-ONLY] Chained super() dispatch recurses infinitely on replay route.** Depth-3+ chain
     where each level's method calls super().m() -> RecursionError (single
     hop green; two hops in one body green). Kills all cooperative-MRO
     __init__ patterns incl. diamond D(B,C). Mechanism guess: second-hop
     super resolves against type(self)/stale class instead of frame-local
     __class__, re-finding the middle class's own method. Blocks the
     standard C3 **kw-forwarding idiom on any real codebase. Found fuzz
-    r61c, verified by CalmKnight pin.
+    r61c. PIN-SUITE CORRECTION (r63): production path GREEN at depth 3
+    (Y(X(Z)) -> YXZ) - divergence is replay-route-only.
 
 76. **[LOW-MED][RECLASSIFIED replay-path-only] C.mro() METHOD absent in
     exec/eval contexts.** On the compiled-Python production path (`jac run
