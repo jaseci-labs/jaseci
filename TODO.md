@@ -686,6 +686,21 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     fix), NOT caused by the 62 fix. Found r61 during 62-fix verification.
     Owner: QuickViper lane (owns unittest shim + replay pins).
 
+75. **[HIGH] Chained super() dispatch recurses infinitely.** Depth-3+ chain
+    where each level's method calls super().m() -> RecursionError (single
+    hop green; two hops in one body green). Kills all cooperative-MRO
+    __init__ patterns incl. diamond D(B,C). Mechanism guess: second-hop
+    super resolves against type(self)/stale class instead of frame-local
+    __class__, re-finding the middle class's own method. Blocks the
+    standard C3 **kw-forwarding idiom on any real codebase. Found fuzz
+    r61c, verified by CalmKnight pin.
+
+76. **[LOW-MED] C.mro() METHOD absent/broken (distinct from item 50
+    display).** hasattr(C,'mro') False; C.mro() silently returns None in
+    exec-mode eval and errors in setup context. C.__mro__ ATTRIBUTE is
+    correct (member identity passes). Found fuzz r61c, verified by
+    CalmKnight pin.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
