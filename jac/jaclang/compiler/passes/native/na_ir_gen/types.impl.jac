@@ -561,6 +561,13 @@ impl NaIRGenTypes._flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | N
             return _ct;
         }
     }
+    if isinstance(expr, uni.GenCompr) {
+        _gen_elem = self._tb_elem(expr.type);
+        _gen_list = self._tb_builtin("list");
+        if _gen_elem is not None and isinstance(_gen_list, ClassType) {
+            return _gen_list.specialize_generics([_gen_elem]);
+        }
+    }
     _nt = expr.narrowed_type;
     if _nt is not None {
         return _nt;

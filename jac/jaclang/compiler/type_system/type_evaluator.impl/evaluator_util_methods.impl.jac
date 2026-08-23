@@ -603,11 +603,32 @@ impl TypeEvaluator._edge_endpoint_type(
     return None;
 }
 
+impl TypeEvaluator._same_class_shape(a: ClassType, b: ClassType) -> bool {
+    if a.shared != b.shared {
+        return False;
+    }
+    a_args = a.private.type_args or [];
+    b_args = b.private.type_args or [];
+    if len(a_args) != len(b_args) {
+        return False;
+    }
+    for (x, y) in zip(a_args, b_args) {
+        if isinstance(x, ClassType) and isinstance(y, ClassType) {
+            if not self._same_class_shape(x, y) {
+                return False;
+            }
+        } elif x is not y and str(x) != str(y) {
+            return False;
+        }
+    }
+    return True;
+}
+
 impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool {
     import from jaclang.compiler.type_system.type_utils { types_equivalent }
     for existing in type_list {
         if isinstance(ty, ClassType) and isinstance(existing, ClassType) {
-            if ty.shared == existing.shared {
+            if self._same_class_shape(ty, existing) {
                 return True;
             }
         } elif ty is existing {
@@ -636,7 +657,9 @@ impl TypeEvaluator._collect_unique_types(ty: TypeBase, result: list[TypeBase]) -
 }
 
 impl TypeEvaluator._get_expected_element_type(
-    expected_type: TypeBase | None, container_class: TypeBase
+    expected_type: TypeBase | None,
+    container_class: TypeBase,
+    allow_type_var: bool = False
 ) -> TypeBase | None {
     expected_type = self._expected_container_peer(expected_type, container_class);
     if (
@@ -645,7 +668,10 @@ impl TypeEvaluator._get_expected_element_type(
         and len(expected_type.private.type_args) >= 1
     ) {
         _elem = expected_type.private.type_args[0];
-        if isinstance(_elem, (TypeVarType, UnknownType)) or self.is_any_type(_elem) {
+        if isinstance(_elem, TypeVarType) {
+            return _elem if allow_type_var else None;
+        }
+        if isinstance(_elem, UnknownType) or self.is_any_type(_elem) {
             return None;
         }
         return self._convert_to_instance(_elem);

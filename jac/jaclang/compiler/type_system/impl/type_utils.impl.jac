@@ -802,9 +802,12 @@ impl apply_solved_type_vars(
 
     if isinstance(ty, UnionType) {
         new_types: list[TypeBase] = [];
+        _seen_keys: set[str] = set();
         for t in ty.types {
             _sub = apply_solved_type_vars(t, solution, class_type, shadowed);
-            if not any(str(_sub) == str(_seen) for _seen in new_types) {
+            _sub_key = str(_sub);
+            if _sub_key not in _seen_keys {
+                _seen_keys.add(_sub_key);
                 new_types.append(_sub);
             }
         }

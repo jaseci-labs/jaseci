@@ -478,6 +478,8 @@ obj TypeEvaluator {
 
     def _type_of_match_binding(binder: UniNode) -> TypeBase;
     def _refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> TypeBase;
+    def _class_ref_as_type_elem(elem_type: TypeBase) -> TypeBase;
+    def _same_class_shape(a: ClassType, b: ClassType) -> bool;
     def _adopt_expected_container(
         expr: FuncCall, call_t: TypeBase, expected_type: TypeBase | None
     ) -> TypeBase | None;
@@ -592,7 +594,9 @@ obj TypeEvaluator {
     ) -> TypeBase | None;
 
     def _get_expected_element_type(
-        expected_type: TypeBase | None, container_class: TypeBase
+        expected_type: TypeBase | None,
+        container_class: TypeBase,
+        allow_type_var: bool = False
     ) -> TypeBase | None;
 
     def _get_expected_kv_types(

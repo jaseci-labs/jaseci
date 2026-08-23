@@ -1849,6 +1849,33 @@ impl NaIRGenCalls._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }
+    _bare_type_arm = self._tb_solve(params[1].type)
+        if isinstance(params[1], uni.Expr)
+        else None;
+    if (
+        isinstance(_bare_type_arm, ClassType)
+        and _bare_type_arm._shared is not None
+        and _bare_type_arm.is_builtin("type")
+        and not _bare_type_arm.is_instance()
+        and not (_bare_type_arm.private.type_args or [])
+    ) {
+        _opnd_t = self._tb_solve(self._flow_narrowed_type_of(params[0]));
+        _members = self._tb_members(_opnd_t) or [_opnd_t];
+        _class_like = [
+            self._tb_is_class_ref(m)
+                or (
+                    isinstance(m, ClassType)
+                    and m._shared is not None
+                    and m.is_builtin("type")
+                ) for m in _members
+        ];
+        if all(_class_like) {
+            return ir.Constant(i1, 1);
+        }
+        if not any(_class_like) and self._tb_kind(_opnd_t) not in ("any", "unknown") {
+            return ir.Constant(i1, 0);
+        }
+    }
     operand = self._codegen_expr(params[0]);
     if operand is None {
         return None;

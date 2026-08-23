@@ -1071,9 +1071,12 @@ impl TypeEvaluator._substitute_type_vars(
     }
     if isinstance(typ, UnionType) {
         new_members: list[TypeBase] = [];
+        _seen_keys: set[str] = set();
         for member in typ.types {
             _sub = self._substitute_type_vars(member, bindings);
-            if not any(str(_sub) == str(_seen) for _seen in new_members) {
+            _sub_key = str(_sub);
+            if _sub_key not in _seen_keys {
+                _seen_keys.add(_sub_key);
                 new_members.append(_sub);
             }
         }

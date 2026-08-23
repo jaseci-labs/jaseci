@@ -1472,7 +1472,7 @@ impl Ability.is_cls_method.getter -> bool {
             self.is_method
             and `any(
                 (isinstance(dec, Name) and (dec.sym_name == 'classmethod'))
-                for dec in (self.decorators or ())
+                for dec in (self.decorators or [])
             )
         )
     );

@@ -197,6 +197,27 @@ impl TypeEvaluator._get_iterable_element_type(
             is_incomplete=iterable_type.is_incomplete
         );
     }
+    if isinstance(iterable_type, UnionType) {
+        _member_elems: list[TypeBase] = [];
+        for _m in iterable_type.types {
+            if self.is_none_type(_m) {
+                continue;
+            }
+            _me = self._get_iterable_element_type(_m, node_for_error);
+            if _me is None {
+                return None;
+            }
+            if not self._type_in_list(_me, _member_elems) {
+                _member_elems.append(_me);
+            }
+        }
+        if not _member_elems {
+            return None;
+        }
+        return _member_elems[0]
+            if len(_member_elems) == 1
+            else UnionType(types=_member_elems);
+    }
     iter_type = self.get_type_of_magic_method_call(
         iterable_type, "__iter__", [], node_for_error
     );

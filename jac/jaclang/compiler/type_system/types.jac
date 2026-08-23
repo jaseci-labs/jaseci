@@ -1,5 +1,5 @@
 import from abc { ABC }
-import from enum { IntEnum, auto }
+import from enum { IntEnum }
 import from pathlib { Path }
 import type from jaclang.jac0core.unitree { Expr, Symbol }
 import from jaclang.jac0core.constant { OwnershipKind }
@@ -19,22 +19,14 @@ enum TypeCategory(IntEnum) {
     EnumMember
 }
 
-class TypeFlags(IntEnum) {
-    with entry {
-        Null = 0;
-        Instantiable = 1 << 0;
-        Instance = 1 << 1;
-        Ambiguous = 1 << 2;
-    }
+enum TypeFlags(IntEnum) {
+    Null = 0,
+    Instantiable = 1 << 0,
+    Instance = 1 << 1,
+    Ambiguous = 1 << 2
 }
 
-class ParameterCategory(IntEnum) {
-    with entry {
-        Positional = auto();
-        ArgsList = auto();
-        KwargsDict = auto();
-    }
-}
+enum ParameterCategory(IntEnum) { Positional = 1, ArgsList = 2, KwargsDict = 3 }
 
 obj TypeBase(ABC) {
     has flags: TypeFlags = TypeFlags.Null;
@@ -181,15 +173,7 @@ obj ClassType(TypeBase) {
     def get_literal_value -> (str | int | bool | None);
 }
 
-class ParamKind(IntEnum) {
-    with entry {
-        POSONLY = 0;
-        NORMAL = 1;
-        VARARG = 2;
-        KWONLY = 3;
-        KWARG = 4;
-    }
-}
+enum ParamKind(IntEnum) { POSONLY = 0, NORMAL = 1, VARARG = 2, KWONLY = 3, KWARG = 4 }
 
 enum FunctionTypeFlags(IntEnum) {
     Null = 0,

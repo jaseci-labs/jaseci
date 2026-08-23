@@ -748,7 +748,8 @@ impl NaIRGenExpr._codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None) {
     } elif op == Tok.NOT {
         return self.builder.not_(self._to_bool(operand, _operand_t), name="not");
     } elif op == Tok.BW_NOT {
-        if _kind in ("int", "bool") {
+        if _kind in ("int", "bool")
+            or (_kind == "enum" and self._enum_value_kind(_operand_t) == "int") {
             all_ones = ir.Constant(operand.type, -1);
             return self.builder.xor(operand, all_ones, name="bwnot");
         }

@@ -30,6 +30,25 @@ impl TypeEvaluator._null_ok_attr_type(
 impl TypeEvaluator._get_type_of_expression_core(
     expr: Expr, expected_type: TypeBase | None = None
 ) -> TypeBase {
+    if (
+        isinstance(expr, BuiltinType)
+        and expr.value == "any"
+        and isinstance(expr.parent, FuncCall)
+        and expr.parent.target is expr
+        and self.builtins_module is not None
+    ) {
+        if any_fn_sym
+            := lookup_symtab(self.builtins_module, "any", self.builtins_module) {
+            if expr.sym is None or expr.sym is not any_fn_sym {
+                any_fn_sym.add_use(expr);
+                expr.sym = any_fn_sym;
+                if any_fn_sym.decl and any_fn_sym.decl.name_of {
+                    expr.name_of = any_fn_sym.decl.name_of;
+                }
+            }
+            return self.get_type_of_symbol(any_fn_sym);
+        }
+    }
     if isinstance(expr, BuiltinType) and expr.value == "any" {
         if expr.sym is None and self.typing_module is not None {
             if symbol := lookup_symtab(self.typing_module, "Any", self.typing_module) {
@@ -166,7 +185,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                 list_inst = self._convert_to_instance(self.prefetch.list_class);
                 if isinstance(list_inst, ClassType) and not expr.values {
                     expected_elem = self._get_expected_element_type(
-                        expected_type, self.prefetch.list_class
+                        expected_type,
+                        self.prefetch.list_class,
+                        allow_type_var=(
+                            isinstance(expr.parent, Assignment)
+                            and expr.parent.type_tag is not None
+                        )
                     );
                     if expected_elem is not None {
                         list_inst.private.type_args = [expected_elem];
@@ -200,19 +224,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                             );
                         }
 
-                        if expected_elem is None
-                            and isinstance(elem_type, ClassType)
-                            and elem_type.is_instantiable_class()
-                            and not elem_type.is_class_instance()
-                            and not elem_type.is_any_instance()
-                            and not self.is_any_type(elem_type)
-                            and self.prefetch is not None
-                            and self.prefetch.type_class is not None {
-                            _tc_wrap = self.prefetch.type_class.clone_as_instance();
-                            _tc_wrap.private.type_args = [
-                                self._convert_to_instance(elem_type)
-                            ];
-                            elem_type = _tc_wrap;
+                        if expected_elem is None {
+                            elem_type = self._class_ref_as_type_elem(elem_type);
                         }
                         if not isinstance(elem_type, UnknownType)
                             and not self._type_in_list(elem_type, elem_types) {
@@ -270,12 +283,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                     val_types: list[TypeBase] = [];
                     for _kv in expr.kv_pairs {
                         if _kv.key {
-                            kt = self.get_type_of_expression(_kv.key);
+                            kt = self._class_ref_as_type_elem(
+                                self.get_type_of_expression(_kv.key)
+                            );
                             if not isinstance(kt, UnknownType)
                                 and not self._type_in_list(kt, key_types) {
                                 key_types.append(kt);
                             }
-                            vt = self.get_type_of_expression(_kv.value);
+                            vt = self._class_ref_as_type_elem(
+                                self.get_type_of_expression(_kv.value)
+                            );
                             if not isinstance(vt, UnknownType)
                                 and not self._type_in_list(vt, val_types) {
                                 val_types.append(vt);
@@ -2690,6 +2707,15 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                     }
                 }
 
+                if isinstance(collection_type, UnionType) {
+                    _union_elem = self._get_iterable_element_type(
+                        collection_type, node_.parent
+                    );
+                    if _union_elem is not None {
+                        node_.type = _union_elem;
+                        return _union_elem;
+                    }
+                }
                 iter_type = self.get_type_of_magic_method_call(
                     collection_type, "__iter__", [], node_.parent,
                 );
@@ -3079,6 +3105,29 @@ impl TypeEvaluator._refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> Ty
     }
     _tuple_t.private.type_args = _elems;
     return _tuple_t;
+}
+
+impl TypeEvaluator._class_ref_as_type_elem(elem_type: TypeBase) -> TypeBase {
+    """A class reference used as a container element is a `type[C]` value.
+
+    Type args are kept in class form to mean instances, so a display whose
+    elements are the classes themselves (`{"int": int}`) must wrap them, or
+    `dict[str, int]` would read as a dict of ints.
+    """;
+    if (
+        isinstance(elem_type, ClassType)
+        and elem_type.is_instantiable_class()
+        and not elem_type.is_class_instance()
+        and not elem_type.is_any_instance()
+        and not self.is_any_type(elem_type)
+        and self.prefetch is not None
+        and self.prefetch.type_class is not None
+    ) {
+        _tc_wrap = self.prefetch.type_class.clone_as_instance();
+        _tc_wrap.private.type_args = [self._convert_to_instance(elem_type)];
+        return _tc_wrap;
+    }
+    return elem_type;
 }
 
 impl TypeEvaluator._adopt_expected_container(

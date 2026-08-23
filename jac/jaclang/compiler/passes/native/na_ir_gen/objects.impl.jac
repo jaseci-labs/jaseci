@@ -2287,7 +2287,13 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     _is_super = (
         isinstance(trailer.target, uni.SpecialVarRef)
         and trailer.target.name == Tok.KW_SUPER
-    );
+    )
+        or (
+            isinstance(trailer.target, uni.FuncCall)
+            and isinstance(trailer.target.target, uni.Name)
+            and trailer.target.target.value == "super"
+            and not trailer.target.params
+        );
     if _is_super and self._self_arch is not None {
         _sup_names = [method_name];
         if method_name == "postinit" {
@@ -2345,6 +2351,16 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
                 return _pyb_sup;
             }
             return None;
+        }
+        if (
+            method_name in ("__repr__", "__str__")
+            and _self_slot is not None
+            and self._self_arch is not None
+            and not (nd.params or [])
+        ) {
+            return self._emit_default_obj_repr(
+                self.builder.load(_self_slot, name="super.self"), self._self_arch
+            );
         }
         self.emit(
             E5092,
