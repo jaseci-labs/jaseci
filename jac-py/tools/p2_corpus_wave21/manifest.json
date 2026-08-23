@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave21",
+  "description": "P2 wave 21: itertools lazy-iterator control kernels round 2 (islice skip/stop ladder with step clamp, zip_longest numactive countdown, groupby head-run scan, batched short-batch decision, takewhile/dropwhile sticky flips) + datetime date/timedelta calendrical kernels (is_leap, month/year day tables, ymd_to_ord, ord_to_ymd cycle decomposition, weekday, iso_week1_monday, normalize_pair/d_s_us carry folding)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave21",
+  "baseline_report": "jac-py/tools/p2_corpus_wave21/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "itertoolsmodule",
+      "source": "jac-py/tools/p2_corpus_wave21/corpus/itertoolsmodule.c",
+      "header_free": true
+    },
+    {
+      "stem": "datetimemodule",
+      "source": "jac-py/tools/p2_corpus_wave21/corpus/datetimemodule.c",
+      "header_free": true
+    }
+  ]
+}

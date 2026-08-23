@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "wave": "p2_wave21",
+  "description": "P2 wave 21 staging policy (itertools kernels round 2 + datetime date/timedelta calendrical kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave21",
+  "modules": [
+    {
+      "stem": "itertoolsmodule",
+      "staging": "lift"
+    },
+    {
+      "stem": "datetimemodule",
+      "staging": "lift"
+    }
+  ]
+}

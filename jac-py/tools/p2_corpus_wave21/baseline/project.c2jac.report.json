@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave21/datetimemodule.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave21/_staging/datetimemodule.c",
+      "tier_b_count": 0
+    },
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave21/itertoolsmodule.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave21/_staging/itertoolsmodule.c",
+      "tier_b_count": 1
+    }
+  ],
+  "quarantined_functions": [],
+  "tier_b_total": 1,
+  "version": 1
+}
