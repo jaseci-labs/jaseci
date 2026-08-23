@@ -223,6 +223,7 @@ import from jaclang.jac0core.diagnostics {
     E1120,
     E1121,
     E0049,
+    E5094,
     W1050,
     W1051,
     W1100,
@@ -566,6 +567,8 @@ obj TypeEvaluator {
 
     def _lookup_class_member(base_type: ClassType, member: str) -> ClassMember | None;
     def _lookup_object_member(base_type: ClassType, member: str) -> ClassMember | None;
+    def _bind_filter_compare(cmp: Expr, filter_type: ClassType) -> None;
+    def _bind_filter_member(target: Name, filter_type: ClassType) -> None;
     def _is_type_subscript(class_type: ClassType) -> bool;
     def _get_type_for_member_lookup(object_type: ClassType) -> ClassType;
     def _get_getattr_return_type(base_type: ClassType) -> TypeBase | None;
