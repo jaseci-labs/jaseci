@@ -17,10 +17,14 @@ HIGH's ordinal) or past the end of the array (25, 40) -- a segfault -- and
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
-import from jaclang.jac0core.program { JacProgram }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    native_force_opts,
+    native_str_func
+}
+
 import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -28,28 +32,6 @@ glob FIXTURES = os.path.join(
      PROG = "enum_keyed_dict.jac",
      _SV_MOD: list = [],
      _ENG: list = [];
-
-"""Compile the fixture natively, run module init, return its JIT engine."""
-def compile_native(fixture: str) -> ExecutionEngine {
-    if _ENG {
-        return _ENG[0];
-    }
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    # The glob tables live in module globals; without jac_entry they are null
-    # and every table read segfaults the JIT.
-    entry_addr = eng.get_function_address("jac_entry");
-    assert entry_addr != 0 , "no jac_entry to initialize module globals";
-    ctypes.CFUNCTYPE(None)(entry_addr)();
-    _ENG.append(eng);
-    return eng;
-}
 
 """Import the same fixture through the sv pathway (the congruence oracle)."""
 def sv_module -> object {
