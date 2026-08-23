@@ -389,6 +389,24 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> No
     }
 }
 
+impl TypeCheckPass._is_extern_fn_ptr_store(
+    self: TypeCheckPass, target: Expr, left_type: TypeBase, right_type: TypeBase
+) -> bool {
+    if not isinstance(target, AtomTrailer) or not isinstance(left_type, FunctionType) {
+        return False;
+    }
+    if not (isinstance(right_type, ClassType) and right_type.is_builtin("int")) {
+        return False;
+    }
+    _recv_t = target.target.type if isinstance(target.target, Expr) else None;
+    if not isinstance(_recv_t, ClassType) or _recv_t._shared is None {
+        return False;
+    }
+    _arch = _recv_t.shared.symbol_table;
+    return isinstance(_arch, Archetype)
+        and _arch.find_parent_of_type(Import) is not None;
+}
+
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None {
     if nd.is_enum_stmt {
         return;
@@ -506,8 +524,17 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                                 := self.evaluator._lookup_class_member(
                                     setter_base, "__setattr__"
                                 ) {
+                                _getattr_member = self.evaluator._lookup_class_member(
+                                    setter_base, "__getattr__"
+                                );
+                                _dynamic_attrs = (
+                                    _getattr_member is not None
+                                    and _getattr_member.class_type.shared.class_name
+                                        != "object"
+                                );
                                 if setter_member.class_type.shared.class_name
-                                    != "object" {
+                                    != "object"
+                                    or _dynamic_attrs {
                                     setter_ty = self.evaluator.get_type_of_symbol(
                                         setter_member.symbol
                                     );
@@ -616,6 +643,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None 
                 nd.aug_op is None
                 and not is_evolving_reassign
                 and not is_module_fallback_rebind
+                and not self._is_extern_fn_ptr_store(target, left_type, right_type)
             ) {
                 verdict = self.evaluator.assign_expr(
                     nd.value,
@@ -1548,6 +1576,21 @@ impl TypeCheckPass.exit_match_stmt(self: TypeCheckPass, nd: MatchStmt) -> None {
     }
     if nd.target.type is None {
         self.evaluator.get_type_of_expression(nd.target);
+    }
+    for _case in nd.cases {
+        if _case.guard is not None and _case.guard.type is None {
+            self.evaluator.get_type_of_expression(_case.guard);
+        }
+        for _mv in _case.pattern.get_all_sub_nodes(MatchValue) {
+            if isinstance(_mv.value, Expr) and _mv.value.type is None {
+                self.evaluator.get_type_of_expression(_mv.value);
+            }
+        }
+        if isinstance(_case.pattern, MatchValue)
+            and isinstance(_case.pattern.value, Expr)
+            and _case.pattern.value.type is None {
+            self.evaluator.get_type_of_expression(_case.pattern.value);
+        }
     }
 }
 

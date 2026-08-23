@@ -26,7 +26,7 @@ obj ClientManifest {
         globals_values: dict[(str, any)] = field(default_factory=`dict),
         has_client: bool = False,
         imports: dict[(str, str)] = field(default_factory=`dict),
-        endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
+        endpoint_effects: dict[(str, dict[(str, any)])] = field(default_factory=`dict),
         tests: list[dict[(str, str)]] = field(default_factory=`list),
         server_imports: list[str] = field(default_factory=`list),
         page_export: (str | None) = None,
@@ -474,7 +474,7 @@ obj NativeModuleLayout {
         str_headerless: (bool | None) = None;
 }
 
-def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
+def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict[(str, any)] | None) {
     if t is None {
         return None;
     }
@@ -485,7 +485,7 @@ def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
     };
 }
 
-def _func_layout_to_dict(f: NativeFuncLayout) -> dict {
+def _func_layout_to_dict(f: NativeFuncLayout) -> dict[(str, any)] {
     return {
         "name": f.name,
         "param_types": list(f.param_types),
@@ -500,7 +500,7 @@ def _func_layout_to_dict(f: NativeFuncLayout) -> dict {
     };
 }
 
-def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
+def native_layout_to_dict(layout: NativeModuleLayout) -> dict[(str, any)] {
     return {
         "abi_version": layout.abi_version,
         "structs": {
@@ -576,7 +576,7 @@ obj InteropBinding {
 obj InteropManifest {
     has bindings: dict[(str, InteropBinding)] = field(default_factory=`dict),
         boundary_types: dict[(str, BoundaryTypeInfo)] = field(default_factory=`dict),
-        endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
+        endpoint_effects: dict[(str, dict[(str, any)])] = field(default_factory=`dict),
         func_access: dict[(str, bool)] = field(default_factory=`dict),
         walker_access: dict[(str, bool)] = field(default_factory=`dict),
         native_module_imports: dict[(str, NativeModuleInfo)] = field(

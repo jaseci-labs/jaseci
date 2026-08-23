@@ -58,7 +58,7 @@ class EndpointEffectPass(UniPass) {
         ] = self._classify(self._resolved_body(nd));
     }
 
-    def _classify(self: EndpointEffectPass, body_nodes: list) -> dict {
+    def _classify(self: EndpointEffectPass, body_nodes: list) -> dict[(str, any)] {
         self._is_writer = False;
         self._touches.clear();
         self._visited.clear();

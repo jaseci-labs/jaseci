@@ -86,7 +86,20 @@ impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
     if _view == "dict_items" and len(_args) >= 2 and idx == 0 {
         return self._tuple_type_of([_args[0], _args[1]]);
     }
-    return _args[idx] if idx < len(_args) else None;
+    if idx < len(_args) {
+        return _args[idx];
+    }
+    if (
+        not _args
+        and isinstance(_base, ClassType)
+        and _base._shared is not None
+        and _base.is_instance()
+        and _base.is_builtin(["list", "set", "frozenset", "dict"])
+        and idx < (2 if _view == "dict" else 1)
+    ) {
+        return self._tb_builtin("Any");
+    }
+    return None;
 }
 
 impl NaIRGenTypes._tuple_type_of(args: list) -> any {
@@ -98,6 +111,9 @@ impl NaIRGenTypes._tuple_type_of(args: list) -> any {
 impl NaIRGenTypes._tb_builtin(name: str) -> any {
     _ev = self.prog.type_evaluator;
     _cls = getattr(_ev.prefetch, f"{name}_class", None);
+    if not isinstance(_cls, ClassType) {
+        _cls = getattr(_ev.prefetch, f"{name.lower()}_class", None);
+    }
     if not isinstance(_cls, ClassType) {
         _cls = _ev._get_type_from_module(_ev.jac_builtins_module, name);
     }
@@ -698,13 +714,13 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     }
 
     if cname in ("list", "Sequence") {
-        elem_llvm: ir.Type = ir.IntType(64);
-        if type_args {
-            _e = self._elem_storage_llvm(type_args[0]);
-            if _e is None {
-                return None;
-            }
-            elem_llvm = _e;
+        _list_elem = type_args[0] if type_args else self._tb_elem(t);
+        if _list_elem is None {
+            return None;
+        }
+        elem_llvm = self._elem_storage_llvm(_list_elem);
+        if elem_llvm is None {
+            return None;
         }
         return self._lower_list_for_elem(elem_llvm);
     }
@@ -722,20 +738,21 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     }
 
     if cname == "dict" {
-        k_llvm: ir.Type = ir.IntType(64);
-        v_llvm: ir.Type = ir.IntType(64);
-        if len(type_args) >= 2 {
-            _k = self._elem_storage_llvm(type_args[0]);
-            _v = self._elem_storage_llvm(type_args[1]);
-            if _k is None or _v is None {
-                return None;
-            }
-            if self?.jacval_type and _k == self.jacval_type {
-                return None;
-            }
-            k_llvm = _k;
-            v_llvm = _v;
+        _kt = type_args[0] if len(type_args) >= 2 else self._tb_elem(t, 0);
+        _vt = type_args[1] if len(type_args) >= 2 else self._tb_elem(t, 1);
+        if _kt is None or _vt is None {
+            return None;
         }
+        _k = self._elem_storage_llvm(_kt);
+        _v = self._elem_storage_llvm(_vt);
+        if _k is None or _v is None {
+            return None;
+        }
+        if self?.jacval_type and _k == self.jacval_type {
+            return None;
+        }
+        k_llvm: ir.Type = _k;
+        v_llvm: ir.Type = _v;
         if self._str_desc_ty is not None {
             if k_llvm == self._str_desc_ty {
                 k_llvm = ir.IntType(8).as_pointer();
@@ -752,17 +769,18 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     }
 
     if cname in ("set", "frozenset") {
-        elem_llvm: ir.Type = ir.IntType(64);
-        if type_args {
-            _e = self._elem_storage_llvm(type_args[0]);
-            if _e is None {
-                return None;
-            }
-            if self?.jacval_type and _e == self.jacval_type {
-                return None;
-            }
-            elem_llvm = _e;
+        _set_elem = type_args[0] if type_args else self._tb_elem(t);
+        if _set_elem is None {
+            return None;
         }
+        _e = self._elem_storage_llvm(_set_elem);
+        if _e is None {
+            return None;
+        }
+        if self?.jacval_type and _e == self.jacval_type {
+            return None;
+        }
+        elem_llvm: ir.Type = _e;
         if self._str_desc_ty is not None and elem_llvm == self._str_desc_ty {
             elem_llvm = ir.IntType(8).as_pointer();
         }
@@ -2133,9 +2151,7 @@ impl NaIRGenTypes._to_float_type(
         }
         return self.builder.fptrunc(val, target, name="fptrunc");
     }
-    raise AssertionError(
-        f"native codegen: a `{src_ty}` value ({_k}) has no float conversion at {self._na_loc()}"
-    );
+    return val;
 }
 
 impl NaIRGenTypes._unify_int_widths(

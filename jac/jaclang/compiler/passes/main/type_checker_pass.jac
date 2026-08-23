@@ -53,6 +53,7 @@ import from jaclang.jac0core.unitree {
     Except,
     ExprStmt,
     MatchStmt,
+    MatchValue,
     WhileStmt,
     WithStmt,
     YieldExpr
@@ -146,6 +147,10 @@ class TypeCheckPass(UniPass) {
     def exit_enum(self: TypeCheckPass, nd: Enum) -> None;
     def exit_import(self: TypeCheckPass, nd: Import) -> None;
     def exit_assignment(self: TypeCheckPass, nd: Assignment) -> None;
+    def _is_extern_fn_ptr_store(
+        self: TypeCheckPass, target: Expr, left_type: TypeBase, right_type: TypeBase
+    ) -> bool;
+
     def exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> None;
     def exit_binary_expr(self: TypeCheckPass, nd: BinaryExpr) -> None;
     def exit_compare_expr(self: TypeCheckPass, nd: CompareExpr) -> None;

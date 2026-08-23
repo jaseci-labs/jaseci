@@ -3002,8 +3002,7 @@ impl NaIRGenCalls._empty_container_of_type(
         }
         return self.builder.call(_dh["new"], [], name="dict.empty");
     }
-    _targs = self._tb_args(t);
-    _elem_t = _targs[0] if _targs else None;
+    _elem_t = self._tb_elem(t);
     if _elem_t is None or self._tb_kind(_elem_t) in ("unknown", "never") {
         self.emit(
             E5092,

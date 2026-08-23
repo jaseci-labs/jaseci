@@ -1400,7 +1400,7 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         if len(ctx.arg_nodes) >= 2 {
             exp_node = ctx.arg_nodes[1];
         }
-        return p._codegen_pow(base, exp, exp_node);
+        return p._codegen_pow(base, exp, exp_node, ctx.arg_type(0), ctx.arg_type(1));
     }
 
     def emit_pow_mod(

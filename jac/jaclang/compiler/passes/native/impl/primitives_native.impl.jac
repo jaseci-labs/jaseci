@@ -4762,8 +4762,11 @@ impl NativeBuiltinEmitter.emit_list(
     }
     if _k == "set" {
         _sspec = p._set_spec_for_type(_t);
-        shelpers = p.set_helpers.get(_sspec) if _sspec is not None else None;
-        stype = p.set_types.get(_sspec) if _sspec is not None else None;
+        if _sspec is None {
+            return None;
+        }
+        shelpers = p.set_helpers.get(_sspec);
+        stype = p.set_types.get(_sspec);
         if shelpers is None or stype is None or val.type != stype.as_pointer() {
             return None;
         }
@@ -4820,6 +4823,9 @@ impl NativeBuiltinEmitter.emit_list(
                 return None;
             }
             _slot = _fl;
+        }
+        if _slot is None {
+            return None;
         }
         _tspec = p._list_spec_for_elem_llvm(_slot);
         lhelpers = p.list_helpers.get(_tspec);
@@ -4916,8 +4922,11 @@ impl NativeBuiltinEmitter.emit_set(
     _k = ctx.arg_kind(0);
     if _k in ("list", "tuple") {
         _lspec = p._list_spec_for_type(_t);
-        lhelpers = p.list_helpers.get(_lspec) if _lspec is not None else None;
-        ltype = p.list_types.get(_lspec) if _lspec is not None else None;
+        if _lspec is None {
+            return None;
+        }
+        lhelpers = p.list_helpers.get(_lspec);
+        ltype = p.list_types.get(_lspec);
         if lhelpers is None or ltype is None or val.type != ltype.as_pointer() {
             return None;
         }

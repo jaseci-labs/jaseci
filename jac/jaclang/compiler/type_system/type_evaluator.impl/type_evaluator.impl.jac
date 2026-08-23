@@ -3719,7 +3719,11 @@ impl TypeEvaluator.assign_type(
                 src_type_inst = self._convert_to_instance(src_type_arg);
                 for dest_type_arg in dest_type.types {
                     dest_type_inst = self._convert_to_instance(dest_type_arg);
-                    if self.assign_type(src_type_inst, dest_type_inst, strict) {
+                    if self.assign_type(src_type_inst, dest_type_inst, strict)
+                        or (
+                            src_type_inst is not src_type_arg
+                            and self.assign_type(src_type_arg, dest_type_inst, strict)
+                        ) {
                         matched = True;
                         break;
                     }
@@ -3759,6 +3763,14 @@ impl TypeEvaluator.assign_type(
             )
             and dest_type.shared == enum_val_type.shared {
             return True;
+        }
+        if isinstance(dest_type, ClassType)
+            and not dest_type.is_enum_class()
+            and isinstance(src_type.enum_class, ClassType)
+            and src_type.enum_class._shared is not None {
+            return self.assign_type(
+                self._convert_to_instance(src_type.enum_class), dest_type, strict
+            );
         }
     }
 

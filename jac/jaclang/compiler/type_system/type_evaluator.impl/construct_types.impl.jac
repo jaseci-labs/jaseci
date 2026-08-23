@@ -190,6 +190,9 @@ impl TypeEvaluator._get_iterable_element_type(
     if isinstance(iterable_type, AnyType) {
         return AnyType(is_foreign=iterable_type.is_foreign);
     }
+    if self.is_any_type(iterable_type) or iterable_type.is_any_instance() {
+        return iterable_type;
+    }
 
     if isinstance(iterable_type, UnknownType) {
         return UnknownType(
@@ -382,11 +385,17 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
             if ann is None {
                 return AnyType(is_foreign=True);
             }
-            _at = self._convert_to_instance(self.get_type_of_expression(ann));
-            if isinstance(_at, UnknownType) or self.is_any_type(_at) {
-                return AnyType(is_foreign=True);
+            _scalar = self._extern_scalar_type(ann);
+            if not (isinstance(_scalar, AnyType) and _scalar.foreign_scalar is None) {
+                return _scalar;
             }
-            return _at;
+            _at = self._convert_to_instance(self.get_type_of_expression(ann));
+            _arch = _at.shared.symbol_table if isinstance(_at, ClassType) else None;
+            if isinstance(_arch, Archetype)
+                and _arch.find_parent_of_type(Import) is not None {
+                return _at;
+            }
+            return AnyType(is_foreign=True);
         }
         extern_params: list[Parameter] = [];
         ret_type: TypeBase = AnyType(is_foreign=True);
