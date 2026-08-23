@@ -90,3 +90,36 @@
    runtime gaps tracked above).
 4. Lambda/comprehensions/walrus inside deferred annotations trap loudly
    (unsupported construct) rather than mis-lower.
+
+---
+
+## Band-11 slice addendum: GeneratorExp + NamedExpr (commit 8229ee4d5)
+
+1. Genexp lowering: nested `<genexpr>` code (flags 0x23 = OPTIMIZED|NEWLOCALS|
+   GENERATOR, varnames ('.0', targets...), RETURN_GENERATOR prologue + PEP 479
+   handler). The outermost iterable is evaluated in the ENCLOSING frame and the
+   function is invoked via `CALL 0` whose self_or_null slot carries the iterator
+   into `.0` (ceval already implements this convention). A genexp as sole call
+   argument lowers callee-setup -> MAKE_FUNCTION -> iterable -> GET_ITER ->
+   CALL 0 -> CALL 1.
+2. Walrus: value eval + COPY 1 + scope-aware store. Symtable must define the
+   walrus target; CPython's symtable visits Assign value BEFORE targets, so
+   sym_visit_stmt(Assign) was reordered to match (affects co_varnames order
+   whenever a walrus target sits inside an assigned value).
+3. comp_leftmost_leaf now descends through NamedExpr so a comprehension elt
+   beginning with a walrus still gets the lead STORE_FAST_LOAD_FAST fusion.
+4. Fixed all-constant list/set display packing threshold to >= 3 elements
+   (CPython packs only longer displays; 1-2 element const lists/sets use
+   element loads). This unlocked the pinned b11 walrus golden (`len([1,2])`).
+5. Known byte-parity gaps left for a future pass (all verified pre-existing or
+   policy-level):
+   - flowgraph deliberately omits global STORE_FAST+STORE_FAST and cross-slot
+     STORE_FAST+LOAD_FAST fusion (over-fuse risk with coarser CFG blocks);
+     CPython fuses both, so `y = (n := v)` in function scope and nested-loop
+     genexps keep separate stores here. Needs CPython's finer CFG split of
+     comprehension save/restore epilogues before enabling globally.
+   - genexp-with-filter exceptiontable: CPython splits the generator protect
+     region per block with a gap at the filter-jump block; we register one
+     region. co_code matches exactly.
+   - inline listcomp inside a function whose elt is `x+1` shape diverges at
+     HEAD independent of this slice (SWAP arity at setup / epilogue order).
