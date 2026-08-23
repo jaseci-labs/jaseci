@@ -51,7 +51,8 @@ import from jaclang.jac0core.unitree {
     VisitStmt,
     WhileStmt,
     WithStmt,
-    YieldExpr
+    YieldExpr,
+    lookup_enclosing_binding
 }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { ImmutabilityKind, Tokens as Tok }
@@ -187,7 +188,14 @@ class TypeCheckPass(UniPass) {
         self: TypeCheckPass, sym: Symbol, site: UniNode, name: str
     ) -> None;
 
-    def _in_owner_initializer(self: TypeCheckPass, target: AtomTrailer) -> bool;
+    def _in_owner_initializer(
+        self: TypeCheckPass, target: AtomTrailer, decl_node: UniNode
+    ) -> bool;
+
+    def _check_immutable_loop_target(
+        self: TypeCheckPass, loop: InForStmt, target: Expr
+    ) -> None;
+
     def _check_walker_reports_shape(
         self: TypeCheckPass, nd: HasVar, declared_type: object
     ) -> None;

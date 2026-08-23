@@ -409,7 +409,7 @@ impl TypeCheckPass._check_immutable_write(self: TypeCheckPass, target: Expr) -> 
         if (
             isinstance(decl_node, HasVar)
             and decl_node.value is None
-            and self._in_owner_initializer(target)
+            and self._in_owner_initializer(target, decl_node)
         ) {
             return;
         }
@@ -436,23 +436,47 @@ impl TypeCheckPass._emit_immutable_write(
 }
 
 impl TypeCheckPass._in_owner_initializer(
-    self: TypeCheckPass, target: AtomTrailer
+    self: TypeCheckPass, target: AtomTrailer, decl_node: UniNode
 ) -> bool {
     base = target.target;
     if not (isinstance(base, Name) and base.value == 'self') {
         return False;
     }
-    meth_name = '';
     ability = target.find_parent_of_type(Ability);
-    if ability is not None {
-        meth_name = ability.sym_name;
-    } else {
+    if ability is None {
         impl_node = target.find_parent_of_type(ImplDef);
         if impl_node is not None and isinstance(impl_node.decl_link, Ability) {
-            meth_name = impl_node.decl_link.sym_name;
+            ability = impl_node.decl_link;
         }
     }
-    return meth_name in ('init', 'postinit');
+    if ability is None
+        or ability.sym_name not in ('init', 'postinit', '__post_init__') {
+        return False;
+    }
+    owner = ability.find_parent_of_type(Archetype);
+    return (owner is not None) and (owner is decl_node.find_parent_of_type(Archetype));
+}
+
+impl TypeCheckPass._check_immutable_loop_target(
+    self: TypeCheckPass, loop: InForStmt, target: Expr
+) -> None {
+    if isinstance(target, (TupleVal, ListVal)) {
+        for v in target.values {
+            self._check_immutable_loop_target(loop, v);
+        }
+        return;
+    }
+    if not isinstance(target, Name) {
+        return;
+    }
+    outer = lookup_enclosing_binding(loop, target.value);
+    if outer is None {
+        return;
+    }
+    self.evaluator.get_type_of_symbol(outer);
+    if outer.immutability != ImmutabilityKind.NONE {
+        self._emit_immutable_write(outer, target, target.value);
+    }
 }
 
 impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: Assignment) -> None {
@@ -1352,10 +1376,10 @@ impl TypeCheckPass._enclosing_walker_report_elem_type(
 impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None {
     if isinstance(nd.target, Name) {
         self.evaluator.get_type_of_expression(nd.target);
-        self._check_immutable_write(nd.target);
     } elif isinstance(nd.target, (TupleVal, ListVal)) {
         self._eval_unpacking_names(nd.target);
     }
+    self._check_immutable_loop_target(nd, nd.target);
 
     collection_type = self.evaluator.get_type_of_expression(nd.collection);
 

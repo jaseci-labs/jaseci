@@ -5859,25 +5859,28 @@ test "final_immutability_enforcement" {
         os.path.join(CHECKER_FIXTURES, "checker_final_reassignment.jac"), options=NO_TC
     );
     run_pass(TypeCheckPass, mod, program);
-    # Expected errors (7 total, in file order):
-    #   1. self.tag = "u"   -- Final with default reassigned in init
-    #   2. c.name = "b"     -- Final attribute reassigned
-    #   3. y = 2            -- Final local reassigned
-    #   4. y += 1           -- augmented assignment
-    #   5. (y, w) = (1, 2)  -- unpacking into a Final
-    #   6. del y            -- deleting a Final
-    #   7. RATE = 2.0       -- Final glob reassigned
+    # Expected errors (10 total, in file order):
+    #   1. self.tag = "u"    -- Final with default reassigned in init
+    #   2. for t in items    -- Final overwritten by a loop target
+    #   3. free init         -- writer is not a method of the declaring obj
+    #   4. Heir.init         -- writer is not the declaring obj's initializer
+    #   5. c.name = "b"      -- Final attribute reassigned
+    #   6. y = 2             -- Final local reassigned
+    #   7. y += 1            -- augmented assignment
+    #   8. (y, w) = (1, 2)   -- unpacking into a Final
+    #   9. del y             -- deleting a Final
+    #  10. RATE = 2.0        -- Final glob reassigned
     # Assigning a no-default Final inside init/postinit is a scope rule, not a
     # count (matching Pyright): the repeated, branched, and looped init writes
-    # in Pair/Cond/LoopInit must all stay clean.
-    assert len(program.errors_had) == 7 , "Expected 7 errors, got "
+    # in Pair/Cond/LoopInit must all stay clean, and so must Late's postinit.
+    assert len(program.errors_had) == 10 , "Expected 10 errors, got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
     for err in program.errors_had {
         assert "E1126" in err.pretty_print() , f"Expected only E1126 diagnostics:\n{err.pretty_print()}";
         assert "declared Final" in err.pretty_print();
     }
-    expected_names = ["tag", "name", "y", "y", "y", "y", "RATE"];
+    expected_names = ["tag", "t", "x", "x", "name", "y", "y", "y", "y", "RATE"];
     for (i, want) in enumerate(expected_names) {
         assert f"'{want}'" in program.errors_had[i].pretty_print() , f"Error {i}: expected '{want}' in:\n{program.errors_had[
             i

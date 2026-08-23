@@ -13,6 +13,14 @@ obj Point {
     }
 }
 
+obj Late {
+    has y: Final[int];
+
+    def postinit {
+        self.y = 5;  # OK: no-default Final set in postinit
+    }
+}
+
 obj Tagged {
     has tag: Final[str] = "t";
 
@@ -60,18 +68,28 @@ obj LoopInit {
     }
 }
 
-# A `for` target binds a fresh symbol in the loop's scope, so re-using a Final
-# name as a loop variable shadows it rather than writing it -- no E1126. Pinned
-# deliberately: if scoping ever changes so the target resolves to the outer
-# symbol, this becomes an error and the count in the driver test must be
-# revisited on purpose rather than silently.
-def for_target_shadows_final(items: list[int]) -> int {
+# The symbol table gives a `for` target its own scope, but the emitted code
+# writes the enclosing binding: after the loop the Final holds the last item.
+# So a Final name used as a loop variable is a write, not a shadow.
+def for_target_writes_final(items: list[int]) -> int {
     t: Final[int] = 1;
     total = t;
-    for t in items {
+    for t in items {  # <-- Error (Final overwritten by the loop target)
         total += t;
     }
     return total;
+}
+
+# Only the initializer of the declaring archetype may set a no-default Final.
+def init(self: Point) {
+    self.x = 999;  # <-- Error (free function, not a method of Point)
+}
+
+obj Heir(Point) {
+    def init {
+        super.init(1);
+        self.x = 999;  # <-- Error (subclass initializer, not the declaring one)
+    }
 }
 
 # Bare `Final` (no subscript) infers the declared type from the initializer.
