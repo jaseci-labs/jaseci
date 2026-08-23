@@ -15,6 +15,7 @@ import from _bisectmodule {
     _p2_insort_left,
 }
 import from _heapqmodule { _p2_heappush, _p2_heappop, _p2_heapify, }
+import from _jsonmodule { dumps, loads }
 import from _statmodule {
     _p2_S_ISDIR,
     _p2_S_ISCHR,
@@ -122,6 +123,83 @@ def _p2_optional_int_arg(args: list[PyObj], idx: int, `default: int) -> int {
         return (args[idx] as PyInt).val;
     }
     return `default;
+}
+
+# json shim plumbing: keyword defaults are all "absent == default" safe
+# because every dumps()/loads() kwarg maps None (and absence) to the same
+# Lib/json default.
+def _p2_json_kwarg(kwargs: dict[str, PyObj], name: str) -> PyObj {
+    if name in kwargs {
+        return kwargs[name];
+    }
+    return py_none();
+}
+
+def _p2_json_kwbool(kwargs: dict[str, PyObj], name: str, dflt: bool) -> bool {
+    if name not in kwargs {
+        return dflt;
+    }
+    val = kwargs[name];
+    if isinstance(val, PyBool) {
+        return val.val;
+    }
+    if isinstance(val, PyInt) {
+        return val.val != 0;
+    }
+    return dflt;
+}
+
+# Native raises do not cross the tp_call boundary as guest-catchable
+# exceptions; the established shim contract is returning py_error objects
+# (ceval turns those into raised guest exceptions), so catch and convert.
+# JSONDecodeError surfaces as ValueError -- its Lib/json base class.
+obj P2LibtestJsonDumpsFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "dumps expected at least 1 argument, got 0");
+        }
+        try {
+            encoded = dumps(
+            to_host(args[0]),
+            _p2_json_kwbool(kwargs, "skipkeys", False),
+            _p2_json_kwbool(kwargs, "ensure_ascii", True),
+            _p2_json_kwbool(kwargs, "check_circular", True),
+            _p2_json_kwbool(kwargs, "allow_nan", True),
+            to_host(_p2_json_kwarg(kwargs, "indent")),
+            to_host(_p2_json_kwarg(kwargs, "separators")),
+            to_host(_p2_json_kwarg(kwargs, "default")),
+            _p2_json_kwbool(kwargs, "sort_keys", False),
+        );
+            return PyStr(t="str", val=encoded);
+        } except ValueError as e {
+            return py_error("ValueError", str(e));
+        } except TypeError as e {
+            return py_error("TypeError", str(e));
+        }
+    }
+}
+
+obj P2LibtestJsonLoadsFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 1 {
+            return py_error("TypeError", "loads expected at least 1 argument, got 0");
+        }
+        try {
+            decoded = loads(
+                to_host(args[0]),
+                to_host(_p2_json_kwarg(kwargs, "object_hook")),
+                to_host(_p2_json_kwarg(kwargs, "parse_float")),
+                to_host(_p2_json_kwarg(kwargs, "parse_int")),
+                to_host(_p2_json_kwarg(kwargs, "parse_constant")),
+                to_host(_p2_json_kwarg(kwargs, "object_pairs_hook")),
+            );
+        } except ValueError as e {
+            return py_error("ValueError", str(e));
+        } except TypeError as e {
+            return py_error("TypeError", str(e));
+        }
+        return from_host(decoded);
+    }
 }
 
 obj P2LibtestBisectRightFn(PyObj) {
@@ -466,6 +544,13 @@ def p2_libtest_reset {
     };
     register_shim_module(
         "heapq", PyModule(t="module", name="heapq", attrs=heapq_attrs)
+    );
+    json_attrs: dict[str, PyObj] = {
+        "dumps": P2LibtestJsonDumpsFn(t="function"),
+        "loads": P2LibtestJsonLoadsFn(t="function"),
+    };
+    register_shim_module(
+        "json", PyModule(t="module", name="json", attrs=json_attrs)
     );
     stat_attrs: dict[str, PyObj] = {
         "S_ISDIR": P2StatSIsDirFn(t="function"),
