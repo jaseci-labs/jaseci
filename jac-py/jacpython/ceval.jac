@@ -476,6 +476,8 @@ import from abstract_protocol {
     PyObject_HashNotImplemented,
     PyObject_RichCompare,
     PyObject_RichCompareBool,
+    py_ordering_type_error,
+    _base_type_name,
 }
 import from rangeobject { get_len_of_range, range_contains_longs, range_equals_longs, }
 import from tupleobject { tuple_hash, tuple_richcompare, }
@@ -2866,7 +2868,28 @@ def user_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             return r;
         }
     }
-    return py_error("TypeError", "unsupported operand type(s)");
+    # NB_* kind -> operator symbol, same order as binop_dunder's name table.
+    symbols = ["+", "&", "//", "<<", "@", "*", "%", "|", "**", ">>", "-", "/", "^"];
+    op = symbols[kind] if kind >= 0 and kind < len(symbols) else "?";
+    return py_error(
+        "TypeError",
+        "unsupported operand type(s) for " + op + ": '"
+            + _compare_type_name(lhs) + "' and '" + _compare_type_name(rhs) + "'"
+    );
+}
+
+# Instance -> CPython type name for protocol error messages. Wraps the
+# builtin tag map in abstract_protocol with the operand kinds only ceval
+# knows about: user class instances print their class name, dict views
+# print dict_keys / dict_values / dict_items.
+def _compare_type_name(v: PyObj) -> str {
+    if isinstance(v, PyUserObj) {
+        return (v as PyUserObj).cls.name;
+    }
+    if isinstance(v, PyDictView) {
+        return "dict_" + (v as PyDictView).mode;
+    }
+    return _base_type_name(v);
 }
 
 # CPython rich-comparison protocol for PyUserObj operands. Same shape as
@@ -2922,7 +2945,7 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     if kind == 3 {
         return PyBool(t="bool", val=lhs is not rhs);
     }
-    return py_error("TypeError", "unorderable types");
+    return py_ordering_type_error(kind, lhs, rhs, _compare_type_name);
 }
 
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
@@ -6211,7 +6234,7 @@ def dictview_richcompare(kind: int, a: PyObj, b: PyObj) -> PyObj {
         }
         return all_contained(b, a);
     }
-    return py_error("TypeError", "unorderable types");
+    return py_ordering_type_error(kind, a, b, _compare_type_name);
 }
 
 # Coerce a set-op operand to a PySet: a view materializes its elements, a set

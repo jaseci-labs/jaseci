@@ -45,7 +45,34 @@ def PyObject_RichCompare(v: PyObj, w: PyObj, op: int) -> PyObj {
     if op == Py_NE {
         return PyBool(t="bool", val=v is not w);
     }
-    return py_error("TypeError", "unorderable types");
+    return py_ordering_type_error(op, v, w, _base_type_name);
+}
+
+
+# CPython ``tp_name`` for a builtin-boxed value, keyed by the ``t`` tag.
+# User subclasses and dict views carry richer names; ceval layers those on in
+# ``_compare_type_name``, which wraps this for its own ordering/binop sites.
+def _base_type_name(v: PyObj) -> str {
+    if v.t == "none" {
+        return "NoneType";
+    }
+    return v.t;
+}
+
+# The CPython ordering TypeError:
+# "'<' not supported between instances of 'int' and 'str'".
+# ``type_name_fn`` resolves each operand's type name so callers with richer
+# operand kinds (user classes, dict views) can supply their own namer.
+def py_ordering_type_error(op_kind: int, v: PyObj, w: PyObj, type_name_fn: any) -> PyObj {
+    ops = ["<", "<=", "", "", ">", ">="];
+    if op_kind < 0 or op_kind >= len(ops) or ops[op_kind] == "" {
+        return py_error("TypeError", "invalid rich comparison opcode");
+    }
+    return py_error(
+        "TypeError",
+        "'" + ops[op_kind] + "' not supported between instances of '"
+            + (type_name_fn(v) as str) + "' and '" + (type_name_fn(w) as str) + "'"
+    );
 }
 
 # Integer tri-state: 1 true, 0 false, -1 error (matches C API).
