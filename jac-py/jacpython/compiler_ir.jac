@@ -74,11 +74,26 @@ def mk_jump(opcode: int, target: int, lc: cloc) -> cinstr {
     return cinstr(opcode=opcode, oparg=0, loc=lc, target_block=target);
 }
 
+# One emitted break statement: the block holding its JUMP_FORWARD, the index of
+# that jump instruction, and the statement location. The loop visitors revisit
+# these sites after the shared continuation block is built so CPython's
+# small-exit tail duplication can be applied per edge.
+obj break_site {
+    has blk: basicblock,
+        instr_idx: int,
+        loc: cloc;
+}
+
 # Active loop target pair for break/continue lowering (continue_blk, break_blk).
 obj loop_frame {
     has continue_blk: basicblock,
         break_blk: basicblock,
-        break_is_stub: bool = False;
+        break_is_stub: bool = False,
+        # FOR-loop family: unwinding the loop on break pops the iterator
+        # (CPython codegen_unwind_fblock, COMPILE_FBLOCK_FOR_LOOP).
+        pops_iter: bool = False,
+        # Per-break emission sites recorded by visit_stmt (Break).
+        break_sites: list[break_site] = [];
 }
 
 # CFG builder: owns the current block and emits into unverified_cfg (Phase 4).
