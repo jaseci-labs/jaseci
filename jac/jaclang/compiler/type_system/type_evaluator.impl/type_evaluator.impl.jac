@@ -1969,20 +1969,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                 filter_type = self.get_type_of_expression(expr.f_type);
                 if isinstance(filter_type, ClassType) {
                     for cmp in expr.compares {
-                        if isinstance(cmp.left, Name)
-                            and (
-                                sym := filter_type.lookup_member_symbol(cmp.left.value)
-                            ) {
-                            self._set_symbol_to_expr(cmp.left, sym);
-                        } else {
-                            self.emit_diag(
-                                E1033,
-                                cmp.left,
-                                member=cmp.left.value,
-                                type=str(filter_type)
-                            );
-                        }
-
+                        self._bind_filter_compare(cmp, filter_type);
                         self.get_type_of_expression(cmp);
                     }
 
@@ -2248,6 +2235,84 @@ impl TypeEvaluator._get_type_of_expression_core(
 
     return UnknownType();
 }
+
+impl TypeEvaluator._bind_filter_compare(cmp: Expr, filter_type: ClassType) -> None {
+    if not isinstance(cmp, CompareExpr) {
+        term = self._filter_order_name(cmp);
+        if term is not None {
+            self._bind_filter_member(term, filter_type);
+            return;
+        }
+        self.emit_diag(E5094, cmp, reason="not a comparison or an ordering term");
+        return;
+    }
+    if len(cmp.ops) != 1 {
+        self.emit_diag(E5094, cmp, reason="chained comparisons are not admitted");
+        return;
+    }
+    left = cmp.left;
+    if isinstance(left, TupleVal) {
+        parts = list(left.values);
+        if not parts {
+            self.emit_diag(
+                E5094, left, reason="a composite key needs at least one field name"
+            );
+            return;
+        }
+        for part in parts {
+            if not isinstance(part, Name) {
+                self.emit_diag(
+                    E5094,
+                    part,
+                    reason="a composite key must be a tuple of declared field names"
+                );
+                return;
+            }
+        }
+        for part in parts {
+            if isinstance(part, Name) {
+                self._bind_filter_member(part, filter_type);
+            }
+        }
+        arity = len(parts);
+        right = cmp.rights[0] if cmp.rights else None;
+        if (not isinstance(right, TupleVal)) or len(right.values) != arity {
+            self.emit_diag(
+                E5094,
+                cmp,
+                reason=f"a composite key of arity {arity} needs a tuple value of the same arity"
+            );
+        }
+        return;
+    }
+    if not isinstance(left, Name) {
+        self.emit_diag(E5094, left, reason="left side must be a declared field name");
+        return;
+    }
+    self._bind_filter_member(left, filter_type);
+}
+
+
+impl TypeEvaluator._filter_order_name(expr: Expr) -> (Name | None) {
+    inner = expr;
+    if isinstance(inner, UnaryExpr) {
+        if inner.op.name != Tok.MINUS {
+            return None;
+        }
+        inner = inner.operand;
+    }
+    return inner if isinstance(inner, Name) else None;
+}
+
+
+impl TypeEvaluator._bind_filter_member(target: Name, filter_type: ClassType) -> None {
+    if sym := filter_type.lookup_member_symbol(target.value) {
+        self._set_symbol_to_expr(target, sym);
+        return;
+    }
+    self.emit_diag(E1033, target, member=target.value, type=str(filter_type));
+}
+
 
 impl TypeEvaluator._widen_literal_for_declaration(ty: TypeBase) -> TypeBase {
     if isinstance(ty, ClassType) {
