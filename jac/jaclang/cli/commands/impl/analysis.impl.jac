@@ -862,9 +862,6 @@ impl format(
         }
     }
 
-    # Machine-readable "did fmt rewrite anything" channel, decoupled from
-    # the exit code (consumed by ``precommit``). Unlike hits/misses this is
-    # populated regardless of whether caching is enabled.
     if cache_stats is not None {
         cache_stats["changed"] = changed_files;
     }
@@ -920,9 +917,7 @@ impl format(
             console.success(summary_msg);
         }
     }
-    # Exit contract: 0 = success (including "reformatted N files");
-    # 1 = operational failure only (syntax/format errors, bad paths, or
-    # unfixable lint errors). CI gating belongs to ``--check``.
+
     if failed_files > 0 or had_path_errors {
         return 1;
     }
@@ -1073,8 +1068,7 @@ impl precommit(
         }
     }
     console.print("precommit: formatting (--lintfix)", style="muted");
-    # Own the stats dict when the caller didn't supply one, so `format` can
-    # report how many files it changed (see issue #8536).
+
     stats: dict = cache_stats if cache_stats is not None else {};
     fmt_ret = format(
         fmt_targets,
@@ -1091,8 +1085,7 @@ impl precommit(
     }
     console.print("[precommit] Running check...");
     check_ret = check(targets);
-    # Detect "fmt applied changes" via the stats channel rather than fmt's
-    # exit code: since issue #8536 a successful reformat exits 0.
+
     fixes_applied = (
         int(stats.get("changed", 0)) > 0
         or (staged and _staged_dirty_files(git_root, rel_targets))
