@@ -428,6 +428,28 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     host_binop whose to_host/from_host round-trip turned references into copies.
     Native kind-5 arm + reflected-repeat step. 9-point driver green.
 
+53. **[MED] User __str__ ignored - str(obj) returns None.** class P with
+    both __repr__ and __str__: repr(P()) works, str(P()) -> 'None'.
+    __repr__-only classes also fail the str-falls-back-to-repr contract.
+    tp_str synthesis absent at value-exit; walker family.
+
+54. **[MED] PySlice.tp_richcompare missing** (UltraMoon slot-audit):
+    slice(1,2) == slice(1,2) is False natively; CPython 3.14 compares by
+    value. Trivial arm; fold into item 42 slice-keys decision.
+
+55. **[MED] complex has ZERO native nb_binop slots** (slot-audit): unary
+    -/~ raise with no fallback, from_host lacks complex branch so all
+    complex arithmetic lands as opaque PyHostProxy (tag drift + latent
+    unhashability). Needs a suite, not a point fix.
+
+56. **[ROOT ENABLER] _host_representable() includes MUTABLE tags**
+    (slot-audit): any missing mutable-container slot silently falls to
+    to_host/from_host COPIES instead of failing loudly. This is why 46/49
+    corrupted silently instead of erroring at repro time. Hardening: mutable-
+    tag fallback -> loud error or native path. Land LAST after gap fill.
+    Matrix: UltraMoon /tmp/slot_coverage_matrix.md (197 lines, ~90 rows,
+    10 material gaps). Canonical copy to jac-py/docs pending user nod.
+
 52. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
     .encode('ascii') raises the right MESSAGE but type is generic Exception,
     not UnicodeEncodeError (so `except UnicodeEncodeError` misses it).
