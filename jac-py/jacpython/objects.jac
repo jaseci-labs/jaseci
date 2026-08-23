@@ -1614,6 +1614,62 @@ def _pyset_richcompare_na(op: int, v: PySet, w: PySet) -> PyObj {
     return _bool_from_cmp(cmp, op);
 }
 
+# One traceback entry (CPython PyTracebackObject). The chain heads at the
+# OUTERMOST frame the exception passed through (the catching frame) and tb_next
+# walks toward the raise point; entries are prepended as frames unwind. An entry
+# keeps the code object and the line of the instruction where propagation
+# crossed this frame -- never a live frame reference -- so holding a traceback
+# cannot pin an execution stack and no reference cycles arise.
+obj PyTraceback(PyObj) {
+    has tb_next: any = None,
+        code: any = None,
+        tb_lineno: int = 0,
+        tb_lasti: int = 0;
+
+    def tp_getattro(name2: str) -> PyObj {
+        if name2 == "tb_next" {
+            if self.tb_next is not None {
+                return self.tb_next as PyObj;
+            }
+            return py_none();
+        }
+        if name2 == "tb_lineno" or name2 == "tb_frame" {
+            # tb_lineno is a plain int attribute on C tracebacks too.
+            if name2 == "tb_lineno" {
+                return PyInt(t="int", val=self.tb_lineno);
+            }
+            return PyTracebackFrame(
+                t="frame", frame_code=self.code, frame_lineno=self.tb_lineno
+            );
+        }
+        return py_error("AttributeError", name2);
+    }
+}
+
+# Minimal frame view behind traceback entries: f_code/f_lineno answer the two
+# idioms every traceback consumer uses (traceback.py, logging, repr of frames).
+# f_back is always None -- the chain lives on the traceback, not on frames.
+obj PyTracebackFrame(PyObj) {
+    has frame_code: any,
+        frame_lineno: int;
+
+    def tp_getattro(name2: str) -> PyObj {
+        if name2 == "f_code" {
+            if self.frame_code is not None {
+                return self.frame_code as PyObj;
+            }
+            return py_none();
+        }
+        if name2 == "f_lineno" {
+            return PyInt(t="int", val=self.frame_lineno);
+        }
+        if name2 == "f_back" {
+            return py_none();
+        }
+        return py_error("AttributeError", name2);
+    }
+}
+
 obj PyExceptionType(PyObj) {
     has name: str;
 
@@ -1726,6 +1782,9 @@ obj PyException(PyObj) {
     # writable; everything else stays read-only (AttributeError), matching the
     # tp_getattro surface above. Unknown-attribute writes keep raising because
     # these instances carry no user attribute dict.
+    # Type enforcement lives HERE (not in ceval) by design: it only needs types
+    # defined in objects.jac itself (PyTraceback, PyBool, the exception t tag),
+    # so the old import-cycle blocker on enforcing these checks is gone.
     def tp_setattro(name: str, value: PyObj) -> PyObj {
         if name == "args" {
             # BaseException.args_setter converts via PySequence_Tuple: tuples
@@ -1743,18 +1802,39 @@ obj PyException(PyObj) {
             return py_none();
         }
         if name == "__traceback__" {
+            if not isinstance(value, PyTraceback) and value.t != "none" {
+                return py_error("TypeError", "__traceback__ must be a traceback or None");
+            }
             self.traceback = value;
             return py_none();
         }
         if name == "__cause__" {
+            # PyErr_SetCause: the cause must be None or an exception instance,
+            # and setting a real cause implies __suppress_context__ = True.
+            if value.t != "none" and value.t != "exception" {
+                return py_error(
+                    "TypeError", "exception cause must be None or derive from BaseException"
+                );
+            }
             self.cause = value;
+            if value.t != "none" {
+                self.suppress_context = PyBool(t="bool", val=True);
+            }
             return py_none();
         }
         if name == "__context__" {
+            if value.t != "none" and value.t != "exception" {
+                return py_error(
+                    "TypeError", "exception context must be None or derive from BaseException"
+                );
+            }
             self.context = value;
             return py_none();
         }
         if name == "__suppress_context__" {
+            if not isinstance(value, PyBool) {
+                return py_error("TypeError", "attribute value type must be bool");
+            }
             self.suppress_context = value;
             return py_none();
         }
