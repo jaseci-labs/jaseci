@@ -695,11 +695,12 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     standard C3 **kw-forwarding idiom on any real codebase. Found fuzz
     r61c, verified by CalmKnight pin.
 
-76. **[LOW-MED] C.mro() METHOD absent/broken (distinct from item 50
-    display).** hasattr(C,'mro') False; C.mro() silently returns None in
-    exec-mode eval and errors in setup context. C.__mro__ ATTRIBUTE is
-    correct (member identity passes). Found fuzz r61c, verified by
-    CalmKnight pin.
+76. **[LOW-MED][RECLASSIFIED replay-path-only] C.mro() METHOD absent in
+    exec/eval contexts.** On the compiled-Python production path (`jac run
+    x.py`) B.mro() works and hasattr is True (CalmKnight pin, standalone
+    diff) - NOT user-facing. The failure appears only via layer1 exec/eval
+    (same artifact family as async leads). Keep as replay-coverage note.
+    Original report: fuzz r61c.
 
 77. **[HIGH] `raise ... from e` inside except block FAILS - cause leaks,
     new exception never raised.** Minimal: try: raise ValueError('v')
