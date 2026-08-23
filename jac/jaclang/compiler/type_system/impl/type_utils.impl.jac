@@ -90,7 +90,7 @@ impl is_generator_family_type(return_type: TypeBase) -> bool {
 }
 
 
-glob _proto_checks_in_progress: set = set();
+glob _proto_checks_in_progress: set[tuple[int, int]] = set();
 
 impl class_implements_protocol(
     cls: ClassType, proto: ClassType, evaluator: any = None
@@ -802,9 +802,16 @@ impl apply_solved_type_vars(
     }
 
     if isinstance(ty, UnionType) {
-        new_types = [
-            apply_solved_type_vars(t, solution, class_type, shadowed) for t in ty.types
-        ];
+        new_types: list[TypeBase] = [];
+        for t in ty.types {
+            _sub = apply_solved_type_vars(t, solution, class_type, shadowed);
+            if not any(str(_sub) == str(_seen) for _seen in new_types) {
+                new_types.append(_sub);
+            }
+        }
+        if len(new_types) == 1 {
+            return new_types[0];
+        }
         return UnionType(types=new_types);
     }
 

@@ -207,6 +207,9 @@ impl NaIRGenDicts._emit_dict_helpers(
 }
 
 impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
+    if self._tb_is_class_ref(ty) {
+        return 6;
+    }
     _kind = self._tb_kind(ty);
     if _kind in ("optional", "union") {
         _tags = {self._jacval_tag_for_type(_m) for _m in self._tb_non_none(ty)};
@@ -312,6 +315,11 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
     } elif isinstance(value.type, ir.VoidType) {
         b.store(ir.Constant(i8, 8), tag_ptr);
         b.store(ir.Constant(i64, 0), payload_ptr);
+    } elif isinstance(value.type, ir.LiteralStructType) and b is self.builder {
+        _tup_ptr = self._box_value_tuple(value);
+        _tup_i64 = b.ptrtoint(_tup_ptr, i64, name="jv.tup.p2i");
+        b.store(ir.Constant(i8, 6), tag_ptr);
+        b.store(_tup_i64, payload_ptr);
     } else {
         self.emit(E5092, kind="expression", name=f"`any` box of {value.type}");
         b.store(ir.Constant(i8, 0), tag_ptr);

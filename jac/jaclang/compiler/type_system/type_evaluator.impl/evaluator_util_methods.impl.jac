@@ -758,13 +758,7 @@ impl TypeEvaluator._infer_list_elem_from_mutations(expr: ListVal) -> TypeBase | 
         }
         _scalar = isinstance(widened, ClassType)
             and widened.is_builtin(["int", "float", "str", "bool"]);
-        _instance = (
-            isinstance(widened, ClassType)
-            and widened.is_class_instance()
-            and not widened.is_any_instance()
-            and isinstance(widened.shared.symbol_table, (Archetype, Enum))
-        );
-        if not (_scalar or _instance) {
+        if not _scalar {
             return None;
         }
         if not self._type_in_list(widened, elem_types) {

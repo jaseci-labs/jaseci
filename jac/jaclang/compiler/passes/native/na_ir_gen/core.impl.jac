@@ -578,24 +578,136 @@ impl NaIRGenCore._ret_tuple_hints(ret_tb: any, ret_tuple: any) -> (list | None) 
     return hints if _any else None;
 }
 
+impl NaIRGenCore._extract_import_module_name(imp: uni.Import) -> (str | None) {
+    if imp.clib_decls {
+        return None;
+    }
+    if not imp.from_loc or not isinstance(imp.from_loc, uni.ModulePath) {
+        for it in (imp.items or []) {
+            if isinstance(it, uni.ModulePath) and it.path {
+                return '.'.join(getattr(p, 'value', str(p)) for p in it.path);
+            }
+        }
+        return None;
+    }
+    if imp.from_loc.string_path_value is not None {
+        return None;
+    }
+    mod_name = imp.from_loc?.dot_path_str;
+    if not mod_name and imp.from_loc?.path {
+        mod_name = '.'.join(getattr(p, 'value', str(p)) for p in imp.from_loc.path);
+    }
+    return mod_name;
+}
+
+impl NaIRGenCore._native_dep_reals(own_real: str, entry_base: str) -> set[str] {
+    import os;
+    import from jaclang.jac0core.codeinfo { resolve_native_module }
+    reg = self._registry();
+    by_real: dict[str, uni.Module] = {};
+    for m in reg.dep_modules {
+        if m.loc and m.loc.mod_path {
+            by_real[os.path.realpath(m.loc.mod_path)] = m;
+        }
+    }
+    out: set[str] = set();
+    wq: list = [(self.ir_in, entry_base)];
+    qi = 0;
+    while qi < len(wq) {
+        (cur, base) = wq[qi];
+        qi += 1;
+        imports = ModuleCodegenPass.iter_module_imports(cur)
+            + ModuleCodegenPass.iter_nested_imports(cur, CodeContext.NATIVE);
+        for imp in imports {
+            mod_name = self._extract_import_module_name(imp);
+            if not mod_name {
+                continue;
+            }
+            (_src, full) = resolve_native_module(mod_name, base);
+            if full is None {
+                continue;
+            }
+            real = os.path.realpath(full);
+            if real == own_real or real in out {
+                continue;
+            }
+            dep = by_real.get(real);
+            if dep is None {
+                dep = self._load_native_dep(full, real, own_real);
+                if dep is None {
+                    continue;
+                }
+                by_real[real] = dep;
+            }
+            out.add(real);
+            wq.append((dep, os.path.dirname(os.path.abspath(full))));
+        }
+    }
+    return out;
+}
+
+impl NaIRGenCore._load_native_dep(
+    full: str, real: str, own_real: str
+) -> (uni.Module | None) {
+    import os;
+    import from pathlib { Path }
+    import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
+    if not os.path.isfile(full) {
+        return None;
+    }
+    dep = self.prog.find_module(str(Path(full).resolve()));
+    if dep is None {
+        try {
+            dep = self.prog.load_dependency_module(
+                full, importer_path=own_real or None
+            );
+        } except Exception {
+            dep = None;
+        }
+    }
+    if dep is None or dep is self.ir_in {
+        return None;
+    }
+    reg = self._registry();
+    dep_reg = ensure_layout_registry(dep, self.prog);
+    reg.merge_from(dep_reg);
+    if dep not in reg.dep_modules {
+        reg.dep_modules.append(dep);
+    }
+    return dep;
+}
+
 impl NaIRGenCore._register_imported_struct_types -> None {
     import os;
     import from jaclang.jac0core.codeinfo { native_module_key, native_stdlib_root }
     manifest = self.ir_in.gen.interop_manifest;
     reg = self._registry();
     _own_real = os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
-    imported_mods: list = [
-        m
-        for m in reg.dep_modules
-        if m is not self.ir_in
-            and not (m.loc and os.path.realpath(m.loc.mod_path) == _own_real)
-    ];
-
     entry_base = os.path.dirname(os.path.abspath(self.ir_in.loc.mod_path))
         if (self.ir_in?.loc)
         else os.getcwd();
     _stdlib_root = native_stdlib_root();
     _stdlib_real = os.path.realpath(_stdlib_root) if _stdlib_root else None;
+    _bound_reals: set[str] = self._native_dep_reals(_own_real, entry_base);
+
+    def _dep_is_linkable(m: uni.Module) -> bool {
+        if not (m.loc and m.loc.mod_path) {
+            return False;
+        }
+        _mr = os.path.realpath(m.loc.mod_path);
+        if _stdlib_real is not None and _mr.startswith(_stdlib_real + os.sep) {
+            return True;
+        }
+        return _mr in _bound_reals;
+    }
+
+    imported_mods: list = [
+        m
+        for m in reg.dep_modules
+        if m is not self.ir_in
+            and not (m.loc and os.path.realpath(m.loc.mod_path) == _own_real)
+            and _dep_is_linkable(m)
+    ];
     for dep in imported_mods {
         _dep_path = dep.loc.mod_path if dep.loc else "";
         if not _dep_path {

@@ -968,9 +968,16 @@ impl TypeEvaluator._substitute_type_vars(
         return bindings.get(typ.name, typ);
     }
     if isinstance(typ, UnionType) {
-        new_members = [
-            self._substitute_type_vars(member, bindings) for member in typ.types
-        ];
+        new_members: list[TypeBase] = [];
+        for member in typ.types {
+            _sub = self._substitute_type_vars(member, bindings);
+            if not any(str(_sub) == str(_seen) for _seen in new_members) {
+                new_members.append(_sub);
+            }
+        }
+        if len(new_members) == 1 {
+            return new_members[0];
+        }
         return UnionType(types=new_members);
     }
     if isinstance(typ, ClassType) and typ.private.type_args {

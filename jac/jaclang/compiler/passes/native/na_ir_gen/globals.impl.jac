@@ -7,7 +7,7 @@ impl NaIRGenGlobals._quiet_glob_type(
     if isinstance(type_expr, uni.SubTag) and type_expr?.tag is not None {
         return self._quiet_glob_type(type_expr.tag);
     }
-    _ptb = type_expr?.type;
+    _ptb = self._annotation_type_of(type_expr);
     if _ptb is None {
         return None;
     }

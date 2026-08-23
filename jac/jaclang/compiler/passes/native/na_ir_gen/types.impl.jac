@@ -27,7 +27,15 @@ impl NaIRGenTypes._tb_is(t: any, names: tuple) -> bool {
 impl NaIRGenTypes._tb_args(t: any) -> list {
     t = self._tb_solve(t);
     if isinstance(t, ClassType) and t.private is not None {
-        return [self._tb_solve(_a) for _a in (t.private.type_args or [])];
+        out: list = [];
+        for _a in (t.private.type_args or []) {
+            _s = self._tb_solve(_a);
+            if isinstance(_s, ClassType) and not _s.is_instance() {
+                _s = convert_to_instance(_s);
+            }
+            out.append(_s);
+        }
+        return out;
     }
     return [];
 }
@@ -641,7 +649,7 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     if cname in self.struct_types {
         return self.struct_types[cname].as_pointer();
     }
-    type_args = t.private.type_args or [];
+    type_args = self._tb_args(t);
 
     if cname in ("Iterator", "Iterable") {
         self._ensure_iter_types();
@@ -658,6 +666,18 @@ impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
             elem_llvm = _e;
         }
         return self._lower_list_for_elem(elem_llvm);
+    }
+
+    if cname in ("dict_keys", "dict_values", "dict_items") {
+        _view_elem = self._tb_elem(t);
+        if _view_elem is None {
+            return None;
+        }
+        _ve = self._elem_storage_llvm(_view_elem);
+        if _ve is None {
+            return None;
+        }
+        return self._lower_list_for_elem(_ve);
     }
 
     if cname == "dict" {

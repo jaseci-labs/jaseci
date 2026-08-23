@@ -1,6 +1,8 @@
 impl NaIRGenTuples._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
     if not nd.values {
-        return None;
+        _empty = ir.Constant(self._tuple_struct_of([]), ir.Undefined);
+        _empty.na_tuple_owned = [];
+        return _empty;
     }
 
     elem_vals: list[ir.Value] = [];

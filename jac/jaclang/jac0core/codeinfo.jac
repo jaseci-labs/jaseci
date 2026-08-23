@@ -64,7 +64,7 @@ glob HDR_MAGIC: int = 44061,
 glob STR_LEN_TAG_BIT: int = 1,
      STR_LEN_TAG_SHIFT: int = 1;
 
-glob JACSTR_DESC_FIELDS: dict[(str, tuple)] = {
+glob JACSTR_DESC_FIELDS: dict[(str, tuple[str, ...])] = {
          'jacstr3': ('root', 'data', 'len'),
          'jacstr2': ('data', 'len')
      };
@@ -213,21 +213,21 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      ),
      _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap");
 
-glob NATIVE_ERASED_ABC_BASES: frozenset = frozenset({"ABC"});
+glob NATIVE_ERASED_ABC_BASES: frozenset[str] = frozenset({"ABC"});
 
-glob NATIVE_ERASED_RIM_BASES: frozenset = frozenset({"PassRim"});
+glob NATIVE_ERASED_RIM_BASES: frozenset[str] = frozenset({"PassRim"});
 
-glob NATIVE_ERASED_BASES: frozenset = (
+glob NATIVE_ERASED_BASES: frozenset[str] = (
          NATIVE_ERASED_ABC_BASES | NATIVE_ERASED_RIM_BASES
      );
 
-glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
+glob NATIVE_ERASED_IDENTITY_CALLS: frozenset[str] = frozenset({"cast"});
 
-glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"});
+glob NATIVE_ERASED_FIELD_MARKERS: frozenset[str] = frozenset({"field"});
 
 glob PASS_RIM_MODULE: str = "jaclang.jac0core.passes.pass_rim";
 
-glob NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
+glob NATIVE_ERASED_IMPORTS: dict[str, frozenset[str]] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
          PASS_RIM_MODULE: NATIVE_ERASED_RIM_BASES,
@@ -622,7 +622,16 @@ obj CodeGenTarget {
         has_root_access: (bool | None) = None,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',
-        native_capability_partition: (tuple | None) = None,
+        native_capability_partition:
+            (
+                tuple[
+                    (
+                        list[tuple[(any, str, str, (str | None))]],
+                        dict[int, list[tuple[(any, str, str, (str | None))]]]
+                    )
+                ]
+                | None
+            ) = None,
         layout_registry: any = None,
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),

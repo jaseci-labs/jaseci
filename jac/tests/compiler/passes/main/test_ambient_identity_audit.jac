@@ -647,7 +647,7 @@ test "typing_import_flips_native_placement" {
 }
 
 test "optional_layout_signal" {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
     native_body = (
         "obj Point {\n"
         + "    has x: int = 0;\n"
@@ -676,7 +676,7 @@ test "optional_layout_signal" {
         }
         program = JacProgram();
         mod = program.compile(path);
-        registry = get_layout_registry(mod, program);
+        registry = ensure_layout_registry(mod, program);
         lay = registry.get_layout("Wrap");
         field_tags = [(fi.name, str(fi.type)) for fi in lay.fields]
             if lay is not None
@@ -724,8 +724,8 @@ test "optional_layout_signal" {
     flush_report();
     (native_fields, native_codes) = results["native"];
     (typed_fields, typed_codes) = results["typing"];
-    assert ("inner", "Point | None") in native_fields;
-    assert ("inner", "Optional [ Point ]") in typed_fields;
+    assert ("inner", "Point | NoneType") in native_fields;
+    assert ("inner", "Point | NoneType") in typed_fields;
     assert native_codes == typed_codes , (
         "layout diagnostic streams diverge: native="
         + str(native_codes)

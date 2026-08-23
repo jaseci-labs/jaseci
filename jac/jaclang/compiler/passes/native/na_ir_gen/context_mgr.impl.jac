@@ -31,7 +31,11 @@ impl NaIRGenContextMgr._context_manager_class(
             )}), which names no class"
         );
     }
-    self._lower_type(_t);
+    if self._tb_kind(_t) in ("file", "binary_file") {
+        self._emit_file_helpers();
+    } else {
+        self._lower_type(_t);
+    }
     if _name not in self.struct_types {
         self.emit(
             E5092,

@@ -4032,11 +4032,11 @@ test "root_cause_9_any_in_union" {
     # importing it: an unbound name made the whole union Unknown, so
     # `edge.__jac__` errored for a reason that had nothing to do with union
     # handling. Spelling it `any` lets the absorb actually run, and that
-    # error is gone. What remains is one E1053 in fail_any_in_union_method:
-    # `(any | str).upper()` yields Unknown rather than `str | any`, so it
-    # cannot pass as Sized -- a real remaining gap, which is what this
-    # fixture exists to pin.
-    assert len(rc9_errors) == 1 , f"Expected 1 any-in-union error, got {len(
+    # error is gone. The last one went with it: member access on a union
+    # receiver now specializes per member and a gradual-union callee binds
+    # to its one known member, so `(any | str).upper()` is `str`, which
+    # passes as Sized. Nothing is left to pin here.
+    assert len(rc9_errors) == 0 , f"Expected 0 any-in-union errors, got {len(
         rc9_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in rc9_errors);
@@ -4149,7 +4149,9 @@ test "root_causes_total_error_count" {
     # followed, so its ten Unknown cascades are gone; the member-miss fix
     # (inherited object.__getattribute__ no longer resolves every miss to
     # Any) restored the E1030s the dynamic-attr root causes always expected.
-    assert len(_fixture_errors) == 14 , f"Expected 14 fixture errors, got {len(
+    # Down to 13: union member access is specialized per member, so the
+    # `(any | str).upper()` E1053 in root cause 9 is gone.
+    assert len(_fixture_errors) == 13 , f"Expected 13 fixture errors, got {len(
         _fixture_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in _fixture_errors);

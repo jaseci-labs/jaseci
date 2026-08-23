@@ -99,8 +99,37 @@ glob FORBIDDEN: dict[str, str] = {
              "Callable-over-RPC guard on endpoint params - the declared "
              "annotation is the consumed fact, not a resolved type"
          ),
+         ("native/na_ir_gen/iterators.impl.jac", "type_evaluator"): (
+             1,
+             "get_type_of_symbol on the resolved symbol of an iterator "
+             "protocol member: a symbol-type read, the one evaluator entry "
+             "point the backend is allowed (declared types live on the "
+             "symbol, not on any expression node the backend visits)"
+         ),
+         ("native/na_ir_gen/refcount.impl.jac", "type_evaluator"): (
+             1,
+             "prefetch.str_class is the checker's canonical str ClassType, "
+             "read to name the one builtin whose values the collector "
+             "treats as a leaf; a declaration-surface read, not inference"
+         ),
+         ("native/na_ir_gen/types.impl.jac", "type_evaluator"): (
+             1,
+             "prefetch.tuple_class is the checker's canonical tuple "
+             "ClassType, used to spell the element type of a dict_items "
+             "view as the checker itself would; a declaration-surface read"
+         ),
+         ("native/na_ir_gen/generics.impl.jac", "type_evaluator"): (
+             1,
+             "assign_type_to_type_var is the checker's own TypeVar unifier, "
+             "consumed here to solve a generic def's type parameters from a "
+             "function-typed expectation (a generic def passed where a "
+             "concrete fn type is expected has no FuncCall to carry "
+             "type_var_bindings). The backend runs no inference of its own: "
+             "it hands two checker-produced FunctionTypes to the central "
+             "unifier and consumes the solution"
+         ),
          ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
-             2,
+             1,
              "classify_call as the shadowing-aware builtin test for the "
              "`type(None)` isinstance argument form (#6957) - consuming the "
              "central classification instead of re-implementing name "
@@ -121,21 +150,15 @@ glob FORBIDDEN: dict[str, str] = {
              "backend stopped reaching into the analysis module for it rather "
              "than merely renaming the reach"
          ),
-         ("native/na_ir_gen/objects.impl.jac", "symbol_utils"): (
-             1,
-             "collect_method_names as the central ancestor-method walk over "
-             "an already-resolved archetype symbol - a symbol-FACT reader, "
-             "not a re-run of member resolution"
-         ),
          ("native/na_ir_gen/core.impl.jac", "type_tag.tag"): (
-             3,
+             1,
              "declaration-surface reads at interop layout export, plus the "
              "quiet lowerability probe on imported globs (the py-side "
              "carve-out for dual-codespace modules) which reads the same "
              "declared annotation the adjacent _resolve_jac_type consumes"
          ),
          ("native/na_ir_gen/calls.impl.jac", "type_tag.tag"): (
-             2,
+             1,
              "declaration-surface read of foreign extern signatures: the "
              "clib membrane needs the DECLARED str params/returns of a "
              "foreign call to route them through the JacStr wrap/unwrap "
@@ -146,7 +169,7 @@ glob FORBIDDEN: dict[str, str] = {
              "tag - the declaration is the binding surface"
          ),
          ("native/na_ir_gen/types.impl.jac", "type_tag.tag"): (
-             2,
+             1,
              "declared-annotation resolution for has/param vars: "
              "_resolve_jac_type maps the declared tag to its IR type - the "
              "annotation is the input to layout resolution, not a re-run "
@@ -157,35 +180,6 @@ glob FORBIDDEN: dict[str, str] = {
              "scalar LLVM materialization from declared clib annotations "
              "at the declaration site - the backend's lowering role "
              "(sysv sig planning + fixed-param lowering, #6707, #6708)"
-         ),
-         ("native/na_ir_gen/objects.impl.jac", "type_tag.tag"): (
-             1,
-             "declaration-surface read during archetype field lowering: "
-             "the field's declared annotation node is read once into a "
-             "local and feeds both the enum-name map and the container "
-             "element-key map the sealed layout exports. Keep it one read "
-             "- consumers of the annotation are added to the local, never "
-             "by reaching for type_tag.tag again"
-         ),
-         ("native/na_ir_gen/lists.impl.jac", "type_tag.tag"): (
-             1,
-             "declared-vs-inferred bare list is a declaration-surface "
-             "distinction central facts do not carry (the checker stamps "
-             "unannotated empties as bare list too); the empty-literal "
-             "storage-family decision must key on the explicit annotation"
-         ),
-         ("native/na_ir_gen/stmt.impl.jac", "type_tag.tag"): (
-             7,
-             "surface-shape dispatch on declared annotation forms "
-             "(assessed train 4: legitimately kept); the "
-             "escaping-closure value-hint guard (#7593 item 12), a "
-             "presence-only test that fires when NO annotation is "
-             "declared - the declaration surface's absence is the "
-             "consumed fact, not a re-derived type; plus the generic-"
-             "as-value hook (#7626 A5): a presence test and a handoff of "
-             "the annotation NODE to _instantiate_generic_for_target, "
-             "which needs the declared Callable annotation itself (the "
-             "template is uninstantiated, so no resolved type exists)"
          ),
 
      };

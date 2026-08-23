@@ -1666,11 +1666,30 @@ impl NaIRGenObjects._codegen_instantiation(
         }
         if _pos_args {
             _order = [f.name for f in lay.fields];
-            assert len(_pos_args) <= len(_order) , (
-                f"{type_name}(...) at {nd.loc.mod_path}:{nd.loc.first_line} passes "
-                f"{len(_pos_args)} positional arguments for {len(_order)} fields; "
-                "the checker reports constructor arity before codegen"
-            );
+            if len(_pos_args) > len(_order) {
+                _ct = lay.class_type;
+                _is_exc = isinstance(_ct, ClassType)
+                    and any(
+                        self._tb_class_name(_anc) in ("BaseException", "Exception")
+                        for _anc in (_ct.shared.mro or [])
+                    );
+                if _is_exc {
+                    _pos_args = _pos_args[:len(_order)];
+                } else {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="constructor call",
+                        name=type_name,
+                        help_text=(
+                            f"'{type_name}' declares {len(_order)} field(s) but is "
+                            f"called with {len(_pos_args)} positional argument(s); "
+                            "the surplus has no field to bind to natively."
+                        )
+                    );
+                    return None;
+                }
+            }
             for (_pi, _pv) in enumerate(_pos_args) {
                 _pos_field_pairs.append((_order[_pi], _pv));
             }
@@ -2468,11 +2487,7 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
         }
     }
 
-    _mod_name = (
-        self._module_name_of(trailer.target)
-            if nd.call_kind == "module_function"
-            else None
-    );
+    _mod_name = self._module_name_of(trailer.target);
     _mod_root = _mod_name.split(".")[0] if _mod_name else None;
     _stdlib_native = bool(self?._native_stdlib_modules)
         and _mod_root is not None
@@ -3467,7 +3482,14 @@ impl NaIRGenObjects._hasvar_is_own(var: uni.UniNode) -> bool {
         return True;
     }
     _tt = var?.type_tag;
-    return _tt is not None and _tt.ownership == OwnershipKind.OWN;
+    if _tt is None {
+        return False;
+    }
+    if _tt.ownership == OwnershipKind.OWN {
+        return True;
+    }
+    _inner = _tt.tag;
+    return isinstance(_inner, uni.UnaryExpr) and _inner.ownership == OwnershipKind.OWN;
 }
 
 impl NaIRGenObjects._store_inline_field(

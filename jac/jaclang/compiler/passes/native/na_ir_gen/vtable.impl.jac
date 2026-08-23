@@ -479,10 +479,14 @@ impl NaIRGenVtable._codegen_class_ref(nd: uni.Name) -> (ir.Value | None) {
         return None;
     }
     _arch = self._arch_alias_target(nd) or nd.value;
-    if _arch not in self.struct_types or self._is_enum_arch(_arch) {
-        return None;
+    if _arch in self.struct_types and not self._is_enum_arch(_arch) {
+        return self._emit_class_name_const(_arch);
     }
-    return self._emit_class_name_const(_arch);
+    _t = nd.type;
+    if self._tb_is_class_ref(_t) and not _t.shared.is_enum_class {
+        return self._emit_class_name_const(self._tb_class_name(_t) or nd.value);
+    }
+    return None;
 }
 
 impl NaIRGenVtable._is_enum_arch(name: str) -> bool {
