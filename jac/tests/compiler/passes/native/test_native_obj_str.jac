@@ -118,5 +118,6 @@ test "str(obj) on a null (None) struct pointer renders \"None\", not a crash" {
 test "print(obj) writes __str__ to stdout" {
     (eng, _) = compile_native("obj_str.jac");
     `entry = get_func(eng, "jac_entry", None);
-    assert capture_stdout(`entry) == b"printed\n";
+    got = capture_stdout(`entry);
+    assert got == b"printed\n" , got;
 }
