@@ -123,3 +123,46 @@
      region. co_code matches exactly.
    - inline listcomp inside a function whose elt is `x+1` shape diverges at
      HEAD independent of this slice (SWAP arity at setup / epilogue order).
+
+## Type alias statements slice (type X = v / type X[T,...] = v)
+
+1. Pinned shapes (host dis, 3.14.7; also in b11_frontier/dump.txt):
+   - Non-generic: outer = LOAD_CONST name/None/(1,) + lazy value fn +
+     MAKE_FUNCTION + SET_FUNCTION_ATTRIBUTE 1 (defaults=(1,)) + BUILD_TUPLE 3
+     -> CALL_INTRINSIC_1 11. The intrinsic tuple is (name, None, func); the
+     (1,) const is the func's defaults, NOT type params (those are None).
+   - Lazy value fn: argcount=posonly=1, only param `.format`, guard
+     `if .format > 2: raise NotImplementedError` via LOAD_COMMON_CONSTANT 1;
+     dead small-int const 2 occupies const slot 0 of that scope.
+   - Generic: hidden `<generic parameters of X>` fn (plain name as co_name,
+     composed qualname) builds one TypeVar per param (CALL_INTRINSIC_1 7 pops
+     the name str; COPY 1 + STORE_DEREF keeps one on the stack), then
+     (name, tps_tuple, closure+defaults-wrapped value fn). Outer module just
+     LOAD_CONST/MAKE_FUNCTION/PUSH_NULL/CALL 0/STORE_NAME.
+   - Direct class body: __classdict__ cell joins the closure chain LAST
+     (value-fn freevars: [tparams..., __classdict__]); bare names resolve via
+     LOAD_DEREF __classdict__ + LOAD_FROM_DICT_OR_GLOBALS. Qualname at class
+     scope is `C.TA` (no <locals>), in a function `f.<locals>.Inner`.
+2. Symtable: TypeAlias binds DEF_LOCAL and creates real child function blocks
+   (`<name>` with `.format` DEF_PARAM; generic adds `<generic parameters of
+   <name>>` holding the params as DEF_LOCAL cells with the value fn nested
+   inside). Real blocks keep arbitrary value expressions (comprehensions,
+   lambdas, chained aliases) resolving through the normal analysis.
+3. Prologue order gotcha: CPython emits COPY_FREE_VARS BEFORE MAKE_CELL when a
+   scope has both (verified vs oracle `mid` fixture). Our synthetic builders
+   hand-emit that order; PRE-EXISTING BUG: compiler_emit.emit_function_prologue
+   does MAKE_CELL first -- any regular def with both freevars and cellvars
+   should diverge; needs its own fix lane (file is forbidden for this slice).
+4. Pre-existing gaps found (not touched here):
+   - compile_lambda_cfg never sets CO_NESTED nor composes qualnames, so ANY
+     lambda directly inside a def diverges from oracle (flags 0x3 vs 0x13,
+     '<lambda>' vs 'f.<locals>.<lambda>'). Blocks `type L = lambda...` parity.
+   - Generic alias DIRECTLY in a class body needs LOAD_FROM_DICT_OR_DEREF for
+     the type-param cells; emit_name_load's classdict path only has the
+     _OR_GLOBALS variant. visit_type_alias fails loudly instead.
+5. Runtime gap (VM lane ticket): ceval CALL_INTRINSIC_1 has no case 11
+   (INTRINSIC_TYPEALIAS) -> exec raises SystemError "unsupported
+   CALL_INTRINSIC_1 11". Byte-parity-only shipping is exact otherwise.
+6. Walrus inside a type alias value is a host SyntaxError ("named expression
+   cannot be used within a type alias"); our parser accepts it -- validation
+   gap if anyone cares later.

@@ -3770,6 +3770,62 @@ test "compiler_slice: value-context not keeps UNARY_NOT" {
     assert actual.co_code == exp.co_code;
 }
 
+# Recursive byte-parity over a code object tree: co_code/exceptiontable/
+# stacksize/name tables/var pools/flags/argcounts plus every nested const code.
+def assert_typealias_parity(actual: PyCode, expected: PyCode) -> None {
+    assert actual.co_code == expected.co_code;
+    assert actual.exceptiontable == expected.exceptiontable;
+    assert actual.stacksize == expected.stacksize;
+    assert actual.names == expected.names;
+    assert actual.varnames == expected.varnames;
+    assert actual.cellvars == expected.cellvars;
+    assert actual.freevars == expected.freevars;
+    assert actual.flags == expected.flags;
+    assert actual.argcount == expected.argcount;
+    assert actual.posonlyargcount == expected.posonlyargcount;
+    assert consts_equal(actual.consts, expected.consts);
+    ci = 0;
+    while ci < len(actual.consts) {
+        ca = actual.consts[ci];
+        cb = expected.consts[ci];
+        if isinstance(ca, PyCode) {
+            assert isinstance(cb, PyCode);
+            assert_typealias_parity(ca as PyCode, cb as PyCode);
+        }
+        ci = ci + 1;
+    }
+}
+
+# Band 11 slice 4: PEP 695 `type X = v` / `type X[T, ...] = v`. CPython 3.14
+# shapes pinned from host dis (b11_frontier dump + live dis):
+#   - non-generic: LOAD_CONST name/None/(1,) + lazy value fn (only param
+#     .format, guard: format > 2 raises NotImplementedError via
+#     LOAD_COMMON_CONSTANT) -> MAKE_FUNCTION -> SET_FUNCTION_ATTRIBUTE 1
+#     (defaults) -> BUILD_TUPLE 3 -> CALL_INTRINSIC_1 11 (TYPEALIAS);
+#   - generic: hidden <generic parameters of X> fn builds one TypeVar per
+#     param into cells (CALL_INTRINSIC_1 7), then (name, tps-tuple,
+#     closure+defaults-wrapped value fn); outer module just calls it;
+#   - direct class body: __classdict__ cell joins the closure chain and the
+#     value scope resolves bare names through it.
+test "compiler_slice: band-11 type alias statements match oracle bytes" {
+    for src in [
+        "type Alias = int\n",
+        "type Pair[T] = tuple[T, T]\n",
+        "type Two[T, U] = list[T | U]\n",
+        "type Deep = list[dict[str, int]]\n",
+        "def f():\n    type Inner = int\n    return Inner\n",
+        "class C:\n    type TA = str\n",
+        "def f():\n    type P[T] = list[T]\n    return P\n",
+        "type A = int\ntype B = list[A]\n",
+        "type R = int\ntype R = str\nx = 1\n",
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        assert_typealias_parity(actual, expected as PyCode);
+    }
+}
+
 # Band 11: call-site * / ** argument unpacking lowers to CALL_FUNCTION_EX.
 # CPython 3.14 shapes pinned from host dis:
 #   - single lone *x evaluates x directly (the VM tuple-izes it);

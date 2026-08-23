@@ -39,6 +39,8 @@ import from ast_nodes {
     FunctionDef,
     ClassDef,
     AsyncFunctionDef,
+    TypeAlias,
+    TypeVar,
     AsyncFor,
     AsyncWith,
     Set,
@@ -47,6 +49,7 @@ import from ast_nodes {
     SetComp,
     DictComp,
     GeneratorExp,
+    NamedExpr,
     Lambda,
     comprehension,
     Yield,
@@ -355,7 +358,9 @@ def sym_visit_genexp(b: sym_builder, e: GeneratorExp) -> bool {
     }
     nested = sym_compute_nested(b);
     in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
-    if not b.push_block("function", "genexpr", e.lineno, nested, in_class) {
+    if not b.push_block(
+        "function", "genexpr", e.lineno, nested, in_class, e.col_offset
+    ) {
         return False;
     }
     b.cur.comprehension = "gen";
@@ -536,6 +541,16 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
             di = di + 1;
         }
         return True;
+    }
+    if isinstance(e, NamedExpr) {
+        ne = e as NamedExpr;
+        # PEP 572: the walrus target binds in the current scope (for inlined
+        # comprehensions that is the enclosing function, matching the shared
+        # fast-local slots); the value side is an ordinary load.
+        if not sym_visit_store_target(b, ne.target) {
+            return False;
+        }
+        return sym_visit_load_expr(b, ne.value);
     }
     if isinstance(e, ListComp) {
         lc = e as ListComp;
@@ -896,6 +911,12 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     }
     if isinstance(s, Assign) {
         a = s as Assign;
+        # CPython's symtable defines the value side before the assignment
+        # targets, so a PEP 572 walrus target inside the value lands in
+        # co_varnames ahead of the statement's own targets.
+        if not sym_visit_load_expr(b, a.value) {
+            return False;
+        }
         ti = 0;
         while ti < len(a.targets) {
             if not sym_visit_store_target(b, a.targets[ti]) {
@@ -903,7 +924,7 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             }
             ti = ti + 1;
         }
-        return sym_visit_load_expr(b, a.value);
+        return True;
     }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
@@ -1259,6 +1280,87 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             bi = bi + 1;
         }
         b.private = saved_private;
+        return b.pop_block();
+    }
+    if isinstance(s, TypeAlias) {
+        ta = s as TypeAlias;
+        if not isinstance(ta.name, Name) {
+            return b.fail(
+                "SyntaxError", "invalid type alias target", ta.lineno, ta.col_offset
+            );
+        }
+        an = ta.name as Name;
+        tps: list[type_param] = [];
+        if ta.type_params is not None {
+            tps = ta.type_params;
+        }
+        if not b.add_def(an.id, DEF_LOCAL, ta.lineno, ta.col_offset) {
+            return False;
+        }
+        pi = 0;
+        while pi < len(tps) {
+            tp = tps[pi];
+            if not isinstance(tp, TypeVar)
+                or (tp as TypeVar).bound is not None
+                or (tp as TypeVar).default_value is not None {
+                return b.fail(
+                    "NotImplementedError",
+                    "type parameter bounds/defaults/ParamSpec/TypeVarTuple "
+                        + "are not supported in type aliases yet",
+                    tp.lineno,
+                    tp.col_offset
+                );
+            }
+            pi = pi + 1;
+        }
+        nested = sym_compute_nested(b);
+        in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
+        if len(tps) > 0 {
+            # PEP 695: the hidden <generic parameters of X> scope binds each
+            # type var as a cell; the lazy value function closes over them.
+            if not b.push_block(
+                "function",
+                "<generic parameters of " + an.id + ">",
+                ta.lineno,
+                nested,
+                in_class,
+                ta.col_offset
+            ) {
+                return False;
+            }
+            pi = 0;
+            while pi < len(tps) {
+                tv = tps[pi] as TypeVar;
+                if not b.add_def(tv.name, DEF_LOCAL, tv.lineno, tv.col_offset) {
+                    return False;
+                }
+                pi = pi + 1;
+            }
+            if not b.push_block(
+                "function", an.id, ta.lineno, True, in_class, ta.col_offset
+            ) {
+                return False;
+            }
+            if not sym_visit_load_expr(b, ta.value) {
+                return False;
+            }
+            if not b.pop_block() {
+                return False;
+            }
+            return b.pop_block();
+        }
+        # Non-generic: the lazy value scope's only parameter is .format.
+        if not b.push_block(
+            "function", an.id, ta.lineno, nested, in_class, ta.col_offset
+        ) {
+            return False;
+        }
+        if not b.add_def(".format", DEF_PARAM, ta.lineno, ta.col_offset) {
+            return False;
+        }
+        if not sym_visit_load_expr(b, ta.value) {
+            return False;
+        }
         return b.pop_block();
     }
     if isinstance(s, Import) {

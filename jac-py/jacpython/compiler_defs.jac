@@ -3,6 +3,7 @@
 # compiler_codegen.jac for the module-initialization ordering contract.
 
 import from objects {
+    PyCode,
     PyInt,
     PyObj,
     PyStr,
@@ -14,24 +15,38 @@ import from opcode_meta {
     CO_COROUTINE,
     CO_GENERATOR,
     CO_NESTED,
+    CO_NEWLOCALS,
+    CO_OPTIMIZED,
+    CMP_GT,
     OP_CALL,
+    OP_CALL_INTRINSIC_1,
     OP_CALL_KW,
+    OP_COMPARE_OP,
+    OP_BUILD_TUPLE,
+    OP_COPY,
+    OP_COPY_FREE_VARS,
     OP_IMPORT_FROM,
     OP_IMPORT_NAME,
     OP_LOAD_BUILD_CLASS,
+    OP_LOAD_COMMON_CONSTANT,
     OP_LOAD_CONST,
     OP_LOAD_FAST_BORROW,
     OP_LOAD_LOCALS,
     OP_LOAD_NAME,
     OP_MAKE_CELL,
     OP_MAKE_FUNCTION,
+    OP_POP_JUMP_IF_FALSE,
     OP_POP_TOP,
     OP_PUSH_NULL,
+    OP_RAISE_VARARGS,
     OP_RESUME,
     OP_RETURN_VALUE,
+    OP_SET_FUNCTION_ATTRIBUTE,
+    OP_LOAD_SMALL_INT,
     OP_STORE_DEREF,
     OP_STORE_FAST,
     OP_STORE_NAME,
+    compare_oparg,
 }
 import from ast_nodes {
     AsyncFunctionDef,
@@ -39,6 +54,10 @@ import from ast_nodes {
     FunctionDef,
     Import,
     ImportFrom,
+    Name,
+    TypeAlias,
+    TypeVar,
+    type_param,
     arguments,
     keyword,
     stmt,
@@ -55,6 +74,7 @@ import from compiler_symtable { sym_block }
 import from flowgraph { verify_cfg }
 import from assembler { assemble }
 import from compiler_emit {
+    cellvars_from_sym,
     codegen_busy,
     codegen_fail,
     emit_folded_int,
@@ -62,7 +82,10 @@ import from compiler_emit {
     emit_make_function_with_closure,
     fast_local_index,
     fast_varnames_from_sym,
+    freevars_from_sym,
+    localsplus_index,
     localsplus_index_u,
+    sym_function_child_at,
     visit_expr,
 }
 import from codegen_util {
@@ -237,6 +260,20 @@ def emit_class_build_call(g: cfg_builder, cd: ClassDef, cloc: cloc) {
 }
 
 
+# A direct type alias in the body closes over __classdict__, forcing the
+# classdict cell even with no functions/annotations present.
+def class_body_has_typealias(cd: ClassDef) -> bool {
+    bi = 0;
+    while bi < len(cd.body) {
+        if isinstance(cd.body[bi], TypeAlias) {
+            return True;
+        }
+        bi = bi + 1;
+    }
+    return False;
+}
+
+
 # Class body boilerplate through __firstlineno__ (CPython compile_class).
 def class_body_has_function(cd: ClassDef) -> bool {
     bi = 0;
@@ -368,7 +405,8 @@ def compile_class_cfg(
         u.flags = CO_NESTED;
     }
     ann_plan = collect_ann_plan_class(cd, class_qname, sym_cls.nested);
-    if class_body_has_function(cd) or ann_plan.any_annotation {
+    if class_body_has_function(cd) or ann_plan.any_annotation
+        or class_body_has_typealias(cd) {
         u.cellvars = ["__classdict__"];
         if ann_plan.any_conditional {
             u.cellvars.append("__conditional_annotations__");
@@ -593,4 +631,334 @@ def compile_function_cfg(
     return compile_fn_cfg(
         fd.name, fd.args, fd.body, fd.lineno, filename, sym_fn, private
     );
+}
+
+
+# ---------------- PEP 695 `type X = v` / `type X[T, ...] = v` ----------------
+#
+# CPython lowers a type alias into a lazily-evaluated value function whose only
+# parameter is `.format` (guarded: formats above 2 raise NotImplementedError)
+# plus a 3-tuple (name, type_params_or_None, function) handed to
+# CALL_INTRINSIC_1(INTRINSIC_TYPEALIAS). With type parameters the tuple build
+# moves into a hidden `<generic parameters of X>` scope that constructs one
+# TypeVar per parameter and closes the value function over those cells.
+
+def typealias_target_name(ta: TypeAlias) -> str | None {
+    if isinstance(ta.name, Name) {
+        return ((ta.name as Name).id);
+    }
+    return None;
+}
+
+
+# The lazy value scope: argcount 1 (.format), format guard, then the alias
+# value expression. Generic aliases additionally take the type params as
+# free vars (COPY_FREE_VARS in the prologue via their symtable cells).
+def typealias_value_cfg(
+    ta: TypeAlias,
+    name: str,
+    qualname: str,
+    filename: str,
+    sym_v: sym_block,
+    private: str | None,
+    in_class: bool
+) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename, name=name, qualname=qualname, firstlineno=ta.lineno
+    );
+    u.argcount = 1;
+    u.posonlyargcount = 1;
+    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    if sym_v.nested {
+        u.flags = u.flags | CO_NESTED;
+    }
+    u.varnames = [".format"];
+    u.freevars = freevars_from_sym(sym_v);
+    if in_class {
+        # Directly inside a class body the lazy scope closes over the class
+        # dict cell and resolves bare names through it (PEP 649 hook).
+        u.freevars.append("__classdict__");
+        u.classdict_names = True;
+    }
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_v, private);
+    # Prologue: COPY_FREE_VARS, MAKE_CELL(s), RESUME (CPython flowgraph order).
+    u.cellvars = cellvars_from_sym(sym_v);
+    ploc = loc(0, ta.lineno, 0, 0);
+    if len(u.freevars) > 0 {
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+    }
+    ci = 0;
+    while ci < len(u.cellvars) {
+        g.emit_op(
+            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), ploc
+        );
+        ci = ci + 1;
+    }
+    g.emit_op(OP_RESUME, 0, ploc);
+    hloc = nloc(ta.lineno, ta.end_lineno, ta.col_offset, ta.end_col_offset);
+    # Guard: if .format > 2: raise NotImplementedError (formats 0/1 only).
+    g.emit_op(OP_LOAD_FAST_BORROW, localsplus_index_u(u, ".format"), hloc);
+    # Dead small-int slot: the guard literal keeps const pool slot 0.
+    u.add_const(PyInt(t="int", val=2));
+    u.dead_small_int_const = True;
+    g.emit_op(OP_LOAD_SMALL_INT, 2, hloc);
+    g.emit_op(OP_COMPARE_OP, compare_oparg(CMP_GT), hloc);
+    after = g.new_block();
+    g.emit_jump(OP_POP_JUMP_IF_FALSE, after.id, hloc);
+    g.emit_op(OP_LOAD_COMMON_CONSTANT, 1, hloc);
+    g.emit_op(OP_RAISE_VARARGS, 1, hloc);
+    g.use(after);
+    visit_expr(g, ta.value);
+    if codegen_busy(g) {
+        u.flush_late_consts();
+        return u;
+    }
+    g.emit_op(OP_RETURN_VALUE, 0, hloc);
+    u.flush_late_consts();
+    return u;
+}
+
+
+# The hidden <generic parameters of X> scope: builds one TypeVar per param
+# into cells, then assembles (name, (typevar, ...), closure-wrapped value fn).
+def typealias_genparams_cfg(
+    ta: TypeAlias,
+    tps: list[type_param],
+    name: str,
+    filename: str,
+    sym_gp: sym_block,
+    co_value: PyCode,
+    private: str | None,
+    in_class: bool,
+    qualname: str
+) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename,
+        name="<generic parameters of " + name + ">",
+        qualname=qualname,
+        firstlineno=ta.lineno
+    );
+    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    if sym_gp.nested {
+        u.flags = u.flags | CO_NESTED;
+    }
+    u.freevars = freevars_from_sym(sym_gp);
+    if in_class {
+        u.freevars.append("__classdict__");
+    }
+    entry_blk = u.add_block();
+    g = new_cfg_builder(u, entry_blk, sym_gp, private);
+    u.cellvars = cellvars_from_sym(sym_gp);
+    ploc = loc(0, ta.lineno, 0, 0);
+    if len(u.freevars) > 0 {
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+    }
+    ci = 0;
+    while ci < len(u.cellvars) {
+        g.emit_op(
+            OP_MAKE_CELL, localsplus_index_u(u, u.cellvars[ci]), ploc
+        );
+        ci = ci + 1;
+    }
+    g.emit_op(OP_RESUME, 0, ploc);
+    tloc = nloc(ta.lineno, ta.end_lineno, ta.col_offset, ta.end_col_offset);
+    nidx = g.u.add_const(PyStr(t="str", val=name));
+    g.emit_op(OP_LOAD_CONST, nidx, tloc);
+    np = len(tps);
+    pi = 0;
+    while pi < np {
+        tv_name = (tps[pi] as TypeVar).name;
+        pidx = g.u.add_const(PyStr(t="str", val=tv_name));
+        g.emit_op(OP_LOAD_CONST, pidx, tloc);
+        g.emit_op(OP_CALL_INTRINSIC_1, 7, tloc);
+        g.emit_op(OP_COPY, 1, tloc);
+        g.emit_op(OP_STORE_DEREF, localsplus_index_u(u, tv_name), tloc);
+        pi = pi + 1;
+    }
+    g.emit_op(OP_BUILD_TUPLE, np, tloc);
+    def_tup = PyTuple(t="tuple", items=[PyInt(t="int", val=1)]);
+    didx = g.u.add_const(def_tup);
+    g.emit_op(OP_LOAD_CONST, didx, tloc);
+    nclosure = np;
+    pi = 0;
+    while pi < np {
+        tv_name = (tps[pi] as TypeVar).name;
+        g.emit_op(
+            OP_LOAD_FAST_BORROW, localsplus_index_u(u, tv_name), tloc
+        );
+        pi = pi + 1;
+    }
+    if in_class {
+        g.emit_op(
+            OP_LOAD_FAST_BORROW, localsplus_index_u(u, "__classdict__"), tloc
+        );
+        nclosure = nclosure + 1;
+    }
+    g.emit_op(OP_BUILD_TUPLE, nclosure, tloc);
+    cidx = g.u.add_const(co_value);
+    g.emit_op(OP_LOAD_CONST, cidx, tloc);
+    g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
+    g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+    g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 1, tloc);
+    g.emit_op(OP_BUILD_TUPLE, 3, tloc);
+    g.emit_op(OP_CALL_INTRINSIC_1, 11, tloc);
+    g.emit_op(OP_RETURN_VALUE, 0, tloc);
+    u.flush_late_consts();
+    return u;
+}
+
+
+# Lower `type name[params] = value` at module/class/function scope.
+def visit_type_alias(g: cfg_builder, ta: TypeAlias) -> stmt_cont {
+    tloc = nloc(ta.lineno, ta.end_lineno, ta.col_offset, ta.end_col_offset);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "type alias without symtable");
+        return stmt_cont(loc=tloc);
+    }
+    name = typealias_target_name(ta);
+    if name is None {
+        codegen_fail(g, "SyntaxError", "invalid type alias target");
+        return stmt_cont(loc=tloc);
+    }
+    tps: list[type_param] = [];
+    if ta.type_params is not None {
+        tps = ta.type_params;
+    }
+    generic = len(tps) > 0;
+    gp_name = "<generic parameters of " + name + ">";
+    sym_v = None;
+    if generic {
+        sym_gp = sym_function_child_at(
+            g.sym_top, gp_name, ta.lineno, ta.col_offset
+        );
+        if sym_gp is None {
+            codegen_fail(
+                g, "SystemError", "missing symtable for " + gp_name
+            );
+            return stmt_cont(loc=tloc);
+        }
+        sym_params = sym_gp;
+        sym_v = sym_function_child_at(sym_gp, name, ta.lineno, ta.col_offset);
+    } else {
+        sym_v = sym_function_child_at(g.sym_top, name, ta.lineno, ta.col_offset);
+    }
+    if sym_v is None {
+        codegen_fail(g, "SystemError", "missing symtable for type alias " + name);
+        return stmt_cont(loc=tloc);
+    }
+    sym_value = sym_v;
+    # CPython qualname rules: plain name at module scope, <Class>.Name in a
+    # class body, and <parent>.<locals>.Name under a function scope.
+    vqname = name;
+    gpqname = "<generic parameters of " + name + ">";
+    if g.sym_top.block_type == "class" {
+        vqname = g.u.qualname + "." + name;
+        gpqname = g.u.qualname + "." + gpqname;
+    } elif g.sym_top.block_type != "module" {
+        vqname = g.u.qualname + ".<locals>." + name;
+        gpqname = g.u.qualname + ".<locals>." + gpqname;
+    }
+    in_class = g.sym_top.block_type == "class";
+    if generic and in_class {
+        # Needs classdict-aware deref loads (LOAD_FROM_DICT_OR_DEREF) for the
+        # type-param cells inside the lazy scope; the shared name-load path in
+        # compiler_emit only has the _OR_GLOBALS variant today. Fail loudly
+        # rather than emitting silently-wrong bytes.
+        codegen_fail(
+            g,
+            "NotImplementedError",
+            "generic type alias directly inside a class body is not supported"
+        );
+        return stmt_cont(loc=tloc);
+    }
+    u_v = typealias_value_cfg(
+        ta, name, vqname, g.u.filename, sym_value, g.private, in_class
+    );
+    if u_v.diag is not None {
+        g.u.diag = u_v.diag;
+        return stmt_cont(loc=tloc);
+    }
+    if generic {
+        cfg_v = verify_cfg(u_v);
+        if cfg_v.diag is not None {
+            g.u.diag = cfg_v.diag;
+            return stmt_cont(loc=tloc);
+        }
+        co_v = assemble(cfg_v);
+        u_gp = typealias_genparams_cfg(
+            ta, tps, name, g.u.filename, sym_params, co_v, g.private, in_class,
+            gpqname
+        );
+        if u_gp.diag is not None {
+            g.u.diag = u_gp.diag;
+            return stmt_cont(loc=tloc);
+        }
+        cfg_gp = verify_cfg(u_gp);
+        if cfg_gp.diag is not None {
+            g.u.diag = cfg_gp.diag;
+            return stmt_cont(loc=tloc);
+        }
+        co_gp = assemble(cfg_gp);
+        g.u.nested_code_emitted = True;
+        if in_class {
+            clp = localsplus_index(g, "__classdict__");
+            g.emit_op(OP_LOAD_FAST_BORROW, clp, tloc);
+            g.emit_op(OP_BUILD_TUPLE, 1, tloc);
+        }
+        gidx = g.u.add_const(co_gp);
+        g.emit_op(OP_LOAD_CONST, gidx, tloc);
+        g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
+        if in_class {
+            g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+        }
+        g.emit_op(OP_PUSH_NULL, 0, tloc);
+        g.emit_op(OP_CALL, 0, tloc);
+    } else {
+        cfg_v = verify_cfg(u_v);
+        if cfg_v.diag is not None {
+            g.u.diag = cfg_v.diag;
+            return stmt_cont(loc=tloc);
+        }
+        co_v = assemble(cfg_v);
+        g.u.nested_code_emitted = True;
+        nidx = g.u.add_const(PyStr(t="str", val=name));
+        none_idx = g.u.add_const(py_none());
+        def_tup = PyTuple(t="tuple", items=[PyInt(t="int", val=1)]);
+        didx = g.u.add_const(def_tup);
+        vidx = g.u.add_const(co_v);
+        g.emit_op(OP_LOAD_CONST, nidx, tloc);
+        g.emit_op(OP_LOAD_CONST, none_idx, tloc);
+        g.emit_op(OP_LOAD_CONST, didx, tloc);
+        if in_class {
+            clp = localsplus_index(g, "__classdict__");
+            g.emit_op(OP_LOAD_FAST_BORROW, clp, tloc);
+            g.emit_op(OP_BUILD_TUPLE, 1, tloc);
+        }
+        g.emit_op(OP_LOAD_CONST, vidx, tloc);
+        g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
+        if in_class {
+            g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+        }
+        g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 1, tloc);
+        g.emit_op(OP_BUILD_TUPLE, 3, tloc);
+        g.emit_op(OP_CALL_INTRINSIC_1, 11, tloc);
+    }
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    if g.sym_top is not None and g.sym_top.block_type == "function" {
+        fi = fast_local_index(g, name);
+        if fi < 0 {
+            codegen_fail(
+                g, "SystemError", "missing fast local for type alias " + name
+            );
+            return stmt_cont(loc=tloc);
+        }
+        g.emit_op(OP_STORE_FAST, fi, tloc);
+    } else {
+        nidx2 = g.u.add_name(name);
+        g.emit_op(OP_STORE_NAME, nidx2, tloc);
+    }
+    return stmt_cont(loc=tloc);
 }

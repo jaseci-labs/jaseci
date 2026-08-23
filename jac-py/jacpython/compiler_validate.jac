@@ -46,6 +46,7 @@ import from ast_nodes {
     FunctionDef,
     ClassDef,
     AsyncFunctionDef,
+    TypeAlias,
     AsyncFor,
     AsyncWith,
 }
@@ -658,6 +659,15 @@ def validate_stmt(
     if isinstance(s, ClassDef) {
         cd = s as ClassDef;
         return validate_stmt_list(cd.body, False, False, in_async);
+    }
+    if isinstance(s, TypeAlias) {
+        # The alias value is an ordinary load expression compiled inside a
+        # nested scope; only expression-level rules apply to it.
+        ta = s as TypeAlias;
+        if not isinstance(ta.name, Name) {
+            return validation_error("SyntaxError", "invalid type alias target");
+        }
+        return validate_load_expr(ta.value, in_function);
     }
     return validation_ok();
 }
