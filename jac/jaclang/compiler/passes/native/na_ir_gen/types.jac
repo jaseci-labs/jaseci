@@ -24,6 +24,9 @@ obj NaIRGenTypes(NaIRGenState) {
     def _stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _abi_sizeof(t: ir.Type) -> int;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _lower_type_by_name(name: (str | None)) -> (ir.Type | None);
+    def _lower_untyped_annotation(nd: uni.UniNode) -> (ir.Type | None);
+    def _lower_list_for_elem(elem_llvm: ir.Type) -> ir.Type;
     def _resolve_decl_type(
         type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
     ) -> ir.Type;
@@ -114,6 +117,7 @@ obj NaIRGenTypes(NaIRGenState) {
     def _codegen_float_floor_mod(left: ir.Value, right: ir.Value) -> ir.Value;
     def _spec_name_match(tk: str, names: tuple) -> bool;
     def _opt_sole_member(t: any) -> (any | None);
+    def _spec_union_agreement(t: any, names: tuple) -> (any | None);
     def _elem_storage_llvm(t: any) -> (ir.Type | None);
     def _aos_elem_of(type_expr: uni.UniNode | None) -> (str | None);
     def _infer_type_name(val: ir.Value) -> (str | None);

@@ -1156,6 +1156,9 @@ impl ModulePath.native_bundled_path -> (str | None) {
     if not self.in_native_context() {
         return None;
     }
+    if mod_path and mod_path.endswith(".pyi") {
+        return None;
+    }
     base = self.dot_path_str;
     if not is_bundled_native_module(base) {
         return None;
@@ -1223,7 +1226,8 @@ impl ModuleItem.binding_name.getter -> (Name | None) {
     if isinstance(self.name, Name) {
         return self.name;
     }
-    if self.name.value == 'default' {
+
+    if self.name.value in ('default', '*') {
         return self.alias;
     }
     return None;
@@ -1504,6 +1508,19 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
                 return nodew;
             }
             nodew = nodew.parent;
+        }
+    }
+
+    if found is None {
+        nodew = self.parent;
+        while isinstance(nodew, (IfStmt, ElseStmt, ModuleCode)) {
+            nodew = nodew.parent;
+        }
+        if nodew is not self.parent and isinstance(nodew, (Archetype, Enum)) {
+            mod = self.find_parent_of_type(Module);
+            if mod is not None and mod.is_raised_from_py {
+                return nodew;
+            }
         }
     }
     return found;
@@ -2849,6 +2866,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 (i.sym_name in i.sym_tab.names_in_scope)
                 and ((sym := i.sym_tab.names_in_scope[i.sym_name]) is not None)
             ) {
+                if sym.imported and isinstance(nd.value, Null) {
+                    sym.add_defn(i.name_spec);
+                }
                 sym.add_use(i.name_spec);
                 record_cross_scope_rebind(i.sym_tab, i.sym_name, sym);
             } elif (
@@ -2866,6 +2886,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                     if (
                         (outer := py_scope.lookup(i.sym_name, deep=False)) is not None
                     ) {
+                        if outer.imported and isinstance(nd.value, Null) {
+                            outer.add_defn(i.name_spec);
+                        }
                         outer.add_use(i.name_spec);
                         record_cross_scope_rebind(py_scope, i.sym_name, outer);
                     } else {

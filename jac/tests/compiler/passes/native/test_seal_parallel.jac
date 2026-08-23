@@ -386,9 +386,10 @@ test "the memory probe answers on a host with no /proc and no SC_AVPHYS_PAGES" {
     # Darwin is that host: /proc is not mounted and its unistd.h never defined
     # _SC_AVPHYS_PAGES, so both of the probe's Linux arms raise and it used to
     # answer 0.0 -- reading every Mac as a machine with no memory at all.
-    with patch.object(pb, "Path", _NoProcPath) {
-        with patch.object(pb.os, "sysconf", _darwin_sysconf) {
-            with patch.object(pb.sys, "platform", "darwin") {
+    _po: any = patch.object;
+    with _po(pb, "Path", _NoProcPath) {
+        with _po(pb.os, "sysconf", _darwin_sysconf) {
+            with _po(pb.sys, "platform", "darwin") {
                 got = pb.seal_mem_available_gib();
             }
         }

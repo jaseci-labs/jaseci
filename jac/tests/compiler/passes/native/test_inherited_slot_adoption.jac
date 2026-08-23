@@ -68,7 +68,6 @@ def _seams(rel: str) -> dict[(str, str)] {
             file_path=path,
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
@@ -120,7 +119,6 @@ test "the pass chain's traversal methods lower" {
             file_path=os.path.join(pkg, "jac0core", "passes", "uni_pass.jac"),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

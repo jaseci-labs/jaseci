@@ -3,19 +3,18 @@
 Tests full round-trip typed object passing from a separate .jac file.
 """
 
-
-import from .typed_bidirectional { place_order, update_item }
+import from .typed_bidirectional { CartItem, ShippingInfo, place_order, update_item }
 
 def:pub app -> JsxElement {
     has order: any = None;
 
-    async def checkout -> None {
+    async def checkout {
         items = [CartItem(product_id="p1", name="Widget", quantity=2, price=9.99)];
         shipping = ShippingInfo(address="456 Oak Ave", city="Townsville");
         order = await place_order(items, shipping);
     }
 
-    async def updateQuantity(itemId: str, qty: int) -> None {
+    async def updateQuantity(itemId: str, qty: int) {
         updated = CartItem(product_id=itemId, name="Widget", quantity=qty, price=9.99);
         order = await update_item(order.order_id, updated);
     }

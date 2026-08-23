@@ -24,7 +24,7 @@ glob FIXTURE_DIR = os.path.join(
      ),
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_typed_interop_");
 
-def compile_fixture(name: str, prog: JacProgram | None = None) -> object {
+def compile_fixture(name: str, prog: JacProgram | None = None) -> any {
     fixture = os.path.join(FIXTURE_DIR, name);
     if prog is None {
         prog = JacProgram();
@@ -32,7 +32,7 @@ def compile_fixture(name: str, prog: JacProgram | None = None) -> object {
     return prog.compile(fixture);
 }
 
-def compile_inline(code: str, prog: JacProgram | None = None) -> object {
+def compile_inline(code: str, prog: JacProgram | None = None) -> any {
     with NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
     ) as f {

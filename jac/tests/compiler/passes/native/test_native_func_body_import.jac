@@ -37,7 +37,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Import the fixture on the sv/bytecode pathway and hand back its module."""
-def sv_module(stem: str) -> object {
+def sv_module(stem: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);
@@ -114,6 +114,7 @@ test "an unsupported body-scoped import demotes its function, callers stay loud"
     assert not prog.errors_had , f"a function-owned import violation must demote, got: {[
         str(e) for e in prog.errors_had
     ]}";
+    assert ir.gen.native_layout is not None;
     assert "use" not in ir.gen.native_layout.functions , (
         "the function with the Python-only import must leave the native layout"
     );
@@ -158,11 +159,10 @@ test "nested imports are harvested only from native-context elements" {
     # server, so its body-scoped import is server-context.
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "clib_ctx_gated_lib.jac"),
-        options=CompileOptions(type_check=False, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
-    placements = [
-        stmt.code_context for stmt in ModuleCodegenPass.iter_context_stmts(ir)
-    ];
+    _stmts: list = list(ModuleCodegenPass.iter_context_stmts(ir));
+    placements = [stmt.code_context for stmt in _stmts];
     assert CodeContext.NATIVE not in placements , (
         f"fixture no longer exercises server placement: {placements}"
     );

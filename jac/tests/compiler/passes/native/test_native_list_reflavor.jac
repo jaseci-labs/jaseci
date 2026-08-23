@@ -34,7 +34,7 @@ glob FIXTURES = os.path.join(
 
 
 """JIT the fixture once; return its execution engine."""
-def engine -> object {
+def engine -> any {
     if _ENGINE {
         return _ENGINE[0];
     }
@@ -52,7 +52,7 @@ def engine -> object {
 
 
 """A fixture function taking one bool and returning an i64."""
-def flag_fn(name: str) -> object {
+def flag_fn(name: str) -> any {
     addr = engine().get_function_address(name);
     assert addr != 0 , f"'{name}' is absent from the JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_bool)(addr);

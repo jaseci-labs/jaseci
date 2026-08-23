@@ -64,6 +64,12 @@ class Autoscaler {
         return merge_manifest_overlay(`default, spec.behavior_overlay);
     }
 
+    def _build_manifests(self: Autoscaler, spec: AutoscalerSpec) -> dict[str, any] {
+        raise NotImplementedError(
+            "_build_manifests() must be implemented by a concrete Autoscaler subclass"
+        );
+    }
+
     def apply(self: Autoscaler, spec: AutoscalerSpec) -> bool {
         raise NotImplementedError(
             "apply() must be implemented by a concrete Autoscaler subclass"

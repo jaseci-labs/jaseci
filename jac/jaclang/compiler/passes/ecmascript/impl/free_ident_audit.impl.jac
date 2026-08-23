@@ -10,6 +10,7 @@ glob _AMBIENT_CACHE: set[str] = set(),
 
 glob _JS_LANGUAGE_GLOBALS: set[str] = {
          "globalThis",
+         "import",
          "undefined",
          "NaN",
          "Infinity",

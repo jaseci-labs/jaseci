@@ -33,7 +33,7 @@ glob FIXTURES = os.path.join(
      _SV_MOD: list = [];
 
 """Compile the fixture natively, run module init, return its JIT engine."""
-def _engine -> object {
+def _engine -> any {
     if _ENG {
         return _ENG[0];
     }
@@ -62,7 +62,7 @@ def _warnings -> list[str] {
 }
 
 """Import the same fixture through the sv/bytecode pathway (the oracle)."""
-def _sv_module -> object {
+def _sv_module -> any {
     if _SV_MOD {
         return _SV_MOD[0];
     }

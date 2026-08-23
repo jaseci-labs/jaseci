@@ -3,9 +3,13 @@ import os;
 import re;
 import time;
 import from pathlib { Path }
-import from collections { namedtuple }
+import from typing { NamedTuple }
 
-glob SourceLocation = namedtuple("SourceLocation", ["file", "line", "column"]);
+class SourceLocation(NamedTuple) {
+    has file: str,
+        line: int,
+        column: int;
+}
 
 glob _B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
      _B64_DECODE = {c: i for (i, c) in enumerate(_B64)};

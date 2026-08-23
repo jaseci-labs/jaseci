@@ -97,7 +97,11 @@ impl SolidBackend._jsx_tag_name(
         return es.JsxIdentifier(name=expr.name);
     }
     if isinstance(expr, es.MemberExpression) and not expr.computed {
-        obj_node = self._jsx_tag_name(expr.object);
+        obj_expr = expr.object;
+        if obj_expr is None {
+            return None;
+        }
+        obj_node = self._jsx_tag_name(obj_expr);
         prop = expr.property;
         if obj_node is not None and isinstance(prop, es.Identifier) {
             return es.JsxMemberExpression(
@@ -470,7 +474,6 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
     import from jaclang.compiler.passes.ecmascript.view_ir {
         ViewElement,
         ComponentTag,
-        FragmentTag,
         DynamicAttr,
         DynamicChild,
         ElementChild
@@ -492,13 +495,9 @@ impl SolidBackend.lower_async_boundary(a: AsyncBoundary) -> es.Expression {
     if len(a.except_exprs) == 1 {
         except_fallback: es.Expression = a.except_exprs[0];
     } else {
-        except_fragment = ViewElement(
-            tag=FragmentTag(jac_node=jn),
-            attrs=[],
-            children=[DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs],
-            jac_node=jn
+        except_fallback = self._view_children_as_expr(
+            [DynamicChild(value=ex, jac_node=jn) for ex in a.except_exprs], self._noloc
         );
-        except_fallback = self.lower_view(except_fragment, self._noloc);
     }
     error_view = ViewElement(
         tag=ComponentTag(ref=es.Identifier(name='ErrorBoundary'), jac_node=jn),
