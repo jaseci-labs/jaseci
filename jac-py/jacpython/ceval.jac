@@ -642,6 +642,7 @@ import from objects {
     py_exception_type,
     dict_key_repr,
     _pyobj_repr,
+    _repr_unicode_escape,
     str_mod_format,
     is_error,
     hashkey_str,
@@ -2750,6 +2751,7 @@ def to_host(value: PyObj) -> any {
         case PyListMethod():
         case PyDictMethod():
         case PySetMethod():
+        case PyStrMethod():
             return _jac_make_host_trampoline(value);
 
         case PyNativeNew():
@@ -2959,7 +2961,8 @@ def py_type_of(o: PyObj) -> PyObj {
     # method (builtins/bound builtins), method (bound user functions), and the
     # concrete iterator types.
     if isinstance(o, PyNativeBuiltin) or isinstance(o, PyListMethod)
-        or isinstance(o, PyDictMethod) or isinstance(o, PySetMethod) {
+        or isinstance(o, PyDictMethod) or isinstance(o, PySetMethod)
+        or isinstance(o, PyStrMethod) {
         return from_host(_jac_builtin_function_or_method_type());
     }
     if isinstance(o, PyBoundMethod) or isinstance(o, PyGenMethod) {
@@ -3515,6 +3518,9 @@ def py_repr(value: PyObj) -> PyObj {
     # CPython-style repr minus the embedded address.
     if isinstance(value, PyListMethod) {
         return PyStr(t="str", val="<built-in method " + (value as PyListMethod).name + " of list object>");
+    }
+    if isinstance(value, PyStrMethod) {
+        return PyStr(t="str", val="<built-in method " + (value as PyStrMethod).name + " of str object>");
     }
     if isinstance(value, PyDictMethod) {
         return PyStr(t="str", val="<built-in method " + (value as PyDictMethod).name + " of dict object>");
@@ -4370,6 +4376,12 @@ def py_attr(value: PyObj, name: str) -> PyObj {
         and isinstance(value, PySet)
         and is_set_method(name, (value as PySet).frozen) {
         return PySetMethod(t="set_method", target=value as PySet, name=name);
+    }
+    # Native str methods: a bound PyStrMethod keeps instance calls in-VM instead
+    # of crossing the substrate boundary for every 'x'.upper() (same seam as the
+    # dict/list/set arms above; unported names still fall through to the host).
+    if is_error(result) and isinstance(value, PyStr) and is_str_method(name) {
+        return PyStrMethod(t="str_method", target=value as PyStr, name=name);
     }
     if is_error(result) and _is_host_backed(value.t) {
         return host_getattr(value, name);
@@ -5612,7 +5624,7 @@ def obj_is_callable(x: PyObj) -> bool {
     if isinstance(x, (PyFunction, PyNativeBuiltin, PyClass, PyExceptionType,
                       PyBoundMethod, PyClassMethodCtor, PyStaticMethodCtor,
                       PyListMethod, PyDictMethod, PySetMethod, PyRangeMethod,
-                      PyNsMethod, PyGenMethod, PyBuiltinSuperMethod)) {
+                      PyNsMethod, PyGenMethod, PyBuiltinSuperMethod, PyStrMethod)) {
         return True;
     }
     if isinstance(x, PyUserObj) {
@@ -7217,6 +7229,698 @@ obj PySetMethod(PyObj) {
         }
         return py_error("AttributeError", n);
     }
+}
+
+# ---------------- native str methods ----------------
+#
+# The bound-method surface of boxed strings ('abc'.upper resolves to one of
+# these), mirroring PyListMethod/PyDictMethod: dispatch runs entirely in-VM so
+# lookups never round-trip a to_host COPY through host_getattr. Algorithms
+# delegate to the underlying host string's own intrinsics after strict
+# argument validation, so results (and the error messages below) stay
+# byte-exact CPython -- including 3.14's lazy encode-error-handler lookup.
+def is_str_method(name: str) -> bool {
+    return name == "capitalize"
+        or name == "casefold"
+        or name == "center"
+        or name == "count"
+        or name == "encode"
+        or name == "endswith"
+        or name == "expandtabs"
+        or name == "find"
+        or name == "index"
+        or name == "isalnum"
+        or name == "isalpha"
+        or name == "isascii"
+        or name == "isdecimal"
+        or name == "isdigit"
+        or name == "isidentifier"
+        or name == "islower"
+        or name == "isnumeric"
+        or name == "isprintable"
+        or name == "isspace"
+        or name == "istitle"
+        or name == "isupper"
+        or name == "join"
+        or name == "ljust"
+        or name == "lower"
+        or name == "lstrip"
+        or name == "maketrans"
+        or name == "partition"
+        or name == "removeprefix"
+        or name == "removesuffix"
+        or name == "replace"
+        or name == "rfind"
+        or name == "rindex"
+        or name == "rjust"
+        or name == "rpartition"
+        or name == "rsplit"
+        or name == "rstrip"
+        or name == "split"
+        or name == "splitlines"
+        or name == "startswith"
+        or name == "strip"
+        or name == "swapcase"
+        or name == "title"
+        or name == "translate"
+        or name == "upper"
+        or name == "zfill";
+}
+
+obj PyStrMethod(PyObj) {
+    has target: PyStr,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        return str_method_call(self.target.val, self.name, args, kwargs);
+    }
+}
+
+# Positional-or-keyword argument fetch. Absent arguments come back as the
+# PY_NOT_IMPLEMENTED sentinel (never a legit method argument).
+def _sm_arg(args: list[PyObj], kwargs: dict[str, PyObj], idx: int, kwname: str) -> PyObj {
+    if idx < len(args) {
+        return args[idx];
+    }
+    if kwname in kwargs {
+        return kwargs[kwname];
+    }
+    return PY_NOT_IMPLEMENTED;
+}
+
+def _sm_absent(o: PyObj) -> bool {
+    return o.t == "notimplemented";
+}
+
+# METH_NOARGS arity: ``str.upper() takes no arguments (1 given)`` /
+# ``str.lower() takes no keyword arguments``.
+def _sm_noargs(n: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+    if len(kwargs) > 0 {
+        return py_error("TypeError", "str." + n + "() takes no keyword arguments");
+    }
+    if len(args) > 0 {
+        return py_error("TypeError", "str." + n + "() takes no arguments (" + str(len(args)) + " given)");
+    }
+    return py_none();
+}
+
+# Exactly-one-argument methods (join/partition/zfill/translate/maketrans arg1):
+# ``str.join() takes exactly one argument (2 given)``.
+def _sm_one_arg(n: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+    total = len(args) + len(kwargs);
+    if total != 1 {
+        return py_error("TypeError", "str." + n + "() takes exactly one argument (" + str(total) + " given)");
+    }
+    if len(args) == 1 {
+        return args[0];
+    }
+    for kv in kwargs {
+        return kwargs[kv];
+    }
+    return PY_NOT_IMPLEMENTED;
+}
+
+# Plain __index__ context (width/maxsplit/count/tabsize):
+# "'<T>' object cannot be interpreted as an integer".
+def _sm_int(o: PyObj) -> PyObj {
+    r = o.to_index();
+    if is_error(r) {
+        return py_error("TypeError", "'" + o.tp_type_name() + "' object cannot be interpreted as an integer");
+    }
+    return r;
+}
+
+# Slice-index context (start/end): None passes through, anything else must
+# index -- "slice indices must be integers or None or have an __index__ method".
+def _sm_slice_int(o: PyObj) -> PyObj {
+    if isinstance(o, PyNoneType) {
+        return o;
+    }
+    r = o.to_index();
+    if is_error(r) {
+        return py_error("TypeError", "slice indices must be integers or None or have an __index__ method");
+    }
+    return r;
+}
+
+# Drain any native iterable into elems for join(); True iff supported.
+def _sm_iter_elems(src: PyObj, elems: list[PyObj]) -> bool {
+    if isinstance(src, PyList) {
+        for x in (src as PyList).items { elems.append(x); }
+        return True;
+    }
+    if isinstance(src, PyTuple) {
+        for x in tuple_value(src) { elems.append(x); }
+        return True;
+    }
+    if isinstance(src, PySet) {
+        for x in (src as PySet).set_members() { elems.append(x); }
+        return True;
+    }
+    if isinstance(src, PyDict) {
+        d = src as PyDict;
+        for hk in d.items { elems.append(d.items[hk].key); }
+        return True;
+    }
+    if isinstance(src, PyStr) {
+        for ch in (src as PyStr).val { elems.append(PyStr(t="str", val=ch)); }
+        return True;
+    }
+    if isinstance(src, PyIter) {
+        it = src as PyIter;
+        i = it.index;
+        while i < len(it.items) { elems.append(it.items[i]); i = i + 1; }
+        return True;
+    }
+    return False;
+}
+
+# str.encode with byte-exact UnicodeEncodeError construction. Codecs are
+# matched against their alias tables, then every codepoint is pre-scanned so
+# the host intrinsic only ever sees fully encodable input (its exceptions would
+# otherwise escape the VM unconverted). Error handlers are validated lazily,
+# matching CPython 3.14: an unknown handler raises LookupError only when an
+# actual encoding error consults it.
+def _sm_encode(s: str, encoding: str, errors: str) -> PyObj {
+    enc = encoding.lower().replace("_", "-");
+    limit = 1114111;
+    canon = "utf-8";
+    surrogates_only = False;
+    if enc == "utf-8" or enc == "utf8" {
+        surrogates_only = True;
+    } elif enc == "ascii" or enc == "us-ascii" or enc == "us" or enc == "646" or enc == "ansi_x3.4-1968" or enc == "iso-ir-6" or enc == "iso646-us" or enc == "csascii" or enc == "cp367" or enc == "ibm367" {
+        limit = 127;
+        canon = "ascii";
+    } elif enc == "latin-1" or enc == "latin1" or enc == "iso-8859-1" or enc == "iso8859-1" or enc == "l1" or enc == "8859-1" or enc == "cp819" or enc == "iso-ir-100" or enc == "latin" or enc == "cp28591" {
+        limit = 255;
+        canon = "latin-1";
+    } else {
+        return py_error("LookupError", "unknown encoding: " + encoding);
+    }
+    # Pre-scan for the first unencodable codepoint.
+    bad_pos = -1;
+    bad_cp = 0;
+    i = 0;
+    while i < len(s) {
+        cp = ord(s[i]);
+        viol = False;
+        if surrogates_only {
+            viol = cp >= 0xD800 and cp <= 0xDFFF;
+        } else {
+            viol = cp > limit;
+        }
+        if viol {
+            bad_pos = i;
+            bad_cp = cp;
+            break;
+        }
+        i = i + 1;
+    }
+    out: list[int] = [];
+    if bad_pos < 0 {
+        bb = s.encode(encoding);
+        for v in bb { out.append(v); }
+        return PyBytes(t="bytes", val=out);
+    }
+    # An error was actually consulted: validate the handler now (3.14 semantics).
+    h = errors.lower().replace("_", "-").replace(" ", "");
+    known = h == "strict" or h == "ignore" or h == "replace"
+        or h == "backslashreplace" or h == "xmlcharrefreplace";
+    if not known {
+        return py_error("LookupError", "unknown error handler name '" + errors + "'");
+    }
+    if h == "strict" {
+        reason = "ordinal not in range(" + str(limit + 1) + ")";
+        if surrogates_only {
+            reason = "surrogates not allowed";
+        }
+        msg = "'" + canon + "' codec can't encode character '"
+            + _repr_unicode_escape(bad_cp) + "' in position " + str(bad_pos) + ": " + reason;
+        return py_error("UnicodeEncodeError", msg);
+    }
+    i = 0;
+    while i < len(s) {
+        ch = s[i];
+        cp = ord(ch);
+        viol = False;
+        if surrogates_only {
+            viol = cp >= 0xD800 and cp <= 0xDFFF;
+        } else {
+            viol = cp > limit;
+        }
+        if not viol {
+            bb2 = ch.encode(encoding);
+            for v in bb2 { out.append(v); }
+        } elif h == "ignore" {
+        } elif h == "replace" {
+            out.append(63);
+        } elif h == "backslashreplace" {
+            esc = _repr_unicode_escape(cp);
+            j = 0;
+            while j < len(esc) { out.append(ord(esc[j])); j = j + 1; }
+        } else {
+            ref = "&#" + str(cp) + ";";
+            j = 0;
+            while j < len(ref) { out.append(ord(ref[j])); j = j + 1; }
+        }
+        i = i + 1;
+    }
+    return PyBytes(t="bytes", val=out);
+}
+
+# The full str method surface. `s` is the receiver's raw value.
+def str_method_call(s: str, n: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+    # ---- no-arg transforms ----
+    if n == "upper" or n == "lower" or n == "capitalize" or n == "casefold"
+        or n == "swapcase" or n == "title" {
+        e = _sm_noargs(n, args, kwargs);
+        if is_error(e) { return e; }
+        r = s;
+        if n == "upper" { r = s.upper(); }
+        elif n == "lower" { r = s.lower(); }
+        elif n == "capitalize" { r = s.capitalize(); }
+        elif n == "casefold" { r = s.casefold(); }
+        elif n == "swapcase" { r = s.swapcase(); }
+        else { r = s.title(); }
+        return PyStr(t="str", val=r);
+    }
+    # ---- no-arg predicates ----
+    if n == "isalpha" or n == "isalnum" or n == "isascii" or n == "isdecimal"
+        or n == "isdigit" or n == "isidentifier" or n == "islower"
+        or n == "isnumeric" or n == "isprintable" or n == "isspace"
+        or n == "istitle" or n == "isupper" {
+        e = _sm_noargs(n, args, kwargs);
+        if is_error(e) { return e; }
+        b = False;
+        if n == "isalpha" { b = s.isalpha(); }
+        elif n == "isalnum" { b = s.isalnum(); }
+        elif n == "isascii" { b = s.isascii(); }
+        elif n == "isdecimal" { b = s.isdecimal(); }
+        elif n == "isdigit" { b = s.isdigit(); }
+        elif n == "isidentifier" { b = s.isidentifier(); }
+        elif n == "islower" { b = s.islower(); }
+        elif n == "isnumeric" { b = s.isnumeric(); }
+        elif n == "isprintable" { b = s.isprintable(); }
+        elif n == "isspace" { b = s.isspace(); }
+        elif n == "istitle" { b = s.istitle(); }
+        else { b = s.isupper(); }
+        return PyBool(t="bool", val=b);
+    }
+    # ---- padding / alignment ----
+    if n == "center" or n == "ljust" or n == "rjust" {
+        wobj = _sm_arg(args, kwargs, 0, "width");
+        if _sm_absent(wobj) {
+            return py_error("TypeError", n + " expected at least 1 argument, got 0");
+        }
+        w = _sm_int(wobj);
+        if is_error(w) { return w; }
+        fill = " ";
+        fobj = _sm_arg(args, kwargs, 1, "fillchar");
+        if not _sm_absent(fobj) {
+            if not isinstance(fobj, PyStr) {
+                return py_error("TypeError", "The fill character must be a unicode character, not " + fobj.tp_type_name());
+            }
+            fill = (fobj as PyStr).val;
+            if len(fill) != 1 {
+                return py_error("TypeError", "The fill character must be exactly one character long");
+            }
+        }
+        r = "";
+        if n == "center" { r = s.center((w as PyInt).val, fill); }
+        elif n == "ljust" { r = s.ljust((w as PyInt).val, fill); }
+        else { r = s.rjust((w as PyInt).val, fill); }
+        return PyStr(t="str", val=r);
+    }
+    if n == "zfill" {
+        a = _sm_one_arg(n, args, kwargs);
+        if is_error(a) { return a; }
+        w = _sm_int(a);
+        if is_error(w) { return w; }
+        return PyStr(t="str", val=s.zfill((w as PyInt).val));
+    }
+    if n == "expandtabs" {
+        if len(args) + len(kwargs) > 1 {
+            return py_error("TypeError", "expandtabs() takes at most 1 argument (" + str(len(args) + len(kwargs)) + " given)");
+        }
+        tsize = 8;
+        tobj = _sm_arg(args, kwargs, 0, "tabsize");
+        if not _sm_absent(tobj) {
+            ti = _sm_int(tobj);
+            if is_error(ti) { return ti; }
+            tsize = (ti as PyInt).val;
+        }
+        return PyStr(t="str", val=s.expandtabs(tsize));
+    }
+    # ---- strip family ----
+    if n == "strip" or n == "lstrip" or n == "rstrip" {
+        chars: any = None;
+        cobj = _sm_arg(args, kwargs, 0, "chars");
+        if not _sm_absent(cobj) {
+            if not (isinstance(cobj, PyStr) or isinstance(cobj, PyNoneType)) {
+                return py_error("TypeError", n + " arg must be None or str");
+            }
+            if isinstance(cobj, PyStr) { chars = (cobj as PyStr).val; }
+        }
+        r = "";
+        if chars is None {
+            if n == "strip" { r = s.strip(); }
+            elif n == "lstrip" { r = s.lstrip(); }
+            else { r = s.rstrip(); }
+        } else {
+            if n == "strip" { r = s.strip(chars); }
+            elif n == "lstrip" { r = s.lstrip(chars); }
+            else { r = s.rstrip(chars); }
+        }
+        return PyStr(t="str", val=r);
+    }
+    # ---- split family ----
+    if n == "split" or n == "rsplit" {
+        sep: any = None;
+        sep_given = False;
+        sobj = _sm_arg(args, kwargs, 0, "sep");
+        if not _sm_absent(sobj) {
+            if not (isinstance(sobj, PyStr) or isinstance(sobj, PyNoneType)) {
+                return py_error("TypeError", "must be str or None, not " + sobj.tp_type_name());
+            }
+            if isinstance(sobj, PyStr) {
+                sep = (sobj as PyStr).val;
+                if len(sep) == 0 {
+                    return py_error("ValueError", "empty separator");
+                }
+            }
+            sep_given = True;
+        }
+        ms = -1;
+        mobj = _sm_arg(args, kwargs, 1, "maxsplit");
+        if not _sm_absent(mobj) {
+            mi = _sm_int(mobj);
+            if is_error(mi) { return mi; }
+            ms = (mi as PyInt).val;
+        }
+        parts: list[str] = [];
+        if not sep_given {
+            if n == "split" { parts = s.split(None, ms); }
+            else { parts = s.rsplit(None, ms); }
+        } else {
+            if n == "split" { parts = s.split(sep, ms); }
+            else { parts = s.rsplit(sep, ms); }
+        }
+        items: list[PyObj] = [];
+        for p in parts { items.append(PyStr(t="str", val=p)); }
+        return PyList(t="list", items=items);
+    }
+    if n == "splitlines" {
+        keep = False;
+        kobj = _sm_arg(args, kwargs, 0, "keepends");
+        if not _sm_absent(kobj) {
+            kt = py_slot_truth(kobj);
+            if is_error(kt) { return kt; }
+            keep = (kt as PyBool).val;
+        }
+        parts: list[str] = [];
+        if keep { parts = s.splitlines(True); } else { parts = s.splitlines(); }
+        items: list[PyObj] = [];
+        for p in parts { items.append(PyStr(t="str", val=p)); }
+        return PyList(t="list", items=items);
+    }
+    # ---- partition ----
+    if n == "partition" or n == "rpartition" {
+        a = _sm_one_arg(n, args, kwargs);
+        if is_error(a) { return a; }
+        if not isinstance(a, PyStr) {
+            return py_error("TypeError", "must be str, not " + a.tp_type_name());
+        }
+        sv = (a as PyStr).val;
+        if len(sv) == 0 {
+            return py_error("ValueError", "empty separator");
+        }
+        tup: tuple[str, str, str] = ("", "", "");
+        if n == "partition" { tup = s.partition(sv); }
+        else { tup = s.rpartition(sv); }
+        items: list[PyObj] = [];
+        for p in tup { items.append(PyStr(t="str", val=p)); }
+        return PyTuple(t="tuple", items=items);
+    }
+    # ---- find family + count ----
+    if n == "find" or n == "rfind" or n == "index" or n == "rindex" or n == "count" {
+        sub = _sm_arg(args, kwargs, 0, "sub");
+        if _sm_absent(sub) {
+            return py_error("TypeError", n + " expected at least 1 argument, got 0");
+        }
+        if not isinstance(sub, PyStr) {
+            return py_error("TypeError", n + "() argument 1 must be str, not " + sub.tp_type_name());
+        }
+        stv: any = None;
+        env: any = None;
+        sob = _sm_arg(args, kwargs, 1, "start");
+        if not _sm_absent(sob) {
+            si = _sm_slice_int(sob);
+            if is_error(si) { return si; }
+            stv = (si as PyInt).val;
+        }
+        eob = _sm_arg(args, kwargs, 2, "end");
+        if not _sm_absent(eob) {
+            ei = _sm_slice_int(eob);
+            if is_error(ei) { return ei; }
+            env = (ei as PyInt).val;
+        }
+        sv = (sub as PyStr).val;
+        r = 0;
+        if n == "rfind" or n == "rindex" { r = s.rfind(sv, stv, env); }
+        elif n == "count" { r = s.count(sv, stv, env); }
+        else { r = s.find(sv, stv, env); }
+        if (n == "index" or n == "rindex") and r == -1 {
+            return py_error("ValueError", "subsection not found");
+        }
+        return PyInt(t="int", val=r);
+    }
+    # ---- startswith / endswith ----
+    if n == "startswith" or n == "endswith" {
+        pfx = _sm_arg(args, kwargs, 0, n + "fix");
+        if _sm_absent(pfx) {
+            return py_error("TypeError", n + " expected at least 1 argument, got 0");
+        }
+        affs: any = None;
+        if isinstance(pfx, PyStr) {
+            affs = (pfx as PyStr).val;
+        } elif isinstance(pfx, PyTuple) {
+            ts: list[str] = [];
+            for itp in tuple_value(pfx) {
+                if not isinstance(itp, PyStr) {
+                    return py_error("TypeError", "tuple for " + n + " must only contain str, not " + itp.tp_type_name());
+                }
+                ts.append((itp as PyStr).val);
+            }
+            affs = tuple(ts);
+        } else {
+            return py_error("TypeError", n + " first arg must be str or a tuple of str, not " + pfx.tp_type_name());
+        }
+        stv: any = None;
+        env: any = None;
+        sob = _sm_arg(args, kwargs, 1, "start");
+        if not _sm_absent(sob) {
+            si = _sm_slice_int(sob);
+            if is_error(si) { return si; }
+            stv = (si as PyInt).val;
+        }
+        eob = _sm_arg(args, kwargs, 2, "end");
+        if not _sm_absent(eob) {
+            ei = _sm_slice_int(eob);
+            if is_error(ei) { return ei; }
+            env = (ei as PyInt).val;
+        }
+        b = False;
+        if n == "startswith" { b = s.startswith(affs, stv, env); }
+        else { b = s.endswith(affs, stv, env); }
+        return PyBool(t="bool", val=b);
+    }
+    # ---- replace ----
+    if n == "replace" {
+        oobj = _sm_arg(args, kwargs, 0, "old");
+        nobj = _sm_arg(args, kwargs, 1, "new");
+        if _sm_absent(oobj) or _sm_absent(nobj) {
+            given = len(args) + len(kwargs);
+            return py_error("TypeError", "replace() takes at least 2 positional arguments (" + str(given) + " given)");
+        }
+        if not isinstance(oobj, PyStr) {
+            return py_error("TypeError", "replace() argument 1 must be str, not " + oobj.tp_type_name());
+        }
+        if not isinstance(nobj, PyStr) {
+            return py_error("TypeError", "replace() argument 2 must be str, not " + nobj.tp_type_name());
+        }
+        cnt = -1;
+        cobj = _sm_arg(args, kwargs, 2, "count");
+        if not _sm_absent(cobj) {
+            ci = _sm_int(cobj);
+            if is_error(ci) { return ci; }
+            cnt = (ci as PyInt).val;
+        }
+        return PyStr(t="str", val=s.replace((oobj as PyStr).val, (nobj as PyStr).val, cnt));
+    }
+    # ---- removeprefix / removesuffix ----
+    if n == "removeprefix" or n == "removesuffix" {
+        a = _sm_one_arg(n, args, kwargs);
+        if is_error(a) { return a; }
+        if not isinstance(a, PyStr) {
+            return py_error("TypeError", n + "() argument must be str, not " + a.tp_type_name());
+        }
+        av = (a as PyStr).val;
+        if n == "removeprefix" { return PyStr(t="str", val=s.removeprefix(av)); }
+        return PyStr(t="str", val=s.removesuffix(av));
+    }
+    # ---- join ----
+    if n == "join" {
+        a = _sm_one_arg(n, args, kwargs);
+        if is_error(a) { return a; }
+        elems: list[PyObj] = [];
+        if not _sm_iter_elems(a, elems) {
+            itres = PyObject_GetIter(a);
+            if is_error(itres) {
+                return py_error("TypeError", "can only join an iterable");
+            }
+            drained = drain_to_list(itres);
+            if is_error(drained) { return drained; }
+            elems = (drained as PyList).items;
+        }
+        acc = "";
+        i = 0;
+        while i < len(elems) {
+            el = elems[i];
+            if not isinstance(el, PyStr) {
+                return py_error("TypeError", "sequence item " + str(i) + ": expected str instance, " + el.tp_type_name() + " found");
+            }
+            if i > 0 { acc = acc + s; }
+            acc = acc + (el as PyStr).val;
+            i = i + 1;
+        }
+        return PyStr(t="str", val=acc);
+    }
+    # ---- translate ----
+    if n == "translate" {
+        table = _sm_one_arg(n, args, kwargs);
+        if is_error(table) { return table; }
+        out = "";
+        i = 0;
+        while i < len(s) {
+            res = table.mp_subscript(PyInt(t="int", val=ord(s[i])));
+            if is_error(res) {
+                etn = (res as PyError).exception.type_name;
+                if etn != "KeyError" {
+                    if etn == "TypeError" {
+                        return py_error("TypeError", "'" + table.tp_type_name() + "' object is not subscriptable");
+                    }
+                    return res;
+                }
+                out = out + s[i];
+            } elif isinstance(res, PyNoneType) {
+            } elif isinstance(res, PyStr) {
+                out = out + (res as PyStr).val;
+            } elif isinstance(res, PyInt) {
+                cp = (res as PyInt).val;
+                if cp < 0 or cp > 1114111 {
+                    return py_error("ValueError", "character mapping must be in range(0x110000)");
+                }
+                out = out + chr(cp);
+            } else {
+                return py_error("TypeError", "character mapping must return integer, None or str");
+            }
+            i = i + 1;
+        }
+        return PyStr(t="str", val=out);
+    }
+    # ---- maketrans (staticmethod, reachable from instances too) ----
+    if n == "maketrans" {
+        if len(kwargs) > 0 {
+            return py_error("TypeError", "str.maketrans() takes no keyword arguments");
+        }
+        if len(args) == 0 or len(args) > 3 {
+            return py_error("TypeError", "maketrans expected at least 1 argument, got " + str(len(args)));
+        }
+        x = args[0];
+        d = PyDict(t="dict", items={});
+        if isinstance(x, PyStr) {
+            if len(args) < 2 {
+                return py_error("TypeError", "if you give only one argument to maketrans it must be a dict");
+            }
+            y = args[1];
+            if not isinstance(y, PyStr) {
+                return py_error("TypeError", "maketrans() argument 2 must be str, not " + y.tp_type_name());
+            }
+            xv = (x as PyStr).val;
+            yv = (y as PyStr).val;
+            if len(xv) != len(yv) {
+                return py_error("ValueError", "the first two maketrans arguments must have equal length");
+            }
+            i = 0;
+            while i < len(xv) {
+                se = d.dict_set(PyInt(t="int", val=ord(xv[i])), PyInt(t="int", val=ord(yv[i])));
+                if is_error(se) { return se; }
+                i = i + 1;
+            }
+        } elif isinstance(x, PyDict) {
+            if len(args) > 1 {
+                return py_error("TypeError", "first maketrans argument must be a string if there is a second argument");
+            }
+            xd = x as PyDict;
+            for hk in xd.items {
+                ko = xd.items[hk].key;
+                vo = xd.items[hk].value;
+                nk: PyObj = ko;
+                if isinstance(ko, PyStr) {
+                    kv = (ko as PyStr).val;
+                    if len(kv) != 1 {
+                        return py_error("TypeError", "keys in translate table mustbe strings or integers");
+                    }
+                    nk = PyInt(t="int", val=ord(kv));
+                } elif isinstance(ko, PyBool) {
+                    bv = 0;
+                    if (ko as PyBool).val { bv = 1; }
+                    nk = PyInt(t="int", val=bv);
+                } elif not isinstance(ko, PyInt) {
+                    return py_error("TypeError", "keys in translate table mustbe strings or integers");
+                }
+                se = d.dict_set(nk, vo);
+                if is_error(se) { return se; }
+            }
+        } else {
+            return py_error("TypeError", "first maketrans argument must be a string if there is a second argument");
+        }
+        if len(args) == 3 {
+            z = args[2];
+            if not isinstance(z, PyStr) {
+                return py_error("TypeError", "maketrans() argument 3 must be str, not " + z.tp_type_name());
+            }
+            zv = (z as PyStr).val;
+            i = 0;
+            while i < len(zv) {
+                se = d.dict_set(PyInt(t="int", val=ord(zv[i])), py_none());
+                if is_error(se) { return se; }
+                i = i + 1;
+            }
+        }
+        return d;
+    }
+    # ---- encode ----
+    if n == "encode" {
+        enc = "utf-8";
+        errs = "strict";
+        eobj = _sm_arg(args, kwargs, 0, "encoding");
+        if not _sm_absent(eobj) {
+            if not isinstance(eobj, PyStr) {
+                return py_error("TypeError", "encode() argument 'encoding' must be str, not " + eobj.tp_type_name());
+            }
+            enc = (eobj as PyStr).val;
+        }
+        robj = _sm_arg(args, kwargs, 1, "errors");
+        if not _sm_absent(robj) {
+            if not isinstance(robj, PyStr) {
+                return py_error("TypeError", "encode() argument 'errors' must be str, not " + robj.tp_type_name());
+            }
+            errs = (robj as PyStr).val;
+        }
+        return _sm_encode(s, enc, errs);
+    }
+    return py_error("AttributeError", n);
 }
 
 # Native mutating/accessor list methods. Without these, `lst.append(x)` routes to
