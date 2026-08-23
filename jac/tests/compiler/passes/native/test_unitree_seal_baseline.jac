@@ -116,6 +116,7 @@ glob UNITREE_CLOSURE: tuple = (
          "logging.jac",
          "module_codegen_pass.jac",
          "pathlib.jac",
+         "scalars.jac",
          "srcloc.jac",
          "transform.jac",
          "type_registry.jac",

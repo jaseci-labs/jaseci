@@ -38,7 +38,7 @@ def neg_fmod(a: f64, b: f64) -> f64 {
 }
 
 def f32_int_add(a: f32, n: int) -> f64 {
-    return f64(a) + n;
+    return f64(a) + f64(n);
 }
 
 def cmp_mixed_lt(a: f32, b: f64) -> bool {
