@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave20",
+  "description": "P2 wave 20: math + array kernel extracts (dl_fast_sum/dl_sum error-free transforms, fsum partial-compaction cascade, isclose tolerance ladder, perm_comb_small sequential fast loops; array_concat/repeat/do_extend/inplace_repeat PY_SSIZE_T_MAX overflow ladders)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave20",
+  "baseline_report": "jac-py/tools/p2_corpus_wave20/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "math_fsum_cascade",
+      "source": "jac-py/tools/p2_corpus_wave20/corpus/math_fsum_cascade.c",
+      "header_free": true
+    },
+    {
+      "stem": "array_repeat_guard",
+      "source": "jac-py/tools/p2_corpus_wave20/corpus/array_repeat_guard.c",
+      "header_free": true
+    }
+  ]
+}

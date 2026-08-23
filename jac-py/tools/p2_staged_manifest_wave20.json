@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "wave": "p2_wave20",
+  "description": "P2 wave 20 staging policy (math + array kernel extracts)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave20",
+  "modules": [
+    {
+      "stem": "math_fsum_cascade",
+      "staging": "lift"
+    },
+    {
+      "stem": "array_repeat_guard",
+      "staging": "lift"
+    }
+  ]
+}

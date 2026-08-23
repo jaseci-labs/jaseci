@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         "--wave",
         type=int,
         required=True,
-        choices=range(2, 20),
+        choices=range(2, 21),
         help="P2 wave number",
     )
     args = parser.parse_args(argv)

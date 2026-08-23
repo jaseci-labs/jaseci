@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave20/array_repeat_guard.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave20/_staging/array_repeat_guard.c",
+      "tier_b_count": 6
+    },
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave20/math_fsum_cascade.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave20/_staging/math_fsum_cascade.c",
+      "tier_b_count": 0
+    }
+  ],
+  "quarantined_functions": [],
+  "tier_b_total": 6,
+  "version": 1
+}
