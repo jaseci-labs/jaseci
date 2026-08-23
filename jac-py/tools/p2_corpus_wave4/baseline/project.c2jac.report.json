@@ -1,0 +1,31 @@
+{
+  "files": [
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave4/math_factorial_small.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave4/_staging/math_factorial_small.c",
+      "tier_b_count": 0
+    },
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave4/pyctype_alpha.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave4/_staging/pyctype_alpha.c",
+      "tier_b_count": 0
+    },
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave4/pyctype_space.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave4/_staging/pyctype_space.c",
+      "tier_b_count": 0
+    },
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave4/pystricmp.jac",
+      "quarantined_functions": [],
+      "source": "jac-py/tools/p2_corpus_wave4/_staging/pystricmp.c",
+      "tier_b_count": 0
+    }
+  ],
+  "quarantined_functions": [],
+  "tier_b_total": 0,
+  "version": 1
+}

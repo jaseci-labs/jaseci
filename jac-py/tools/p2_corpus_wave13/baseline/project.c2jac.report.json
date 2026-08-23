@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "output": "jac-py/Modules/_lifted/p2_corpus_wave13/structmodule.jac",
+      "quarantined_functions": [
+        "struct_whichtable",
+        "struct_prepare_s",
+        "struct_unpack_be"
+      ],
+      "source": "jac-py/tools/p2_corpus_wave13/_staging/structmodule.c",
+      "tier_b_count": 17
+    }
+  ],
+  "quarantined_functions": [
+    "struct_whichtable",
+    "struct_prepare_s",
+    "struct_unpack_be"
+  ],
+  "tier_b_total": 17,
+  "version": 1
+}
