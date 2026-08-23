@@ -496,6 +496,11 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         jac_node: uni.UniNode
     ) -> (es.Expression | None);
 
+    def _builtin_type_ref(name: str, jac_node: uni.UniNode) -> (es.Expression | None);
+    def _try_type_is_compare(
+        left_node: uni.Expr, right_node: uni.Expr, negate: bool, jac_node: uni.UniNode
+    ) -> (es.Expression | None);
+
     def _expr_type_name(expr_node: uni.UniNode) -> str;
     def _is_collection_expr(expr_node: uni.UniNode) -> bool;
     def _is_native_iterable_builtin_call(expr_node: uni.UniNode) -> bool;

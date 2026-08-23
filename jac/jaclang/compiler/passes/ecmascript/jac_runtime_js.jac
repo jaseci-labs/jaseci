@@ -304,7 +304,13 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
       if (t === "bigint") return "int";
-      if (t === "object") return (o.constructor && o.constructor.name) || "object";
+      if (t === "object") {
+        // Jac dict displays lower to plain object literals, so a bare
+        // Object-constructor value IS a dict; named constructors keep
+        // their class name.
+        if (o.constructor === Object) return "dict";
+        return (o.constructor && o.constructor.name) || "object";
+      }
       return t;
     },
     // --- per-runtime-type Python method tables (keyed by Python name) ---
@@ -1192,6 +1198,17 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       }
       // User archetype / JS constructor.
       if (typeof classinfo === "function") return o instanceof classinfo;
+      return false;
+    },
+    // Exact-type lowering of `type(x) is T` / `is not T`. Builtins compare
+    // runtime tags with NO subclass folding (`type(True) is int` is false,
+    // unlike isinstance); user archetypes compare constructors exactly
+    // (not subclass-inclusive `instanceof`).
+    type_is(x, T) {
+      const tag = _jac.builtin._typeTag(T);
+      if (typeof tag === "string") return _jac.poly._typename(x) === tag;
+      if (typeof T === "function")
+        return x !== null && x !== undefined && x.constructor === T;
       return false;
     },
     issubclass(cls, classinfo) {

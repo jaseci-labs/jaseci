@@ -3488,3 +3488,150 @@ test "a state setter handed out as a value loads without a ReferenceError" {
         f"setTheme must reach the caller as a callable, got {got}"
     );
 }
+
+test "type(x) is <builtin> lowers to runtime type_is helper (#6149)" {
+    # `type(x) is str` used to lower to `typeof x === _jac.types.str` (and
+    # before that, bare `str`): a JS typeof string can never equal the tagged
+    # constructor object, so every compare was false. Lower to
+    # `_jac.builtin.type_is(x, T)` instead.
+    jac_code = (
+        "\"\"\"Test type() is <builtin> codegen.\"\"\"\n"
+        "\n"
+        "def TypeIsRepro(x: any) -> str {\n"
+        "    if type(x) is str {\n"
+        "        return \"is str\";\n"
+        "    } elif type(x) is not dict {\n"
+        "        return \"not dict\";\n"
+        "    } elif type(x) is list {\n"
+        "        return \"is list\";\n"
+        "    }\n"
+        "    return \"other\";\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "_jac.builtin.type_is(x, _jac.types.str)" in js_code , (
+            f"`type(x) is str` must call type_is helper, got:\n{js_code}"
+        );
+        assert "!_jac.builtin.type_is(x, _jac.types.dict)" in js_code , (
+            f"`type(x) is not dict` must negate type_is call, got:\n{js_code}"
+        );
+        assert "_jac.builtin.type_is(x, _jac.types.list)" in js_code , (
+            f"`type(x) is list` must call type_is helper, got:\n{js_code}"
+        );
+        for bare in ["=== _jac.types.", "!== _jac.types."] {
+            assert bare not in js_code , (
+                f"Must not emit typeof-vs-type-object compare: {bare} in:\n{js_code}"
+            );
+        }
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "type(x) is <archetype> compares constructors exactly (#6149)" {
+    # `type(x) is C` passes the class constructor to the runtime helper,
+    # which does an exact `x.constructor === C` match -- NOT
+    # `typeof x === C` and NOT subclass-inclusive `instanceof`.
+    jac_code = (
+        "\"\"\"Test type() is <archetype> codegen.\"\"\"\n"
+        "\n"
+        "obj Animal {\n"
+        "    has name: str = \"\";\n"
+        "}\n"
+        "\n"
+        "obj Dog(Animal) {\n"
+        "    has breed: str = \"\";\n"
+        "}\n"
+        "\n"
+        "def TypeIsArch(x: Animal) -> str {\n"
+        "    if type(x) is Animal {\n"
+        "        return \"animal\";\n"
+        "    } elif type(x) is not Dog {\n"
+        "        return \"not dog\";\n"
+        "    }\n"
+        "    return \"other\";\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "type_is(x, Animal)" in js_code , (
+            f"`type(x) is Animal` must pass class ref to type_is, got:\n{js_code}"
+        );
+        assert "!_jac.builtin.type_is(x, Dog)" in js_code or "!(...Dog)" in js_code , (
+            f"`type(x) is not Dog` must negate type_is call, got:\n{js_code}"
+        );
+        for bad in ["typeof x === Animal", "instanceof Animal", "instanceof Dog"] {
+            assert bad not in js_code , (
+                f"Must not emit {bad} for archetype type check in:\n{js_code}"
+            );
+        }
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "type_is evaluates a side-effecting subject exactly once (#6149)" {
+    jac_code = (
+        "\"\"\"Test type() is subject single-eval.\"\"\"\n"
+        "\n"
+        "def Repro(items: list) -> str {\n"
+        "    if type(items.pop()) is dict {\n"
+        "        return \"dict\";\n"
+        "    }\n"
+        "    return \"other\";\n"
+        "}\n"
+    );
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "items.pop()" in js_code;
+        assert js_code.count("items.pop()") == 1 , (
+            f"subject must be evaluated exactly once, got:\n{js_code}"
+        );
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+test "type_is builtin checks agree with Python exact-type semantics at runtime (#6149)" {
+    js_code = compile_fixture_to_js("type_is_runtime_semantics.jac", FIXTURES);
+
+    wrapper = js_code + "\nconsole.log(JSON.stringify(type_is_axes()));\n";
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "type_is semantics crashed in Node:\nstdout="
+        + result.stdout
+        + "\nstderr="
+        + result.stderr
+    );
+    got: dict[str, any] = json.loads(result.stdout.strip());
+    expected = {
+        "int_is_int": True,
+        "bool_is_int": False,
+        "int_not_str": True,
+        "float_is_int": False,
+        "list_is_list": True,
+        "dict_is_dict": True,
+        "arch_is_animal": True,
+        "dog_is_animal": False
+    };
+    for (key, want) in expected.items() {
+        assert key in got and got[key] == want , (
+            f"type_is axis {key}: expected {want}, got {got.get(key)}\njs:\n" + js_code
+        );
+    }
+}

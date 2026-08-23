@@ -2822,6 +2822,112 @@ impl EsastGenPass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
     nd.gen.es_ast = unary_expr;
 }
 
+impl EsastGenPass._builtin_type_ref(
+    name: str, jac_node: uni.UniNode
+) -> (es.Expression | None) {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    self._ensure_emitters();
+    if (
+        getattr(self._builtin_emitter, "emit_" + name, None) is None
+        and not JAC_TYPE_REGISTRY.is_sized(name)
+    ) {
+        return None;
+    }
+    return self.sync_loc(
+        es.MemberExpression(
+            object=es.MemberExpression(
+                object=es.Identifier(name='_jac'),
+                property=es.Identifier(name='types'),
+                computed=False
+            ),
+            property=es.Identifier(name=name),
+            computed=False
+        ),
+        jac_node=jac_node
+    );
+}
+
+impl EsastGenPass._try_type_is_compare(
+    left_node: uni.Expr, right_node: uni.Expr, negate: bool, jac_node: uni.UniNode
+) -> (es.Expression | None) {
+    if (
+        not isinstance(left_node, uni.FuncCall)
+        or not isinstance(left_node.target, uni.Name)
+        or left_node.target.sym_name != "type"
+        or len(left_node.params) != 1
+        or not isinstance(left_node.params[0], uni.Expr)
+    ) {
+        return None;
+    }
+    if not isinstance(right_node, (uni.BuiltinType, uni.Name)) {
+        return None;
+    }
+    type_name = right_node.sym_name;
+    if type_name in ("None", "any") {
+        return None;
+    }
+    subject = cast(
+        (es.Expression | None),
+        left_node.params[0].gen.es_ast if left_node.params else None
+    );
+    if subject is None {
+        return None;
+    }
+    spec: (es.Expression | None) = self._builtin_type_ref(type_name, jac_node);
+    if spec is None {
+        import from jaclang.jac0core.constant { SymbolType }
+        import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
+        symbol = resolve_expr_symbol(right_node, self.get_main_mod());
+        if (
+            symbol is not None
+            and symbol.sym_type
+                in (
+                    SymbolType.OBJECT_ARCH,
+                    SymbolType.NODE_ARCH,
+                    SymbolType.EDGE_ARCH,
+                    SymbolType.WALKER_ARCH
+                )
+            and right_node.gen.es_ast is not None
+        ) {
+            spec = cast(es.Expression, right_node.gen.es_ast);
+        }
+    }
+    if spec is None {
+        return None;
+    }
+    self.needs_jac_runtime = True;
+    callee = self.sync_loc(
+        es.MemberExpression(
+            object=self.sync_loc(
+                es.MemberExpression(
+                    object=self.sync_loc(es.Identifier(name='_jac'), jac_node=jac_node),
+                    property=self.sync_loc(
+                        es.Identifier(name='builtin'), jac_node=jac_node
+                    ),
+                    computed=False
+                ),
+                jac_node=jac_node
+            ),
+            property=self.sync_loc(es.Identifier(name='type_is'), jac_node=jac_node),
+            computed=False
+        ),
+        jac_node=jac_node
+    );
+    check = self.sync_loc(
+        es.CallExpression(
+            callee=cast(es.Expression, callee), arguments=[subject, spec]
+        ),
+        jac_node=jac_node
+    );
+    if negate {
+        check = self.sync_loc(
+            es.UnaryExpression(operator='!', prefix=True, argument=check),
+            jac_node=jac_node
+        );
+    }
+    return check;
+}
+
 impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
     if (not nd.rights or not nd.ops) {
         nd.gen.es_ast = self.sync_loc(es.Literal(value=True), jac_node=nd);
@@ -2849,6 +2955,18 @@ impl EsastGenPass.exit_compare_expr(nd: uni.CompareExpr) -> None {
             )
         );
         op_tok = Tok(op_token.name) if (op_token.name in Tok.__members__) else None;
+
+        if op_tok in (Tok.KW_IS, Tok.KW_ISN) {
+            _type_cmp = self._try_type_is_compare(
+                left_uni, right_node, op_tok == Tok.KW_ISN, nd
+            );
+            if _type_cmp is not None {
+                comparisons.append(_type_cmp);
+                left = right;
+                left_uni = right_node;
+                continue;
+            }
+        }
 
         if (
             op_tok in (Tok.KW_IS, Tok.KW_ISN, Tok.EE, Tok.NE)
