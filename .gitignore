@@ -80,11 +80,6 @@ reference/
 !jac-py/Modules/_lifted/reference/
 !jac-py/Modules/_lifted/reference/*.jac
 
-# Lifted-stub reference corpus: stub modules moved out of the jac-py/jacpython
-# import graph (zero callers) but kept verbatim as c2jac reference lifts.
-!jac-py/Modules/_lifted/reference/
-!jac-py/Modules/_lifted/reference/*.jac
-
 # c2jac sidecar reports are generated next to each input by `jac c2jac` (and by
 # running the transpiler over test fixtures) -- generated output, never tracked.
 # Baseline sidecar reports are reviewed provenance and stay tracked wherever a
