@@ -1,6 +1,6 @@
 """The JCIR emitter joins the native seal, measured the way the sealer measures.
 
-Same discipline as `test_pass_seal_wave1_baseline.jac` and its wave-2
+Same discipline as `test_pass_seal_baselines.jac` and its wave-2
 sibling: the root is compiled exactly as `seal_native_artifacts` compiles
 it, and three things are pinned -- exact closure membership, native IR
 production, and the seam set two-way against

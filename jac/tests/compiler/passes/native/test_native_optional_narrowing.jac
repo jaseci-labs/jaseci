@@ -15,12 +15,11 @@ proven uses emit none.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, compile_native, native_force_opts }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
+
 import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+
 import from jaclang.compiler.passes.native.na_ir_gen_pass { NaIRGenPass }
 
 glob FIXTURES = os.path.join(
@@ -28,17 +27,9 @@ glob FIXTURES = os.path.join(
      ),
      FIXTURE = "optional_narrowing.jac";
 
-"""Compile the fixture natively and return the JIT engine plus the module."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
+"""Import the same fixture on the sv/bytecode path for congruence."""
+def sv_module -> any {
+    return JacRuntime.jac_import(target=FIXTURE[:-4], base_path=FIXTURES)[0];
 }
 
 """Get a ctypes-callable int -> int function from the JIT engine."""
@@ -46,11 +37,6 @@ def get_func(eng: any, name: str) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
-}
-
-"""Import the same fixture on the sv/bytecode path for congruence."""
-def sv_module -> any {
-    return JacRuntime.jac_import(target=FIXTURE[:-4], base_path=FIXTURES)[0];
 }
 
 """Assert native and sv agree on `name` over `inputs`, and return the values."""

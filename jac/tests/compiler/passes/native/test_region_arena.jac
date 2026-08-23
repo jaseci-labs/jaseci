@@ -9,7 +9,7 @@ and the drop-hook/teardown behavior through the JIT.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, get_func }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import jaclang.jac0core.unitree as uni;
@@ -31,14 +31,6 @@ def compile_native(
     eng = ir.gen.native_engine;
     assert eng is not None , f"No native engine produced for {fixture}";
     return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
 }
 
 """Slice one function's textual IR out of the module dump."""

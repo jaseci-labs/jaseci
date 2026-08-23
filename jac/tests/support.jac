@@ -134,3 +134,48 @@ def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
         mach.close();
     }
 }
+
+
+# The native pass fixtures directory: the default corpus for `compile_native`.
+glob NATIVE_FIXTURES: str = str(
+         Path(__file__).resolve().parent / "compiler" / "passes" / "native" / "fixtures"
+     );
+
+"""Compile a .jac fixture into the native codespace and return (engine, module).
+
+`fixture_dir` defaults to the native pass fixtures directory, which is where
+all but one caller looks; pass it explicitly for a fixture that lives
+elsewhere. The engine is NOT cached across calls -- a JIT engine owns the
+module's mutable globals, so handing the same one to two tests would let the
+first test's writes reach the second. Tests that want a fixture compiled once
+should assert against it once, in a single test.
+"""
+def compile_native(fixture: str, fixture_dir: str = "") -> tuple {
+    import from jaclang.jac0core.program { JacProgram }
+    base = fixture_dir or NATIVE_FIXTURES;
+    prog = JacProgram();
+    ir = prog.compile(file_path=str(Path(base) / fixture), options=native_force_opts());
+    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
+    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
+    eng = ir.gen.native_engine;
+    assert eng is not None , f"No native engine produced for {fixture}";
+    return (eng, ir);
+}
+
+"""Get a ctypes-callable function from a JIT engine."""
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"Function '{name}' not found in JIT engine";
+    functype = ctypes.CFUNCTYPE(restype, *argtypes);
+    return functype(addr);
+}
+
+"""Return True if the program emitted at least one alert with the given code."""
+def has_error_code(prog: any, code: str) -> bool {
+    for alrt in prog.errors_had {
+        if alrt.code is not None and alrt.code.code == code {
+            return True;
+        }
+    }
+    return False;
+}
