@@ -144,6 +144,13 @@ def _jac_is_builtin_func(value, name):
     import builtins
     return value is getattr(builtins, name, None)
 
+def _jac_is_complex_type(value):
+    # True iff value is EXACTLY the builtin `complex` type -- the tp_call
+    # interception must match only the real constructor, never a user class
+    # merely named "complex" (same identity idiom as _jac_conversion_ctor_kind).
+    import builtins
+    return value is builtins.complex
+
 def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
@@ -1126,6 +1133,7 @@ import from typeobject {
 import from bytesobject { bytes_hash_obj, bytes_richcompare, bytes_repr, }
 import from strobject { str_repr, }
 import from floatobject { float_repr, }
+import from complexobject { complex_repr_text, complex_parse_text, }
 import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
@@ -1902,6 +1910,15 @@ obj PyHostProxy(PyObj) {
                     }
                     return py_convert_float(a);
                 }
+            }
+        }
+        # The complex() constructor over native operands answers in-VM
+        # (string parsing, numeric promotion); shapes without a native
+        # answer fall back to the host call below, byte-exact.
+        if len(args) <= 2 and bool(_jac_is_complex_type(self.val)) {
+            cres = py_convert_complex(args);
+            if not is_notimplemented(cres) {
+                return cres;
             }
         }
         return py_call_host(self, args, kwargs);
@@ -4195,6 +4212,86 @@ def py_convert_int(x: PyObj) -> PyObj {
 # float(x) conversion slot (nb_float over dunders): __float__ first, then an
 # inherited builtin number slot, then the index slot; nothing applicable is
 # CPython's TypeError.
+# Native complex() constructor over native operands (PyHostProxy.tp_call
+# interception). PY_NOT_IMPLEMENTED marks shapes with no native answer --
+# bytes, kwargs, user/host objects, the both-imag-parts deprecation combo --
+# so the caller falls through to the host call and keeps CPython's exact
+# behavior including its TypeErrors.
+def _complex_arg_parts(x: PyObj) -> tuple[bool, float, float] {
+    if isinstance(x, PyComplex) {
+        c = x as PyComplex;
+        return (True, c.real, c.imag);
+    }
+    if isinstance(x, PyFloat) {
+        return (True, (x as PyFloat).val, 0.0);
+    }
+    if isinstance(x, PyInt) {
+        return (True, float((x as PyInt).val), 0.0);
+    }
+    if isinstance(x, PyBool) {
+        if (x as PyBool).val {
+            return (True, 1.0, 0.0);
+        }
+        return (True, 0.0, 0.0);
+    }
+    return (False, 0.0, 0.0);
+}
+
+def py_convert_complex(args: list[PyObj]) -> PyObj {
+    n = len(args);
+    if n > 2 {
+        return py_error(
+            "TypeError",
+            "complex() takes at most 2 arguments (" + str(n) + " given)",
+        );
+    }
+    if n == 0 {
+        return PyComplex(t="complex", real=0.0, imag=0.0);
+    }
+    a = args[0];
+    if isinstance(a, PyStr) {
+        if n == 2 {
+            return py_error(
+                "TypeError", "complex() argument 'real' must be a real number, not str"
+            );
+        }
+        (ok, err, re, im) = complex_parse_text((a as PyStr).val);
+        if not ok {
+            return py_error("ValueError", err);
+        }
+        return PyComplex(t="complex", real=re, imag=im);
+    }
+    (ok1, r1, i1) = _complex_arg_parts(a);
+    if not ok1 {
+        return PY_NOT_IMPLEMENTED;
+    }
+    if n == 1 {
+        # A complex argument is copied whole; reals get a FRESH +0 imaginary
+        # (complex(-0.0) == -0+0j -- the sign does NOT propagate).
+        if isinstance(a, PyComplex) {
+            c = a as PyComplex;
+            return PyComplex(t="complex", real=c.real, imag=c.imag);
+        }
+        return PyComplex(t="complex", real=r1, imag=0.0);
+    }
+    (ok2, r2, i2) = _complex_arg_parts(args[1]);
+    if not ok2 {
+        return PY_NOT_IMPLEMENTED;
+    }
+    # Two-arg forms preserve signed zeros exactly like CPython: real x real
+    # copies both parts verbatim (complex(3, -0.0) == 3-0j), while a complex
+    # first arg adds the second operand to its imaginary part
+    # (complex(1+2j, 3) == 1+5j). Two imaginary parts are the deprecated
+    # combo and stay host-routed.
+    if i1 != 0.0 and i2 != 0.0 {
+        return PY_NOT_IMPLEMENTED;
+    }
+    if isinstance(a, PyComplex) {
+        return PyComplex(t="complex", real=r1, imag=i1 + r2);
+    }
+    return PyComplex(t="complex", real=r1, imag=r2);
+}
+
 def py_convert_float(x: PyObj) -> PyObj {
     if isinstance(x, PyUserObj) {
         u = x as PyUserObj;
@@ -4417,6 +4514,10 @@ def py_str(value: PyObj) -> PyObj {
         or isinstance(value, PyNoDefault) {
         return py_repr(value);
     }
+    if isinstance(value, PyComplex) {
+        # CPython complex_str IS complex_repr (same paren rules as repr).
+        return PyStr(t="str", val=complex_repr_text(value as PyComplex));
+    }
     # A member descriptor's str is its repr (host: str(C.__dict__['x']) ==
     # "<member 'x' of 'C' objects>").
     if isinstance(value, PyMemberDescr) {
@@ -4542,6 +4643,10 @@ def py_repr(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyFloat) {
         return float_repr(value as PyFloat);
+    }
+    if isinstance(value, PyComplex) {
+        # CPython complex_str IS complex_repr; built in-VM for paren rules.
+        return PyStr(t="str", val=complex_repr_text(value as PyComplex));
     }
     if isinstance(value, PyBool) or isinstance(value, PyNoneType) {
         return PyStr(t="str", val=_pyobj_repr(value));
@@ -5205,6 +5310,25 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     if is_error(result) and kind == NB_MULTIPLY and isinstance(rhs, PyTuple) {
         return rhs.nb_binop(NB_MULTIPLY, lhs);
     }
+    if is_error(result) and isinstance(rhs, PyComplex) {
+        # Reflected complex tower (2 - 1j, 6 / (3+0j), 2 ** (3+0j)): CPython's
+        # int/float slots decline a complex operand and the complex r-slot
+        # promotes. Numeric errors stay native; PY_NOT_IMPLEMENTED falls
+        # through to the host fallback below for byte-exact messages.
+        lhs_real = lhs.t == "int" or lhs.t == "float" or lhs.t == "bool";
+        if lhs_real {
+            rres = (rhs as PyComplex)._reflected_binop(kind, lhs);
+            if not is_error(rres) and not is_notimplemented(rres) {
+                return rres;
+            }
+            if is_error(rres) {
+                terr = (rres as PyError).exception.type_name;
+                if terr == "ZeroDivisionError" or terr == "OverflowError" {
+                    return rres;
+                }
+            }
+        }
+    }
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
         # Fall back when native slots are incomplete (TypeError, ValueError from
         # partial str %-format, ...). Operational numeric errors must stay native
@@ -5379,8 +5503,9 @@ def dict_merge_pairs(source: PyObj) -> PyDict {
     return PyDict(t="dict", items={});
 }
 
-# UNARY_NEGATIVE (-x). int/bool negate to int (-True == -1), float to float; any
-# other operand is a TypeError, matching CPython's nb_negative == NULL path.
+# UNARY_NEGATIVE (-x). int/bool negate to int (-True == -1), float to float,
+# complex negates both parts; any other operand is a TypeError, matching
+# CPython's nb_negative == NULL path.
 def py_negative(value: PyObj) -> PyObj {
     if isinstance(value, PyBool) {
         v = 0;
@@ -5394,6 +5519,10 @@ def py_negative(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyFloat) {
         return PyFloat(t="float", val=-(value as PyFloat).val);
+    }
+    if isinstance(value, PyComplex) {
+        c = value as PyComplex;
+        return PyComplex(t="complex", real=-c.real, imag=-c.imag);
     }
     return py_error("TypeError", "bad operand type for unary -");
 }
