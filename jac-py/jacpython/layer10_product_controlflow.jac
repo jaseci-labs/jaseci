@@ -460,3 +460,141 @@ test "layer10: for loop executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["total"]) == 6;
 }
+
+# ---------------- break/else tail-duplication parity (for/while + else) --------
+#
+# CPython lowers break as unwind (POP_TOP for the FOR family) plus a jump to the
+# loop exit anchor placed AFTER orelse; its flowgraph then tail-duplicates that
+# anchor into each break edge when the continuation is a small scope-exit block.
+# Regression coverage for the loop break-edge rework in compiler_loops.jac.
+
+def assert_fn_body_matches_oracle(source: str) {
+    actual = product_exec(source, "<f>");
+    assert not is_error(actual);
+    assert isinstance(actual, PyCode);
+    expected = oracle_exec(source, "<f>");
+    assert isinstance(expected, PyCode);
+    act = first_nested_code(actual as PyCode);
+    exp = first_nested_code(expected as PyCode);
+    assert act.co_code == exp.co_code;
+    assert act.linetable == exp.linetable;
+    assert act.names == exp.names;
+    assert consts_equal(act.consts, exp.consts);
+    assert act.exceptiontable == exp.exceptiontable;
+}
+
+test "layer10: for else break return matches oracle" {
+    assert_fn_body_matches_oracle(
+        "def f(it):\n"
+        "    done = 0\n"
+        "    for x in it:\n"
+        "        break\n"
+        "    else:\n"
+        "        done = 99\n"
+        "    return done\n"
+    );
+}
+
+test "layer10: for break with following stmt matches oracle" {
+    assert_fn_body_matches_oracle(
+        "def f(it):\n"
+        "    for x in it:\n"
+        "        break\n"
+        "    r = 5\n"
+    );
+}
+
+test "layer10: for continue else dead stmt after continue matches oracle" {
+    assert_fn_body_matches_oracle(
+        "def f(it):\n"
+        "    t = 0\n"
+        "    for x in it:\n"
+        "        continue\n"
+        "        t = 9\n"
+        "    else:\n"
+        "        t = 99\n"
+        "    return t\n"
+    );
+}
+
+test "layer10: plain for accumulation still matches oracle" {
+    assert_fn_body_matches_oracle(
+        "def f(it):\n"
+        "    t = 0\n"
+        "    for x in it:\n"
+        "        t = t + x\n"
+        "    return t\n"
+    );
+}
+
+test "layer10: unreachable if after return drops to oracle shape" {
+    # CPython removes the unreachable statements entirely; the compiler must
+    # not emit instructions (or crash) on the dead tail.
+    source = "def f(x):\n    return x\n    if x:\n        pass\n";
+    actual = product_exec(source, "<f>");
+    assert not is_error(actual);
+    assert isinstance(actual, PyCode);
+    expected = oracle_exec(source, "<f>");
+    assert isinstance(expected, PyCode);
+    act = first_nested_code(actual as PyCode);
+    exp = first_nested_code(expected as PyCode);
+    assert act.co_code == exp.co_code;
+    assert act.linetable == exp.linetable;
+}
+
+test "layer10: unreachable try after return drops to oracle shape" {
+    source = (
+        "def f(x):\n"
+        "    return x\n"
+        "    try:\n"
+        "        pass\n"
+        "    except ValueError:\n"
+        "        pass\n"
+    );
+    actual = product_exec(source, "<f>");
+    assert not is_error(actual);
+    assert isinstance(actual, PyCode);
+    expected = oracle_exec(source, "<f>");
+    assert isinstance(expected, PyCode);
+    act = first_nested_code(actual as PyCode);
+    exp = first_nested_code(expected as PyCode);
+    assert act.co_code == exp.co_code;
+    assert act.linetable == exp.linetable;
+}
+
+test "layer10: for else break executes without running orelse" {
+    co = product_exec(
+        "done = 0\nn = 0\nfor x in y:\n    n = n + 1\n    break\nelse:\n    done = 99\nr = done + n\n",
+        "<f>",
+    );
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    ns: dict[str, PyObj] = {"y": PyTuple(
+        t="tuple",
+        items=[
+            PyInt(t="int", val=1),
+            PyInt(t="int", val=2),
+            PyInt(t="int", val=3),
+
+        ],
+    )};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["r"]) == 1;
+}
+
+test "layer10: for natural exit runs orelse" {
+    co = product_exec(
+        "done = 0\nfor x in y:\n    pass\nelse:\n    done = 99\nr = done\n",
+        "<f>",
+    );
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    ns: dict[str, PyObj] = {"y": PyTuple(
+        t="tuple",
+        items=[PyInt(t="int", val=1)],
+    )};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["r"]) == 99;
+}

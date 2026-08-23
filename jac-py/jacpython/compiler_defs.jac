@@ -647,7 +647,11 @@ def compile_fn_cfg(
         cont = visit_stmt(g, s, exec_tail_emits_code(body, bi + 1), body, bi + 1);
         last = cont.loc;
         if cont.terminated {
-            terminated = True;
+            # CPython compiles the remaining statements and then drops them as
+            # unreachable blocks (flowgraph remove_unreachable). Visiting them
+            # here would append live bytes after a terminator, so stop now.
+            u.flush_late_consts();
+            return u;
         }
         if codegen_busy(g) {
             u.flush_late_consts();

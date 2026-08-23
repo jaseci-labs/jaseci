@@ -289,6 +289,7 @@ import from compiler_ir {
     stmt_cont,
     new_cfg_builder,
     loop_frame,
+    break_site,
     except_region,
     comp_handler,
 }
@@ -888,7 +889,11 @@ def visit_stmts(
         cont = visit_stmt(g, stmts[si], follow, tail, tail_idx, tail_join, ann_ctx);
         last = cont.loc;
         if cont.terminated {
-            terminated = True;
+            # Statements after an unconditional terminator (return/break/
+            # continue/raise) are unreachable: CPython compiles them and drops
+            # the blocks (flowgraph remove_unreachable). Stop here so their
+            # instructions never reach the layout.
+            return stmt_cont(loc=last, terminated=True);
         }
         if codegen_busy(g) {
             return stmt_cont(loc=last, terminated=terminated);
@@ -1184,32 +1189,24 @@ def visit_stmt(
         return stmt_cont(loc=stmt_loc(s));
     }
     if isinstance(s, If) {
-        t = tail;
-        if t is None {
-            t = [];
-        }
-        return visit_if(g, s as If, more_code_follows, t, tail_idx, tail_join, ann_ctx);
+        # tail stays None in loop-body contexts: the continuation is the
+        # enclosing loop's back edge / the caller's own statement list.
+        return visit_if(g, s as If, more_code_follows, tail, tail_idx, tail_join, ann_ctx);
     }
     if isinstance(s, While) {
-        t = tail;
-        if t is None {
-            t = [];
-        }
-        return visit_while(g, s as While, more_code_follows, t, tail_idx, ann_ctx);
+        # tail stays None in loop-body contexts: the continuation is the
+        # enclosing loop's back edge / the caller's own statement list.
+        return visit_while(g, s as While, more_code_follows, tail, tail_idx, ann_ctx);
     }
     if isinstance(s, For) {
-        t = tail;
-        if t is None {
-            t = [];
-        }
-        return visit_for(g, s as For, more_code_follows, t, tail_idx, ann_ctx);
+        # tail stays None in loop-body contexts: the continuation is the
+        # enclosing loop's back edge / the caller's own statement list.
+        return visit_for(g, s as For, more_code_follows, tail, tail_idx, ann_ctx);
     }
     if isinstance(s, AsyncFor) {
-        t = tail;
-        if t is None {
-            t = [];
-        }
-        return visit_async_for(g, s as AsyncFor, more_code_follows, t, tail_idx, ann_ctx);
+        # tail stays None in loop-body contexts: the continuation is the
+        # enclosing loop's back edge / the caller's own statement list.
+        return visit_async_for(g, s as AsyncFor, more_code_follows, tail, tail_idx, ann_ctx);
     }
     if isinstance(s, Break) {
         b = s as Break;
@@ -1220,7 +1217,16 @@ def visit_stmt(
             return stmt_cont(loc=bloc);
         }
         if frame.break_is_stub {
+            # CPython codegen_break: unwind the loop (POP_TOP for the FOR
+            # family, nothing for WHILE), then jump to the loop's exit anchor.
+            if frame.pops_iter {
+                g.emit_op(OP_POP_TOP, 0, bloc);
+            }
+            site_idx = len(g.cur.instrs);
             g.emit_jump(OP_JUMP_FORWARD, frame.break_blk.id, bloc);
+            frame.break_sites.append(
+                break_site(blk=g.cur, instr_idx=site_idx, loc=bloc)
+            );
         } else {
             emit_module_return(g, bloc);
         }
@@ -1421,7 +1427,11 @@ def compile_exec(
         );
         last = cont.loc;
         if cont.terminated {
-            terminated = True;
+            # CPython compiles the remaining statements and then drops them as
+            # unreachable blocks (flowgraph remove_unreachable). Visiting them
+            # here would append live bytes after a terminator, so stop now.
+            u.flush_late_consts();
+            return u;
         }
         if codegen_busy(g) {
             u.flush_late_consts();
