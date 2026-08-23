@@ -279,6 +279,15 @@ def _jac_host_eq(a, b):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_host_richcompare(kind, a, b):
+    import operator
+    _CMP = {0: operator.lt, 1: operator.le, 2: operator.eq,
+            3: operator.ne, 4: operator.gt, 5: operator.ge}
+    try:
+        return (True, bool(_CMP[kind](a, b)))
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_host_binop(kind, a, b):
     import operator
     _NB = {
@@ -2580,6 +2589,31 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     }
     if isinstance(lhs, PyBytes) and isinstance(rhs, PyBytes) {
         return bytes_richcompare(kind, lhs as PyBytes, rhs as PyBytes);
+    }
+    # Native bytes vs a host-proxied bytes-like (bytearray): CPython makes
+    # them mutually comparable; the generic fallthrough degrades to identity
+    # for == and TypeError for ordering (item 27 bytearray half).
+    if isinstance(lhs, PyBytes) != isinstance(rhs, PyBytes)
+        and (isinstance(lhs, PyHostProxy) or isinstance(rhs, PyHostProxy)) {
+        res = _jac_host_richcompare(kind, to_host(lhs), to_host(rhs));
+        if not ((res[0] as bool)) {
+            return py_error(str(res[1]), str(res[2]));
+        }
+        return PyBool(t="bool", val=res[1] as bool);
+    }
+    # Proxy-vs-proxy ORDERING (bytearray < bytearray, ...): tp_richcompare
+    # handles only eq/ne (identity fast path + host eq defer), so ordering
+    # would fall to NotImplemented -> TypeError where CPython compares the
+    # host values. Unorderable host types surface the host TypeError verbatim.
+    if (
+        isinstance(lhs, PyHostProxy) and isinstance(rhs, PyHostProxy)
+        and (kind == 0 or kind == 1 or kind == 4 or kind == 5)
+    ) {
+        res = _jac_host_richcompare(kind, lhs.val, rhs.val);
+        if not ((res[0] as bool)) {
+            return py_error(str(res[1]), str(res[2]));
+        }
+        return PyBool(t="bool", val=res[1] as bool);
     }
     if isinstance(lhs, PySet) and isinstance(rhs, PySet) {
         return set_richcompare(kind, lhs as PySet, rhs as PySet);
