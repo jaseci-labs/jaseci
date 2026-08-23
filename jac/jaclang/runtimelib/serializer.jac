@@ -38,7 +38,8 @@ glob logger = logging.getLogger(__name__),
      _MAX_IMPORT_FAILURES: int = 1024,
      _IMPORT_RETRY_SECONDS: float = 30.0,
      _IMPORT_RETRY_CEILING_SECONDS: float = 900.0,
-     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8;
+     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8,
+     _PLAIN_WIRE_SCALARS: frozenset = frozenset({str, int, float, bool});
 
 obj ImportFailure {
     has attempts: int = 0,

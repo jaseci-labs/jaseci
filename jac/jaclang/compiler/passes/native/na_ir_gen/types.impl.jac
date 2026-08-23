@@ -2814,7 +2814,7 @@ impl NaIRGenTypes._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            (_, r) = self._emit_int_divmod(left, right, unsigned);
+            (_, r) = self._emit_int_divmod(left, right, unsigned, trap_min=False);
             return r;
         }
     }
