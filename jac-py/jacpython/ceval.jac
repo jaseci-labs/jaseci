@@ -42,7 +42,19 @@ def _jac_host_call(fn, args, kwargs):
     try:
         return (True, fn(*args, **kwargs), None, None)
     except BaseException as exc:
+<<<<<<< HEAD
         return _jac_host_error(exc)
+=======
+        # Full fidelity: carry the FULL BaseException.args tuple back so the
+        # guest-side PyException keeps e.args (struct.error('bad char') must
+        # round-trip args, not just str(exc)); the name stays SHORT
+        # (type(e).__name__ == 'error', matching CPython display).
+        try:
+            exc_args = [from_host(a) for a in getattr(exc, "args", ())]
+        except BaseException:
+            exc_args = []
+        return (False, type(exc).__name__, str(exc), exc_args)
+>>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 
 def _jac_host_is_callable(value):
     return callable(value)
@@ -225,8 +237,8 @@ def _jac_construct_builtin(name, raw_args):
     except BaseException as exc:
         return _jac_host_error(exc)
 
-# Dynamic host Exception subclass for a USER exception name, cached per name so
-# repeated crossings keep one host class (stable repr/isinstance).
+# Dynamic host Exception subclass for a USER/module exception name, cached per
+# name so repeated crossings keep one host class (stable repr/isinstance).
 _JAC_USER_EXC_TYPES = {}
 def _jac_make_exception_type(name):
     import builtins
@@ -236,10 +248,38 @@ def _jac_make_exception_type(name):
         _JAC_USER_EXC_TYPES[name] = t
     return t
 
-def _jac_instantiate_exception_type(name, raw_args):
-    # Instantiate a dynamic host Exception subclass by name; never raises.
+# Registry-aware materialization for MODULE exceptions: a registered qualified
+# name (struct.error, json.JSONDecodeError, ...) mints a cached host subclass
+# of its DECLARED BASE -- json.JSONDecodeError subclasses ValueError, so guest
+# `except ValueError` and host isinstance both see the real hierarchy. The
+# host class presents the SHORT name (CPython repr shape: struct.error shows
+# as "error('...')"). Resolution order: exact builtin -> registered base ->
+# generic same-name Exception subclass.
+_JAC_MODULE_EXC_TYPES = {}
+def _jac_make_module_exc_type(qname, base_name):
+    import builtins
+    short = qname.rsplit(".", 1)[-1]
+    t = _JAC_MODULE_EXC_TYPES.get(qname)
+    if t is None:
+        base = None
+        if base_name:
+            bt = getattr(builtins, base_name, None)
+            if isinstance(bt, type) and issubclass(bt, BaseException):
+                base = bt
+        if base is None:
+            base = _jac_make_exception_type(short)
+        t = type(short, (base,), {})
+        _JAC_MODULE_EXC_TYPES[qname] = t
+    return t
+
+def _jac_instantiate_registered_exception(qname, raw_args):
+    # Checked resolution (no bare getattr): builtin first, then the module
+    # registry's declared base. Instantiation never raises past this boundary.
+    import builtins
+    t = getattr(builtins, qname, None)
+    if not (isinstance(t, type) and issubclass(t, BaseException)):
+        t = _jac_make_module_exc_type(qname, registered_exc_base(qname))
     try:
-        t = _jac_make_exception_type(name)
         if raw_args:
             return (True, t(*raw_args))
         return (True, t())
@@ -633,6 +673,142 @@ def _jac_recover_native(raw) -> PyObj | None:
         if coro is not None:
             return coro
     return None
+
+# ---- typed-boundary stand-ins and lazy iterators ---------------------------
+# Bridge-table support (see to_host_policy in this file):
+#
+# STANDIN: a guest PyClass or plain PyUserObj crossing to the host gets a
+# NAME-FAITHFUL cached host stand-in -- never None. The minted host class
+# carries the guest class's name and bases; instances keep a back-reference so
+# from_host recovers the ORIGINAL guest object (identity round-trip) and so
+# guest-defined __str__/__repr__ run through the VM.
+#
+# LAZY_ITER: a native iterator/generator crossing to the host becomes a lazy
+# host iterator that pulls ONE step per __next__ through the same tp_iternext
+# helpers FOR_ITER uses. Position stays SHARED with the guest object, so host
+# consumption no longer drains/consumes the underlying iterator silently.
+
+_JAC_CLASS_STANDINS = {}   # id(guest_cls) -> [weakref.ref(cls), host_class]
+_JAC_USER_STANDINS = {}    # id(user_obj) -> [weakref.ref(obj), standin_instance]
+
+_JAC_ITER_DONE = object()  # sentinel for iter(callable, sentinel)
+
+
+def _jac_notimpl_value():
+    # VALUE_COPY for the native richcompare-deferral sentinel: the host sees the
+    # real NotImplemented singleton (previously a silent None fallthrough).
+    return NotImplemented
+
+
+def _jac_standin_bases(cls):
+    # Resolve guest base declarations to host classes for type() minting.
+    # Unresolvable bases are skipped; if nothing resolves, `object` is used.
+    import builtins
+    import weakref
+    bases = []
+    for b in cls.bases:
+        hb = None
+        if isinstance(b, PyClass):
+            hb = _jac_standin_class(b)
+        elif isinstance(b, PyExceptionType):
+            t = getattr(builtins, b.name, None)
+            if isinstance(t, type) and issubclass(t, BaseException):
+                hb = t
+        elif isinstance(b, PyHostProxy) and isinstance(b.val, type):
+            hb = b.val
+        if hb is not None and hb not in bases and hb is not object:
+            bases.append(hb)
+    if not bases:
+        return (object,)
+    try:
+        probe = type("_probe", tuple(bases), {})
+    except TypeError:
+        return (bases[0],)
+    return tuple(bases)
+
+
+def _jac_standin_dunder(dunder_name, vm_fn):
+    # Host method that replays a guest dunder through the VM on the ORIGINAL
+    # user object recovered from the stand-in's back-reference.
+    def _meth(self, *args):
+        u = getattr(self, "_jac_guest_", None)
+        if u is None:
+            raise RuntimeError(
+                "bridge-table: stand-in lost its guest back-reference"
+            )
+        res = vm_fn(u)
+        if isinstance(res, PyError):
+            _jac_reraise_pyerror(res)
+        return to_host(res)
+    _meth.__name__ = dunder_name
+    return _meth
+
+
+def _jac_standin_class(cls):
+    # The cached name-faithful host class for a guest PyClass.
+    import weakref
+    key = id(cls)
+    ent = _JAC_CLASS_STANDINS.get(key)
+    if ent is not None and ent[0]() is cls:
+        return ent[1]
+    ns = {}
+    r = class_lookup_attr(cls, "__repr__")
+    if not is_error(r):
+        ns["__repr__"] = _jac_standin_dunder("__repr__", py_repr)
+    s = class_lookup_attr(cls, "__str__")
+    if not is_error(s):
+        ns["__str__"] = _jac_standin_dunder("__str__", py_str)
+    host_cls = type(cls.name, _jac_standin_bases(cls), ns)
+    host_cls._jac_guest_cls_ = cls
+    _JAC_CLASS_STANDINS[key] = [weakref.ref(cls), host_cls]
+    return host_cls
+
+
+def _jac_user_standin(u):
+    # The cached name-faithful host instance for a plain guest PyUserObj.
+    import weakref
+    key = id(u)
+    ent = _JAC_USER_STANDINS.get(key)
+    if ent is not None and ent[0]() is u:
+        return ent[1]
+    host_cls = _jac_standin_class(u.cls)
+    inst = host_cls.__new__(host_cls)
+    # Strong back-reference: while the host holds the stand-in, the guest
+    # object stays alive and recoverable (identity round-trip).
+    inst._jac_guest_ = u
+    _JAC_USER_STANDINS[key] = [weakref.ref(u), inst]
+    return inst
+
+
+def _jac_recover_guest(raw):
+    # from_host hook: a stand-in crossing BACK yields the original guest object
+    # (class or instance). Cheaply gated on the marker living in __dict__/type.
+    if isinstance(raw, type):
+        g = raw.__dict__.get("_jac_guest_cls_")
+        if g is not None:
+            return g
+        return None
+    d = getattr(raw, "__dict__", None)
+    if d is not None:
+        return d.get("_jac_guest_")
+    return None
+
+
+def _jac_make_host_iterator(value):
+    # LAZY_ITER policy: one host iterator pulling single steps out of the
+    # native iterator/generator via the shared tp_iternext helpers, so guest
+    # and host observe the SAME position and neither side silently drains it.
+    def _next():
+        step = send_into(value, py_none())
+        if isinstance(step, PyGenStop):
+            raise StopIteration
+        if isinstance(step, PyError):
+            exc = step.exception
+            if exc_name_matches(exc.type_name, "StopIteration"):
+                raise StopIteration
+            _jac_reraise_pyerror(step)
+        return to_host(step)
+    return iter(_next, _JAC_ITER_DONE)
 
 _JAC_EXACT_BUILTINS = (
     int, float, str, bytes, tuple, list, dict, set, frozenset, bool,
@@ -3019,6 +3195,13 @@ def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
     }
+    # STANDIN round-trip: a host stand-in crossing back recovers the ORIGINAL
+    # guest class/instance (identity preserved). The helper self-gates on
+    # type/__dict__ presence so scalar/container fast paths stay cheap.
+    g = _jac_recover_guest(raw);
+    if g is not None {
+        return g as PyObj;
+    }
     # A host instance whose type is a PROPER subclass of a builtin container/
     # scalar (namedtuple, IntEnum, a host-built `class X(list)`) must not be
     # flattened into a native PyTuple/PyList/PyInt -- that would erase its real
@@ -3128,7 +3311,100 @@ def from_host(raw: any) -> PyObj {
     return PyHostProxy(t="host", val=raw);
 }
 
+# ================= typed guest<->host boundary table ========================
+# ONE authoritative policy per native type tag. Every crossing decision lives
+# here; ad-hoc match+fallthrough in to_host/_host_representable is gone. An
+# unknown tag FAILS LOUDLY (RuntimeError naming the tag) -- it can never again
+# silently degrade to None at the boundary.
+#
+# Policies:
+#   VALUE_COPY   immutable scalar copied by value both ways (lossless)
+#   DEEP_COPY    immutable aggregate deep-copied (tuple/frozenset/slice/range)
+#   MUTABLE_COPY declared divergence: mutable container deep-copied; mutations
+#                on either side DO NOT propagate (documented, greppable)
+#   VIEW_COPY    dict view rebuilt as a live host view over a copied dict
+#   TRAMPOLINE   callable becomes a host trampoline calling back into ceval
+#   LAZY_ITER    iterator/generator becomes a LAZY host iterator sharing
+#                position with the guest object (no silent draining/consuming)
+#   STANDIN      name-faithful cached host stand-in (classes, plain user
+#                objects); round-trips back to the original guest object
+#   EXCEPTION    exception materializes as a real host BaseException via the
+#                module-exception registry (exceptions_core.jac)
+#   PROXY        opaque host-backed proxy passthrough (PyHostProxy)
+#   FAIL         no host representation: loud RuntimeError naming the tag
+enum BridgePolicy {
+    VALUE_COPY,
+    DEEP_COPY,
+    MUTABLE_COPY,
+    VIEW_COPY,
+    TRAMPOLINE,
+    LAZY_ITER,
+    STANDIN,
+    EXCEPTION,
+    PROXY,
+    FAIL,
+}
+
+def to_host_policy(tag: str) -> BridgePolicy {
+    if tag == "none"
+        or tag == "bool"
+        or tag == "int"
+        or tag == "float"
+        or tag == "complex"
+        or tag == "str"
+        or tag == "bytes"
+        or tag == "notimplemented" {
+        return BridgePolicy.VALUE_COPY;
+    }
+    if tag == "tuple" or tag == "frozenset" or tag == "slice" or tag == "range" {
+        return BridgePolicy.DEEP_COPY;
+    }
+    if tag == "list" or tag == "dict" or tag == "set" {
+        return BridgePolicy.MUTABLE_COPY;
+    }
+    if tag == "dictview_obj" {
+        return BridgePolicy.VIEW_COPY;
+    }
+    if tag == "function"
+        or tag == "native_builtin"
+        or tag == "bound_method"
+        or tag == "gen_method"
+        or tag == "list_method"
+        or tag == "dict_method"
+        or tag == "set_method"
+        or tag == "native_new"
+        or tag == "classmethod"
+        or tag == "staticmethod"
+        or tag == "classmethod_ctor"
+        or tag == "staticmethod_ctor"
+        or tag == "property_ctor"
+        or tag == "property" {
+        return BridgePolicy.TRAMPOLINE;
+    }
+    if tag == "iter"
+        or tag == "seqiter"
+        or tag == "rangeiter"
+        or tag == "dictiter"
+        or tag == "calliter"
+        or tag == "generator" {
+        return BridgePolicy.LAZY_ITER;
+    }
+    if tag == "class" or tag == "instance" {
+        return BridgePolicy.STANDIN;
+    }
+    if tag == "exception" {
+        return BridgePolicy.EXCEPTION;
+    }
+    if tag == "host" {
+        return BridgePolicy.PROXY;
+    }
+    return BridgePolicy.FAIL;
+}
+
 def to_host(value: PyObj) -> any {
+    # Table gate FIRST: an unknown tag fails loudly before any conversion runs.
+    # A tag WITH policy but missing conversion arm below also fails loudly.
+    policy = to_host_policy(value.t);
     match value {
         case PyNoneType():
             return None;
@@ -3237,16 +3513,10 @@ def to_host(value: PyObj) -> any {
             return _jac_wrap_property(fget, fset, fdel);
 
         case PyIter():
-            # A native iterator crossing the host boundary drains into a host
-            # list so host consumers (list()/tuple()/sum()/for-in via trampoline)
-            # see its remaining items instead of None. Laziness is already lost
-            # at this boundary.
-            iter_drained: list[any] = [];
-            while value.index < len(value.items) {
-                iter_drained.append(to_host(value.items[value.index]));
-                value.index = value.index + 1;
-            }
-            return iter_drained;
+            # LAZY_ITER: a lazy host iterator sharing position with the guest
+            # object -- no silent draining, and partial host consumption leaves
+            # the remaining items for the guest (CPython iterator semantics).
+            return _jac_make_host_iterator(value);
 
         case PyHostProxy():
             return value.val;
@@ -3263,16 +3533,18 @@ def to_host(value: PyObj) -> any {
             # presents as its boxed value; an exception-derived user instance
             # presents as a REAL host BaseException carrying its args -- so
             # str(e)/print(e) match CPython instead of degrading to None. Any
-            # other plain user object has no host form.
+            # other plain user object gets a NAME-FAITHFUL cached host stand-in
+            # whose back-reference recovers the original on round-trip.
             if value._has_base() {
                 return to_host(value._base_obj());
             }
             if class_is_exception(value.cls) {
                 return host_exception(user_exception_view(value));
             }
-            return None;
+            return _jac_user_standin(value);
 
         case PyGenerator():
+<<<<<<< HEAD
             if value.t == "coroutine" {
                 # A guest coroutine crossing to the host becomes a REAL host
                 # awaitable (send/throw/close/__await__, asyncio.iscoroutine
@@ -3288,6 +3560,19 @@ def to_host(value: PyObj) -> any {
             # into a host list, which every iterable-consuming builtin accepts.
             drained = gen_drain(value);
             return to_host(drained);
+=======
+            # LAZY_ITER: the generator is driven ONE step per host __next__
+            # through the real suspend/resume machinery -- laziness preserved,
+            # no silent drain, shared consumption position.
+            return _jac_make_host_iterator(value);
+
+        case PyClass():
+            # A guest class crossing to the host presents as its name-faithful
+            # cached stand-in class (previously None): repr/type-name reads and
+            # host isinstance checks see the real name, and from_host recovers
+            # the ORIGINAL PyClass via the marker attribute.
+            return _jac_standin_class(value);
+>>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 
         case PyDictView():
             # Rebuild a real host dict and hand back the matching live view, so
@@ -3307,8 +3592,19 @@ def to_host(value: PyObj) -> any {
             }
             return hd.keys();
 
+        case PyNotImplementedSentinel():
+            return _jac_notimpl_value();
+
     }
-    return None;
+    # Unreachable for every tag with a table policy and a matching arm above;
+    # both gaps fail LOUDLY here instead of degrading to None.
+    raise RuntimeError(
+        "bridge-table: type '"
+        + value.t
+        + "' has policy "
+        + str(policy)
+        + " but no to_host conversion arm"
+    );
 }
 
 def host_builtin(name: str) -> PyObj {
@@ -3479,15 +3775,18 @@ def host_exception(exc: PyException) -> any {
     if bool(built[0]) {
         return built[1];
     }
-    # A user Exception subclass degrades to a dynamically minted host subclass
-    # of the SAME NAME -- str()/repr()/type() then read like CPython
-    # (repr(MyErr('m')) == "MyErr('m')") instead of collapsing to 'Exception'.
-    maker_result = _jac_instantiate_exception_type(exc.type_name, raw_args);
+    # Registry-aware materialization: registered module exceptions mint a
+    # cached host subclass of their DECLARED BASE; user exception names mint a
+    # cached same-name Exception subclass. A name that survives neither the
+    # builtin lookup nor minting FAILS LOUDLY -- the boundary never degrades a
+    # caught exception to a generic Exception() (which erased its hierarchy).
+    maker_result = _jac_instantiate_registered_exception(exc.type_name, raw_args);
     if bool(maker_result[0]) {
         return maker_result[1];
     }
-    fallback = _jac_construct_builtin("Exception", raw_args);
-    return fallback[1];
+    raise RuntimeError(
+        "bridge-table: no host exception type for '" + exc.type_name + "'"
+    );
 }
 
 # f-string / format() machinery. The __format__ / __str__ protocols resolve
@@ -4098,10 +4397,11 @@ def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
 }
 
 def _host_representable(t: str) -> bool {
-    # Native PySet is fully to_host-representable, so a mixed native-set / host
-    # operand binop (e.g. dict.keys() | {2}) can still fall back to the host.
-    # Native set | set never reaches here -- PySet.nb_binop answers it directly.
-    return _is_host_backed(t) or t == "host" or t == "set" or t == "frozenset";
+    # Table query: a tag is host-representable iff the boundary table gives it
+    # any policy other than FAIL. Native PySet/PyList/... are MUTABLE_COPY
+    # (declared divergence), so mixed native/host operand binops can still fall
+    # back to the host; PyClass/PyUserObj are STANDIN (name-faithful stand-ins).
+    return to_host_policy(t) != BridgePolicy.FAIL;
 }
 
 # Object identity for `is` / `id()`. None and booleans are true singletons in
@@ -6127,7 +6427,17 @@ def py_call_host(
     if host_result_ok(result) {
         return from_host(result[1]);
     }
+<<<<<<< HEAD
     return host_result_error(result);
+=======
+    # Host-raised exceptions keep their FULL args tuple (e.args round-trips);
+    # the message stays empty because args carry it (BaseException_str rule).
+    err_args: list[PyObj] = [];
+    for a in result[3] {
+        err_args.append(a as PyObj);
+    }
+    return py_error_with_args(str(result[1]), "", err_args);
+>>>>>>> eca0aea99 (feat(ceval): typed guest<->host boundary table + module-exception registry)
 }
 
 def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {

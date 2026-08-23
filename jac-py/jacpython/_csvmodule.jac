@@ -10,8 +10,8 @@
 # (excel/excel-tab/unix registrations are csv.py's doing).
 #
 # Error mapping: CPython raises ``_csv.Error`` (an Exception subclass);
-# new exception types are unsupported from facades, so this module
-# raises plain ``Exception`` with byte-exact messages. Builtin
+# this facade declares csv.Error/_csv.Error in the bridge-table
+# module-exception registry (exceptions_core.jac) at import. Builtin
 # TypeError/ValueError/OverflowError keep their builtin types exactly,
 # matching which PyErr type each C site uses.
 #
@@ -918,4 +918,14 @@ def field_size_limit(new_limit: any = _UNSET) -> int {
         _state["field_limit"] = new_limit as int;
     }
     return old;
+}
+
+import from exceptions_core { register_module_exception }
+
+with entry {
+    # Module-exception declaration (bridge-table registry, exceptions_core):
+    # declared AT IMPORT so boundary matching/minting knows this exception's
+    # hierarchy without bare getattr(builtins, ...) lookups.
+    register_module_exception("csv.Error", "Exception");
+    register_module_exception("_csv.Error", "Exception");
 }

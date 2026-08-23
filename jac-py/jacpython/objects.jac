@@ -2401,6 +2401,20 @@ def py_error(type_name: str, message: str) -> PyObj {
     );
 }
 
+# py_error carrying the FULL BaseException.args tuple: host-raised module
+# exceptions (struct.error('bad char ...')) keep e.args across the boundary.
+# Message stays empty when args carry the text (BaseException_str rule).
+def py_error_with_args(type_name: str, message: str, args: list[PyObj]) -> PyObj {
+    exc_args: list[PyObj] = [];
+    exc_args.extend(args);
+    return PyError(
+        t="error",
+        exception=PyException(
+            t="exception", type_name=type_name, message=message, args=exc_args
+        ),
+    );
+}
+
 def py_exception_type(name: str) -> PyObj {
     return PyExceptionType(t="exception_type", name=name);
 }

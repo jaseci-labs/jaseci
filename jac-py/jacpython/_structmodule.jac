@@ -9,9 +9,10 @@
 # order with standard sizes, '<' little-endian, '>' / '!' big-endian.
 #
 # Error mapping: CPython raises ``struct.error`` (an Exception subclass) for
-# pack/unpack semantic failures; the facade raises plain ``Exception`` with
-# identical messages until exception-type creation is available to Jac
-# facades. TypeError/OverflowError keep their builtin types exactly.
+# pack/unpack semantic failures; this facade declares ``struct.error`` in the
+# bridge-table module-exception registry (exceptions_core.jac) at import, so
+# boundary matching/minting sees the real hierarchy. TypeError/OverflowError
+# keep their builtin types exactly.
 
 # ---------------------------------------------------------------------------
 # Exact power-of-two float scaling (every step multiplies/divides by a
@@ -914,4 +915,13 @@ def iter_unpack(fmt: any, buffer: any) -> any {
 
 def _clearcache() {
     _cache.clear();
+}
+
+import from exceptions_core { register_module_exception }
+
+with entry {
+    # Module-exception declaration (bridge-table registry, exceptions_core):
+    # declared AT IMPORT so boundary matching/minting knows this exception's
+    # hierarchy without bare getattr(builtins, ...) lookups.
+    register_module_exception("struct.error", "Exception");
 }

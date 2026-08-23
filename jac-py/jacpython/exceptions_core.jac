@@ -92,13 +92,44 @@ def _exc_is_subclass(exc_name: str, base_name: str) -> bool {
         return True;
     }
     cur = exc_name;
-    while cur in _EXC_PARENT {
-        cur = _EXC_PARENT[cur];
+    while True {
+        if cur in _EXC_PARENT {
+            cur = _EXC_PARENT[cur];
+        } elif cur in _MODULE_EXC_BASE {
+            # Facade-declared module exceptions (struct.error,
+            # json.JSONDecodeError, ...) chain through their registered builtin
+            # base so `except ValueError` catches JSONDecodeError etc.
+            cur = _MODULE_EXC_BASE[cur];
+        } else {
+            return False;
+        }
         if cur == base_name {
             return True;
         }
     }
-    return False;
+}
+
+# ---------------- module-exception registry --------------------------------
+# Facade modules declare their exception types here AT IMPORT
+# (register_module_exception("struct.error", "Exception")), replacing the old
+# bare getattr(builtins, name) boundary lookups. The registry drives:
+#   - guest-side matching: exc_name_matches walks these parent links;
+#   - host-side materialization: host_exception mints a cached host subclass
+#     of the REGISTERED BASE (JSONDecodeError subclasses ValueError, not a
+#     generic Exception); unknown names fail loudly instead of degrading.
+glob _MODULE_EXC_BASE: dict[str, str] = {};
+
+def register_module_exception(qualified: str, base: str) {
+    _MODULE_EXC_BASE[qualified] = base;
+}
+
+# Nearest registered builtin base for a qualified module-exception name;
+# "" when the name is not registered.
+def registered_exc_base(qualified: str) -> str {
+    if qualified in _MODULE_EXC_BASE {
+        return _MODULE_EXC_BASE[qualified];
+    }
+    return "";
 }
 
 # CPython ``PyErr_GivenExceptionMatches`` name-level matching with
