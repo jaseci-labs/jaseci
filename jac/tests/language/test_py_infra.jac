@@ -481,7 +481,7 @@ test "walker dynamic update" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        execution.enter(filename=bar_file_path, entrypoint="bar_walk", args=[]);
+        execution.run(filename=bar_file_path, entry_name="bar_walk", args=[]);
     } finally {
         sys.stdout = old_stdout;
     }

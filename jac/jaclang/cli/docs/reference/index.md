@@ -72,10 +72,10 @@ curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/ins
 jac create myapp --kind web-app
 
 # 3. Run it
-jac start
+jac run
 ```
 
-`main.jac` is the default entry point; pass a different name explicitly (e.g. `jac start app.jac`). See [Installation](../quick-guide/install.md) for details.
+`main.jac` is the default entry point; pass a different name explicitly (e.g. `jac run app.jac`). See [Installation](../quick-guide/install.md) for details.
 
 ---
 
