@@ -50,10 +50,7 @@ def _seams(fixture: str) -> list[str] {
         prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
             options=CompileOptions(
-                type_check=False,
-                force_codespace='native',
-                force_target_program=True,
-                no_ir_cache=True
+                force_codespace='native', force_target_program=True, no_ir_cache=True
             )
         );
     } finally {
@@ -75,7 +72,7 @@ def _seams_for(fixture: str, fn: str) -> list[str] {
 
 
 """The fixture's module through the sv/bytecode pathway."""
-def _sv_module(fixture: str) -> object {
+def _sv_module(fixture: str) -> any {
     prev = get_effective_default_codespace_override();
     set_effective_default_codespace("server");
     try {

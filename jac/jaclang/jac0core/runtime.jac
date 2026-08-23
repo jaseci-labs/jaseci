@@ -44,7 +44,8 @@ import from jaclang.jac0core.modresolver {
     push_import_base,
     pop_import_base
 }
-import from jaclang.jac0core.mtp { MTIR, Info, MTRuntime }
+import from jaclang.jac0core.mtp { Info }
+import type from jaclang.byllm.mtir { MTRuntime }
 import type from jaclang.cli.console { JacConsole as ConsoleImpl }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.program { JacProgram }
@@ -145,6 +146,8 @@ obj LLMModel(Protocol) {
     has call_params: dict[(str, object)];
 
     def __call__(**kwargs: object) -> LLMModel;
+    def invoke(mt_run: MTRuntime) -> object;
+    async def ainvoke(mt_run: MTRuntime) -> object;
 }
 
 class JacContext {
@@ -350,6 +353,10 @@ class JacIntrospection {
 }
 
 class JacLLM {
+    with entry {
+        _default_llm_instance: (LLMModel | None) = None;
+    }
+
     static def get_mtir(
         caller: Callable,
         args: dict[((int | str), object)],
@@ -435,16 +442,12 @@ class JacBuiltin {
     static def get_console -> ConsoleImpl;
 }
 
-class JacCmd {
-    static def run_ai_agent(req: object) -> int;
-}
-
 class JacConfig {
     static def on_config_loaded(config: dict[(str, any)]) -> None;
     static def validate_config(config: dict[(str, any)]) -> list[str];
 }
 
-class JacRuntimeInterface(JacClassReferences, JacContext, JacPersistence, JacAccessValidation, JacGraph, JacWalker, JacArchetype, JacModule, JacIntrospection, JacLLM, JacServe, JacTest, JacBuiltin, JacCmd, JacConfig) {}
+class JacRuntimeInterface(JacClassReferences, JacContext, JacPersistence, JacAccessValidation, JacGraph, JacWalker, JacArchetype, JacModule, JacIntrospection, JacLLM, JacServe, JacTest, JacBuiltin, JacConfig) {}
 
 class JacRuntime(JacRuntimeInterface) {
     with entry {

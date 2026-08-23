@@ -38,8 +38,8 @@ class _SymbolAddress(ctypes.Structure) {
     """
 class JITLibraryBuilder {
     def init(self: JITLibraryBuilder) -> object {
-        self.__entries = [];
-        self.__exports = `set();
+        self.__entries: list[tuple[int, bytes]] = [];
+        self.__exports: set[str] = `set();
         self.__imports = {};
     }
 
@@ -160,14 +160,14 @@ class JITLibraryBuilder {
         encoded_library_name = str(library_name).encode('utf-8');
         assert (len(encoded_library_name) > 0) , "Library cannot be empty";
         elements = (_LinkElement * len(self.__entries))();
-        for (idx, (kind, value)) in enumerate(self.__entries) {
-            elements[idx].element_kind = c_uint8(kind);
-            elements[idx].value = c_char_p(value);
-            elements[idx].value_len = c_size_t(len(value));
+        for (idx, item) in enumerate(self.__entries) {
+            elements[idx].element_kind = c_uint8(item[0]);
+            elements[idx].value = c_char_p(item[1]);
+            elements[idx].value_len = c_size_t(len(item[1]));
         }
         exports = (_SymbolAddress * len(self.__exports))();
-        for (idx, name) in enumerate(self.__exports) {
-            exports[idx].name = name.encode('utf-8');
+        for (idx, export_name) in enumerate(self.__exports) {
+            exports[idx].name = export_name.encode('utf-8');
         }
         imports = (_SymbolAddress * len(self.__imports))();
         for (idx, (name, addr)) in enumerate(self.__imports.items()) {
@@ -255,7 +255,7 @@ class ResourceTracker(ffi.ObjectRef) {
     """
 class LLJIT(ffi.ObjectRef) {
     def init(self: LLJIT, ptr: any) -> object {
-        self._td = None;
+        self._td: (targets.TargetData | None) = None;
         ffi.ObjectRef.init(self, ptr);
     }
 

@@ -55,7 +55,7 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
     import from jaclang.runtimelib.utils { get_name }
     name = get_name(target_path=target_path) or 'main';
     safe = ''.join((ch if (ch.isalnum() or ch == '_') else '_') for ch in name.lower());
-    digest = hashlib.sha1(os.path.abspath(base_path).encode('utf-8')).hexdigest()[:8];
+    digest = hashlib.sha1(os.path.realpath(base_path).encode('utf-8')).hexdigest()[:8];
     return f"jac_{safe[:40]}_{digest}";
 }
 
@@ -266,7 +266,11 @@ impl Session.postinit -> None {
                 auto_schema=True
             );
             if lease.reset {
-                pgs.reset_data();
+                if lease.runtime.is_running() {
+                    pgs.reset_data();
+                } else {
+                    pgs.pending_reset = True;
+                }
             }
             self.store = pgs;
         }

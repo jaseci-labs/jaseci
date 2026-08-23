@@ -42,7 +42,7 @@ obj Scheduler {
     def `wait -> None;
     def has_pending -> bool;
     def _run_loop -> None;
-    def _pick_up_new_tasks(heap: list) -> None;
+    def _pick_up_new_tasks(heap: list[tuple[float, int, ScheduledTask]]) -> None;
     def _compute_next_run(
         spec: ScheduleSpec, now: datetime.datetime
     ) -> (datetime.datetime | None);

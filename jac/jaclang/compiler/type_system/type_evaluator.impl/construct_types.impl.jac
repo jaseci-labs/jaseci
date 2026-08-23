@@ -32,10 +32,10 @@ impl TypeEvaluator._get_type_of_super(node_: SpecialVarRef) -> TypeBase {
         if isinstance(cls, Archetype) {
             current_class_type = self.get_type_of_class(cls);
 
-            if len(current_class_type.shared.mro) > 1 {
-                parent_class_type = current_class_type.shared.mro[1];
+            rest = current_class_type.shared.mro[1:];
+            if rest {
                 node_.sym = lookup_symtab(method, node_.value, self.builtins_module);
-                node_.type = parent_class_type.clone_as_instance();
+                node_.type = self._super_owner_for(node_, rest).clone_as_instance();
                 return node_.type;
             }
         }
@@ -97,6 +97,15 @@ impl TypeEvaluator._extract_tuple_element_type(
     }
     if tuple_type.is_any_instance() {
         return tuple_type;
+    }
+
+    if isinstance(tuple_type, AnyType) {
+        return AnyType(is_foreign=tuple_type.is_foreign);
+    }
+    if isinstance(tuple_type, UnknownType) {
+        return UnknownType(
+            is_diagnosed=tuple_type.is_diagnosed, is_incomplete=tuple_type.is_incomplete
+        );
     }
     if not isinstance(tuple_type, ClassType) {
         return None;
@@ -178,6 +187,16 @@ impl TypeEvaluator._tuple_literal_index_type(
 impl TypeEvaluator._get_iterable_element_type(
     iterable_type: TypeBase, node_for_error: Expr | None = None
 ) -> TypeBase | None {
+    if isinstance(iterable_type, AnyType) {
+        return AnyType(is_foreign=iterable_type.is_foreign);
+    }
+
+    if isinstance(iterable_type, UnknownType) {
+        return UnknownType(
+            is_diagnosed=iterable_type.is_diagnosed,
+            is_incomplete=iterable_type.is_incomplete
+        );
+    }
     iter_type = self.get_type_of_magic_method_call(
         iterable_type, "__iter__", [], node_for_error
     );
@@ -335,6 +354,30 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 return ParamKind.KWARG;
 
         }
+    }
+
+    if node_.find_parent_of_type(Import) is not None {
+        extern_params: list[Parameter] = [];
+        if isinstance(node_.signature, FuncSignature) {
+            for extern_param in node_.signature.get_parameters() {
+                extern_params.append(
+                    Parameter(
+                        name=extern_param.name.value,
+                        category=_get_param_category(extern_param),
+                        param_type=AnyType(is_foreign=True),
+                        default_value=extern_param.value,
+                        param_kind=_convert_param_kind(extern_param.param_kind),
+                    )
+                );
+            }
+        }
+        extern_fn = FunctionType(
+            func_name=node_.name_spec.sym_name,
+            return_type=AnyType(is_foreign=True),
+            parameters=extern_params,
+        );
+        node_.name_spec.type = extern_fn;
+        return extern_fn;
     }
     parameters: list[Parameter] = [];
     for (idx, param) in enumerate(node_.signature.get_parameters()) {
@@ -612,4 +655,39 @@ impl TypeEvaluator.get_none_type -> TypeBase {
         return self.prefetch.none_type_class;
     }
     return UnknownType();
+}
+
+
+impl TypeEvaluator._super_owner_for(
+    node_: SpecialVarRef, rest: list[ClassType]
+) -> ClassType {
+    import from jaclang.compiler.type_system.type_utils { collect_member_syms }
+    parent = node_.parent;
+    member_name: str | None = None;
+    if isinstance(parent, AtomTrailer) and isinstance(parent.right, Name) {
+        member_name = parent.right.value;
+    }
+    if member_name is None {
+        return rest[0];
+    }
+    lookup_names = [member_name];
+    if member_name == "init" {
+        lookup_names.append("__init__");
+    }
+    for candidate in rest {
+        for nm in lookup_names {
+            if collect_member_syms(candidate.shared.symbol_table, nm) {
+                return candidate;
+            }
+        }
+        if (
+            member_name in ('init', '__init__')
+            and candidate.is_data_class()
+            and isinstance(candidate.shared.symbol_table, Archetype)
+            and candidate.shared.symbol_table.get_has_vars()
+        ) {
+            return candidate;
+        }
+    }
+    return rest[0];
 }

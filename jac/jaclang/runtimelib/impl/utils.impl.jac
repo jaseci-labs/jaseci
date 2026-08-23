@@ -78,7 +78,7 @@ impl traverse_graph(
 impl collect_node_connections(
     current_node: NodeArchetype, visited_nodes: set, connections: set, edge_ids: set
 ) -> None {
-    import from jaclang.jac0core.archetype { EdgeAnchor }
+    import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor }
     import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     import from jaclang.jac0core.runtime { resolve_ref }
     if (current_node not in visited_nodes) {
@@ -92,7 +92,7 @@ impl collect_node_connections(
             edge_ids.add(edge_.id);
             source = resolve_ref(edge_.source, edge_);
             target = resolve_ref(edge_.target, edge_);
-            if source and target {
+            if isinstance(source, NodeAnchor) and isinstance(target, NodeAnchor) {
                 connections.add(
                     (edge_.id, source.archetype, target.archetype, edge_.archetype)
                 );

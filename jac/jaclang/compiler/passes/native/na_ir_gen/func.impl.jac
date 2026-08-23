@@ -126,7 +126,12 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     if len(self.errors_had) > _sig_mark {
         self.generator_fns.pop(name, None);
         self.decorated_fns.pop(name, None);
-        if self._demote_method_if_unlowerable(name, func, _sig_mark) {
+
+        _fd_imported = _fdm is not None and _fdm is not self.ir_in;
+        if self._demote_method_if_unlowerable(
+            name, func, _sig_mark, stub_body=not _fd_imported
+        )
+            and not _fd_imported {
             self._rename_demoted_symbol(name, func);
         }
     }
@@ -1457,7 +1462,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     i64 = ir.IntType(64);
     import re;
 
-    import from jaclang.jac0core.codeinfo { native_safe_sym }
+    import from jaclang.jac0core.codeinfo { native_glob_init_name, native_safe_sym }
 
     fnty = ir.FunctionType(ir.VoidType(), []);
     func = self._define_function("jac_entry", fnty);
@@ -1544,8 +1549,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
         }
         _seen_init_mods.add(_source_mod);
 
-        safe_name = native_safe_sym(_source_mod);
-        init_name = f"__jac_glob_init_{safe_name}";
+        init_name = native_glob_init_name(_source_mod, _manifest);
 
         imp_init_fn = self.func_symtab.get(init_name);
         if imp_init_fn is None {

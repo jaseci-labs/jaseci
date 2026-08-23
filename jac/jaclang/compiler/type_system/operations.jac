@@ -12,6 +12,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from .types {
+    AnyType,
     ClassType,
     FunctionType,
     NeverType,
@@ -105,6 +106,33 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.BW_XOR_EQ: Tok.BW_XOR,
          Tok.MATMUL_EQ: Tok.DECOR_OP
      };
+
+def _is_runtime_archetype_instance(t: TypeBase, base_name: str) -> bool {
+    if not (isinstance(t, ClassType) and t.is_instance()) {
+        return False;
+    }
+    for cls in (t.shared.mro or []) {
+        if cls.shared.class_name == base_name {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _has_gradual_type_args(t: TypeBase) -> bool {
+    if not isinstance(t, ClassType) {
+        return False;
+    }
+    for a in (t.private.type_args or []) {
+        if isinstance(a, (AnyType, UnknownType)) {
+            return True;
+        }
+        if isinstance(a, ClassType) and a.is_any_instance() {
+            return True;
+        }
+    }
+    return False;
+}
 
 def _is_int_like(t: ClassType) -> bool {
     return t.is_builtin("int")
@@ -227,6 +255,20 @@ def get_type_of_binary_operation(
     if isinstance(expr.op, Token)
         and expr.op.name in BINARY_OPERATOR_MAP
         and expr.op.name != Tok.BW_OR {
+        for operand_type in (left_type, right_type) {
+            if isinstance(operand_type, AnyType) or operand_type.is_any_instance() {
+                return operand_type;
+            }
+            if isinstance(operand_type, UnknownType) {
+                if operand_type.is_diagnosed or operand_type.is_incomplete {
+                    return operand_type;
+                }
+                evaluator.emit_diag(
+                    E1055, expr, method=BINARY_OPERATOR_MAP[expr.op.name][0]
+                );
+                return UnknownType(is_diagnosed=True);
+            }
+        }
         if isinstance(left_type, TypeVarType) {
             (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
@@ -316,7 +358,12 @@ def get_type_of_binary_operation(
         if expr.op.name == Tok.BW_OR {
             if is_annotation_type(evaluator, left_type)
                 and is_annotation_type(evaluator, right_type) {
-                return UnionType(types=[left_type, right_type]);
+                return UnionType(
+                    types=[
+                        evaluator._convert_to_instance(left_type),
+                        evaluator._convert_to_instance(right_type)
+                    ]
+                );
             }
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
@@ -352,6 +399,10 @@ def get_type_of_binary_operation(
             if expr.op.name == Tok.BW_OR {
                 return UnionType(types=[left_type, right_type]);
             }
+            if _has_gradual_type_args(left_type)
+                or _has_gradual_type_args(right_type) {
+                return UnknownType();
+            }
             evaluator.emit_diag(E1055, expr, method=magic);
             return UnknownType();
         }
@@ -360,7 +411,10 @@ def get_type_of_binary_operation(
 
     if isinstance(expr.op, (ConnectOp, DisconnectOp)) {
         def is_node_type_instance(t: TypeBase) -> bool {
-            return (isinstance(t, ClassType) and t.is_node_type() and t.is_instance());
+            if isinstance(t, ClassType) and t.is_node_type() and t.is_instance() {
+                return True;
+            }
+            return _is_runtime_archetype_instance(t, "NodeArchetype");
         }
 
         def unparameterized_connect_collection(t: TypeBase) -> str | None {
@@ -517,6 +571,9 @@ def get_type_of_binary_operation(
             if isinstance(t, ClassType) and t.is_walker_type() and t.is_instance() {
                 return True;
             }
+            if _is_runtime_archetype_instance(t, "WalkerArchetype") {
+                return True;
+            }
             if isinstance(t, UnionType) {
                 return all(is_walker_instance(m) for m in t.types);
             }
@@ -536,6 +593,10 @@ def get_type_of_binary_operation(
             }
             if isinstance(t, ClassType) {
                 if t.is_node_type() or t.is_edge_type() {
+                    return True;
+                }
+                if _is_runtime_archetype_instance(t, "NodeArchetype")
+                    or _is_runtime_archetype_instance(t, "EdgeArchetype") {
                     return True;
                 }
                 if (
@@ -570,7 +631,12 @@ def get_type_of_binary_operation(
 
         target_node = expr.right if left_walker else expr.left;
         target_type = right_type if left_walker else left_type;
-        if not is_archetype_target(target_type) {
+        _jid_target = (
+            isinstance(target_type, ClassType)
+            and target_type.is_builtin("str")
+            and expr.in_client_context()
+        );
+        if not _jid_target and not is_archetype_target(target_type) {
             evaluator.emit_diag(E1115, target_node, type=str(target_type));
         }
 
