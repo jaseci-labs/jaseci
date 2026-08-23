@@ -400,6 +400,15 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
 
+INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
+    worktree on files byte-identical to HEAD - clean worktree of the same commit
+    passes. Reproduced 3x today (codegen 1068 AugAssign aa.op, emit kw_defaults,
+    defs). Root cause: cross-module inference cache not invalidating per-file
+    under concurrent edits by multiple agents. Rule until fixed: a failing
+    jac check in the shared tree MUST be re-run in an isolated worktree before
+    being treated as real. Bundles the phantom-cascade pattern seen with
+    objects/ceval mid-edits + annotations partials.
+
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
