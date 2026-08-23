@@ -564,7 +564,9 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     (CPython data-model special case). Sub-symptom: error renders class as
     'type()' not 'int()'; user classes render + bind correctly. Runtime
     error (compiles clean). Verified by CalmKnight pin. Found fuzz r60c.
-    Full report: ~/notes/match-stmt-fuzz-r60c.md.
+    Full report: ~/notes/match-stmt-fuzz-r60c.md. ROUTING NOTE (KeenFalcon):
+    the scalar-isinstance special case lives in ceval's MATCH_CLASS arm -
+    compiler-adjacent, route with match-stmt work, not generic VM slots.
 
 67. **[HIGH] Instance truthiness ignores __bool__ AND __len__ - always
     truthy.** if obj: takes TRUE branch even when __bool__ returns False
