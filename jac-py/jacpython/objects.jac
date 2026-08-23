@@ -696,6 +696,32 @@ obj PySlice(PyObj) {
             "AttributeError", "'slice' object has no attribute '" + name2 + "'"
         );
     }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # CPython slice_richcompare: eq/ne compare start, stop, step pairwise
+        # (PyObject_RichCompareBool -- identity shortcut and reflected slot
+        # included); the first unequal field decides. Ordering is NotImplemented,
+        # and a non-slice operand defers to the caller's identity fallback.
+        if kind != Py_EQ and kind != Py_NE {
+            return PY_NOT_IMPLEMENTED;
+        }
+        if not isinstance(other, PySlice) {
+            return PY_NOT_IMPLEMENTED;
+        }
+        os = other as PySlice;
+        fields: list[PyObj] = [self.start, self.stop, self.step];
+        other_fields: list[PyObj] = [os.start, os.stop, os.step];
+        for i in range(len(fields)) {
+            eq = _obj_eq(fields[i], other_fields[i]);
+            if is_error(eq) {
+                return eq;
+            }
+            if _richcompare_to_bool(eq) != 1 {
+                return PyBool(t="bool", val=kind == Py_NE);
+            }
+        }
+        return PyBool(t="bool", val=kind == Py_EQ);
+    }
 }
 
 obj PyTuple(PyObj) {
@@ -1748,6 +1774,7 @@ def _unhashable_error(what: str, v: PyObj) -> PyObj {
         "cannot use '" + name + "' as " + what
             + " (unhashable type: '" + name + "')"
     );
+}
 }
 
 def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
