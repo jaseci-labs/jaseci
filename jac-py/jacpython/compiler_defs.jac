@@ -313,6 +313,10 @@ def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
     # statement line with zero-width columns.
     cloc = loc(cd.lineno, cd.lineno, 0, 0);
     noloc = no_loc();
+    # CPython order: COPY_FREE_VARS (class-body free vars) precedes MAKE_CELLs.
+    if len(g.u.freevars) > 0 {
+        g.emit_op(OP_COPY_FREE_VARS, len(g.u.freevars), noloc);
+    }
     if len(g.u.cellvars) > 0 {
         ci = 0;
         while ci < len(g.u.cellvars) {
@@ -388,9 +392,25 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
     g.u.nested_code_emitted = True;
     g.emit_op(OP_LOAD_BUILD_CLASS, 0, cloc);
     g.emit_op(OP_PUSH_NULL, 0, cloc);
+    # Class body free vars: push the enclosing scope's cells as the closure
+    # tuple (LOAD_FAST_BORROW on a cell slot yields the cell itself), then
+    # attach it with SET_FUNCTION_ATTRIBUTE(closure).
+    cls_free = freevars_from_sym(sym_cls);
+    if len(cls_free) > 0 {
+        fi = 0;
+        while fi < len(cls_free) {
+            lp = localsplus_index(g, cls_free[fi]);
+            g.emit_op(OP_LOAD_FAST_BORROW, lp, cloc);
+            fi = fi + 1;
+        }
+        g.emit_op(OP_BUILD_TUPLE, len(cls_free), cloc);
+    }
     cidx = g.u.add_const(co);
     g.emit_op(OP_LOAD_CONST, cidx, cloc);
     g.emit_op(OP_MAKE_FUNCTION, 0, cloc);
+    if len(cls_free) > 0 {
+        g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, cloc);
+    }
     name_idx = g.u.add_const(PyStr(t="str", val=cd.name));
     g.emit_op(OP_LOAD_CONST, name_idx, cloc);
     emit_class_build_call(g, cd, cloc);
@@ -429,6 +449,11 @@ def compile_class_cfg(
         u.flags = CO_NESTED;
     }
     ann_plan = collect_ann_plan_class(cd, class_qname, sym_cls.nested);
+    # Class bodies are transparent closure scopes: free vars captured by
+    # methods (or direct body references to enclosing function cells) must
+    # survive into the class-body code object so method creation inside the
+    # body can close over those cells.
+    u.freevars = freevars_from_sym(sym_cls);
     if class_body_has_function(cd) or ann_plan.any_annotation
         or class_body_has_typealias(cd) {
         u.cellvars = ["__classdict__"];

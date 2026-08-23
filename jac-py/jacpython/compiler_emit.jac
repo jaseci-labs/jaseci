@@ -63,6 +63,7 @@ import from opcode_meta {
     OP_CALL_KW,
     OP_CALL_FUNCTION_EX,
     OP_LOAD_LOCALS,
+    OP_LOAD_FROM_DICT_OR_DEREF,
     OP_COMPARE_OP,
     OP_IS_OP,
     OP_CONTAINS_OP,
@@ -494,14 +495,16 @@ def emit_function_prologue(
     u.cellvars = cellvars_from_sym(sym_fn);
     u.freevars = freevars_from_sym(sym_fn);
     noloc = no_loc();
+    # CPython flowgraph order: COPY_FREE_VARS precedes the MAKE_CELLs
+    # (matches the annotation-format / generic-parameter scopes).
+    if len(u.freevars) > 0 {
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), noloc);
+    }
     ci = 0;
     while ci < len(u.cellvars) {
         lp = localsplus_index_u(u, u.cellvars[ci]);
         g.emit_op(OP_MAKE_CELL, lp, noloc);
         ci = ci + 1;
-    }
-    if len(u.freevars) > 0 {
-        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), noloc);
     }
     protect_start = -1;
     g.generator_protect_start = -1;
@@ -896,7 +899,16 @@ def emit_name_load(
         scope = sym_scope_of(flags);
         if scope == SCOPE_FREE or scope == SCOPE_CELL {
             idx = localsplus_index(g, name);
-            g.emit_op(OP_LOAD_DEREF, idx, tloc);
+            if g.sym_top.block_type == "class" and scope == SCOPE_FREE {
+                # Class bodies resolve free names through the class namespace
+                # first: LOAD_LOCALS + LOAD_FROM_DICT_OR_DEREF lets a same-named
+                # class attribute shadow the enclosing cell (CPython
+                # compile_name_op class-scope rule).
+                g.emit_op(OP_LOAD_LOCALS, 0, tloc);
+                g.emit_op(OP_LOAD_FROM_DICT_OR_DEREF, idx, tloc);
+            } else {
+                g.emit_op(OP_LOAD_DEREF, idx, tloc);
+            }
             return True;
         }
     }
