@@ -33,7 +33,6 @@ import from jaclang.jac0core.passes {
     BoundaryAnalysisPass,
     DeclImplMatchPass,
     EndpointEffectPass,
-    JacAnnexPass,
     JcirBytecodeGenPass,
     JcirGenPass,
     PlacementApplyPass,
@@ -1224,10 +1223,6 @@ obj JacCompiler {
         cancel_token: (Event | None) = None,
         prefix_kind: str = ''
     ) -> uni.Module;
-
-    def load_annex_modules(
-        mod: uni.Module, target_program: JacProgram
-    ) -> list[uni.Module];
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
