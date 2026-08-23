@@ -343,12 +343,12 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     Compiler lane (QuickBear or successor). Needs confirming probe with valid
     jac test-case syntax before fix.
 
-25. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
+12. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
     _cmp_int_vs_float in objects.jac used by BOTH polarities; truncation +
     fractional tie-break is exact host arithmetic; NaN/inf rules both ways.
     Pin pin-item25-float-int-eq-boundary GREEN (verified at origin HEAD).
 
-26. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
+13. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
     TypeError("unhashable type: '<t>'") for list/dict/set keys, left-to-right;
     raw-host-exception escape gone. Design note: not-yet-natively-hashed but
     host-hashable types (slice) keep opaque-host-map fallback - full strictness
@@ -358,14 +358,14 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     py_error` bypassed handler dispatch so guest try/except couldn't catch it;
     mirrors UNPACK_EX pattern).
 
-25. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
+14. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
     (2**53 + 1) == float(2**53 + 1) -> True on jacpython; CPython says False
     (exact comparison: 2**53+1 > 9007199254740992.0). Equality path converts
     int->float before comparing; f2b244955 fixed ordered compares/inf paths
     but not ==/!=. Fix: route float/int eq through the same exact machinery.
     Guard: pin-item25-float-int-eq-boundary.
 
-26. **[LOW-MED] Dict-display literal with unhashable key escapes the error
+15. **[LOW-MED] Dict-display literal with unhashable key escapes the error
     channel.** {[]: 'nope'} raises in a way that propagates OUT of exec_code
     (kills the caller) instead of returning PyError - while d[[]] = v (setitem
     form) correctly yields TypeError. Something in the BUILD_MAP/display path
@@ -373,27 +373,42 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
 
-27. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
+16. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
     raises NameError: name 'Py_EQ' is not defined - an internal symbol leaking
     as a guest NameError from the bytes comparison path. bytearray == also
     returns wrong values. All 10 gen-bytes cases red. Owner: runtime lane.
 
-28. **[MED] return value lost after catching user-defined exception subclass
+17. **[MED] return value lost after catching user-defined exception subclass
     (F2, gen-closure cases).** Function raises SubCls, caller catches it,
     subsequent return value vanishes. Owner: runtime/exception lane.
 
-29. **[MED] implicit __context__ chain broken (F3, gen-exc cases).**
-    raise-inside-except leaves e.__context__ = None; CPython chains
+18. **[MED] implicit **context** chain broken (F3, gen-exc cases).**
+    raise-inside-except leaves e.**context** = None; CPython chains
     ValueError('inner') onto TypeError('outer'). Verified by BrightTiger at
     HEAD f2848d5d6. Relevant to YoungHawk's exception work; interacts with
     pin-ok-exc-chaining-nesteddef (already red).
 
-30. **[MED] two lambda-returning comprehensions in one scope corrupt first
+19. **[MED] two lambda-returning comprehensions in one scope corrupt first
     closure cells (F4, gen-closure-002/005/008).** Second comprehension's
     cell writes clobber the first's. Compiler-lane suspect (cellvar/closure
     emission). Owner: KeenFalcon or compiler lane.
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
+
+31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
+    CPython supports slice hash since 3.12. Ownerless.
+
+ITEM 19 ADDENDUM (from replay-widener-2): test_range replay HANGS/OOMS
+    (exit 124/137) - likely huge-int range pair spinning ceval. Folded into
+    PyRange P1 acceptance: after native PyRange lands, test_range replay must
+    COMPLETE. Item 27 evidence: bytes-vs-str richcompare also raises instead
+    of NotImplemented->False - missing richcompare arm covers cross-type too.
+    Harness-limit stems awaiting fixture/module-setup support: enumerate,
+    hashlib, memoryview, setcomps. Known ownerless family:
+    user-class-subclass-instantiation (test_set keywords_in_subclass, failed=2,
+    predates today's debris).
+
+INVARIANT (from item 26 residual, 94892ac40):
 
 INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
     own opcode body must route through recover_exception(co, err, offset, stack)
@@ -687,12 +702,12 @@ green. Class-decorator support needs pinning elsewhere.
     Compiler lane (QuickBear or successor). Needs confirming probe with valid
     jac test-case syntax before fix.
 
-25. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
+7. **[MED][FIXED 1979d1d08, WildRaven] int/float EQUALITY exactness restored.** Shared
     _cmp_int_vs_float in objects.jac used by BOTH polarities; truncation +
     fractional tie-break is exact host arithmetic; NaN/inf rules both ways.
     Pin pin-item25-float-int-eq-boundary GREEN (verified at origin HEAD).
 
-26. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
+8. **[LOW-MED][FIXED 1979d1d08, WildRaven]** BUILD_MAP raises CPython-exact
     TypeError("unhashable type: '<t>'") for list/dict/set keys, left-to-right;
     raw-host-exception escape gone. Design note: not-yet-natively-hashed but
     host-hashable types (slice) keep opaque-host-map fallback - full strictness
@@ -702,14 +717,14 @@ green. Class-decorator support needs pinning elsewhere.
     py_error` bypassed handler dispatch so guest try/except couldn't catch it;
     mirrors UNPACK_EX pattern).
 
-25. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
+9. **[MED] int/float EQUALITY loses exactness at 2^53 boundary.**
     (2**53 + 1) == float(2**53 + 1) -> True on jacpython; CPython says False
     (exact comparison: 2**53+1 > 9007199254740992.0). Equality path converts
     int->float before comparing; f2b244955 fixed ordered compares/inf paths
     but not ==/!=. Fix: route float/int eq through the same exact machinery.
     Guard: pin-item25-float-int-eq-boundary.
 
-26. **[LOW-MED] Dict-display literal with unhashable key escapes the error
+10. **[LOW-MED] Dict-display literal with unhashable key escapes the error
     channel.** {[]: 'nope'} raises in a way that propagates OUT of exec_code
     (kills the caller) instead of returning PyError - while d[[]] = v (setitem
     form) correctly yields TypeError. Something in the BUILD_MAP/display path
@@ -717,27 +732,42 @@ green. Class-decorator support needs pinning elsewhere.
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
 
-27. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
+11. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
     raises NameError: name 'Py_EQ' is not defined - an internal symbol leaking
     as a guest NameError from the bytes comparison path. bytearray == also
     returns wrong values. All 10 gen-bytes cases red. Owner: runtime lane.
 
-28. **[MED] return value lost after catching user-defined exception subclass
+12. **[MED] return value lost after catching user-defined exception subclass
     (F2, gen-closure cases).** Function raises SubCls, caller catches it,
     subsequent return value vanishes. Owner: runtime/exception lane.
 
-29. **[MED] implicit __context__ chain broken (F3, gen-exc cases).**
-    raise-inside-except leaves e.__context__ = None; CPython chains
+13. **[MED] implicit **context** chain broken (F3, gen-exc cases).**
+    raise-inside-except leaves e.**context** = None; CPython chains
     ValueError('inner') onto TypeError('outer'). Verified by BrightTiger at
     HEAD f2848d5d6. Relevant to YoungHawk's exception work; interacts with
     pin-ok-exc-chaining-nesteddef (already red).
 
-30. **[MED] two lambda-returning comprehensions in one scope corrupt first
+14. **[MED] two lambda-returning comprehensions in one scope corrupt first
     closure cells (F4, gen-closure-002/005/008).** Second comprehension's
     cell writes clobber the first's. Compiler-lane suspect (cellvar/closure
     emission). Owner: KeenFalcon or compiler lane.
 
 Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
+
+31. **[LOW] hash(slice(...)) unsupported** (replay-widener-2, test_slice stem).
+    CPython supports slice hash since 3.12. Ownerless.
+
+ITEM 19 ADDENDUM (from replay-widener-2): test_range replay HANGS/OOMS
+    (exit 124/137) - likely huge-int range pair spinning ceval. Folded into
+    PyRange P1 acceptance: after native PyRange lands, test_range replay must
+    COMPLETE. Item 27 evidence: bytes-vs-str richcompare also raises instead
+    of NotImplemented->False - missing richcompare arm covers cross-type too.
+    Harness-limit stems awaiting fixture/module-setup support: enumerate,
+    hashlib, memoryview, setcomps. Known ownerless family:
+    user-class-subclass-instantiation (test_set keywords_in_subclass, failed=2,
+    predates today's debris).
+
+INVARIANT (from item 26 residual, 94892ac40):
 
 INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
     own opcode body must route through recover_exception(co, err, offset, stack)
