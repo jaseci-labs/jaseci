@@ -3316,6 +3316,11 @@ impl JcirGenPass._fold_sorted_traversal(nd: FuncCall) -> bool {
     (node_ty, edge_ty) = self._final_hop_types(trav);
     specs = self._sort_order_specs(key_expr, node_ty, edge_ty);
     if specs is None {
+        self.emit(
+            W5096,
+            node_override=key_expr,
+            reason='sort key is not a field access, so it has no ORDER BY form'
+        );
         return False;
     }
     outs = self.outs(trav);
@@ -3455,6 +3460,7 @@ impl JcirGenPass.exit_func_call(nd: FuncCall) -> None {
     if self._fold_sorted_traversal(nd) {
         return;
     }
+    self._warn_inplace_sort(nd);
     if nd.genai_call {
         self._refuse(nd, 'genai call expression');
     }
@@ -3836,6 +3842,41 @@ impl JcirGenPass._query_filter_kws_ord(
     }
     return (kws, saw_order);
 }
+
+impl JcirGenPass._warn_inplace_sort(nd: FuncCall) -> None {
+    tgt = nd.target;
+    if (not isinstance(tgt, AtomTrailer))
+        or not tgt.is_attr
+        or not isinstance(tgt.right, Name)
+        or tgt.right.sym_name != 'sort' {
+        return;
+    }
+    base = tgt.target;
+    if not isinstance(base, Name) {
+        return;
+    }
+    sym = base.sym;
+    if sym is None {
+        return;
+    }
+    for defn in sym.defn {
+        assign = defn.parent;
+        if isinstance(assign, Assignment)
+            and assign.value is not None
+            and isinstance(assign.value, EdgeRefTrailer) {
+            self.emit(
+                W5096,
+                node_override=nd,
+                reason=(
+                    f"'{base.sym_name}' holds a traversal and .sort() cannot "
+                    f"fold; use sorted(), or order inside the reference"
+                )
+            );
+            return;
+        }
+    }
+}
+
 
 impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
     parent = nd.parent;

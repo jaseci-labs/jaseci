@@ -153,6 +153,7 @@ import from jaclang.jac0core.diagnostics {
     E5007,
     E5008,
     E5094,
+    W5096,
     E5098
 }
 
@@ -526,6 +527,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def exit_special_var_ref(nd: SpecialVarRef) -> None;
     def exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None;
     def _traversal_consumed_now(nd: EdgeRefTrailer) -> bool;
+    def _warn_inplace_sort(nd: FuncCall) -> None;
     def exit_edge_op_ref(nd: EdgeOpRef) -> None;
     def exit_disconnect_op(nd: DisconnectOp) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;
