@@ -68,63 +68,18 @@ def _load_json(path: str) -> dict {
 }
 
 
-def _expected_stems(wave: int) -> list {
-    if wave == 2 {
-        return ["_opcode", "_stat", "math_gcd", "pystrnicmp"];
-    }
-    if wave == 3 {
-        return ["math_count_bits", "math_lcm_long", "pyctype_digit", "strhex_byte"];
-    }
-    if wave == 4 {
-        return ["math_factorial_small", "pyctype_alpha", "pyctype_space", "pystricmp"];
-    }
-    if wave == 5 {
-        return ["math_isqrt_small", "pyctype_alnum", "pyctype_lower", "pyctype_xdigit"];
-    }
-    if wave == 6 {
-        return ["math_pow2_check", "pyctype_print", "pyctype_punct", "pyctype_upper"];
-    }
-    if wave == 7 {
-        return ["math_ilog2_small", "pyctype_blank", "pyctype_cntrl", "pyctype_graph"];
-    }
-    if wave == 8 {
-        return ["math_abs_diff", "math_clz32_small", "math_ctz_small", "math_min_u"];
-    }
-    if wave == 9 {
-        return ["math_max_u", "pystr_count_char", "pystr_find_char", "pystr_len_c"];
-    }
-    if wave == 10 {
-        return ["math_gcd_iter", "math_lcm_u", "pystr_endswith_c", "pystr_startswith_c"];
-    }
-    if wave == 11 {
-        return ["math_popcount_u", "math_pow_mod", "pystr_cmp_c", "pystr_contains_c"];
-    }
-    if wave == 12 {
-        return ["itertoolsmodule"];
-    }
-    if wave == 13 {
-        return ["structmodule"];
-    }
-    if wave == 14 {
-        return ["arraymodule"];
-    }
-    if wave == 15 {
-        return ["jsonmodule"];
-    }
-    if wave == 16 {
-        return ["binasciimodule"];
-    }
-    if wave == 17 {
-        return ["_csv"];
-    }
-    if wave == 18 {
-        return ["randommodule"];
-    }
-    if wave == 19 {
-        return ["collectionsmodule"];
-    }
+def _corpus_manifest_path(wave: int) -> str {
+    return os.path.join(
+        REPO_ROOT, "jac-py", "tools", f"p2_corpus_wave{wave}", "manifest.json"
+    );
+}
 
-    return [];
+
+# Expected stems come straight from the wave's corpus lift manifest, so a new
+# wave needs no inventory edits here.
+def _expected_stems(wave: int) -> list {
+    manifest = _load_json(_corpus_manifest_path(wave));
+    return sorted([row["stem"] for row in (manifest["files"] as list)]);
 }
 
 
@@ -828,6 +783,28 @@ def _wave_11_cases(errors: list) {
 }
 
 
+def _check_declared_oracle_tests(modules: list) -> str {
+    # Waves without inline differential drivers are gated by the oracle_tests
+    # each module declares in its conformance manifest (facade parity suites);
+    # every entry must exist so declared coverage cannot rot silently.
+    missing: list = [];
+    for row in modules {
+        tests = row.get("oracle_tests");
+        if (tests is None) or len((tests as list)) == 0 {
+            missing.append(f"{row['stem']}: no oracle_tests declared");
+            continue;
+        }
+        for t in (tests as list) {
+            path = os.path.join(TESTS, t as str);
+            if not os.path.isfile(path) {
+                missing.append(f"{row['stem']}: oracle_tests entry not found: {t}");
+            }
+        }
+    }
+    return "; ".join(missing);
+}
+
+
 def _run_wave_cases(wave: int) -> list {
     errors: list = [];
     if wave == 2 {
@@ -868,9 +845,9 @@ def _run_wave_cases(wave: int) -> list {
     }
     if wave == 11 {
         _wave_11_cases(errors);
-        return errors;
     }
-    errors.append(f"wave {wave}: no oracle cases");
+    # Waves without inline drivers (12+) return no errors here; their
+    # differential coverage is enforced via _check_declared_oracle_tests.
     return errors;
 }
 
@@ -892,6 +869,10 @@ test "P2 waves 2-11 module oracles" {
             continue;
         }
         errors = _run_wave_cases(wave);
+        declared_error = _check_declared_oracle_tests(modules);
+        if declared_error {
+            errors.append(declared_error);
+        }
         if len(errors) > 0 {
             print(f"wave {wave}: FAIL ({len(errors)} oracle cases)");
             failures.extend(errors);
