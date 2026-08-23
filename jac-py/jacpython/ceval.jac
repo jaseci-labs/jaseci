@@ -1416,6 +1416,16 @@ obj PyClass(PyObj) {
                     if ir.t == "error" {
                         return ir;
                     }
+                } elif self.native_base == "set" and len(kwargs) > 0 {
+                    # No user __init__: CPython's type_call still runs the
+                    # MRO-resolved initializer -- set.__init__, which rejects
+                    # keywords (`subclass_with_new(x, newarg=3)` must raise).
+                    # list/tuple/frozenset resolve leniently here (their slot
+                    # inheritance drops excess args); dict consumed **kwds at
+                    # __new__ time.
+                    return py_error(
+                        "TypeError", "set() takes no keyword arguments"
+                    );
                 }
             }
             return made;
@@ -1431,6 +1441,15 @@ obj PyClass(PyObj) {
         has_user_init = not is_error(init);
         boxed: PyObj = py_none();
         if self.native_base != "" {
+            if not has_user_init and len(kwargs) > 0
+                and self.native_base != "dict" {
+                # With no user __init__ the MRO-resolved initializer is the
+                # builtin base's own -- it rejects keywords exactly as the bare
+                # constructor does (`Sub(sequence=())` must TypeError).
+                return py_error(
+                    "TypeError", self.native_base + "() takes no keyword arguments"
+                );
+            }
             box_args = args;
             if has_user_init and is_mutable_base(self.native_base) {
                 box_args = [];
@@ -1438,6 +1457,16 @@ obj PyClass(PyObj) {
             boxed = construct_native_base(self.native_base, box_args);
             if is_error(boxed) {
                 return boxed;
+            }
+            if not has_user_init and self.native_base == "dict"
+                and len(kwargs) > 0 {
+                # dict is the one base whose constructor consumes **kwds.
+                upd = PyDictMethod(
+                    t="dict_method", target=(boxed as PyDict), name="update"
+                ).tp_call([], kwargs);
+                if upd.t == "error" {
+                    return upd;
+                }
             }
         }
         instance = PyUserObj(t="instance", cls=self, attrs={}, base=boxed);
@@ -4360,17 +4389,54 @@ obj PyBuiltinSuperMethod(PyObj) {
         n = self.name;
         b = self.base;
         if n == "__init__" {
-            # super().__init__(...) on a mutable base. Empty (the common case, e.g.
-            # EnumDict) is a no-op; a mapping argument fills the boxed dict.
+            # super().__init__(...) on a boxed builtin base runs the base's OWN
+            # initializer over the live boxed storage -- in CPython terms the
+            # MRO-resolved __init__ IS set_init/list_init/dict_init. Immutable
+            # bases have no initializer of their own (tuple/frozenset/str/int
+            # inherit object.__init__), so their args are ignored. The box is
+            # mutated IN PLACE -- never marshaled through to_host (a copy would
+            # silently no-op for mutators).
             if len(args) == 0 {
                 return py_none();
             }
-            if isinstance(b, PyDict) and isinstance(args[0], PyDict) {
-                src = args[0] as PyDict;
-                for keyobj in src.dict_keys() {
-                    (b as PyDict).dict_set(keyobj, src.mp_subscript(keyobj));
+            if isinstance(b, PyList) {
+                lst = b as PyList;
+                if len(kwargs) > 0 {
+                    return py_error(
+                        "TypeError", "list() takes no keyword arguments"
+                    );
                 }
-                return py_none();
+                if len(args) > 1 {
+                    return py_error(
+                        "TypeError", "list() takes at most one argument"
+                    );
+                }
+                lst.items = [];
+                return PyListMethod(
+                    t="list_method", target=lst, name="extend"
+                ).tp_call([args[0]], {});
+            }
+            if isinstance(b, PySet) {
+                s = b as PySet;
+                if len(kwargs) > 0 {
+                    return py_error(
+                        "TypeError", "set() takes no keyword arguments"
+                    );
+                }
+                if len(args) > 1 {
+                    return py_error(
+                        "TypeError", "set() takes at most one argument"
+                    );
+                }
+                s.set_clear();
+                return PySetMethod(
+                    t="set_method", target=s, name="update"
+                ).tp_call(args, {});
+            }
+            if isinstance(b, PyDict) {
+                return PyDictMethod(
+                    t="dict_method", target=(b as PyDict), name="update"
+                ).tp_call(args, kwargs);
             }
             return py_none();
         }
