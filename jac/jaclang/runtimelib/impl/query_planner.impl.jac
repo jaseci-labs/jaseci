@@ -34,19 +34,31 @@ impl _origin_anchors(q: GraphQuery) -> list[Anchor] {
 
 impl _sql_pairs(
     mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
-) -> list[tuple[(UUID | None), (UUID | None)]] {
+) -> tuple[list[tuple[(UUID | None), (UUID | None)]], list[QPred]] {
     store = mem.store;
     if store is None or not origin_ids {
-        return [];
+        return ([], []);
     }
     mem.read_barrier();
     cq = compile_query(q, upto, promotions=store?.promotions);
+    tail: list[QPred] = [];
     if cq.residual {
-        logger.warning(
-            f"graph query has non-pushable predicates at hops "
-            f"{sorted(cq.residual.keys())}; they are re-checked on the "
-            f"materialized results only"
+        last = upto - 1;
+        early = sorted(
+            [
+                h
+                for h in cq.residual.keys()
+                if h != last
+            ]
         );
+        if early {
+            logger.error(
+                f"graph query has non-pushable predicates at intermediate hops "
+                f"{early}; results downstream of them are not filtered by those "
+                f"predicates"
+            );
+        }
+        tail = list(cq.residual.get(last) or []);
     }
     cq.params['origin'] = [str(i) for i in origin_ids];
     out: list[tuple[(UUID | None), (UUID | None)]] = [];
@@ -55,7 +67,29 @@ impl _sql_pairs(
         eid = UUID(str(r[1])) if r[1] is not None else None;
         out.append((nid, eid));
     }
-    return out;
+    return (out, tail);
+}
+
+
+def _tail_ok(anchor: Anchor, tail: list[QPred]) -> bool {
+    arch = anchor.archetype;
+    if arch is None {
+        return False;
+    }
+    for p in tail {
+        if not p.matches(_pred_subject(arch, p)) {
+            return False;
+        }
+    }
+    return True;
+}
+
+
+def _pred_subject(arch: any, p: QPred) -> any {
+    if isinstance(p.field, tuple) {
+        return tuple(getattr(arch, name, None) for name in p.field);
+    }
+    return getattr(arch, p.field, None);
 }
 
 
@@ -92,7 +126,7 @@ impl _edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
         return None;
     }
     for p in hop.epreds {
-        if not p.matches(getattr(e.archetype, p.field, None)) {
+        if not p.matches(_pred_subject(e.archetype, p)) {
             return None;
         }
     }
@@ -114,7 +148,7 @@ impl _hop_matches_node(anchor: Anchor, hop: QHop) -> bool {
         }
     }
     for p in hop.preds {
-        if not p.matches(getattr(anchor.archetype, p.field, None)) {
+        if not p.matches(_pred_subject(anchor.archetype, p)) {
             return False;
         }
     }
@@ -166,7 +200,7 @@ impl _walk_memory(
 
 def _resolve_pairs(
     mem: Session, q: GraphQuery, upto: int
-) -> tuple[list[tuple[(UUID | None), (UUID | None)]], dict[UUID, Anchor]] {
+) -> tuple[list[tuple[(UUID | None), (UUID | None)]], dict[UUID, Anchor], list[QPred]] {
     origins = _origin_anchors(q);
     local: dict[UUID, Anchor] = {};
     sql_ids: list[UUID] = [];
@@ -179,7 +213,7 @@ def _resolve_pairs(
         }
         local[oanch.id] = oanch;
     }
-    pairs = _sql_pairs(mem, sql_ids, q, upto);
+    (pairs, tail) = _sql_pairs(mem, sql_ids, q, upto);
     if upto == 0 {
         pairs = [(i, None) for i in sql_ids];
     }
@@ -190,7 +224,7 @@ def _resolve_pairs(
         }
         pairs.append((a.id, e.id if e is not None else None));
     }
-    return (pairs, local);
+    return (pairs, local, tail);
 }
 
 
@@ -228,7 +262,7 @@ def _unique_nodes(pairs: list[tuple[(UUID | None), (UUID | None)]]) -> list[UUID
 
 
 impl resolve_query_prefix(mem: Session, q: GraphQuery, upto: int) -> list[UUID] {
-    (pairs, _) = _resolve_pairs(mem, q, upto);
+    (pairs, _local, _tail) = _resolve_pairs(mem, q, upto);
     return _unique_nodes(pairs);
 }
 
@@ -237,9 +271,16 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
     if not q.origin {
         return [];
     }
-    (pairs, local) = _resolve_pairs(mem, q, len(q.hops));
+    (pairs, local, tail) = _resolve_pairs(mem, q, len(q.hops));
     ids = _unique_nodes(pairs);
     out = _materialize_ids(mem, ids, local);
+    if tail {
+        out = [
+            a
+            for a in out
+            if _tail_ok(a, tail)
+        ];
+    }
     if _acl_gated() {
         out = [
             a
@@ -258,7 +299,7 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
     if not q.origin or not q.hops {
         return [];
     }
-    (pairs, local) = _resolve_pairs(mem, q, len(q.hops));
+    (pairs, local, tail) = _resolve_pairs(mem, q, len(q.hops));
     edge_ids: list[UUID] = [];
     node_of: dict[UUID, UUID] = {};
     seen: set[UUID] = set();

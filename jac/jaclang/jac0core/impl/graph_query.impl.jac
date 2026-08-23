@@ -1,6 +1,41 @@
+impl QPred._check_composite -> None {
+    names: tuple = self.field;
+    if self.op not in ORDERED_OPS and self.op not in ('==', '!=') {
+        raise ValueError(
+            f"QPred composite key admits ==, != and {sorted(ORDERED_OPS)}, "
+            f"got '{self.op}'"
+        );
+    }
+    if not names {
+        raise TypeError("QPred composite key needs at least one field name");
+    }
+    if not isinstance(self.value, tuple) or len(self.value) != len(names) {
+        raise TypeError(
+            f"QPred composite key of arity {len(names)} needs a tuple value "
+            f"of the same arity"
+        );
+    }
+    for (name, v) in zip(names, self.value) {
+        if not isinstance(name, str) or not name {
+            raise TypeError("QPred composite key entries must be field names");
+        }
+        if not isinstance(v, (str, int, float)) {
+            raise TypeError(
+                f"QPred composite key element '{name}' must be str/int/float, "
+                f"got {type(v).__name__}"
+            );
+        }
+    }
+}
+
+
 impl QPred.postinit -> None {
     if self.op not in QUERY_OPS {
         raise ValueError(f"QPred op '{self.op}' outside the closed query sublanguage");
+    }
+    if isinstance(self.field, tuple) {
+        self._check_composite();
+        return;
     }
     if self.op == 'in' {
         if not isinstance(self.value, (list, tuple, set, frozenset)) {
@@ -33,6 +68,36 @@ impl QPred.postinit -> None {
 
 impl QPred.matches(subject: any) -> bool {
     val = self.value;
+    if isinstance(self.field, tuple) {
+        if not isinstance(subject, tuple) or len(subject) != len(val) {
+            return False;
+        }
+        for part in subject {
+            if part is None {
+                return False;
+            }
+        }
+        if self.op == '==' {
+            return subject == val;
+        }
+        if self.op == '!=' {
+            return subject != val;
+        }
+        try {
+            if self.op == '<' {
+                return subject < val;
+            }
+            if self.op == '<=' {
+                return subject <= val;
+            }
+            if self.op == '>' {
+                return subject > val;
+            }
+            return subject >= val;
+        } except TypeError {
+            return False;
+        }
+    }
     if self.op == '==' {
         return subject == val;
     }

@@ -3460,6 +3460,7 @@ impl JcirGenPass._query_filter_kws(
         reason: str = '';
         field_name: str = '';
         op_str: str = '';
+        composite_names: list[str] = [];
         if cmp_ast.cls != 'Compare' {
             reason = 'not a comparison';
         } else {
@@ -3467,6 +3468,37 @@ impl JcirGenPass._query_filter_kws(
             left = cmp_ast.get('left');
             if len(ops) != 1 {
                 reason = 'chained comparisons are not admitted';
+            } elif isinstance(left, CgNode) and left.cls == 'Tuple' {
+                op_node = ops[0];
+                resolved = self._cmp_op_str(op_node)
+                    if isinstance(op_node, CgNode)
+                    else None;
+                names: list[str] = [];
+                for elt in left.get('elts') {
+                    if isinstance(elt, CgNode) and elt.cls == 'Name' {
+                        eid = elt.get('id');
+                        if isinstance(eid, str) {
+                            names.append(eid);
+                        }
+                    }
+                }
+                right = cmp_ast.get('comparators')[0];
+                if resolved is None or resolved == 'in' {
+                    reason = 'a composite key has no ordering for this operator';
+                } elif (not names) or len(names) != len(left.get('elts')) {
+                    reason = 'a composite key must be a tuple of declared field names';
+                } elif (
+                    (not isinstance(right, CgNode))
+                    or right.cls != 'Tuple'
+                    or len(right.get('elts')) != len(names)
+                ) {
+                    reason = f"a composite key of arity {len(
+                        names
+                    )} needs a tuple value of the same arity";
+                } else {
+                    composite_names = names;
+                    op_str = resolved;
+                }
             } elif (not isinstance(left, CgNode)) or (left.cls != 'Name') {
                 reason = 'left side must be a declared field name';
             } else {
@@ -3503,7 +3535,22 @@ impl JcirGenPass._query_filter_kws(
                             self.nod(
                                 'keyword',
                                 ['arg', 'value'],
-                                ['field', self.const_of(field_name)]
+                                [
+                                    'field',
+                                    self.nod(
+                                        'Tuple',
+                                        ['elts', 'ctx'],
+                                        [
+                                            [
+                                                self.const_of(nm)
+                                                for nm in composite_names
+                                            ],
+                                            self.nod('Load', [], [])
+                                        ]
+                                    )
+                                        if composite_names
+                                        else self.const_of(field_name)
+                                ]
                             ),
                             self.nod(
                                 'keyword',

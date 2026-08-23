@@ -9,11 +9,12 @@ glob QUERY_OPS: frozenset[str] = frozenset(
 
 
 obj QPred {
-    has field: str,
+    has field: str | tuple[str, ...],
         op: str,
         value: any;
 
     def postinit -> None;
+    def _check_composite -> None;
     def matches(subject: any) -> bool;
     def repr -> str;
 }

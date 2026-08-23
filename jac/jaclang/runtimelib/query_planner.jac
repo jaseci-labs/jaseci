@@ -14,7 +14,13 @@ def _origin_anchors(q: GraphQuery) -> list[Anchor];
 
 def _sql_pairs(
     mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
-) -> list[tuple[(UUID | None), (UUID | None)]];
+) -> tuple[list[tuple[(UUID | None), (UUID | None)]], list[QPred]];
+
+
+def _tail_ok(anchor: Anchor, tail: list[QPred]) -> bool;
+
+
+def _pred_subject(arch: any, p: QPred) -> any;
 
 
 def _edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None);

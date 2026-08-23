@@ -90,6 +90,35 @@ def _field_expr(
 }
 
 
+def _row_cond(
+    alias: str,
+    p: QPred,
+    params: dict,
+    pfx: str,
+    arch_names: list[str],
+    promotions: (dict | None)
+) -> (str | None) {
+    op = {'<': '<', '<=': '<=', '>': '>', '>=': '>=', '==': '=', '!=': '<>'}.get(p.op);
+    if op is None {
+        return None;
+    }
+    names: tuple = p.field;
+    vals: tuple = p.value;
+    lhs: list[str] = [];
+    rhs: list[str] = [];
+    for (i, name) in enumerate(names) {
+        if not _ident_ok(name) {
+            return None;
+        }
+        key = f"{pfx}k{i}";
+        params[key] = _scalar(vals[i]);
+        lhs.append(_field_expr(alias, name, arch_names, promotions));
+        rhs.append(f"to_jsonb(CAST(:{key} AS {_sql_type_of(vals[i])}))");
+    }
+    return f"({', '.join(lhs)}) {op} ({', '.join(rhs)})";
+}
+
+
 def _pred_cond(
     alias: str,
     p: QPred,
@@ -98,6 +127,9 @@ def _pred_cond(
     arch_names: (list[str] | None) = None,
     promotions: (dict | None) = None
 ) -> (str | None) {
+    if isinstance(p.field, tuple) {
+        return _row_cond(alias, p, params, pfx, arch_names or [], promotions);
+    }
     if not _ident_ok(p.field) or not _pushable_value(p.value) {
         return None;
     }

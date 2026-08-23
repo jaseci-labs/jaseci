@@ -108,3 +108,90 @@ test "an unpromoted field still compiles, via the jsonb path" {
     assert "props->'archetype'->'body'" in cq.sql , cq.sql;
     assert not cq.residual , cq.residual;
 }
+
+
+test "a composite key of field names against scalars constructs" {
+    p = QPred(field=("at", "seq"), op="<", value=(5, 10));
+    assert p.field == ("at", "seq");
+    assert p.value == (5, 10);
+}
+
+
+test "a composite key rejects an arity mismatch" {
+    raised = False;
+    try {
+        _ = QPred(field=("at", "seq"), op="<", value=(5, ));
+    } except TypeError {
+        raised = True;
+    }
+    assert raised , "arity mismatch must not construct";
+}
+
+
+test "a composite key rejects a non-scalar element" {
+    raised = False;
+    try {
+        _ = QPred(field=("at", "seq"), op="<", value=(5, [1, 2]));
+    } except TypeError {
+        raised = True;
+    }
+    assert raised , "a non-scalar key element must not construct";
+}
+
+
+test "a composite key rejects an operator it cannot order by" {
+    raised = False;
+    try {
+        _ = QPred(field=("at", "seq"), op="in", value=(5, 10));
+    } except ValueError {
+        raised = True;
+    }
+    assert raised , "'in' has no row-comparison meaning";
+}
+
+
+test "a composite key matches lexicographically in object space" {
+    p = QPred(field=("at", "seq"), op="<", value=(5, 10));
+    assert p.matches((5, 9));
+    assert not p.matches((5, 10));
+    assert not p.matches((6, 0));
+    assert p.matches((4, 999));
+}
+
+
+test "a promoted composite key compiles to a row comparison" {
+    q = GraphQuery(
+        [],
+        hops=[
+            QHop(
+                dir=2,
+                nd=PMsg,
+                preds=[QPred(field=("at", "seq"), op="<", value=(5, 10))]
+            )
+        ]
+    );
+    cq = compile_query(q, 1, promotions=PROMOS);
+    assert "(n1.g_pmsg_at, n1.g_pmsg_seq) <" in cq.sql , cq.sql;
+    assert not cq.residual , cq.residual;
+}
+
+
+test "an unpromoted composite key still compiles, via the jsonb path" {
+    q = GraphQuery(
+        [],
+        hops=[
+            QHop(
+                dir=2,
+                nd=PMsg,
+                preds=[QPred(field=("at", "body"), op="<", value=(5, "x"))]
+            )
+        ]
+    );
+    cq = compile_query(q, 1, promotions=PROMOS);
+    assert not cq.residual , (
+        f"correctness must not depend on whether an index was declared: "
+        f"{cq.residual}"
+    );
+    assert "n1.g_pmsg_at" in cq.sql , cq.sql;
+    assert "props->'archetype'->'body'" in cq.sql , cq.sql;
+}
