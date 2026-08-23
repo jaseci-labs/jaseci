@@ -599,14 +599,10 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
             }
             last_err = res.stderr.strip() or f"initdb exited {res.returncode}";
         } except Exception as e {
-            # TimeoutExpired and spawn failures leave a partial cluster
-            # behind; initdb refuses non-empty data dirs, so the retry
-            # must start from a clean slate.
             last_err = str(e);
         }
         logger.warning(
-            f"initdb attempt {attempt + 1}/2 failed, "
-            f"resetting data dir: {last_err}"
+            f"initdb attempt {attempt + 1}/2 failed, " f"resetting data dir: {last_err}"
         );
         shutil.rmtree(self.data_dir, ignore_errors=True);
     }

@@ -27,10 +27,7 @@ test "initdb timeout wipes partial cluster and retries successfully" {
         return type("R", (), {"returncode": 0, "stderr": ""})();
     }
 
-    with patch(
-        "jaclang.runtimelib.pgembed.subprocess.run",
-        side_effect=fake_run
-    ) {
+    with patch("jaclang.runtimelib.pgembed.subprocess.run", side_effect=fake_run) {
         rt._initdb_if_needed(bin_dir="/nonexistent/bin");
     }
     assert len(calls) == 2 , f"expected one retry, got {len(calls)} attempts";
@@ -48,10 +45,7 @@ test "initdb failure exhausts retries and leaves a clean slate" {
 
     failed = False;
     try {
-        with patch(
-            "jaclang.runtimelib.pgembed.subprocess.run",
-            side_effect=fake_run
-        ) {
+        with patch("jaclang.runtimelib.pgembed.subprocess.run", side_effect=fake_run) {
             rt._initdb_if_needed(bin_dir="/nonexistent/bin");
         }
     } except Exception {
@@ -59,6 +53,5 @@ test "initdb failure exhausts retries and leaves a clean slate" {
     }
     assert len(calls) == 2 , f"expected exactly two attempts, got {len(calls)}";
     assert failed , "exhausted initdb must raise";
-    assert not os.path.exists(data_dir) or os.listdir(data_dir) == [] ,
-        "partial cluster must not survive a failed provision";
+    assert not os.path.exists(data_dir) or os.listdir(data_dir) == [] , "partial cluster must not survive a failed provision";
 }
