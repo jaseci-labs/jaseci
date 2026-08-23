@@ -381,22 +381,6 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
     }
 
     if node_.find_parent_of_type(Import) is not None {
-        def _extern_annotated(ann: Expr | None) -> TypeBase {
-            if ann is None {
-                return AnyType(is_foreign=True);
-            }
-            _scalar = self._extern_scalar_type(ann);
-            if not (isinstance(_scalar, AnyType) and _scalar.foreign_scalar is None) {
-                return _scalar;
-            }
-            _at = self._convert_to_instance(self.get_type_of_expression(ann));
-            _arch = _at.shared.symbol_table if isinstance(_at, ClassType) else None;
-            if isinstance(_arch, Archetype)
-                and _arch.find_parent_of_type(Import) is not None {
-                return _at;
-            }
-            return AnyType(is_foreign=True);
-        }
         extern_params: list[Parameter] = [];
         ret_type: TypeBase = AnyType(is_foreign=True);
         if isinstance(node_.signature, FuncSignature) {
@@ -405,7 +389,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                     Parameter(
                         name=extern_param.name.value,
                         category=_get_param_category(extern_param),
-                        param_type=_extern_annotated(
+                        param_type=self._extern_ability_type(
                             extern_param.type_tag.tag if extern_param.type_tag else None
                         ),
                         default_value=extern_param.value,
@@ -413,7 +397,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                     )
                 );
             }
-            ret_type = _extern_annotated(
+            ret_type = self._extern_ability_type(
                 node_.signature.return_type
                     if isinstance(node_.signature.return_type, Expr)
                     else None
@@ -556,18 +540,45 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
     }
 
     type_params = self._extract_type_params(node_);
-    base_classes: list[TypeBase] = [];
-    for base_class in node_.base_classes or [] {
-        base_class_type = self.get_type_of_expression(base_class);
-        base_classes.append(base_class_type);
-    }
-
     parent_module = node_.find_parent_of_type(Module);
     mod_flags = compute_module_source_flags(
         parent_module.loc.mod_path if parent_module and parent_module.loc else ""
     );
     is_builtin_class = mod_flags.is_builtin_stub;
     is_from_stdlib_stub = mod_flags.is_stdlib_stub;
+    _decl_mod = node_.find_parent_of_type(Module);
+    is_native_erased = (
+        node_.name_spec.sym_name in NATIVE_ERASED_BASES
+        and (
+            is_from_stdlib_stub
+            or (
+                _decl_mod is not None
+                and _decl_mod.loc.mod_path.replace(os.sep, "/").endswith(
+                    "/" + PASS_RIM_MODULE.replace(".", "/") + ".jac"
+                )
+            )
+        )
+    );
+    cls_type = ClassType(
+        _shared=ClassDetailsShared(
+            class_name=node_.name_spec.sym_name,
+            symbol_table=node_,
+            type_params=type_params,
+            base_classes=[],
+            is_builtin_class=is_builtin_class,
+            is_from_stdlib_stub=is_from_stdlib_stub,
+            is_data_class=node_.sym_category != SymbolType.TYPE,
+            is_native_erased=is_native_erased,
+        ),
+        flags=TypeFlags.Instantiable,
+    );
+    node_.name_spec.type = cls_type;
+
+    base_classes: list[TypeBase] = [];
+    for base_class in node_.base_classes or [] {
+        base_class_type = self.get_type_of_expression(base_class);
+        base_classes.append(base_class_type);
+    }
 
     if not base_classes and self.prefetch {
         if (
@@ -618,45 +629,19 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
         );
         enum_members = build_enum_members(node_, self, enum_value_type);
     }
-    _decl_mod = node_.find_parent_of_type(Module);
-    is_native_erased = (
-        node_.name_spec.sym_name in NATIVE_ERASED_BASES
-        and (
-            is_from_stdlib_stub
-            or (
-                _decl_mod is not None
-                and _decl_mod.loc.mod_path.replace(os.sep, "/").endswith(
-                    "/" + PASS_RIM_MODULE.replace(".", "/") + ".jac"
-                )
-            )
-        )
-    );
-    cls_type = ClassType(
-        _shared=ClassDetailsShared(
-            class_name=node_.name_spec.sym_name,
-            symbol_table=node_,
-            type_params=type_params,
-            base_classes=base_classes,
-            is_builtin_class=is_builtin_class,
-            is_from_stdlib_stub=is_from_stdlib_stub,
-            is_data_class=is_data_class,
-            is_namedtuple=is_namedtuple,
-            is_typeddict=is_typeddict,
-            is_native_erased=is_native_erased,
-            is_enum_class=is_enum_class,
-            enum_value_type=enum_value_type,
-            enum_members=enum_members,
-        ),
-        flags=TypeFlags.Instantiable,
-    );
+    cls_type.shared.base_classes = base_classes;
+    cls_type.shared.is_data_class = is_data_class;
+    cls_type.shared.is_namedtuple = is_namedtuple;
+    cls_type.shared.is_typeddict = is_typeddict;
+    cls_type.shared.is_enum_class = is_enum_class;
+    cls_type.shared.enum_value_type = enum_value_type;
+    cls_type.shared.enum_members = enum_members;
 
     compute_mro_linearization(cls_type);
 
     if is_typeddict {
         cls_type.shared.typeddict_fields = self._build_typeddict_fields(cls_type);
     }
-
-    node_.name_spec.type = cls_type;
     return cls_type;
 }
 
@@ -757,6 +742,22 @@ impl TypeEvaluator._super_owner_for(
         }
     }
     return rest[0];
+}
+
+impl TypeEvaluator._extern_ability_type(ann: Expr | None) -> TypeBase {
+    if ann is None {
+        return AnyType(is_foreign=True);
+    }
+    _scalar = self._extern_scalar_type(ann);
+    if not (isinstance(_scalar, AnyType) and _scalar.foreign_scalar is None) {
+        return _scalar;
+    }
+    _at = self._convert_to_instance(self.get_type_of_expression(ann));
+    _arch = _at.shared.symbol_table if isinstance(_at, ClassType) else None;
+    if isinstance(_arch, Archetype) and _arch.find_parent_of_type(Import) is not None {
+        return _at;
+    }
+    return AnyType(is_foreign=True);
 }
 
 impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {

@@ -2728,7 +2728,9 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
                     and isinstance(_elem_struct.pointee, ir.LiteralStructType)
                 ) {
                     arg_vals[_prep_idx] = self._coerce_tuple_to_struct(
-                        arg_vals[_prep_idx], _elem_struct.pointee
+                        arg_vals[_prep_idx],
+                        _elem_struct.pointee,
+                        src_ty=self._expr_type_of(_prep_e)
                     );
                 }
             }
@@ -2869,7 +2871,9 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
         + self._codegen_bound_args(nd, func, self_offset=1);
 
     if self._arch_has_vtable(type_name) and not _is_mono_method {
-        result = self._codegen_virtual_call(obj_val, method_name, args, type_name);
+        result = self._codegen_virtual_call(
+            obj_val, method_name, args, type_name, ret_tb=self._expr_type_of(nd)
+        );
         if result is not None {
             if isinstance(func.return_value.type, ir.VoidType) {
                 return ir.Constant(ir.IntType(64), 0);
@@ -2931,7 +2935,13 @@ impl NaIRGenObjects._emit_obj_str(val: ir.Value) -> (ir.Value | None) {
         }
         result = None;
         if self._arch_has_vtable(type_name) {
-            result = self._codegen_virtual_call(val, "__str__", [val], type_name);
+            result = self._codegen_virtual_call(
+                val,
+                "__str__",
+                [val],
+                type_name,
+                ret_tb=convert_to_instance(self._tb_builtin("str"))
+            );
         }
         if result is None {
             coerced = [self._coerce_type(val, func.args[0].type)];
@@ -3065,7 +3075,11 @@ impl NaIRGenObjects._accessor_slot_of(
 }
 
 impl NaIRGenObjects._codegen_accessor_call(
-    obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
+    obj_val: ir.Value,
+    type_name: str,
+    slot: str,
+    args: list[ir.Value],
+    ret_tb: any = None
 ) -> (ir.Value | None) {
     func = self._resolve_method(type_name, slot);
     if func is None {
@@ -3073,7 +3087,9 @@ impl NaIRGenObjects._codegen_accessor_call(
     }
     _all_args: list[ir.Value] = [obj_val] + args;
     if self._arch_has_vtable(type_name) {
-        result = self._codegen_virtual_call(obj_val, slot, _all_args, type_name);
+        result = self._codegen_virtual_call(
+            obj_val, slot, _all_args, type_name, ret_tb=ret_tb
+        );
         if result is not None {
             return result;
         }
@@ -3487,7 +3503,9 @@ impl NaIRGenObjects._codegen_field_access(
     }
     obj_val = _recv;
     if _getter is not None {
-        return self._codegen_accessor_call(obj_val, type_name, _getter, []);
+        return self._codegen_accessor_call(
+            obj_val, type_name, _getter, [], ret_tb=self._expr_type_of(nd)
+        );
     }
     idx = field_indices[field_name];
     field_ptr: (ir.Value | None) = None;

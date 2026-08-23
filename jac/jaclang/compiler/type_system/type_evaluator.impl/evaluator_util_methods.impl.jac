@@ -612,12 +612,16 @@ impl TypeEvaluator._same_class_shape(a: ClassType, b: ClassType) -> bool {
     if len(a_args) != len(b_args) {
         return False;
     }
-    for (x, y) in zip(a_args, b_args) {
+    _i = 0;
+    while _i < len(a_args) {
+        x = a_args[_i];
+        y = b_args[_i];
+        _i += 1;
         if isinstance(x, ClassType) and isinstance(y, ClassType) {
             if not self._same_class_shape(x, y) {
                 return False;
             }
-        } elif x is not y and str(x) != str(y) {
+        } elif x is not y and not types_equivalent(x, y) {
             return False;
         }
     }
@@ -625,7 +629,6 @@ impl TypeEvaluator._same_class_shape(a: ClassType, b: ClassType) -> bool {
 }
 
 impl TypeEvaluator._type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool {
-    import from jaclang.compiler.type_system.type_utils { types_equivalent }
     for existing in type_list {
         if isinstance(ty, ClassType) and isinstance(existing, ClassType) {
             if self._same_class_shape(ty, existing) {
@@ -710,8 +713,8 @@ impl TypeEvaluator._expected_container_peer(
     if expected_type.shared == container_class.shared {
         return expected_type;
     }
-    _abstract_for: dict[str, tuple] = {
-        "list": (
+    _abstract_for: dict[str, list[str]] = {
+        "list": [
             "Sequence",
             "MutableSequence",
             "Iterable",
@@ -719,14 +722,13 @@ impl TypeEvaluator._expected_container_peer(
             "Container",
             "Reversible",
             "Sized"
-        ),
-        "set": ("AbstractSet", "MutableSet", "Set", "Iterable", "Collection"),
-        "frozenset": ("AbstractSet", "Set", "Iterable", "Collection"),
-        "dict": ("Mapping", "MutableMapping"),
-        "tuple": ("Sequence", "Iterable", "Collection"),
-
+        ],
+        "set": ["AbstractSet", "MutableSet", "Set", "Iterable", "Collection"],
+        "frozenset": ["AbstractSet", "Set", "Iterable", "Collection"],
+        "dict": ["Mapping", "MutableMapping"],
+        "tuple": ["Sequence", "Iterable", "Collection"]
     };
-    _names = _abstract_for.get(container_class.shared.class_name, ());
+    _names = _abstract_for.get(container_class.shared.class_name, []);
     if expected_type.shared.class_name in _names and expected_type.is_builtin() {
         return expected_type;
     }

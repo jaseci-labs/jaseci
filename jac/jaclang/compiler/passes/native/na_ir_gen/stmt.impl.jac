@@ -161,6 +161,12 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
                 is_false, "AssertionError", f"{_a_text} at {_a_path}:{_a_line}"
             );
         }
+    } elif isinstance(nd, uni.DeleteStmt) and isinstance(nd.target, uni.TupleVal) {
+        for _del_part in (nd.target.values or []) {
+            _del_one = uni.DeleteStmt(target=_del_part, kid=[_del_part]);
+            _del_one.parent = nd.parent;
+            self._codegen_stmt(_del_one);
+        }
     } elif isinstance(nd, uni.DeleteStmt) {
         target_expr = nd.target;
         _del_tgt_ty = self._expr_type_of(target_expr);
@@ -2502,7 +2508,9 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     and isinstance(value.type, ir.LiteralStructType)
                     and isinstance(var_type, ir.PointerType)
                     and isinstance(var_type.pointee, ir.LiteralStructType) {
-                    value = self._coerce_tuple_to_struct(value, var_type.pointee);
+                    value = self._coerce_tuple_to_struct(
+                        value, var_type.pointee, src_ty=self._expr_type_of(nd.value)
+                    );
                     var_type = value.type;
                 }
             }

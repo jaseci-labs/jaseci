@@ -191,7 +191,7 @@ impl NaIRGenLists._list_elem_ready(
     if isinstance(elem_llvm, ir.PointerType)
         and isinstance(elem_llvm.pointee, ir.LiteralStructType)
         and isinstance(val.type, ir.LiteralStructType) {
-        val = self._coerce_tuple_to_struct(val, elem_llvm.pointee);
+        val = self._coerce_tuple_to_struct(val, elem_llvm.pointee, src_ty=_vty);
     }
     val = self._box_value_tuple(val, loc=loc);
     val = self._nogc_elem_prep(expr, val);

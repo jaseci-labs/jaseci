@@ -1796,6 +1796,10 @@ impl NaIRGenExpr._codegen_module_attr(
                 import platform as _plat;
                 return self._make_global_string(_plat.system().lower());
             }
+            if right_name == "hexversion" {
+                import sys as _sys;
+                return ir.Constant(ir.IntType(64), _sys.hexversion);
+            }
             if right_name == "maxsize" {
                 return ir.Constant(ir.IntType(64), 0x7FFFFFFFFFFFFFFF);
             }
@@ -1853,6 +1857,12 @@ impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) 
     if _cls_name is not None {
         return _cls_name;
     }
+    if right_name == "__class__" and isinstance(nd.target, uni.Expr) {
+        _cls_id = self._codegen_class_id(nd.target);
+        if _cls_id is not None {
+            return _cls_id;
+        }
+    }
     _bound_owner = self._tb_solve(nd.target.type);
     if self._tb_is_class_ref(_bound_owner)
         and JAC_TYPE_REGISTRY.is_sized(self._tb_class_name(_bound_owner) or "") {
@@ -1887,6 +1897,7 @@ impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) 
         if _mv is not None {
             return _mv;
         }
+        return self._refuse_unfolded_enum_member(nd, right_name);
     }
     if (
         _t_kind == "enum"
@@ -1894,9 +1905,12 @@ impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) 
         and not _tt.is_instance()
         and right_name not in ("value", "name")
     ) {
-        _mv = self._enum_member_const(_tt, right_name);
+        _mv = self._enum_member_value(_tt, right_name);
         if _mv is not None {
             return _mv;
+        }
+        if right_name in (_tt.shared.enum_members or {}) {
+            return self._refuse_unfolded_enum_member(nd, right_name);
         }
     }
 
@@ -1979,6 +1993,19 @@ impl NaIRGenExpr._codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None) 
         kind="attribute access",
         name=right_name,
         help_text=f"The receiver is typed `{_tt}` ({_t_kind}), which has no native layout with a member `{right_name}`. Give the value a concrete native type, or move this code to a @sv/Python context."
+    );
+    return None;
+}
+
+impl NaIRGenExpr._refuse_unfolded_enum_member(
+    nd: uni.AtomTrailer, right_name: str
+) -> None {
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="attribute access",
+        name=right_name,
+        help_text="The enum member's value is not statically known, so the emitter cannot fold it; give the member a literal value or move this read to a @sv/Python context."
     );
     return None;
 }

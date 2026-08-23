@@ -1,4 +1,5 @@
 import from jaclang.compiler.passes.native.llvm { ir }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { RC_SENTINEL, str_len_tag }
 import from jaclang.jac0core.constant { Tokens as Tok }

@@ -314,8 +314,6 @@ impl origin_of_local_name(nd: UniNode, local: str) -> tuple[str, (str | None)] {
 impl collect_member_syms(
     scope: UniScopeNode, name: str, deep: bool = False
 ) -> list[Symbol] {
-    import from jaclang.jac0core.helpers { evaluate_version_condition }
-
     def live_branches(guard: IfStmt) -> list[UniScopeNode] {
         eval_result = evaluate_version_condition(guard.condition);
         if eval_result is None or eval_result {
@@ -580,7 +578,9 @@ impl ParamAssignmentTracker.postinit -> None {
     }
 }
 
-impl compute_mro_linearization(cls: ClassType, _visiting: (set | None) = None) -> None {
+impl compute_mro_linearization(
+    cls: ClassType, _visiting: (set[int] | None) = None
+) -> None {
     if cls.shared.mro {
         return;
     }
@@ -692,6 +692,34 @@ impl compute_module_source_flags(file_path: str) -> ModuleSourceFlags {
     }
 
     return flags;
+}
+
+impl enum_literal_scalar_name(cls: ClassType) -> (str | None) {
+    if cls._shared is None or not cls.shared.is_enum_class {
+        return None;
+    }
+    _members = cls.shared.enum_members or {};
+    if not _members {
+        return None;
+    }
+    _all_int = True;
+    _all_str = True;
+    for _m in _members.values() {
+        _lit = _m.literal_value;
+        if not (isinstance(_lit, int) and not isinstance(_lit, bool)) {
+            _all_int = False;
+        }
+        if not isinstance(_lit, str) {
+            _all_str = False;
+        }
+    }
+    if _all_int {
+        return "int";
+    }
+    if _all_str {
+        return "str";
+    }
+    return None;
 }
 
 impl convert_to_instance(ty: TypeBase) -> TypeBase {

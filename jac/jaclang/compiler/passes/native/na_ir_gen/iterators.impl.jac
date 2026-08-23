@@ -1265,15 +1265,19 @@ impl NaIRGenIterators._iter_elem_llvm(iter_ty: any) -> (ir.Type | None) {
 impl NaIRGenIterators._member_return_type(owner_ty: any, name: str) -> any {
     _owner = self._tb_solve(self._tb_opt_payload(owner_ty) or owner_ty);
     _lookup = _owner?.lookup_member_symbol;
-    _sym = _lookup(name) if _lookup is not None else None;
+    if _lookup is None {
+        return None;
+    }
+    _is_getter = name.endswith(".__get__");
+    _sym = _lookup(name[:-len(".__get__")] if _is_getter else name);
     if _sym is None {
         return None;
     }
     _fty = self.prog.get_type_evaluator().get_type_of_symbol(_sym);
-    if self._tb_kind(_fty) != "fn" {
-        return None;
+    if self._tb_kind(_fty) == "fn" {
+        return _fty.return_type;
     }
-    return _fty.return_type;
+    return _fty if _is_getter else None;
 }
 
 impl NaIRGenIterators._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {

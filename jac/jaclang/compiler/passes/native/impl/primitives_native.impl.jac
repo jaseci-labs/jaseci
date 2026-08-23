@@ -4558,73 +4558,13 @@ impl NativeBuiltinEmitter.emit_str(
     if not args {
         return None;
     }
-    arg_val = args[0];
     p = ctx.pass_ref;
-    b = get_builder(p);
-    i8p = ir.IntType(8).as_pointer();
-    i64 = ir.IntType(64);
-    _t = ctx.arg_type(0);
-    _k = ctx.arg_kind(0);
     _node = ctx.arg_nodes[0] if ctx.arg_nodes else None;
-
-    if p._opt_payload_of(arg_val.type) is not None {
-        return p._emit_optional_str(arg_val, _node);
+    _err_node = ctx.call_node if ctx.call_node is not None else _node;
+    if _err_node is None {
+        return None;
     }
-    if _k == "bytes" {
-        return p._emit_bytes_repr(arg_val);
-    }
-    if _k == "bool" {
-        true_s = p._make_global_string("True", name_prefix=".str.true");
-        false_s = p._make_global_string("False", name_prefix=".str.false");
-        _bv = (
-            arg_val
-                if (isinstance(arg_val.type, ir.IntType) and arg_val.type.width == 1)
-                else p._to_bool(arg_val, _t)
-        );
-        return b.select(_bv, true_s, false_s, name="str.bool");
-    }
-    if _k == "str" {
-        sv = p._coerce_type(arg_val, i8p);
-        none_s = p._make_global_string("None", name_prefix=".str.none");
-        is_null = b.icmp_unsigned("==", sv, ir.Constant(i8p, None), name="str.isnone");
-        result = b.select(is_null, none_s, sv, name="str.ornone");
-        p._emit_rc_retain(result, op="builtin_str_id");
-        return result;
-    }
-    if _k == "none" {
-        return p._make_global_string("None", name_prefix=".str.none");
-    }
-    if _k == "float" {
-        return p._emit_float_repr(p._coerce_type(arg_val, ir.DoubleType()));
-    }
-    if _k == "int" or (_k == "enum" and isinstance(arg_val.type, ir.IntType)) {
-        buf_ptr = p._str_alloc(b, ir.Constant(i64, 32), name="str.buf");
-        snprintf = p._get_or_declare_extern(
-            "snprintf", ir.IntType(32), [i8p, i64, i8p], var_arg=True
-        );
-        fmt = p._get_snprintf_fmt("%ld");
-        fmt_ptr = b.bitcast(fmt, i8p, name="str.fmt.ptr");
-        str_n32 = b.call(
-            snprintf,
-            [buf_ptr, ir.Constant(i64, 32), fmt_ptr, p._coerce_type(arg_val, i64)],
-            name="str.snprintf"
-        );
-        p._str_finish(b, buf_ptr, b.sext(str_n32, i64, name="str.len64"));
-        return buf_ptr;
-    }
-    if _k in ("list", "dict", "set", "tuple") {
-        return p._emit_container_repr(arg_val, _t);
-    }
-    if _k in ("any", "union") and p?.jacval_type and arg_val.type == p.jacval_type {
-        _jv_fn = p._str_jacval_fn();
-        return b.call(_jv_fn, [arg_val], name="str.jacval")
-            if _jv_fn is not None
-            else None;
-    }
-    if isinstance(arg_val.type, ir.PointerType) {
-        return p._emit_obj_str(arg_val);
-    }
-    return None;
+    return p._stringify_value(args[0], _node, _err_node, "builtin call str");
 }
 
 impl NativeBuiltinEmitter.emit_int(
@@ -4639,7 +4579,7 @@ impl NativeBuiltinEmitter.emit_int(
     i64 = ir.IntType(64);
     _k = ctx.arg_kind(0);
     _at = ctx.arg_type(0);
-    if _k in ("int", "bool") {
+    if _k in ("int", "bool") or (_k == "enum" and p._enum_value_kind(_at) == "int") {
         return p._coerce_typed(arg_val, i64, _at);
     }
     if _k == "float" {
@@ -4695,7 +4635,8 @@ impl NativeBuiltinEmitter.emit_float(
         );
         return result;
     }
-    if _k in ("int", "bool") {
+    if _k in ("int", "bool")
+        or (_k == "enum" and p._enum_value_kind(ctx.arg_type(0)) == "int") {
         return p._to_float_type(arg_val, f64, ctx.arg_type(0));
     }
     if _k == "float" {

@@ -172,7 +172,9 @@ impl NaIRGenSets._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         if isinstance(elem_type, ir.PointerType)
             and isinstance(elem_type.pointee, ir.LiteralStructType)
             and isinstance(val.type, ir.LiteralStructType) {
-            val = self._coerce_tuple_to_struct(val, elem_type.pointee);
+            val = self._coerce_tuple_to_struct(
+                val, elem_type.pointee, src_ty=self._expr_type_of(v_nd)
+            );
         }
         val = self._box_value_tuple(val, loc=_loc);
         val = self._nogc_elem_prep(v_nd, val);

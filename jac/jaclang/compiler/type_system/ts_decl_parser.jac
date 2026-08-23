@@ -64,8 +64,8 @@ obj TsDecl {
 glob _PRIM_NAMES: frozenset[str] = frozenset(
          {'string', 'number', 'boolean', 'object', 'symbol', 'bigint'}
      ),
-     _ANY_NAMES: frozenset = frozenset({'any', 'unknown', 'this'}),
-     _VOID_NAMES: frozenset = frozenset({'void', 'undefined', 'null'});
+     _ANY_NAMES: frozenset[str] = frozenset({'any', 'unknown', 'this'}),
+     _VOID_NAMES: frozenset[str] = frozenset({'void', 'undefined', 'null'});
 
 def _tokenize(src: str) -> (list[tuple[(str, str)]] | None) {
     toks: list[tuple[(str, str)]] = [];
@@ -201,7 +201,7 @@ def _parse_dts_inner(source: str) -> (dict[str, TsDecl] | None) {
     namespaces: dict[str, dict[str, TsDecl]] = {};
     export_eq: (str | None) = None;
     saw_export = False;
-    typevar_stack: list[set] = [];
+    typevar_stack: list[set[str]] = [];
 
     def kind_at(k: int = 0) -> str {
         return toks[pos + k][0] if pos + k < n else '';
@@ -281,8 +281,8 @@ def _parse_dts_inner(source: str) -> (dict[str, TsDecl] | None) {
         return False;
     }
 
-    def collect_generics -> set {
-        names: set = set();
+    def collect_generics -> set[str] {
+        names: set[str] = set();
         if not is_p('<') {
             return names;
         }

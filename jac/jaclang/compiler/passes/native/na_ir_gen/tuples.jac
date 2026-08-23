@@ -40,5 +40,7 @@ obj NaIRGenTuples(NaIRGenState) {
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;
     def _rc_slot_ref(val: ir.Value) -> (ir.Value | None);
     def _tuple_managed_fields(struct_type: ir.LiteralStructType) -> list;
-    def _coerce_tuple_to_struct(val: ir.Value, target_struct: ir.Type) -> ir.Value;
+    def _coerce_tuple_to_struct(
+        val: ir.Value, target_struct: ir.Type, src_ty: any = None
+    ) -> ir.Value;
 }

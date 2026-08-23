@@ -99,13 +99,21 @@ impl NaIRGenBuiltins._stringify_value(
         );
         return self.builder.select(_b, t_g, f_g, name="fmt.bool");
     }
-    if _k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)) {
+    if _k == "enum" and self._enum_value_is_text(_t) {
+        return val;
+    }
+    if _k == "class" and val.type == ir.IntType(8).as_pointer() {
+        return val;
+    }
+    if _k in ("int", "enum") {
         _ifn = self._repr_leaf_fn("int");
         if _ifn is None {
             self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
             return None;
         }
-        _is = self.builder.call(_ifn, [self._coerce_type(val, i64)], name="fmt.int");
+        _is = self.builder.call(
+            _ifn, [self._coerce_typed(val, i64, _t)], name="fmt.int"
+        );
         return self._mark_owned(_is);
     }
     if _k == "float" {
@@ -116,6 +124,15 @@ impl NaIRGenBuiltins._stringify_value(
     }
     if _k == "none" {
         return self._make_global_string("None", name_prefix=".repr.none");
+    }
+    if (
+        _k in ("struct", "object")
+        and val.type == ir.IntType(8).as_pointer()
+        and JAC_TYPE_REGISTRY.is_exception(
+            self._tb_class_name(self._tb_opt_payload(_t) or _t) or ""
+        )
+    ) {
+        return val;
     }
     if _k in ("list", "dict", "set", "tuple") {
         _cs = self._emit_container_repr(val, _t);
@@ -155,9 +172,10 @@ impl NaIRGenBuiltins._fmt_piece(
     _k = self._tb_payload_kind(_t);
     if (
         self._opt_payload_of(val.type) is None
-        and (_k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)))
+        and (_k == "int" or (_k == "enum" and not self._enum_value_is_text(_t)))
     ) {
-        return ("%lld", self._coerce_type(val, ir.IntType(64)), [], False);
+        _fmt_spec = "%llu" if self._tb_unsigned(_t) else "%lld";
+        return (_fmt_spec, self._coerce_typed(val, ir.IntType(64), _t), [], False);
     }
     _s = self._stringify_value(val, expr, err_node, err_kind);
     if _s is None {
@@ -1337,7 +1355,11 @@ impl NaIRGenBuiltins._emit_fstr_repr(
                 else self._to_bool(val, _t)
         );
         _r = self.builder.select(_b, t_g, f_g, name="fstr.repr.bool");
-    } elif _k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)) {
+    } elif (_k == "enum" and self._enum_value_is_text(_t))
+        or (_k == "class" and val.type == ir.IntType(8).as_pointer()) {
+        _r = self.builder.call(self._repr_str_fn(), [val], name="fstr.repr.str");
+        self._mark_owned(_r);
+    } elif _k in ("int", "enum") {
         _ifn = self._repr_leaf_fn("int");
         if _ifn is not None {
             _r = self.builder.call(
@@ -1406,7 +1428,10 @@ impl NaIRGenBuiltins._emit_dyn_spec_format(
                 if (isinstance(val.type, ir.IntType) and val.type.width == 1)
                 else self._to_bool(val, self._expr_type_of(_node))
         );
-    } elif kind == "int" or (kind == "enum" and isinstance(val.type, ir.IntType)) {
+    } elif (kind == "enum" and self._enum_value_is_text(self._expr_type_of(_node)))
+        or (kind == "class" and val.type == ir.IntType(8).as_pointer()) {
+        kname = "jac_fmt_str";
+    } elif kind in ("int", "enum") {
         kname = "jac_fmt_int";
         sval = self._coerce_type(val, ir.IntType(64));
     } elif kind == "float" {

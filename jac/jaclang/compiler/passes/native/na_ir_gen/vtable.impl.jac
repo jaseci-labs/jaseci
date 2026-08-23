@@ -109,7 +109,11 @@ impl NaIRGenVtable._isinstance_class_name_hit(
 }
 
 impl NaIRGenVtable._codegen_virtual_call(
-    obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
+    obj_val: ir.Value,
+    method_name: str,
+    args: list[ir.Value],
+    obj_type_name: str,
+    ret_tb: any = None
 ) -> (ir.Value | None) {
     _vc_struct = self.struct_types.get(obj_type_name);
     if _vc_struct is not None and obj_val.type != _vc_struct.as_pointer() {
@@ -179,7 +183,16 @@ impl NaIRGenVtable._codegen_virtual_call(
         if _vd_vt is None or _vd_fn is None {
             continue;
         }
-        _vd_variants.append((_vd_cls, _vd_vt, _vd_fn));
+        _vd_ret_tb = ret_tb;
+        if _vd_lay.class_type is not None {
+            _vd_mrt = self._member_return_type(
+                convert_to_instance(_vd_lay.class_type), method_name
+            );
+            if _vd_mrt is not None {
+                _vd_ret_tb = _vd_mrt;
+            }
+        }
+        _vd_variants.append((_vd_cls, _vd_vt, _vd_fn, _vd_ret_tb));
         if _vd_idx != indices[method_name] {
             _vd_uniform = False;
         }
@@ -195,7 +208,7 @@ impl NaIRGenVtable._codegen_virtual_call(
         _vd_fnc = self.builder.function;
         _vd_done = _vd_fnc.append_basic_block(name=f"vd.{method_name}.done");
         _vd_incoming: list[tuple] = [];
-        for (_vc, _vt, _vf) in _vd_variants {
+        for (_vc, _vt, _vf, _vf_ret_tb) in _vd_variants {
             _vd_hit = _vd_fnc.append_basic_block(name=f"vd.{method_name}.{_vc}");
             _vd_next = _vd_fnc.append_basic_block(name=f"vd.{method_name}.n.{_vc}");
             _vd_eq = self.builder.icmp_unsigned(
@@ -219,7 +232,7 @@ impl NaIRGenVtable._codegen_virtual_call(
             _vd_r = self.builder.call(_vf, _vd_args, name=f"vd.call.{_vc}");
             _vd_ret_t = fn_type.return_type;
             if not isinstance(_vd_ret_t, ir.VoidType) and _vd_r.type != _vd_ret_t {
-                _vd_r = self._coerce_type(_vd_r, _vd_ret_t);
+                _vd_r = self._coerce_typed(_vd_r, _vd_ret_t, _vf_ret_tb);
             }
             _vd_incoming.append((_vd_r, self.builder.block));
             self.builder.branch(_vd_done);

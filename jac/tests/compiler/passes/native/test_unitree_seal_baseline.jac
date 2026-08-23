@@ -174,55 +174,19 @@ glob UNITREE_CLOSURE: tuple = (
              "`jac0core.modresolver`. The coverage reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
-         "unitree.jac::BuiltinType.lit_value.__get__": (
-             "Python-only: indexes `Literal.type_map`, a static dict of "
-             "`type` objects, which has no native layout."
-         ),
          "unitree.jac::Ellipsis.lit_value.__get__": (
              "Python-only: returns `...`, which has no native value."
          ),
-         "types.jac::ClassType.lookup_member_symbol": (
-             "Cascade: calls `type_utils.collect_member_syms`, waived below. "
-             "Clears with its callee."
-         ),
-         "types.jac::FunctionType.specialize": (
-             "Cascade: calls `type_utils.build_type_var_solution`, waived "
-             "below for its `enumerate(...)` for-loop iterable. This is the "
-             "seam #8272 made measurable: the importer now learns a "
-             "dependency's demotion set before it emits, so the caller "
-             "demotes here instead of linking against the name the demotion "
-             "renamed away. Clears with its callee."
+         "unitree.jac::MultiString.lit_value.__get__": (
+             "Python-only: asks `isinstance(part, (String, FString))` of each "
+             "part and joins the decoded values; the union isinstance over "
+             "unitree classes has no native lowering in this unit, and main "
+             "answered the same read False silently."
          ),
          "type_utils.jac::class_implements_protocol": (
              "Backend gap -- imported isinstance: `isinstance` against "
              "`UniScopeNode`, whose layout is not reachable from this unit's "
              "root even though `unitree.jac` is a member."
-         ),
-         "type_utils.jac::get_completion_items": (
-             "Cascade: walks the class MRO through "
-             "`compute_mro_linearization`, waived below."
-         ),
-         "type_utils.jac::collect_member_syms": (
-             "Cascade: calls `helpers.evaluate_version_condition`, waived "
-             "below for its function-local unitree import. Clears with that "
-             "import's hoist."
-         ),
-         "type_utils.jac::compute_mro_linearization": (
-             "Backend gap: builds the linearization from a call whose result "
-             "the emitter cannot place in expression position."
-         ),
-         "type_utils.jac::build_type_var_solution": (
-             "Backend gap: iterates `enumerate(...)` directly, and a "
-             "`FuncCall` is not a lowerable for-loop iterable. `types.jac`'s "
-             "`FunctionType.specialize` cascades on it."
-         ),
-         "type_utils.jac::shadowed_type_var_names": (
-             "Backend gap: a comprehension over an element-erased collection, "
-             "so the emitter has no layout for the element it binds."
-         ),
-         "type_utils.jac::build_solution_from_specialized_class": (
-             "Backend gap: the same `enumerate(...)` for-loop iterable as "
-             "`build_type_var_solution`."
          ),
          "helpers.jac::read_file_with_encoding": (
              "Python-only: `open()` with an encoding keyword. The native lane "
@@ -235,29 +199,6 @@ glob UNITREE_CLOSURE: tuple = (
          ),
          "helpers.jac::read_jacignore_patterns": (
              "Cascade: calls `normalize_exclude_patterns`, waived above."
-         ),
-         "helpers.jac::_is_version_info_access": (
-             "Python-only: reads unitree through a function-local "
-             "`import jaclang.jac0core.unitree as uni`, a bare Python module "
-             "import. The local import is what keeps `helpers` out of a "
-             "module-level cycle with `unitree`; hoisting it is the clearing "
-             "mechanism, and it needs the cycle to be safe first."
-         ),
-         "helpers.jac::_is_type_checking_ref": (
-             "Python-only: same function-local unitree import."
-         ),
-         "helpers.jac::_extract_version_tuple": (
-             "Python-only: same function-local unitree import."
-         ),
-         "helpers.jac::evaluate_version_condition": (
-             "Python-only: same function-local unitree import. This is the "
-             "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
-             "which no sealed parse reaches."
-         ),
-         "helpers.jac::add_line_numbers": (
-             "Backend gap: `str.join` over a built list has no native "
-             "lowering in this unit; the diagnostic gutter is Python-side "
-             "output machinery either way."
          ),
          # `transform.jac` and `uni_pass.jac` contribute no entry:
          # `Alert.pretty_print` cleared when the helpers gutter formatting

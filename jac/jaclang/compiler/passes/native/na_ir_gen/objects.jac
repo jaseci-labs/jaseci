@@ -6,6 +6,7 @@ import from jaclang.compiler.passes.main.layout_pass {
 }
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+import from jaclang.compiler.type_system.type_utils { convert_to_instance }
 import from jaclang.compiler.passes.native.na_ir_gen.constants {
     NATIVE_OSPATH_FUNCS,
     NATIVE_OS_FUNCS,
@@ -91,7 +92,11 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (str | None);
 
     def _codegen_accessor_call(
-        obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
+        obj_val: ir.Value,
+        type_name: str,
+        slot: str,
+        args: list[ir.Value],
+        ret_tb: any = None
     ) -> (ir.Value | None);
 
     def _emit_dispatched_field_ptr(

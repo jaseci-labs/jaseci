@@ -3049,7 +3049,6 @@ impl TypeEvaluator._refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> Ty
     native backend needs to index the result without re-reading the format.
     """;
     import from jaclang.jac0core.struct_format { parse_struct_format }
-    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
     if not (
         isinstance(call_t, ClassType)
         and call_t.is_builtin("tuple")
@@ -3061,7 +3060,9 @@ impl TypeEvaluator._refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> Ty
     if callee is None or callee.func_name not in ("unpack", "unpack_from") {
         return call_t;
     }
-    _sym = resolve_expr_symbol(expr.target);
+    _tgt = expr.target;
+    _tgt_name = _tgt.right if isinstance(_tgt, AtomTrailer) and _tgt.is_attr else _tgt;
+    _sym = _tgt_name.sym if isinstance(_tgt_name, NameAtom) else None;
     _decl_mod = _sym.decl.find_parent_of_type(Module) if _sym and _sym.decl else None;
     _mod_name = os.path.basename(str(_decl_mod.loc.mod_path)) if _decl_mod else "";
     if _mod_name not in ("struct.pyi", "_struct.pyi", "struct.jac", "_struct.jac") {
@@ -3128,6 +3129,16 @@ impl TypeEvaluator._class_ref_as_type_elem(elem_type: TypeBase) -> TypeBase {
         return _tc_wrap;
     }
     return elem_type;
+}
+
+impl TypeEvaluator._enum_literal_value_class(
+    enum_class: ClassType
+) -> ClassType | None {
+    _name = enum_literal_scalar_name(enum_class);
+    if _name is None or self.prefetch is None {
+        return None;
+    }
+    return self.prefetch.int_class if _name == "int" else self.prefetch.str_class;
 }
 
 impl TypeEvaluator._adopt_expected_container(
@@ -3768,9 +3779,24 @@ impl TypeEvaluator.assign_type(
             and not dest_type.is_enum_class()
             and isinstance(src_type.enum_class, ClassType)
             and src_type.enum_class._shared is not None {
-            return self.assign_type(
+            if self.assign_type(
                 self._convert_to_instance(src_type.enum_class), dest_type, strict
-            );
+            ) {
+                return True;
+            }
+            _member_val = src_type.enum_class.shared.enum_value_type;
+            if isinstance(_member_val, ClassType) and _member_val._shared is not None {
+                return self.assign_type(
+                    self._convert_to_instance(_member_val), dest_type, strict
+                );
+            }
+            _lit_cls = self._enum_literal_value_class(src_type.enum_class);
+            if _lit_cls is not None and self._is_protocol_class(dest_type) {
+                return self.assign_type(
+                    self._convert_to_instance(_lit_cls), dest_type, strict
+                );
+            }
+            return False;
         }
     }
 
@@ -3802,6 +3828,16 @@ impl TypeEvaluator.assign_type(
             in ("Sized", "Iterable", "Container", "Reversible", "Hashable")
     ) {
         return True;
+    }
+    if (
+        isinstance(src_type, ClassType)
+        and src_type.is_enum_class()
+        and src_type.is_class_instance()
+        and isinstance(dest_type, ClassType)
+        and self._is_protocol_class(dest_type)
+        and (_lit_cls := self._enum_literal_value_class(src_type)) is not None
+    ) {
+        return self.assign_type(self._convert_to_instance(_lit_cls), dest_type, strict);
     }
 
     if (
@@ -5630,8 +5666,8 @@ impl TypeEvaluator.exclude_type_from_union(
     original: TypeBase, to_exclude: TypeBase
 ) -> TypeBase {
     if isinstance(original, UnionType) and original.types {
-        exclude_shareds: set = set();
-        exclude_ids: set = set();
+        exclude_shareds: list[ClassDetailsShared] = [];
+        exclude_ids: set[int] = set();
         to_exclude_list: list[TypeBase] = [];
         if isinstance(to_exclude, UnionType) and to_exclude.types {
             to_exclude_list = to_exclude.types;
@@ -5640,7 +5676,7 @@ impl TypeEvaluator.exclude_type_from_union(
         }
         for excl_t in to_exclude_list {
             if isinstance(excl_t, ClassType) {
-                exclude_shareds.add(excl_t.shared.canonical_key() or id(excl_t.shared));
+                exclude_shareds.append(excl_t.shared);
             } else {
                 exclude_ids.add(id(excl_t));
             }
@@ -5648,7 +5684,14 @@ impl TypeEvaluator.exclude_type_from_union(
         remaining: list[TypeBase] = [];
         for t in original.types {
             if isinstance(t, ClassType) {
-                if (t.shared.canonical_key() or id(t.shared)) in exclude_shareds {
+                _excluded = False;
+                for _xs in exclude_shareds {
+                    if t.shared.same_class(_xs) {
+                        _excluded = True;
+                        break;
+                    }
+                }
+                if _excluded {
                     continue;
                 }
             } elif id(t) in exclude_ids {

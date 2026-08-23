@@ -338,7 +338,7 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
     _dyn_kind = _kind in ("any", "unknown", "typevar", "never");
     if _dyn_kind and not isinstance(value.type, (ir.IntType, ir.DoubleType)) {
         raise AssertionError(
-            f"native: boxing `{value.type}` into `any` without a concrete checker type (ty={ty})"
+            f"native: boxing `{value.type}` into `any` without a concrete checker type (ty={ty}) at {self._na_loc()}"
         );
     }
     _pty = self._tb_opt_payload(_ty);

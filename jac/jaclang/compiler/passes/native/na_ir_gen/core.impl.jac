@@ -1427,12 +1427,20 @@ impl NaIRGenCore._dispatch_primitive_method(
             for _p in ((_callee.parameters if _callee is not None else None) or [])
             if not (_p.is_self or _p.is_cls)
         ];
-        _npos = len(args) - len(_kw);
-        _folds = _npos >= 0
-            and all(
-                (_npos + _i < len(_params) and _params[_npos + _i].name == _n)
-                for (_i, _n) in enumerate(_kw.keys())
-            );
+        _npos = len(args);
+        _folds = all(
+            (_npos + _i < len(_params) and _params[_npos + _i].name == _n)
+            for (_i, _n) in enumerate(_kw.keys())
+        );
+        if _folds {
+            for _kw_node in _kw.values() {
+                _kw_val = self._codegen_expr(_kw_node);
+                if _kw_val is None {
+                    return None;
+                }
+                args.append(self._str_norm(_kw_val));
+            }
+        }
         if not _folds {
             self.emit(
                 E5092,

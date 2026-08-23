@@ -27,6 +27,7 @@ obj NaIRGenEnums(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _enum_is_string_valued(enum_name: str) -> bool;
+    def _enum_value_is_text(t: any) -> bool;
     def _enum_ordinal_fn(enum_name: str) -> (ir.Function | None);
     def _codegen_enum_ordinal_of(
         enum_name: str, runtime_val: ir.Value

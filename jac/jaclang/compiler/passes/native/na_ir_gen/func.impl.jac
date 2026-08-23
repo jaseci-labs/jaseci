@@ -103,9 +103,6 @@ impl NaIRGenFunc._lower_sig_return(nd: uni.Ability, fn_t: FunctionType) -> ir.Ty
             else nd;
         return self._emit_unlowerable_type(_at, _rt, declaration=True);
     }
-    if self._str_desc_ty is not None and _lowered == self._str_desc_ty {
-        return ir.IntType(8).as_pointer();
-    }
     return _lowered;
 }
 

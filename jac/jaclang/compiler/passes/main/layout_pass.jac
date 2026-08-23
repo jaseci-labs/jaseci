@@ -328,11 +328,12 @@ def class_form_enum_scalar(t: any) -> (str | None) {
     }
     import from jaclang.compiler.type_system.types { ClassType }
     _vt = t.shared.enum_value_type;
-    if not isinstance(_vt, ClassType) or _vt._shared is None {
-        return None;
+    if isinstance(_vt, ClassType) and _vt._shared is not None {
+        _vname = _vt.shared.class_name;
+        return _vname if _vname in ("str", "int") else None;
     }
-    _vname = _vt.shared.class_name;
-    return _vname if _vname in ("str", "int") else None;
+    import from jaclang.compiler.type_system.type_utils { enum_literal_scalar_name }
+    return enum_literal_scalar_name(t);
 }
 
 def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {

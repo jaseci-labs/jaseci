@@ -336,7 +336,7 @@ test "version-condition comparisons match the operator table they replaced" {
     import ast as py_ast;
     import from jaclang.jac0core.unitree { IfStmt, PythonModuleAst, Source }
     import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-    import from jaclang.jac0core.helpers { evaluate_version_condition }
+    import from jaclang.compiler.type_system.type_utils { evaluate_version_condition }
     code = "import sys\n"
     "if sys.version_info >= (3, 11):\n    a = 1\n"
     "if sys.version_info > (3, 11):\n    b = 1\n"

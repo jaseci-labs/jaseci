@@ -71,6 +71,8 @@ obj NaIRGenExpr(NaIRGenState) {
     def _codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_subscript(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _refuse_unfolded_enum_member(nd: uni.AtomTrailer, right_name: str) -> None;
+
     def _subscript_index_node(nd: uni.AtomTrailer) -> (uni.UniNode | None);
     def _subscript_index_value(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _enum_member_value(enum_t: any, member: str) -> (ir.Value | None);

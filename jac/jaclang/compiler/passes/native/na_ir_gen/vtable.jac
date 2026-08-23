@@ -1,6 +1,7 @@
 import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+import from jaclang.compiler.type_system.type_utils { convert_to_instance }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.codeinfo { HDR_RC_OFF, HDR_TAG_OFF, RC_SENTINEL }
 import jaclang.jac0core.unitree as uni;
@@ -37,7 +38,11 @@ obj NaIRGenVtable(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_virtual_call(
-        obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
+        obj_val: ir.Value,
+        method_name: str,
+        args: list[ir.Value],
+        obj_type_name: str,
+        ret_tb: any = None
     ) -> (ir.Value | None);
 
     def _generate_inherited_method_wrappers -> None;

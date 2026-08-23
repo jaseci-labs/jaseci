@@ -166,12 +166,14 @@ import from jaclang.compiler.type_system.type_utils {
     compute_module_source_flags,
     compute_mro_linearization,
     convert_to_instance,
+    enum_literal_scalar_name,
     get_declared_generator_return_type,
     is_generator_family_type,
     lookup_symtab,
     shadowed_type_var_names,
     specialize_for_base_class,
-    synthesize_self_type_var
+    synthesize_self_type_var,
+    types_equivalent
 }
 import from jaclang.compiler.type_system.properties {
     is_cached_property_decorator_type,
@@ -478,6 +480,7 @@ obj TypeEvaluator {
 
     def _type_of_match_binding(binder: UniNode) -> TypeBase;
     def _refine_struct_unpack(expr: FuncCall, call_t: TypeBase) -> TypeBase;
+    def _enum_literal_value_class(enum_class: ClassType) -> ClassType | None;
     def _class_ref_as_type_elem(elem_type: TypeBase) -> TypeBase;
     def _same_class_shape(a: ClassType, b: ClassType) -> bool;
     def _adopt_expected_container(
@@ -490,6 +493,7 @@ obj TypeEvaluator {
     ) -> ResolvedOperator;
 
     def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _extern_ability_type(ann: Expr | None) -> TypeBase;
     def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
     def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
     def _extern_field_type(field: HasVar) -> TypeBase;

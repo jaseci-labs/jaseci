@@ -425,34 +425,19 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/unitree.jac::Module.annexable_by.__get__",
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
          "jac0core/unitree.jac::Import.is_service_import.__get__",
-         "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
+         "jac0core/unitree.jac::MultiString.lit_value.__get__",
 
      ),
-     _TYPES_SEAM_WAIVERS: tuple[str, ...] = (
-         "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
-         "compiler/type_system/types.jac::FunctionType.specialize",
-
-     ),
+     _TYPES_SEAM_WAIVERS: tuple[str, ...] = (),
      _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::class_implements_protocol",
-         "compiler/type_system/type_utils.jac::collect_member_syms",
-         "compiler/type_system/type_utils.jac::get_completion_items",
-         "compiler/type_system/type_utils.jac::compute_mro_linearization",
-         "compiler/type_system/type_utils.jac::build_type_var_solution",
-         "compiler/type_system/type_utils.jac::shadowed_type_var_names",
-         "compiler/type_system/type_utils.jac::build_solution_from_specialized_class",
 
      ),
      _HELPERS_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/helpers.jac::read_file_with_encoding",
          "jac0core/helpers.jac::normalize_exclude_patterns",
          "jac0core/helpers.jac::read_jacignore_patterns",
-         "jac0core/helpers.jac::_is_version_info_access",
-         "jac0core/helpers.jac::_is_type_checking_ref",
-         "jac0core/helpers.jac::_extract_version_tuple",
-         "jac0core/helpers.jac::evaluate_version_condition",
-         "jac0core/helpers.jac::add_line_numbers",
 
      ),
      _CODEINFO_SEAM_WAIVERS: tuple[str, ...] = (
@@ -566,43 +551,39 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "and a native value for `Ellipsis`. `UniNode.gen.__get__` sat "
              "here until `codeinfo` joined the closure; with the module in "
              "the unit the lazy `CodeGenTarget` construction lowers and the "
-             "waiver is gone."
+             "waiver is gone. `MultiString.lit_value` asks `isinstance(part, "
+             "bytes)` of a `str | bytes` value: the two share the string tag, "
+             "so no native discriminator exists yet (the old lowering answered "
+             "False for every bytes); it clears when bytes gets its own tag."
          ),
          (
              "type system cross-module cascades",
              _TYPES_SEAM_WAIVERS,
-             "`lookup_member_symbol` and `specialize` are cascades of the "
-             "`type_utils` waivers below -- `collect_member_syms` and "
-             "`build_type_var_solution` -- and clear with their callees. "
-             "`create_callable_type` used to sit here for reading "
-             "`ParameterCategory.Positional`, whose `auto()` value no "
-             "constant fold reached; generated enum values gave it one and "
-             "the read lowers."
+             "Empty since the version-guard family moved into `type_utils` "
+             "and lowered: `lookup_member_symbol` cascaded on "
+             "`collect_member_syms`, `specialize` on "
+             "`build_type_var_solution`, and `create_callable_type` on the "
+             "`auto()` member fold; each cleared with its callee."
          ),
          (
              "type utils erased operands and unreachable layouts",
              _TYPE_UTILS_SEAM_WAIVERS,
-             "Three named backend gaps and their cascades: `isinstance` "
-             "against a layout not reachable from the root "
-             "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
-             "as a for-loop iterable (`build_type_var_solution`, "
-             "`build_solution_from_specialized_class`), and comprehensions "
-             "over element-erased collections "
-             "(`shadowed_type_var_names`). "
-             "Each clears with the named gap."
+             "One named backend gap: a method call on the `any`-typed "
+             "`evaluator` parameter (`class_implements_protocol`), kept "
+             "untyped so the keystone closure does not admit the evaluator. "
+             "The MRO, completion and member-collection family cleared when "
+             "the version guards moved here and `sys.hexversion` folded."
          ),
          (
              "helpers file reads and the unitree cycle",
              _HELPERS_SEAM_WAIVERS,
-             "Two groups. `read_file_with_encoding` passes an encoding "
+             "`read_file_with_encoding` passes an encoding "
              "keyword to `open()`, which the native lane refuses out loud "
              "since #8255; `normalize_exclude_patterns` and "
              "`read_jacignore_patterns` are string methods on "
              "element-erased list members. The `sys.version_info` family "
-             "reads unitree through a function-local import that keeps "
-             "`helpers` out of a module-level cycle with `unitree`; "
-             "hoisting it is the clearing mechanism and it needs the cycle "
-             "broken first. `pretty_print_source_location` and "
+             "moved to `type_utils`, where `unitree` imports at module "
+             "scope and the guards lower. `pretty_print_source_location` and "
              "`format_related_spans` sat here until their old-style `%` "
              "formatting (the `MOD on i8*` gap) became plain padding; the "
              "console gutter lowers now and `Alert.pretty_print` with it."

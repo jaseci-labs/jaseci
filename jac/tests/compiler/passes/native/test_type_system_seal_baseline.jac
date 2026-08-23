@@ -220,14 +220,15 @@ An eighth left when `type_utils` joined the closure.
 `FunctionType.specialize_func_type_vars` was waived as calling a function
 "outside this closure", and it is inside now, so it lowers.
 
-Two arrived in their place, and both are cross-module cascades #8272 made
-measurable: `FunctionType.specialize` and `ClassType.lookup_member_symbol`
-each call a `type_utils` function that demotes. Before that protocol the
-importer emitted their call sites before the dependency's verdicts existed,
-so the caller lowered and the artifact linked against a name the demotion had
-renamed away. Every seam this table holds is identical to the one the unitree
-coverage records for `types.jac` from the other root, which is the point: the
-seal reads the closure, not the entry it was reached from.
+One arrived in its place, a cross-module cascade #8272 made measurable:
+`ClassType.lookup_member_symbol` calls a `type_utils` function that demotes.
+Before that protocol the importer emitted its call site before the
+dependency's verdicts existed, so the caller lowered and the artifact linked
+against a name the demotion had renamed away. (`FunctionType.specialize` sat
+beside it until `build_type_var_solution`'s dedupe loop lowered.) Every seam
+this table holds is identical to the one the unitree coverage records for
+`types.jac` from the other root, which is the point: the seal reads the
+closure, not the entry it was reached from.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::ClassType.lookup_member_symbol": (
@@ -235,17 +236,9 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
              "on `helpers.evaluate_version_condition` and is waived in the "
              "unitree coverage."
          ),
-         "types.jac::FunctionType.specialize": (
-             "Cascade: calls `type_utils.build_type_var_solution`, waived in "
-             "the unitree coverage for its `enumerate(...)` for-loop iterable."
-         )
+
      },
-     DECL_PARSER_SEAM_WAIVERS: dict[(str, str)] = {
-         "ts_decl_parser.jac::_parse_dts_inner": (
-             "Backend gap: `set.add` on a set built from an inferred element "
-             "type; the emitter has no layout for the set's element."
-         )
-     };
+     DECL_PARSER_SEAM_WAIVERS: dict[(str, str)] = {};
 
 """Every module the native compile of `type_evaluator.jac` puts in its closure.
 

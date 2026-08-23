@@ -99,7 +99,9 @@ impl SymTabBuildPass.exit_binary_expr(self: SymTabBuildPass, nd: BinaryExpr) -> 
     if isinstance(nd.left, Name) {
         target_scope = nd.left.sym_tab;
         owner: (UniNode | None) = nd.parent;
-        while (owner is not None and not isinstance(owner, (Ability, LambdaExpr))) {
+        while (
+            owner is not None and not isinstance(owner, (Ability, LambdaExpr, ImplDef))
+        ) {
             owner = owner.parent;
         }
         if owner is not None {

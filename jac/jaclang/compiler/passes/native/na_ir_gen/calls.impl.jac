@@ -2875,7 +2875,7 @@ impl NaIRGenCalls._codegen_builtin_unary(
 ) -> (ir.Value | None) {
     params_l = nd.params or [];
     if not params_l {
-        if func_name in ("list", "set") {
+        if func_name in ("list", "set", "frozenset") {
             return self._codegen_empty_container_ctor(nd, func_name);
         }
         if func_name == "bytearray" {
@@ -2895,6 +2895,7 @@ impl NaIRGenCalls._codegen_builtin_unary(
         return None;
     }
     _kwargs = self._split_call_kwargs(nd);
+    _errs_before = len(self.errors_had);
     result = self._dispatch_builtin(
         func_name,
         [arg_val],
@@ -2903,7 +2904,7 @@ impl NaIRGenCalls._codegen_builtin_unary(
         type_key=(self._mangled_of(self._flow_narrowed_type_of(params_l[0])) or "")
     );
     self._release_owned_args([arg_val], op="builtin1_arg");
-    if result is None and not _kwargs {
+    if result is None and not _kwargs and len(self.errors_had) == _errs_before {
         self._emit_unsupported_builtin_call(nd, func_name);
     }
     return result;
@@ -3013,13 +3014,10 @@ impl NaIRGenCalls._empty_container_of_type(
         );
         return None;
     }
-    _ez_spec = (
-        self._set_spec_for_type(t)
-            if func_name == "set"
-            else self._list_spec_for_type(t)
-    );
+    _ez_set = func_name in ("set", "frozenset");
+    _ez_spec = self._set_spec_for_type(t) if _ez_set else self._list_spec_for_type(t);
     _ez_h = (
-        (self.set_helpers if func_name == "set" else self.list_helpers).get(_ez_spec)
+        (self.set_helpers if _ez_set else self.list_helpers).get(_ez_spec)
             if _ez_spec is not None
             else None
     );

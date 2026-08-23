@@ -60,6 +60,9 @@ impl NaIRGenTuples._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
         val = self.builder.insert_value(val, elem, i, name=f"tuple.{i}");
     }
     val.na_tuple_owned = elem_owned;
+    val.na_tuple_elem_tys = [
+        (self._expr_type_of(v) if isinstance(v, uni.Expr) else None) for v in nd.values
+    ];
     return val;
 }
 
@@ -302,7 +305,7 @@ impl NaIRGenTuples._box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value {
 }
 
 impl NaIRGenTuples._coerce_tuple_to_struct(
-    val: ir.Value, target_struct: ir.Type
+    val: ir.Value, target_struct: ir.Type, src_ty: any = None
 ) -> ir.Value {
     if not isinstance(val.type, ir.LiteralStructType)
         or not isinstance(target_struct, ir.LiteralStructType) {
@@ -312,12 +315,20 @@ impl NaIRGenTuples._coerce_tuple_to_struct(
         or len(val.type.elements) != len(target_struct.elements) {
         return val;
     }
+    _val_tys = val?.na_tuple_elem_tys;
+    if _val_tys is not None and len(_val_tys) != len(target_struct.elements) {
+        _val_tys = None;
+    }
     out = ir.Constant(target_struct, ir.Undefined);
     for i in range(len(target_struct.elements)) {
         fld = self.builder.extract_value(val, i, name=f"tcoerce.{i}");
         tgt_ty = target_struct.elements[i];
         if fld.type != tgt_ty {
-            fld = self._coerce_type(fld, tgt_ty);
+            _fld_ty = self._tb_elem(src_ty, i) if src_ty is not None else None;
+            if _val_tys is not None and _val_tys[i] is not None {
+                _fld_ty = _val_tys[i];
+            }
+            fld = self._coerce_typed(fld, tgt_ty, _fld_ty);
         }
         out = self.builder.insert_value(out, fld, i, name=f"tcoerce.ins.{i}");
     }

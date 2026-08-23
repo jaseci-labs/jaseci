@@ -26,6 +26,18 @@ obj NaIRGenComprehensions(NaIRGenState) {
         spec: str
     ) -> None;
 
+    def _codegen_compr_iter_walk(
+        inner: uni.InnerCompr,
+        comprs: list,
+        idx: int,
+        kind: str,
+        acc: ir.Value,
+        key_expr: uni.UniNode,
+        val_expr: (uni.UniNode | None),
+        spec: str,
+        conditionals: list
+    ) -> None;
+
     def _codegen_compr_range_walk(
         inner: uni.InnerCompr,
         comprs: list,

@@ -414,6 +414,13 @@ impl TypeEvaluator.get_type_of_symbol(symbol: Symbol) -> TypeBase {
             self.pop_symbol_resolution(symbol);
         }
     }
+    _cyclic_decl = symbol.decl.name_of if symbol.decl is not None else None;
+    if (
+        isinstance(_cyclic_decl, (Archetype, Enum))
+        and _cyclic_decl.name_spec.type is not None
+    ) {
+        return _cyclic_decl.name_spec.type;
+    }
     return UnknownType(is_incomplete=True);
 }
 

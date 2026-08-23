@@ -41,8 +41,10 @@ impl NaIRGenEnums._ensure_enum_lowered(t: any) -> (ir.Type | None) {
             self._codegen_enum_layout(_enm, None);
         }
     }
-    if class_form_enum_scalar(t) is not None {
-        return self._lower_type(convert_to_instance(enum_value_type_of(t)));
+    _scalar = class_form_enum_scalar(t);
+    if _scalar is not None {
+        _vt = enum_value_type_of(t) or self._tb_builtin(_scalar);
+        return self._lower_type(convert_to_instance(_vt));
     }
     return ir.IntType(64);
 }
@@ -220,6 +222,16 @@ impl NaIRGenEnums._enum_is_string_valued(enum_name: str) -> bool {
     }
     lay = self._enum_layout_of(enum_name);
     return lay is not None and lay.is_string_enum and not lay.is_class_form;
+}
+
+impl NaIRGenEnums._enum_value_is_text(t: any) -> bool {
+    _t = self._tb_solve(self._tb_opt_payload(t) or t);
+    _name = self._tb_class_name(_t);
+    if _name is None {
+        return False;
+    }
+    lay = self._enum_layout_of(_name);
+    return lay is not None and lay.is_class_form and lay.is_string_enum;
 }
 
 impl NaIRGenEnums._enum_ordinal_fn(enum_name: str) -> (ir.Function | None) {

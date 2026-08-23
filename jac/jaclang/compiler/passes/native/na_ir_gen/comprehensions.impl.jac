@@ -160,7 +160,9 @@ impl NaIRGenComprehensions._emit_compr_element(
                 if isinstance(expected_type, ir.PointerType)
                     and isinstance(expected_type.pointee, ir.LiteralStructType)
                     and isinstance(val.type, ir.LiteralStructType) {
-                    val = self._coerce_tuple_to_struct(val, expected_type.pointee);
+                    val = self._coerce_tuple_to_struct(
+                        val, expected_type.pointee, src_ty=self._expr_type_of(key_expr)
+                    );
                 }
                 val = self._box_value_tuple(val);
                 _scompr_boxed = val;
@@ -245,6 +247,24 @@ impl NaIRGenComprehensions._codegen_compr_walk(
             );
             return;
         }
+    }
+    _is_adapter = isinstance(collection, uni.FuncCall)
+        and any(
+            self._builtin_call_is(collection, _a)
+            for _a in ("map", "filter", "enumerate", "zip", "iter")
+        );
+    _pre_ty = self._expr_type_of(collection);
+    _pre_kind = self._tb_kind(self._tb_opt_payload(_pre_ty) or _pre_ty);
+    if (
+        _is_adapter
+        or isinstance(loop_target, uni.TupleVal)
+        or _pre_kind
+            in ("iterator", "dict_keys", "dict_values", "dict_items", "set", "dict")
+    ) {
+        self._codegen_compr_iter_walk(
+            inner, comprs, idx, kind, acc, key_expr, val_expr, spec, conditionals
+        );
+        return;
     }
 
     coll_val = self._opt_unwrap_iterable(self._codegen_expr(collection));
@@ -361,6 +381,207 @@ impl NaIRGenComprehensions._codegen_compr_walk(
     if isinstance(coll_val.type, ir.PointerType) and self._is_owned(coll_val) {
         _coll_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:0";
         self._emit_rc_release_simple(coll_val, op="compr_coll", loc=_coll_loc);
+    }
+}
+
+impl NaIRGenComprehensions._codegen_compr_iter_walk(
+    inner: uni.InnerCompr,
+    comprs: list,
+    idx: int,
+    kind: str,
+    acc: ir.Value,
+    key_expr: uni.UniNode,
+    val_expr: (uni.UniNode | None),
+    spec: str,
+    conditionals: list
+) -> None {
+    collection = inner.collection;
+    loop_target = inner.target;
+    self._ensure_iter_types();
+    _dv_kind: (str | None) = None;
+    for _dv in ("items", "values", "keys") {
+        if self._method_call_is(collection, _dv, ("dict", )) {
+            _dv_kind = _dv;
+            break;
+        }
+    }
+    _dv_helpers: (dict | None) = None;
+    _dv_dict_val: (ir.Value | None) = None;
+    built: (tuple | None) = None;
+    if _dv_kind == "items"
+        and not (
+            isinstance(loop_target, uni.TupleVal) and len(loop_target.values or []) == 2
+        ) {
+        _dv_kind = None;
+    }
+    if _dv_kind is not None {
+        _dv_dict_expr = collection.target.target;
+        _dv_spec = self._dict_spec_for_expr(_dv_dict_expr);
+        if _dv_spec is not None and _dv_spec in self.dict_helpers {
+            _dv_helpers = self.dict_helpers[_dv_spec];
+            _dv_dict_val = self._opt_unwrap_iterable(self._codegen_expr(_dv_dict_expr));
+            if _dv_dict_val is None {
+                return;
+            }
+            _dv_dict_val = self._coerce_typed(
+                _dv_dict_val,
+                self.dict_types[_dv_spec].as_pointer(),
+                self._expr_type_of(_dv_dict_expr)
+            );
+            built = (
+                self._make_dict_iter(_dv_dict_val, _dv_spec),
+                _dv_spec,
+                _dv_helpers["key_type"],
+
+            );
+        } else {
+            _dv_kind = None;
+        }
+    }
+    if built is None {
+        built = self._build_iter_from_expr(collection);
+    }
+    if built is None {
+        self.emit(
+            E5092,
+            node_override=collection,
+            kind="expression",
+            name=f"comprehension over {self._expr_type_of(collection)}",
+            help_text="This collection does not build a native iterator; iterate a list, dict, set or an adapter over one, or move this code to a @sv/Python context."
+        );
+        return;
+    }
+    (iter_val, _ename, elem_type) = built;
+    i8p = ir.IntType(8).as_pointer();
+    elem_slot = self._entry_alloca(elem_type, "compr.it.elem");
+    _tup_allocas: list = [];
+    loop_var_name: (str | None) = None;
+    _dv_val_slot: (ir.Value | None) = None;
+    _dv_key_slot: (ir.Value | None) = None;
+    if _dv_kind == "items" {
+        _dv_targets = loop_target.values or [];
+        _dv_kn = self._get_name(_dv_targets[0]);
+        _dv_vn = self._get_name(_dv_targets[1]);
+        if _dv_kn is None or _dv_vn is None {
+            return;
+        }
+        _dv_key_slot = self._entry_alloca(_dv_helpers["key_type"], _dv_kn);
+        _dv_val_slot = self._entry_alloca(_dv_helpers["val_type"], _dv_vn);
+        self.local_vars[_dv_kn] = _dv_key_slot;
+        self.local_vars[_dv_vn] = _dv_val_slot;
+    } elif _dv_kind == "values" {
+        _dv_vn = self._get_name(loop_target);
+        if _dv_vn is None {
+            return;
+        }
+        _dv_val_slot = self._entry_alloca(_dv_helpers["val_type"], _dv_vn);
+        self.local_vars[_dv_vn] = _dv_val_slot;
+    } elif isinstance(loop_target, uni.TupleVal) {
+        targets = loop_target.values or [];
+        _tup_elems = (
+            list(elem_type.elements)
+                if isinstance(elem_type, ir.LiteralStructType)
+                else (
+                    list(elem_type.pointee.elements)
+                        if (
+                            isinstance(elem_type, ir.PointerType)
+                            and isinstance(elem_type.pointee, ir.LiteralStructType)
+                        )
+                        else []
+                )
+        );
+        if len(targets) != len(_tup_elems) {
+            self.emit(
+                E5092,
+                node_override=loop_target,
+                kind="comprehension target",
+                name=f"{len(targets)}-name unpack of {self._expr_type_of(collection)}",
+                help_text="The iterator yields a tuple of a different arity than the comprehension target binds."
+            );
+            return;
+        }
+        for (_ti, _tgt) in enumerate(targets) {
+            _tn = self._get_name(_tgt);
+            if _tn is None {
+                return;
+            }
+            _ta = self._entry_alloca(_tup_elems[_ti], _tn);
+            self.local_vars[_tn] = _ta;
+            _tup_allocas.append(_ta);
+        }
+    } else {
+        loop_var_name = self._get_name(loop_target);
+        if loop_var_name is None {
+            return;
+        }
+        self.local_vars[loop_var_name] = elem_slot;
+    }
+    func = self.builder.function;
+    cond_bb = func.append_basic_block(name="compr.it.cond");
+    body_bb = func.append_basic_block(name="compr.it.body");
+    end_bb = func.append_basic_block(name="compr.it.end");
+    self.builder.branch(cond_bb);
+    self.builder.position_at_end(cond_bb);
+    out_i8 = self.builder.bitcast(elem_slot, i8p, name="compr.it.out");
+    got = self._emit_iter_advance(self.builder, iter_val, out_i8);
+    self.builder.cbranch(got, body_bb, end_bb);
+    self.builder.position_at_end(body_bb);
+    if _dv_val_slot is not None {
+        _dv_key = self.builder.load(elem_slot, name="compr.dv.key");
+        if _dv_key_slot is not None {
+            self.builder.store(_dv_key, _dv_key_slot);
+        }
+        _dv_v = self.builder.call(
+            _dv_helpers["get"], [_dv_dict_val, _dv_key], name="compr.dv.val"
+        );
+        self.builder.store(_dv_v, _dv_val_slot);
+    }
+    if _tup_allocas {
+        tup = self.builder.load(elem_slot, name="compr.it.tup");
+        if isinstance(elem_type, ir.PointerType) {
+            tup = self.builder.load(tup, name="compr.it.tup.v");
+        }
+        for (_ti, _ta) in enumerate(_tup_allocas) {
+            self.builder.store(
+                self.builder.extract_value(tup, _ti, name=f"compr.it.t{_ti}"), _ta
+            );
+        }
+    }
+    if conditionals {
+        filter_bb = func.append_basic_block(name="compr.it.filter");
+        skip_bb = func.append_basic_block(name="compr.it.skip");
+        all_cond = self._codegen_expr(conditionals[0]);
+        if all_cond is not None {
+            all_cond = self._to_bool_of(all_cond, conditionals[0]);
+            for i in range(1, len(conditionals)) {
+                next_cond = self._codegen_expr(conditionals[i]);
+                if next_cond is not None {
+                    next_cond = self._to_bool_of(next_cond, conditionals[i]);
+                    all_cond = self.builder.and_(
+                        all_cond, next_cond, name="compr.it.and"
+                    );
+                }
+            }
+            self.builder.cbranch(all_cond, filter_bb, skip_bb);
+        } else {
+            self.builder.branch(filter_bb);
+        }
+        self.builder.position_at_end(filter_bb);
+        self._codegen_compr_walk(comprs, idx + 1, kind, acc, key_expr, val_expr, spec);
+        if not self.builder.block.is_terminated {
+            self.builder.branch(skip_bb);
+        }
+        self.builder.position_at_end(skip_bb);
+        self.builder.branch(cond_bb);
+    } else {
+        self._codegen_compr_walk(comprs, idx + 1, kind, acc, key_expr, val_expr, spec);
+        if not self.builder.block.is_terminated {
+            self.builder.branch(cond_bb);
+        }
+    }
+    self.builder.position_at_end(end_bb);
+    if self._is_owned(iter_val) {
+        self._emit_rc_release_simple(iter_val, op="compr_iter_end", loc="");
     }
 }
 

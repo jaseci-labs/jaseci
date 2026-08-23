@@ -75,6 +75,24 @@ impl NaIRGenTypes._tb_opt_payload(t: any) -> (any | None) {
 impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
     _payload = self._tb_opt_payload(t);
     _base = _payload if _payload is not None else t;
+    if isinstance(self._tb_solve(_base), UnionType) {
+        _member_elems: list = [];
+        for _m in self._tb_non_none(_base) {
+            _me = self._tb_elem(_m, idx);
+            if _me is None {
+                return None;
+            }
+            if not any(str(_me) == str(_seen) for _seen in _member_elems) {
+                _member_elems.append(_me);
+            }
+        }
+        if not _member_elems {
+            return None;
+        }
+        return _member_elems[0]
+            if len(_member_elems) == 1
+            else UnionType(types=_member_elems);
+    }
     _args = self._tb_args(_base);
     _view = self._tb_class_name(_base);
     if _view == "dict_keys" and len(_args) >= 1 and idx == 0 {
@@ -217,7 +235,8 @@ impl NaIRGenTypes._tb_kind(t: any) -> str {
         "Generator": "iterator",
         "dict_keys": "list",
         "dict_values": "list",
-        "dict_items": "list"
+        "dict_items": "list",
+        "type": "class"
     };
     if _name in _by_name {
         return _by_name[_name];
@@ -1075,7 +1094,10 @@ impl NaIRGenTypes._foreign_optional_field(tb: any) -> bool {
         if _k == "any" and isinstance(self._tb_solve(m), UnknownType) {
             continue;
         }
-        if _k in ("struct", "object") and self._lower_type(m) is None {
+        if _k == "typevar" {
+            return False;
+        }
+        if isinstance(self._tb_solve(m), ClassType) and self._lower_type(m) is None {
             continue;
         }
         return False;
@@ -1371,6 +1393,19 @@ impl NaIRGenTypes._to_bool(val: ir.Value, ty: any) -> ir.Value {
     }
     if isinstance(val.type, ir.IntType) and val.type.width == 1 {
         return val;
+    }
+    if _k == "union" {
+        _member_kinds = {self._tb_kind(_m) for _m in self._tb_non_none(ty)};
+        if _member_kinds <= {"int", "bool", "enum"} {
+            return self.builder.icmp_unsigned(
+                "!=", val, ir.Constant(val.type, 0), name="tobool"
+            );
+        }
+        if _member_kinds <= {"float"} {
+            return self.builder.fcmp_unordered(
+                "!=", val, ir.Constant(val.type, 0.0), name="tobool"
+            );
+        }
     }
     self.emit(
         E5092,
@@ -1906,7 +1941,12 @@ impl NaIRGenTypes._coerce_type_inner(
             and _lc_src != _lc_dst
             and (_lc_src == "jacval") != (_lc_dst == "jacval")
         ) {
-            _lc_re = self._reflavor_list(val, _lc_src, _lc_dst);
+            _lc_re = self._reflavor_list(
+                val,
+                _lc_src,
+                _lc_dst,
+                src_elem_ty=(self._tb_elem(src_ty) if src_ty is not None else None)
+            );
             if _lc_re is not None {
                 return _lc_re;
             }
@@ -1976,7 +2016,7 @@ impl NaIRGenTypes._coerce_type_inner(
             and isinstance(target_type.pointee, ir.LiteralStructType)
             and val.type != target_type.pointee
             and len(val.type.elements) == len(target_type.pointee.elements) {
-            val = self._coerce_tuple_to_struct(val, target_type.pointee);
+            val = self._coerce_tuple_to_struct(val, target_type.pointee, src_ty=src_ty);
         }
         if target_type?.pointee and target_type.pointee == val.type {
             if isinstance(val.type, ir.LiteralStructType) {
@@ -3144,6 +3184,12 @@ impl NaIRGenTypes._emit_comparison(
     }
     _lk = self._tb_kind(lty);
     _rk = self._tb_kind(rty);
+    if _lk == "enum" and self._enum_value_is_text(lty) {
+        _lk = "str";
+    }
+    if _rk == "enum" and self._enum_value_is_text(rty) {
+        _rk = "str";
+    }
     _l_opt = self._opt_payload_of(left.type);
     _r_opt = self._opt_payload_of(right.type);
     _l_jv = self._is_jacval_ty(left.type);
