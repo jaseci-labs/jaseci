@@ -598,9 +598,22 @@ test "layer1: hash routing and compare protocol probes (P3.1e/M10)" {
     "        with self.assertRaises(TypeError):\n"
     "            1 < 'a'\n"
     "        with self.assertRaises(TypeError):\n"
-    "            (1, 2) < 'a'\n";
+    "            (1, 2) < 'a'\n"
+    "    def test_ne_derives_from_user_eq(self):\n"
+    "        class V:\n"
+    "            def __init__(self, v):\n"
+    "                self.v = v\n"
+    "            def __eq__(self, other):\n"
+    "                return self.v == other.v\n"
+    "        a = V(1)\n"
+    "        b = V(1)\n"
+    "        self.assertTrue(a == b)\n"
+    "        self.assertFalse(a != b)\n"
+    "        c = V(2)\n"
+    "        self.assertTrue(a != c)\n"
+    "        self.assertFalse(a == c)\n";
     result = layer1_replay_source(src);
-    assert result.passed == 4;
+    assert result.passed == 5;
     assert result.skipped == 0;
     assert result.failed == 0;
     assert result.errored == 0;

@@ -2978,6 +2978,27 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         return PyBool(t="bool", val=lhs is rhs);
     }
     if kind == 3 {
+        # CPython object.__ne__: when either side defines __eq__ (and neither
+        # defined __ne__ -- both were tried above), != is the negated result
+        # of the full == protocol, not an identity test. Recursing with kind 2
+        # reuses reflected priority, builtin-subclass slots, and the base
+        # tp_richcompare chain; a NotImplemented from __eq__ still lands on
+        # that chain's identity fallback before negation.
+        eq_lhs = False;
+        eq_rhs = False;
+        if isinstance(lhs, PyUserObj) {
+            eq_lhs = user_has_dunder(lhs as PyUserObj, "__eq__");
+        }
+        if isinstance(rhs, PyUserObj) {
+            eq_rhs = user_has_dunder(rhs as PyUserObj, "__eq__");
+        }
+        if eq_lhs or eq_rhs {
+            res = user_compare(2, lhs, rhs);
+            if is_error(res) {
+                return res;
+            }
+            return PyBool(t="bool", val=not py_truth(res));
+        }
         return PyBool(t="bool", val=lhs is not rhs);
     }
     return py_ordering_type_error(kind, lhs, rhs, _compare_type_name);
