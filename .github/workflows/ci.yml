@@ -605,6 +605,13 @@ jobs:
           JACPATH: jac-py/jacpython
         run: jac test jac-py/tests/test_p2_facade_parity.jac
 
+      - name: P2 wave-20 facade parity (functools + itertools accumulate)
+        env:
+          JACPATH: jac-py/jacpython
+        run: |
+          jac test jac-py/tests/test_functools_parity.jac
+          jac test jac-py/tests/test_itertools_facade_parity.jac
+
       - name: P3 Layer-0/1 replay regression tests
         run: jac test jac-py/jacpython/layer0_replay.jac
 

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "wave": "p2_wave20",
+  "description": "P2 wave-20 conformance manifest (functoolsmodule facade port + itertools accumulate(initial=), host-oracle parity)",
+  "module_count": 2,
+  "modules": [
+    {
+      "stem": "_functoolsmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_functools_parity.jac"
+      ],
+      "libtest_snippets": [
+        "functools_reduce",
+        "functools_partial_lru",
+        "functools_cmp_to_key",
+        "functools_wraps_update_wrapper"
+      ],
+      "notes": "reduce/partial/lru_cache/cmp_to_key/wraps/update_wrapper facades mirroring pinned CPython 3.14 semantics; reduce/partial/lru_cache/cmp_to_key also registered as the libtest functools shim; total_ordering is parity-gated only (needs VM-side receiver-binding synthetic callables for derived dunders)"
+    },
+    {
+      "stem": "itertoolsmodule",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "test_itertools_facade_parity.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "wave-20 extension: accumulate gains keyword-only initial with CPython seed-first, source-untouched laziness; lazy iterator facades stay out of the libtest shim (GET_ITER drains host-side eagerly)"
+    }
+  ]
+}
