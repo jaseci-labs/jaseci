@@ -4002,6 +4002,13 @@ def calliter_next(it: PyCallableIter) -> PyObj {
     }
     res = (it.fn as PyObj).tp_call([], {});
     if is_error(res) {
+        # CPython calliter_iternext: a callable raising StopIteration (or a
+        # subclass) ends this step -- the error is cleared and tp_iternext
+        # returns NULL, so FOR_ITER pops the loop instead of propagating.
+        # Exhaustion is NOT latched: each next() retries the callable.
+        if error_is_stopiteration(res) {
+            return PyGenStop(t="genstop", val=py_none());
+        }
         return res;
     }
     eq = py_compare(2, res, it.sentinel);
@@ -4761,6 +4768,33 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
         return False;
     }
     return exc_name_matches(exception.type_name, target_name);
+}
+
+# True iff a raised error IS StopIteration or a SUBCLASS of it -- CPython's
+# FOR_ITER / tp_iternext exhaustion contract matches by type
+# (PyErr_ExceptionMatches), never by exact type-name equality. Covers builtin
+# name-chain subclasses via exc_name_matches and guest classes whose bases
+# reach the native StopIteration type.
+def error_is_stopiteration(err: PyObj) -> bool {
+    if err.t != "error" {
+        return False;
+    }
+    exc = (err as PyError).exception;
+    if exc_name_matches(exc.type_name, "StopIteration") {
+        return True;
+    }
+    raw = exc.raw;
+    if raw is not None and isinstance(raw, PyUserObj) {
+        for klass in class_mro((raw as PyUserObj).cls) {
+            for base in klass.bases {
+                if isinstance(base, PyExceptionType)
+                    and (base as PyExceptionType).name == "StopIteration" {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
 }
 
 # True iff `cls` (a user class) derives from a builtin exception -- i.e. one of
@@ -8861,8 +8895,10 @@ def run_frame(frame: PyFrame) -> PyObj {
                 # tp_iternext == guest __next__; StopIteration pops the loop.
                 nxt = call_user_dunder(top as PyUserObj, "__next__", []);
                 if is_error(nxt) {
-                    exc_name = (nxt as PyError).exception.type_name;
-                    if exc_name == "StopIteration" {
+                    # tp_iternext contract: StopIteration OR ANY SUBCLASS ends
+                    # the loop (matched by type, not exact name); anything else
+                    # propagates through handler dispatch.
+                    if error_is_stopiteration(nxt) {
                         stack.pop();
                         ip = ip + 2 * arg;
                     } else {
