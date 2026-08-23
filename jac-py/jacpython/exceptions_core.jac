@@ -87,22 +87,44 @@ glob _EXC_PARENT: dict[str, str] = {
      };
 
 
+def _exc_parent_of(name: str) -> str {
+    # Parent lookup across the builtin hierarchy AND the module-exception
+    # registry; a dotted name falls back to its short form so a qualified
+    # registry entry ("json.JSONDecodeError") chains like its builtin parent.
+    if name in _EXC_PARENT {
+        return _EXC_PARENT[name];
+    }
+    if name in _MODULE_EXC_BASE {
+        return _MODULE_EXC_BASE[name];
+    }
+    if "." in name {
+        parts = name.split(".");
+        short = parts[len(parts) - 1];
+        if short in _EXC_PARENT {
+            return _EXC_PARENT[short];
+        }
+        if short in _MODULE_EXC_BASE {
+            return _MODULE_EXC_BASE[short];
+        }
+    }
+    return "";
+}
+
 def _exc_is_subclass(exc_name: str, base_name: str) -> bool {
     if exc_name == base_name {
         return True;
     }
     cur = exc_name;
     while True {
-        if cur in _EXC_PARENT {
-            cur = _EXC_PARENT[cur];
-        } elif cur in _MODULE_EXC_BASE {
-            # Facade-declared module exceptions (struct.error,
-            # json.JSONDecodeError, ...) chain through their registered builtin
-            # base so `except ValueError` catches JSONDecodeError etc.
-            cur = _MODULE_EXC_BASE[cur];
-        } else {
+        nxt = _exc_parent_of(cur);
+        if nxt == "" {
+            # Last resort: "pkg.Name" IS "Name" (registry short-form alias).
+            if "." in cur and base_name == _exc_short_name(cur) {
+                return True;
+            }
             return False;
         }
+        cur = nxt;
         if cur == base_name {
             return True;
         }
@@ -119,8 +141,22 @@ def _exc_is_subclass(exc_name: str, base_name: str) -> bool {
 #     generic Exception); unknown names fail loudly instead of degrading.
 glob _MODULE_EXC_BASE: dict[str, str] = {};
 
+def _exc_short_name(qualified: str) -> str {
+    parts = qualified.split(".");
+    return parts[len(parts) - 1];
+}
+
 def register_module_exception(qualified: str, base: str) {
     _MODULE_EXC_BASE[qualified] = base;
+    # Short-form alias when unambiguous, so a guest raising/catching the SHORT
+    # display name (CPython: type(struct.error()).__name__ == "error") matches
+    # the same hierarchy.
+    short = _exc_short_name(qualified);
+    if short != qualified
+        and not (short in _EXC_PARENT)
+        and not (short in _MODULE_EXC_BASE) {
+        _MODULE_EXC_BASE[short] = base;
+    }
 }
 
 # Nearest registered builtin base for a qualified module-exception name;
