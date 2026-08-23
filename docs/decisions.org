@@ -150,3 +150,46 @@ semantics bit-exact.
 When ceval wires PyObj/PyDict-backed storage for facade containers or
 facade-defined exceptions land, migrate each item, flip parity pins to
 two-sided, mark =SUPERSEDED=.
+
+* D04 -- TODO item 57 trace: builtin str hash bypasses pyhash via launcher init
+:PROPERTIES:
+:ID: item57-str-hash-trace
+:END:
+
+**Decision**
+Record the completed fix-spec trace for TODO item 57 (previously "fix-spec
+pending from trace"). The jac-py dispatch layer is CORRECT and host-exact:
+builtin hash() -> py_hash() -> hash_dispatch.hash_element() ->
+str_hash_obj() -> pyhash.str_hash_text (SipHash-1-3 with PYTHONHASHSEED
+keys). In-guest pyhash.str_hash_text("spam") = -7643603308804133256
+(host-exact under seed 0).
+
+**Root cause**
+Guest modules exec as CPython bytecode on the launcher's embedded
+interpreter. The hermetic init (jac/launcher/embed.zig initInterpreter,
+use_environment=0) never applies PYTHONHASHSEED, so the builtin hash() is
+the embedded interpreter's random-secret CPython hash. Proof: in-guest
+hash(s) == s.__hash__() is True (real CPython str); "" hashes to 0 on
+both paths only because empty-buffer hashing is key-independent.
+
+**Options considered**
+1. Launcher-side: read PYTHONHASHSEED pre-init, pass as PyInitConfig
+   value — preserves hermeticity contract, fixes every route including
+   container-key consistency in one place. CHOSEN DIRECTION.
+2. na_ir_gen emit_hash lowering for JacStr — narrower; leaves container
+   key consistency split across two hashing regimes.
+3. Dispatch-layer workaround — rejected outright: dispatch is already
+   correct; a workaround would corrupt correct code.
+
+**Tradeoff**
+Option 1 touches the Zig launcher and must keep the hermeticity guarantee
+(explicit env read at init, not ambient use_environment).
+
+**Reversal condition**
+If PyInitConfig cannot carry the seed on the pinned interpreter version,
+fall back to option 2 for JacStr and document container-key divergence.
+
+Regression pins landed in jac-py/tests/test_pyhash_secret.jac (seed-0
+goldens incl. UTF-16-lane strings, triple-verified against an independent
+siphash13 reference). Wave-18 auto-arming goldens activate once option 1
+lands.
