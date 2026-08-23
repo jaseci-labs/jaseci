@@ -92,6 +92,7 @@ glob CODEINFO_CLOSURE: tuple = (
 """codeinfo's own seams: filesystem, config and Python-codegen machinery."""
 glob CODEINFO_SEAMS: tuple = (
          "CodeGenTarget.doc_ir.__get__",
+         "CodeGenTarget.es_ast",
          "_func_layout_to_dict",
          "_inferred_native_path",
          "effective_default_codespace",

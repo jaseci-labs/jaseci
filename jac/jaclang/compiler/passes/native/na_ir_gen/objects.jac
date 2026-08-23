@@ -138,6 +138,7 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> bool;
 
     def _seam_warnings_on -> bool;
+    def _arch_decl_mod_path(arch_name: str) -> str;
     def _opaque_field_if_unlowerable(
         arch_name: str, fname: str, local_mark: int
     ) -> (ir.Type | None);

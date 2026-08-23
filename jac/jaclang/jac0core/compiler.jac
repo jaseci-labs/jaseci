@@ -1078,7 +1078,9 @@ def na_coverage_seam(path: str, reason: str) {
         rec = {'outcome': 'native', 'code': '', 'detail': '', 'seams': []};
         _na_coverage[key] = rec;
     }
-    rec['seams'].append(reason);
+    if reason not in rec['seams'] {
+        rec['seams'].append(reason);
+    }
 }
 
 def na_coverage_end -> dict {

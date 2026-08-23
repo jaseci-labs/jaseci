@@ -1783,8 +1783,12 @@ impl TypeEvaluator._get_type_of_expression_core(
 
         case IfElseExpr():
             self.get_type_of_expression(expr.condition.expr);
-            true_type = self.get_type_of_expression(expr.value.expr);
-            false_type = self.get_type_of_expression(expr.else_value.expr);
+            true_type = self.get_type_of_expression(
+                expr.value.expr, expected_type=expected_type
+            );
+            false_type = self.get_type_of_expression(
+                expr.else_value.expr, expected_type=expected_type
+            );
             if self._is_untyped_empty_literal(expr.value.expr, true_type) {
                 true_type = self.get_type_of_expression(
                     expr.value.expr, expected_type=false_type
@@ -3695,7 +3699,17 @@ impl TypeEvaluator.get_type_of_expression(
     if node_.type is not None {
         if expected_type is None
             or not isinstance(
-                node_, (ListVal, DictVal, SetVal, TupleVal, ListCompr, LambdaExpr, )
+                node_,
+                (
+                    ListVal,
+                    DictVal,
+                    SetVal,
+                    TupleVal,
+                    ListCompr,
+                    LambdaExpr,
+                    IfElseExpr,
+
+                )
             ) {
             if isinstance(node_, FuncCall) and expected_type is not None {
                 _adopted = self._adopt_expected_container(

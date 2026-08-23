@@ -1113,6 +1113,20 @@ impl NaIRGenObjects._seam_warnings_on -> bool {
     return True;
 }
 
+impl NaIRGenObjects._arch_decl_mod_path(arch_name: str) -> str {
+    lay = self._registry().get_layout(arch_name);
+    _ct = lay.class_type if lay is not None else None;
+    _decl = (
+        _ct.shared.symbol_table
+            if isinstance(_ct, ClassType) and _ct._shared is not None
+            else None
+    );
+    if _decl is not None and _decl.loc and _decl.loc.mod_path {
+        return _decl.loc.mod_path;
+    }
+    return self.ir_in.loc.mod_path;
+}
+
 impl NaIRGenObjects._opaque_field_if_unlowerable(
     arch_name: str, fname: str, local_mark: int
 ) -> (ir.Type | None) {
@@ -1151,7 +1165,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
     try {
         import from jaclang.jac0core.compiler { na_coverage_seam }
         na_coverage_seam(
-            self.ir_in.loc.mod_path,
+            self._arch_decl_mod_path(arch_name),
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
         );
     } except Exception { }
