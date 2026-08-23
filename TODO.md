@@ -416,6 +416,12 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     - py_none() mints fresh instances with no richcompare arm, so None in {None}
     returned False. Fixed via eq/ne-vs-PyNoneType arm; None==0/'' correctly False.
 
+47. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
+    TypeAlias slice 0c5a15a61, byte-exact compiler side). `type X = int`
+    compiles but runtime raises unsupported-opcode until VM arm lands.
+    Owner: YoungHawk queue with LOAD_FROM_DICT_OR_GLOBALS + __annotate__
+    descriptor work (PEP 649/695 runtime completion family).
+
 46. **[HIGH] List/tuple repetition copies instead of aliasing.** [[0]]*3:
     rows[0] is rows[1] -> False on jacpython; CPython True (shallow repetition
     repeats references, never copies). rows[0].append(1) then shows [0] at
