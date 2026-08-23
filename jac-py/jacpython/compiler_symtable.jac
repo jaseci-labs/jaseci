@@ -1738,30 +1738,31 @@ import from compiler_diagnostics { compiler_diag_message }
 import from objects { PyInt }
 import from ast_nodes { Constant, Assign, USub }
 
-::py::
-import symtable as _symtable_mod
+import symtable as _symtable_mod;
 
 
-def _host_sym_normalize(source, mode="exec"):
-    st = _symtable_mod.symtable(source, "<t>", mode)
+def _host_sym_normalize(source: str, mode: str = "exec") -> dict {
+    st = _symtable_mod.symtable(source, "<t>", mode);
 
-    def block_info(st):
+    def block_info(st: any) -> dict {
+        children = [];
         d = {
             "name": st.get_name(),
             "type": st.get_type().value,
             "lineno": st.get_lineno(),
             "nested": st.is_nested(),
             "symbols": {},
-            "children": [],
+            "children": children,
+        };
+        if hasattr(st, "get_parameters") {
+            d["parameters"] = list(st.get_parameters());
+            d["locals"] = list(st.get_locals());
+            d["globals"] = list(st.get_globals());
+            d["nonlocals"] = list(st.get_nonlocals());
+            d["frees"] = list(st.get_frees());
         }
-        if hasattr(st, "get_parameters"):
-            d["parameters"] = list(st.get_parameters())
-            d["locals"] = list(st.get_locals())
-            d["globals"] = list(st.get_globals())
-            d["nonlocals"] = list(st.get_nonlocals())
-            d["frees"] = list(st.get_frees())
-        for name in sorted(st.get_identifiers()):
-            sym = st.lookup(name)
+        for name in sorted(st.get_identifiers()) {
+            sym = st.lookup(name);
             d["symbols"][name] = {
                 "local": sym.is_local(),
                 "global": sym.is_global(),
@@ -1771,15 +1772,19 @@ def _host_sym_normalize(source, mode="exec"):
                 "declared_global": sym.is_declared_global(),
                 "referenced": sym.is_referenced(),
                 "assigned": sym.is_assigned(),
+            };
+        }
+        for ch in st.get_children() {
+            if ch.get_type().value == "annotation" {
+                continue;
             }
-        for ch in st.get_children():
-            if ch.get_type().value == "annotation":
-                continue
-            d["children"].append(block_info(ch))
-        return d
+            children.append(block_info(ch));
+        }
+        return d;
+    }
 
-    return block_info(st)
-::py::
+    return block_info(st);
+}
 
 
 
@@ -1787,15 +1792,14 @@ def _sym_oracle_equal_py(native: any, expected: any) -> bool {
     return _sym_oracle_equal(native, expected) as bool;
 }
 
-::py::
-import json
+import json;
 
 
-def _sym_oracle_equal(native, expected):
-    nj = json.dumps(native, sort_keys=True, default=str)
-    ej = json.dumps(expected, sort_keys=True, default=str)
-    return nj == ej
-::py::
+def _sym_oracle_equal(native: any, expected: any) -> bool {
+    nj = json.dumps(native, sort_keys=True, `default=lambda (x: any) { return str(x); });
+    ej = json.dumps(expected, sort_keys=True, `default=lambda (x: any) { return str(x); });
+    return nj == ej;
+}
 
 
 
