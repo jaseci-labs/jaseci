@@ -10,7 +10,7 @@
 import from objects { PyObj, PyCode, PyInt, PyError, is_error, }
 import from host_oracle { host_compile_marshal }
 import from product_compile { compile_source }
-import from pyc_first { unmarshal, exec_code, to_host }
+import from pyc_first { unmarshal, exec_code, exec_module, to_host }
 import from opcode_meta {
     OP_LOAD_LOCALS,
     OP_BINARY_SLICE,
@@ -1108,4 +1108,50 @@ test "vm: POP_JUMP_IF_NONE emitted for is not None test" {
     assert not is_error(co);
     assert isinstance(co, PyCode);
     assert code_has_opcode(co as PyCode, OP_POP_JUMP_IF_NONE);
+}
+
+# Lane F regression: an exception raised by a HOST call (json.loads) must
+# carry its original args tuple into guest code -- the old bridge collapsed
+# the live exception to (type_name, message) and guests saw e.args == ().
+test "vm: host-raised exception keeps original args" {
+    setup = "";
+    body = (
+        "import json\n"
+        "try:\n"
+        "    json.loads('{bad json')\n"
+        "except Exception as e:\n"
+        "    result = (type(e).__name__, e.args)\n"
+    );
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert not is_error(out);
+    jac_val = to_host(ns["result"]) as tuple;
+    assert (jac_val[0] as str) == "JSONDecodeError";
+    assert len(jac_val[1]) == 1;
+}
+
+# Lane F regression: a module-body failure raised by a HOST call surfaces at
+# the guest->host boundary as the ORIGINAL exception object (real class,
+# real __module__), not a synthesized same-name mint from ceval.
+test "vm: module-boundary re-raise preserves original host exception" {
+    src = (
+        "try:\n"
+        "    1/0\n"
+        "except ZeroDivisionError:\n"
+        "    import json\n"
+        "    json.loads('{bad json')\n"
+    );
+    co = unmarshal(host_compile_marshal(src, "<lane-f>", "exec", 0));
+    caught: any = None;
+    try {
+        exec_module(co);
+    } except BaseException as boundary_exc {
+        caught = boundary_exc;
+    }
+    assert caught is not None;
+    exc = caught as BaseException;
+    assert type(exc).__name__ == "JSONDecodeError";
+    # The synthesized fallback lives in the ceval bridge module; only the
+    # ORIGINAL object carries json.decoder.
+    assert exc.__module__ == "json.decoder";
 }

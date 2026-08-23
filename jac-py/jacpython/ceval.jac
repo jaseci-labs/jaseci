@@ -7,6 +7,15 @@
 import marshal;
 
 ::py::
+def _jac_host_error(exc):
+    # Failed-bridge result carrying the ORIGINAL host exception object in slot
+    # 3. Existing consumers only read slots 0..2 (host_result_ok plus the
+    # type-name/message strings), so the extra slot is transparent to them --
+    # but the guest-side converter (host_result_error below) can now preserve
+    # the exception's identity, args, __cause__/__context__ chain, and
+    # traceback instead of re-synthesizing a bare etype(message).
+    return (False, type(exc).__name__, str(exc), exc)
+
 def _jac_host_import(name, fromlist):
     import importlib
     try:
@@ -14,26 +23,26 @@ def _jac_host_import(name, fromlist):
             return (True, importlib.import_module(name))
         return (True, importlib.import_module(name.split(".")[0]))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_getattr(value, name):
     try:
         return (True, getattr(value, name))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_setattr(value, name, field):
     try:
         setattr(value, name, field)
         return (True, None)
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_call(fn, args, kwargs):
     try:
         return (True, fn(*args, **kwargs))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_is_callable(value):
     return callable(value)
@@ -42,13 +51,13 @@ def _jac_host_getitem(value, index):
     try:
         return (True, value[index])
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_len(value):
     try:
         return (True, len(value))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_is_object_type(value):
     # True iff value is exactly the builtin `object` type. object.__new__(cls) is
@@ -111,7 +120,7 @@ def _jac_host_contains(member, container):
     try:
         return (True, member in container)
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_is_notimpl(v):
     return v is NotImplemented
@@ -120,14 +129,14 @@ def _jac_host_iter(value):
     try:
         return (True, list(value))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_builtin(name):
     import builtins
     try:
         return (True, getattr(builtins, name))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_type_name(value):
     return type(value).__name__
@@ -143,7 +152,7 @@ def _jac_host_delattr(host_obj, name):
         delattr(host_obj, name)
         return (True, None)
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_exc_chain_to_host(value):
     # __cause__/__context__ stored on a guest PyException arrive as PyException
@@ -214,7 +223,7 @@ def _jac_construct_builtin(name, raw_args):
             return (True, t(*raw_args))
         return (True, t())
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 # Dynamic host Exception subclass for a USER exception name, cached per name so
 # repeated crossings keep one host class (stable repr/isinstance).
@@ -235,7 +244,7 @@ def _jac_instantiate_exception_type(name, raw_args):
             return (True, t(*raw_args))
         return (True, t())
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_builtin_new(name, host_cls, raw_args):
     # builtin.__new__(host_cls, *raw_args): the host builtin constructor over a
@@ -246,7 +255,7 @@ def _jac_builtin_new(name, host_cls, raw_args):
     try:
         return (True, t.__new__(host_cls, *raw_args))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_builtin_new_slot(name):
     import builtins
@@ -340,7 +349,7 @@ def _jac_host_format(value, spec):
     try:
         return (True, format(value, spec))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_unbound_method_info(value):
     # (True, owner_type_name, method_name) when value is an unbound builtin
@@ -388,7 +397,7 @@ def _jac_host_eq(a, b):
     try:
         return (True, bool(a == b))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_richcompare(kind, a, b):
     import operator
@@ -397,7 +406,7 @@ def _jac_host_richcompare(kind, a, b):
     try:
         return (True, bool(_CMP[kind](a, b)))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_binop(kind, a, b):
     import operator
@@ -414,7 +423,7 @@ def _jac_host_binop(kind, a, b):
     try:
         return (True, fn(a, b))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_host_convert(value, conv):
     try:
@@ -424,7 +433,7 @@ def _jac_host_convert(value, conv):
             return (True, ascii(value))
         return (True, str(value))
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_module_info(absname):
     # Layer 3 module locator: resolve a fully-qualified module name to its source
@@ -537,7 +546,7 @@ def _jac_star_names(host_val):
             return (True, [str(n) for n in alln])
         return (True, [n for n in dir(host_val) if not n.startswith("_")])
     except BaseException as exc:
-        return (False, type(exc).__name__, str(exc))
+        return _jac_host_error(exc)
 
 def _jac_make_host_trampoline(native_fn):
     # Native-callable -> host round-trip. When a native PyFunction crosses the
@@ -1250,7 +1259,7 @@ obj PyHostProxy(PyObj) {
             }
             res = _jac_host_eq(mine, theirs);
             if not ((res[0] as bool)) {
-                return py_error(str(res[1]), str(res[2]));
+                return host_result_error(res);
             }
             if (res[1] as bool) {
                 return PyBool(t="bool", val=True);
@@ -2668,6 +2677,33 @@ def host_result_ok(result: any) -> bool {
     return result[0] == True;
 }
 
+# The host->guest mirror of _jac_reraise_pyerror: turn a FAILED host-bridge
+# result tuple into the PyError it represents WITHOUT synthesizing from the
+# collapsed name/message pair. Slot 3 carries the ORIGINAL host exception
+# object (_jac_host_error); keeping it as the PyException's raw proxy
+# preserves identity, args, chaining, and traceback across the boundary, so a
+# proxied host method that raises propagates that exact exception -- the same
+# fidelity CPython callers observe for guest-raised errors.
+def host_result_error(result: any) -> PyObj {
+    exc = PyException(
+        t="exception", type_name=str(result[1]), message=str(result[2])
+    );
+    if len(result) >= 4 and result[3] is not None {
+        proxy = from_host(result[3]);
+        if isinstance(proxy, PyHostProxy) {
+            exc.raw = proxy;
+            # Mirror BaseException.args so guest inspection (e.args, and
+            # host_exception's conversion at the boundary) sees the original
+            # argument tuple, not an empty one.
+            args_obj = py_attr(proxy, "args");
+            if not is_error(args_obj) and isinstance(args_obj, PyTuple) {
+                exc.args.extend((args_obj as PyTuple).items);
+            }
+        }
+    }
+    return PyError(t="error", exception=exc);
+}
+
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -3026,7 +3062,7 @@ def host_builtin(name: str) -> PyObj {
     if host_result_ok(result) {
         return PyHostProxy(t="host", val=result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def host_import(name: str, fromlist: PyObj) -> PyObj {
@@ -3042,7 +3078,7 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
     if host_result_ok(result) {
         return PyHostProxy(t="host", val=result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 # LOAD_GLOBAL/LOAD_NAME fallthrough after locals/globals: builtins resolve
@@ -3160,7 +3196,7 @@ def host_format(value: PyObj, spec: str) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def host_convert(value: PyObj, conv: int) -> PyObj {
@@ -3183,7 +3219,7 @@ def host_convert(value: PyObj, conv: int) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def host_getattr(value: PyObj, name: str) -> PyObj {
@@ -3191,7 +3227,7 @@ def host_getattr(value: PyObj, name: str) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def host_getitem(value: PyObj, index: PyObj) -> PyObj {
@@ -3199,7 +3235,7 @@ def host_getitem(value: PyObj, index: PyObj) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def host_setattr(value: PyObj, name: str, field: PyObj) -> PyObj {
@@ -3207,7 +3243,7 @@ def host_setattr(value: PyObj, name: str, field: PyObj) -> PyObj {
     if host_result_ok(result) {
         return py_none();
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 
@@ -3372,7 +3408,7 @@ def py_host_convert(name: str, x: PyObj) -> PyObj {
         fn = PyHostProxy(t="host", val=result[1]);
         return fn.tp_call([x], {});
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 # A key/value that is NOT a builtin (a user object or a host proxy) can carry a
@@ -3691,7 +3727,7 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         and (isinstance(lhs, PyHostProxy) or isinstance(rhs, PyHostProxy)) {
         res = _jac_host_richcompare(kind, to_host(lhs), to_host(rhs));
         if not ((res[0] as bool)) {
-            return py_error(str(res[1]), str(res[2]));
+            return host_result_error(res);
         }
         return PyBool(t="bool", val=res[1] as bool);
     }
@@ -3705,7 +3741,7 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     ) {
         res = _jac_host_richcompare(kind, lhs.val, rhs.val);
         if not ((res[0] as bool)) {
-            return py_error(str(res[1]), str(res[2]));
+            return host_result_error(res);
         }
         return PyBool(t="bool", val=res[1] as bool);
     }
@@ -3728,7 +3764,7 @@ def host_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def _host_representable(t: str) -> bool {
@@ -4369,7 +4405,7 @@ def py_contains(container: PyObj, member: PyObj) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def py_store_subscript(container: PyObj, index: PyObj, value: PyObj) -> PyObj {
@@ -4603,7 +4639,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if host_result_ok(result) {
         return py_none();
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 # One step of the iter(callable, sentinel) callable-iterator: invoke the
@@ -4912,7 +4948,7 @@ def py_len(value: PyObj) -> PyObj {
         if host_result_ok(result) {
             return from_host(result[1]);
         }
-        return py_error(str(result[1]), str(result[2]));
+        return host_result_error(result);
     }
     return py_error("TypeError", "object of type '" + value.t + "' has no len()");
 }
@@ -5196,7 +5232,7 @@ def host_iter(value: PyHostProxy) -> PyObj {
         }
         return PyIter(t="iter", items=items, index=0);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 # The PyObj yielded by a dict iterator at its current position: the key (keys),
@@ -5749,7 +5785,7 @@ def py_call_host(
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 def py_invoke(fn: PyObj, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -5962,7 +5998,7 @@ obj PyNativeNew(PyObj) {
             if host_result_ok(hres) {
                 return from_host(hres[1]);
             }
-            return py_error(str(hres[1]), str(hres[2]));
+            return host_result_error(hres);
         }
         boxed = construct_native_base(self.base_name, box_args);
         if is_error(boxed) {
@@ -6150,7 +6186,7 @@ def construct_native_base(name: str, args: list[PyObj]) -> PyObj {
     if host_result_ok(result) {
         return from_host(result[1]);
     }
-    return py_error(str(result[1]), str(result[2]));
+    return host_result_error(result);
 }
 
 # For operator delegation: a builtin subclass on either operand acts as its
