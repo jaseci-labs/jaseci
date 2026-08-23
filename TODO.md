@@ -479,7 +479,33 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Affects every layer1 assert involving type() results - likely wider than
     this one family. YoungHawk + UltraMoon to co-decide (harness vs core).
 
-51. **[MED] __slots__ not enforced / no __dict__ suppression.**51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
+59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
+    (split from 58): guest PyType crossing the bridge yields None; a
+    name-faithful mirror (repr/type-name only, NOT identity) would fix
+    cosmetic type() displays like 'None' in str(type(u)). Explicitly does
+    not attempt identity round-trip (unsatisfiable: independent executions).
+    UltraMoon lane after 58-harness.
+
+58. **[MED][RECLASSIFIED]** keywords_in_subclass gate red = identity split
+    across marshal boundary (see reclassified entry above). RESOLUTION:
+    YoungHawk implements atomic guest-side eval of identity-family asserts
+    (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
+    bool. Precedent: D-RANGE-ID document-don't-fake.
+
+51. **[MED] __slots__ not enforced / no __dict__ suppression.**59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
+    (split from 58): guest PyType crossing the bridge yields None; a
+    name-faithful mirror (repr/type-name only, NOT identity) would fix
+    cosmetic type() displays like 'None' in str(type(u)). Explicitly does
+    not attempt identity round-trip (unsatisfiable: independent executions).
+    UltraMoon lane after 58-harness.
+
+58. **[MED][RECLASSIFIED]** keywords_in_subclass gate red = identity split
+    across marshal boundary (see reclassified entry above). RESOLUTION:
+    YoungHawk implements atomic guest-side eval of identity-family asserts
+    (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
+    bool. Precedent: D-RANGE-ID document-don't-fake.
+
+51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
