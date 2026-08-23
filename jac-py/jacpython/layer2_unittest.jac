@@ -41,15 +41,16 @@ import from pyc_first {
     py_truth
 }
 
-::py::
-def _l2_host_equal(a, b):
-    try:
-        if a != a and b != b:
-            return True
-        return bool(a == b)
-    except BaseException:
-        return False
-::py::
+def _l2_host_equal(a: any, b: any) -> bool {
+    try {
+        if a != a and b != b {
+            return True;
+        }
+        return bool(a == b);
+    } except BaseException {
+        return False;
+    }
+}
 
 
 
