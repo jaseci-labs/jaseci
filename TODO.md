@@ -665,6 +665,14 @@ CLOSURE RECONCILIATION (YoungHawk, r61): YoungHawk reports items
     re-checked). test_set baseline bump 5->7 pending embed-verification
     closure run.
 
+LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
+    (holds shared-tree reservation on layer0_replay.jac/ceval.jac/
+    objects.jac; regression pins landing). Items 65+67-71 slot-dispatch
+    family = IronArrow (worktree-isolated branch; integrates ON TOP of
+    QuickViper's landed state - one rebase pass; acceptance gates = pins
+    for 70 unhashable-default + 69 in-returns-None). Item 72 unclaimed.
+    CalmKnight verifies shas and flips ledger status same-day.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
