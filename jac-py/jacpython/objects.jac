@@ -1775,7 +1775,6 @@ def _unhashable_error(what: str, v: PyObj) -> PyObj {
             + " (unhashable type: '" + name + "')"
     );
 }
-}
 
 def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
     hkr = key.tp_hashkey();

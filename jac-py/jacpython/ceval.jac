@@ -572,6 +572,14 @@ import from abstract_protocol {
     PyObject_HashNotImplemented,
 }
 import from rangeobject { get_len_of_range, range_contains_longs, range_equals_longs, }
+import from type_slots {
+    type_slots_attr_allowed,
+    type_slots_mangle,
+    type_slots_member_repr,
+    type_slots_merge_names,
+    type_slots_has_dict,
+    type_slots_in_dict_view,
+}
 import from tupleobject { tuple_hash, tuple_richcompare, }
 import from longobject { long_hash_obj, int_repr, }
 import from setobject { set_hash_obj, set_richcompare, }
@@ -1447,7 +1455,17 @@ obj PyClass(PyObj) {
         # `class Sub(Base)` can re-derive it from a base and re-run the protocol.
         metaclass: any = None,
         # ``PyType_Ready`` lifecycle flags (P5 heap types).
-        tp_flags: int = 0;
+        tp_flags: int = 0,
+        # __slots__ layout state (CPython type_new_set_attrs / type_ready setdict):
+        # slot_members is the MERGED member list (own mangled members first, then
+        # inherited), slots_declared gates enforcement (a late `Cls.__slots__ =
+        # ...` assignment must stay inert), and instance_has_dict follows the
+        # CPython inheritance rule -- no declaration means a dict; with one, only
+        # an explicit `__dict__` entry or a dict-bearing base keeps the dict.
+        # Defaults keep every non-slotted construction site permissive.
+        slot_members: list[str] = [],
+        slots_declared: bool = False,
+        instance_has_dict: bool = True;
 
     # Attribute lookup walks the MRO (self first, then bases) so an inherited
     # method/attr is visible on a subclass. Instance access binds via PyUserObj.
@@ -1874,6 +1892,11 @@ def default_user_getattro(u: PyUserObj, name: str) -> PyObj {
     if isinstance(classattr, PyProperty) {
         return descriptor_get(classattr, u, u.cls);
     }
+    # A slot member descriptor is likewise a data descriptor: reads go through
+    # it (host-exact unset-slot error) rather than a raw instance-dict peek.
+    if isinstance(classattr, PyMemberDescr) {
+        return (classattr as PyMemberDescr)._get(u);
+    }
     if name in u.attrs {
         return bind_attribute(u.attrs[name], u);
     }
@@ -1883,15 +1906,32 @@ def default_user_getattro(u: PyUserObj, name: str) -> PyObj {
         # staticmethod, or bind a classmethod to the instance's class.
         return descriptor_get(found, u, u.cls);
     }
+    # __dict__ exists ONLY when the class layout says so (a slotted class with
+    # no explicit __dict__ entry and no dict-bearing base has none -- host:
+    # AttributeError 'C' object has no attribute '__dict__'). Checked BEFORE
+    # the boxed-base fallthrough so the error names the subclass, not the base.
+    if name == "__dict__" {
+        if not u.cls.instance_has_dict {
+            return py_error(
+                "AttributeError",
+                "'" + u.cls.name + "' object has no attribute '__dict__'",
+            );
+        }
+        # Slot storage shares the instance attribute map; the dict VIEW must
+        # exclude member names (CPython keeps d.a out of d.__dict__ even when
+        # __slots__ = ('a', '__dict__')).
+        view: dict[str, PyObj] = {};
+        for k in u.attrs {
+            if type_slots_in_dict_view(k, u.cls.slot_members) {
+                view[k] = u.attrs[k];
+            }
+        }
+        return dict_from_str_map(view);
+    }
     # Fall through to the boxed builtin value's own attributes/methods
     # (str.upper on a str subclass, etc.).
     if u._has_base() {
         return py_attr(u._base_obj(), name);
-    }
-    # A plain instance's __dict__ is its own attribute namespace (an explicit
-    # `self.__dict__ = ...` assignment, handled above, wins over this).
-    if name == "__dict__" {
-        return dict_from_str_map(u.attrs);
     }
     # Identity dunder: every object's __class__ resolves to its type object
     # (CPython object.__class__ descriptor). Needed for e.__class__.__name__
@@ -1924,6 +1964,21 @@ def default_user_setattro(u: PyUserObj, name: str, value: PyObj) -> PyObj {
         }
         return py_error("AttributeError", "can't set attribute '" + name + "'");
     }
+    # A slot member descriptor takes the write (data-descriptor priority).
+    if isinstance(classattr, PyMemberDescr) {
+        return (classattr as PyMemberDescr)._set(u, value);
+    }
+    # __slots__ enforcement: a declared-slot class with no instance dict only
+    # accepts its member names -- anything else is the host's two-clause error
+    # (the same text delattr produces; CPython shares the no-dict path).
+    if u.cls.slots_declared and not u.cls.instance_has_dict
+        and not type_slots_attr_allowed(name, False, u.cls.slot_members) {
+        return py_error(
+            "AttributeError",
+            "'" + u.cls.name + "' object has no attribute '" + name
+                + "' and no __dict__ for setting new attributes",
+        );
+    }
     u.attrs[name] = value;
     return py_none();
 }
@@ -1943,6 +1998,21 @@ def default_user_delattro(u: PyUserObj, name: str) -> PyObj {
             return py_none();
         }
         return py_error("AttributeError", "can't delete attribute '" + name + "'");
+    }
+    # A slot member descriptor takes the delete (empty slot reports the bare
+    # member name via _del).
+    if isinstance(classattr, PyMemberDescr) {
+        return (classattr as PyMemberDescr)._del(u);
+    }
+    # Same no-dict gate as writes: deleting an undeclared name on a slotted,
+    # dict-less instance raises the host's two-clause AttributeError.
+    if u.cls.slots_declared and not u.cls.instance_has_dict
+        and not type_slots_attr_allowed(name, False, u.cls.slot_members) {
+        return py_error(
+            "AttributeError",
+            "'" + u.cls.name + "' object has no attribute '" + name
+                + "' and no __dict__ for setting new attributes",
+        );
     }
     if name in u.attrs {
         del u.attrs[name];
@@ -2275,6 +2345,100 @@ obj PyPropertyCtor(PyObj) {
 # attribute was fetched from (None for class-level access); `owner` is the class
 # that supplied the attribute. Plain functions bind to a real instance and stay
 # unbound on class access; the native descriptors do their own binding.
+# The ``__slots__`` member descriptor (CPython PyMemberDescr for T_OBJECT_EX
+# slots): one per OWN declared slot, installed on the class at creation. It is a
+# data descriptor -- reads/writes/deletes route through _get/_set/_del with the
+# host-exact error surfaces -- and its storage lives on the instance attribute
+# map under the (mangled) member name, filtered out of __dict__ views.
+obj PyMemberDescr(PyObj) {
+    has member: str,
+        owner: str;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__name__" {
+            return PyStr(t="str", val=self.member);
+        }
+        if name == "__qualname__" {
+            return PyStr(t="str", val=self.owner + "." + self.member);
+        }
+        # The descriptor protocol surface itself: member.__get__/__set__/
+        # __delete__ are invocable by hand in CPython (bound slot wrappers).
+        if name == "__get__" or name == "__set__" or name == "__delete__" {
+            return PyMemberAccess(t="member_access", descr=self, op=name);
+        }
+        return py_error("AttributeError", name);
+    }
+
+    def tp_str -> PyObj {
+        return PyStr(
+            t="str", val=type_slots_member_repr(self.member, self.owner)
+        );
+    }
+
+    # slot-member read: unset raises the generic getattro message (host:
+    # `'C' object has no attribute 'x'`).
+    def _get(u: PyUserObj) -> PyObj {
+        if self.member in u.attrs {
+            return u.attrs[self.member];
+        }
+        return py_error(
+            "AttributeError",
+            "'" + self.owner + "' object has no attribute '" + self.member + "'",
+        );
+    }
+
+    def _set(u: PyUserObj, value: PyObj) -> PyObj {
+        u.attrs[self.member] = value;
+        return py_none();
+    }
+
+    # Deleting an empty slot reports the bare member name (host:
+    # `AttributeError: x`), unlike every other attr error.
+    def _del(u: PyUserObj) -> PyObj {
+        if self.member in u.attrs {
+            del u.attrs[self.member];
+            return py_none();
+        }
+        return py_error("AttributeError", self.member);
+    }
+}
+
+# The bound member.__get__/__set__/__delete__ accessors (same descriptor-
+# protocol parity pattern as PyPropAccess for property).
+obj PyMemberAccess(PyObj) {
+    has descr: PyMemberDescr,
+        op: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        d = self.descr;
+        if self.op == "__get__" {
+            # (obj, owner); obj=None answers the descriptor itself.
+            if len(args) < 1 or not isinstance(args[0], PyUserObj) {
+                return d;
+            }
+            return d._get(args[0] as PyUserObj);
+        }
+        if self.op == "__set__" {
+            if len(args) < 2 or not isinstance(args[0], PyUserObj) {
+                return py_error(
+                    "TypeError",
+                    "__set__ takes (instance, value) -- descriptor '"
+                        + d.member + "' of '" + d.owner + "' objects",
+                );
+            }
+            return d._set(args[0] as PyUserObj, args[1]);
+        }
+        if len(args) < 1 or not isinstance(args[0], PyUserObj) {
+            return py_error(
+                "TypeError",
+                "__delete__ takes (instance) -- descriptor '"
+                    + d.member + "' of '" + d.owner + "' objects",
+            );
+        }
+        return d._del(args[0] as PyUserObj);
+    }
+}
+
 def descriptor_get(value: PyObj, instance: PyObj, owner: PyObj) -> PyObj {
     if isinstance(value, PyClassMethod) {
         return PyBoundMethod(
@@ -2891,6 +3055,11 @@ def host_convert(value: PyObj, conv: int) -> PyObj {
             return py_repr(value);
         }
     }
+    # A member descriptor converts to its repr form on BOTH str() and repr()
+    # (host: str(C.__dict__['x']) == repr(C.__dict__['x'])).
+    if isinstance(value, PyMemberDescr) {
+        return py_repr(value);
+    }
     result = _jac_host_convert(to_host(value), conv);
     if host_result_ok(result) {
         return from_host(result[1]);
@@ -3236,6 +3405,11 @@ def py_str(value: PyObj) -> PyObj {
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
     }
+    # A member descriptor's str is its repr (host: str(C.__dict__['x']) ==
+    # "<member 'x' of 'C' objects>").
+    if isinstance(value, PyMemberDescr) {
+        return py_repr(value);
+    }
     return host_convert(value, 1);
 }
 
@@ -3313,6 +3487,12 @@ def py_repr(value: PyObj) -> PyObj {
             }
         }
         return type_repr(type_tp_name(c.name, mod));
+    }
+    if isinstance(value, PyMemberDescr) {
+        m = value as PyMemberDescr;
+        return PyStr(
+            t="str", val=type_slots_member_repr(m.member, m.owner)
+        );
     }
     if isinstance(value, PyStr) {
         return str_repr(value as PyStr);
@@ -5374,6 +5554,9 @@ def py_call_host(
     if len(kwargs) == 0 and len(args) == 1 and _jac_is_builtin_func(fn.val, "repr") {
         return py_repr(args[0]);
     }
+    if len(kwargs) == 0 and len(args) == 1 and _jac_is_builtin_func(fn.val, "str") {
+        return py_str(args[0]);
+    }
     if len(kwargs) == 0 and len(args) >= 1 and len(args) <= 2
         and _jac_is_builtin_func(fn.val, "format")
         and (len(args) == 1 or isinstance(args[1], PyStr)) {
@@ -5992,22 +6175,205 @@ def compute_native_base(bases: list[PyObj]) -> str {
 # Box a PyClass from a resolved name/bases/namespace. `meta` is the metaclass that
 # produced it (None = the default `type`), recorded so a later subclass can
 # re-derive and re-run the metaclass protocol.
+# __slots__ finalization for a freshly built class (CPython type_new_set_attrs
+# + the dict/weakref inheritance rules in type_ready setdict). Returns either a
+# PyError (conflict / malformed declaration -- class creation fails) or a
+# PyTuple of [merged member names, declared?, instance-has-dict?].
+#
+# Host-exact behaviors pinned against CPython 3.14:
+# - string form: __slots__ = "q" declares exactly one slot q;
+# - non-iterable: TypeError "'int' object is not iterable";
+# - non-string item: TypeError "__slots__ items must be strings, not 'int'";
+# - slot vs class variable: ValueError "'v' in __slots__ conflicts with class
+#   variable" (checked AFTER mangling, like the host);
+# - private names mangle (`__p` -> `_M__p`) and install under the mangled key;
+# - duplicate names are allowed (deduped); `__dict__`/`__weakref__` are layout
+#   flags, not members;
+# - instance dict survives only if listed or inherited from a base (a builtin
+#   boxed base does NOT grant one once __slots__ is declared);
+# - two bases each declaring non-empty members raise the host layout conflict.
+def compute_class_slots(
+    class_name: str, bases: list[PyObj], namespace: dict[str, PyObj]
+) -> PyObj {
+    if "__slots__" not in namespace {
+        # No own declaration: the class keeps a permissive dict, but the
+        # EFFECTIVE layout still carries every inherited slot member -- the
+        # dict VIEW must keep hiding their storage (host: B(A) with A slotted
+        # answers b.__dict__ == {'zz': 1} after b.zz = 1; b.a = 2, even though
+        # both live on the same attribute map).
+        return PyTuple(
+            t="tuple",
+            items=[
+                PyList(
+                    t="list",
+                    items=[
+                        PyStr(t="str", val=m)
+                        for m in _inherited_slot_members(bases)
+                    ],
+                ),
+                PyBool(t="bool", val=False),
+                PyBool(t="bool", val=True),
+            ],
+        );
+    }
+    slots_obj = namespace["__slots__"];
+    raw: list[str] = [];
+    if isinstance(slots_obj, PyStr) {
+        raw.append((slots_obj as PyStr).val);
+    } elif isinstance(slots_obj, PyTuple) or isinstance(slots_obj, PyList) {
+        items = (slots_obj as PyTuple).items
+            if isinstance(slots_obj, PyTuple)
+            else (slots_obj as PyList).items;
+        for item in items {
+            if not isinstance(item, PyStr) {
+                return py_error(
+                    "TypeError",
+                    "__slots__ items must be strings, not '"
+                        + _slot_item_type_name(item) + "'",
+                );
+            }
+            raw.append((item as PyStr).val);
+        }
+    } else {
+        return py_error(
+            "TypeError",
+            "'" + _slot_item_type_name(slots_obj) + "' object is not iterable",
+        );
+    }
+    wants_dict = False;
+    local: list[str] = [];
+    seen: dict[str, bool] = {};
+    for name in raw {
+        if name == "__dict__" {
+            wants_dict = True;
+            continue;
+        }
+        if name == "__weakref__" {
+            continue;
+        }
+        mangled = type_slots_mangle(name, class_name);
+        # The conflict check runs on the MANGLED form: a slot named `__v` in a
+        # body that also binds `_C__v` collides exactly as the host's does.
+        if mangled in namespace {
+            return py_error(
+                "ValueError",
+                "'" + mangled + "' in __slots__ conflicts with class variable",
+            );
+        }
+        if mangled in seen {
+            continue;
+        }
+        seen[mangled] = True;
+        local.append(mangled);
+    }
+    # Merge inherited members and OR the base dict flags across all bases.
+    inherited = _inherited_slot_members(bases);
+    base_has_dict = False;
+    nonempty_layout_bases = 0;
+    for b in bases {
+        if not isinstance(b, PyClass) {
+            continue;
+        }
+        bc = b as PyClass;
+        if bc.instance_has_dict {
+            base_has_dict = True;
+        }
+        if len(bc.slot_members) > 0 {
+            nonempty_layout_bases = nonempty_layout_bases + 1;
+        }
+    }
+    if nonempty_layout_bases > 1 {
+        return py_error(
+            "TypeError", "multiple bases have instance lay-out conflict"
+        );
+    }
+    merged = type_slots_merge_names(local, inherited);
+    has_dict = type_slots_has_dict(True, wants_dict, base_has_dict);
+    return PyTuple(
+        t="tuple",
+        items=[
+            PyList(t="list", items=[PyStr(t="str", val=m) for m in merged]),
+            PyBool(t="bool", val=True),
+            PyBool(t="bool", val=has_dict),
+        ],
+    );
+}
+
+# Union of all PyClass bases' slot members, in MRO-ish declaration order
+# (deduped): the inherited half of a subclass's effective slot layout.
+def _inherited_slot_members(bases: list[PyObj]) -> list[str] {
+    inherited: list[str] = [];
+    for b in bases {
+        if isinstance(b, PyClass) {
+            inherited = type_slots_merge_names(
+                [], inherited + (b as PyClass).slot_members
+            );
+        }
+    }
+    return inherited;
+}
+
+def _slot_item_type_name(v: PyObj) -> str {
+    if isinstance(v, PyInt) {
+        return "int";
+    }
+    if isinstance(v, PyFloat) {
+        return "float";
+    }
+    if isinstance(v, PyNoneType) {
+        return "NoneType";
+    }
+    return v.t;
+}
+
 def make_pyclass_from_map(
     class_name: str, bases: list[PyObj], namespace: dict[str, PyObj], meta: any
-) -> PyClass {
+) -> PyObj {
     flags = type_ready(0);
     if flags < 0 {
         flags = Py_TPFLAGS_READY;
     }
-    return PyClass(
+    slots_state = compute_class_slots(class_name, bases, namespace);
+    if is_error(slots_state) {
+        return slots_state;
+    }
+    state = (slots_state as PyTuple).items;
+    members: list[str] = [];
+    for mo in (state[0] as PyList).items {
+        members.append((mo as PyStr).val);
+    }
+    declared = (state[1] as PyBool).val;
+    has_dict = (state[2] as PyBool).val;
+    cls = PyClass(
         t="class",
         name=class_name,
         attrs=namespace,
         bases=bases,
         native_base=compute_native_base(bases),
         metaclass=meta,
-        tp_flags=flags
+        tp_flags=flags,
+        slot_members=members,
+        slots_declared=declared,
+        instance_has_dict=has_dict
     );
+    # Install one member descriptor per OWN declared slot (inherited slots
+    # already carry their defining class's descriptor and resolve via the MRO).
+    # A body binding of the same name raised ValueError above, so nothing here
+    # shadows an explicit namespace entry.
+    inherited_set: dict[str, bool] = {};
+    for b in bases {
+        if isinstance(b, PyClass) {
+            for im in (b as PyClass).slot_members {
+                inherited_set[im] = True;
+            }
+        }
+    }
+    for m in members {
+        if m not in namespace and m not in inherited_set {
+            cls.attrs[m] = PyMemberDescr(t="member_descr", member=m, owner=class_name);
+        }
+    }
+    return cls;
 }
 
 # type.__new__(mcls, name, bases, namespace): build a class object. Serves both
@@ -6026,7 +6392,11 @@ def type_new(args: list[PyObj]) -> PyObj {
         bases = (bases_obj as PyList).items;
     }
     namespace = extract_namespace(args[3]);
-    cls = make_pyclass_from_map(class_name, bases, namespace, mcls);
+    made_cls = make_pyclass_from_map(class_name, bases, namespace, mcls);
+    if is_error(made_cls) {
+        return made_cls;
+    }
+    cls = made_cls as PyClass;
     ordered: list[str] = [];
     for k in namespace {
         ordered.append(k);
@@ -6178,7 +6548,11 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     if body_result.t == "error" {
         return body_result;
     }
-    cls = make_pyclass_from_map(class_name, bases, namespace, None);
+    built_cls = make_pyclass_from_map(class_name, bases, namespace, None);
+    if is_error(built_cls) {
+        return built_cls;
+    }
+    cls = built_cls as PyClass;
     # CPython bltinmodule.c __build_class__: when the body declares a __class__
     # cellvar, the finished class object is written into that live cell so the
     # methods' captured closures deref it for zero-arg super().
