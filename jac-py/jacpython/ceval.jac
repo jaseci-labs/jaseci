@@ -71,6 +71,22 @@ def _jac_is_range_type(value):
     # subclass machinery that range must NOT join).
     return value is range
 
+def _jac_conversion_ctor_kind(value):
+    # Which conversion constructor ("int"/"float"/"bool") value is, or "".
+    # Identity against the exact host builtins -- the same mechanism-level
+    # idiom as _jac_is_object_type/_jac_is_range_type -- because the tp_call
+    # fast path below must match ONLY the real constructors: name matching
+    # (_jac_builtin_base_name) would also catch a user-defined class merely
+    # named "int", and that class's instances must take their own call path.
+    import builtins
+    if value is builtins.int:
+        return "int"
+    if value is builtins.float:
+        return "float"
+    if value is builtins.bool:
+        return "bool"
+    return ""
+
 def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
@@ -1071,17 +1087,19 @@ obj PyHostProxy(PyObj) {
         # answer through the implicit slot machinery instead of crossing the
         # bridge: to_host of a plain user object is None, so the host constructor
         # saw nothing (bool(obj) was literally False; int(obj)/float(obj) raised).
-        bname = str(_jac_builtin_base_name(self.val));
-        if len(args) >= 1 and (bname == "int" or bname == "float" or bname == "bool") {
+        # Each native operand found converts ITSELF (never args[0]): multi-arg
+        # shapes like int("ff", user_base) route the native operand only.
+        ckind = str(_jac_conversion_ctor_kind(self.val));
+        if len(args) >= 1 and ckind != "" {
             for a in args {
                 if isinstance(a, PyUserObj) {
-                    if bname == "bool" {
-                        return py_slot_truth(args[0]);
+                    if ckind == "bool" {
+                        return py_slot_truth(a);
                     }
-                    if bname == "int" {
-                        return py_convert_int(args[0]);
+                    if ckind == "int" {
+                        return py_convert_int(a);
                     }
-                    return py_convert_float(args[0]);
+                    return py_convert_float(a);
                 }
             }
         }
