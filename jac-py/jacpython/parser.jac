@@ -15,6 +15,7 @@ import from peg_runtime {
     peg_check_memo, peg_insert_memo, peg_update_memo,
     peg_expect_token, peg_expect_soft_keyword, peg_expect_forced_token,
     peg_expect_forced_result, peg_has_error, peg_fill_token,
+    peg_get_last_nonnwhitespace_token,
     peg_positive_lookahead_token, peg_negative_lookahead_token,
     peg_left_rec_finish, peg_token,
 }
@@ -3223,7 +3224,12 @@ def rule_args(p: peg_parser) -> expr | None {
     a = rule__gather_2(p);
     if a is not None {
         b = rule__tmp_3(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_collect_call_seqs(a, b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3232,7 +3238,12 @@ def rule_args(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     a = rule_kwargs(p);
     if a is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_call(pa_dummy_name(start_lineno, start_col_offset, end_lineno, end_col_offset), pa_check(pa_seq_extract_starred_exprs(a)), pa_check(pa_seq_delete_starred_exprs(a)), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3286,7 +3297,12 @@ def rule_as_pattern(p: peg_parser) -> pattern | None {
         if kw is not None {
             target = rule_pattern_capture_target(p);
             if target is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = MatchAs(pattern=pattern, name=pa_name_id(target), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -3320,7 +3336,12 @@ def rule_assert_stmt(p: peg_parser) -> stmt | None {
         a = rule_expression(p);
         if a is not None {
             b = rule__tmp_4(p);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Assert(`test=a, msg=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -3349,7 +3370,12 @@ def rule_assignment(p: peg_parser) -> stmt | None {
             b = rule_expression(p);
             if b is not None {
                 c = rule__tmp_5(p);
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_annassign(pa_check(pa_set_context(a, Store())), b, c, 1, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3365,7 +3391,12 @@ def rule_assignment(p: peg_parser) -> stmt | None {
             b = rule_expression(p);
             if b is not None {
                 c = rule__tmp_5(p);
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_annassign(a, b, c, 0, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3380,7 +3411,12 @@ def rule_assignment(p: peg_parser) -> stmt | None {
         if b is not None {
             if (peg_negative_lookahead_token(p, 22)) {
                 tc = peg_expect_token(p, TYPE_COMMENT);
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_assign(a, b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3396,7 +3432,12 @@ def rule_assignment(p: peg_parser) -> stmt | None {
             cut = True;
             c = rule_annotated_rhs(p);
             if c is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_augassign(a, pa_aug_op(b), c, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3432,7 +3473,12 @@ def rule_assignment_expression(p: peg_parser) -> expr | None {
             cut = True;
             b = rule_expression(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = NamedExpr(target=pa_check(pa_set_context(a, Store())), value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -3463,7 +3509,12 @@ def rule_atom(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 668);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_bool(True, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3472,7 +3523,12 @@ def rule_atom(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 669);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_bool(False, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3481,7 +3537,12 @@ def rule_atom(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 667);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_none(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3528,7 +3589,12 @@ def rule_atom(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     lit = peg_expect_token(p, 52);
     if lit is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_none(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3568,13 +3634,23 @@ def rule_attr_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     value = rule_name_or_attr(p);
     if value is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
             attr = pa_name_from_token(peg_expect_token(p, NAME));
             if attr is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_attribute(value, pa_name_id(attr), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3688,7 +3764,12 @@ def rule_await_primary(p: peg_parser) -> expr | None {
     if kw is not None {
         a = rule_primary(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Await(value=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -3738,13 +3819,23 @@ def rule_bitwise_and_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_bitwise_and(p);
     if a is not None {
         lit = peg_expect_token(p, 19);
         if lit is not None {
             b = rule_shift_expr(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, BitAnd(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3792,13 +3883,23 @@ def rule_bitwise_or_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_bitwise_or(p);
     if a is not None {
         lit = peg_expect_token(p, 18);
         if lit is not None {
             b = rule_bitwise_xor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, BitOr(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3846,13 +3947,23 @@ def rule_bitwise_xor_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_bitwise_xor(p);
     if a is not None {
         lit = peg_expect_token(p, 32);
         if lit is not None {
             b = rule_bitwise_and(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, BitXor(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3923,7 +4034,12 @@ def rule_break_stmt(p: peg_parser) -> stmt | None {
     }
     kw = peg_expect_token(p, 686);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_break(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -3946,7 +4062,12 @@ def rule_capture_pattern(p: peg_parser) -> pattern | None {
     }
     target = rule_pattern_capture_target(p);
     if target is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchAs(pattern=None, name=pa_name_id(target), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4030,7 +4151,12 @@ def rule_class_def_raw(p: peg_parser) -> stmt | None {
             if lit is not None {
                 c = rule_block(p);
                 if c is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = ClassDef(name=pa_name_id(a), bases=(pa_call_args(b) if b is not None else None), keywords=(pa_call_keywords(b) if b is not None else None), body=c, decorator_list=None, type_params=t, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4060,7 +4186,12 @@ def rule_class_pattern(p: peg_parser) -> pattern | None {
         if lit is not None {
             lit_1 = peg_expect_token(p, 8);
             if lit_1 is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = MatchClass(cls=cls, patterns=None, kwd_attrs=None, kwd_patterns=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4078,7 +4209,12 @@ def rule_class_pattern(p: peg_parser) -> pattern | None {
                 lit_1 = peg_expect_token(p, 12);
                 lit_2 = peg_expect_token(p, 8);
                 if lit_2 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = MatchClass(cls=cls, patterns=patterns, kwd_attrs=None, kwd_patterns=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4097,7 +4233,12 @@ def rule_class_pattern(p: peg_parser) -> pattern | None {
                 lit_1 = peg_expect_token(p, 12);
                 lit_2 = peg_expect_token(p, 8);
                 if lit_2 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = MatchClass(cls=cls, patterns=None, kwd_attrs=pa_check(pa_map_names_to_ids(pa_check(pa_get_pattern_keys(keywords)))), kwd_patterns=pa_check(pa_get_patterns(keywords)), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4120,7 +4261,12 @@ def rule_class_pattern(p: peg_parser) -> pattern | None {
                         lit_2 = peg_expect_token(p, 12);
                         lit_3 = peg_expect_token(p, 8);
                         if lit_3 is not None {
-                            end_tok = p.tokens[p.mark - 1];
+                            end_tok = peg_get_last_nonnwhitespace_token(p);
+                            if end_tok is None {
+                                p.error_indicator = True;
+                                peg_reset(p, mark);
+                                return None;
+                            }
                             end_lineno = end_tok.end_lineno;
                             end_col_offset = end_tok.end_col_offset;
                             res = MatchClass(cls=cls, patterns=patterns, kwd_attrs=pa_check(pa_map_names_to_ids(pa_check(pa_get_pattern_keys(keywords)))), kwd_patterns=pa_check(pa_get_patterns(keywords)), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4287,7 +4433,12 @@ def rule_comparison(p: peg_parser) -> expr | None {
     if a is not None {
         b = rule__loop1_12(p);
         if b is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_compare(a, pa_check(pa_get_cmpops(b)), pa_check(pa_get_exprs(b)), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4321,7 +4472,12 @@ def rule_complex_number(p: peg_parser) -> expr | None {
         if lit is not None {
             imag = rule_imaginary_number(p);
             if imag is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(real, Add(), imag, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4336,7 +4492,12 @@ def rule_complex_number(p: peg_parser) -> expr | None {
         if lit is not None {
             imag = rule_imaginary_number(p);
             if imag is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(real, Sub(), imag, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4434,7 +4595,12 @@ def rule_conjunction(p: peg_parser) -> expr | None {
     if a is not None {
         b = rule__loop1_13(p);
         if b is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_boolop(And(), pa_check(pa_seq_insert_front(a, b)), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4467,7 +4633,12 @@ def rule_continue_stmt(p: peg_parser) -> stmt | None {
     }
     kw = peg_expect_token(p, 687);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_continue(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4524,7 +4695,12 @@ def rule_del_stmt(p: peg_parser) -> stmt | None {
         a = rule_del_targets(p);
         if a is not None {
             if ((peg_positive_lookahead_token(p, 13) or peg_positive_lookahead_token(p, NEWLINE))) {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_delete(a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4576,7 +4752,12 @@ def rule_del_t_atom(p: peg_parser) -> expr | None {
         a = rule_del_targets(p);
         lit_1 = peg_expect_token(p, 8);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(a, Del(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4589,7 +4770,12 @@ def rule_del_t_atom(p: peg_parser) -> expr | None {
         a = rule_del_targets(p);
         lit_1 = peg_expect_token(p, 10);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = List(elts=a, ctx=Del(), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4622,7 +4808,12 @@ def rule_del_target(p: peg_parser) -> expr | None {
             b = pa_name_from_token(peg_expect_token(p, NAME));
             if b is not None {
                 if ((rule_t_lookahead(p) is None)) {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_attribute(a, pa_name_id(b), Del(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4642,7 +4833,12 @@ def rule_del_target(p: peg_parser) -> expr | None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
                     if ((rule_t_lookahead(p) is None)) {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_subscript(a, b, Del(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4693,7 +4889,12 @@ def rule_dict(p: peg_parser) -> expr | None {
         a = rule_double_starred_kvpairs(p);
         lit_1 = peg_expect_token(p, 26);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Dict(keys=pa_check(pa_get_keys(a)), values=pa_check(pa_get_values(a)), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4735,7 +4936,12 @@ def rule_dictcomp(p: peg_parser) -> expr | None {
             if b is not None {
                 lit_1 = peg_expect_token(p, 26);
                 if lit_1 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = DictComp(key=pa_comp_field(a, "key"), value=pa_comp_field(a, "value"), generators=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4773,7 +4979,12 @@ def rule_disjunction(p: peg_parser) -> expr | None {
     if a is not None {
         b = rule__loop1_17(p);
         if b is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_boolop(Or(), pa_check(pa_seq_insert_front(a, b)), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -4813,7 +5024,12 @@ def rule_dotted_as_name(p: peg_parser) -> alias | None {
     a = rule_dotted_name(p);
     if a is not None {
         b = rule__tmp_18(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = alias(name=pa_name_id(a), asname=(pa_name_id(b) if b is not None else None), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4963,7 +5179,12 @@ def rule_elif_stmt(p: peg_parser) -> stmt | None {
                 if b is not None {
                     c = rule_elif_stmt(p);
                     if c is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = If(`test=a, body=b, orelse=pa_stmt_list_or_empty(pa_check(pa_singleton_seq(c))), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -4983,7 +5204,12 @@ def rule_elif_stmt(p: peg_parser) -> stmt | None {
                 b = rule_block(p);
                 if b is not None {
                     c = rule_else_block(p);
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = If(`test=a, body=b, orelse=pa_stmt_list_or_empty(c), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5075,7 +5301,12 @@ def rule_except_block(p: peg_parser) -> excepthandler | None {
             if lit is not None {
                 b = rule_block(p);
                 if b is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = ExceptHandler(`type=e, name=None, body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5097,7 +5328,12 @@ def rule_except_block(p: peg_parser) -> excepthandler | None {
                     if lit is not None {
                         b = rule_block(p);
                         if b is not None {
-                            end_tok = p.tokens[p.mark - 1];
+                            end_tok = peg_get_last_nonnwhitespace_token(p);
+                            if end_tok is None {
+                                p.error_indicator = True;
+                                peg_reset(p, mark);
+                                return None;
+                            }
                             end_lineno = end_tok.end_lineno;
                             end_col_offset = end_tok.end_col_offset;
                             res = ExceptHandler(`type=e, name=pa_name_id(t), body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5117,7 +5353,12 @@ def rule_except_block(p: peg_parser) -> excepthandler | None {
             if lit is not None {
                 b = rule_block(p);
                 if b is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = ExceptHandler(`type=e, name=None, body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5133,7 +5374,12 @@ def rule_except_block(p: peg_parser) -> excepthandler | None {
         if lit is not None {
             b = rule_block(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = ExceptHandler(`type=None, name=None, body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5178,7 +5424,12 @@ def rule_except_star_block(p: peg_parser) -> excepthandler | None {
                 if lit_1 is not None {
                     b = rule_block(p);
                     if b is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = ExceptHandler(`type=e, name=None, body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5203,7 +5454,12 @@ def rule_except_star_block(p: peg_parser) -> excepthandler | None {
                         if lit_1 is not None {
                             b = rule_block(p);
                             if b is not None {
-                                end_tok = p.tokens[p.mark - 1];
+                                end_tok = peg_get_last_nonnwhitespace_token(p);
+                                if end_tok is None {
+                                    p.error_indicator = True;
+                                    peg_reset(p, mark);
+                                    return None;
+                                }
                                 end_lineno = end_tok.end_lineno;
                                 end_col_offset = end_tok.end_col_offset;
                                 res = ExceptHandler(`type=e, name=pa_name_id(t), body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5226,7 +5482,12 @@ def rule_except_star_block(p: peg_parser) -> excepthandler | None {
                 if lit_1 is not None {
                     b = rule_block(p);
                     if b is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = ExceptHandler(`type=e, name=None, body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5285,7 +5546,12 @@ def rule_expression(p: peg_parser) -> expr | None {
                 if kw_1 is not None {
                     c = rule_expression(p);
                     if c is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_ifexp(b, a, c, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5336,7 +5602,12 @@ def rule_expression_without_invalid(p: peg_parser) -> expr | None {
                 if kw_1 is not None {
                     c = rule_expression(p);
                     if c is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_ifexp(b, a, c, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5378,7 +5649,12 @@ def rule_expressions(p: peg_parser) -> expr | None {
         b = rule__loop1_24(p);
         if b is not None {
             lit = peg_expect_token(p, 12);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_seq_insert_front(a, b)), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5390,7 +5666,12 @@ def rule_expressions(p: peg_parser) -> expr | None {
     if a is not None {
         lit = peg_expect_token(p, 12);
         if lit is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_singleton_seq(a)), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5426,7 +5707,12 @@ def rule_factor(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_factor(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(UAdd(), a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5439,7 +5725,12 @@ def rule_factor(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_factor(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(USub(), a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5452,7 +5743,12 @@ def rule_factor(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_factor(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(Invert(), a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5608,7 +5904,12 @@ def rule_for_stmt(p: peg_parser) -> stmt | None {
                         b = rule_block(p);
                         if b is not None {
                             el = rule_else_block(p);
-                            end_tok = p.tokens[p.mark - 1];
+                            end_tok = peg_get_last_nonnwhitespace_token(p);
+                            if end_tok is None {
+                                p.error_indicator = True;
+                                peg_reset(p, mark);
+                                return None;
+                            }
                             end_lineno = end_tok.end_lineno;
                             end_col_offset = end_tok.end_col_offset;
                             res = For(target=t, iter=ex, body=b, orelse=pa_stmt_list_or_empty(el), type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5637,7 +5938,12 @@ def rule_for_stmt(p: peg_parser) -> stmt | None {
                             b = rule_block(p);
                             if b is not None {
                                 el = rule_else_block(p);
-                                end_tok = p.tokens[p.mark - 1];
+                                end_tok = peg_get_last_nonnwhitespace_token(p);
+                                if end_tok is None {
+                                    p.error_indicator = True;
+                                    peg_reset(p, mark);
+                                    return None;
+                                }
                                 end_lineno = end_tok.end_lineno;
                                 end_col_offset = end_tok.end_col_offset;
                                 res = AsyncFor(target=t, iter=ex, body=b, orelse=pa_stmt_list_or_empty(el), type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5731,7 +6037,12 @@ def rule_fstring_full_format_spec(p: peg_parser) -> peg_token | None {
     if colon is not None {
         spec = rule__loop0_28(p);
         if spec is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_setup_full_format_spec(colon);
@@ -5779,7 +6090,12 @@ def rule_fstring_replacement_field(p: peg_parser) -> expr | None {
             format = rule_fstring_full_format_spec(p);
             rbrace = peg_expect_token(p, 26);
             if rbrace is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_formatted_value(a, debug_expr, conversion, format, rbrace, start_lineno, start_col_offset, end_lineno, end_col_offset, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -5899,7 +6215,12 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
                         tc = rule_func_type_comment(p);
                         b = rule_block(p);
                         if b is not None {
-                            end_tok = p.tokens[p.mark - 1];
+                            end_tok = peg_get_last_nonnwhitespace_token(p);
+                            if end_tok is None {
+                                p.error_indicator = True;
+                                peg_reset(p, mark);
+                                return None;
+                            }
                             end_lineno = end_tok.end_lineno;
                             end_col_offset = end_tok.end_col_offset;
                             res = FunctionDef(name=pa_name_id(n), args=(params if params is not None else pa_check(pa_empty_arguments())), body=b, decorator_list=None, returns=a, type_comment=None, type_params=t, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5929,7 +6250,12 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
                             tc = rule_func_type_comment(p);
                             b = rule_block(p);
                             if b is not None {
-                                end_tok = p.tokens[p.mark - 1];
+                                end_tok = peg_get_last_nonnwhitespace_token(p);
+                                if end_tok is None {
+                                    p.error_indicator = True;
+                                    peg_reset(p, mark);
+                                    return None;
+                                }
                                 end_lineno = end_tok.end_lineno;
                                 end_col_offset = end_tok.end_col_offset;
                                 res = AsyncFunctionDef(name=pa_name_id(n), args=(params if params is not None else pa_check(pa_empty_arguments())), body=b, decorator_list=None, returns=a, type_comment=None, type_params=t, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -5970,7 +6296,12 @@ def rule_genexp(p: peg_parser) -> expr | None {
             if b is not None {
                 lit_1 = peg_expect_token(p, 8);
                 if lit_1 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = GeneratorExp(elt=a, generators=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6004,7 +6335,12 @@ def rule_global_stmt(p: peg_parser) -> stmt | None {
     if kw is not None {
         a = rule__gather_33(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Global(names=pa_check(pa_map_names_to_ids(a)), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6124,7 +6460,12 @@ def rule_if_stmt(p: peg_parser) -> stmt | None {
                 if b is not None {
                     c = rule_elif_stmt(p);
                     if c is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = If(`test=a, body=b, orelse=pa_stmt_list_or_empty(pa_check(pa_singleton_seq(c))), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6144,7 +6485,12 @@ def rule_if_stmt(p: peg_parser) -> stmt | None {
                 b = rule_block(p);
                 if b is not None {
                     c = rule_else_block(p);
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = If(`test=a, body=b, orelse=pa_stmt_list_or_empty(c), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6189,7 +6535,12 @@ def rule_import_from(p: peg_parser) -> stmt | None {
                 if kw_1 is not None {
                     c = rule_import_from_targets(p);
                     if c is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_checked_future_import(pa_name_id(b), c, pa_seq_count_dots(a), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -6208,7 +6559,12 @@ def rule_import_from(p: peg_parser) -> stmt | None {
             if kw_1 is not None {
                 b = rule_import_from_targets(p);
                 if b is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = ImportFrom(module=None, names=b, level=pa_seq_count_dots(a), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6241,7 +6597,12 @@ def rule_import_from_as_name(p: peg_parser) -> alias | None {
     a = pa_name_from_token(peg_expect_token(p, NAME));
     if a is not None {
         b = rule__tmp_18(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = alias(name=pa_name_id(a), asname=(pa_name_id(b) if b is not None else None), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -6296,7 +6657,12 @@ def rule_import_from_targets(p: peg_parser) -> list[alias] | None {
     peg_reset(p, mark);
     lit = peg_expect_token(p, 16);
     if lit is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_singleton_seq(pa_check(pa_alias_for_star(start_lineno, start_col_offset, end_lineno, end_col_offset)));
@@ -6327,7 +6693,12 @@ def rule_import_name(p: peg_parser) -> stmt | None {
     if kw is not None {
         a = rule_dotted_as_names(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Import(names=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -8895,7 +9266,12 @@ def rule_inversion(p: peg_parser) -> expr | None {
     if kw is not None {
         a = rule_inversion(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(Not(), a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9069,7 +9445,12 @@ def rule_kwarg_or_double_starred(p: peg_parser) -> pa_keyword_or_starred | None 
         if lit is not None {
             b = rule_expression(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_keyword_or_starred(pa_check(keyword(arg=pa_name_id(a), value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset)), 1, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9082,7 +9463,12 @@ def rule_kwarg_or_double_starred(p: peg_parser) -> pa_keyword_or_starred | None 
     if lit is not None {
         a = rule_expression(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_keyword_or_starred(pa_check(keyword(arg=None, value=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset)), 1, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9116,7 +9502,12 @@ def rule_kwarg_or_starred(p: peg_parser) -> pa_keyword_or_starred | None {
         if lit is not None {
             b = rule_expression(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_keyword_or_starred(pa_check(keyword(arg=pa_name_id(a), value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset)), 1, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9216,7 +9607,12 @@ def rule_lambda_param(p: peg_parser) -> arg | None {
     }
     a = pa_name_from_token(peg_expect_token(p, NAME));
     if a is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = arg(arg=pa_name_id(a), annotation=None, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9536,7 +9932,12 @@ def rule_lambdef(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_expression(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = Lambda(args=(a if a is not None else pa_check(pa_empty_arguments())), body=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9564,7 +9965,12 @@ def rule_list(p: peg_parser) -> expr | None {
         a = rule_star_named_expressions(p);
         lit_1 = peg_expect_token(p, 10);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = List(elts=a, ctx=Load(), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9594,7 +10000,12 @@ def rule_listcomp(p: peg_parser) -> expr | None {
             if b is not None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = ListComp(elt=a, generators=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9648,7 +10059,12 @@ def rule_literal_expr(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 667);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_none(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9657,7 +10073,12 @@ def rule_literal_expr(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 668);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_bool(True, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9666,7 +10087,12 @@ def rule_literal_expr(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 669);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_constant_bool(False, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -9690,7 +10116,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     value = rule_signed_number(p);
     if value is not None {
         if ((peg_negative_lookahead_token(p, 14) and peg_negative_lookahead_token(p, 15))) {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchValue(value=value, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9700,7 +10131,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     peg_reset(p, mark);
     value = rule_complex_number(p);
     if value is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchValue(value=value, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9709,7 +10145,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     peg_reset(p, mark);
     value = rule_strings(p);
     if value is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchValue(value=value, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9718,7 +10159,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 667);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchSingleton(value=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9727,7 +10173,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 668);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchSingleton(value=True, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9736,7 +10187,12 @@ def rule_literal_pattern(p: peg_parser) -> pattern | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 669);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchSingleton(value=False, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9789,7 +10245,12 @@ def rule_mapping_pattern(p: peg_parser) -> pattern | None {
     if lit is not None {
         lit_1 = peg_expect_token(p, 26);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchMapping(keys=None, patterns=None, rest=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9804,7 +10265,12 @@ def rule_mapping_pattern(p: peg_parser) -> pattern | None {
             lit_1 = peg_expect_token(p, 12);
             lit_2 = peg_expect_token(p, 26);
             if lit_2 is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = MatchMapping(keys=None, patterns=None, rest=pa_name_id(rest), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9824,7 +10290,12 @@ def rule_mapping_pattern(p: peg_parser) -> pattern | None {
                     lit_2 = peg_expect_token(p, 12);
                     lit_3 = peg_expect_token(p, 26);
                     if lit_3 is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = MatchMapping(keys=pa_check(pa_get_pattern_keys(items)), patterns=pa_check(pa_get_patterns(items)), rest=pa_name_id(rest), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9842,7 +10313,12 @@ def rule_mapping_pattern(p: peg_parser) -> pattern | None {
             lit_1 = peg_expect_token(p, 12);
             lit_2 = peg_expect_token(p, 26);
             if lit_2 is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = MatchMapping(keys=pa_check(pa_get_pattern_keys(items)), patterns=pa_check(pa_get_patterns(items)), rest=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9879,7 +10355,12 @@ def rule_match_stmt(p: peg_parser) -> stmt | None {
                         if cases is not None {
                             _dedent = peg_expect_token(p, DEDENT);
                             if _dedent is not None {
-                                end_tok = p.tokens[p.mark - 1];
+                                end_tok = peg_get_last_nonnwhitespace_token(p);
+                                if end_tok is None {
+                                    p.error_indicator = True;
+                                    peg_reset(p, mark);
+                                    return None;
+                                }
                                 end_lineno = end_tok.end_lineno;
                                 end_col_offset = end_tok.end_col_offset;
                                 res = Match(subject=subject, cases=cases, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -9991,7 +10472,12 @@ def rule_nonlocal_stmt(p: peg_parser) -> stmt | None {
     if kw is not None {
         a = rule__gather_33(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Nonlocal(names=pa_check(pa_map_names_to_ids(a)), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10061,7 +10547,12 @@ def rule_or_pattern(p: peg_parser) -> pattern | None {
     }
     patterns = rule__gather_109(p);
     if patterns is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_or_pattern_singleton(patterns, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10085,7 +10576,12 @@ def rule_param(p: peg_parser) -> arg | None {
     a = pa_name_from_token(peg_expect_token(p, NAME));
     if a is not None {
         b = rule_annotation(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = arg(arg=pa_name_id(a), annotation=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10193,7 +10689,12 @@ def rule_param_star_annotation(p: peg_parser) -> arg | None {
     if a is not None {
         b = rule_star_annotation(p);
         if b is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = arg(arg=pa_name_id(a), annotation=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10333,7 +10834,12 @@ def rule_pass_stmt(p: peg_parser) -> stmt | None {
     }
     kw = peg_expect_token(p, 679);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_pass(start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10388,7 +10894,12 @@ def rule_patterns(p: peg_parser) -> pattern | None {
     }
     patterns = rule_open_sequence_pattern(p);
     if patterns is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchSequence(patterns=patterns, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10432,7 +10943,12 @@ def rule_power(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Pow(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10480,13 +10996,23 @@ def rule_primary_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
             b = pa_name_from_token(peg_expect_token(p, NAME));
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_attribute(a, pa_name_id(b), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10499,7 +11025,12 @@ def rule_primary_raw(p: peg_parser) -> expr | None {
     if a is not None {
         b = rule_genexp(p);
         if b is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_call(a, pa_check(pa_singleton_seq(b)), None, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10514,7 +11045,12 @@ def rule_primary_raw(p: peg_parser) -> expr | None {
             b = rule_arguments(p);
             lit_1 = peg_expect_token(p, 8);
             if lit_1 is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_call(a, (pa_call_args(b) if b is not None else None), (pa_call_keywords(b) if b is not None else None), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10531,7 +11067,12 @@ def rule_primary_raw(p: peg_parser) -> expr | None {
             if b is not None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_subscript(a, b, Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10566,7 +11107,12 @@ def rule_raise_stmt(p: peg_parser) -> stmt | None {
         a = rule_expression(p);
         if a is not None {
             b = rule__tmp_113(p);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = Raise(exc=a, cause=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10576,7 +11122,12 @@ def rule_raise_stmt(p: peg_parser) -> stmt | None {
     peg_reset(p, mark);
     kw = peg_expect_token(p, 683);
     if kw is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = Raise(exc=None, cause=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10611,7 +11162,12 @@ def rule_return_stmt(p: peg_parser) -> stmt | None {
     kw = peg_expect_token(p, 678);
     if kw is not None {
         a = rule_star_expressions(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_return(a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10637,7 +11193,12 @@ def rule_sequence_pattern(p: peg_parser) -> pattern | None {
         patterns = rule_maybe_sequence_pattern(p);
         lit_1 = peg_expect_token(p, 10);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchSequence(patterns=patterns, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10650,7 +11211,12 @@ def rule_sequence_pattern(p: peg_parser) -> pattern | None {
         patterns = rule_open_sequence_pattern(p);
         lit_1 = peg_expect_token(p, 8);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchSequence(patterns=patterns, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10678,7 +11244,12 @@ def rule_set(p: peg_parser) -> expr | None {
         if a is not None {
             lit_1 = peg_expect_token(p, 26);
             if lit_1 is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = Set(elts=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10709,7 +11280,12 @@ def rule_setcomp(p: peg_parser) -> expr | None {
             if b is not None {
                 lit_1 = peg_expect_token(p, 26);
                 if lit_1 is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = SetComp(elt=a, generators=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -10758,13 +11334,23 @@ def rule_shift_expr_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_shift_expr(p);
     if a is not None {
         lit = peg_expect_token(p, 33);
         if lit is not None {
             b = rule_sum(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, LShift(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10779,7 +11365,12 @@ def rule_shift_expr_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_sum(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, RShift(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10824,7 +11415,12 @@ def rule_signed_number(p: peg_parser) -> expr | None {
     if lit is not None {
         number = pa_number_from_token(peg_expect_token(p, NUMBER));
         if number is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(USub(), number, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10856,7 +11452,12 @@ def rule_signed_real_number(p: peg_parser) -> expr | None {
     if lit is not None {
         real = rule_real_number(p);
         if real is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_unaryop(USub(), real, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -10918,7 +11519,12 @@ def rule_simple_stmt(p: peg_parser) -> stmt | None {
     peg_reset(p, mark);
     e = rule_star_expressions(p);
     if e is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_expr_stmt(e, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11066,7 +11672,12 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
             b = pa_name_from_token(peg_expect_token(p, NAME));
             if b is not None {
                 if ((rule_t_lookahead(p) is None)) {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_attribute(a, pa_name_id(b), Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11085,7 +11696,12 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
                     if ((rule_t_lookahead(p) is None)) {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_subscript(a, b, Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11215,7 +11831,12 @@ def rule_slice(p: peg_parser) -> expr | None {
     if lit is not None {
         b = rule_expression(p);
         c = rule__tmp_116(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_slice(a, b, c, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11253,7 +11874,12 @@ def rule_slices(p: peg_parser) -> expr | None {
     a = rule__gather_118(p);
     if a is not None {
         lit = peg_expect_token(p, 12);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_tuple(a, Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11311,7 +11937,12 @@ def rule_star_atom(p: peg_parser) -> expr | None {
         a = rule_star_targets_tuple_seq(p);
         lit_1 = peg_expect_token(p, 8);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(a, Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11324,7 +11955,12 @@ def rule_star_atom(p: peg_parser) -> expr | None {
         a = rule_star_targets_list_seq(p);
         lit_1 = peg_expect_token(p, 10);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = List(elts=a, ctx=Store(), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -11419,7 +12055,12 @@ def rule_star_expression(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_bitwise_or(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_starred(a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11455,7 +12096,12 @@ def rule_star_expressions(p: peg_parser) -> expr | None {
         b = rule__loop1_119(p);
         if b is not None {
             lit = peg_expect_token(p, 12);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_seq_insert_front(a, b)), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11467,7 +12113,12 @@ def rule_star_expressions(p: peg_parser) -> expr | None {
     if a is not None {
         lit = peg_expect_token(p, 12);
         if lit is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_singleton_seq(a)), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11499,7 +12150,12 @@ def rule_star_named_expression(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_bitwise_or(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_starred(a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11547,7 +12203,12 @@ def rule_star_pattern(p: peg_parser) -> pattern | None {
     if lit is not None {
         target = rule_pattern_capture_target(p);
         if target is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchStar(name=pa_name_id(target), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -11560,7 +12221,12 @@ def rule_star_pattern(p: peg_parser) -> pattern | None {
     if lit is not None {
         wildcard_pattern = rule_wildcard_pattern(p);
         if wildcard_pattern is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchStar(name=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -11592,7 +12258,12 @@ def rule_star_target(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule__tmp_122(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_starred(pa_check(pa_set_context(a, Store())), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11636,7 +12307,12 @@ def rule_star_targets(p: peg_parser) -> expr | None {
         b = rule__loop0_123(p);
         if b is not None {
             lit = peg_expect_token(p, 12);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_seq_insert_front(a, b)), Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11704,7 +12380,12 @@ def rule_starred_expression(p: peg_parser) -> expr | None {
     if lit is not None {
         a = rule_expression(p);
         if a is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_starred(a, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11766,7 +12447,12 @@ def rule_statement_newline(p: peg_parser) -> list[stmt] | None {
     peg_reset(p, mark);
     _newline = peg_expect_token(p, NEWLINE);
     if _newline is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_singleton_seq(pa_check(pa_ast_pass(start_lineno, start_col_offset, end_lineno, end_col_offset)));
@@ -11828,7 +12514,12 @@ def rule_strings(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     a = rule__loop1_83(p);
     if a is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_concatenate_strings(a);
@@ -11838,7 +12529,12 @@ def rule_strings(p: peg_parser) -> expr | None {
     peg_reset(p, mark);
     a = rule__loop1_84(p);
     if a is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_concatenate_tstrings(a);
@@ -11866,7 +12562,12 @@ def rule_subject_expr(p: peg_parser) -> expr | None {
         lit = peg_expect_token(p, 12);
         if lit is not None {
             values = rule_star_named_expressions(p);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(pa_check(pa_seq_insert_front(value, values)), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11913,13 +12614,23 @@ def rule_sum_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_sum(p);
     if a is not None {
         lit = peg_expect_token(p, 14);
         if lit is not None {
             b = rule_term(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Add(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -11934,7 +12645,12 @@ def rule_sum_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_term(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Sub(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12005,6 +12721,11 @@ def rule_t_primary_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_t_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
@@ -12012,7 +12733,12 @@ def rule_t_primary_raw(p: peg_parser) -> expr | None {
             b = pa_name_from_token(peg_expect_token(p, NAME));
             if b is not None {
                 if ((rule_t_lookahead(p) is not None)) {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_attribute(a, pa_name_id(b), Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12031,7 +12757,12 @@ def rule_t_primary_raw(p: peg_parser) -> expr | None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
                     if ((rule_t_lookahead(p) is not None)) {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_subscript(a, b, Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12047,7 +12778,12 @@ def rule_t_primary_raw(p: peg_parser) -> expr | None {
         b = rule_genexp(p);
         if b is not None {
             if ((rule_t_lookahead(p) is not None)) {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_call(a, pa_check(pa_singleton_seq(b)), None, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12064,7 +12800,12 @@ def rule_t_primary_raw(p: peg_parser) -> expr | None {
             lit_1 = peg_expect_token(p, 8);
             if lit_1 is not None {
                 if ((rule_t_lookahead(p) is not None)) {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_call(a, (pa_call_args(b) if b is not None else None), (pa_call_keywords(b) if b is not None else None), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12107,7 +12848,12 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
             b = pa_name_from_token(peg_expect_token(p, NAME));
             if b is not None {
                 if ((rule_t_lookahead(p) is None)) {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = pa_ast_attribute(a, pa_name_id(b), Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12127,7 +12873,12 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
                 lit_1 = peg_expect_token(p, 10);
                 if lit_1 is not None {
                     if ((rule_t_lookahead(p) is None)) {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = pa_ast_subscript(a, b, Store(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12180,13 +12931,23 @@ def rule_term_raw(p: peg_parser) -> expr | None {
     start_col_offset = 0;
     end_lineno = 1;
     end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_term(p);
     if a is not None {
         lit = peg_expect_token(p, 16);
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Mult(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12201,7 +12962,12 @@ def rule_term_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Div(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12216,7 +12982,12 @@ def rule_term_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, FloorDiv(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12231,7 +13002,12 @@ def rule_term_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, Mod(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12246,7 +13022,12 @@ def rule_term_raw(p: peg_parser) -> expr | None {
         if lit is not None {
             b = rule_factor(p);
             if b is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_ast_binop(a, MatMult(), b, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12295,7 +13076,12 @@ def rule_try_stmt(p: peg_parser) -> stmt | None {
             if b is not None {
                 f = rule_finally_block(p);
                 if f is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = Try(body=b, handlers=None, orelse=pa_stmt_list_or_empty(None), finalbody=f, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12315,7 +13101,12 @@ def rule_try_stmt(p: peg_parser) -> stmt | None {
                 if ex is not None {
                     el = rule_else_block(p);
                     f = rule_finally_block(p);
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = Try(body=b, handlers=ex, orelse=pa_stmt_list_or_empty(el), finalbody=f, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12335,7 +13126,12 @@ def rule_try_stmt(p: peg_parser) -> stmt | None {
                 if ex is not None {
                     el = rule_else_block(p);
                     f = rule_finally_block(p);
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = TryStar(body=b, handlers=ex, orelse=pa_stmt_list_or_empty(el), finalbody=f, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12417,7 +13213,12 @@ def rule_tstring_format_spec_replacement_field(p: peg_parser) -> expr | None {
             format = rule_tstring_full_format_spec(p);
             rbrace = peg_expect_token(p, 26);
             if rbrace is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_formatted_value(a, debug_expr, conversion, format, rbrace, start_lineno, start_col_offset, end_lineno, end_col_offset, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12450,7 +13251,12 @@ def rule_tstring_full_format_spec(p: peg_parser) -> peg_token | None {
     if colon is not None {
         spec = rule__loop0_129(p);
         if spec is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_setup_full_format_spec(colon);
@@ -12498,7 +13304,12 @@ def rule_tstring_replacement_field(p: peg_parser) -> expr | None {
             format = rule_tstring_full_format_spec(p);
             rbrace = peg_expect_token(p, 26);
             if rbrace is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = pa_interpolation(a, debug_expr, conversion, format, rbrace, start_lineno, start_col_offset, end_lineno, end_col_offset, start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12532,7 +13343,12 @@ def rule_tuple(p: peg_parser) -> expr | None {
         a = rule__tmp_130(p);
         lit_1 = peg_expect_token(p, 8);
         if lit_1 is not None {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = pa_ast_tuple(a, Load(), start_lineno, start_col_offset, end_lineno, end_col_offset);
@@ -12563,7 +13379,12 @@ def rule_type_alias(p: peg_parser) -> stmt | None {
             if lit is not None {
                 b = rule_expression(p);
                 if b is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = TypeAlias(name=pa_check(pa_set_context(n, Store())), type_params=t, value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12696,7 +13517,12 @@ def rule_type_param(p: peg_parser) -> type_param | None {
     if a is not None {
         b = rule_type_param_bound(p);
         c = rule_type_param_default(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = TypeVar(name=pa_name_id(a), bound=b, default_value=c, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12716,7 +13542,12 @@ def rule_type_param(p: peg_parser) -> type_param | None {
         a = pa_name_from_token(peg_expect_token(p, NAME));
         if a is not None {
             b = rule_type_param_starred_default(p);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = TypeVarTuple(name=pa_name_id(a), default_value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12730,7 +13561,12 @@ def rule_type_param(p: peg_parser) -> type_param | None {
         a = pa_name_from_token(peg_expect_token(p, NAME));
         if a is not None {
             b = rule_type_param_default(p);
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = ParamSpec(name=pa_name_id(a), default_value=b, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12834,7 +13670,12 @@ def rule_value_pattern(p: peg_parser) -> pattern | None {
     attr = rule_attr(p);
     if attr is not None {
         if ((peg_negative_lookahead_token(p, 23) and peg_negative_lookahead_token(p, 7) and peg_negative_lookahead_token(p, 22))) {
-            end_tok = p.tokens[p.mark - 1];
+            end_tok = peg_get_last_nonnwhitespace_token(p);
+            if end_tok is None {
+                p.error_indicator = True;
+                peg_reset(p, mark);
+                return None;
+            }
             end_lineno = end_tok.end_lineno;
             end_col_offset = end_tok.end_col_offset;
             res = MatchValue(value=attr, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12871,7 +13712,12 @@ def rule_while_stmt(p: peg_parser) -> stmt | None {
                 b = rule_block(p);
                 if b is not None {
                     c = rule_else_block(p);
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = While(`test=a, body=b, orelse=pa_stmt_list_or_empty(c), lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12897,7 +13743,12 @@ def rule_wildcard_pattern(p: peg_parser) -> pattern | None {
     }
     soft = peg_expect_soft_keyword(p, "_");
     if soft is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = MatchAs(pattern=None, name=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12969,7 +13820,12 @@ def rule_with_stmt(p: peg_parser) -> stmt | None {
                         tc = peg_expect_token(p, TYPE_COMMENT);
                         b = rule_block(p);
                         if b is not None {
-                            end_tok = p.tokens[p.mark - 1];
+                            end_tok = peg_get_last_nonnwhitespace_token(p);
+                            if end_tok is None {
+                                p.error_indicator = True;
+                                peg_reset(p, mark);
+                                return None;
+                            }
                             end_lineno = end_tok.end_lineno;
                             end_col_offset = end_tok.end_col_offset;
                             res = With(items=a, body=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -12990,7 +13846,12 @@ def rule_with_stmt(p: peg_parser) -> stmt | None {
                 tc = peg_expect_token(p, TYPE_COMMENT);
                 b = rule_block(p);
                 if b is not None {
-                    end_tok = p.tokens[p.mark - 1];
+                    end_tok = peg_get_last_nonnwhitespace_token(p);
+                    if end_tok is None {
+                        p.error_indicator = True;
+                        peg_reset(p, mark);
+                        return None;
+                    }
                     end_lineno = end_tok.end_lineno;
                     end_col_offset = end_tok.end_col_offset;
                     res = With(items=a, body=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -13015,7 +13876,12 @@ def rule_with_stmt(p: peg_parser) -> stmt | None {
                         if lit_3 is not None {
                             b = rule_block(p);
                             if b is not None {
-                                end_tok = p.tokens[p.mark - 1];
+                                end_tok = peg_get_last_nonnwhitespace_token(p);
+                                if end_tok is None {
+                                    p.error_indicator = True;
+                                    peg_reset(p, mark);
+                                    return None;
+                                }
                                 end_lineno = end_tok.end_lineno;
                                 end_col_offset = end_tok.end_col_offset;
                                 res = AsyncWith(items=a, body=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -13039,7 +13905,12 @@ def rule_with_stmt(p: peg_parser) -> stmt | None {
                     tc = peg_expect_token(p, TYPE_COMMENT);
                     b = rule_block(p);
                     if b is not None {
-                        end_tok = p.tokens[p.mark - 1];
+                        end_tok = peg_get_last_nonnwhitespace_token(p);
+                        if end_tok is None {
+                            p.error_indicator = True;
+                            peg_reset(p, mark);
+                            return None;
+                        }
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
                         res = AsyncWith(items=a, body=b, type_comment=None, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -13076,7 +13947,12 @@ def rule_yield_expr(p: peg_parser) -> expr | None {
         if kw_1 is not None {
             a = rule_expression(p);
             if a is not None {
-                end_tok = p.tokens[p.mark - 1];
+                end_tok = peg_get_last_nonnwhitespace_token(p);
+                if end_tok is None {
+                    p.error_indicator = True;
+                    peg_reset(p, mark);
+                    return None;
+                }
                 end_lineno = end_tok.end_lineno;
                 end_col_offset = end_tok.end_col_offset;
                 res = YieldFrom(value=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -13088,7 +13964,12 @@ def rule_yield_expr(p: peg_parser) -> expr | None {
     kw = peg_expect_token(p, 703);
     if kw is not None {
         a = rule_star_expressions(p);
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = Yield(value=a, lineno=start_lineno, col_offset=start_col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
@@ -13111,7 +13992,12 @@ def rule_yield_stmt(p: peg_parser) -> stmt | None {
     }
     y = rule_yield_expr(p);
     if y is not None {
-        end_tok = p.tokens[p.mark - 1];
+        end_tok = peg_get_last_nonnwhitespace_token(p);
+        if end_tok is None {
+            p.error_indicator = True;
+            peg_reset(p, mark);
+            return None;
+        }
         end_lineno = end_tok.end_lineno;
         end_col_offset = end_tok.end_col_offset;
         res = pa_ast_expr_stmt(y, start_lineno, start_col_offset, end_lineno, end_col_offset);
