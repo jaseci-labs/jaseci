@@ -5605,15 +5605,19 @@ test "bare_list_flow_inference" {
     # mismatched). The declaration now flow-infers its element type from the
     # mutations that follow: append/insert args, extend/`+=` operands'
     # element types, and index-store values, widened out of literal types.
-    # Only concrete scalar evidence refines: mixed scalars (or None beside a
-    # scalar) collapse to the heterogeneous `any` element (backends lower
-    # `list[any]` as the boxed layout; a union would silently lower as its
-    # first member), while `any`/Unknown/object evidence aborts the
-    # inference - a dynamic value is absence of information, not proof of
-    # heterogeneity, and native code (the OSP kernel's handle lists) relies
-    # on the bare default. Multi-target assignments pool evidence from every
-    # bound name. No evidence leaves the list bare, and an explicit
-    # `list[T]` annotation still wins over usage.
+    # Concrete evidence refines: builtin scalars and archetype/enum instances
+    # (#8539: the native backend has no silent `List.i64` default for a bare
+    # list display any more, so `xs = []; xs.append(Box())` must type
+    # `list[Box]` or the function demotes). Mixed evidence (two scalars, two
+    # archetypes, or None beside either) collapses to the heterogeneous `any`
+    # element (backends lower `list[any]` as the boxed layout; a union would
+    # silently lower as its first member), while `any`/Unknown evidence
+    # aborts the inference - a dynamic value is absence of information, not
+    # proof of heterogeneity. The OSP kernel's own lists are all annotated
+    # (`list[int]` handles, `list[Slot]`, `list[any]` reports), so nothing
+    # native relies on a bare default. Multi-target assignments pool evidence
+    # from every bound name. No evidence (or None-only evidence) leaves the
+    # list bare, and an explicit `list[T]` annotation still wins over usage.
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_bare_list_flow_inference.jac"),
@@ -5633,7 +5637,9 @@ test "bare_list_flow_inference" {
         "flow_nonemix": "list[Any]",
         "flow_dyn": "list",
         "flow_poison": "list",
-        "flow_obj": "list",
+        "flow_obj": "list[Payload]",
+        "flow_objmix": "list[Any]",
+        "flow_enum": "list[Hue]",
         "flow_bare": "list",
         "flow_pinned": "list[int]",
         "flow_multi_a": "list[str]",

@@ -40,104 +40,19 @@ impl NaIRGenBuiltins._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
         if val is None {
             continue;
         }
-
         if i > 0 {
             fmt_parts.append(" ");
         }
-
-        if isinstance(val.type, ir.IntType) {
-            if val.type.width == 1 {
-                t_g = self._make_global_string("True", name_prefix=".repr.true");
-                f_g = self._make_global_string("False", name_prefix=".repr.false");
-                fmt_parts.append("%s");
-                args.append(self.builder.select(val, t_g, f_g, name="print.bool"));
-            } else {
-                if val.type.width < 64 {
-                    val = self.builder.sext(val, ir.IntType(64));
-                }
-                fmt_parts.append("%lld");
-                args.append(val);
-            }
-        } elif isinstance(val.type, ir.DoubleType) {
-            fmt_parts.append("%s");
-            args.append(self._emit_float_repr(val));
-        } elif isinstance(val.type, ir.FloatType) {
-            val = self.builder.fpext(val, ir.DoubleType());
-            fmt_parts.append("%s");
-            args.append(self._emit_float_repr(val));
-        } elif isinstance(val.type, ir.PointerType) {
-            obj_s = self._emit_obj_str(val);
-            if obj_s is None {
-                obj_s = self._emit_container_repr(val, self._type_key_of(param));
-            }
-            if obj_s is not None {
-                if self._is_owned(val) {
-                    self._emit_rc_release_typed(val, op="print_obj_src", loc="");
-                }
-                val = obj_s;
-            } else {
-                _pointee = val.type?.pointee;
-                _is_char_ptr = isinstance(_pointee, ir.IntType) and _pointee.width == 8;
-                if not _is_char_ptr {
-                    self.emit(
-                        E5092,
-                        node_override=param,
-                        kind="print argument",
-                        name=type(param).__name__
-                    );
-                    return None;
-                }
-            }
-            fmt_parts.append("%s");
-            args.append(val);
-        } elif self._opt_payload_of(val.type) is not None {
-            _opt_s = self._emit_opt_repr(val);
-            if _opt_s is None {
-                self.emit(
-                    E5092,
-                    node_override=param,
-                    kind="print argument",
-                    name=type(param).__name__
-                );
-                return None;
-            }
-            fmt_parts.append("%s");
-            args.append(_opt_s);
-        } elif self?.jacval_type is not None and val.type == self.jacval_type {
-            _jv_s = self._str_jacval_fn();
-            if _jv_s is None {
-                self.emit(
-                    E5092,
-                    node_override=param,
-                    kind="print argument",
-                    name=type(param).__name__
-                );
-                return None;
-            }
-            fmt_parts.append("%s");
-            args.append(self.builder.call(_jv_s, [val], name="print.jv"));
-        } elif isinstance(val.type, ir.LiteralStructType) {
-            _tup_s = self._emit_container_repr(val, self._type_key_of(param));
-            if _tup_s is None {
-                self.emit(
-                    E5092,
-                    node_override=param,
-                    kind="print argument",
-                    name=type(param).__name__
-                );
-                return None;
-            }
-            fmt_parts.append("%s");
-            args.append(_tup_s);
-        } else {
-            self.emit(
-                E5092,
-                node_override=param,
-                kind="print argument",
-                name=type(param).__name__
-            );
+        _piece = self._fmt_piece(val, param, param, "print argument");
+        if _piece is None {
             return None;
         }
+        (_directive, _arg, _tmps, _replaced) = _piece;
+        if _replaced and isinstance(val.type, ir.PointerType) and self._is_owned(val) {
+            self._emit_rc_release_typed(val, op="print_obj_src", loc="");
+        }
+        fmt_parts.append(_directive);
+        args.append(_arg);
     }
 
     if fmt_parts {
@@ -153,6 +68,104 @@ impl NaIRGenBuiltins._emit_print(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
     return ir.Constant(ir.IntType(64), 0);
+}
+
+impl NaIRGenBuiltins._stringify_value(
+    val: ir.Value, expr: (uni.UniNode | None), err_node: uni.UniNode, err_kind: str
+) -> (ir.Value | None) {
+    i64 = ir.IntType(64);
+    f64 = ir.DoubleType();
+    _t = self._expr_type_of(expr);
+    _k = self._tb_payload_kind(_t);
+    _name = type(expr).__name__ if expr is not None else "value";
+    if self._opt_payload_of(val.type) is not None {
+        _s = (
+            self._emit_opt_repr(val, _k)
+                if _k in ("int", "bool", "float")
+                else self._emit_optional_str(val, expr)
+        );
+        if _s is None {
+            self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
+        }
+        return _s;
+    }
+    if _k == "bool" {
+        t_g = self._make_global_string("True", name_prefix=".repr.true");
+        f_g = self._make_global_string("False", name_prefix=".repr.false");
+        _b = (
+            val
+                if (isinstance(val.type, ir.IntType) and val.type.width == 1)
+                else self._to_bool(val, _t)
+        );
+        return self.builder.select(_b, t_g, f_g, name="fmt.bool");
+    }
+    if _k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)) {
+        _ifn = self._repr_leaf_fn("int");
+        if _ifn is None {
+            self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
+            return None;
+        }
+        _is = self.builder.call(_ifn, [self._coerce_type(val, i64)], name="fmt.int");
+        return self._mark_owned(_is);
+    }
+    if _k == "float" {
+        return self._emit_float_repr(self._coerce_type(val, f64));
+    }
+    if _k == "str" {
+        return val;
+    }
+    if _k == "none" {
+        return self._make_global_string("None", name_prefix=".repr.none");
+    }
+    if _k in ("list", "dict", "set", "tuple") {
+        _cs = self._emit_container_repr(val, _t);
+        if _cs is None {
+            self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
+        }
+        return _cs;
+    }
+    if _k == "bytes" {
+        return self._mark_owned(self._emit_bytes_repr(val));
+    }
+    if _k in ("any", "union")
+        and self?.jacval_type is not None
+        and val.type == self.jacval_type {
+        _jv_fn = self._str_jacval_fn();
+        if _jv_fn is None {
+            self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
+            return None;
+        }
+        _js = self.builder.call(_jv_fn, [val], name="fmt.jv");
+        return self._mark_owned(_js);
+    }
+    if isinstance(val.type, ir.PointerType) {
+        _os = self._emit_obj_str(val);
+        if _os is not None {
+            return _os;
+        }
+    }
+    self.emit(E5092, node_override=err_node, kind=err_kind, name=_name);
+    return None;
+}
+
+impl NaIRGenBuiltins._fmt_piece(
+    val: ir.Value, expr: (uni.UniNode | None), err_node: uni.UniNode, err_kind: str
+) -> (tuple | None) {
+    _t = self._expr_type_of(expr);
+    _k = self._tb_payload_kind(_t);
+    if (
+        self._opt_payload_of(val.type) is None
+        and (_k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)))
+    ) {
+        return ("%lld", self._coerce_type(val, ir.IntType(64)), [], False);
+    }
+    _s = self._stringify_value(val, expr, err_node, err_kind);
+    if _s is None {
+        return None;
+    }
+    _replaced = _s is not val;
+    _tmps = [_s] if (_replaced and self._is_owned(_s)) else [];
+    return ("%s", _s, _tmps, _replaced);
 }
 
 impl NaIRGenBuiltins._get_fmt_string(fmt: str) -> ir.GlobalVariable {
@@ -216,7 +229,7 @@ impl NaIRGenBuiltins._codegen_multistring(nd: uni.MultiString) -> (ir.Value | No
         } else {
             _ms_old = result;
             _ms_val = val;
-            result = self._emit_binary_op(Tok.PLUS, _ms_old, _ms_val);
+            result = self._emit_str_concat(_ms_old, _ms_val);
             if self._is_owned(_ms_old) {
                 self._emit_rc_release_typed(_ms_old, op="mstr_old", loc="");
             }
@@ -449,6 +462,7 @@ impl NaIRGenBuiltins._emit_optional_str(
 impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     fmt_parts: list[str] = [];
     args: list[ir.Value] = [];
+    i64 = ir.IntType(64);
 
     obj_strs: list[ir.Value] = [];
     for part in nd.parts {
@@ -458,26 +472,12 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
             text = text.replace("%", "%%");
             fmt_parts.append(text);
         } elif isinstance(part, uni.FormattedValue) {
-            val = self._str_norm(self._codegen_expr(part.format_part));
+            _node = part.format_part;
+            val = self._str_norm(self._codegen_expr(_node));
             if val is None {
                 continue;
             }
-            if self._opt_payload_of(val.type) is not None {
-                _opt_s = self._emit_optional_str(val, part);
-                if _opt_s is None {
-                    self.emit(
-                        E5092,
-                        node_override=part,
-                        kind="f-string value",
-                        name="optional"
-                    );
-                    return None;
-                }
-                val = _opt_s;
-                if self._is_owned(_opt_s) {
-                    obj_strs.append(_opt_s);
-                }
-            }
+            _k = self._tb_payload_kind(self._expr_type_of(_node));
             _conv = part.conversion if part.conversion is not None else -1;
             if _conv == 114 {
                 val = self._emit_fstr_repr(val, part);
@@ -487,6 +487,7 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 if self._is_owned(val) {
                     obj_strs.append(val);
                 }
+                _k = "str";
             } elif _conv not in (-1, 115) {
                 self.emit(
                     E5092, node_override=part, kind="f-string conversion", name="!a"
@@ -514,7 +515,7 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 }
             }
             if _spec_val is not None {
-                _dyn = self._emit_dyn_spec_format(val, _spec_val, part);
+                _dyn = self._emit_dyn_spec_format(val, _spec_val, part, _k);
                 _dyn = self._str_norm(_dyn);
                 if _dyn is None {
                     return None;
@@ -531,21 +532,19 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 continue;
             }
             if _spec_txt {
-                if isinstance(val.type, ir.IntType) and val.type.width == 1 {
-                    val = self.builder.zext(val, ir.IntType(64));
-                }
-                _fs_kind: (str | None) = None;
-                if isinstance(val.type, ir.IntType) {
+                _fs_kind = "";
+                if _k in ("int", "bool") and self._opt_payload_of(val.type) is None {
                     _fs_kind = "int";
-                } elif isinstance(val.type, ir.DoubleType) {
+                    val = self._coerce_type(val, i64);
+                } elif _k == "float" and self._opt_payload_of(val.type) is None {
                     _fs_kind = "float";
-                } elif isinstance(val.type, ir.PointerType) {
+                } elif _k == "str" {
                     _fs_kind = "str";
                 }
-                _tr = self._fstring_spec_to_printf(_spec_txt, _fs_kind or "");
+                _tr = self._fstring_spec_to_printf(_spec_txt, _fs_kind);
                 if _tr is None {
                     _sg = self._make_global_string(_spec_txt, name_prefix=".fspec");
-                    _sdyn = self._emit_dyn_spec_format(val, _sg, part);
+                    _sdyn = self._emit_dyn_spec_format(val, _sg, part, _k);
                     _sdyn = self._str_norm(_sdyn);
                     if _sdyn is None {
                         return None;
@@ -567,91 +566,30 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
                 } elif want == "repr" {
                     fmt_parts.append(directive);
                     args.append(self._emit_float_repr(val));
-                } elif want == "str" {
-                    if val.type != ir.IntType(8).as_pointer() {
-                        obj_s = self._emit_obj_str(val);
-                        if obj_s is None {
-                            obj_s = self._emit_container_repr(
-                                val, self._type_key_of(part.format_part)
-                            );
-                        }
-                        if obj_s is not None {
-                            if self._is_owned(val) {
-                                self._emit_rc_release_typed(
-                                    val, op="fstr_obj_src", loc=""
-                                );
-                            }
-                            val = obj_s;
-                            obj_strs.append(obj_s);
-                        } else {
-                            self.emit(
-                                E5092,
-                                node_override=part,
-                                kind="f-string value",
-                                name=type(part.format_part).__name__
-                            );
-                            return None;
-                        }
-                    }
-                    fmt_parts.append(directive);
-                    args.append(val);
                 } else {
                     fmt_parts.append(directive);
                     args.append(val);
                 }
                 continue;
             }
-            if isinstance(val.type, ir.IntType) and val.type.width == 64 {
-                fmt_parts.append("%lld");
-                args.append(val);
-            } elif isinstance(val.type, ir.IntType) and val.type.width == 1 {
-                val = self.builder.zext(val, ir.IntType(64));
-                fmt_parts.append("%lld");
-                args.append(val);
-            } elif isinstance(val.type, ir.DoubleType) {
-                fmt_parts.append("%s");
-                args.append(self._emit_float_repr(val));
-            } elif isinstance(val.type, ir.PointerType) {
-                obj_s = self._emit_obj_str(val);
-                if obj_s is None {
-                    obj_s = self._emit_container_repr(
-                        val, self._type_key_of(part.format_part)
-                    );
-                }
-                if obj_s is not None {
-                    if self._is_owned(val) {
-                        self._emit_rc_release_typed(val, op="fstr_obj_src", loc="");
-                    }
-                    val = obj_s;
-                    obj_strs.append(obj_s);
-                } elif val.type != ir.IntType(8).as_pointer() {
-                    self.emit(
-                        E5092,
-                        node_override=part,
-                        kind="f-string value",
-                        name=type(part.format_part).__name__
-                    );
-                    return None;
-                }
+            if _conv == 114 {
                 fmt_parts.append("%s");
                 args.append(val);
-            } elif isinstance(val.type, ir.LiteralStructType) {
-                _tup_s = self._emit_container_repr(
-                    val, self._type_key_of(part.format_part)
-                );
-                if _tup_s is None {
-                    self.emit(
-                        E5092,
-                        node_override=part,
-                        kind="f-string value",
-                        name=type(part.format_part).__name__
-                    );
-                    return None;
-                }
-                obj_strs.append(_tup_s);
-                fmt_parts.append("%s");
-                args.append(_tup_s);
+                continue;
             }
+            _piece = self._fmt_piece(val, _node, part, "f-string value");
+            if _piece is None {
+                return None;
+            }
+            (_directive, _arg, _tmps, _replaced) = _piece;
+            if _replaced
+                and isinstance(val.type, ir.PointerType)
+                and self._is_owned(val) {
+                self._emit_rc_release_typed(val, op="fstr_obj_src", loc="");
+            }
+            obj_strs.extend(_tmps);
+            fmt_parts.append(_directive);
+            args.append(_arg);
         }
     }
     fmt_str = "".join(fmt_parts);
@@ -667,7 +605,6 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     );
     fmt_global = self._make_global_string(fmt_str, name_prefix=".fstr.fmt");
 
-    i64 = ir.IntType(64);
     i8p = ir.IntType(8).as_pointer();
     measure_args: list[ir.Value] = [
         ir.Constant(i8p, None),
@@ -1369,97 +1306,114 @@ impl NaIRGenBuiltins._emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None) {
 impl NaIRGenBuiltins._emit_fstr_repr(
     val: ir.Value, part: uni.FormattedValue
 ) -> (ir.Value | None) {
-    i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
+    f64 = ir.DoubleType();
+    _node = part.format_part;
+    _t = self._expr_type_of(_node);
+    _k = self._tb_payload_kind(_t);
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
     }
-    if isinstance(val.type, ir.IntType) and val.type.width == 1 {
+    _r: (ir.Value | None) = None;
+    if self._opt_payload_of(val.type) is not None {
+        _r = (
+            self._emit_opt_repr(val, _k)
+                if _k in ("int", "bool", "float")
+                else self._emit_optional_str(val, _node)
+        );
+    } elif _k == "bool" {
         t_g = self._make_global_string("True", name_prefix=".repr.true");
         f_g = self._make_global_string("False", name_prefix=".repr.false");
-        return self.builder.select(val, t_g, f_g, name="fstr.repr.bool");
-    }
-    if isinstance(val.type, ir.IntType) {
-        fn = self._repr_leaf_fn("int");
-        if fn is not None {
-            _iv = self._coerce_type(val, i64);
-            res = self.builder.call(fn, [_iv], name="fstr.repr.int");
-            return self._mark_owned(res);
-        }
-    } elif isinstance(val.type, (ir.FloatType, ir.DoubleType)) {
-        return self._emit_float_repr(self._coerce_type(val, ir.DoubleType()));
-    } elif isinstance(val.type, ir.PointerType) and val.type == i8p {
-        res = self.builder.call(self._repr_str_fn(), [val], name="fstr.repr.str");
-        return self._mark_owned(res);
-    } elif isinstance(val.type, (ir.PointerType, ir.LiteralStructType)) {
-        _r = self._emit_container_repr(val, self._type_key_of(part.format_part));
-        if _r is None and isinstance(val.type, ir.PointerType) {
-            _r = self._dispatch_builtin(
-                "repr", [val], type_key=(self._type_key_of(part.format_part) or "")
+        _b = (
+            val
+                if (isinstance(val.type, ir.IntType) and val.type.width == 1)
+                else self._to_bool(val, _t)
+        );
+        _r = self.builder.select(_b, t_g, f_g, name="fstr.repr.bool");
+    } elif _k == "int" or (_k == "enum" and isinstance(val.type, ir.IntType)) {
+        _ifn = self._repr_leaf_fn("int");
+        if _ifn is not None {
+            _r = self.builder.call(
+                _ifn, [self._coerce_type(val, i64)], name="fstr.repr.int"
             );
+            self._mark_owned(_r);
         }
-        if _r is not None {
-            if isinstance(val.type, ir.PointerType)
-                and self._is_owned(val)
-                and (_r is not val) {
-                self._emit_rc_release_typed(val, op="fstr_repr_src", loc="");
-            }
-            return _r;
+    } elif _k == "float" {
+        _r = self._emit_float_repr(self._coerce_type(val, f64));
+    } elif _k == "str" {
+        _r = self.builder.call(self._repr_str_fn(), [val], name="fstr.repr.str");
+        self._mark_owned(_r);
+    } elif _k in ("list", "dict", "set", "tuple") {
+        _r = self._emit_container_repr(val, _t);
+    } elif _k == "bytes" {
+        _r = self._mark_owned(self._emit_bytes_repr(val));
+    } elif _k in ("any", "union") and self?.jacval_type is not None {
+        if val.type != self.jacval_type {
+            val = self._box_to_jacval(val, ty=_t);
         }
+        _jfn = self._repr_jacval_fn();
+        if _jfn is not None {
+            _r = self.builder.call(_jfn, [val], name="fstr.repr.jv");
+            self._mark_owned(_r);
+        }
+    } elif _k == "struct" {
+        _sname = self._tb_class_name(_t);
+        if _sname is not None and _sname in self.struct_types {
+            _ofn = self._repr_obj_fn(_sname);
+            _oarg = self._coerce_type(val, _ofn.args[0].type);
+            _r = self.builder.call(_ofn, [_oarg], name="fstr.repr.obj");
+            self._mark_owned(_r);
+        }
+    }
+    if _r is not None {
+        if (_r is not val)
+            and isinstance(val.type, ir.PointerType)
+            and self._is_owned(val) {
+            self._emit_rc_release_typed(val, op="fstr_repr_src", loc="");
+        }
+        return _r;
     }
     self.emit(E5092, node_override=part, kind="f-string conversion", name="!r");
     return None;
 }
 
 impl NaIRGenBuiltins._emit_dyn_spec_format(
-    val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue
+    val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue, kind: str
 ) -> (ir.Value | None) {
-    i8p = ir.IntType(8).as_pointer();
     val = self._str_norm(val);
     spec_val = self._str_norm(spec_val);
+    _node = part.format_part;
     kname: (str | None) = None;
     sval = val;
-    if isinstance(val.type, ir.IntType) and val.type.width == 1 {
-        kname = "jac_fmt_bool";
-    } elif isinstance(val.type, ir.IntType) {
-        kname = "jac_fmt_int";
-        if val.type.width != 64 {
-            sval = self.builder.sext(val, ir.IntType(64), name="fstr.dyn.sext");
-        }
-    } elif isinstance(val.type, (ir.FloatType, ir.DoubleType)) {
-        kname = "jac_fmt_float";
-        if isinstance(val.type, ir.FloatType) {
-            sval = self.builder.fpext(val, ir.DoubleType(), name="fstr.dyn.fpext");
-        }
-    } elif isinstance(val.type, ir.PointerType) and val.type == i8p {
+    if self._opt_payload_of(val.type) is not None {
         kname = "jac_fmt_str";
-    } elif isinstance(val.type, (ir.PointerType, ir.LiteralStructType)) {
-        _s: (ir.Value | None) = None;
-        if isinstance(val.type, ir.PointerType) {
-            _s = self._emit_obj_str(val);
+        _os = self._stringify_value(val, _node, part, "f-string value");
+        if _os is None {
+            return None;
         }
+        sval = _os;
+    } elif kind == "bool" {
+        kname = "jac_fmt_bool";
+        sval = (
+            val
+                if (isinstance(val.type, ir.IntType) and val.type.width == 1)
+                else self._to_bool(val, self._expr_type_of(_node))
+        );
+    } elif kind == "int" or (kind == "enum" and isinstance(val.type, ir.IntType)) {
+        kname = "jac_fmt_int";
+        sval = self._coerce_type(val, ir.IntType(64));
+    } elif kind == "float" {
+        kname = "jac_fmt_float";
+        sval = self._coerce_type(val, ir.DoubleType());
+    } elif kind == "str" {
+        kname = "jac_fmt_str";
+    } else {
+        kname = "jac_fmt_str";
+        _s = self._stringify_value(val, _node, part, "f-string value");
         if _s is None {
-            _s = self._emit_container_repr(val, self._type_key_of(part.format_part));
-        }
-        if _s is None {
-            self.emit(
-                E5092,
-                node_override=part,
-                kind="f-string value",
-                name=type(part.format_part).__name__
-            );
             return None;
         }
         sval = _s;
-        kname = "jac_fmt_str";
-    } else {
-        self.emit(
-            E5092,
-            node_override=part,
-            kind="f-string format spec",
-            name="<dynamic spec>"
-        );
-        return None;
     }
     fn = self._get_fmt_kernel_fn(kname);
     if fn is None {
@@ -1482,7 +1436,9 @@ impl NaIRGenBuiltins._emit_dyn_spec_format(
     return self._mark_owned(res);
 }
 
-impl NaIRGenBuiltins._emit_opt_repr(opt_val: ir.Value) -> (ir.Value | None) {
+impl NaIRGenBuiltins._emit_opt_repr(
+    opt_val: ir.Value, payload_kind: str
+) -> (ir.Value | None) {
     b = self.builder;
     i8 = ir.IntType(8);
     i64 = ir.IntType(64);
@@ -1490,18 +1446,25 @@ impl NaIRGenBuiltins._emit_opt_repr(opt_val: ir.Value) -> (ir.Value | None) {
     present = b.icmp_signed("!=", tag, ir.Constant(i8, 0), name="opt.repr.has");
     payload = b.extract_value(opt_val, 1, name="opt.repr.pl");
     some_str: (ir.Value | None) = None;
-    if isinstance(payload.type, ir.IntType) and payload.type.width == 1 {
+    if payload_kind == "bool" {
         t_g = self._make_global_string("True", name_prefix=".repr.true");
         f_g = self._make_global_string("False", name_prefix=".repr.false");
-        some_str = b.select(payload, t_g, f_g, name="opt.repr.bool");
-    } elif isinstance(payload.type, ir.IntType) {
+        _pb = (
+            payload
+                if (isinstance(payload.type, ir.IntType) and payload.type.width == 1)
+                else b.icmp_signed(
+                    "!=", payload, ir.Constant(payload.type, 0), name="opt.repr.nz"
+                )
+        );
+        some_str = b.select(_pb, t_g, f_g, name="opt.repr.bool");
+    } elif payload_kind == "int" {
         fn = self._repr_leaf_fn("int");
         if fn is not None {
             some_str = b.call(
                 fn, [self._coerce_type(payload, i64)], name="opt.repr.int"
             );
         }
-    } elif isinstance(payload.type, (ir.FloatType, ir.DoubleType)) {
+    } elif payload_kind == "float" {
         some_str = self._emit_float_repr(self._coerce_type(payload, ir.DoubleType()));
     }
     if some_str is None {

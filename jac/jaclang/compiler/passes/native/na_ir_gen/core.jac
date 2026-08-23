@@ -48,15 +48,14 @@ obj NaIRGenCore(NaIRGenState) {
     def _tb_non_none_one(t: any) -> any;
     def _elem_keys_of_type(t: any) -> (list | None);
     def _ensure_emitters -> None;
-    def _primitive_method_names(type_name: str) -> set[str];
     def _dispatch_primitive_method(
         type_name: str,
         method_name: str,
-        target: ir.Value,
+        target: (ir.Value | None),
         args: list[ir.Value],
         type_key: str,
-        kwargs: (dict | None) = None,
-        kw_node: (uni.UniNode | None) = None
+        recv_type: any = None,
+        call: (uni.FuncCall | None) = None
     ) -> (ir.Value | None);
 
     def _dispatch_builtin(
@@ -65,7 +64,8 @@ obj NaIRGenCore(NaIRGenState) {
         kwargs: (dict | None) = None,
         kw_node: (uni.UniNode | None) = None,
         type_key: str = "",
-        arg_nodes: (list | None) = None
+        arg_nodes: (list | None) = None,
+        call: (uni.FuncCall | None) = None
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;

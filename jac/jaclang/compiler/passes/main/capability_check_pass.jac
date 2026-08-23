@@ -2,8 +2,11 @@ import from jaclang.jac0core.unitree {
     Ability,
     ArchSpec,
     Archetype,
+    Assignment,
     AtomTrailer,
     CtrlStmt,
+    DictCompr,
+    DictVal,
     EdgeOpRef,
     EdgeRefTrailer,
     ElementStmt,
@@ -17,8 +20,11 @@ import from jaclang.jac0core.unitree {
     FuncSignature,
     ImplDef,
     Import,
+    InForStmt,
     KWPair,
     LambdaExpr,
+    ListCompr,
+    ListVal,
     Module,
     ModuleItem,
     ModulePath,
@@ -26,9 +32,12 @@ import from jaclang.jac0core.unitree {
     Name,
     ParamVar,
     PyInlineCode,
+    SetCompr,
+    SetVal,
     String,
     SubTag,
     Token,
+    TupleVal,
     UnaryExpr,
     UniNode,
     YieldExpr
@@ -60,8 +69,24 @@ def static_fstring_spec_text(spec: UniNode) -> (str | None);
 
 def call_has_kwargs_sink(call: FuncCall) -> bool;
 
+def native_container_shape_violation(
+    nd: UniNode
+) -> (tuple[(UniNode, str, str, (str | None))] | None);
+
+def native_hash_slot_ok(ty: object) -> bool;
+
+def native_ref_like_type(ty: object) -> bool;
+
+def native_none_binding_violation(
+    nd: Assignment
+) -> (tuple[(UniNode, str, str, (str | None))] | None);
+
+def native_unpack_target_violation(
+    nd: InForStmt, evaluator: object
+) -> (tuple[(UniNode, str, str, (str | None))] | None);
+
 def native_capability_violations(
-    mod: Module
+    mod: Module, evaluator: object = None
 ) -> list[tuple[(UniNode, str, str, (str | None))]];
 
 def native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None);

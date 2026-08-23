@@ -606,7 +606,7 @@ impl NaIRGenIterators._make_iter_from_value(
             return None;
         }
         elem_type = self.list_helpers[_lspec]["elem_type"];
-        val = self._coerce_type(val, self.list_types[_lspec].as_pointer());
+        val = self._coerce_typed(val, self.list_types[_lspec].as_pointer(), _ty);
         return (self._make_list_iter(val, _lspec, elem_type), _lspec, elem_type);
     }
     if _kind == "range" {
@@ -618,7 +618,7 @@ impl NaIRGenIterators._make_iter_from_value(
             return None;
         }
         key_type = self.dict_helpers[_dspec]["key_type"];
-        val = self._coerce_type(val, self.dict_types[_dspec].as_pointer());
+        val = self._coerce_typed(val, self.dict_types[_dspec].as_pointer(), _ty);
         return (self._make_dict_iter(val, _dspec), _dspec, key_type);
     }
     if _kind == "set" {
@@ -627,14 +627,14 @@ impl NaIRGenIterators._make_iter_from_value(
             return None;
         }
         elem_type = self.set_helpers[_sspec]["elem_type"];
-        val = self._coerce_type(val, self.set_types[_sspec].as_pointer());
+        val = self._coerce_typed(val, self.set_types[_sspec].as_pointer(), _ty);
         return (self._make_set_iter(val, _sspec, elem_type), _sspec, elem_type);
     }
     if _kind == "bytes" {
         return (self._make_bytes_iter(val), "bytes", ir.IntType(64));
     }
     if _kind == "str" {
-        return (self._make_str_iter(self._coerce_type(val, i8p)), "str", i8p);
+        return (self._make_str_iter(self._coerce_typed(val, i8p, _ty)), "str", i8p);
     }
     if _kind == "iterator" {
         if not self._is_owned(val) {
@@ -1060,7 +1060,8 @@ impl NaIRGenIterators._resolve_method_owner(
     if owner is not None {
         return owner;
     }
-    _arch = self.arch_ast_map.get(arch_name);
+    _lay = self._arch_layout(arch_name);
+    _arch = _lay.decl_node if _lay is not None else None;
     if isinstance(_arch, uni.Archetype) {
         _mod = _arch.find_parent_of_type(uni.Module);
         if _mod is not None and _mod is not self.ir_in {
@@ -1306,7 +1307,7 @@ impl NaIRGenIterators._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._emit_runtime_raise(is_stop, "StopIteration", "");
     _next_val = self.builder.load(out_slot, name="next.val");
     if _out_is_desc {
-        _next_val = self._coerce_type(_next_val, elem_type);
+        _next_val = self._coerce_typed(_next_val, elem_type, _next_ty);
     }
     return _next_val;
 }
@@ -1330,13 +1331,23 @@ impl NaIRGenIterators._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     _saved_srcs = self._iter_owned_srcs;
     _iter_srcs: list = [];
     _range_value = _coll_kind == "range" and not self._builtin_call_is(coll, "range");
+    _gen_decl: (uni.Ability | None) = None;
+    if isinstance(coll, uni.FuncCall)
+        and isinstance(coll.callee_decl, uni.Ability)
+        and coll.callee_decl.is_generator {
+        _gen_decl = coll.callee_decl;
+    }
     if is_adapter_call or is_user_iterable or _range_value {
         self._iter_owned_srcs = _iter_srcs;
         built = self._build_iter_from_expr(coll);
         self._iter_owned_srcs = _saved_srcs;
         owns_iter = True;
-    } elif _coll_kind == "iterator" {
-        elem_t = self._iter_elem_llvm(_coll_ty);
+    } elif _coll_kind == "iterator" or _gen_decl is not None {
+        elem_t = (
+            self._generator_elem_type(_gen_decl)
+                if _gen_decl is not None
+                else self._iter_elem_llvm(_coll_ty)
+        );
         if elem_t is None {
             raise AssertionError(
                 f"native: iterator `{_coll_ty}` carries no lowerable element type"

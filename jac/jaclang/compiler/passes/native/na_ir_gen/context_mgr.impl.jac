@@ -90,8 +90,18 @@ impl NaIRGenContextMgr._codegen_with_recursive(
         return;
     }
     cm_val = self._opt_unwrap_attr(cm_val);
+    _cm_t = self._expr_type_of(expr_item.expr);
+    _cm_pl = self._tb_opt_payload(_cm_t);
+    if _cm_pl is not None {
+        _cm_t = _cm_pl;
+    }
+    if _cm_t is None {
+        _cm_t = self._flow_narrowed_type_of(expr_item.expr);
+    }
 
-    enter_args: list[ir.Value] = [self._coerce_type(cm_val, enter_fn.args[0].type)];
+    enter_args: list[ir.Value] = [
+        self._coerce_type(cm_val, enter_fn.args[0].type, _cm_t)
+    ];
     enter_result = self.builder.call(enter_fn, enter_args, name="cm.enter");
 
     if expr_item.alias is not None {
@@ -103,7 +113,7 @@ impl NaIRGenContextMgr._codegen_with_recursive(
                     f"`with ... as {alias_name}` at {expr_item.alias.loc} has no lowerable type ({expr_item.alias.type})"
                 );
             }
-            _bound = self._coerce_type(enter_result, _alias_t);
+            _bound = self._coerce_type(enter_result, _alias_t, expr_item.alias.type);
             alloca = self._entry_alloca(_alias_t, alias_name);
 
             if isinstance(_alias_t, ir.PointerType) {
@@ -131,9 +141,16 @@ impl NaIRGenContextMgr._codegen_with_recursive(
     self.builder.position_at_end(exit_bb);
 
     null_ptr = ir.Constant(i8p, None);
-    exit_args: list[ir.Value] = [self._coerce_type(cm_val, exit_fn.args[0].type)];
+    exit_args: list[ir.Value] = [
+        self._coerce_type(cm_val, exit_fn.args[0].type, _cm_t)
+    ];
     for i in range(1, len(exit_fn.args)) {
-        exit_args.append(self._coerce_type(null_ptr, exit_fn.args[i].type));
+        _exit_pt = exit_fn.args[i].type;
+        if self?.jacval_type and _exit_pt == self.jacval_type {
+            exit_args.append(self._jacval_none());
+        } else {
+            exit_args.append(self._coerce_type(null_ptr, _exit_pt));
+        }
     }
     self.builder.call(exit_fn, exit_args, name="cm.exit");
     self.builder.branch(merge_bb);

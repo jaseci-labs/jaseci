@@ -2,19 +2,25 @@
 
 An empty `list = []` (bare annotation or none) adopts its element type from
 the mutations that follow in the same scope: append/insert args, extend/`+=`
-operands' element types, and index-store values. Only concrete scalar
-evidence (int/float/str/bool) refines: literals are widened before joining,
-None evidence beside a scalar collapses the join to the heterogeneous `any`
-element, and any non-scalar contribution (`any`, Unknown, object instances)
-aborts the inference so the list keeps its bare layout - dynamic values are
-absence of information, not proof of heterogeneity, and native code (e.g.
-the OSP kernel's handle lists) relies on the bare default. A list with no
-mutation evidence stays bare; an explicit `list[T]` annotation still wins.
+operands' element types, and index-store values. Concrete evidence refines:
+builtin scalars (int/float/str/bool, literals widened before joining) and
+archetype or enum instances. Mixed evidence (two scalars, two archetypes, or
+None beside either) collapses the join to the heterogeneous `any` element,
+while `any`/Unknown evidence aborts the inference so the list keeps its bare
+layout - a dynamic value is absence of information, not proof of
+heterogeneity. A list with no mutation evidence, or with None-only evidence,
+stays bare; an explicit `list[T]` annotation still wins.
 """
 
 obj Payload {
     has tag: int = 0;
 }
+
+obj Marker {
+    has mark: str = "";
+}
+
+enum Hue { RED = 1, BLUE = 2 }
 
 def strs_join -> str {
     flow_strs: list = [];
@@ -94,10 +100,23 @@ def any_poisons_scalar_evidence(v: any) -> int {
     return len(flow_poison);
 }
 
-def object_evidence_stays_bare -> int {
+def object_evidence_refines -> int {
     flow_obj: list = [];
     flow_obj.append(Payload());
     return len(flow_obj);
+}
+
+def mixed_objects_collapse_to_any -> int {
+    flow_objmix: list = [];
+    flow_objmix.append(Payload());
+    flow_objmix.append(Marker());
+    return len(flow_objmix);
+}
+
+def enum_evidence_refines -> int {
+    flow_enum: list = [];
+    flow_enum.append(Hue.RED);
+    return len(flow_enum);
 }
 
 def no_evidence_stays_bare -> int {

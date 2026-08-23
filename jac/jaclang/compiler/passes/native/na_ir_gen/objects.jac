@@ -48,10 +48,6 @@ obj NaIRGenObjects(NaIRGenState) {
         nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
     ) -> bool;
 
-    def _empty_container_for_field(
-        ftype: (ir.Type | None), label: str
-    ) -> (ir.Value | None);
-
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
     def _opt_unwrap_guarded(
         val: (ir.Value | None), what: str, msg: str
@@ -106,6 +102,15 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] | None);
+    def _expr_struct_parts(expr: (uni.UniNode | None)) -> (list[str] | None);
+    def _refuse_unshared_union_slot(
+        nd: (uni.UniNode | None),
+        type_name: str,
+        field_name: str,
+        idx: int,
+        parts: (list[str] | None)
+    ) -> bool;
+
     def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
     def _class_const_global(
         arch_name: str, field_name: str
@@ -119,14 +124,14 @@ obj NaIRGenObjects(NaIRGenState) {
     def _class_const_declarer(arch_name: str, field_name: str) -> (str | None);
     def _emit_class_routed_call(
         nd: uni.FuncCall,
-        _sfull: str,
-        _mnames: list[str],
+        owner: str,
+        slot: str,
         _given_recv: (ir.Value | None),
         _given_recv_cls: (str | None)
     ) -> (ir.Value | None);
 
     def _receiver_routed_method_fn(
-        nd: uni.UniNode, _sfull: str, _mnames: list[str], _recv_cls: (str | None)
+        nd: uni.UniNode, owner: str, slot: str, _recv_cls: (str | None)
     ) -> (ir.Function | None);
 
     def _demote_method_if_unlowerable(
@@ -151,7 +156,6 @@ obj NaIRGenObjects(NaIRGenState) {
     def _constructor_ability_for(cls: str, slot: str) -> (uni.Ability | None);
     def _predemote_capability_constructors -> None;
     def _codegen_constructors_first(archetypes: list) -> None;
-    def _demoted_init_of(type_name: str) -> (str | None);
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_event_method(arch_name: str, method: uni.Ability) -> None;
@@ -197,6 +201,8 @@ obj NaIRGenObjects(NaIRGenState) {
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;
+    def _nearest_slot(arch_name: str, names: list[str]) -> (tuple | None);
+    def _slot_function(arch_name: str, names: list[str]) -> tuple;
     def _hasvar_is_own(var: uni.UniNode) -> bool;
     def _store_inline_field(
         type_name: str,

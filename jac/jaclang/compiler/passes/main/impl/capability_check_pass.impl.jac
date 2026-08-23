@@ -92,6 +92,32 @@ glob JS_GLOBALS: dict[str, str] = {
          "Unpacking arguments at a native call site is not lowered yet; "
          "pass the elements explicitly or move the call to a @sv/Python "
          "context."
+     ),
+     _NATIVE_NESTED_GEN_HELP: str = (
+         "Native lowers generators as module-level functions and archetype "
+         "methods only: a `yield` inside a lambda or inside a function nested "
+         "in another function has no native frame to suspend. Hoist the "
+         "generator to module level, or move the code to a @sv/Python context."
+     ),
+     _NATIVE_HASH_SLOT_HELP: str = (
+         "Native sets and dicts hash their element or key in one fixed slot "
+         "layout, so a slot typed `any` or `object`, or a union that mixes None "
+         "or a scalar (int/float/bool) with another type, has no native storage. "
+         "Give the display one concrete element or key type (keep the mixing on "
+         "the value side of a dict), or move the code to a @sv/Python context."
+     ),
+     _NATIVE_NONE_BIND_HELP: str = (
+         "A native local needs a value type, and a call that returns None (or "
+         "the literal None) gives the binding nothing to hold. Call the function "
+         "as a statement instead of binding its result, or declare the variable "
+         "with the optional type it carries later (`x: int | None = None`)."
+     ),
+     _NATIVE_UNPACK_TARGET_HELP: str = (
+         "A tuple target in a native for-loop binds the fields of a tuple-typed "
+         "element (the `(key, value)` pair of `dict.items()` included), so the "
+         "loop names must match the tuple's arity and a non-tuple element cannot "
+         "be unpacked. Bind the element to one name, or iterate a collection of "
+         "tuples of the right arity."
      );
 
 
@@ -257,8 +283,261 @@ impl call_has_kwargs_sink(call: FuncCall) -> bool {
 }
 
 
+impl native_container_shape_violation(
+    nd: UniNode
+) -> (tuple[(UniNode, str, str, (str | None))] | None) {
+    import from jaclang.compiler.type_system.types { ClassType }
+    import from jaclang.compiler.type_system.type_utils { convert_to_instance }
+    if not isinstance(nd, Expr) {
+        return None;
+    }
+    what = "";
+    hashed = False;
+    need = 1;
+    if isinstance(nd, DictVal) {
+        what = "dict display";
+        hashed = True;
+        need = 2;
+    } elif isinstance(nd, DictCompr) {
+        what = "dict comprehension";
+        hashed = True;
+        need = 2;
+    } elif isinstance(nd, SetVal) {
+        what = "set display";
+        hashed = True;
+    } elif isinstance(nd, SetCompr) {
+        what = "set comprehension";
+        hashed = True;
+    } elif type(nd) is ListCompr {
+        what = "list comprehension";
+    } elif isinstance(nd, ListVal) {
+        if nd.values {
+            return None;
+        }
+        what = "list display";
+    } elif isinstance(nd, FuncCall) {
+        if (
+            nd.call_kind != "builtin"
+            or not isinstance(nd.target, Name)
+            or nd.target.value not in ("list", "set", "dict")
+            or nd.params
+        ) {
+            return None;
+        }
+        what = f"`{nd.target.value}()` call";
+        hashed = nd.target.value in ("set", "dict");
+        need = 2 if nd.target.value == "dict" else 1;
+    } else {
+        return None;
+    }
+    ty = nd.type;
+    if not isinstance(ty, ClassType) or ty.shared is None {
+        return None;
+    }
+    args = list(ty.private.type_args or []) if ty.private is not None else [];
+    if len(args) < need or not hashed {
+        return None;
+    }
+    slot = convert_to_instance(args[0]);
+    if native_hash_slot_ok(slot) {
+        return None;
+    }
+    return (
+        nd,
+        f"{what} {'key' if need == 2 else 'element'} type",
+        str(slot),
+        _NATIVE_HASH_SLOT_HELP
+    );
+}
+
+impl native_hash_slot_ok(ty: object) -> bool {
+    import from jaclang.compiler.type_system.types {
+        AnyType,
+        ClassType,
+        EnumMemberType,
+        UnionType
+    }
+    import from jaclang.compiler.type_system.type_utils { convert_to_instance }
+    if isinstance(ty, AnyType) {
+        return False;
+    }
+    if isinstance(ty, ClassType) {
+        return not (ty.is_any_type() or ty.is_builtin(["Any", "any", "object"]));
+    }
+    if not isinstance(ty, UnionType) {
+        return True;
+    }
+    members: list = [];
+    had_none = False;
+    for m in (ty.types or []) {
+        m_inst = convert_to_instance(m);
+        if isinstance(m_inst, ClassType)
+            and m_inst.shared is not None
+            and m_inst.shared.class_name in ("NoneType", "None") {
+            had_none = True;
+        } else {
+            members.append(m_inst);
+        }
+    }
+    if not members {
+        return True;
+    }
+    if len(members) == 1 and not had_none {
+        return native_hash_slot_ok(members[0]);
+    }
+    all_ref = True;
+    all_enum = True;
+    for m in members {
+        if not native_ref_like_type(m) {
+            all_ref = False;
+        }
+        if not (
+            isinstance(m, EnumMemberType)
+            or (isinstance(m, ClassType) and m.is_enum_class())
+        ) {
+            all_enum = False;
+        }
+    }
+    if all_ref {
+        return True;
+    }
+    return all_enum and not had_none;
+}
+
+impl native_ref_like_type(ty: object) -> bool {
+    import from jaclang.compiler.type_system.types {
+        ClassType,
+        FunctionType,
+        TypeVarType,
+        UnknownType
+    }
+    if isinstance(ty, (UnknownType, TypeVarType, FunctionType)) {
+        return True;
+    }
+    if not isinstance(ty, ClassType) {
+        return False;
+    }
+    if ty.is_any_type() or ty.is_enum_class() {
+        return False;
+    }
+    return not ty.is_builtin(
+        [
+            "Any",
+            "any",
+            "object",
+            "int",
+            "float",
+            "bool",
+            "complex",
+            "tuple",
+            "NoneType",
+            "None"
+        ]
+    );
+}
+
+impl native_none_binding_violation(
+    nd: Assignment
+) -> (tuple[(UniNode, str, str, (str | None))] | None) {
+    import from jaclang.compiler.type_system.types { ClassType }
+    if (
+        nd.is_enum_stmt
+        or nd.aug_op is not None
+        or nd.value is None
+        or nd.type_tag is not None
+        or len(nd.target) != 1
+    ) {
+        return None;
+    }
+    target = nd.target[0];
+    if (
+        not isinstance(target, Name)
+        or target.sym is None
+        or target.sym.decl is None
+        or target.sym.decl.name_of is not target
+    ) {
+        return None;
+    }
+    vt = nd.value.type;
+    if (
+        isinstance(vt, ClassType)
+        and vt.shared is not None
+        and vt.shared.class_name in ("NoneType", "None")
+    ) {
+        return (
+            nd,
+            "binding",
+            f"'{target.value}' to a value of type None",
+            _NATIVE_NONE_BIND_HELP
+        );
+    }
+    return None;
+}
+
+impl native_unpack_target_violation(
+    nd: InForStmt, evaluator: object
+) -> (tuple[(UniNode, str, str, (str | None))] | None) {
+    import from jaclang.compiler.type_system.types { ClassType, UnknownType }
+    import from jaclang.compiler.type_system.type_utils { convert_to_instance }
+    if evaluator is None or not isinstance(nd.target, (TupleVal, ListVal)) {
+        return None;
+    }
+    names = list(nd.target.values or []);
+    if not names {
+        return None;
+    }
+    for v in names {
+        if not isinstance(v, Name) {
+            return None;
+        }
+    }
+    coll_t = nd.collection.type;
+    if (
+        coll_t is None
+        or isinstance(coll_t, UnknownType)
+        or coll_t.is_any_type()
+        or coll_t.is_any_instance()
+    ) {
+        return None;
+    }
+    elem = evaluator._get_iterable_element_type(coll_t, None);
+    if elem is None {
+        return None;
+    }
+    elem = convert_to_instance(elem);
+    if not isinstance(elem, ClassType) or not elem.is_instance() {
+        return None;
+    }
+    if elem.is_any_type() or elem.is_builtin(["Any", "any", "object"]) {
+        return None;
+    }
+    if elem.is_namedtuple() {
+        return None;
+    }
+    if elem.is_builtin("tuple") {
+        targs = list(elem.private.type_args or []) if elem.private is not None else [];
+        if not targs {
+            return None;
+        }
+        for a in targs {
+            if isinstance(a, UnknownType) {
+                return None;
+            }
+        }
+        if len(targs) == len(names) {
+            return None;
+        }
+    }
+    return (
+        nd.target,
+        "for-loop target",
+        f"{len(names)}-name unpack of `{elem}` elements",
+        _NATIVE_UNPACK_TARGET_HELP
+    );
+}
+
 impl native_capability_violations(
-    mod: Module
+    mod: Module, evaluator: object = None
 ) -> list[tuple[(UniNode, str, str, (str | None))]] {
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];
@@ -535,6 +814,64 @@ impl native_capability_violations(
                 continue;
             }
 
+            if isinstance(nd, YieldExpr) {
+                _ysc: (UniNode | None) = nd.parent;
+                while _ysc is not None
+                    and not isinstance(_ysc, (Ability, LambdaExpr, ImplDef)) {
+                    _ysc = _ysc.parent;
+                }
+                _ynested = isinstance(_ysc, LambdaExpr);
+                _yowner = "a lambda";
+                if isinstance(_ysc, Ability) {
+                    _yenc: (UniNode | None) = _ysc.parent;
+                    while _yenc is not None
+                        and not isinstance(_yenc, (Ability, LambdaExpr)) {
+                        _yenc = _yenc.parent;
+                    }
+                    _ynested = _yenc is not None;
+                    _yowner = (
+                        f"'{_ysc.name_ref.sym_name}'"
+                            if _ysc.name_ref is not None
+                            else "a nested function"
+                    );
+                }
+                if _ynested {
+                    out.append(
+                        (
+                            nd,
+                            "generator",
+                            f"yield in {_yowner}",
+                            _NATIVE_NESTED_GEN_HELP
+                        )
+                    );
+                    continue;
+                }
+            }
+
+            if isinstance(
+                nd, (ListVal, SetVal, DictVal, ListCompr, DictCompr, FuncCall)
+            ) {
+                _shape_viol = native_container_shape_violation(nd);
+                if _shape_viol is not None {
+                    out.append(_shape_viol);
+                    continue;
+                }
+            }
+
+            if isinstance(nd, Assignment) {
+                _bind_viol = native_none_binding_violation(nd);
+                if _bind_viol is not None {
+                    out.append(_bind_viol);
+                }
+            }
+
+            if isinstance(nd, InForStmt) {
+                _unpack_viol = native_unpack_target_violation(nd, evaluator);
+                if _unpack_viol is not None {
+                    out.append(_unpack_viol);
+                }
+            }
+
             if isinstance(nd, FormattedValue) {
                 _conv = nd.conversion if nd.conversion is not None else -1;
                 if _conv == 97 {
@@ -712,7 +1049,7 @@ impl NativeCapabilityCheckPass.postinit -> None {
 
 impl NativeCapabilityCheckPass.transform(ir_in: Module) -> Module {
     (_fatal_viols, _demotable) = partition_native_capability_violations(
-        native_capability_violations(ir_in)
+        native_capability_violations(ir_in, self.prog.type_evaluator)
     );
     ir_in.gen.native_capability_partition = (_fatal_viols, _demotable);
     if _fatal_viols {

@@ -70,9 +70,13 @@ impl NaIRGenTuples._codegen_tuple_unpack(
     tuple_ty: any = None
 ) -> bool {
     _elem_owned = tuple_val?.na_tuple_owned;
-    _tu_opt = self._opt_payload_of(tuple_val.type);
-    if _tu_opt is not None {
-        tuple_val = self._coerce_type(tuple_val, _tu_opt);
+    _rhs_ty = tuple_ty if tuple_ty is not None else self._expr_type_of(tuple_node);
+    _rhs_payload = self._tb_opt_payload(_rhs_ty);
+    if _rhs_payload is not None {
+        _pl_low = self._lower_type(_rhs_payload);
+        if _pl_low is not None and _pl_low != tuple_val.type {
+            tuple_val = self._coerce_typed(tuple_val, _pl_low, _rhs_ty);
+        }
     }
     _orig_tv = tuple_val;
     struct_type: (ir.LiteralStructType | None) = None;
@@ -85,10 +89,7 @@ impl NaIRGenTuples._codegen_tuple_unpack(
         struct_type = tuple_val.type.pointee;
     }
 
-    if struct_type is None
-        and isinstance(tuple_val.type, ir.PointerType)
-        and (tuple_node is not None or tuple_ty is not None) {
-        _rhs_ty = tuple_ty if tuple_ty is not None else self._expr_type_of(tuple_node);
+    if struct_type is None and isinstance(tuple_val.type, ir.PointerType) {
         cast_ptr_type = self._lower_type(self._tb_opt_payload(_rhs_ty) or _rhs_ty)
             if self._tb_kind(_rhs_ty) in ("tuple", "optional")
             else None;
@@ -132,7 +133,9 @@ impl NaIRGenTuples._codegen_tuple_unpack(
             and _elem_owned[i];
         if var_name in self.local_vars {
             alloca = self.local_vars[var_name];
-            stored = self._coerce_type(elem_val, alloca.type.pointee);
+            stored = self._coerce_typed(
+                elem_val, alloca.type.pointee, self._tb_elem(_rhs_ty, i)
+            );
             new_ref = self._rc_slot_ref(stored) if rc_ok else None;
             if new_ref is not None {
                 if not moved {
@@ -352,15 +355,6 @@ impl NaIRGenTuples._codegen_tuple_index(
 }
 
 impl NaIRGenTuples._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None) {
-    """The native shape of a tuple annotation that withholds its arity.
-
-    `tuple[T, ...]` describes any number of `T`, and a native tuple carries its
-    arity in its type, so no tuple struct can stand for it. The one native shape
-    that holds N-of-T with N only known at runtime is the sequence `list[T]`
-    already lowers to, and that is what such an annotation means here. The type
-    system marks the variadic form by parking an `UnknownType` among the type
-    arguments, which is the same signal `_tuple_has_variadic_arg` reads.
-    """;
     elems = [
         a
         for a in type_args
@@ -392,34 +386,23 @@ impl NaIRGenTuples._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None)
 impl NaIRGenTuples._tuple_seq_coerce(
     val: ir.Value, target_type: ir.Type, src_ty: any = None
 ) -> (ir.Value | None) {
-    """Materialize a tuple value into the sequence a variadic tuple lowers to.
-
-    Only fires when the target is exactly the sequence type the value's own
-    element flavor would build, so the conversion never silently reinterprets
-    one element flavor as another.
-    """;
     if not isinstance(target_type, ir.PointerType) {
         return None;
     }
-    spec = self._spec_from_list_slot_type(target_type);
-    if spec is None or spec not in self.list_types {
+    if self._tb_kind(self._tb_opt_payload(src_ty) or src_ty) != "tuple" {
         return None;
     }
-    if self.list_types[spec].as_pointer() != target_type {
-        return None;
-    }
-    _elems: (list | None) = None;
-    if src_ty is not None and self._tb_kind(src_ty) == "tuple" {
-        _elems = self._tuple_elem_llvms(src_ty);
-    } else {
-        st = self._tuple_struct_of_value(val);
-        _elems = [e for e in st.elements] if st is not None else None;
-    }
+    _elems = self._tuple_elem_llvms(src_ty);
     if _elems is None {
         return None;
     }
     flavor = self._tuple_seq_flavor(_elems);
-    if flavor is None or flavor[0] != spec {
+    if flavor is None {
+        return None;
+    }
+    (spec, store_type) = flavor;
+    self._emit_list_helpers(spec, store_type);
+    if self.list_types[spec].as_pointer() != target_type {
         return None;
     }
     seq = self._tuple_iter_seq(None, val, src_ty);
@@ -465,9 +448,7 @@ impl NaIRGenTuples._tuple_struct_of_value(
     return None;
 }
 
-impl NaIRGenTuples._tuple_iter_shape(
-    expr: (uni.UniNode | None), val: (ir.Value | None)
-) -> bool {
+impl NaIRGenTuples._tuple_iter_shape(expr: (uni.UniNode | None)) -> bool {
     _ty = self._expr_type_of(expr);
     _pl = self._tb_opt_payload(_ty);
     _ty = _pl if _pl is not None else _ty;
@@ -519,9 +500,12 @@ impl NaIRGenTuples._tuple_iter_seq(
         if val is None {
             return None;
         }
-        _opt_pl = self._opt_payload_of(val.type);
-        if _opt_pl is not None {
-            val = self._coerce_type(val, _opt_pl);
+        _src_payload = self._tb_opt_payload(_ty);
+        if _src_payload is not None {
+            _src_low = self._lower_type(_src_payload);
+            if _src_low is not None and _src_low != val.type {
+                val = self._coerce_typed(val, _src_low, _ty);
+            }
         }
         struct_type = self._tuple_struct_of(elem_types);
         if isinstance(val.type, ir.PointerType)
@@ -560,7 +544,9 @@ impl NaIRGenTuples._tuple_iter_seq(
         if spec == "ptr" and isinstance(elem.type, ir.PointerType) {
             elem = self.builder.bitcast(elem, i8p, name=f"tseq.{i}.cast");
         } else {
-            elem = self._coerce_type(elem, helpers["elem_type"]);
+            elem = self._coerce_typed(
+                elem, helpers["elem_type"], self._tb_elem(_ty, i)
+            );
         }
         self._rc_call_with_ctx(
             helpers["append"], [seq, elem], op="tuple_seq", loc=_loc

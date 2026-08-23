@@ -9,8 +9,19 @@ import from jaclang.compiler.type_system.types { ClassType, EnumMemberType, Unio
 
 obj NaIRGenCalls(NaIRGenState) {
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
-    def _codegen_builtin_call(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
+    def _codegen_builtin_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_managed_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_region_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_type_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_iter_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_complex_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_builtin_nary(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
+    def _codegen_builtin_unary(nd: uni.FuncCall, func_name: str) -> (ir.Value | None);
     def _codegen_len_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _empty_container_of_type(
+        t: any, func_name: str, nd: uni.UniNode
+    ) -> (ir.Value | None);
+
     def _codegen_empty_container_ctor(
         nd: uni.FuncCall, func_name: str
     ) -> (ir.Value | None);
@@ -39,8 +50,6 @@ obj NaIRGenCalls(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
-    def _container_type_args(t: any) -> list;
-    def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
     def _call_args_lowered(
         nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
     ) -> bool;
@@ -73,7 +82,6 @@ obj NaIRGenCalls(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _jacval_tags_for_kind(kind: str) -> list[int];
-    def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
     def _coerce_narrowed_arg(
         nd: (uni.UniNode | None), val: (ir.Value | None)
@@ -85,12 +93,17 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
-    def _spread_tuple_values(tv: ir.Value) -> list;
+    def _spread_tuple_values(tv: ir.Value, tuple_t: any) -> list;
+    def _bind_arg_slot(
+        func: ir.Function, slot: int, val: ir.Value, src_ty: any
+    ) -> ir.Value;
+
     def _finish_bound_args(
         nd: uni.FuncCall, func: ir.Function, self_offset: int, args: list
     ) -> list;
 
     def _abandoned_args(func: ir.Function, self_offset: int, args: list) -> list;
+    def _callee_jac_arity(func: ir.Function, self_offset: int) -> int;
     def _checker_flagged(nd: uni.UniNode) -> bool;
     def _stub_default_value(
         nd: uni.FuncCall, param: any, expected_type: (ir.Type | None)

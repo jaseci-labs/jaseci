@@ -1,24 +1,3 @@
-impl NaIRGenRepr._split_type_args(s: str, sep: str = ",") -> list[str] {
-    parts: list[str] = [];
-    depth = 0;
-    cur = "";
-    for ch in s {
-        if ch == "[" {
-            depth += 1;
-        } elif ch == "]" {
-            depth -= 1;
-        }
-        if ch == sep and depth == 0 {
-            parts.append(cur);
-            cur = "";
-        } else {
-            cur += ch;
-        }
-    }
-    parts.append(cur);
-    return parts;
-}
-
 impl NaIRGenRepr._repr_const_str(text: str) -> ir.Value {
     g = self._make_global_string(text, name_prefix=".repr.c");
     if self._nogc_headerless() {
@@ -32,7 +11,7 @@ impl NaIRGenRepr._repr_acc_concat(
 ) -> None {
     b = self.builder;
     cur: any = b.load(acc_slot, name="rp.cur");
-    res = self._emit_binary_op(Tok.PLUS, cur, piece);
+    res = self._emit_str_concat(cur, piece);
     self._emit_rc_release_simple(cur, op="mstr_old", loc="");
     if own_piece {
         self._emit_rc_release_simple(piece, op="mstr_val", loc="");
@@ -62,92 +41,73 @@ impl NaIRGenRepr._repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.
     return self._mark_owned(res);
 }
 
-impl NaIRGenRepr._repr_elem_spec_of_key(elem_key: str) -> (tuple | None) {
-    i64 = ir.IntType(64);
-    i8p = ir.IntType(8).as_pointer();
-    _parts = self._split_type_args(elem_key, "|");
-    if len(_parts) == 2 and ("NoneType" in _parts or "None" in _parts) {
-        return ("jacval", self.jacval_type) if self?.jacval_type else None;
-    }
-    if len(_parts) > 1 or elem_key == "any" {
-        return ("jacval", self.jacval_type) if self?.jacval_type else None;
-    }
-    if elem_key in ("int", "bool") {
-        return ("i64", i64);
-    }
-    if elem_key == "float" {
-        return ("f64", ir.DoubleType());
-    }
-    if elem_key == "str" {
-        return ("ptr", i8p);
-    }
-    if elem_key in self.struct_types {
-        return ("ptr", i8p);
-    }
-    if elem_key.endswith("]") {
-        for _pfx in ("list[", "dict[", "set[", "frozenset[", "tuple[") {
-            if elem_key.startswith(_pfx) {
-                return ("ptr", i8p);
-            }
-        }
-    }
-    return None;
-}
-
-impl NaIRGenRepr._repr_field_llvm_of_key(field_key: str) -> (ir.Type | None) {
-    if field_key == "bool" {
-        return ir.IntType(1);
-    }
-    _spec = self._repr_elem_spec_of_key(field_key);
-    if _spec is None {
+impl NaIRGenRepr._repr_cache_key(t: any) -> (str | None) {
+    t = self._tb_solve(t);
+    _m = t?.mangle if t is not None else None;
+    if not callable(_m) {
         return None;
     }
-    return _spec[1];
+    return "t:" + _m();
 }
 
-impl NaIRGenRepr._repr_fn_for_type_key(type_key: str) -> (ir.Function | None) {
-    _cached = self._repr_fns.get(type_key);
+impl NaIRGenRepr._repr_fn_for_type(t: any) -> (ir.Function | None) {
+    t = self._tb_solve(t);
+    _kind = self._tb_kind(t);
+    if _kind == "int" {
+        return self._repr_leaf_fn("int");
+    }
+    if _kind == "bool" {
+        return self._repr_leaf_fn("bool");
+    }
+    if _kind == "float" {
+        return self._float_repr_fn();
+    }
+    if _kind == "str" {
+        return self._repr_str_fn();
+    }
+    if _kind in ("any", "union") {
+        return self._repr_jacval_fn();
+    }
+    if _kind == "optional" {
+        _pfn = self._repr_fn_for_type(self._tb_opt_payload(t));
+        if _pfn is not None and isinstance(_pfn.args[0].type, ir.PointerType) {
+            return _pfn;
+        }
+        return self._repr_jacval_fn();
+    }
+    if _kind == "struct" {
+        _name = self._tb_class_name(t);
+        if _name is not None and _name in self.struct_types {
+            return self._repr_obj_fn(_name);
+        }
+        return None;
+    }
+    if _kind == "tuple" and self._tuple_has_variadic_arg(self._tb_args(t)) {
+        _kind = "list";
+    }
+    if _kind not in ("list", "dict", "set", "tuple") {
+        return None;
+    }
+    _key = self._repr_cache_key(t);
+    if _key is None {
+        return None;
+    }
+    _cached = self._repr_fns.get(_key);
     if _cached is not None {
         return _cached;
     }
     fn: (ir.Function | None) = None;
-    _parts = self._split_type_args(type_key, "|");
-    if len(_parts) > 1 {
-        if len(_parts) == 2 and ("NoneType" in _parts or "None" in _parts) {
-            _other = _parts[0] if _parts[1] in ("NoneType", "None") else _parts[1];
-            _ofn = self._repr_fn_for_type_key(_other);
-            if _ofn is not None and isinstance(_ofn.args[0].type, ir.PointerType) {
-                fn = _ofn;
-            }
-        }
-        if fn is None {
-            fn = self._repr_jacval_fn();
-        }
-    } elif type_key == "any" {
-        fn = self._repr_jacval_fn();
-    } elif type_key == "int" {
-        fn = self._repr_leaf_fn("int");
-    } elif type_key == "bool" {
-        fn = self._repr_leaf_fn("bool");
-    } elif type_key == "float" {
-        fn = self._float_repr_fn();
-    } elif type_key == "str" {
-        fn = self._repr_str_fn();
-    } elif type_key in self.struct_types {
-        fn = self._repr_obj_fn(type_key);
-    } elif type_key.endswith("]") {
-        if type_key.startswith("list[") {
-            fn = self._repr_list_fn(type_key);
-        } elif type_key.startswith("dict[") {
-            fn = self._repr_dict_fn(type_key);
-        } elif type_key.startswith("set[") or type_key.startswith("frozenset[") {
-            fn = self._repr_set_fn(type_key);
-        } elif type_key.startswith("tuple[") {
-            fn = self._repr_tuple_fn(type_key);
-        }
+    if _kind == "list" {
+        fn = self._repr_list_fn(t, _key);
+    } elif _kind == "dict" {
+        fn = self._repr_dict_fn(t, _key);
+    } elif _kind == "set" {
+        fn = self._repr_set_fn(t, _key);
+    } else {
+        fn = self._repr_tuple_fn(t, _key);
     }
     if fn is not None {
-        self._repr_fns[type_key] = fn;
+        self._repr_fns[_key] = fn;
     }
     return fn;
 }
@@ -476,7 +436,7 @@ impl NaIRGenRepr._repr_seq_fn(
     b.branch(cond_bb);
     b.position_at_end(done_bb);
     _fin: any = b.load(acc, name="rp.fin");
-    res: any = self._emit_binary_op(Tok.PLUS, _fin, close_g);
+    res: any = self._emit_str_concat(_fin, close_g);
     self._emit_rc_release_simple(_fin, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -484,77 +444,67 @@ impl NaIRGenRepr._repr_seq_fn(
     return fn;
 }
 
-impl NaIRGenRepr._repr_list_fn(type_key: str) -> (ir.Function | None) {
+impl NaIRGenRepr._repr_list_fn(t: any, key: str) -> (ir.Function | None) {
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _inner = type_key[5:-1];
-    _spec = self._repr_elem_spec_of_key(_inner);
-    if _spec is None {
+    _elem = self._tb_elem(t);
+    if _elem is None {
         return None;
     }
-    elem_fn = self._repr_fn_for_type_key(_inner);
+    elem_fn = self._repr_fn_for_type(_elem);
     if elem_fn is None {
         return None;
     }
-    self._emit_list_helpers(_spec[0], _spec[1]);
-    _st: any = self.list_types.get(_spec[0]);
+    _spec = self._list_spec_for_type(t);
+    _st: any = self.list_types.get(_spec) if _spec is not None else None;
     if _st is None {
         return None;
     }
     return self._repr_seq_fn(
-        f"__jac_repr_{native_safe_sym(type_key)}",
-        _st.as_pointer(),
-        elem_fn,
-        "[",
-        "]",
-        None
+        f"__jac_repr_{native_safe_sym(key)}", _st.as_pointer(), elem_fn, "[", "]", None
     );
 }
 
-impl NaIRGenRepr._repr_set_fn(type_key: str) -> (ir.Function | None) {
+impl NaIRGenRepr._repr_set_fn(t: any, key: str) -> (ir.Function | None) {
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _inner = type_key[4:-1] if type_key.startswith("set[") else type_key[10:-1];
-    _spec = self._repr_elem_spec_of_key(_inner);
-    if _spec is None {
+    _elem = self._tb_elem(t);
+    if _elem is None {
         return None;
     }
-    elem_fn = self._repr_fn_for_type_key(_inner);
+    elem_fn = self._repr_fn_for_type(_elem);
     if elem_fn is None {
         return None;
     }
-    self._emit_set_helpers(_spec[0], _spec[1]);
-    _st: any = self.set_types.get(_spec[0]);
-    if _st is None {
+    _spec = self._set_spec_for_type(t);
+    _st: any = self.set_types.get(_spec) if _spec is not None else None;
+    _sh = self.set_helpers.get(_spec) if _spec is not None else None;
+    if _st is None or _sh is None {
         return None;
     }
     return self._repr_seq_fn(
-        f"__jac_repr_{native_safe_sym(type_key)}",
+        f"__jac_repr_{native_safe_sym(key)}",
         _st.as_pointer(),
         elem_fn,
         "{",
         "}",
         "set()",
-        get_fn=self.set_helpers[_spec[0]]["get"]
+        get_fn=_sh["get"]
     );
 }
 
-impl NaIRGenRepr._repr_dict_fn(type_key: str) -> (ir.Function | None) {
+impl NaIRGenRepr._repr_dict_fn(t: any, key: str) -> (ir.Function | None) {
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _args = self._split_type_args(type_key[5:-1]);
-    if len(_args) != 2 {
+    _kt = self._tb_elem(t, 0);
+    _vt = self._tb_elem(t, 1);
+    if _kt is None or _vt is None {
         return None;
     }
-    _kspec = self._repr_elem_spec_of_key(_args[0]);
-    _vspec = self._repr_elem_spec_of_key(_args[1]);
-    if _kspec is None or _vspec is None {
-        return None;
-    }
-    kfn = self._repr_fn_for_type_key(_args[0]);
-    vfn = self._repr_fn_for_type_key(_args[1]);
+    kfn = self._repr_fn_for_type(_kt);
+    vfn = self._repr_fn_for_type(_vt);
     if kfn is None or vfn is None {
         return None;
     }
-    self._emit_dict_helpers(_kspec[0], _vspec[0], _kspec[1], _vspec[1]);
-    _st: any = self.dict_types.get(f"{_kspec[0]}:{_vspec[0]}");
+    _spec = self._dict_spec_for_type(t);
+    _st: any = self.dict_types.get(_spec) if _spec is not None else None;
     if _st is None {
         return None;
     }
@@ -564,7 +514,7 @@ impl NaIRGenRepr._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     pty = _st.as_pointer();
     fnty = ir.FunctionType(i8p, [pty]);
     fn: any = ir.Function(
-        self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(type_key)}"
+        self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(key)}"
     );
     fn.linkage = "private";
     fn.args[0].name = "d";
@@ -618,7 +568,7 @@ impl NaIRGenRepr._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     b.branch(cond_bb);
     b.position_at_end(done_bb);
     _fin: any = b.load(acc, name="rp.fin");
-    res: any = self._emit_binary_op(Tok.PLUS, _fin, close_g);
+    res: any = self._emit_str_concat(_fin, close_g);
     self._emit_rc_release_simple(_fin, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -626,32 +576,35 @@ impl NaIRGenRepr._repr_dict_fn(type_key: str) -> (ir.Function | None) {
     return fn;
 }
 
-impl NaIRGenRepr._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
+impl NaIRGenRepr._repr_tuple_fn(t: any, key: str) -> (ir.Function | None) {
     import from jaclang.jac0core.codeinfo { native_safe_sym }
-    _fkeys = self._split_type_args(type_key[6:-1]);
-    if not _fkeys or _fkeys == [""] {
+    _fields = self._tb_args(t);
+    if not _fields {
+        return None;
+    }
+    _lowered = self._lower_type(t);
+    if (
+        _lowered is None
+        or not isinstance(_lowered, ir.PointerType)
+        or not isinstance(_lowered.pointee, ir.LiteralStructType)
+        or len(_lowered.pointee.elements) != len(_fields)
+    ) {
         return None;
     }
     _ffns: list = [];
-    _ftys: list = [];
-    for fk in _fkeys {
-        _f = self._repr_fn_for_type_key(fk);
+    for _ft in _fields {
+        _f = self._repr_fn_for_type(_ft);
         if _f is None {
             return None;
         }
-        _ft = self._repr_field_llvm_of_key(fk);
-        if _ft is None {
-            return None;
-        }
         _ffns.append(_f);
-        _ftys.append(_ft);
     }
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
-    pty = ir.LiteralStructType(_ftys).as_pointer();
+    pty = _lowered;
     fnty = ir.FunctionType(i8p, [pty]);
     fn: any = ir.Function(
-        self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(type_key)}"
+        self.llvm_module, fnty, name=f"__jac_repr_{native_safe_sym(key)}"
     );
     fn.linkage = "private";
     fn.args[0].name = "t";
@@ -676,7 +629,7 @@ impl NaIRGenRepr._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
     cur: any = self._rc_strdup(open_g, name="rp.t.acc0");
     for (idx, ffn) in enumerate(_ffns) {
         if idx > 0 {
-            nxt = self._emit_binary_op(Tok.PLUS, cur, sep_g);
+            nxt = self._emit_str_concat(cur, sep_g);
             self._emit_rc_release_simple(cur, op="mstr_old", loc="");
             cur = nxt;
         }
@@ -685,12 +638,12 @@ impl NaIRGenRepr._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
             name=f"rp.t.{idx}"
         );
         piece = self._repr_call_elem_fn(ffn, fld);
-        nxt = self._emit_binary_op(Tok.PLUS, cur, piece);
+        nxt = self._emit_str_concat(cur, piece);
         self._emit_rc_release_simple(cur, op="mstr_old", loc="");
         self._emit_rc_release_simple(piece, op="mstr_val", loc="");
         cur = nxt;
     }
-    res: any = self._emit_binary_op(Tok.PLUS, cur, close_g);
+    res: any = self._emit_str_concat(cur, close_g);
     self._emit_rc_release_simple(cur, op="mstr_old", loc="");
     self._emit_set_type_tag(b, res, "str");
     b.ret(res);
@@ -698,64 +651,24 @@ impl NaIRGenRepr._repr_tuple_fn(type_key: str) -> (ir.Function | None) {
     return fn;
 }
 
-impl NaIRGenRepr._runtime_repr_key(val: ir.Value) -> (str | None) {
-    if not isinstance(val.type, ir.PointerType) {
+impl NaIRGenRepr._emit_container_repr(val: ir.Value, t: any) -> (ir.Value | None) {
+    if t is None {
         return None;
     }
-    _pname: str = getattr(val.type.pointee, "name", "") or "";
-    _elem_names = {"i64": "int", "f64": "float", "jacval": "any", "ptr": "str"};
-    if _pname.startswith("List.") {
-        _spec = _pname[5:];
-        if _spec in ("i64", "f64", "jacval") {
-            return f"list[{_elem_names[_spec]}]";
-        }
+    _t = self._tb_opt_payload(t) if self._tb_kind(t) == "optional" else t;
+    _kind = self._tb_kind(_t);
+    if _kind not in ("list", "dict", "set", "tuple") {
         return None;
-    }
-    if _pname.startswith("Dict.") {
-        _kv = _pname[5:].split(".");
-        if len(_kv) == 2 and _kv[0] in _elem_names and _kv[1] in _elem_names {
-            return f"dict[{_elem_names[_kv[0]]},{_elem_names[_kv[1]]}]";
-        }
-        return None;
-    }
-    return None;
-}
-
-impl NaIRGenRepr._emit_container_repr(
-    val: ir.Value, type_key: (str | None)
-) -> (ir.Value | None) {
-    _rt_key = self._runtime_repr_key(val);
-    if not type_key {
-        if _rt_key is None {
-            return None;
-        }
-        type_key = _rt_key;
-    }
-    base = type_key;
-    _parts = self._split_type_args(type_key, "|");
-    if len(_parts) == 2 and ("NoneType" in _parts or "None" in _parts) {
-        base = _parts[0] if _parts[1] in ("NoneType", "None") else _parts[1];
-    } elif len(_parts) > 1 {
-        if _rt_key is None {
-            return None;
-        }
-        base = _rt_key;
-    }
-    if not base.endswith("]") {
-        if _rt_key is None {
-            return None;
-        }
-        base = _rt_key;
     }
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
     }
+    fn = self._repr_fn_for_type(_t);
+    if fn is None {
+        return None;
+    }
     if isinstance(val.type, ir.LiteralStructType) {
-        if not base.startswith("tuple[") {
-            return None;
-        }
-        fn = self._repr_fn_for_type_key(base);
-        if fn is None {
+        if _kind != "tuple" {
             return None;
         }
         boxed = self._box_value_tuple(val);
@@ -770,25 +683,6 @@ impl NaIRGenRepr._emit_container_repr(
         return res;
     }
     if not isinstance(val.type, ir.PointerType) {
-        return None;
-    }
-    _pointee = val.type.pointee;
-    _pname: any = getattr(_pointee, "name", "") or "";
-    ok: any = False;
-    if base.startswith("list[") {
-        ok = _pname.startswith("List.");
-    } elif base.startswith("dict[") {
-        ok = _pname.startswith("Dict.");
-    } elif base.startswith("set[") or base.startswith("frozenset[") {
-        ok = _pname.startswith("Set.");
-    } elif base.startswith("tuple[") {
-        ok = isinstance(_pointee, ir.LiteralStructType);
-    }
-    if not ok {
-        return None;
-    }
-    fn = self._repr_fn_for_type_key(base);
-    if fn is None {
         return None;
     }
     arg = (

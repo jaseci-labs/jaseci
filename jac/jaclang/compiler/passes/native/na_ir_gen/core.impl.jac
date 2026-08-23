@@ -296,18 +296,26 @@ impl NaIRGenCore._export_native_layout -> None {
     }
     layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
-    for (arch_name, field_indices) in self.struct_field_indices.items() {
-        field_types = self.struct_field_types.get(arch_name, {});
+    for (arch_name, field_types) in self.struct_field_types.items() {
         fields: list[NativeFieldInfo] = [];
         _lay = self._arch_layout(arch_name);
         _finfo_by_name: dict = {};
+        _slot_index: (dict | None) = None;
         if _lay is not None {
             for _fi in _lay.fields {
                 _finfo_by_name[_fi.name] = _fi;
             }
+            _slot_index = _lay.field_index;
+        } else {
+            _slot_index = self.struct_field_indices.get(arch_name);
+        }
+        if _slot_index is None {
+            raise AssertionError(
+                f"native layout export: {arch_name} was lowered without a layout"
+            );
         }
         _foreign_flds = self.struct_field_foreign.get(arch_name, set());
-        for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
+        for (fname, idx) in sorted(_slot_index.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             if ftype is None {
                 raise AssertionError(
@@ -354,7 +362,7 @@ impl NaIRGenCore._export_native_layout -> None {
         layout.structs[arch_name] = NativeStructLayout(
             name=arch_name,
             fields=fields,
-            has_vtable=self._arch_has_vtable(arch_name),
+            has_vtable=(_lay is not None and _lay.has_vtable),
             accessors=self._exported_accessors(arch_name)
         );
     }
@@ -404,12 +412,7 @@ impl NaIRGenCore._export_native_layout -> None {
         _ft = _fn_types.get(fname);
         _ret_tb = _ft.return_type if isinstance(_ft, FunctionType) else None;
         if isinstance(func.function_type.return_type, ir.PointerType) {
-            for (sn, st) in self.struct_types.items() {
-                if func.function_type.return_type.pointee == st {
-                    ret_struct = sn;
-                    break;
-                }
-            }
+            ret_struct = self._struct_ptr_pointee_name(func.return_value);
 
             if ret_type.startswith("Tuple") {
                 for (tkey, ttype) in self.tuple_types.items() {
@@ -472,12 +475,7 @@ impl NaIRGenCore._export_native_layout -> None {
         ret_type = self._llvm_type_str(func.function_type.return_type);
         ret_struct: (str | None) = None;
         if isinstance(func.function_type.return_type, ir.PointerType) {
-            for (sn, st) in self.struct_types.items() {
-                if func.function_type.return_type.pointee == st {
-                    ret_struct = sn;
-                    break;
-                }
-            }
+            ret_struct = self._struct_ptr_pointee_name(func.return_value);
         }
         layout.methods[mname] = NativeFuncLayout(
             name=mname,
@@ -659,7 +657,7 @@ impl NaIRGenCore._load_native_dep(
     if dep is None {
         try {
             dep = self.prog.load_dependency_module(
-                full, importer_path=own_real or None
+                real, importer_path=own_real or None
             );
         } except Exception {
             dep = None;
@@ -793,14 +791,6 @@ impl NaIRGenCore._register_dep_module_struct_names(imported_mod: uni.Module) -> 
             self.struct_types[_name] = self.llvm_module.context.get_identified_type(
                 _name
             );
-        }
-        if _name not in self._struct_source_name {
-            self._struct_source_name[_name] = imported_mod.name;
-        }
-    }
-    for _ename in dep_reg.local_enum_names {
-        if _ename not in self._enum_source_name {
-            self._enum_source_name[_ename] = imported_mod.name;
         }
     }
     return _ordered;
@@ -1395,77 +1385,98 @@ impl NaIRGenCore._ensure_emitters -> None {
     self._native_emit_ctx_class = _pn.NativeEmitCtx;
 }
 
-impl NaIRGenCore._primitive_method_names(type_name: str) -> set[str] {
-    import inspect;
-    self._ensure_emitters();
-    if self._primitive_method_name_cache is None {
-        self._primitive_method_name_cache = {};
-    }
-    _cached = self._primitive_method_name_cache.get(type_name);
-    if _cached is not None {
-        return _cached;
-    }
-    _names: set[str] = set();
-    _emitter = self._native_emitters.get(type_name);
-    if _emitter is not None {
-        for _n in dir(_emitter) {
-            if _n.startswith("emit_") and not _n.startswith("emit_op_") {
-                _fn = getattr(_emitter, _n);
-
-                if len(inspect.signature(_fn).parameters) >= 3 {
-                    _names.add(_n.removeprefix("emit_"));
-                }
-            }
-        }
-    }
-    self._primitive_method_name_cache[type_name] = _names;
-    return _names;
-}
-
 impl NaIRGenCore._dispatch_primitive_method(
     type_name: str,
     method_name: str,
-    target: ir.Value,
+    target: (ir.Value | None),
     args: list[ir.Value],
     type_key: str,
-    kwargs: (dict | None) = None,
-    kw_node: (uni.UniNode | None) = None
+    recv_type: any = None,
+    call: (uni.FuncCall | None) = None
 ) -> (ir.Value | None) {
     self._ensure_emitters();
-    target = self._str_norm(target);
+    _site = call;
+    target = self._str_norm(target) if target is not None else None;
     args = [self._str_norm(_a) for _a in args];
     _emitter = self._native_emitters.get(type_name);
-    if _emitter is None {
-        return None;
-    }
-    _emit_fn = getattr(_emitter, "emit_" + method_name, None);
-    if _emit_fn is None {
-        return None;
-    }
-    if kwargs and method_name not in ("sort", ) {
+    _emit_fn = (
+        getattr(_emitter, "emit_" + method_name, None) if _emitter is not None else None
+    );
+    if _emit_fn is None or getattr(_emit_fn, "__isabstractmethod__", False) {
         self.emit(
             E5092,
-            node_override=kw_node,
-            kind="keyword argument for native method",
-            name=f"{method_name}({', '.join(kwargs.keys())}=...)"
+            node_override=_site,
+            kind="method",
+            name=f"{type_name}.{method_name}",
+            help_text=(
+                f"'{type_name}.{method_name}' has no native lowering. Call it "
+                "from a Python/@sv context, or restructure around a method the "
+                "native lane implements."
+            )
         );
         return None;
     }
-    _ctx = self._native_emit_ctx_class(
-        pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
-    );
-    try {
-        return _emit_fn(_ctx, target, args);
-    } except Exception as _pm_exc {
-        if self._na_debug_on() {
-            import sys as _pm_sys;
-            import traceback as _pm_tb;
-            _pm_sys.stderr.write(f"NA_DEBUG primitive {type_name}.{method_name}\n");
-            _pm_tb.print_exc(file=_pm_sys.stderr);
+    _kw: dict = self._split_call_kwargs(call) if call is not None else {};
+    _callee = call.resolved_callee if call is not None else None;
+    if _kw and method_name != "sort" {
+        _params = [
+            _p
+            for _p in ((_callee.parameters if _callee is not None else None) or [])
+            if not (_p.is_self or _p.is_cls)
+        ];
+        _npos = len(args) - len(_kw);
+        _folds = _npos >= 0
+            and all(
+                (_npos + _i < len(_params) and _params[_npos + _i].name == _n)
+                for (_i, _n) in enumerate(_kw.keys())
+            );
+        if not _folds {
+            self.emit(
+                E5092,
+                node_override=_site,
+                kind="keyword argument for native method",
+                name=f"{method_name}({', '.join(_kw.keys())}=...)",
+                help_text=(
+                    "Native builtin methods accept keyword arguments only when "
+                    "they name the declared parameters in order, directly after "
+                    "the positional ones. Pass the argument positionally."
+                )
+            );
+            return None;
         }
+    }
+    _arg_nodes: list = [];
+    _arg_types: list = [];
+    if call is not None {
+        for _p in (call.params or []) {
+            _e = _p.value if isinstance(_p, uni.KWPair) else _p;
+            _arg_nodes.append(_e);
+            _arg_types.append(self._flow_narrowed_type_of(_e));
+        }
+        if len(_arg_nodes) != len(args) {
+            _arg_nodes = [];
+            _arg_types = [];
+        }
+    }
+    _ctx = self._native_emit_ctx_class(
+        pass_ref=self,
+        type_key=type_key,
+        recv_type=recv_type,
+        callee=_callee,
+        arg_params=(dict(call.arg_params or {}) if call is not None else {}),
+        arg_types=_arg_types,
+        call_node=call,
+        call_kwargs=_kw,
+        arg_nodes=_arg_nodes
+    );
+    _errs = len(self.errors_had);
+    _res: (ir.Value | None) = None;
+    try {
+        _res = _emit_fn(_ctx, args) if target is None else _emit_fn(_ctx, target, args);
+    } except Exception as _pm_exc {
         self.emit(
             E5092,
-            node_override=kw_node,
+            node_override=_site,
             kind="primitive method",
             name=f"{type_name}.{method_name}",
             help_text=f"The emitter for this builtin method raised "
@@ -1476,6 +1487,21 @@ impl NaIRGenCore._dispatch_primitive_method(
         );
         return None;
     }
+    if _res is None and len(self.errors_had) == _errs {
+        self.emit(
+            E5092,
+            node_override=_site,
+            kind="method",
+            name=f"{type_name}.{method_name}",
+            help_text=(
+                "The native emitter for this builtin method could not lower it "
+                "on the operands at this call site (an argument count or operand "
+                "type it does not support). Restructure to a supported form, or "
+                "call it from a Python/@sv context."
+            )
+        );
+    }
+    return _res;
 }
 
 impl NaIRGenCore._dispatch_builtin(
@@ -1484,35 +1510,68 @@ impl NaIRGenCore._dispatch_builtin(
     kwargs: (dict | None) = None,
     kw_node: (uni.UniNode | None) = None,
     type_key: str = "",
-    arg_nodes: (list | None) = None
+    arg_nodes: (list | None) = None,
+    call: (uni.FuncCall | None) = None
 ) -> (ir.Value | None) {
     args = [self._str_norm(_a) for _a in args];
     self._ensure_emitters();
-    if (
-        func_name == "str"
-        and len(args) == 1
-        and self._opt_payload_of(args[0].type) is not None
-    ) {
-        return self._emit_optional_str(args[0], None);
-    }
     _emit_fn = getattr(self._native_builtin_emitter, "emit_" + func_name, None);
-    if _emit_fn is None {
+    if _emit_fn is None or getattr(_emit_fn, "__isabstractmethod__", False) {
         return None;
     }
-    if kwargs and func_name not in ("sorted", ) {
-        self.emit(
-            E5092,
-            node_override=kw_node,
-            kind="keyword argument for native builtin",
-            name=f"{func_name}({', '.join(kwargs.keys())}=...)"
-        );
-        return None;
+    if call is None and isinstance(kw_node, uni.FuncCall) {
+        call = kw_node;
+    }
+    _nodes: list = list(arg_nodes or []);
+    if not _nodes and call is not None {
+        _nodes = [
+            (_p.value if isinstance(_p, uni.KWPair) else _p)
+            for _p in (call.params or [])
+        ];
+    }
+    _arg_types: list = (
+        [self._flow_narrowed_type_of(_n) for _n in _nodes[:len(args)]]
+            if len(_nodes) >= len(args)
+            else []
+    );
+    _callee = call.resolved_callee if call is not None else None;
+    _kw: dict = dict(kwargs) if kwargs else {};
+    if _kw and func_name != "sorted" {
+        _params = [
+            _p
+            for _p in ((_callee.parameters if _callee is not None else None) or [])
+            if not (_p.is_self or _p.is_cls)
+        ];
+        _npos = len(args) - len(_kw);
+        _folds = _npos >= 0
+            and all(
+                (_npos + _i < len(_params) and _params[_npos + _i].name == _n)
+                for (_i, _n) in enumerate(_kw.keys())
+            );
+        if not _folds {
+            self.emit(
+                E5092,
+                node_override=kw_node if kw_node is not None else call,
+                kind="keyword argument for native builtin",
+                name=f"{func_name}({', '.join(_kw.keys())}=...)",
+                help_text=(
+                    "Native builtins accept keyword arguments only when they name "
+                    "the declared parameters in order, directly after the "
+                    "positional ones. Pass the argument positionally."
+                )
+            );
+            return None;
+        }
     }
     _ctx = self._native_emit_ctx_class(
         pass_ref=self,
         type_key=type_key,
-        call_kwargs=(kwargs or {}),
-        arg_nodes=(arg_nodes or [])
+        callee=_callee,
+        arg_params=(dict(call.arg_params or {}) if call is not None else {}),
+        arg_types=_arg_types,
+        call_node=call,
+        call_kwargs=_kw,
+        arg_nodes=_nodes
     );
     return _emit_fn(_ctx, args);
 }

@@ -43,7 +43,6 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
         kernel_mod, self._register_dep_module_struct_names(kernel_mod)
     );
     self._walk_imported_module_abilities(kernel_mod, with_fn_verdicts=False);
-    self._osp_kernel_mod = kernel_mod;
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     if (_manifest is not None)
@@ -632,7 +631,6 @@ impl NaIRGenOsp._emit_osp_setup -> None {
         self.llvm_module, ir.FunctionType(ir.VoidType(), []), name="__osp_setup"
     );
     _setup.linkage = "internal";
-    self._osp_setup_fn = _setup;
     _saved = self._builder;
     self._builder = ir.IRBuilder(_setup.append_basic_block("entry"));
     for (_lidx, _name) in enumerate(_model.order) {
@@ -868,17 +866,10 @@ impl NaIRGenOsp._osp_disc_list_operand(expr: (uni.UniNode | None)) -> bool {
     if isinstance(expr, uni.EdgeRefTrailer) {
         return True;
     }
-    if not isinstance(expr, uni.Expr) or expr?.type is None {
+    if not isinstance(expr, uni.Expr) {
         return False;
     }
-    t = expr.type;
-    if isinstance(t, ClassType)
-        and t?.shared
-        and t.is_builtin()
-        and t.shared.class_name in ("list", "tuple", "set", "frozenset") {
-        return True;
-    }
-    return False;
+    return self._tb_kind(self._flow_narrowed_type_of(expr)) in ("list", "tuple", "set");
 }
 
 impl NaIRGenOsp._codegen_disconnect(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -1241,22 +1232,11 @@ impl NaIRGenOsp._codegen_chained_filter(nd: uni.AtomTrailer) -> (ir.Value | None
 }
 
 impl NaIRGenOsp._elem_arch_name_of(expr: (uni.UniNode | None)) -> (str | None) {
-    if not isinstance(expr, uni.Expr) or expr?.type is None {
+    if not isinstance(expr, uni.Expr) {
         return None;
     }
-    t = expr.type;
-    if not isinstance(t, ClassType) or not t?.private {
-        return None;
-    }
-    _args = t.private.type_args;
-    if not _args {
-        return None;
-    }
-    _elem = _args[0];
-    if isinstance(_elem, ClassType) and _elem?.shared {
-        return _elem.shared.class_name;
-    }
-    return None;
+    _elem = self._tb_elem(self._flow_narrowed_type_of(expr));
+    return self._tb_class_name(_elem) if self._tb_kind(_elem) == "struct" else None;
 }
 
 impl NaIRGenOsp._emit_osp_predicate_filter(
@@ -1516,10 +1496,9 @@ impl NaIRGenOsp._osp_visit_targets(target: uni.UniNode) -> (ir.Value | None) {
     if (_val is None) or (_wrap is None) {
         return None;
     }
-    for _lt in self.list_types.values() {
-        if _val.type == _lt.as_pointer() {
-            return _val;
-        }
+    if isinstance(target, uni.Expr)
+        and self._tb_kind(self._flow_narrowed_type_of(target)) == "list" {
+        return _val;
     }
     _argtys = _wrap.function_type.args;
     _wrapped = self.builder.call(
@@ -1567,7 +1546,13 @@ impl NaIRGenOsp._codegen_visit(nd: uni.VisitStmt) -> None {
     func = self.builder.function;
     else_bb = func.append_basic_block(name="visit.else");
     merge_bb = func.append_basic_block(name="visit.end");
-    self.builder.cbranch(self._to_bool(_did), merge_bb, else_bb);
+    _did_i1 = _did;
+    if not (isinstance(_did.type, ir.IntType) and _did.type.width == 1) {
+        _did_i1 = self.builder.icmp_signed(
+            "!=", _did, ir.Constant(_did.type, 0), name="visit.did.b"
+        );
+    }
+    self.builder.cbranch(_did_i1, merge_bb, else_bb);
     self.builder.position_at_end(else_bb);
     if isinstance(nd.else_body, uni.ElseIf) {
         self._codegen_if(nd.else_body);

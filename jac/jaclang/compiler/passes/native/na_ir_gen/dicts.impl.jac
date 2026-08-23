@@ -207,12 +207,13 @@ impl NaIRGenDicts._emit_dict_helpers(
 }
 
 impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
-    if self._tb_is_class_ref(ty) {
+    _t = self._tb_solve(ty);
+    if self._tb_is_class_ref(_t) {
         return 6;
     }
-    _kind = self._tb_kind(ty);
+    _kind = self._tb_kind(_t);
     if _kind in ("optional", "union") {
-        _tags = {self._jacval_tag_for_type(_m) for _m in self._tb_non_none(ty)};
+        _tags = {self._jacval_tag_for_type(_m) for _m in self._tb_non_none(_t)};
         return _tags.pop() if len(_tags) == 1 else None;
     }
     _by_kind = {
@@ -242,7 +243,89 @@ impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
     return _by_kind.get(_kind);
 }
 
-impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
+impl NaIRGenDicts._enum_value_kind(ty: any) -> str {
+    _t = self._tb_solve(self._tb_opt_payload(ty) or ty);
+    _name = self._tb_class_name(_t);
+    _lay = self._registry().get_enum_layout(_name) if _name is not None else None;
+    if _lay is None {
+        raise AssertionError(
+            f"native: enum `{_t}` has no layout to decide its tagged `any` representation"
+        );
+    }
+    return "str" if _lay.is_string_enum else "int";
+}
+
+impl NaIRGenDicts._jacval_scalar_bits(value: ir.Value, payload_ty: any) -> tuple {
+    b = self.builder;
+    i64 = ir.IntType(64);
+    _kind = self._tb_kind(payload_ty);
+    if _kind == "enum" {
+        _kind = self._enum_value_kind(payload_ty);
+    }
+    if _kind == "bool" {
+        _bv = value;
+        if isinstance(_bv.type, ir.IntType) and _bv.type.width != 64 {
+            _bv = b.zext(_bv, i64, name="jv.bext");
+        }
+        return (7, _bv);
+    }
+    if _kind == "int" {
+        if not isinstance(value.type, ir.IntType) {
+            raise AssertionError(
+                f"native: int-typed value lowered as `{value.type}` cannot box into `any`"
+            );
+        }
+        if value.type.width == 64 {
+            return (0, value);
+        }
+        if value.type.width > 64 {
+            return (0, b.trunc(value, i64, name="jv.itrunc"));
+        }
+        _entry = JAC_TYPE_REGISTRY.get(self._tb_class_name(payload_ty) or "");
+        _unsigned = bool(_entry is not None and _entry.is_unsigned)
+            or value.type.width == 1;
+        return (
+            0,
+            b.zext(value, i64, name="jv.iext")
+                if _unsigned
+                else b.sext(value, i64, name="jv.isext")
+        );
+    }
+    if _kind == "float" {
+        _fv = value;
+        if isinstance(_fv.type, ir.IntType) {
+            _fv = b.sitofp(_fv, ir.DoubleType(), name="jv.i2f");
+        } elif isinstance(_fv.type, ir.FloatType) {
+            _fv = b.fpext(_fv, ir.DoubleType(), name="jv.f32ext");
+        }
+        return (1, b.bitcast(_fv, i64, name="jv.f2i"));
+    }
+    raise AssertionError(
+        f"native: `{payload_ty}` ({_kind}) is not a scalar that boxes into `any` (llvm={value.type})"
+    );
+}
+
+impl NaIRGenDicts._jacval_none -> ir.Value {
+    i8 = ir.IntType(8);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    jv_alloca = self._entry_alloca(self.jacval_type, "jv.none");
+    self.builder.store(
+        ir.Constant(i8, 8),
+        self.builder.gep(
+            jv_alloca, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="jv.none.tag"
+        )
+    );
+    self.builder.store(
+        ir.Constant(i64, 0),
+        self.builder.gep(
+            jv_alloca, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="jv.none.pay"
+        )
+    );
+    return self.builder.load(jv_alloca, name="jacval.none");
+}
+
+impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
     value = self._str_norm(value);
     b = self.builder;
     i8 = ir.IntType(8);
@@ -252,6 +335,17 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
     if self?.jacval_type and value.type == self.jacval_type {
         return value;
     }
+    _ty = self._tb_solve(ty);
+    _kind = self._tb_kind(_ty);
+    _dyn_kind = _kind in ("any", "unknown", "typevar", "never");
+    if _dyn_kind and not isinstance(value.type, (ir.IntType, ir.DoubleType)) {
+        raise AssertionError(
+            f"native: boxing `{value.type}` into `any` without a concrete checker type (ty={ty})"
+        );
+    }
+    _pty = self._tb_opt_payload(_ty);
+    _pty = _pty if _pty is not None else _ty;
+    _pkind = self._tb_kind(_pty);
     jv_alloca = self._entry_alloca(self.jacval_type, "jacval");
     tag_ptr = b.gep(
         jv_alloca, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="jv.tag.ptr"
@@ -259,48 +353,60 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
     payload_ptr = b.gep(
         jv_alloca, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="jv.payload.ptr"
     );
-    if isinstance(value.type, ir.IntType) and value.type.width == 1 {
-        b.store(ir.Constant(i8, 7), tag_ptr);
-        ext = b.zext(value, i64, name="jv.bext");
-        b.store(ext, payload_ptr);
-    } elif isinstance(value.type, ir.IntType) {
-        b.store(ir.Constant(i8, 0), tag_ptr);
-        if value.type.width == 64 {
-            b.store(value, payload_ptr);
+    if _kind == "none" or isinstance(value.type, ir.VoidType) {
+        b.store(ir.Constant(i8, 8), tag_ptr);
+        b.store(ir.Constant(i64, 0), payload_ptr);
+        return b.load(jv_alloca, name="jacval");
+    }
+    if _dyn_kind {
+        if isinstance(value.type, ir.DoubleType) {
+            b.store(ir.Constant(i8, 1), tag_ptr);
+            b.store(b.bitcast(value, i64, name="jv.dyn.f64"), payload_ptr);
+        } elif value.type.width == 1 {
+            b.store(ir.Constant(i8, 7), tag_ptr);
+            b.store(b.zext(value, i64, name="jv.dyn.bool"), payload_ptr);
         } else {
-            b.store(b.zext(value, i64, name="jv.iext"), payload_ptr);
+            b.store(ir.Constant(i8, 0), tag_ptr);
+            _wide = value
+                if value.type.width == 64
+                else b.sext(value, i64, name="jv.dyn.int");
+            b.store(_wide, payload_ptr);
         }
-    } elif isinstance(value.type, ir.DoubleType) {
-        b.store(ir.Constant(i8, 1), tag_ptr);
-        payload = b.bitcast(value, i64, name="jv.f2i");
-        b.store(payload, payload_ptr);
-    } elif isinstance(value.type, ir.PointerType) {
-        _i8p_box = ir.IntType(8).as_pointer();
-        _tag: (int | None) = None;
-        _dyn = ty is None or self._tb_kind(ty) in ("any", "unknown", "typevar");
-        _maybe_none = _dyn;
-        if not _dyn {
-            _tag = self._jacval_tag_for_type(ty);
-            _maybe_none = self._tb_has_none(ty);
-        } elif value.type == _i8p_box {
-            _tag = 2;
-        } else {
-            _pname = getattr(value.type.pointee, "name", "") or "";
-            _tag = (
-                3
-                    if _pname.startswith("List.")
-                    else 4
-                        if _pname.startswith("Dict.")
-                        else 5 if _pname.startswith("Set.") else 6
-            );
-        }
+        return b.load(jv_alloca, name="jacval");
+    }
+    if isinstance(value.type, ir.LiteralStructType) {
+        _tup_ptr = self._box_value_tuple(value);
+        b.store(ir.Constant(i8, 6), tag_ptr);
+        b.store(b.ptrtoint(_tup_ptr, i64, name="jv.tup.p2i"), payload_ptr);
+        return b.load(jv_alloca, name="jacval");
+    }
+    _opt_pl = self._opt_payload_of(value.type);
+    if _opt_pl is not None and not isinstance(_opt_pl, ir.PointerType) {
+        _has = b.extract_value(value, 0, name="jv.opt.has");
+        _pv = b.extract_value(value, 1, name="jv.opt.pv");
+        (_stag, _sbits) = self._jacval_scalar_bits(_pv, _pty);
+        _live = b.icmp_unsigned("!=", _has, ir.Constant(i8, 0), name="jv.opt.live");
+        b.store(
+            b.select(
+                _live, ir.Constant(i8, _stag), ir.Constant(i8, 8), name="jv.opt.tag"
+            ),
+            tag_ptr
+        );
+        b.store(
+            b.select(_live, _sbits, ir.Constant(i64, 0), name="jv.opt.bits"),
+            payload_ptr
+        );
+        return b.load(jv_alloca, name="jacval");
+    }
+    if isinstance(value.type, ir.PointerType) {
+        _tag = self._jacval_tag_for_type(_ty);
         if _tag is None {
             raise AssertionError(
-                f"native: boxing a pointer value into `any` without a checker type (ty={ty}, llvm={value.type})"
+                f"native: no `any` tag for a `{_ty}` value (llvm={value.type})"
             );
         }
         payload = b.ptrtoint(value, i64, name="jv.p2i");
-        if _maybe_none {
+        if self._tb_has_none(_ty) {
             is_null = b.icmp_unsigned(
                 "==", payload, ir.Constant(i64, 0), name="jv.isnone"
             );
@@ -312,19 +418,22 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
             b.store(ir.Constant(i8, _tag), tag_ptr);
         }
         b.store(payload, payload_ptr);
-    } elif isinstance(value.type, ir.VoidType) {
-        b.store(ir.Constant(i8, 8), tag_ptr);
-        b.store(ir.Constant(i64, 0), payload_ptr);
-    } elif isinstance(value.type, ir.LiteralStructType) and b is self.builder {
-        _tup_ptr = self._box_value_tuple(value);
-        _tup_i64 = b.ptrtoint(_tup_ptr, i64, name="jv.tup.p2i");
-        b.store(ir.Constant(i8, 6), tag_ptr);
-        b.store(_tup_i64, payload_ptr);
-    } else {
-        self.emit(E5092, kind="expression", name=f"`any` box of {value.type}");
-        b.store(ir.Constant(i8, 0), tag_ptr);
-        b.store(ir.Constant(i64, 0), payload_ptr);
+        return b.load(jv_alloca, name="jacval");
     }
+    if _pkind in ("bool", "int", "float", "enum") {
+        (_stag, _sbits) = self._jacval_scalar_bits(value, _pty);
+        b.store(ir.Constant(i8, _stag), tag_ptr);
+        b.store(_sbits, payload_ptr);
+        return b.load(jv_alloca, name="jacval");
+    }
+    self.emit(
+        E5092,
+        kind="expression",
+        name=f"`any` box of {value.type}",
+        help_text=f"A `{_ty}` value lowered as `{value.type}` has no tagged `any` representation natively."
+    );
+    b.store(ir.Constant(i8, 0), tag_ptr);
+    b.store(ir.Constant(i64, 0), payload_ptr);
     return b.load(jv_alloca, name="jacval");
 }
 
@@ -469,7 +578,7 @@ impl NaIRGenDicts._codegen_dict_access(
     }
     target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
-    key_val = self._coerce_type(key_val, key_type);
+    key_val = self._coerce_typed(key_val, key_type, self._expr_type_of(key_node));
 
     (_has_fn, _kh) = self._static_key_op(helpers, "contains", key_node);
     _has_args = [target_val, key_val];
@@ -505,7 +614,7 @@ impl NaIRGenDicts._codegen_dict_set(
     val_type = helpers["val_type"];
     _orig_key = key_val;
     _orig_value = value;
-    key_val = self._coerce_type(key_val, key_type);
+    key_val = self._coerce_typed(key_val, key_type, self._expr_type_of(key_node));
     value = self._coerce_type(value, val_type);
     _dset_ctx_loc = getattr(
         _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"

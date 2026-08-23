@@ -126,6 +126,18 @@ def erased_field_marker_default(nd: FuncCall) -> (Expr | None) {
     return None;
 }
 
+def erased_field_marker_factory(nd: FuncCall) -> (Expr | None) {
+    for arg in (nd.params or []) {
+        if not isinstance(arg, KWPair) or not isinstance(arg.key, Name) {
+            continue;
+        }
+        if arg.key.sym_name == 'default_factory' and isinstance(arg.value, Expr) {
+            return arg.value;
+        }
+    }
+    return None;
+}
+
 def resolve_expr_symbol(expr: Expr, module: (Module | None) = None) -> (Symbol | None) {
     if isinstance(expr, AstSymbolNode) and expr.sym {
         return expr.sym;

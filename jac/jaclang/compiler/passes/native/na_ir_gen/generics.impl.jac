@@ -61,48 +61,21 @@ impl NaIRGenGenerics._lower_mono_signature(
     if _declared and (_declared[0].is_self or _declared[0].is_cls) {
         _declared = _declared[1:];
     }
-    _params = sig.get_parameters();
+    _params = list(sig.get_parameters());
+    _mark = len(self.errors_had);
+    _saved_kind = self._sig_decl_kind;
+    self._sig_decl_kind = f"signature type (instantiation {spec_name})";
     param_types: list = [];
-    for (i, p) in enumerate(_params) {
-        if p.type_tag is None {
-            param_types.append(ir.IntType(64));
-            continue;
+    try {
+        for (i, _dp) in enumerate(_declared) {
+            _pv = _params[i] if i < len(_params) else None;
+            param_types.append(self._lower_sig_param(ability, _dp, _pv));
         }
-        _dp = _declared[i] if i < len(_declared) else None;
-        _pt = (
-            p.type
-                if _dp is None
-                    or _dp.category
-                        in (ParameterCategory.ArgsList, ParameterCategory.KwargsDict)
-                else _dp.param_type
-        );
-        _low = self._lower_type(_pt);
-        if _low is None {
-            self.emit(
-                E5092,
-                node_override=p,
-                kind="function",
-                name=name,
-                help_text=f"Parameter '{p.name.value
-                    if p.name
-                    else i}' has no native layout under the instantiation '{spec_name}'."
-            );
-            return None;
-        }
-        param_types.append(_low);
+        _rt = self._lower_sig_return(ability, _spec);
+    } finally {
+        self._sig_decl_kind = _saved_kind;
     }
-    if sig.return_type is None {
-        return ir.FunctionType(ir.IntType(64), param_types);
-    }
-    _rt = self._lower_type(_spec.return_type);
-    if _rt is None {
-        self.emit(
-            E5092,
-            node_override=sig.return_type,
-            kind="function",
-            name=name,
-            help_text=f"The return type has no native layout under the instantiation '{spec_name}'."
-        );
+    if len(self.errors_had) > _mark {
         return None;
     }
     return ir.FunctionType(_rt, param_types);
@@ -153,7 +126,6 @@ impl NaIRGenGenerics._stamp_mono_fn(
         fn.args[i].name = p.name.value if p.name else f"arg{i}";
     }
     self._mono_fns[memo_key] = fn;
-    self._record_ret_facts(spec_name, sig);
 
     saved_builder = self._builder;
     saved_locals = self.local_vars if self?.local_vars else {};
@@ -191,15 +163,19 @@ impl NaIRGenGenerics._instantiate_generic_for_target(
 ) -> (ir.Function | None) {
     tag_t = self._annotation_type_of(tag_node);
     if not isinstance(tag_t, FunctionType) {
-        return None;
+        raise AssertionError(
+            f"native codegen: generic '{func_name}' bound to a target whose "
+            f"checker type is {tag_t}, not a FunctionType, at "
+            f"{tag_node.loc.mod_path}:{tag_node.loc.first_line}"
+        );
     }
-    ability = self.generic_fns.get(func_name);
-    if ability is None {
-        return None;
-    }
+    ability = self.generic_fns[func_name];
     _ft = ability.name_spec.type;
     if not isinstance(_ft, FunctionType) {
-        return None;
+        raise AssertionError(
+            f"native codegen: generic '{func_name}' at {ability.loc.mod_path}:"
+            f"{ability.loc.first_line} carries no FunctionType"
+        );
     }
     bindings: dict = {};
     _ev = self.prog.get_type_evaluator();
@@ -217,6 +193,13 @@ impl NaIRGenGenerics._instantiate_generic_for_target(
     }
     solution = self._mono_solution_of(ability, bindings);
     if not solution {
+        self.emit(
+            E5092,
+            node_override=tag_node,
+            kind="function",
+            name=func_name,
+            help_text="The target's function type does not bind every type parameter of this generic def, so it cannot be monomorphized; annotate the target with concrete parameter and return types."
+        );
         return None;
     }
     (key, spec_name) = self._mono_spec_of(func_name, solution);

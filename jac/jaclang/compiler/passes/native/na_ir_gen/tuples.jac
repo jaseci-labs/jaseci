@@ -24,7 +24,7 @@ obj NaIRGenTuples(NaIRGenState) {
         val: (ir.Value | None)
     ) -> (ir.LiteralStructType | None);
 
-    def _tuple_iter_shape(expr: (uni.UniNode | None), val: (ir.Value | None)) -> bool;
+    def _tuple_iter_shape(expr: (uni.UniNode | None)) -> bool;
     def _tuple_seq_flavor(elem_types: list) -> (tuple | None);
     def _tuple_iter_seq(
         expr: (uni.UniNode | None), val: (ir.Value | None), src_ty: any = None

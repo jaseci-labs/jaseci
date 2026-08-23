@@ -357,6 +357,16 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
     }
 
     if node_.find_parent_of_type(Import) is not None {
+        def _extern_annotated(ann: Expr | None) -> TypeBase {
+            if ann is None {
+                return AnyType(is_foreign=True);
+            }
+            _at = self._convert_to_instance(self.get_type_of_expression(ann));
+            if isinstance(_at, UnknownType) or self.is_any_type(_at) {
+                return AnyType(is_foreign=True);
+            }
+            return _at;
+        }
         extern_params: list[Parameter] = [];
         if isinstance(node_.signature, FuncSignature) {
             for extern_param in node_.signature.get_parameters() {
@@ -364,16 +374,23 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                     Parameter(
                         name=extern_param.name.value,
                         category=_get_param_category(extern_param),
-                        param_type=AnyType(is_foreign=True),
+                        param_type=_extern_annotated(
+                            extern_param.type_tag.tag if extern_param.type_tag else None
+                        ),
                         default_value=extern_param.value,
                         param_kind=_convert_param_kind(extern_param.param_kind),
                     )
                 );
             }
         }
+        _extern_ret = node_.signature.return_type
+            if isinstance(node_.signature, FuncSignature)
+            else None;
         extern_fn = FunctionType(
             func_name=node_.name_spec.sym_name,
-            return_type=AnyType(is_foreign=True),
+            return_type=_extern_annotated(
+                _extern_ret if isinstance(_extern_ret, Expr) else None
+            ),
             parameters=extern_params,
         );
         node_.name_spec.type = extern_fn;

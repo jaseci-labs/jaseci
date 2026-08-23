@@ -1460,30 +1460,11 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
 }
 
 impl NaIRGenRefcount._struct_field_checker_types(type_name: str) -> list {
-    _arch = self.arch_ast_map.get(type_name);
-    if not isinstance(_arch, uni.Archetype) {
+    _lay = self._arch_layout(type_name);
+    if _lay is None {
         return [];
     }
-    out: list = [];
-    _seen: set = set();
-    _chain: list = [_arch];
-    for _base in self._mro_of(type_name) {
-        _bast = self.arch_ast_map.get(_base);
-        if isinstance(_bast, uni.Archetype) and _bast is not _arch {
-            _chain.append(_bast);
-        }
-    }
-    for _a in _chain {
-        for _hv in _a.get_has_vars() {
-            _n = _hv.name.value;
-            if _n in _seen {
-                continue;
-            }
-            _seen.add(_n);
-            out.append((_n, _hv.type));
-        }
-    }
-    return out;
+    return [(_f.name, _f.type) for _f in _lay.fields];
 }
 
 impl NaIRGenRefcount._emit_container_drop_fn(cont_name: str) -> (ir.Function | None) {
@@ -1604,6 +1585,7 @@ impl NaIRGenRefcount._nogc_elem_drop_slot_ty -> ir.Type {
 }
 
 impl NaIRGenRefcount._drop_fn_for_type(t: any) -> (ir.Function | None) {
+    t = self._tb_solve(t);
     _key = self._mangled_of(t);
     if _key is not None and _key in self.drop_fn_registry {
         return self.drop_fn_registry[_key];
@@ -1689,6 +1671,7 @@ impl NaIRGenRefcount._nogc_stamp_elem_drops(
 }
 
 impl NaIRGenRefcount._emit_jacval_slot_drop_fn(elem_ty: any) -> (ir.Function | None) {
+    elem_ty = self._tb_solve(elem_ty);
     elem_mangle = self._mangled_of(elem_ty) or "any";
     _key = f"jacval:{elem_mangle}";
     if _key in self.container_drop_fns {
@@ -1884,11 +1867,8 @@ impl NaIRGenRefcount._nogc_emit_drop(
     if _tn is not None and _tn in self.struct_types {
         _fn = self._emit_struct_drop_fn(_tn);
     } else {
-        _pointee = val.type?.pointee;
-        _pname = getattr(_pointee, "name", "") or "";
-        if _pname.startswith("List.")
-            or _pname.startswith("Dict.")
-            or _pname.startswith("Set.") {
+        _pname = getattr(val.type?.pointee, "name", "") or "";
+        if _pname in self.container_layouts {
             _fn = self._emit_container_drop_fn(_pname);
         }
     }

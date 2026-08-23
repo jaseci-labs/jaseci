@@ -101,7 +101,7 @@ obj NativeEnumLayout {
 obj NativeTupleLayout {
     has key: str,
         element_types: list[str] = field(default_factory=`list),
-        element_struct_hints: list = field(default_factory=`list);
+        element_struct_hints: list[(str | None)] = field(default_factory=`list);
 }
 
 obj NativeFuncLayout {

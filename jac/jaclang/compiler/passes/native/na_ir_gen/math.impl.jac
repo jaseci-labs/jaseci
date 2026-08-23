@@ -138,7 +138,8 @@ impl NaIRGenMath._equalize_int_pow_operands(
 
 impl NaIRGenMath._emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
     f64 = ir.DoubleType();
-    (fleft, fright) = self._promote_to_float(base, exp);
+    fleft = self._coerce_type(base, f64);
+    fright = self._coerce_type(exp, f64);
     pow_fn = self._get_or_declare_extern("pow", f64, [f64, f64]);
     return self.builder.call(pow_fn, [fleft, fright], name="pow.f");
 }
@@ -207,7 +208,8 @@ impl NaIRGenMath._codegen_pow(
             }
         }
         if not exp_known_neg {
-            (fbase, fexp) = self._promote_to_float(base, exp);
+            fbase = self._coerce_type(base, f64);
+            fexp = self._coerce_type(exp, f64);
             fzero = ir.Constant(f64, 0.0);
             is_neg = self.builder.fcmp_ordered("<", fexp, fzero, name="pow.fneg.chk");
             func = self.builder.function;

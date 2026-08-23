@@ -184,7 +184,11 @@ impl NaIRGenBytearrayNa._dispatch_bytearray_method(
         if v is None {
             return None;
         }
-        byte_v = self.builder.trunc(self._coerce_type(v, i64), i8, name="ba.append.b");
+        byte_v = self.builder.trunc(
+            self._coerce_typed(v, i64, self._expr_type_of(params[0])),
+            i8,
+            name="ba.append.b"
+        );
         self.builder.call(self.list_helpers["u8"]["append"], [recv, byte_v], name="");
         return ir.Constant(i64, 0);
     }
@@ -248,7 +252,7 @@ impl NaIRGenBytearrayNa._emit_struct_pack_into(
         );
         return None;
     }
-    off_val = self._coerce_type(_off_raw, i64);
+    off_val = self._coerce_typed(_off_raw, i64, self._expr_type_of(params[2]));
 
     _expected = len(
         [
@@ -270,7 +274,7 @@ impl NaIRGenBytearrayNa._emit_struct_pack_into(
     for p in params[3:] {
         v = self._codegen_expr(p);
         if v is not None {
-            arg_vals.append(v);
+            arg_vals.append((v, self._expr_type_of(p)));
         }
     }
     len_p = b.gep(buf_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="pi.len.p");
@@ -300,20 +304,20 @@ impl NaIRGenBytearrayNa._emit_struct_pack_into(
         if ai >= len(arg_vals) {
             break;
         }
-        raw = arg_vals[ai];
+        (raw, raw_ty) = arg_vals[ai];
         ai = ai + 1;
 
         bits: ir.Value = ir.Constant(i64, 0);
         if kind == "float" and sz == 4 {
-            fv = self._coerce_type(raw, f64);
+            fv = self._coerce_typed(raw, f64, raw_ty);
             small = b.fptrunc(fv, f32, name="pi.f32");
             asi = b.bitcast(small, i32, name="pi.f32.bits");
             bits = b.zext(asi, i64, name="pi.f32.ext");
         } elif kind == "float" {
-            fv = self._coerce_type(raw, f64);
+            fv = self._coerce_typed(raw, f64, raw_ty);
             bits = b.bitcast(fv, i64, name="pi.f64.bits");
         } else {
-            bits = self._coerce_type(raw, i64);
+            bits = self._coerce_typed(raw, i64, raw_ty);
         }
         for k in range(sz) {
             shifted = b.lshr(bits, ir.Constant(i64, k * 8), name="pi.sh");

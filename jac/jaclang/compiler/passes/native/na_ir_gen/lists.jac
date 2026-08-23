@@ -7,7 +7,7 @@ import os;
 obj NaIRGenLists(NaIRGenState) {
     def _spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None);
     def _reflavor_list(
-        val: ir.Value, src_spec: str, dst_spec: str
+        val: ir.Value, src_spec: str, dst_spec: str, src_elem_ty: any = None
     ) -> (ir.Value | None);
 
     def _cast_to_list_elem(
@@ -30,7 +30,7 @@ obj NaIRGenLists(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_any_subscript(
-        jacval: ir.Value, key_val: ir.Value
+        jacval: ir.Value, key_val: ir.Value, key_ty: any = None
     ) -> (ir.Value | None);
 
     def _codegen_any_len(jacval: ir.Value) -> ir.Value;

@@ -163,7 +163,10 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
         }
     } elif isinstance(nd, uni.DeleteStmt) {
         target_expr = nd.target;
-        _del_arch = self._struct_name_of(target_expr);
+        _del_tgt_ty = self._expr_type_of(target_expr);
+        _del_arch = self._tb_class_name(
+            self._tb_opt_payload(_del_tgt_ty) or _del_tgt_ty
+        );
         _del_model = self.ir_in.gen.osp_model;
         if (_del_arch is not None)
             and (_del_model is not None)
@@ -173,13 +176,17 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
             if (_disc_fn is not None) and (_edge_h is not None) {
                 _disc_argtys = _disc_fn.function_type.args;
                 self.builder.call(
-                    _disc_fn, [self._coerce_type(_edge_h, _disc_argtys[0])]
+                    _disc_fn,
+                    [self._coerce_typed(_edge_h, _disc_argtys[0], _del_tgt_ty)]
                 );
             } elif _disc_fn is None {
                 self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
             }
         } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
-            _del_cls = self._struct_name_of(target_expr.target);
+            _del_recv_ty = self._expr_type_of(target_expr.target);
+            _del_cls = self._tb_class_name(
+                self._tb_opt_payload(_del_recv_ty) or _del_recv_ty
+            );
             _del_fld = self._get_name(target_expr.right);
             _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
                 if (_del_cls is not None and _del_fld is not None)
@@ -193,6 +200,14 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
                         E5092, node_override=nd, kind="statement", name="DeleteStmt"
                     );
                 }
+            } else {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="statement",
+                    name="DeleteStmt",
+                    help_text=f"`del` of a field lowers natively only through a declared deleter accessor; `{_del_cls}.{_del_fld}` has none."
+                );
             }
         } elif (
             isinstance(target_expr, uni.AtomTrailer)
@@ -205,6 +220,7 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
                 _del_ty = self._expr_type_of(_del_base);
                 _del_kind = self._tb_kind(self._tb_opt_payload(_del_ty) or _del_ty);
                 idx_node = slices[0];
+                _del_key_nd = idx_node.start if idx_node?.start else idx_node;
                 _del_recv = self._codegen_expr(_del_base);
                 idx_val = self._codegen_expr(idx_node);
                 if idx_val is None and idx_node?.start {
@@ -215,18 +231,60 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
                     if _del_kind == "dict" {
                         _del_spec = self._dict_spec_for_type(_del_ty);
                         if _del_spec is not None {
-                            self._dispatch_primitive_method(
-                                "dict", "remove", _del_recv, [idx_val], _del_spec
+                            _dh = self.dict_helpers[_del_spec];
+                            _del_recv = self._coerce_typed(
+                                _del_recv,
+                                self.dict_types[_del_spec].as_pointer(),
+                                _del_ty
                             );
+                            _dk = self._coerce_typed(
+                                idx_val,
+                                _dh["key_type"],
+                                self._expr_type_of(_del_key_nd)
+                            );
+                            (_has_fn, _hh) = self._static_key_op(
+                                _dh, "contains", _del_key_nd
+                            );
+                            _has_args = [_del_recv, _dk];
+                            if _hh is not None {
+                                _has_args.append(_hh);
+                            }
+                            _has = self.builder.call(
+                                _has_fn, _has_args, name="del.has"
+                            );
+                            self._emit_runtime_raise(
+                                self.builder.not_(_has, name="del.nokey"),
+                                "KeyError",
+                                "key not found"
+                            );
+                            (_rm_fn, _rh) = self._static_key_op(
+                                _dh, "remove", _del_key_nd
+                            );
+                            _rm_args = [_del_recv, _dk];
+                            if _rh is not None {
+                                _rm_args.append(_rh);
+                            }
+                            self.builder.call(_rm_fn, _rm_args);
                             _del_done = True;
                         }
                     } elif _del_kind in ("list", "bytearray") {
                         _del_spec = self._list_spec_for_expr(_del_base);
                         if _del_spec is not None {
-                            self._dispatch_primitive_method(
-                                "list", "del_at", _del_recv, [idx_val], _del_spec
+                            self._ensure_emitters();
+                            _le = self._native_emitters.get("list");
+                            _lctx = self._native_emit_ctx_class(
+                                pass_ref=self, type_key=_del_spec
                             );
-                            _del_done = True;
+                            _del_recv = self._coerce_typed(
+                                _del_recv,
+                                self.list_types[_del_spec].as_pointer(),
+                                _del_ty
+                            );
+                            if _le is not None
+                                and _le.emit_del_at(_lctx, _del_recv, [idx_val])
+                                    is not None {
+                                _del_done = True;
+                            }
                         }
                     }
                 }
@@ -240,6 +298,14 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
                     );
                 }
             }
+        } else {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="statement",
+                name="DeleteStmt",
+                help_text="`del` lowers natively for edges, accessor-backed fields and list/dict subscripts; this target is none of those."
+            );
         }
     } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
         nd, uni.PyInlineCode
@@ -295,7 +361,7 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
     if nd.expr is not None {
         val = self._codegen_required(nd.expr);
         if val is not None {
-            val = self._coerce_type(val, func_ret_type);
+            val = self._coerce_typed(val, func_ret_type, self._expr_type_of(nd.expr));
             _ret_root_local = False;
             if isinstance(nd.expr, uni.AtomTrailer)
                 and isinstance(nd.expr.right, uni.IndexSlice) {
@@ -411,11 +477,8 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
     );
     if isinstance(func_ret_type, ir.VoidType) {
         self.builder.ret_void();
-    } elif isinstance(func_ret_type, ir.PointerType) {
-        self.builder.ret(ir.Constant(func_ret_type, None));
     } else {
-        _fb = 0 if isinstance(func_ret_type, (ir.IntType, ir.DoubleType)) else None;
-        self.builder.ret(ir.Constant(func_ret_type, _fb));
+        self.builder.ret(ir.Constant(func_ret_type, None));
     }
 }
 
@@ -487,7 +550,9 @@ impl NaIRGenStmt._codegen_switch(nd: uni.SwitchStmt) -> None {
         }
 
         if is_str {
-            pattern_coerced = self._coerce_type(pattern_val, i8p);
+            pattern_coerced = self._coerce_typed(
+                pattern_val, i8p, self._expr_type_of(sc.pattern.value)
+            );
             cmp_result = self._call_str_cmp(
                 self.builder, target_val, pattern_coerced, name="switch.strcmp"
             );
@@ -795,10 +860,10 @@ impl NaIRGenStmt._match_pattern_cond(
         return self._match_pattern_cond(pat.pattern, subj, subj_ty);
     }
     if isinstance(pat, uni.MatchValue) {
-        return self._match_value_eq(subj, pat.value);
+        return self._match_value_eq(subj, pat.value, subj_ty);
     }
     if isinstance(pat, uni.MatchSingleton) {
-        return self._match_value_eq(subj, pat.value);
+        return self._match_value_eq(subj, pat.value, subj_ty);
     }
     if isinstance(pat, uni.MatchOr) {
         result: (ir.Value | None) = None;
@@ -848,7 +913,7 @@ impl NaIRGenStmt._match_seq_parts(pat: uni.MatchSequence) -> tuple {
 }
 
 impl NaIRGenStmt._match_elem_ty_of(
-    subj_ty: (object | None), prefix: str, idx: int
+    subj_ty: (object | None), idx: int
 ) -> (object | None) {
     return self._tb_elem(subj_ty, idx);
 }
@@ -857,26 +922,14 @@ impl NaIRGenStmt._match_subj_kind(subj_ty: (object | None)) -> str {
     return self._tb_kind(self._tb_opt_payload(subj_ty) or subj_ty);
 }
 
-impl NaIRGenStmt._match_field_ty(
-    arch_ty: (object | None), fname: str
-) -> (object | None) {
-    _decl = self._tb_decl(arch_ty);
-    if not isinstance(_decl, uni.Archetype) {
+impl NaIRGenStmt._match_field_ty(arch_name: str, fname: str) -> (object | None) {
+    _lay = self._arch_layout(arch_name);
+    if _lay is None {
         return None;
     }
-    for _hv in _decl.get_has_vars() {
-        if _hv.name.value == fname {
-            return _hv.type;
-        }
-    }
-    for _base in (self._tb_solve(arch_ty)?.shared?.mro or []) {
-        _bdecl = self._tb_decl(_base);
-        if isinstance(_bdecl, uni.Archetype) and _bdecl is not _decl {
-            for _hv in _bdecl.get_has_vars() {
-                if _hv.name.value == fname {
-                    return _hv.type;
-                }
-            }
+    for _f in _lay.fields {
+        if _f.name == fname {
+            return _f.type;
         }
     }
     return None;
@@ -889,9 +942,12 @@ impl NaIRGenStmt._match_arch_static(
     if _pat_name is None {
         _pat_name = self._get_name(pat.name);
     }
-    _subj_pl = self._opt_payload_of(subj.type);
-    if _subj_pl is not None and isinstance(_subj_pl, ir.PointerType) {
-        subj = self._coerce_type(subj, _subj_pl);
+    _subj_payload = self._tb_opt_payload(subj_ty);
+    if _subj_payload is not None {
+        _subj_low = self._lower_type(_subj_payload);
+        if _subj_low is not None and _subj_low != subj.type {
+            subj = self._coerce_typed(subj, _subj_low, subj_ty);
+        }
     }
     _chosen: (object | None) = None;
     _members = self._tb_non_none(subj_ty);
@@ -902,12 +958,11 @@ impl NaIRGenStmt._match_arch_static(
         }
     }
     if _chosen is None {
+        _pat_lay = self._arch_layout(_pat_name) if _pat_name is not None else None;
+        _pat_bases = list(_pat_lay.mro) if _pat_lay is not None else [];
         for _m in _members {
             _mn = self._tb_class_name(_m);
-            if _mn is not None
-                and _pat_name is not None
-                and _mn in self.struct_types
-                and _mn in self._mro_of(_pat_name) {
+            if _mn is not None and _mn in self.struct_types and _mn in _pat_bases {
                 _chosen = _m;
                 break;
             }
@@ -965,8 +1020,8 @@ impl NaIRGenStmt._match_seq_cond(
         return None;
     }
     helpers = self.list_helpers[spec];
-    subj = self._coerce_type(subj, self.list_types[spec].as_pointer());
-    elem_ty = self._match_elem_ty_of(subj_ty, "list[", 0);
+    subj = self._coerce_typed(subj, self.list_types[spec].as_pointer(), subj_ty);
+    elem_ty = self._match_elem_ty_of(subj_ty, 0);
     func = self.builder.function;
     res = self._entry_alloca(i1, "match.seq.res");
     self.builder.store(ir.Constant(i1, 0), res);
@@ -1050,7 +1105,7 @@ impl NaIRGenStmt._match_tuple_seq_cond(
     result: (ir.Value | None) = None;
     for (i, sub_pat) in enumerate(heads) {
         elem = self.builder.extract_value(loaded, i, name="match.tup.elem");
-        elem_ty = self._match_elem_ty_of(subj_ty, "tuple[", i);
+        elem_ty = self._match_elem_ty_of(subj_ty, i);
         elem = self._match_cast_elem(elem, elem_ty);
         sub_cond = self._match_pattern_cond(sub_pat, elem, elem_ty);
         if sub_cond is None {
@@ -1078,7 +1133,9 @@ impl NaIRGenStmt._match_map_key(
         );
         return None;
     }
-    return self._coerce_type(key_val, helpers["key_type"]);
+    return self._coerce_typed(
+        key_val, helpers["key_type"], self._expr_type_of(key_node)
+    );
 }
 
 impl NaIRGenStmt._match_map_cond(
@@ -1099,8 +1156,8 @@ impl NaIRGenStmt._match_map_cond(
         return None;
     }
     helpers = self.dict_helpers[_dspec];
-    subj = self._coerce_type(subj, self.dict_types[_dspec].as_pointer());
-    val_ty = self._match_elem_ty_of(subj_ty, "dict[", 1);
+    subj = self._coerce_typed(subj, self.dict_types[_dspec].as_pointer(), subj_ty);
+    val_ty = self._match_elem_ty_of(subj_ty, 1);
     func = self.builder.function;
     res = self._entry_alloca(i1, "match.map.res");
     self.builder.store(ir.Constant(i1, 0), res);
@@ -1211,7 +1268,6 @@ impl NaIRGenStmt._match_arch_cond(
         );
         return None;
     }
-    _pat_ty = self._expr_type_of(pat.name);
     vt_mode = False;
     target_vtables: list = [];
     if static_name == arch_name and not self._arch_has_vtable(static_name) {
@@ -1267,7 +1323,7 @@ impl NaIRGenStmt._match_arch_cond(
             return None;
         }
         sub_cond = self._match_pattern_cond(
-            sub_pat, fv, self._match_field_ty(_pat_ty, fname)
+            sub_pat, fv, self._match_field_ty(arch_name, fname)
         );
         if sub_cond is None {
             self.builder.branch(merge_bb);
@@ -1285,39 +1341,53 @@ impl NaIRGenStmt._match_arch_cond(
 }
 
 impl NaIRGenStmt._match_value_eq(
-    subj: ir.Value, value_node: uni.UniNode
+    subj: ir.Value, value_node: uni.UniNode, subj_ty: (object | None) = None
 ) -> (ir.Value | None) {
     _mv = value_node.expr if isinstance(value_node, uni.CfgExpr) else value_node;
     if isinstance(_mv, uni.AtomUnit) {
         _mv = _mv.value;
     }
-    if isinstance(_mv, uni.Null)
-        and self._opt_payload_of(subj.type) is None
-        and not isinstance(subj.type, ir.PointerType)
-        and not (bool(self?.jacval_type) and subj.type == self.jacval_type) {
+    _skind = self._tb_kind(subj_ty);
+    if isinstance(_mv, uni.Null) {
+        if not self._tb_has_none(subj_ty) and _skind not in ("any", "unknown") {
+            return ir.Constant(ir.IntType(1), 0);
+        }
+        if self._is_jacval_ty(subj.type) {
+            return self._jacval_is_none(subj, False);
+        }
+        if self._opt_payload_of(subj.type) is not None {
+            _none_flag = self.builder.extract_value(subj, 0, name="match.none.flag");
+            return self.builder.icmp_unsigned(
+                "==", _none_flag, ir.Constant(ir.IntType(8), 0), name="match.isnone"
+            );
+        }
+        if isinstance(subj.type, ir.PointerType) {
+            return self.builder.icmp_unsigned(
+                "==", subj, ir.Constant(subj.type, None), name="match.isnone"
+            );
+        }
         return ir.Constant(ir.IntType(1), 0);
     }
     pat = self._codegen_expr(value_node);
     if pat is None {
         return None;
     }
-
-    if isinstance(subj.type, ir.IntType)
-        and isinstance(pat.type, ir.IntType)
-        and subj.type != pat.type {
-        pat = self._coerce_type(pat, subj.type);
+    _pty = self._expr_type_of(_mv);
+    if _pty is None {
+        _pty = self._tb_opt_payload(subj_ty) or subj_ty;
     }
-    is_float = isinstance(subj.type, (ir.DoubleType, ir.FloatType))
-        or isinstance(pat.type, (ir.DoubleType, ir.FloatType));
+    _pkind = self._tb_kind(_pty);
+    if _skind in ("int", "bool")
+        and _pkind in ("int", "bool")
+        and subj.type != pat.type {
+        pat = self._coerce_typed(pat, subj.type, _pty);
+    }
+    is_float = "float" in (_skind, _pkind);
     (lhs, rhs) = (subj, pat);
     if is_float {
-        (lhs, rhs) = self._promote_to_float(subj, pat);
+        (lhs, rhs) = self._promote_to_float(subj, pat, subj_ty, _pty);
     }
-    cmp = self._emit_comparison(Tok.EE, lhs, rhs, is_float);
-    if cmp is None {
-        return None;
-    }
-    return self._to_bool(cmp);
+    return self._cmp_typed(Tok.EE, lhs, rhs, is_float, subj_ty, _pty);
 }
 
 impl NaIRGenStmt._bind_match_pattern(
@@ -1403,7 +1473,7 @@ impl NaIRGenStmt._bind_match_seq(
                 else subj;
             for (i, sub_pat) in enumerate(heads) {
                 elem = self.builder.extract_value(loaded, i, name="match.tup.elem");
-                elem_ty = self._match_elem_ty_of(subj_ty, "tuple[", i);
+                elem_ty = self._match_elem_ty_of(subj_ty, i);
                 elem = self._match_cast_elem(elem, elem_ty);
                 self._bind_match_pattern(sub_pat, elem, elem_ty);
             }
@@ -1415,8 +1485,8 @@ impl NaIRGenStmt._bind_match_seq(
         return;
     }
     helpers = self.list_helpers[spec];
-    subj = self._coerce_type(subj, self.list_types[spec].as_pointer());
-    elem_ty = self._match_elem_ty_of(subj_ty, "list[", 0);
+    subj = self._coerce_typed(subj, self.list_types[spec].as_pointer(), subj_ty);
+    elem_ty = self._match_elem_ty_of(subj_ty, 0);
     len_val = self.builder.call(helpers["len"], [subj], name="match.seq.blen");
     n_tails = len(tails);
     for (i, sub_pat) in enumerate(heads) {
@@ -1480,8 +1550,8 @@ impl NaIRGenStmt._bind_match_map(
         return;
     }
     helpers = self.dict_helpers[_dspec];
-    subj = self._coerce_type(subj, self.dict_types[_dspec].as_pointer());
-    val_ty = self._match_elem_ty_of(subj_ty, "dict[", 1);
+    subj = self._coerce_typed(subj, self.dict_types[_dspec].as_pointer(), subj_ty);
+    val_ty = self._match_elem_ty_of(subj_ty, 1);
     star: (uni.MatchStar | None) = None;
     matched_keys: list = [];
     for kv in pat.values {
@@ -1567,11 +1637,12 @@ impl NaIRGenStmt._bind_match_arch(
         return;
     }
     (_static_name, subj, _static_ty) = self._match_arch_static(pat, subj, subj_ty);
-    _pat_ty = self._expr_type_of(pat.name);
     for (fname, sub_pat) in fields {
         fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is not None {
-            self._bind_match_pattern(sub_pat, fv, self._match_field_ty(_pat_ty, fname));
+            self._bind_match_pattern(
+                sub_pat, fv, self._match_field_ty(arch_name, fname)
+            );
         }
     }
 }
@@ -1596,11 +1667,31 @@ impl NaIRGenStmt._aug_op_token(aug_op: str) -> (str | None) {
 }
 
 impl NaIRGenStmt._apply_scalar_aug_op(
-    current: ir.Value, rhs: ir.Value, aug_op: str, rhs_node: (uni.Expr | None)
+    current: ir.Value,
+    rhs: ir.Value,
+    aug_op: str,
+    rhs_node: (uni.Expr | None),
+    cur_ty: any = None
 ) -> (ir.Value | None) {
     current = self._str_norm(current);
     rhs = self._str_norm(rhs);
-    if not isinstance(current.type, (ir.IntType, ir.DoubleType, ir.FloatType)) {
+    if cur_ty is None {
+        _asg = rhs_node.parent if isinstance(rhs_node, uni.UniNode) else None;
+        if isinstance(_asg, uni.Assignment) and _asg.target {
+            cur_ty = self._expr_type_of(_asg.target[0]);
+        }
+    }
+    if cur_ty is None {
+        raise AssertionError(
+            f"native: augmented `{aug_op}` reached codegen without a target type at {os.path.basename(
+                self.ir_in.loc.mod_path
+            )}:{rhs_node.loc.first_line
+                if rhs_node is not None and rhs_node.loc
+                else 0}"
+        );
+    }
+    _ckind = self._tb_kind(self._tb_opt_payload(cur_ty) or cur_ty);
+    if _ckind not in ("int", "float", "bool") {
         return None;
     }
     _tok = self._aug_op_token(aug_op);
@@ -1612,9 +1703,9 @@ impl NaIRGenStmt._apply_scalar_aug_op(
     }
     _rty = self._expr_type_of(rhs_node);
     coerced = self._coerce_typed(rhs, current.type, _rty);
-    result = self._binop_typed(_tok, current, coerced, None, _rty);
+    result = self._binop_typed(_tok, current, coerced, cur_ty, _rty);
     if result is not None and result.type != current.type {
-        result = self._coerce_typed(result, current.type, None);
+        result = self._coerce_typed(result, current.type, cur_ty);
     }
     return result;
 }
@@ -1700,16 +1791,22 @@ impl NaIRGenStmt._codegen_aug_value(
         return (current, True);
     }
     if _kind == "bytearray" and aug_op == "+=" {
-        _ba_src = self._bytearray_src_of(value);
-        if _ba_src is None {
+        _vkind = self._tb_kind(self._tb_opt_payload(_vty) or _vty);
+        if _vkind not in ("bytes", "bytearray") {
             self.emit(
                 E5092,
                 node_override=nd,
                 kind="augmented assignment",
                 name=f"{aug_op} on bytearray",
-                help_text="The right operand is not a native bytes-like value."
+                help_text=f"The right operand is typed `{_vty}`; a native bytearray extends only from a statically bytes-like operand."
             );
             return (None, False);
+        }
+        _ba_src = self._bytearray_src_of(value);
+        if _ba_src is None {
+            raise AssertionError(
+                f"native: `{_vty}` operand of bytearray `+=` lowered as `{value.type}`, not a bytes buffer, at {_loc}"
+            );
         }
         _ba_fns = self._bytearray_runtime_fns();
         self.builder.call(
@@ -1889,8 +1986,12 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     self.builder.call(
                         _setenv_fn,
                         [
-                            self._coerce_type(_env_key, _i8p_env),
-                            self._coerce_type(value, _i8p_env),
+                            self._coerce_typed(
+                                _env_key, _i8p_env, self._expr_type_of(_env_slices[0])
+                            ),
+                            self._coerce_typed(
+                                value, _i8p_env, self._expr_type_of(nd.value)
+                            ),
                             ir.Constant(ir.IntType(32), 1)
                         ],
                         name="environ.setitem"
@@ -1932,8 +2033,12 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         _ba_fns["setslice"],
                         [
                             target_val,
-                            self._coerce_type(_ba_start, _i64_ba),
-                            self._coerce_type(_ba_stop, _i64_ba),
+                            self._coerce_typed(
+                                _ba_start, _i64_ba, self._expr_type_of(_ba_sl.start)
+                            ),
+                            self._coerce_typed(
+                                _ba_stop, _i64_ba, self._expr_type_of(_ba_sl.stop)
+                            ),
                             _ba_src[0],
                             _ba_src[1]
                         ],
@@ -1958,8 +2063,10 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         dict_type_key = self._dict_spec_for_type(_base_ty);
                         if dict_type_key is not None {
                             parts = dict_type_key.split(":");
-                            target_val = self._coerce_type(
-                                target_val, self.dict_types[dict_type_key].as_pointer()
+                            target_val = self._coerce_typed(
+                                target_val,
+                                self.dict_types[dict_type_key].as_pointer(),
+                                _base_ty
                             );
                             store_val: (ir.Value | None) = value;
                             if nd.aug_op is not None {
@@ -2005,8 +2112,10 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         and _base_kind in ("list", "bytearray") {
                         elem_type_name = self._list_spec_for_expr(target_expr.target);
                         if elem_type_name is not None {
-                            target_val = self._coerce_type(
-                                target_val, self.list_types[elem_type_name].as_pointer()
+                            target_val = self._coerce_typed(
+                                target_val,
+                                self.list_types[elem_type_name].as_pointer(),
+                                _base_ty
                             );
                             store_val: (ir.Value | None) = value;
                             if nd.aug_op is not None {
@@ -2709,8 +2818,10 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
         if collection_val is None {
             return;
         }
-        collection_val = self._coerce_type(
-            collection_val, self.dict_types[items_dict_key].as_pointer()
+        collection_val = self._coerce_typed(
+            collection_val,
+            self.dict_types[items_dict_key].as_pointer(),
+            self._expr_type_of(_dict_expr)
         );
         self._codegen_for_indexed(
             nd,
@@ -2744,7 +2855,9 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
                 if step_val is None {
                     return;
                 }
-                step_val = self._coerce_type(step_val, ir.IntType(64));
+                step_val = self._coerce_typed(
+                    step_val, ir.IntType(64), self._expr_type_of(params[2])
+                );
                 _step_is_zero = self.builder.icmp_signed(
                     "==",
                     step_val,
@@ -2762,16 +2875,22 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
         self._codegen_for_indexed(
             nd,
             kind="range",
-            collection_val=self._coerce_type(stop_val, ir.IntType(64)),
+            collection_val=self._coerce_typed(
+                stop_val,
+                ir.IntType(64),
+                self._expr_type_of(params[-1 if len(params) == 1 else 1])
+            ),
             helpers=None,
             var_names=[loop_var_name],
             var_types=[ir.IntType(64)],
             rc_vars=False,
             coll_release_op="",
-            range_start=self._coerce_type(start_val, ir.IntType(64)),
-            range_step=self._coerce_type(step_val, ir.IntType(64))
-                if step_val is not None
-                else None
+            range_start=self._coerce_typed(
+                start_val,
+                ir.IntType(64),
+                self._expr_type_of(params[0]) if len(params) >= 2 else None
+            ),
+            range_step=step_val
         );
         return;
     }
@@ -2806,8 +2925,8 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
             return;
         }
         helpers = self.dict_helpers[dict_type_key];
-        _coll_memo = self._coerce_type(
-            _coll_memo, self.dict_types[dict_type_key].as_pointer()
+        _coll_memo = self._coerce_typed(
+            _coll_memo, self.dict_types[dict_type_key].as_pointer(), _coll_ty
         );
         self._codegen_for_indexed(
             nd,
@@ -2861,7 +2980,9 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
         self._codegen_for_indexed(
             nd,
             kind="str",
-            collection_val=self._coerce_type(_coll_memo, ir.IntType(8).as_pointer()),
+            collection_val=self._coerce_typed(
+                _coll_memo, ir.IntType(8).as_pointer(), _coll_ty
+            ),
             helpers=None,
             var_names=[loop_var_name],
             var_types=[ir.IntType(8).as_pointer()],
@@ -2871,7 +2992,7 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
         return;
     }
 
-    if self._tuple_iter_shape(coll, _coll_memo) {
+    if self._tuple_iter_shape(coll) {
         _tup_seq = self._tuple_iter_seq(coll, _coll_memo);
         if _tup_seq is None {
             if len(self.errors_had) == _for_errs0 {
@@ -2914,8 +3035,8 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
             return;
         }
         _set_helpers = self.set_helpers[_set_spec];
-        _coll_memo = self._coerce_type(
-            _coll_memo, self.set_types[_set_spec].as_pointer()
+        _coll_memo = self._coerce_typed(
+            _coll_memo, self.set_types[_set_spec].as_pointer(), _coll_ty
         );
         _set_elem = self._for_target_slot_llvm(nd.target, _set_helpers["elem_type"]);
         _set_cast = _set_elem if _set_elem != _set_helpers["elem_type"] else None;
@@ -2947,8 +3068,8 @@ impl NaIRGenStmt._codegen_for(nd: uni.InForStmt) -> None {
             );
             return;
         }
-        _coll_memo = self._coerce_type(
-            _coll_memo, self.list_types[elem_type_name].as_pointer()
+        _coll_memo = self._coerce_typed(
+            _coll_memo, self.list_types[elem_type_name].as_pointer(), _coll_ty
         );
         actual_elem_type = self._for_target_slot_llvm(nd.target, helpers["elem_type"]);
         inner_type = actual_elem_type
@@ -3048,7 +3169,11 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     if helpers is None {
         return False;
     }
-    coll = self._coerce_type(coll, self.list_types[elem_type_name].as_pointer());
+    coll = self._coerce_typed(
+        coll,
+        self.list_types[elem_type_name].as_pointer(),
+        self._expr_type_of(_ffor_src)
+    );
     actual_elem_type = self._for_target_slot_llvm(nd.target, helpers["elem_type"]);
     _elem_cast: (ir.Type | None) = (
         actual_elem_type if actual_elem_type != helpers["elem_type"] else None
@@ -3096,7 +3221,7 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         if _chk_n is None {
             return False;
         }
-        _chk_n = self._coerce_type(_chk_n, i64);
+        _chk_n = self._coerce_typed(_chk_n, i64, self._expr_type_of(_chk[1]));
         _chk_n = self.builder.select(
             self.builder.icmp_signed(
                 "<", _chk_n, ir.Constant(i64, 1), name="ffor.ck.lo"
@@ -4018,13 +4143,15 @@ impl NaIRGenStmt._try_chunked_for(nd: uni.InForStmt) -> bool {
     if helpers is None {
         return False;
     }
-    coll = self._coerce_type(coll, self.list_types[elem_type_name].as_pointer());
+    coll = self._coerce_typed(
+        coll, self.list_types[elem_type_name].as_pointer(), self._expr_type_of(_chk[0])
+    );
     i64 = ir.IntType(64);
     _nv = self._codegen_expr(_chk[1]);
     if _nv is None {
         return False;
     }
-    _nv = self._coerce_type(_nv, i64);
+    _nv = self._coerce_typed(_nv, i64, self._expr_type_of(_chk[1]));
     _nv = self.builder.select(
         self.builder.icmp_signed("<", _nv, ir.Constant(i64, 1), name="chunk.n.lo"),
         ir.Constant(i64, 1),

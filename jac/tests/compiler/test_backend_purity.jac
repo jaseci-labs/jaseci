@@ -13,6 +13,15 @@ time. Sanctioned counts are exact in both directions: growth means new
 unreviewed analysis crept into a backend (fix the code), shrink means an
 entry earned tightening (edit the table). Either way the change is
 deliberate and reviewed here.
+
+BURNDOWN (jaseci-labs/jac#8539) is the one table that is allowed to
+shrink silently: it ceilings, per file, the three idioms the native type-seam
+clean break is deleting while the work is in flight (deciding Jac semantics
+from an LLVM value's `ir.Type`, reverse-scanning the backend's own
+name-keyed registries, and the private re-inference helpers). Growth fails
+the gate; shrink is progress. An entry that reaches zero is deleted so its
+file gates at zero from then on, and the table itself goes away with the
+clean break.
 """
 
 import re;
@@ -29,6 +38,76 @@ glob FORBIDDEN: dict[str, str] = {
          "type_tag.tag": r"type_tag[?]?[.]tag",
          # Re-resolving names on scope tables instead of consuming `.sym`.
          ".lookup(": r"[.]lookup[(]",
+         # Recovering type structure by parsing a mangled type name.
+         "mangle parsing": (
+             r"mangle\(\)\s*\.\s*(split|startswith|endswith|replace|find|partition|rsplit)"
+             r"|\.r?split\(['\"]__"
+         ),
+         # Guarded analysis imports: a backend either depends on the core
+         # pipeline or it does not; a silent fallback is a second analyzer.
+         "except ImportError": r"except\s+ImportError",
+         # The evaluator is reachable at codegen for prefetch reads (the
+         # canonical builtin ClassTypes); calling its inference entry points
+         # is re-running analysis.
+         "type_evaluator (non-prefetch)": r"type_evaluator(\(\))?\s*\.\s*(?!prefetch)",
+
+     },
+     # Idioms being deleted by the native type-seam clean break: ceilings per
+     # file (see the docstring). Scanned like FORBIDDEN; allowed up to the
+     # ceiling, never above it.
+     BURNDOWN_PATTERNS: dict[str, str] = {
+         "ir sniffing": r"isinstance\([^,]*\.type,\s*\(?ir\.",
+         "registry scan": (
+             r"\.(struct_types|list_types|dict_types|set_types|tuple_types|enum_types"
+             r"|arch_ast_map|closure_sig_registry|clib_struct_abi_types)"
+             r"\.(items|values|keys)\(\)"
+         ),
+         "private analysis": (
+             r"_type_key_of|_infer_type_name|_infer_list_elem_type|_infer_compr_elem_struct"
+             r"|_mro_of\b|_struct_source_name|_enum_source_name|arch_ast_map|_mangled_of"
+         ),
+
+     },
+     BURNDOWN: dict[tuple, int] = {
+         ("native/impl/primitives_native.impl.jac", "ir sniffing"): 15,
+         ("native/impl/primitives_native.impl.jac", "registry scan"): 1,
+         ("native/na_ir_gen/builtins.impl.jac", "ir sniffing"): 18,
+         ("native/na_ir_gen/bytes.impl.jac", "ir sniffing"): 1,
+         ("native/na_ir_gen/calls.impl.jac", "ir sniffing"): 16,
+         ("native/na_ir_gen/calls.impl.jac", "private analysis"): 3,
+         ("native/na_ir_gen/clib_abi.impl.jac", "ir sniffing"): 3,
+         ("native/na_ir_gen/clib_vtable.impl.jac", "ir sniffing"): 4,
+         ("native/na_ir_gen/comprehensions.impl.jac", "ir sniffing"): 6,
+         ("native/na_ir_gen/container_helpers.impl.jac", "ir sniffing"): 3,
+         ("native/na_ir_gen/core.impl.jac", "registry scan"): 8,
+         ("native/na_ir_gen/dicts.impl.jac", "ir sniffing"): 13,
+         ("native/na_ir_gen/enums.impl.jac", "ir sniffing"): 2,
+         ("native/na_ir_gen/exceptions.impl.jac", "ir sniffing"): 3,
+         ("native/na_ir_gen/expr.impl.jac", "ir sniffing"): 8,
+         ("native/na_ir_gen/func.impl.jac", "ir sniffing"): 4,
+         ("native/na_ir_gen/generics.impl.jac", "private analysis"): 2,
+         ("native/na_ir_gen/generics.jac", "private analysis"): 1,
+         ("native/na_ir_gen/iterators.impl.jac", "ir sniffing"): 2,
+         ("native/na_ir_gen/lists.impl.jac", "ir sniffing"): 5,
+         ("native/na_ir_gen/lists.impl.jac", "registry scan"): 1,
+         ("native/na_ir_gen/math.impl.jac", "ir sniffing"): 3,
+         ("native/na_ir_gen/objects.impl.jac", "ir sniffing"): 13,
+         ("native/na_ir_gen/objects.impl.jac", "private analysis"): 1,
+         ("native/na_ir_gen/objects.jac", "private analysis"): 1,
+         ("native/na_ir_gen/os.impl.jac", "ir sniffing"): 2,
+         ("native/na_ir_gen/osp.impl.jac", "ir sniffing"): 4,
+         ("native/na_ir_gen/pyb_interop.impl.jac", "ir sniffing"): 4,
+         ("native/na_ir_gen/refcount.impl.jac", "ir sniffing"): 24,
+         ("native/na_ir_gen/refcount.impl.jac", "private analysis"): 2,
+         ("native/na_ir_gen/repr.impl.jac", "ir sniffing"): 3,
+         ("native/na_ir_gen/sets.impl.jac", "ir sniffing"): 2,
+         ("native/na_ir_gen/stmt.impl.jac", "ir sniffing"): 24,
+         ("native/na_ir_gen/tuples.impl.jac", "ir sniffing"): 15,
+         ("native/na_ir_gen/types.impl.jac", "ir sniffing"): 52,
+         ("native/na_ir_gen/types.impl.jac", "private analysis"): 7,
+         ("native/na_ir_gen/types.impl.jac", "registry scan"): 2,
+         ("native/na_ir_gen/vtable.impl.jac", "ir sniffing"): 6,
+         ("native/primitives_native.jac", "ir sniffing"): 3,
 
      },
      # Remaining relocation work: (relative-path, pattern) -> max count.
@@ -105,6 +184,19 @@ glob FORBIDDEN: dict[str, str] = {
              "protocol member: a symbol-type read, the one evaluator entry "
              "point the backend is allowed (declared types live on the "
              "symbol, not on any expression node the backend visits)"
+         ),
+         ("native/na_ir_gen/iterators.impl.jac", "type_evaluator (non-prefetch)"): (
+             1,
+             "the same get_type_of_symbol read as the entry above, seen by the "
+             "stricter pattern that separates evaluator calls from prefetch "
+             "reads; a symbol-type read is the one non-prefetch entry point "
+             "the backend is allowed"
+         ),
+         ("native/llvm/binding/config.jac", "except ImportError"): (
+             1,
+             "vendored llvmlite `get_sysinfo` probing for the optional py-lief "
+             "package; an optional-dependency probe in the LLVM binding, not a "
+             "guarded analysis import in a code generator"
          ),
          ("native/na_ir_gen/refcount.impl.jac", "type_evaluator"): (
              1,
@@ -188,6 +280,9 @@ glob FORBIDDEN: dict[str, str] = {
 def scan_backends -> dict {
     passes_root = Path(jaclang.__file__).parent / "compiler" / "passes";
     compiled = {name: re.compile(pat) for (name, pat) in FORBIDDEN.items()};
+    for (name, pat) in BURNDOWN_PATTERNS.items() {
+        compiled[name] = re.compile(pat);
+    }
     counts: dict = {};
     for backend in ("ecmascript", "native") {
         for src in sorted((passes_root / backend).rglob("*.jac")) {
@@ -220,6 +315,7 @@ test "backend passes do not re-run analysis" {
         if sanc is not None {
             allowed += sanc[0];
         }
+        allowed += BURNDOWN.get((rel, name), 0);
         if count > allowed {
             violations.append(
                 f"{rel}: pattern '{name}' found on {count} line(s), "

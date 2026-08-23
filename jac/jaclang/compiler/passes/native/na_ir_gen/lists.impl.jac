@@ -147,7 +147,7 @@ impl NaIRGenLists._cast_to_list_elem(
 }
 
 impl NaIRGenLists._reflavor_list(
-    val: ir.Value, src_spec: str, dst_spec: str
+    val: ir.Value, src_spec: str, dst_spec: str, src_elem_ty: any = None
 ) -> (ir.Value | None) {
     if self._builder is None or self.builder.function is None {
         return None;
@@ -158,7 +158,9 @@ impl NaIRGenLists._reflavor_list(
         return None;
     }
     _out = self.builder.call(_dst_h["new"], [], name=f"list.{dst_spec}.reflavor");
-    self._emit_spread_copy(val, _src_h, _out, _dst_h, "list", "list_reflavor");
+    self._emit_spread_copy(
+        val, _src_h, _out, _dst_h, "list", "list_reflavor", src_elem_ty=src_elem_ty
+    );
     return self._mark_owned(_out);
 }
 
@@ -325,18 +327,26 @@ impl NaIRGenLists._codegen_index(
 }
 
 impl NaIRGenLists._codegen_any_subscript(
-    jacval: ir.Value, key_val: ir.Value
+    jacval: ir.Value, key_val: ir.Value, key_ty: any = None
 ) -> (ir.Value | None) {
     if not self?.jacval_type {
         return None;
     }
+    if key_ty is None {
+        raise AssertionError(
+            f"native: subscript on an `any` receiver reached codegen without the key's type (key llvm={key_val.type})"
+        );
+    }
     i8p = ir.IntType(8).as_pointer();
-    if key_val.type == i8p {
+    _kkind = self._tb_kind(self._tb_opt_payload(key_ty) or key_ty);
+    if _kkind == "str" {
         self._emit_dict_helpers("ptr", "jacval", i8p, self.jacval_type);
         d = self._unbox_from_jacval(jacval, self.dict_types["ptr:jacval"].as_pointer());
-        return self._codegen_dict_access(d, key_val, "ptr", "jacval");
+        return self._codegen_dict_access(
+            d, self._coerce_typed(key_val, i8p, key_ty), "ptr", "jacval"
+        );
     }
-    if isinstance(key_val.type, ir.IntType) {
+    if _kkind in ("int", "bool") {
         self._emit_list_helpers("jacval", self.jacval_type);
         l = self._unbox_from_jacval(jacval, self.list_types["jacval"].as_pointer());
         return self._codegen_index(l, key_val, "jacval");

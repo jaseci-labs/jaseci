@@ -61,7 +61,8 @@ import from jaclang.jac0core.diagnostics {
     E2018,
     E2027,
     E2055,
-    E2083
+    E2083,
+    E5060
 }
 
 glob BUILTIN_NAMES: set[str] = {
@@ -235,7 +236,8 @@ glob BUILTIN_NAMES: set[str] = {
      };
 
 def is_bootstrap_compiled_module(mod_path: str) -> bool {
-    return "/jaclang/jac0core/" in mod_path.replace("\\", "/");
+    import os;
+    return "/jaclang/jac0core/" in os.path.normpath(mod_path).replace("\\", "/");
 }
 
 def is_ambient_provider_module(mod_path: str) -> bool {
@@ -263,4 +265,5 @@ obj StaticAnalysisPass(Transform) {
     def _check_redundant_imports(mod: Module) -> None;
     def _check_client_imports(mod: Module) -> None;
     def _check_placement_warnings(mod: Module) -> None;
+    def _check_clib_decl_bodies(mod: Module) -> None;
 }

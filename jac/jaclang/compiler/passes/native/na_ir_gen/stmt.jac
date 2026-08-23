@@ -57,14 +57,14 @@ obj NaIRGenStmt(NaIRGenState) {
 
     def _match_seq_parts(pat: uni.MatchSequence) -> tuple;
     def _match_subj_ty(expr: (uni.UniNode | None)) -> (object | None);
-    def _match_elem_ty_of(
-        subj_ty: (object | None), prefix: str, idx: int
-    ) -> (object | None);
-
+    def _match_elem_ty_of(subj_ty: (object | None), idx: int) -> (object | None);
     def _match_cast_elem(elem: ir.Value, elem_ty: (object | None)) -> ir.Value;
     def _match_map_key(kv: uni.MatchKVPair, helpers: dict) -> (ir.Value | None);
     def _match_arch_fields(pat: uni.MatchArch, arch_name: str) -> (list | None);
-    def _match_value_eq(subj: ir.Value, value_node: uni.UniNode) -> (ir.Value | None);
+    def _match_value_eq(
+        subj: ir.Value, value_node: uni.UniNode, subj_ty: (object | None) = None
+    ) -> (ir.Value | None);
+
     def _bind_match_pattern(
         pat: uni.MatchPattern, subj: ir.Value, subj_ty: (object | None) = None
     ) -> None;
@@ -77,7 +77,7 @@ obj NaIRGenStmt(NaIRGenState) {
     ) -> None;
 
     def _match_subj_kind(subj_ty: (object | None)) -> str;
-    def _match_field_ty(arch_ty: (object | None), fname: str) -> (object | None);
+    def _match_field_ty(arch_name: str, fname: str) -> (object | None);
     def _match_arch_static(
         pat: uni.MatchArch, subj: ir.Value, subj_ty: (object | None)
     ) -> tuple;
@@ -98,7 +98,8 @@ obj NaIRGenStmt(NaIRGenState) {
         current: ir.Value,
         rhs: ir.Value,
         aug_op: str,
-        rhs_node: (uni.Expr | None) = None
+        rhs_node: (uni.Expr | None) = None,
+        cur_ty: any = None
     ) -> (ir.Value | None);
 
     def _try_flow_for_parallel(nd: uni.InForStmt) -> bool;

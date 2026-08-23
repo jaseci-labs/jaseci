@@ -60,11 +60,6 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
     self._compute_osp_model(archetypes);
 
     layout_reg = self._registry();
-    for arch in archetypes {
-        arch_name = arch.name.value if arch.name else "unknown";
-        self.arch_ast_map[arch_name] = arch;
-    }
-
     topo_order = layout_reg.get_topo_order();
     for topo_name in topo_order {
         if topo_name in arch_map {
@@ -380,32 +375,6 @@ impl NaIRGenObjects._codegen_constructors_first(archetypes: list) -> None {
     }
 }
 
-impl NaIRGenObjects._demoted_init_of(type_name: str) -> (str | None) {
-    """The demoted initializer a `type_name()` would have needed, or None.
-
-    Walks the MRO the way the construction site does and stops at the first
-    class that provides an initializer at all, so a live `init` on a subclass
-    still wins over a demoted one further up. The skipped-methods check comes
-    first per candidate because a demotion that kept its function (a virtual
-    slot) leaves the abort stub sitting in `method_funcs`.
-    """;
-    if not self._native_skipped_methods {
-        return None;
-    }
-    for _cn in self._mro_of(type_name) {
-        for _mn in ("init", "__init__") {
-            _cand = f"{_cn}.{_mn}";
-            if _cand in self._native_skipped_methods {
-                return _cand;
-            }
-            if _cand in self.method_funcs {
-                return None;
-            }
-        }
-    }
-    return None;
-}
-
 impl NaIRGenObjects._visit_nonprimary_ancestor_methods(
     arch: uni.Archetype, declare: bool
 ) -> None {
@@ -534,9 +503,13 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
     self._register_static_fields(arch_name, layout);
     self._register_class_consts(arch_name, layout);
 
-    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
-        ;
-    } else {
+    _ident_struct = isinstance(struct_type, ir.IdentifiedStructType);
+    _clib_defined = (
+        arch_name in self.clib_struct_names
+        and _ident_struct
+        and not struct_type.is_opaque
+    );
+    if _ident_struct and not _clib_defined {
         struct_type.set_body(*field_types);
     }
     self.struct_field_indices[arch_name] = field_index_map;
@@ -857,7 +830,11 @@ impl NaIRGenObjects._forward_declare_method(
     if len(func.args) > _base + len(_m_params) {
         func.args[_base + len(_m_params)].name = "value";
     }
-    self._apply_ownership_param_attrs(func, _m_params, _base);
+    _own_params = list(self._ability_fn_type(method).parameters or []);
+    if _own_params and (_own_params[0].is_self or _own_params[0].is_cls) {
+        _own_params = _own_params[1:];
+    }
+    self._apply_ownership_param_attrs(func, _own_params, _base);
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
 
@@ -1191,16 +1168,18 @@ impl NaIRGenObjects._refuse_opaque_field(
     if type_name is None {
         return False;
     }
-    for _cn in self._mro_of(type_name) {
-        _why = self.struct_field_opaque.get(_cn, {}).get(fname);
-        if _why is not None {
-            self.emit(
-                E5092, node_override=nd, kind="erased field", name=f"{_cn}.{fname}"
-            );
-            return True;
-        }
+    _why = self.struct_field_opaque.get(type_name, {}).get(fname);
+    if _why is None {
+        return False;
     }
-    return False;
+    lay = self._arch_layout(type_name);
+    _owner = (
+        lay.fields[lay.field_index[fname]].owner
+            if lay is not None and fname in lay.field_index
+            else type_name
+    );
+    self.emit(E5092, node_override=nd, kind="erased field", name=f"{_owner}.{fname}");
+    return True;
 }
 
 impl NaIRGenObjects._codegen_no_sig_method(
@@ -1375,7 +1354,8 @@ impl NaIRGenObjects._class_const_declarer(
     arch_name: str, field_name: str
 ) -> (str | None) {
     reg = self._registry();
-    _seen: list[str] = list(self._mro_of(arch_name));
+    _own_lay = self._arch_layout(arch_name);
+    _seen: list[str] = list(_own_lay.mro) if _own_lay is not None else [arch_name];
     for _cls in (reg.subclasses.get(arch_name) or []) {
         if _cls not in _seen {
             _seen.append(_cls);
@@ -1410,6 +1390,50 @@ impl NaIRGenObjects._arch_has_vtable(arch_name: str) -> bool {
     }
     lay = self._arch_layout(arch_name);
     return lay is not None and lay.has_vtable;
+}
+
+impl NaIRGenObjects._nearest_slot(arch_name: str, names: list[str]) -> (tuple | None) {
+    lay = self._arch_layout(arch_name);
+    if lay is None {
+        return None;
+    }
+    best: (tuple | None) = None;
+    best_rank = -1;
+    for nm in names {
+        idx = lay.method_index.get(nm);
+        if idx is None or idx >= len(lay.methods) {
+            continue;
+        }
+        mslot = lay.methods[idx];
+        if mslot.ability is None {
+            continue;
+        }
+        rank = lay.mro.index(mslot.owner) if mslot.owner in lay.mro else len(lay.mro);
+        if best is None or rank < best_rank {
+            best = (mslot.owner, nm, );
+            best_rank = rank;
+        }
+    }
+    return best;
+}
+
+impl NaIRGenObjects._slot_function(arch_name: str, names: list[str]) -> tuple {
+    hit = self._nearest_slot(arch_name, names);
+    if hit is None {
+        return (None, None, False, );
+    }
+    (owner, slot) = hit;
+    cands = [arch_name, owner] if owner != arch_name else [owner];
+    for cls in cands {
+        cand = f"{cls}.{slot}";
+        if cand in self._native_skipped_methods {
+            return (cls, slot, True, );
+        }
+        if cand in self.method_funcs {
+            return (cls, slot, False, );
+        }
+    }
+    return (None, slot, False, );
 }
 
 impl NaIRGenObjects._union_layout_conflict(members: list[str]) -> (str | None) {
@@ -1566,45 +1590,6 @@ impl NaIRGenObjects._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
     return sym is not None and sym.na_stack_ok;
 }
 
-impl NaIRGenObjects._empty_container_for_field(
-    ftype: (ir.Type | None), label: str
-) -> (ir.Value | None) {
-    if ftype is None or not isinstance(ftype, ir.PointerType) {
-        return None;
-    }
-    for (dict_key, dtype) in self.dict_types.items() {
-        if ftype == dtype.as_pointer() {
-            dict_helpers = self.dict_helpers.get(dict_key);
-            return (
-                self.builder.call(dict_helpers["new"], [], name=f"dict.{label}")
-                    if dict_helpers is not None
-                    else None
-            );
-        }
-    }
-    for (list_key, ltype) in self.list_types.items() {
-        if ftype == ltype.as_pointer() {
-            list_helpers = self.list_helpers.get(list_key);
-            return (
-                self.builder.call(list_helpers["new"], [], name=f"list.{label}")
-                    if list_helpers is not None
-                    else None
-            );
-        }
-    }
-    for (set_key, stype) in self.set_types.items() {
-        if ftype == stype.as_pointer() {
-            set_helpers = self.set_helpers.get(set_key);
-            return (
-                self.builder.call(set_helpers["new"], [], name=f"set.{label}")
-                    if set_helpers is not None
-                    else None
-            );
-        }
-    }
-    return None;
-}
-
 impl NaIRGenObjects._codegen_instantiation(
     nd: (uni.FuncCall | uni.Name),
     type_name_override: (str | None) = None,
@@ -1631,18 +1616,33 @@ impl NaIRGenObjects._codegen_instantiation(
     if self._reject_scalar_type_args(nd, type_name) {
         return None;
     }
-    _demoted_init = self._demoted_init_of(type_name);
-    if _demoted_init is not None {
+    (_init_fn_owner, _init_slot, _init_demoted) = self._slot_function(
+        type_name, ["init", "__init__"]
+    );
+    if _init_demoted {
         self.emit(
             E5092,
             node_override=nd,
             kind="constructor",
-            name=f"{type_name}() via {_demoted_init}",
+            name=f"{type_name}() via {_init_fn_owner}.{_init_slot}",
             help_text=(
                 "The initializer was demoted to its Python implementation, so "
                 "native construction has no initializer to call and would "
                 "leave the object half-built. Construct this class from a "
                 "Python/@sv context, or make the initializer lowerable."
+            )
+        );
+        return None;
+    }
+    if _init_slot is not None and _init_fn_owner is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="constructor",
+            name=f"{type_name}() via {_init_slot}",
+            help_text=(
+                "The initializer this class resolves to has no native "
+                "function, so native construction cannot run it."
             )
         );
         return None;
@@ -1653,10 +1653,7 @@ impl NaIRGenObjects._codegen_instantiation(
     params = ctor_params
         if ctor_params is not None
         else ((nd.params or []) if _is_call else []);
-    _has_init = (
-        f"{type_name}.init" in self.method_funcs
-        or f"{type_name}.__init__" in self.method_funcs
-    );
+    _has_init = _init_fn_owner is not None;
     _pos_field_pairs: list = [];
     if not _has_init {
         _pos_args = [
@@ -1967,14 +1964,18 @@ impl NaIRGenObjects._codegen_instantiation(
         if key_name in foreign_fields {
             continue;
         }
+        _fi_mark = len(self.errors_had);
         val = self._codegen_expr(init_expr);
         if val is None {
-            val = self._empty_container_for_field(
-                field_types.get(key_name), f"ctor.{key_name}"
-            );
-            if val is None {
-                continue;
+            if len(self.errors_had) == _fi_mark {
+                self.emit(
+                    E5092,
+                    node_override=init_expr,
+                    kind="constructor argument",
+                    name=f"{type_name}({key_name}=...)"
+                );
             }
+            continue;
         }
         idx = field_indices[key_name];
         ftype = field_types[key_name];
@@ -1998,7 +1999,7 @@ impl NaIRGenObjects._codegen_instantiation(
         if _is_clib_cb {
             val = self._clib_coerce_callback(val, ftype);
         } else {
-            val = self._coerce_type(val, ftype);
+            val = self._coerce_typed(val, ftype, self._expr_type_of(init_expr));
         }
 
         if not _vt_struct {
@@ -2021,11 +2022,14 @@ impl NaIRGenObjects._codegen_instantiation(
 
     for (fname, default_expr) in field_defaults.items() {
         if fname not in set_fields {
+            _fd_mark = len(self.errors_had);
             val = self._codegen_expr(default_expr);
-
-            if val is None {
-                val = self._empty_container_for_field(
-                    field_types.get(fname), f"dflt.{fname}"
+            if val is None and len(self.errors_had) == _fd_mark {
+                self.emit(
+                    E5092,
+                    node_override=default_expr,
+                    kind="field default",
+                    name=f"{type_name}.{fname}"
                 );
             }
             if val is not None
@@ -2054,7 +2058,9 @@ impl NaIRGenObjects._codegen_instantiation(
                 if _is_clib_cb_d {
                     val = self._clib_coerce_callback(val, ftype);
                 } else {
-                    val = self._coerce_type(val, ftype);
+                    val = self._coerce_typed(
+                        val, ftype, self._expr_type_of(default_expr)
+                    );
                 }
 
                 if not _vt_struct {
@@ -2098,17 +2104,9 @@ impl NaIRGenObjects._codegen_instantiation(
 
     init_fn: (ir.Function | None) = None;
     _init_owner: str = type_name;
-    for _init_cls in self._mro_of(type_name) {
-        for candidate in [f"{_init_cls}.init", f"{_init_cls}.__init__"] {
-            if candidate in self.method_funcs {
-                init_fn = self.method_funcs[candidate];
-                _init_owner = _init_cls;
-                break;
-            }
-        }
-        if init_fn is not None {
-            break;
-        }
+    if _init_fn_owner is not None {
+        init_fn = self.method_funcs[f"{_init_fn_owner}.{_init_slot}"];
+        _init_owner = _init_fn_owner;
     }
     if init_fn is not None and _init_owner != type_name {
         if not self._registry().is_primary_ancestor(type_name, _init_owner) {
@@ -2171,68 +2169,51 @@ impl NaIRGenObjects._codegen_instantiation(
     }
 
     _pi_auto = init_fn is None;
-    for _pi_cls in self._mro_of(type_name) {
+    _init_hit = self._nearest_slot(type_name, ["init", "__init__"]);
+    _init_decl_owner = _init_hit[0] if _init_hit is not None else None;
+    for _pi_cls in lay.mro {
+        if _pi_cls == _init_decl_owner {
+            _pi_auto = False;
+            break;
+        }
         _pi_lay = self._arch_layout(_pi_cls);
         if _pi_lay is None {
             continue;
         }
-        _pi_own_init = False;
-        for _pi_slot in _pi_lay.methods {
-            if _pi_slot.owner == _pi_cls and _pi_slot.name in ("init", "__init__") {
-                _pi_own_init = True;
-                break;
-            }
-        }
-        if _pi_own_init {
-            _pi_auto = False;
-            break;
-        }
-        _pi_fielded = bool(_pi_lay.statics);
-        for _pi_f in _pi_lay.fields {
-            if _pi_f.owner == _pi_cls {
-                _pi_fielded = True;
-                break;
-            }
-        }
+        _pi_fielded = bool(_pi_lay.statics)
+            or any(_pi_f.owner == _pi_cls for _pi_f in _pi_lay.fields);
         if _pi_fielded {
             _pi_auto = True;
             break;
         }
     }
-    _pi_full: (str | None) = None;
+    _pi_owner: (str | None) = None;
+    _pi_slot: (str | None) = None;
     if _pi_auto {
-        for _pi_cls in self._mro_of(type_name) {
-            for pname in [f"{_pi_cls}.__post_init__", f"{_pi_cls}.postinit"] {
-                if pname in self._native_skipped_methods {
-                    self.emit(
-                        E5092,
-                        node_override=nd,
-                        kind="constructor",
-                        name=f"{type_name}() via {pname}",
-                        help_text=(
-                            "The post-initializer was demoted to its Python "
-                            "implementation, so native construction has no "
-                            "post-initializer to call and would leave the "
-                            "object half-built. Construct this class from a "
-                            "Python/@sv context, or make the post-initializer "
-                            "lowerable."
-                        )
-                    );
-                    return None;
-                }
-                if pname in self.method_funcs {
-                    _pi_full = pname;
-                    break;
-                }
-            }
-            if _pi_full is not None {
-                break;
-            }
+        (_pi_owner, _pi_slot, _pi_demoted) = self._slot_function(
+            type_name, ["__post_init__", "postinit"]
+        );
+        if _pi_demoted {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor",
+                name=f"{type_name}() via {_pi_owner}.{_pi_slot}",
+                help_text=(
+                    "The post-initializer was demoted to its Python "
+                    "implementation, so native construction has no "
+                    "post-initializer to call and would leave the "
+                    "object half-built. Construct this class from a "
+                    "Python/@sv context, or make the post-initializer "
+                    "lowerable."
+                )
+            );
+            return None;
         }
     }
-    if _pi_full is not None {
+    if _pi_owner is not None and _pi_slot is not None {
         postinit_fn = self._receiver_routed_method_fn(
-            nd, _pi_full, ["__post_init__", "postinit"], type_name
+            nd, _pi_owner, _pi_slot, type_name
         );
         if postinit_fn is None {
             return None;
@@ -2295,32 +2276,59 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     if method_name is None {
         return None;
     }
-    if target_name == "super" and self._self_arch is not None {
+    _is_super = (
+        isinstance(trailer.target, uni.SpecialVarRef)
+        and trailer.target.name == Tok.KW_SUPER
+    );
+    if _is_super and self._self_arch is not None {
         _sup_names = [method_name];
         if method_name == "postinit" {
             _sup_names.append("__post_init__");
         } elif method_name == "init" {
             _sup_names.append("__init__");
         }
-        _sup_full: (str | None) = None;
-        for _cn in self._mro_of(self._self_arch)[1:] {
-            for _mn in _sup_names {
-                _cand = f"{_cn}.{_mn}";
-                if _cand in self.method_funcs
-                    and _cand not in self._native_skipped_methods {
-                    _sup_full = _cand;
-                    break;
-                }
-            }
-            if _sup_full is not None {
-                break;
-            }
+        _sup_ab = self._member_ability_of(trailer);
+        _sup_arch = _sup_ab.method_owner if _sup_ab is not None else None;
+        _sup_owner: (str | None) = None;
+        if isinstance(_sup_arch, uni.Archetype) and _sup_arch.name is not None {
+            _sup_owner = _sup_arch.name.value;
+        } else {
+            _sup_t = self._flow_narrowed_type_of(trailer.target);
+            _sup_owner = (
+                self._tb_class_name(_sup_t)
+                    if self._tb_kind(_sup_t) == "struct"
+                    else None
+            );
+        }
+        _sup_fn_owner: (str | None) = None;
+        _sup_slot: (str | None) = None;
+        _sup_demoted = False;
+        if _sup_owner is not None and _sup_owner in self.struct_types {
+            (_sup_fn_owner, _sup_slot, _sup_demoted) = self._slot_function(
+                _sup_owner, _sup_names
+            );
+        }
+        if _sup_demoted {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call",
+                name=f"super.{method_name}",
+                help_text=(
+                    f"'{_sup_fn_owner}.{_sup_slot}' was demoted to its Python "
+                    f"implementation, so the super call has no native body "
+                    f"to reach."
+                )
+            );
+            return None;
         }
         _self_slot = self.local_vars.get("self");
-        if _sup_full is not None and _self_slot is not None {
+        if _sup_fn_owner is not None
+            and _sup_slot is not None
+            and _self_slot is not None {
             _self_val = self.builder.load(_self_slot, name="super.self");
             return self._emit_class_routed_call(
-                nd, _sup_full, _sup_names, _self_val, self._self_arch
+                nd, _sup_fn_owner, _sup_slot, _self_val, self._self_arch
             );
         }
         if self._pyb_base_of(self._self_arch) is not None {
@@ -2370,7 +2378,6 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     }
     if _cls_target is not None and _cls_target in self.struct_types {
         target_name = _cls_target;
-        _sfull: (str | None) = None;
         _mnames = [method_name];
         if method_name == "postinit" {
             _mnames.append("__post_init__");
@@ -2382,26 +2389,37 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
             _cls_owner = _cls_ab.method_owner;
             _cls_owner_name = (
                 _cls_owner.name.value
-                    if (_cls_owner is not None and _cls_owner.name is not None)
-                    else None
+                    if isinstance(_cls_owner, uni.Archetype)
+                        and _cls_owner.name is not None
+                    else target_name
             );
-            for _cn in self._mro_of(target_name) {
-                if _cls_owner_name is None or _cn == _cls_owner_name {
-                    _sfull = f"{_cn}.{method_name}";
-                    break;
-                }
+            _sfull = f"{_cls_owner_name}.{method_name}";
+            if _sfull in self._native_skipped_methods
+                or _sfull not in self.method_funcs {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="method",
+                    name=_sfull,
+                    help_text=(
+                        f"'{method_name}' has no native lowering and was demoted "
+                        f"to its Python implementation; it cannot be called from "
+                        f"native code. Call it from a Python/@sv context instead."
+                    )
+                );
+                return None;
             }
+            return self._emit_class_routed_call(
+                nd, _cls_owner_name, method_name, None, None
+            );
         }
-        if _sfull is not None
-            and (
-                _sfull in self._native_skipped_methods
-                or _sfull not in self.method_funcs
-            ) {
+        (_cr_owner, _cr_slot, _cr_demoted) = self._slot_function(target_name, _mnames);
+        if _cr_demoted {
             self.emit(
                 E5092,
                 node_override=nd,
                 kind="method",
-                name=_sfull,
+                name=f"{_cr_owner}.{_cr_slot}",
                 help_text=(
                     f"'{method_name}' has no native lowering and was demoted "
                     f"to its Python implementation; it cannot be called from "
@@ -2410,23 +2428,8 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
             );
             return None;
         }
-        if _sfull is None {
-            for _cn in self._mro_of(target_name) {
-                for _mn in _mnames {
-                    _icand = f"{_cn}.{_mn}";
-                    if _icand in self.method_funcs
-                        and _icand not in self._native_skipped_methods {
-                        _sfull = _icand;
-                        break;
-                    }
-                }
-                if _sfull is not None {
-                    break;
-                }
-            }
-        }
-        if _sfull is not None {
-            return self._emit_class_routed_call(nd, _sfull, _mnames, None, None);
+        if _cr_owner is not None and _cr_slot is not None {
+            return self._emit_class_routed_call(nd, _cr_owner, _cr_slot, None, None);
         }
     }
 
@@ -2450,55 +2453,62 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
 
     _fld_struct = self._receiver_arch_name(trailer.target);
     _fld_lay = self._arch_layout(_fld_struct) if _fld_struct is not None else None;
-    _fld_hv = self._member_field_of(trailer);
-    if (
-        _fld_lay is not None
-        and _fld_hv is not None
-        and method_name in _fld_lay.field_index
-        and _fld_lay.fields[_fld_lay.field_index[method_name]].is_func_ptr
-        and _fld_struct in self.struct_field_types
-        and method_name in self.struct_field_types[_fld_struct]
-    ) {
-        _fld_ty = self.struct_field_types[_fld_struct][method_name];
+    if _fld_lay is not None and method_name in _fld_lay.field_index {
+        _fld_info = _fld_lay.fields[_fld_lay.field_index[method_name]];
+        _fld_ty = self.struct_field_types.get(_fld_struct, {}).get(method_name);
         if (
-            isinstance(_fld_ty, ir.PointerType)
-            and isinstance(_fld_ty.pointee, ir.FunctionType)
+            not _fld_info.is_func_ptr
+            or not isinstance(_fld_ty, ir.PointerType)
+            or not isinstance(_fld_ty.pointee, ir.FunctionType)
         ) {
-            _obj_v = self._codegen_expr(trailer.target);
-            if _obj_v is not None {
-                _idx = _fld_lay.field_index[method_name];
-                _fld_ptr = self.builder.gep(
-                    _obj_v,
-                    [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), _idx)],
-                    name=f"{method_name}.fldptr"
-                );
-                _fnp = self.builder.load(_fld_ptr, name=f"{method_name}.fn");
-                _fn_ty = _fld_ty.pointee;
-                _is_clib = _fld_struct in self.clib_struct_names;
-                _cargs: list[ir.Value] = [];
-                for (_i, _p) in enumerate(nd.params or []) {
-                    _pv = self._codegen_expr(_p);
-                    if _pv is not None {
-                        if _i < len(_fn_ty.args) {
-                            _pv = (
-                                self._clib_fnptr_arg(_pv, _fn_ty.args[_i])
-                                    if _is_clib
-                                    else self._coerce_type(_pv, _fn_ty.args[_i])
-                            );
-                        }
-                        _cargs.append(_pv);
-                    }
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call through field",
+                name=f"{_fld_struct}.{method_name}",
+                help_text=(
+                    f"'{method_name}' is a field of '{_fld_struct}' whose type "
+                    f"'{_fld_info.type}' is not a function pointer, so there is "
+                    f"nothing native to call through it."
+                )
+            );
+            return None;
+        }
+        _obj_v = self._codegen_expr(trailer.target);
+        if _obj_v is None {
+            return None;
+        }
+        _idx = _fld_lay.field_index[method_name];
+        _fld_ptr = self.builder.gep(
+            _obj_v,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), _idx)],
+            name=f"{method_name}.fldptr"
+        );
+        _fnp = self.builder.load(_fld_ptr, name=f"{method_name}.fn");
+        _fn_ty = _fld_ty.pointee;
+        _is_clib = _fld_struct in self.clib_struct_names;
+        _cargs: list[ir.Value] = [];
+        for (_i, _p) in enumerate(nd.params or []) {
+            _pv = self._codegen_expr(_p);
+            if _pv is not None {
+                if _i < len(_fn_ty.args) {
+                    _pv = (
+                        self._clib_fnptr_arg(_pv, _fn_ty.args[_i])
+                            if _is_clib
+                            else self._coerce_type(_pv, _fn_ty.args[_i])
+                    );
                 }
-                _r = self.builder.call(_fnp, _cargs, name=f"icall.{method_name}");
-                if isinstance(_fn_ty.return_type, ir.VoidType) {
-                    return None;
-                }
-                if _is_clib {
-                    return self._clib_fnptr_ret(_fld_struct, method_name, _r);
-                }
-                return _r;
+                _cargs.append(_pv);
             }
         }
+        _r = self.builder.call(_fnp, _cargs, name=f"icall.{method_name}");
+        if isinstance(_fn_ty.return_type, ir.VoidType) {
+            return ir.Constant(ir.IntType(64), 0);
+        }
+        if _is_clib {
+            return self._clib_fnptr_ret(_fld_struct, method_name, _r);
+        }
+        return _r;
     }
 
     _mod_name = self._module_name_of(trailer.target);
@@ -2563,252 +2573,166 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
         return self._emit_struct_call(method_name, nd);
     }
 
-    _cls_name = self._tb_class_name(_recv_t) if _recv_kind == "class" else None;
-    if _cls_name == "int" and method_name == "from_bytes" {
-        arg_vals = self._codegen_call_args(nd);
-        if arg_vals {
-            self._ensure_emitters();
-            _emitter = self._native_emitters.get("int");
-            if _emitter is not None {
-                _ctx = self._native_emit_ctx_class(pass_ref=self, type_key="");
-                result = _emitter.emit_from_bytes(_ctx, arg_vals);
-                if result is not None {
-                    return result;
-                }
-            }
-        }
-    }
-    if _cls_name == "float" and method_name == "fromhex" {
-        arg_vals = self._codegen_call_args(nd);
-        if arg_vals {
-            self._ensure_emitters();
-            _emitter = self._native_emitters.get("float");
-            if _emitter is not None {
-                _ctx = self._native_emit_ctx_class(pass_ref=self, type_key="");
-                result = _emitter.emit_fromhex(_ctx, arg_vals);
-                if result is not None {
-                    return result;
-                }
-            }
-        }
-    }
-
-    list_spec = self._list_spec_of(trailer.target);
-    if list_spec == "u8" and method_name in ("append", "extend") {
-        _ba_recv = self._codegen_receiver(trailer.target);
-        if _ba_recv is not None {
-            _ba_res = self._dispatch_bytearray_method(method_name, _ba_recv, nd);
-            if _ba_res is not None {
-                return _ba_res;
-            }
-        }
-    }
-    if list_spec is not None {
-        list_val = self._codegen_receiver(trailer.target);
-        if list_val is not None {
-            _shape_spec = self._infer_list_elem_type(list_val);
-            elem_type_name = _shape_spec if _shape_spec is not None else list_spec;
-            arg_vals = self._codegen_call_args(nd);
-            _orig_args = list(arg_vals);
-
-            _prep_idx = -1;
-            if method_name == "append" and arg_vals {
-                _prep_idx = 0;
-            } elif method_name == "insert" and len(arg_vals) > 1 {
-                _prep_idx = 1;
-            }
-            if _prep_idx >= 0 {
-                _prep_params = list(nd.params or []);
-                if _prep_idx < len(_prep_params) {
-                    _prep_e = _prep_params[_prep_idx];
-                    _prep_e = (
-                        _prep_e.value if isinstance(_prep_e, uni.KWPair) else _prep_e
-                    );
-                    arg_vals[_prep_idx] = self._nogc_elem_prep(
-                        _prep_e, arg_vals[_prep_idx]
-                    );
-                }
-            }
-
-            _elem_struct = self.var_list_elem_struct.get(target_name);
-            if _elem_struct is not None
-                and isinstance(_elem_struct, ir.PointerType)
-                and isinstance(_elem_struct.pointee, ir.LiteralStructType) {
-                _tidx = -1;
-                if method_name == "append" and arg_vals {
-                    _tidx = 0;
-                } elif method_name == "insert" and len(arg_vals) > 1 {
-                    _tidx = 1;
-                }
-                if _tidx >= 0 {
-                    arg_vals[_tidx] = self._coerce_tuple_to_struct(
-                        arg_vals[_tidx], _elem_struct.pointee
-                    );
-                }
-            }
-            if method_name == "append" {
-                self._set_rc_ctx(
-                    "append",
-                    f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                        if nd.loc
-                        else 0}"
-                );
-            }
-            result = self._dispatch_primitive_method(
-                "list",
+    if _recv_kind == "class" {
+        _cls_name = self._tb_class_name(_recv_t);
+        if (_cls_name, method_name) in (("int", "from_bytes"), ("float", "fromhex")) {
+            return self._dispatch_primitive_method(
+                _cls_name,
                 method_name,
-                list_val,
-                arg_vals,
-                elem_type_name,
-                kwargs=self._split_call_kwargs(nd),
-                kw_node=nd
+                None,
+                self._codegen_call_args(nd),
+                "",
+                recv_type=_recv_t,
+                call=nd
             );
-
-            self._clear_rc_ctx();
-            if result is not None {
-                if method_name == "insert" {
-                    self._release_owned_args(_orig_args, op="list_method_arg");
-                }
-                return result;
-            }
         }
     }
 
-    set_spec = self._set_spec_of(trailer.target);
-    if set_spec is not None {
-        elem_type_name = set_spec;
-        set_val = self._codegen_receiver(trailer.target);
-        if set_val is not None {
-            arg_vals = self._codegen_call_args(nd);
-            if method_name == "add" and arg_vals {
-                _sprep_params = list(nd.params or []);
-                if _sprep_params {
-                    _sprep_e = _sprep_params[0];
-                    _sprep_e = (
-                        _sprep_e.value if isinstance(_sprep_e, uni.KWPair) else _sprep_e
-                    );
-                    arg_vals[0] = self._nogc_elem_prep(_sprep_e, arg_vals[0]);
-                }
-            }
-            result = self._dispatch_primitive_method(
-                "set", method_name, set_val, arg_vals, elem_type_name
-            );
-            if result is not None {
-                return result;
-            }
-        }
+    _prim_t = self._tb_opt_payload(_recv_t) if _recv_kind == "optional" else _recv_t;
+    _prim_kind = self._tb_kind(_prim_t);
+    if _prim_kind == "tuple" and self._tuple_has_variadic_arg(self._tb_args(_prim_t)) {
+        _prim_kind = "list";
     }
-
-    tuple_type_key = self._tuple_key_of(trailer.target);
-    if tuple_type_key is not None {
-        tuple_val = self._codegen_receiver(trailer.target);
-        if tuple_val is not None {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "tuple", method_name, tuple_val, arg_vals, tuple_type_key
-            );
-            if result is not None {
-                return result;
+    _prim_emitter: (str | None) = None;
+    if _prim_kind
+        in (
+            "int",
+            "bool",
+            "float",
+            "complex",
+            "str",
+            "bytes",
+            "list",
+            "dict",
+            "tuple",
+            "range"
+        ) {
+        _prim_emitter = _prim_kind;
+    } elif _prim_kind == "set" {
+        _prim_emitter = (
+            "frozenset" if self._tb_class_name(_prim_t) == "frozenset" else "set"
+        );
+    } elif _prim_kind == "bytearray" {
+        if method_name in ("append", "extend") {
+            _ba_recv = self._codegen_receiver(trailer.target);
+            if _ba_recv is None {
+                return None;
             }
-        }
-    }
-
-    dict_type_key: (str | None) = self._dict_key_of(trailer.target);
-    if dict_type_key is not None {
-        dict_val = self._codegen_receiver(trailer.target);
-        dict_type_key = self._dict_key_reconcile(dict_type_key, dict_val);
-        if dict_val is not None and dict_type_key is not None {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "dict", method_name, dict_val, arg_vals, dict_type_key
-            );
-            if result is not None {
-                return result;
-            }
-        }
-    }
-
-    if method_name in self._primitive_method_names("int") {
-        int_val = self._codegen_receiver(trailer.target);
-        if int_val is not None and isinstance(int_val.type, ir.IntType) {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "int", method_name, int_val, arg_vals, ""
-            );
-            if result is not None {
-                return result;
-            }
-        }
-    }
-
-    if method_name in self._primitive_method_names("float") {
-        float_val = self._codegen_receiver(trailer.target);
-        if float_val is not None and isinstance(float_val.type, ir.DoubleType) {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "float", method_name, float_val, arg_vals, ""
-            );
-            if result is not None {
-                return result;
-            }
-        }
-    }
-
-    if method_name in self._primitive_method_names("complex") {
-        cval = self._codegen_receiver(trailer.target);
-        if cval is not None and cval.type == self.complex_struct_type.as_pointer() {
-            result = self._dispatch_primitive_method(
-                "complex", method_name, cval, [], ""
-            );
-            if result is not None {
-                return result;
-            }
-        }
-    }
-
-    if method_name in ("count", "index") {
-        if _recv_kind == "range" {
-            rng_val = self._codegen_receiver(trailer.target);
-            if rng_val is not None {
-                arg_vals = self._codegen_call_args(nd);
-                result = self._dispatch_primitive_method(
-                    "range", method_name, rng_val, arg_vals, ""
+            _ba_res = self._dispatch_bytearray_method(method_name, _ba_recv, nd);
+            if _ba_res is None {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="method",
+                    name=f"bytearray.{method_name}",
+                    help_text=(
+                        "The argument is not a byte value or byte source the "
+                        "native bytearray helpers accept."
+                    )
                 );
-                if result is not None {
-                    return result;
+            }
+            return _ba_res;
+        }
+        _prim_emitter = "list";
+    }
+    if _prim_emitter is not None {
+        _prim_key: (str | None) = "";
+        if _prim_emitter == "list" {
+            _prim_key = self._list_spec_for_expr(trailer.target);
+        } elif _prim_emitter == "dict" {
+            _prim_key = self._dict_spec_for_expr(trailer.target);
+        } elif _prim_emitter in ("set", "frozenset") {
+            _prim_key = self._set_spec_for_expr(trailer.target);
+        } elif _prim_emitter == "tuple" {
+            _prim_key = self._tuple_key_of(trailer.target);
+        }
+        if _prim_key is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="method",
+                name=f"{_prim_kind}.{method_name}",
+                help_text=(
+                    "The receiver's element type did not resolve to one native "
+                    "container layout, so there is no helper set to lower the "
+                    "method against. Annotate the receiver with a concrete "
+                    "element type."
+                )
+            );
+            return None;
+        }
+        recv_val = self._codegen_receiver(trailer.target);
+        if recv_val is None {
+            return None;
+        }
+        _want = self._lower_type(_prim_t);
+        if (
+            _want is not None
+            and recv_val.type != _want
+            and self._opt_payload_of(recv_val.type) is not None
+        ) {
+            recv_val = self._coerce_type(recv_val, _want);
+        }
+        arg_vals = self._codegen_call_args(nd);
+        _orig_args = list(arg_vals);
+        _prep_idx = -1;
+        if (
+            method_name in ("append", "add")
+            and arg_vals
+            and _prim_emitter in ("list", "set")
+        ) {
+            _prep_idx = 0;
+        } elif method_name == "insert"
+            and len(arg_vals) > 1
+            and _prim_emitter == "list" {
+            _prep_idx = 1;
+        }
+        if _prep_idx >= 0 {
+            _prep_params = list(nd.params or []);
+            if _prep_idx < len(_prep_params) {
+                _prep_e = _prep_params[_prep_idx];
+                _prep_e = _prep_e.value if isinstance(_prep_e, uni.KWPair) else _prep_e;
+                arg_vals[_prep_idx] = self._nogc_elem_prep(
+                    _prep_e, arg_vals[_prep_idx]
+                );
+            }
+            if _prim_emitter == "list" {
+                _elem_struct = self.var_list_elem_struct.get(target_name);
+                if (
+                    _elem_struct is not None
+                    and isinstance(_elem_struct, ir.PointerType)
+                    and isinstance(_elem_struct.pointee, ir.LiteralStructType)
+                ) {
+                    arg_vals[_prep_idx] = self._coerce_tuple_to_struct(
+                        arg_vals[_prep_idx], _elem_struct.pointee
+                    );
                 }
             }
         }
-    }
-
-    if method_name in self._primitive_method_names("bytes") {
-        bytes_val = self._codegen_receiver(trailer.target);
-        if bytes_val is not None and self._is_bytes_value(bytes_val) {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "bytes", method_name, bytes_val, arg_vals, ""
+        if _prim_emitter == "list" and method_name == "append" {
+            self._set_rc_ctx(
+                "append",
+                f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                    if nd.loc
+                    else 0}"
             );
-            if result is not None {
-                return result;
-            }
         }
-    }
-
-    if method_name in self._primitive_method_names("str") {
-        str_val = self._str_norm(self._codegen_receiver(trailer.target));
-        if str_val is not None
-            and self._opt_payload_of(str_val.type) == ir.IntType(8).as_pointer() {
-            str_val = self._coerce_type(str_val, ir.IntType(8).as_pointer());
+        result = self._dispatch_primitive_method(
+            _prim_emitter,
+            method_name,
+            recv_val,
+            arg_vals,
+            _prim_key,
+            recv_type=_prim_t,
+            call=nd
+        );
+        if _prim_emitter == "list" and method_name == "append" {
+            self._clear_rc_ctx();
         }
-        if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {
-            arg_vals = self._codegen_call_args(nd);
-            result = self._dispatch_primitive_method(
-                "str", method_name, str_val, arg_vals, ""
-            );
-            if result is not None {
-                return result;
-            }
+        if result is not None and _prim_emitter == "list" and method_name == "insert" {
+            self._release_owned_args(_orig_args, op="list_method_arg");
         }
+        return result;
     }
 
     type_name: (str | None) = self._receiver_arch_name(trailer.target);
@@ -2831,7 +2755,12 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     _is_mono_method = False;
     if func is None {
         _gm_owner: (str | None) = None;
-        for _gm_cur in self._mro_of(type_name) {
+        _gm_hit = self._nearest_slot(type_name, [method_name]);
+        _gm_cands = [type_name];
+        if _gm_hit is not None and _gm_hit[0] != type_name {
+            _gm_cands.append(_gm_hit[0]);
+        }
+        for _gm_cur in _gm_cands {
             if f"{_gm_cur}.{method_name}" in self._generic_methods {
                 _gm_owner = _gm_cur;
                 break;
@@ -3137,10 +3066,19 @@ impl NaIRGenObjects._codegen_accessor_call(
 impl NaIRGenObjects._receiver_union_parts(
     nd: (uni.UniNode | None)
 ) -> (list[str] | None) {
-    if not isinstance(nd, uni.AtomTrailer) or not isinstance(nd.target, uni.Expr) {
+    if not isinstance(nd, uni.AtomTrailer) {
         return None;
     }
-    _rt = self._flow_narrowed_type_of(nd.target);
+    return self._expr_struct_parts(nd.target);
+}
+
+impl NaIRGenObjects._expr_struct_parts(
+    expr: (uni.UniNode | None)
+) -> (list[str] | None) {
+    if not isinstance(expr, uni.Expr) {
+        return None;
+    }
+    _rt = self._flow_narrowed_type_of(expr);
     if len(self._tb_non_none(_rt)) < 2 {
         return None;
     }
@@ -3163,11 +3101,25 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
 ) -> (ir.Value | None) {
     reg = self._registry();
     _base_lay = reg.get_layout(type_name);
-    if _base_lay is None or not _base_lay.has_vtable {
+    if _base_lay is None {
         return None;
     }
-    _base_idx = _base_lay.field_index.get(field_name);
-    if _base_idx is None and ftype is not None {
+    _base_has_vt = _base_lay.has_vtable;
+    _vt_root: str = type_name;
+    if not _base_has_vt {
+        if not parts {
+            return None;
+        }
+        for _part in parts {
+            _plt = reg.get_layout(_part);
+            if _plt is None or not _plt.has_vtable or _part not in self.struct_types {
+                return None;
+            }
+        }
+        _vt_root = parts[0];
+    }
+    _base_idx = _base_lay.field_index.get(field_name) if _base_has_vt else None;
+    if _base_has_vt and _base_idx is None and ftype is not None {
         return None;
     }
     _cands: list[str] = [];
@@ -3228,8 +3180,14 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
     i32 = ir.IntType(32);
     _fp_t = ftype.as_pointer();
     b = self.builder;
+    _df_vt_recv = obj_val;
+    if _vt_root != type_name {
+        _df_vt_recv = b.bitcast(
+            obj_val, self.struct_types[_vt_root].as_pointer(), name="df.vt.root"
+        );
+    }
     _df_vpp = b.gep(
-        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="df.vt.pp"
+        _df_vt_recv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="df.vt.pp"
     );
     _df_vtp = b.load(_df_vpp, name="df.vt");
     _df_fnc = b.block.function;
@@ -3289,6 +3247,42 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
     return _df_phi;
 }
 
+impl NaIRGenObjects._refuse_unshared_union_slot(
+    nd: (uni.UniNode | None),
+    type_name: str,
+    field_name: str,
+    idx: int,
+    parts: (list[str] | None)
+) -> bool {
+    if not parts or self._arch_has_vtable(type_name) {
+        return False;
+    }
+    _off: list[str] = [];
+    for _part in parts {
+        _plt = self._arch_layout(_part);
+        if _plt is None or _plt.field_index.get(field_name) != idx {
+            _off.append(_part);
+        }
+    }
+    if not _off {
+        return False;
+    }
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="inherited field access",
+        name=field_name,
+        help_text=(
+            f"'{field_name}' is read through '{type_name}', whose slot for it "
+            f"is not shared by every narrowed member: {', '.join(_off)} lay it "
+            f"out elsewhere or not at all, and '{type_name}' carries no vtable "
+            f"to tell the members apart at runtime. Read it through a "
+            f"single-class value, or move this code to a @sv/Python context."
+        )
+    );
+    return True;
+}
+
 impl NaIRGenObjects._narrow_receiver_ptr(
     obj_val: ir.Value, type_name: str
 ) -> (ir.Value | None) {
@@ -3334,10 +3328,16 @@ impl NaIRGenObjects._narrow_receiver_ptr(
 impl NaIRGenObjects._class_const_global(
     arch_name: str, field_name: str
 ) -> (ir.GlobalVariable | None) {
-    for _cn in self._mro_of(arch_name) {
-        _gv = self.static_fields.get(f"{_cn}.{field_name}");
-        if _gv is not None {
-            return _gv;
+    lay = self._arch_layout(arch_name);
+    for _cn in (lay.mro if lay is not None else [arch_name]) {
+        _clay = self._arch_layout(_cn);
+        if _clay is None {
+            continue;
+        }
+        _declares = any(s.name == field_name for s in _clay.statics)
+            or any(c.name == field_name for c in _clay.class_consts);
+        if _declares {
+            return self.static_fields.get(f"{_cn}.{field_name}");
         }
     }
     return None;
@@ -3468,14 +3468,21 @@ impl NaIRGenObjects._codegen_field_access(
     idx = field_indices[field_name];
     field_ptr: (ir.Value | None) = None;
     _fa_struct_t = self.struct_types.get(type_name);
+    _fa_parts = self._receiver_union_parts(nd);
     if (
         _fa_struct_t is not None
         and idx < len(_fa_struct_t.elements)
         and field_name not in self.struct_field_inline.get(type_name, set())
     ) {
         field_ptr = self._emit_dispatched_field_ptr(
-            obj_val, type_name, field_name, _fa_struct_t.elements[idx]
+            obj_val, type_name, field_name, _fa_struct_t.elements[idx], parts=_fa_parts
         );
+    }
+    if field_ptr is None
+        and self._refuse_unshared_union_slot(
+            nd, type_name, field_name, idx, _fa_parts
+        ) {
+        return None;
     }
     if field_ptr is None {
         field_ptr = self.builder.gep(
@@ -3571,7 +3578,24 @@ impl NaIRGenObjects._codegen_field_aug_assign(
     coerced = self._coerce_type(rhs, current.type);
 
     if aug_op == "+=" and isinstance(current.type, ir.PointerType) {
-        result = self._emit_binary_op(Tok.PLUS, current, coerced);
+        _fa_lay = self._arch_layout(type_name);
+        _fld_tb = (
+            _fa_lay.fields[_fa_lay.field_index[field_name]].type
+                if _fa_lay is not None and field_name in _fa_lay.field_index
+                else self._flow_narrowed_type_of(target)
+        );
+        _rhs_tb = (
+            self._flow_narrowed_type_of(rhs_node) if rhs_node is not None else _fld_tb
+        );
+        _asgn = target.find_parent_of_type(uni.Assignment);
+        result = self._emit_binary_op(
+            Tok.PLUS,
+            current,
+            coerced,
+            _fld_tb,
+            _rhs_tb,
+            resolved=(_asgn.resolved_op if _asgn is not None else None)
+        );
         return result if result is not None else current;
     }
 
@@ -3587,14 +3611,11 @@ impl NaIRGenObjects._codegen_field_assign(
     if self._tb_is_class_ref(_recv_t) and field_name is not None {
         _sa_target = self._tb_class_name(_recv_t);
         if _sa_target is not None and _sa_target in self.struct_types {
-            for _sa_cn in self._mro_of(_sa_target) {
-                _sa_sf = f"{_sa_cn}.{field_name}";
-                _sa_gv = self.static_fields.get(_sa_sf);
-                if _sa_gv is not None {
-                    _sa_val = self._coerce_type(value, _sa_gv.type.pointee);
-                    self.builder.store(_sa_val, _sa_gv);
-                    return;
-                }
+            _sa_gv = self._class_const_global(_sa_target, field_name);
+            if _sa_gv is not None {
+                _sa_val = self._coerce_type(value, _sa_gv.type.pointee);
+                self.builder.store(_sa_val, _sa_gv);
+                return;
             }
         }
     }
@@ -3719,10 +3740,17 @@ impl NaIRGenObjects._codegen_field_assign(
         value = self._coerce_type(value, ftype);
     }
     field_ptr: (ir.Value | None) = None;
+    _fs_parts = self._receiver_union_parts(target);
     if not _vt_struct {
         field_ptr = self._emit_dispatched_field_ptr(
-            obj_val, type_name, field_name, ftype
+            obj_val, type_name, field_name, ftype, parts=_fs_parts
         );
+    }
+    if field_ptr is None
+        and self._refuse_unshared_union_slot(
+            target, type_name, field_name, idx, _fs_parts
+        ) {
+        return;
     }
     if field_ptr is None {
         field_ptr = self.builder.gep(
@@ -3768,20 +3796,18 @@ impl NaIRGenObjects._codegen_field_assign(
 }
 
 impl NaIRGenObjects._receiver_routed_method_fn(
-    nd: uni.UniNode, _sfull: str, _mnames: list[str], _recv_cls: (str | None)
+    nd: uni.UniNode, owner: str, slot: str, _recv_cls: (str | None)
 ) -> (ir.Function | None) {
+    _sfull = f"{owner}.{slot}";
     _sfunc = self.method_funcs[_sfull];
 
-    _owner_cls = _sfull.partition(".")[0];
+    _owner_cls = owner;
     _owner_lay = self._arch_layout(_owner_cls);
     _anc_meth: (uni.Ability | None) = None;
     if _owner_lay is not None {
-        for _mn in _mnames {
-            _mi = _owner_lay.method_index.get(_mn);
-            if _mi is not None and _owner_lay.methods[_mi].owner == _owner_cls {
-                _anc_meth = _owner_lay.methods[_mi].ability;
-                break;
-            }
+        _mi = _owner_lay.method_index.get(slot);
+        if _mi is not None and _owner_lay.methods[_mi].owner == _owner_cls {
+            _anc_meth = _owner_lay.methods[_mi].ability;
         }
     }
     _is_static = _anc_meth is not None
@@ -3794,8 +3820,7 @@ impl NaIRGenObjects._receiver_routed_method_fn(
     ) {
         _sc_reg = self._registry();
         if not _sc_reg.is_primary_ancestor(_recv_cls, _owner_cls) {
-            _mn_part = _sfull.partition(".")[2];
-            _spec_key = f"{_recv_cls}.{_mn_part}${_owner_cls}";
+            _spec_key = f"{_recv_cls}.{slot}${_owner_cls}";
             if _spec_key not in self.method_funcs
                 and _spec_key not in self._native_skipped_methods {
                 if _anc_meth is None or _anc_meth.signature is None {
@@ -3845,12 +3870,12 @@ impl NaIRGenObjects._receiver_routed_method_fn(
 
 impl NaIRGenObjects._emit_class_routed_call(
     nd: uni.FuncCall,
-    _sfull: str,
-    _mnames: list[str],
+    owner: str,
+    slot: str,
     _given_recv: (ir.Value | None),
     _given_recv_cls: (str | None)
 ) -> (ir.Value | None) {
-    method_name = _sfull.partition(".")[2];
+    method_name = slot;
     _recv_cls: (str | None) = _given_recv_cls;
     if _recv_cls is None {
         _recv_first = (nd.params or [None])[0];
@@ -3860,7 +3885,7 @@ impl NaIRGenObjects._emit_class_routed_call(
                 else None
         );
     }
-    _sfunc = self._receiver_routed_method_fn(nd, _sfull, _mnames, _recv_cls);
+    _sfunc = self._receiver_routed_method_fn(nd, owner, slot, _recv_cls);
     if _sfunc is None {
         return None;
     }

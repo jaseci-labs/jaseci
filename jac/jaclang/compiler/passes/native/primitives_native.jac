@@ -19,8 +19,29 @@ import from jaclang.jac0core.diagnostics { E5092 }
 obj NativeEmitCtx {
     has pass_ref: NaIRGenPass,
         type_key: str = "",
+        recv_type: any = None,
+        callee: any = None,
+        arg_params: dict = {},
+        arg_types: list = [],
+        call_node: any = None,
         call_kwargs: dict = {},
         arg_nodes: list = [];
+
+    def arg_type(idx: int) -> any {
+        return self.arg_types[idx] if idx < len(self.arg_types) else None;
+    }
+
+    def arg_kind(idx: int) -> str {
+        return self.pass_ref._tb_payload_kind(self.arg_type(idx));
+    }
+
+    def recv_kind -> str {
+        return self.pass_ref._tb_payload_kind(self.recv_type);
+    }
+
+    def recv_elem(idx: int = 0) -> any {
+        return self.pass_ref._tb_elem(self.recv_type, idx);
+    }
 }
 
 
@@ -108,28 +129,7 @@ class NativeFloatEmitter(FloatEmitter[(ir.Value, NativeEmitCtx)]) {
 }
 
 
-class NativeBoolEmitter(NativeIntEmitter) {
-    def emit_op_and(
-        self: NativeBoolEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_or(
-        self: NativeBoolEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_xor(
-        self: NativeBoolEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-}
+class NativeBoolEmitter(NativeIntEmitter) {}
 
 
 class NativeComplexEmitter(ComplexEmitter[(ir.Value, NativeEmitCtx)]) {
@@ -142,69 +142,6 @@ class NativeComplexEmitter(ComplexEmitter[(ir.Value, NativeEmitCtx)]) {
     ) -> ir.Value;
 
     def emit_conjugate(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_add(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_sub(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_mul(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_truediv(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_pow(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_eq(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_ne(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_neg(
-        self: NativeComplexEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_pos(
         self: NativeComplexEmitter,
         ctx: NativeEmitCtx,
         target: ir.Value,
@@ -400,13 +337,6 @@ class NativeStrEmitter(StrEmitter[(ir.Value, NativeEmitCtx)]) {
         args: list[ir.Value]
     ) -> (ir.Value | None);
 
-    def emit_format_map(
-        self: NativeStrEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
     def emit_center(
         self: NativeStrEmitter,
         ctx: NativeEmitCtx,
@@ -548,17 +478,6 @@ class NativeStrEmitter(StrEmitter[(ir.Value, NativeEmitCtx)]) {
         target: ir.Value,
         args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def emit_translate(
-        self: NativeStrEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_maketrans(
-        self: NativeStrEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
 }
 
 
@@ -568,287 +487,6 @@ class NativeBytesEmitter(BytesEmitter[(ir.Value, NativeEmitCtx)]) {
         ctx: NativeEmitCtx,
         target: ir.Value,
         args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_hex(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_fromhex(
-        self: NativeBytesEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_count(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_find(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rfind(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_index(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rindex(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_startswith(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_endswith(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_replace(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_strip(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_lstrip(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rstrip(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_removeprefix(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_removesuffix(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_split(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rsplit(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_splitlines(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_join(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_partition(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rpartition(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_capitalize(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_lower(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_upper(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_title(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_swapcase(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isalnum(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isalpha(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isascii(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isdigit(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_islower(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isspace(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_istitle(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_isupper(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_center(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_ljust(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_rjust(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_zfill(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_expandtabs(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_translate(
-        self: NativeBytesEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_maketrans(
-        self: NativeBytesEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
 }
 
@@ -1079,10 +717,6 @@ class NativeDictEmitter(DictEmitter[(ir.Value, NativeEmitCtx)]) {
         target: ir.Value,
         args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def emit_fromkeys(
-        self: NativeDictEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
 }
 
 
@@ -1307,69 +941,6 @@ class NativeTupleEmitter(TupleEmitter[(ir.Value, NativeEmitCtx)]) {
         target: ir.Value,
         args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def emit_op_add(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_mul(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_eq(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_ne(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_lt(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_gt(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_le(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_ge(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_contains(
-        self: NativeTupleEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
 }
 
 
@@ -1400,43 +971,10 @@ class NativeRangeEmitter(RangeEmitter[(ir.Value, NativeEmitCtx)]) {
         target: ir.Value,
         args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def emit_op_eq(
-        self: NativeRangeEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_ne(
-        self: NativeRangeEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_op_contains(
-        self: NativeRangeEmitter,
-        ctx: NativeEmitCtx,
-        target: ir.Value,
-        args: list[ir.Value]
-    ) -> (ir.Value | None);
 }
 
 
 class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
-    def emit_print(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_input(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_len(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
     def emit_abs(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
@@ -1465,22 +1003,6 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
 
-    def emit_enumerate(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_zip(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_map(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_filter(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
     def emit_any(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
@@ -1488,22 +1010,6 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
     def emit_all(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
-
-    def emit_isinstance(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_issubclass(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None) {
-        return None;
-    }
-
-    def emit_type(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None) {
-        return None;
-    }
 
     def emit_id(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
@@ -1515,22 +1021,20 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         p = ctx.pass_ref;
         b = get_builder(p);
         i64 = ir.IntType(64);
+        _k = ctx.arg_kind(0);
         if p._opt_ptr_payload_of(arg_val.type) is not None {
             arg_val = b.extract_value(arg_val, 1, name="id.opt");
         }
-        if isinstance(arg_val.type, ir.PointerType) {
-            return b.ptrtoint(arg_val, i64, name="id.ptr");
-        }
-        if isinstance(arg_val.type, ir.IntType) {
+        if _k in ("int", "bool") {
             return p._coerce_type(arg_val, i64);
         }
-        if isinstance(arg_val.type, ir.DoubleType) {
-            return b.bitcast(arg_val, i64, name="id.f64");
-        }
-        if isinstance(arg_val.type, ir.FloatType) {
-            return b.zext(
-                b.bitcast(arg_val, ir.IntType(32), name="id.f32"), i64, name="id.f32.w"
+        if _k == "float" {
+            return b.bitcast(
+                p._coerce_type(arg_val, ir.DoubleType()), i64, name="id.f64"
             );
+        }
+        if isinstance(arg_val.type, ir.PointerType) {
+            return b.ptrtoint(arg_val, i64, name="id.ptr");
         }
         return None;
     }
@@ -1546,12 +1050,14 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         b = get_builder(p);
         i64 = ir.IntType(64);
 
-        if isinstance(arg_val.type, ir.IntType) {
+        _k = ctx.arg_kind(0);
+        if _k in ("int", "bool") {
             return p._coerce_type(arg_val, i64);
         }
 
         i8p = ir.IntType(8).as_pointer();
-        if isinstance(arg_val.type, ir.PointerType) and arg_val.type == i8p {
+        if _k == "str" {
+            arg_val = p._coerce_type(arg_val, i8p);
             i8 = ir.IntType(8);
             func = b.basic_block.function;
             entry_bb = b.basic_block;
@@ -1594,30 +1100,72 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         b = get_builder(p);
         i8p = ir.IntType(8).as_pointer();
         i64 = ir.IntType(64);
-        rc_alloc_fn = p.rc_alloc_fn;
-        buf_ptr = b.call(rc_alloc_fn, [ir.Constant(i64, 64)], name="repr.buf");
-        snprintf = p._get_or_declare_extern(
-            "snprintf", ir.IntType(32), [i8p, i64, i8p], var_arg=True
-        );
-        if isinstance(arg_val.type, ir.IntType) {
-            fmt = p._get_snprintf_fmt("%ld");
-            fmt_ptr = b.bitcast(fmt, i8p, name="repr.fmt.ptr");
-            coerced = p._coerce_type(arg_val, i64);
-            b.call(snprintf, [buf_ptr, ir.Constant(i64, 64), fmt_ptr, coerced]);
-            return buf_ptr;
+        _t = ctx.arg_type(0);
+        _k = ctx.arg_kind(0);
+        if p._opt_payload_of(arg_val.type) is not None {
+            return (
+                p._emit_opt_repr(arg_val, _k)
+                    if _k in ("int", "bool", "float")
+                    else p._emit_optional_str(
+                        arg_val, ctx.arg_nodes[0] if ctx.arg_nodes else None
+                    )
+            );
         }
-        if isinstance(arg_val.type, ir.DoubleType) {
-            return p._emit_float_repr(arg_val);
+        if _k == "bool" {
+            t_g = p._make_global_string("True", name_prefix=".repr.true");
+            f_g = p._make_global_string("False", name_prefix=".repr.false");
+            _bv = (
+                arg_val
+                    if (
+                        isinstance(arg_val.type, ir.IntType) and arg_val.type.width == 1
+                    )
+                    else p._to_bool(arg_val, _t)
+            );
+            return b.select(_bv, t_g, f_g, name="repr.bool");
         }
-        if isinstance(arg_val.type, ir.PointerType) and arg_val.type == i8p {
-            str_repr = b.call(p._repr_str_fn(), [arg_val], name="repr.str");
+        if _k == "int" or (_k == "enum" and isinstance(arg_val.type, ir.IntType)) {
+            _ifn = p._repr_leaf_fn("int");
+            if _ifn is None {
+                return None;
+            }
+            _is = b.call(_ifn, [p._coerce_type(arg_val, i64)], name="repr.int");
+            return p._mark_owned(_is);
+        }
+        if _k == "float" {
+            return p._emit_float_repr(p._coerce_type(arg_val, ir.DoubleType()));
+        }
+        if _k == "str" {
+            str_repr = b.call(
+                p._repr_str_fn(), [p._coerce_type(arg_val, i8p)], name="repr.str"
+            );
             return p._mark_owned(str_repr);
         }
-        if isinstance(arg_val.type, (ir.PointerType, ir.LiteralStructType)) {
-            cont_s = p._emit_container_repr(arg_val, ctx.type_key or None);
-            if cont_s is not None {
-                return cont_s;
+        if _k == "none" {
+            return p._make_global_string("None", name_prefix=".repr.none");
+        }
+        if _k in ("list", "dict", "set", "tuple") {
+            return p._emit_container_repr(arg_val, _t);
+        }
+        if _k == "bytes" {
+            return p._mark_owned(p._emit_bytes_repr(arg_val));
+        }
+        if _k in ("any", "union")
+            and p?.jacval_type
+            and arg_val.type == p.jacval_type {
+            _jfn = p._repr_jacval_fn();
+            if _jfn is None {
+                return None;
             }
+            return p._mark_owned(b.call(_jfn, [arg_val], name="repr.jv"));
+        }
+        if _k == "struct" {
+            _sname = p._tb_class_name(_t);
+            if _sname is None or _sname not in p.struct_types {
+                return None;
+            }
+            _ofn = p._repr_obj_fn(_sname);
+            _oarg = p._coerce_type(arg_val, _ofn.args[0].type);
+            return p._mark_owned(b.call(_ofn, [_oarg], name="repr.obj"));
         }
         return None;
     }
@@ -1637,7 +1185,7 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         p._set_rc_ctx("chr", "");
         buf = b.call(rc_alloc_fn, [ir.Constant(i64, 2)], name="chr.buf");
         p._clear_rc_ctx();
-        byte_val = b.trunc(arg_val, i8, name="chr.byte");
+        byte_val = b.trunc(p._coerce_type(arg_val, i64), i8, name="chr.byte");
         b.store(byte_val, buf);
         null_ptr = b.gep(buf, [ir.Constant(i64, 1)], name="chr.null_ptr");
         b.store(ir.Constant(i8, 0), null_ptr);
@@ -1843,9 +1391,9 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         base = args[0];
         exp = args[1];
         if len(args) >= 3
-            and isinstance(base.type, ir.IntType)
-            and isinstance(exp.type, ir.IntType)
-            and isinstance(args[2].type, ir.IntType) {
+            and ctx.arg_kind(0) in ("int", "bool")
+            and ctx.arg_kind(1) in ("int", "bool")
+            and ctx.arg_kind(2) in ("int", "bool") {
             return self.emit_pow_mod(ctx, base, exp, args[2]);
         }
         exp_node = None;
@@ -1922,46 +1470,6 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
 
-    def emit_iter(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_next(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_callable(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_getattr(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_setattr(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_hasattr(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_delattr(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_vars(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_dir(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_open(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
     def emit_format(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
@@ -1998,10 +1506,6 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
 
-    def emit_tuple(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
     def emit_frozenset(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
@@ -2011,10 +1515,6 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
     ) -> (ir.Value | None);
 
     def emit_bytearray(
-        self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
-    ) -> (ir.Value | None);
-
-    def emit_complex(
         self: NativeBuiltinEmitter, ctx: NativeEmitCtx, args: list[ir.Value]
     ) -> (ir.Value | None);
 }

@@ -47,7 +47,7 @@ impl TypeEvaluator._get_type_of_expression_core(
     }
     match expr {
         case CfgExpr():
-            return self._get_type_of_expression_core(expr.expr, expected_type);
+            return self.get_type_of_expression(expr.expr, expected_type);
 
         case String():
             if self.prefetch and self.prefetch.str_class {
@@ -615,8 +615,20 @@ impl TypeEvaluator._get_type_of_expression_core(
                 if isinstance(return_type, UnknownType) {
                     return_type = body_type;
                 }
-            } elif isinstance(return_type, UnknownType) {
-                return_type = self._infer_lambda_block_return_type(expr.body);
+            } else {
+                for _lstmt in (expr.body or []) {
+                    if isinstance(_lstmt, ExprStmt) {
+                        self.get_type_of_expression(_lstmt.expr);
+                    } elif isinstance(_lstmt, ReturnStmt) and _lstmt.expr is not None {
+                        self.get_type_of_expression(_lstmt.expr);
+                    } elif isinstance(_lstmt, Assignment)
+                        and _lstmt.value is not None {
+                        self.get_type_of_expression(_lstmt.value);
+                    }
+                }
+                if isinstance(return_type, UnknownType) {
+                    return_type = self._infer_lambda_block_return_type(expr.body);
+                }
             }
             return FunctionType(
                 func_name="<lambda>", return_type=return_type, parameters=parameters,

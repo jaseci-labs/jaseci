@@ -159,7 +159,11 @@ impl NaIRGenContainerHelpers._container_src_info(
         _lhelpers = self.list_helpers.get(_lspec);
         if _lhelpers is not None {
             _lt = self.list_types[_lspec].as_pointer();
-            _lv = val if val.type == _lt else self._coerce_type(val, _lt);
+            _lv = (
+                val
+                    if val.type == _lt
+                    else self._coerce_typed(val, _lt, self._expr_type_of(operand))
+            );
             return {"kind": "list", "spec": _lspec, "helpers": _lhelpers, "value": _lv};
         }
     }
@@ -168,7 +172,11 @@ impl NaIRGenContainerHelpers._container_src_info(
         _shelpers = self.set_helpers.get(_sspec);
         if _shelpers is not None {
             _st = self.set_types[_sspec].as_pointer();
-            _sv = val if val.type == _st else self._coerce_type(val, _st);
+            _sv = (
+                val
+                    if val.type == _st
+                    else self._coerce_typed(val, _st, self._expr_type_of(operand))
+            );
             return {"kind": "set", "spec": _sspec, "helpers": _shelpers, "value": _sv};
         }
     }
@@ -177,7 +185,8 @@ impl NaIRGenContainerHelpers._container_src_info(
 
 impl NaIRGenContainerHelpers._expr_type_of(expr: (uni.UniNode | None)) -> any {
     if isinstance(expr, uni.CfgExpr) {
-        return self._expr_type_of(expr.expr);
+        _inner = self._expr_type_of(expr.expr);
+        return _inner if _inner is not None else self._flow_narrowed_type_of(expr);
     }
     if isinstance(expr, uni.AtomUnit) {
         return self._expr_type_of(expr.value);
@@ -359,7 +368,11 @@ impl NaIRGenContainerHelpers._aos_spec_for_expr(
     }
     _sym = expr.sym;
     _decl = _sym.decl if _sym is not None else None;
-    _holder = _decl.parent if _decl is not None else None;
+    _holder = (
+        _decl
+            if isinstance(_decl, (uni.ParamVar, uni.HasVar))
+            else (_decl.parent if _decl is not None else None)
+    );
     _tag = _holder?.type_tag
         if isinstance(_holder, (uni.Assignment, uni.ParamVar, uni.HasVar))
         else None;

@@ -12,14 +12,7 @@ impl NaIRGenFunc._apply_ownership_param_attrs(
     func: ir.Function, params: list, base: int
 ) -> None {
     for (i, p) in enumerate(params) {
-        if isinstance(p, uni.ParamVar) {
-            if p.type_tag is None {
-                continue;
-            }
-            kind = p.type_tag.ownership;
-        } else {
-            kind = p.ownership;
-        }
+        kind = p.ownership;
         if kind == OwnershipKind.NONE {
             continue;
         }
@@ -215,7 +208,6 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 
     self._func_loc[name] = nd.loc.first_line if nd.loc else 0;
 
-    self._record_ret_facts(name, _fn_t);
     self.has_native_code = True;
 
     if len(self.errors_had) > _sig_mark {
@@ -231,57 +223,6 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
 }
 
-impl NaIRGenFunc._record_ret_facts(name: str, sig: any) -> None {
-    """Publish the return-shape facts core's layout export still reads.
-
-    `func_ret_type_key` names the enum a function returns (through an
-    optional); `func_ret_elem_keys` names the archetype (or `list[Archetype]`)
-    behind each element of a returned container or tuple. Both come straight
-    from the FunctionType's return type; a FuncSignature caller resolves to
-    the FunctionType of its declaring ability.
-    """;
-    _fn_t: any = sig;
-    if isinstance(sig, uni.FuncSignature) {
-        _owner = sig.parent;
-        _fn_t = _owner.name_spec.type if isinstance(_owner, uni.Ability) else None;
-    }
-    if not isinstance(_fn_t, FunctionType) {
-        return;
-    }
-    _rt = self._tb_solve(_fn_t.return_type);
-    _payload = self._tb_opt_payload(_rt);
-    if _payload is not None {
-        _rt = self._tb_solve(_payload);
-    }
-    if self._tb_kind(_rt) == "enum" {
-        _en = self._tb_class_name(_rt);
-        if _en is not None {
-            self.func_ret_type_key[name] = _en;
-        }
-    }
-    keys: list = [];
-    _any_key = False;
-    for _a in self._tb_args(_rt) {
-        _a = self._tb_solve(_a);
-        _k: (str | None) = None;
-        if self._tb_kind(_a) == "struct" {
-            _k = self._tb_class_name(_a);
-        } elif self._tb_kind(_a) == "list" {
-            _inner = self._tb_solve(self._tb_elem(_a));
-            if self._tb_kind(_inner) == "struct" {
-                _k = f"list[{self._tb_class_name(_inner)}]";
-            }
-        }
-        if _k is not None {
-            _any_key = True;
-        }
-        keys.append(_k);
-    }
-    if keys and _any_key {
-        self.func_ret_elem_keys[name] = keys;
-    }
-}
-
 impl NaIRGenFunc._generator_elem_type(nd: uni.Ability) -> (ir.Type | None) {
     import from jaclang.compiler.type_system.type_utils { get_generator_yield_type }
     _fn_t = self._ability_fn_type(nd);
@@ -290,6 +231,9 @@ impl NaIRGenFunc._generator_elem_type(nd: uni.Ability) -> (ir.Type | None) {
     }
     _yield_t = get_generator_yield_type(_fn_t.return_type, nd.is_async);
     if _yield_t is None {
+        if nd.is_generator and self._tb_kind(_fn_t.return_type) in ("any", "object") {
+            return self.jacval_type;
+        }
         return None;
     }
     _low = self._lower_type(_yield_t);
@@ -297,72 +241,6 @@ impl NaIRGenFunc._generator_elem_type(nd: uni.Ability) -> (ir.Type | None) {
         return ir.IntType(64);
     }
     return _low;
-}
-
-impl NaIRGenFunc._normalize_type_key(key: str) -> str {
-    if " | " in key or ("|" in key and "type[" in key) {
-        sep = " | " if " | " in key else "|";
-        for part in key.split(sep) {
-            _p = part.strip();
-            if _p.startswith("type[") and _p.endswith("]") {
-                _p = _p[5:-1];
-            }
-            if _p not in ("None", "NoneType") {
-                return _p;
-            }
-        }
-    }
-    if key.startswith("type[") and key.endswith("]") {
-        key = key[5:-1];
-    }
-    return key;
-}
-
-impl NaIRGenFunc._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None) {
-    if ann is None {
-        return None;
-    }
-
-    if isinstance(ann, uni.AtomUnit) {
-        return self._elem_keys_of_annotation(ann.value);
-    }
-    if (isinstance(ann, uni.BinaryExpr) and getattr(ann.op, 'value', '') == "|") {
-        return (
-            self._elem_keys_of_annotation(ann.left)
-            or self._elem_keys_of_annotation(ann.right)
-        );
-    }
-    elems: list = [];
-    if isinstance(ann, uni.TupleVal) {
-        elems = list(ann.values or []);
-    } elif ann?.right and ann.right?.slices {
-        for s in (ann.right.slices or []) {
-            inner = s.start if s?.start else s;
-            if isinstance(inner, uni.TupleVal) {
-                elems.extend(list(inner.values or []));
-            } else {
-                elems.append(inner);
-            }
-        }
-    }
-    if not elems {
-        return None;
-    }
-    keys: list = [];
-    for e in elems {
-        while (isinstance(e, uni.BinaryExpr) and getattr(e.op, 'value', '') == "|") {
-            e = e.left;
-        }
-        _ek: (str | None) = None;
-        _etb = e?.type if isinstance(e, uni.Expr) else None;
-        if _etb is not None {
-            try {
-                _ek = self._normalize_type_key(self._mangled_of(_etb));
-            } except Exception { }
-        }
-        keys.append(_ek);
-    }
-    return keys;
 }
 
 impl NaIRGenFunc._declare_clib_ability(nd: uni.Ability) -> None {
@@ -567,9 +445,12 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
         self._scan_closure_escapes(_scan_owner, body);
     }
 
+    _fn_t = self._ability_fn_type(nd);
     sig = (nd).signature;
-    for (i, p) in enumerate(sig.get_parameters()) {
-        param_name = p.name.value if p.name else f"arg{i}";
+    _pvs = list(sig.get_parameters()) if isinstance(sig, uni.FuncSignature) else [];
+    for (i, p) in enumerate(_fn_t.parameters or []) {
+        param_name = p.name;
+        _pv = _pvs[i] if i < len(_pvs) else None;
         arg_val = func.args[i];
         if param_name in self.closure_cell_vars {
             slot = self._emit_closure_cell(param_name, arg_val.type);
@@ -585,7 +466,8 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
         self.local_vars[param_name] = alloca;
 
         if isinstance(arg_val.type, ir.PointerType)
-            and bool(p.name?.sym?.param_rebound) {
+            and _pv is not None
+            and bool(_pv.name?.sym?.param_rebound) {
             self._emit_rc_retain(arg_val, op="param_promote", loc=name);
         } else {
             self.param_vars.add(param_name);
@@ -1131,10 +1013,9 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     }
 
     param_slots: list[tuple] = [];
-    sig = nd.signature;
-    sig_params = sig.get_parameters() if sig is not None else [];
-    for (i, p) in enumerate(sig_params) {
-        pname = p.name.value if p.name else f"arg{i}";
+    _gen_fn_t = self._ability_fn_type(nd);
+    for (i, p) in enumerate(_gen_fn_t.parameters or []) {
+        pname = p.name;
         ptype = func.args[i].type;
         if pname in self.closure_cell_vars {
             slot = self._emit_closure_cell(pname, ptype);
@@ -1251,13 +1132,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
             name=f"gen.cell.{ci['name']}.val"
         );
         _vt = ci["val_type"];
-        if isinstance(_vt, ir.IntType) {
-            self.builder.store(ir.Constant(_vt, 0), _cvalp);
-        } elif isinstance(_vt, (ir.DoubleType, ir.FloatType)) {
-            self.builder.store(ir.Constant(_vt, 0.0), _cvalp);
-        } else {
-            self.builder.store(ir.Constant(_vt, None), _cvalp);
-        }
+        self.builder.store(self._zero_const(_vt), _cvalp);
         if ci["param_index"] is not None {
             _parg = func.args[ci["param_index"]];
             self.builder.store(_parg, _cvalp);
@@ -1415,7 +1290,9 @@ impl NaIRGenFunc._emit_glob_init_func -> None {
             if init_val is not None {
                 global_var = self.global_vars.get(var_name);
                 if global_var is not None {
-                    coerced = self._coerce_type(init_val, var_type);
+                    coerced = self._coerce_type(
+                        init_val, var_type, self._expr_type_of(init_node)
+                    );
                     self.builder.store(coerced, global_var);
                 }
             }
@@ -1439,7 +1316,6 @@ impl NaIRGenFunc._apply_static_decorators -> None {
     if not self.decorated_fns {
         return;
     }
-    i64 = ir.IntType(64);
     i8p = ir.IntType(8).as_pointer();
     for (fname, dec_entry) in self.decorated_fns.items() {
         (raw_fn, slot_gv, dec_nodes, fnty, _decl) = dec_entry;
@@ -1467,20 +1343,29 @@ impl NaIRGenFunc._apply_static_decorators -> None {
             }
             d_param = d_fn.args[0].type;
             _pk = self._tb_kind(_dec_t.parameters[0].param_type);
+            _rk = self._tb_kind(_dec_t.return_type);
+            if _pk not in ("any", "fn") or _rk not in ("any", "fn") {
+                self.emit(
+                    E5092,
+                    node_override=dec_nd,
+                    kind="decorator",
+                    name=dec,
+                    help_text=f"A native decorator takes and returns a function value (`fn` or `any`); '{dec}' is typed ({_dec_t.parameters[
+                        0
+                    ].param_type}) -> {_dec_t.return_type}, which has no native lowering as a decorator."
+                );
+                ok = False;
+                break;
+            }
             if _pk == "any" {
                 d_arg = self._box_to_jacval(
                     self.builder.bitcast(cur, i8p, name="dec.fn.i8"),
                     ty=(_decl.name_spec.type if _decl is not None else None)
                 );
-            } elif _pk == "fn" {
-                d_arg = self._coerce_type(cur, d_param);
-            } elif isinstance(d_param, ir.PointerType) {
-                d_arg = self.builder.bitcast(cur, d_param, name="dec.fn.cast");
             } else {
-                d_arg = self.builder.ptrtoint(cur, i64, name="dec.fn.i64");
+                d_arg = self._coerce_type(cur, d_param);
             }
             res = self.builder.call(d_fn, [d_arg], name=f"dec.{dec}.{fname}");
-            _rk = self._tb_kind(_dec_t.return_type);
             if _rk == "any" {
                 payload = self.builder.extract_value(res, 1, name="dec.res.payload");
                 cur = self.builder.inttoptr(
@@ -1511,10 +1396,6 @@ impl NaIRGenFunc._apply_static_decorators -> None {
                 cur = self.builder.inttoptr(
                     _dfn_i64, fnty.as_pointer(), name="dec.res.unwrap"
                 );
-            } elif isinstance(res.type, ir.PointerType) {
-                cur = self.builder.bitcast(res, fnty.as_pointer(), name="dec.res.cast");
-            } else {
-                cur = self.builder.inttoptr(res, fnty.as_pointer(), name="dec.res.i2p");
             }
         }
         if ok {

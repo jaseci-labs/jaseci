@@ -157,13 +157,7 @@ impl NaIRGenClosures._emit_closure_cell(var_name: str, slot_type: ir.Type) -> ir
     slot: any = self.builder.gep(
         cell, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name=f"cell.{var_name}"
     );
-    if isinstance(slot_type, ir.IntType) {
-        self.builder.store(ir.Constant(slot_type, 0), slot);
-    } elif isinstance(slot_type, (ir.DoubleType, ir.FloatType)) {
-        self.builder.store(ir.Constant(slot_type, 0.0), slot);
-    } else {
-        self.builder.store(ir.Constant(slot_type, None), slot);
-    }
+    self.builder.store(self._zero_const(slot_type), slot);
     self.builder.position_at_end(cur_block);
     self.closure_cell_handles[var_name] = cell;
     return slot;
@@ -363,7 +357,7 @@ impl NaIRGenClosures._codegen_closure_call(
             return None;
         }
         raw_args.append(v);
-        coerced.append(self._coerce_type(v, declared[i]));
+        coerced.append(self._coerce_type(v, declared[i], self._expr_type_of(p)));
     }
     while len(coerced) < len(declared) {
         _i = len(coerced);
@@ -382,7 +376,7 @@ impl NaIRGenClosures._codegen_closure_call(
             return None;
         }
         raw_args.append(_dv);
-        coerced.append(self._coerce_type(_dv, declared[_i]));
+        coerced.append(self._coerce_type(_dv, declared[_i], self._expr_type_of(_dflt)));
     }
     fn_slot = self.builder.gep(
         clos_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ccall.fn.slot"
@@ -399,14 +393,8 @@ impl NaIRGenClosures._codegen_closure_call(
     } else {
         result = self.builder.call(fn_ptr, coerced + [env], name="ccall");
     }
-    for a in raw_args {
-        if isinstance(a.type, ir.PointerType) and self._is_owned(a) {
-            self._emit_rc_release_simple(a, op="ccall_arg", loc="");
-        }
-    }
-    if isinstance(clos_val.type, ir.PointerType) and self._is_owned(clos_val) {
-        self._emit_rc_release_simple(clos_val, op="ccall_target", loc="");
-    }
+    self._release_owned_args(raw_args, op="ccall_arg");
+    self._release_owned_args([clos_val], op="ccall_target");
     return result;
 }
 

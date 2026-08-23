@@ -1,6 +1,7 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.diagnostics { E5092 }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import jaclang.jac0core.unitree as uni;
 import os;
 
@@ -37,7 +38,10 @@ obj NaIRGenDicts(NaIRGenState) {
     ) -> ir.Block;
 
     def _jacval_tag_for_type(ty: any) -> (int | None);
-    def _box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value;
+    def _enum_value_kind(ty: any) -> str;
+    def _jacval_scalar_bits(value: ir.Value, payload_ty: any) -> tuple;
+    def _jacval_none -> ir.Value;
+    def _box_to_jacval(value: ir.Value, ty: any) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(

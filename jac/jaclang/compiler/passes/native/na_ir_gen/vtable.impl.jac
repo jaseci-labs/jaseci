@@ -456,6 +456,10 @@ impl NaIRGenVtable._class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.V
         return self._emit_class_name_const(arch_name);
     }
     i32 = ir.IntType(32);
+    _vt_ptr_t = self.struct_types[arch_name].as_pointer();
+    if obj_val.type != _vt_ptr_t {
+        obj_val = self.builder.bitcast(obj_val, _vt_ptr_t, name="clsname.vt.self");
+    }
     vtable_ptr_ptr = self.builder.gep(
         obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="clsname.vt.ptr.ptr"
     );
@@ -510,7 +514,7 @@ impl NaIRGenVtable._emit_isa_fn -> ir.Function {
     reg = self._registry();
     rows: list = [];
     for cls in sorted(reg.layouts.keys()) {
-        for anc in self._mro_of(cls) {
+        for anc in reg.layouts[cls].mro {
             if anc == cls {
                 continue;
             }
@@ -763,6 +767,12 @@ impl NaIRGenVtable._emit_isinstance_runtime(
     if struct_name is None {
         return None;
     }
+    if not self._arch_has_vtable(struct_name) {
+        _parts = self._expr_struct_parts(nd.params[0] if nd.params else None);
+        if _parts and all(self._arch_has_vtable(_p) for _p in _parts) {
+            struct_name = _parts[0];
+        }
+    }
     (tgts, tgt_seq) = self._runtime_class_arms(type_arg);
     if not tgts and tgt_seq is None {
         return None;
@@ -807,114 +817,106 @@ impl NaIRGenVtable._emit_isinstance_runtime(
 impl NaIRGenVtable._generate_inherited_method_wrappers -> None {
     reg = self._registry();
     for child_name in list(reg.layouts.keys()) {
-        mro = self._mro_of(child_name);
+        child_lay = reg.layouts[child_name];
         child_struct = self.struct_types.get(child_name);
-        if child_struct is None or len(mro) < 2 {
+        if child_struct is None or len(child_lay.mro) < 2 {
             continue;
         }
-
-        seen_methods: set[str] = set();
-        for ancestor_name in mro[1:] {
+        _vt_ancestors: set[str] = set();
+        for ancestor_name in child_lay.mro[1:] {
             anc_lay = reg.get_layout(ancestor_name);
-            if anc_lay is None or not anc_lay.has_vtable {
+            if anc_lay is not None and anc_lay.has_vtable {
+                _vt_ancestors.add(ancestor_name);
+            }
+        }
+        if not _vt_ancestors {
+            continue;
+        }
+        for mslot in child_lay.methods {
+            method_name = mslot.name;
+            if mslot.owner == child_name or mslot.ability is None {
                 continue;
             }
-            for mslot in anc_lay.methods {
-                method_name = mslot.name;
-                if method_name in seen_methods {
-                    continue;
+            _carried = False;
+            for ancestor_name in _vt_ancestors {
+                anc_lay = reg.get_layout(ancestor_name);
+                if anc_lay is not None and method_name in anc_lay.method_index {
+                    _carried = True;
+                    break;
                 }
-                seen_methods.add(method_name);
-                child_full = f"{child_name}.{method_name}";
-
-                if child_full in self.method_funcs {
-                    continue;
-                }
-
-                impl_func = None;
-                impl_class: (str | None) = None;
-                for mro_class in mro[1:] {
-                    parent_full = f"{mro_class}.{method_name}";
-                    if parent_full in self.method_funcs {
-                        impl_func = self.method_funcs[parent_full];
-                        impl_class = mro_class;
-                        break;
-                    }
-                }
-                if impl_func is None {
-                    continue;
-                }
-
-                orig_fn_type = impl_func.function_type;
-
-                _has_self = False;
-                if len(orig_fn_type.args) > 0
-                    and isinstance(orig_fn_type.args[0], ir.PointerType) {
-                    _p0_nm = getattr(orig_fn_type.args[0].pointee, "name", "") or "";
-                    if _p0_nm == impl_class {
-                        _has_self = True;
-                    }
-                }
-                if not _has_self {
-                    self.method_funcs[child_full] = impl_func;
-                    self.func_symtab[child_full] = impl_func;
-                    continue;
-                }
-
-                new_param_types: list[ir.Type] = [child_struct.as_pointer()];
-                for i in range(1, len(orig_fn_type.args)) {
-                    new_param_types.append(orig_fn_type.args[i]);
-                }
-                wrapper_fn_type = ir.FunctionType(
-                    orig_fn_type.return_type, new_param_types
-                );
-                wrapper_fn = ir.Function(
-                    self.llvm_module, wrapper_fn_type, name=child_full
-                );
-
-                wrapper_fn.args[0].name = "self";
-                for i in range(1, len(impl_func.args)) {
-                    wrapper_fn.args[i].name = impl_func.args[i].name;
-                }
-
-                entry_block = wrapper_fn.append_basic_block(name="entry");
-                builder = ir.IRBuilder(entry_block);
-
-                impl_struct = self.struct_types.get(impl_class);
-                if impl_struct is None {
-                    args: list[ir.Value] = list(wrapper_fn.args);
-                } else {
-                    parent_self = builder.bitcast(
-                        wrapper_fn.args[0], impl_struct.as_pointer(), name="parent.self"
-                    );
-                    args: list[ir.Value] = [parent_self];
-                    for i in range(1, len(wrapper_fn.args)) {
-                        args.append(wrapper_fn.args[i]);
-                    }
-                }
-
-                _exp_types = impl_func.function_type.args;
-                for _ai in range(len(args)) {
-                    if _ai < len(_exp_types)
-                        and args[_ai].type != _exp_types[_ai]
-                        and isinstance(args[_ai].type, ir.PointerType)
-                        and isinstance(_exp_types[_ai], ir.PointerType) {
-                        args[_ai] = builder.bitcast(
-                            args[_ai], _exp_types[_ai], name=f"inh.arg{_ai}"
-                        );
-                    }
-                }
-                result = builder.call(impl_func, args, name=f"inherited.{method_name}");
-
-                if isinstance(orig_fn_type.return_type, ir.VoidType) {
-                    builder.ret_void();
-                } else {
-                    builder.ret(result);
-                }
-
-                self.method_funcs[child_full] = wrapper_fn;
-                self.func_symtab[child_full] = wrapper_fn;
             }
+            if not _carried {
+                continue;
+            }
+            child_full = f"{child_name}.{method_name}";
+            if child_full in self.method_funcs {
+                continue;
+            }
+            impl_class: str = mslot.owner;
+            impl_func = self.method_funcs.get(f"{impl_class}.{method_name}");
+            if impl_func is None {
+                continue;
+            }
+
+            orig_fn_type = impl_func.function_type;
+            _has_self = (
+                not (mslot.ability.is_static or mslot.ability.is_classmethod)
+                and len(orig_fn_type.args) > 0
+                and isinstance(orig_fn_type.args[0], ir.PointerType)
+            );
+            if not _has_self {
+                self.method_funcs[child_full] = impl_func;
+                self.func_symtab[child_full] = impl_func;
+                continue;
+            }
+
+            new_param_types: list[ir.Type] = [child_struct.as_pointer()];
+            for i in range(1, len(orig_fn_type.args)) {
+                new_param_types.append(orig_fn_type.args[i]);
+            }
+            wrapper_fn_type = ir.FunctionType(
+                orig_fn_type.return_type, new_param_types
+            );
+            wrapper_fn = ir.Function(
+                self.llvm_module, wrapper_fn_type, name=child_full
+            );
+
+            wrapper_fn.args[0].name = "self";
+            for i in range(1, len(impl_func.args)) {
+                wrapper_fn.args[i].name = impl_func.args[i].name;
+            }
+
+            entry_block = wrapper_fn.append_basic_block(name="entry");
+            builder = ir.IRBuilder(entry_block);
+
+            parent_self = builder.bitcast(
+                wrapper_fn.args[0], orig_fn_type.args[0], name="parent.self"
+            );
+            args: list[ir.Value] = [parent_self];
+            for i in range(1, len(wrapper_fn.args)) {
+                args.append(wrapper_fn.args[i]);
+            }
+            _exp_types = impl_func.function_type.args;
+            for _ai in range(len(args)) {
+                if _ai < len(_exp_types)
+                    and args[_ai].type != _exp_types[_ai]
+                    and isinstance(args[_ai].type, ir.PointerType)
+                    and isinstance(_exp_types[_ai], ir.PointerType) {
+                    args[_ai] = builder.bitcast(
+                        args[_ai], _exp_types[_ai], name=f"inh.arg{_ai}"
+                    );
+                }
+            }
+            result = builder.call(impl_func, args, name=f"inherited.{method_name}");
+
+            if isinstance(orig_fn_type.return_type, ir.VoidType) {
+                builder.ret_void();
+            } else {
+                builder.ret(result);
+            }
+
+            self.method_funcs[child_full] = wrapper_fn;
+            self.func_symtab[child_full] = wrapper_fn;
         }
     }
 }

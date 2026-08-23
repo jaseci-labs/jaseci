@@ -18,7 +18,29 @@ impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     self._check_redundant_imports(self.ir_in);
     self._check_client_imports(self.ir_in);
     self._check_placement_warnings(self.ir_in);
+    self._check_clib_decl_bodies(self.ir_in);
     return ir_in;
+}
+
+impl StaticAnalysisPass._check_clib_decl_bodies(mod: Module) -> None {
+    for imp in mod.get_all_sub_nodes(typ=Import) {
+        if not imp.clib_decls {
+            continue;
+        }
+        for decl in imp.clib_decls {
+            if not isinstance(decl, Ability) or decl.body is None {
+                continue;
+            }
+            if isinstance(decl.body, list) and not decl.body {
+                continue;
+            }
+            self.emit(
+                E5060,
+                node_override=decl,
+                name=decl.name_ref.sym_name if decl.name_ref is not None else "?"
+            );
+        }
+    }
 }
 
 impl StaticAnalysisPass._check_placement_warnings(mod: Module) -> None {

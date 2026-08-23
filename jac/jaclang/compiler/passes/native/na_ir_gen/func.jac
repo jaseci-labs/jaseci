@@ -34,8 +34,5 @@ obj NaIRGenFunc(NaIRGenState) {
     def _define_function(name: str, fnty: ir.FunctionType) -> ir.Function;
     def _codegen_entry(nodes: list[uni.ModuleCode]) -> None;
     def _declare_clib_ability(nd: uni.Ability) -> None;
-    def _normalize_type_key(key: str) -> str;
-    def _elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None);
-    def _record_ret_facts(name: str, sig: any) -> None;
     def _emit_glob_init_func -> None;
 }

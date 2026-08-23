@@ -133,7 +133,7 @@ impl NaIRGenBytes._codegen_bytes_slice(
     if slice_node?.start is not None {
         _sv = self._codegen_expr(slice_node.start);
         if _sv is not None {
-            v = self._coerce_type(_sv, i64);
+            v = self._coerce_typed(_sv, i64, self._expr_type_of(slice_node.start));
             neg = self.builder.icmp_signed("<", v, zero, name="by.sl0.neg");
             v = self.builder.select(
                 neg,
@@ -152,7 +152,7 @@ impl NaIRGenBytes._codegen_bytes_slice(
     if slice_node?.stop is not None {
         _ev = self._codegen_expr(slice_node.stop);
         if _ev is not None {
-            v = self._coerce_type(_ev, i64);
+            v = self._coerce_typed(_ev, i64, self._expr_type_of(slice_node.stop));
             neg = self.builder.icmp_signed("<", v, zero, name="by.sl1.neg");
             v = self.builder.select(
                 neg,

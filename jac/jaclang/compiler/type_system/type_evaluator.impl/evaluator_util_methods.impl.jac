@@ -750,6 +750,9 @@ impl TypeEvaluator._infer_list_elem_from_mutations(expr: ListVal) -> TypeBase | 
             continue;
         }
         widened = self._widen_literal_for_declaration(contrib);
+        if isinstance(widened, EnumMemberType) and widened.enum_class is not None {
+            widened = self._convert_to_instance(widened.enum_class);
+        }
         if (
             isinstance(widened, ClassType) and widened.is_builtin(["NoneType", "None"])
         ) {
@@ -758,7 +761,14 @@ impl TypeEvaluator._infer_list_elem_from_mutations(expr: ListVal) -> TypeBase | 
         }
         _scalar = isinstance(widened, ClassType)
             and widened.is_builtin(["int", "float", "str", "bool"]);
-        if not _scalar {
+        _arch_inst = (
+            isinstance(widened, ClassType)
+            and widened.is_instance()
+            and not widened.shared.is_builtin_class
+            and not widened.is_any_type()
+            and isinstance(widened.shared.symbol_table, (Archetype, Enum))
+        );
+        if not (_scalar or _arch_inst) {
             return None;
         }
         if not self._type_in_list(widened, elem_types) {

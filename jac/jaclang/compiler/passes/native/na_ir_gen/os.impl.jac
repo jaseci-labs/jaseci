@@ -298,9 +298,9 @@ impl NaIRGenOs._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | Non
 
             no_sep = self.builder.or_(a_empty, a_slash, name="join.nosep0");
             no_sep = self.builder.or_(no_sep, b_abs, name="join.nosep");
-            with_sep = self._emit_binary_op(Tok.PLUS, acc, sep);
-            joined_sep = self._emit_binary_op(Tok.PLUS, with_sep, b);
-            joined_nosep = self._emit_binary_op(Tok.PLUS, acc, b);
+            with_sep = self._emit_str_concat(acc, sep);
+            joined_sep = self._emit_str_concat(with_sep, b);
+            joined_nosep = self._emit_str_concat(acc, b);
 
             picked = self.builder.select(
                 no_sep, joined_nosep, joined_sep, name="join.pick"

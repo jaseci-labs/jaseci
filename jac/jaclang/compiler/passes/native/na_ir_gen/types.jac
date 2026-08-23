@@ -29,6 +29,7 @@ obj NaIRGenTypes(NaIRGenState) {
     def _tb_elem(t: any, idx: int = 0) -> (any | None);
     def _tb_decl(t: any) -> (uni.UniNode | None);
     def _tuple_type_of(args: list) -> any;
+    def _tb_builtin(name: str) -> any;
     def _tb_kind(t: any) -> str;
     def _tb_payload_kind(t: any) -> str;
     def _tb_solve(t: any) -> any;
@@ -66,12 +67,13 @@ obj NaIRGenTypes(NaIRGenState) {
     ) -> ir.Type;
 
     def _lower_type(t: any) -> (ir.Type | None);
+    def _lower_cache_key(t: any) -> (tuple | None);
+    def _na_loc -> str;
+    def _tb_spec_key(t: any, names: tuple, registry: dict) -> (str | None);
     def _lower_union(t: any) -> (ir.Type | None);
     def _unify_repr_lowering(reprs: list) -> (ir.Type | None);
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
-    def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
-    def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
@@ -82,19 +84,10 @@ obj NaIRGenTypes(NaIRGenState) {
 
     def _struct_name_of(expr: (uni.UniNode | None)) -> (str | None);
     def _struct_name_for_key(tk: any) -> (str | None);
-    def _split_union_key(tk: str) -> list[str];
     def _struct_ptr_pointee_name(val: ir.Value) -> (str | None);
     def _struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value;
-    def _list_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
-    def _iter_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
-    def _container_elem_llvm_of(
-        expr: (uni.UniNode | None), names: tuple
-    ) -> (ir.Type | None);
-
-    def _static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
-    def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
-    def _to_bool(val: ir.Value, ty: any = None) -> ir.Value;
+    def _to_bool(val: ir.Value, ty: any) -> ir.Value;
     def _to_bool_str_desc(val: ir.Value) -> ir.Value;
     def _to_bool_optional(val: ir.Value, payload_ty: any) -> ir.Value;
     def _to_bool_container(val: ir.Value) -> ir.Value;
@@ -111,34 +104,34 @@ obj NaIRGenTypes(NaIRGenState) {
     ) -> ir.Value;
 
     def _promote_to_float(
-        left: ir.Value, right: ir.Value, lty: any = None, rty: any = None
+        left: ir.Value, right: ir.Value, lty: any, rty: any
     ) -> tuple[(ir.Value, ir.Value)];
 
     def _emit_binary_op(
         op: str,
         left: ir.Value,
         right: ir.Value,
-        lty: any = None,
-        rty: any = None,
+        lty: any,
+        rty: any,
         resolved: (ResolvedOperator | None) = None
     ) -> (ir.Value | None);
 
+    def _emit_str_concat(left: ir.Value, right: ir.Value) -> ir.Value;
     def _emit_arch_dunder_binop(
         op: str,
         left: ir.Value,
         right: ir.Value,
-        lty: any = None,
-        rty: any = None,
+        lty: any,
+        rty: any,
         resolved: (ResolvedOperator | None) = None
     ) -> (ir.Value | None);
 
     def _emit_comparison(
-        op: str,
-        left: ir.Value,
-        right: ir.Value,
-        is_float: bool,
-        lty: any = None,
-        rty: any = None
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
+    ) -> (ir.Value | None);
+
+    def _emit_scalar_cmp(
+        op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
     def _is_jacval_ty(t: ir.Type) -> bool;
@@ -148,16 +141,11 @@ obj NaIRGenTypes(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _emit_mixed_jacval_comparison(
-        op: str, left: ir.Value, right: ir.Value, lty: any = None, rty: any = None
+        op: str, left: ir.Value, right: ir.Value, lty: any, rty: any
     ) -> (ir.Value | None);
 
     def _emit_optional_eq(
-        op: str,
-        left: ir.Value,
-        right: ir.Value,
-        is_float: bool,
-        lty: any = None,
-        rty: any = None
+        op: str, left: ir.Value, right: ir.Value, is_float: bool, lty: any, rty: any
     ) -> (ir.Value | None);
 
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
@@ -171,8 +159,5 @@ obj NaIRGenTypes(NaIRGenState) {
     def _spec_union_agreement(t: any, names: tuple) -> (any | None);
     def _elem_storage_llvm(t: any) -> (ir.Type | None);
     def _aos_elem_of(type_expr: uni.UniNode | None) -> (str | None);
-    def _infer_type_name(val: ir.Value) -> (str | None);
-    def _infer_list_elem_type(val: ir.Value) -> (str | None);
-    def _infer_compr_elem_struct(compr: object) -> (str | None);
     def _resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type;
 }

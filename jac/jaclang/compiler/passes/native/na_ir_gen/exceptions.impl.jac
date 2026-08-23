@@ -194,7 +194,11 @@ impl NaIRGenExceptions._emit_runtime_raise(
     raise_bb = func.append_basic_block(name=f"raise.{exc_type_name}");
     ok_bb = func.append_basic_block(name=f"ok.{exc_type_name}");
 
-    is_error = self._to_bool(is_error);
+    if not (isinstance(is_error.type, ir.IntType) and is_error.type.width == 1) {
+        is_error = self.builder.icmp_unsigned(
+            "!=", is_error, self._zero_const(is_error.type), name="rt.raise.cond"
+        );
+    }
     self.builder.cbranch(is_error, raise_bb, ok_bb);
 
     self.builder.position_at_end(raise_bb);
@@ -223,8 +227,8 @@ impl NaIRGenExceptions._emit_runtime_raise(
     self.builder.position_at_end(ok_bb);
 }
 
-impl NaIRGenExceptions._exc_class_name_of(t: any, at: uni.UniNode) -> str {
-    """The exception class an expression's type names.
+impl NaIRGenExceptions._exc_class_type_of(t: any, at: (uni.UniNode | None)) -> any {
+    """The exception class an expression's type names, as a ClassType.
 
     Accepts an instance (`raise ValueError(...)`, a bound `except ... as e`)
     or a class-form `type[X]` (an `except X` clause); anything else is an
@@ -232,45 +236,88 @@ impl NaIRGenExceptions._exc_class_name_of(t: any, at: uni.UniNode) -> str {
     """;
     _t = self._tb_solve(t);
     if isinstance(_t, ClassType) and _t._shared is not None and _t.is_builtin("type") {
-        _targs = _t.private.type_args or [];
+        _targs = self._tb_args(_t);
         _t = self._tb_solve(_targs[0]) if _targs else None;
     }
-    _name = self._tb_class_name(_t);
-    if _name is None {
+    if self._tb_class_name(_t) is None {
         raise AssertionError(
-            f"exception at {at.loc} is typed {t} ({self._tb_kind(
+            f"exception at {at.loc if at is not None else '?'} is typed {t} ({self._tb_kind(
                 t
             )}), which names no class"
         );
     }
+    return _t;
+}
+
+impl NaIRGenExceptions._exc_class_name_of(t: any, at: uni.UniNode) -> str {
+    _name = self._tb_class_name(self._exc_class_type_of(t, at));
+    if _name is None {
+        raise AssertionError(f"exception at {at.loc} names no class");
+    }
     return _name;
+}
+
+impl NaIRGenExceptions._exc_id_key(t: any, at: (uni.UniNode | None)) -> str {
+    """The key an exception class's runtime id is derived from.
+
+    Builtin and stdlib exception classes are keyed by their bare name, the
+    runtime's fixed table; a user archetype is keyed by its declaring module's
+    real path and its name, so two modules' same-named exception classes get
+    distinct ids while every module that sees the class derives the same one.
+    """;
+    import os;
+    _ct = self._exc_class_type_of(t, at);
+    _name = self._tb_class_name(_ct);
+    if _name is None {
+        raise AssertionError(
+            f"exception at {at.loc if at is not None else '?'} names no class"
+        );
+    }
+    if not isinstance(_ct, ClassType) or _ct._shared is None {
+        return _name;
+    }
+    _decl = _ct.shared.symbol_table;
+    if (
+        _ct.shared.is_builtin_class
+        or _ct.shared.is_from_stdlib_stub
+        or not isinstance(_decl, uni.Archetype)
+        or _decl.loc is None
+        or not _decl.loc.mod_path
+    ) {
+        return _name;
+    }
+    return f"{os.path.realpath(_decl.loc.mod_path)}:{_name}";
 }
 
 impl NaIRGenExceptions._register_exc_class(t: any, at: uni.UniNode) -> str {
-    _name = self._exc_class_name_of(t, at);
-    self._get_or_register_exc_type(_name);
-    return _name;
+    _key = self._exc_id_key(t, at);
+    self._get_or_register_exc_type(_key);
+    return _key;
 }
 
-impl NaIRGenExceptions._user_exc_subclasses(type_name: str) -> list[str] {
-    """User archetypes whose checker MRO passes through `type_name`.
+impl NaIRGenExceptions._user_exc_subclasses(type_key: str) -> list[str] {
+    """User archetypes whose checker MRO passes through the keyed class.
 
-    Lets `except Base` match a subclass id: every archetype this unit knows
-    is asked, through its class type, whether `type_name` is one of its
-    ancestors.
+    Lets `except Base` match a subclass id: every archetype layout this unit
+    knows is asked, through its class type, whether the keyed class is one of
+    its ancestors.
     """;
     out: list[str] = [];
-    for (_an, _arch) in self.arch_ast_map.items() {
-        if _an == type_name or not isinstance(_arch, uni.Archetype) {
-            continue;
-        }
-        _ct = _arch.name_spec.type;
+    for _lay in self._registry().by_key.values() {
+        _ct = _lay.class_type;
         if not isinstance(_ct, ClassType) or _ct._shared is None {
             continue;
         }
+        _own = self._exc_id_key(_ct, _lay.decl_node);
+        if _own == type_key or _own in out {
+            continue;
+        }
         for _anc in (_ct.shared.mro or []) {
-            if self._tb_class_name(_anc) == type_name {
-                out.append(_an);
+            if not isinstance(_anc, ClassType) or _anc._shared is None {
+                continue;
+            }
+            if self._exc_id_key(_anc, _lay.decl_node) == type_key {
+                out.append(_own);
                 break;
             }
         }
@@ -334,8 +381,10 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
     exc_type_id = 0;
     if nd.cause is not None {
         _cause_t = self._flow_narrowed_type_of(nd.cause);
-        exc_type_name = self._register_exc_class(_cause_t, nd.cause);
-        exc_type_id = self._get_or_register_exc_type(exc_type_name);
+        exc_type_name = self._exc_class_name_of(_cause_t, nd.cause);
+        exc_type_id = self._get_or_register_exc_type(
+            self._register_exc_class(_cause_t, nd.cause)
+        );
         if exc_type_name in self.struct_types {
             exc_payload = self._codegen_expr(nd.cause);
         } elif isinstance(nd.cause, uni.FuncCall) {
@@ -520,7 +569,6 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
             }
 
             _caught_names = self._except_clause_classes(except_node);
-            caught_type_name = _caught_names[0];
             _caught_ids = [
                 self._get_or_register_exc_type(_cn) for _cn in _caught_names
             ];

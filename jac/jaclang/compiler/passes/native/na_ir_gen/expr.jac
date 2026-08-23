@@ -38,8 +38,8 @@ obj NaIRGenExpr(NaIRGenState) {
         negate: bool,
         left: ir.Value,
         right: ir.Value,
-        lk: str,
-        rk: str,
+        lty: any,
+        rty: any,
         at: uni.UniNode,
         release_operands: bool
     ) -> (ir.Value | None);
@@ -70,6 +70,7 @@ obj NaIRGenExpr(NaIRGenState) {
     def _codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_attr_access(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_subscript(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _subscript_index_node(nd: uni.AtomTrailer) -> (uni.UniNode | None);
     def _subscript_index_value(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _enum_member_value(enum_t: any, member: str) -> (ir.Value | None);
     def _codegen_enum_member_attr(
@@ -81,7 +82,11 @@ obj NaIRGenExpr(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None);
-    def _bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | None);
+    def _truth_only_context(nd: uni.UniNode) -> bool;
+    def _join_value_type(
+        nd: uni.Expr, part_types: list, part_values: list
+    ) -> (ir.Type | None);
+
     def _codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None);
     def _codegen_spawn(nd: uni.BinaryExpr) -> (ir.Value | None);
     def _codegen_kernel_spawn(

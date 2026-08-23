@@ -20,14 +20,6 @@ impl NaIRGenFileIo._register_file_like_struct(name: str) -> ir.Type {
     st = self.llvm_module.context.get_identified_type(name);
     st.set_body(i8p, i8p, i8p, i1);
     self.struct_types[name] = st;
-    self.struct_field_indices[name] = {"handle": 0, "path": 1, "mode": 2, "closed": 3};
-    self.struct_field_types[name] = {
-        "handle": i8p,
-        "path": i8p,
-        "mode": i8p,
-        "closed": i1
-    };
-    self.struct_field_defaults[name] = {};
     return st;
 }
 
@@ -289,45 +281,81 @@ impl NaIRGenFileIo._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
     i64 = ir.IntType(64);
     i1 = ir.IntType(1);
     params = nd.params or [];
-    if not params or len(params) > 2 {
+    _kw = [
+        _p
+        for _p in params
+        if isinstance(_p, uni.KWPair)
+    ];
+    if _kw {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name=f"open({', '.join(_k.key.sym_name for _k in _kw)}=...)",
+            help_text=(
+                "Native open() takes only a positional path and mode; keyword "
+                "arguments such as encoding, newline or buffering have no native "
+                "lowering. Drop the keyword or call open() from a Python/@sv "
+                "context."
+            )
+        );
         return None;
     }
-    for _p in params {
-        if isinstance(_p, uni.KWPair) {
-            return None;
-        }
+    if not params or len(params) > 2 {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="open",
+            help_text=(
+                "Native open() takes a path and an optional mode string; other "
+                "argument forms have no native lowering."
+            )
+        );
+        return None;
+    }
+    _kind = self._tb_kind(self._flow_narrowed_type_of(nd));
+    if _kind not in ("file", "binary_file") {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name="open",
+            help_text=(
+                "The checker did not resolve this open() to the native File or "
+                "BinaryFile type (a non-literal mode string, or a mode the native "
+                "lane does not represent)."
+            )
+        );
+        return None;
     }
     path_val = self._str_norm(self._codegen_expr(params[0]));
     if path_val is None {
         return None;
     }
 
-    mode_literal: (str | None) = None;
-    if len(params) >= 2 {
-        _mnode = params[1];
-        if isinstance(_mnode, uni.MultiString) and len(_mnode.strings) == 1 {
-            _mnode = _mnode.strings[0];
-        }
-        if isinstance(_mnode, uni.String) {
-            _mlv = _mnode.lit_value;
-            if isinstance(_mlv, str) {
-                mode_literal = _mlv;
-            }
-        }
-    }
-
     mode_val: (ir.Value | None) = None;
     if len(params) >= 2 {
         mode_val = self._str_norm(self._codegen_expr(params[1]));
-        if mode_val is not None and mode_val.type != i8p {
+        if mode_val is None {
             return None;
         }
+        if self._tb_kind(self._flow_narrowed_type_of(params[1])) != "str" {
+            self.emit(
+                E5092,
+                node_override=params[1],
+                kind="builtin call",
+                name="open",
+                help_text="The mode argument of a native open() must be a str."
+            );
+            return None;
+        }
+        mode_val = self._coerce_type(mode_val, i8p);
     }
     if mode_val is None {
         mode_val = self._make_global_string("r", name_prefix=".file.mode");
     }
-    is_binary = mode_literal is not None and "b" in mode_literal;
-    if is_binary {
+    if _kind == "binary_file" {
         struct_type = self._get_binary_file_struct_type();
         self._emit_binary_file_helpers();
     } else {

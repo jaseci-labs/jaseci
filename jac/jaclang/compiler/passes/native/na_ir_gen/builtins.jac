@@ -24,8 +24,16 @@ obj NaIRGenBuiltins(NaIRGenState) {
     def _fstring_spec_to_printf(spec: str, kind: str) -> (tuple | None);
     def _emit_fstr_repr(val: ir.Value, part: uni.FormattedValue) -> (ir.Value | None);
     def _emit_dyn_spec_format(
-        val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue
+        val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue, kind: str
     ) -> (ir.Value | None);
+
+    def _stringify_value(
+        val: ir.Value, expr: (uni.UniNode | None), err_node: uni.UniNode, err_kind: str
+    ) -> (ir.Value | None);
+
+    def _fmt_piece(
+        val: ir.Value, expr: (uni.UniNode | None), err_node: uni.UniNode, err_kind: str
+    ) -> (tuple | None);
 
     def _static_str_struct_const(data: bytes) -> tuple;
     def _make_global_string(text: str, name_prefix: str = ".str") -> ir.Value;
@@ -60,6 +68,6 @@ obj NaIRGenBuiltins(NaIRGenState) {
     def _emit_sys_stream(stream: str) -> (ir.Value | None);
     def _emit_sys_exit(args: list[ir.Value]) -> (ir.Value | None);
     def _emit_float_repr(fv: ir.Value) -> ir.Value;
-    def _emit_opt_repr(opt_val: ir.Value) -> (ir.Value | None);
+    def _emit_opt_repr(opt_val: ir.Value, payload_kind: str) -> (ir.Value | None);
     def _float_repr_fn -> ir.Function;
 }

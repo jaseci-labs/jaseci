@@ -165,16 +165,9 @@ impl NaIRGenComprehensions._emit_compr_element(
                 val = self._box_value_tuple(val);
                 _scompr_boxed = val;
                 if val.type != expected_type {
-                    if isinstance(val.type, ir.PointerType)
-                        and isinstance(expected_type, ir.PointerType) {
-                        val = self.builder.bitcast(
-                            val, expected_type, name="scompr.cast"
-                        );
-                    } else {
-                        val = self._coerce_typed(
-                            val, expected_type, self._expr_type_of(key_expr)
-                        );
-                    }
+                    val = self._coerce_typed(
+                        val, expected_type, self._expr_type_of(key_expr)
+                    );
                 }
                 self.builder.call(helpers["add"], [acc, val]);
 
@@ -261,7 +254,7 @@ impl NaIRGenComprehensions._codegen_compr_walk(
     _coll_ty = self._expr_type_of(collection);
     _coll_kind = self._tb_kind(self._tb_opt_payload(_coll_ty) or _coll_ty);
     coll_elem_type_name = self._list_spec_for_expr(collection)
-        if _coll_kind in ("list", "bytearray")
+        if _coll_kind in ("list", "bytearray", "tuple")
         else None;
     if coll_elem_type_name is None {
         self.emit(
@@ -287,16 +280,12 @@ impl NaIRGenComprehensions._codegen_compr_walk(
     idx_alloca = self._entry_alloca(i64, "compr.idx");
     self.builder.store(ir.Constant(i64, 0), idx_alloca);
 
-    actual_elem_type = coll_helpers["elem_type"];
-    _target_llvm = self._lower_type(self._sym_type_of(loop_target));
-    if self._str_desc_ty is not None and _target_llvm == self._str_desc_ty {
-        _target_llvm = ir.IntType(8).as_pointer();
-    }
-    if coll_elem_type_name == "ptr"
-        and isinstance(_target_llvm, ir.PointerType)
-        and _target_llvm != actual_elem_type {
-        actual_elem_type = _target_llvm;
-    }
+    actual_elem_type = self._for_target_slot_llvm(
+        loop_target, coll_helpers["elem_type"]
+    );
+    _elem_cast: (ir.Type | None) = (
+        actual_elem_type if actual_elem_type != coll_helpers["elem_type"] else None
+    );
     loop_alloca = self._entry_alloca(actual_elem_type, loop_var_name);
 
     if isinstance(actual_elem_type, ir.PointerType) {
@@ -322,13 +311,8 @@ impl NaIRGenComprehensions._codegen_compr_walk(
         coll_helpers["get"], [coll_val, body_idx], name="compr.elem"
     );
 
-    if elem_val.type != actual_elem_type {
-        if isinstance(elem_val.type, ir.PointerType)
-            and isinstance(actual_elem_type, ir.PointerType) {
-            elem_val = self.builder.bitcast(
-                elem_val, actual_elem_type, name="compr.elem.cast"
-            );
-        }
+    if _elem_cast is not None {
+        elem_val = self.builder.bitcast(elem_val, _elem_cast, name="compr.elem.cast");
     }
 
     if isinstance(actual_elem_type, ir.PointerType) {
@@ -400,10 +384,15 @@ impl NaIRGenComprehensions._codegen_compr_range_walk(
     params = collection.params or [];
     start_val: (ir.Value | None) = None;
     stop_val: (ir.Value | None) = None;
+    _start_nd: (uni.UniNode | None) = None;
+    _stop_nd: (uni.UniNode | None) = None;
     if len(params) == 1 {
         start_val = ir.Constant(ir.IntType(64), 0);
+        _stop_nd = params[0];
         stop_val = self._codegen_expr(params[0]);
     } elif len(params) >= 2 {
+        _start_nd = params[0];
+        _stop_nd = params[1];
         start_val = self._codegen_expr(params[0]);
         stop_val = self._codegen_expr(params[1]);
     }
@@ -411,8 +400,8 @@ impl NaIRGenComprehensions._codegen_compr_range_walk(
         return;
     }
     i64 = ir.IntType(64);
-    start_val = self._coerce_type(start_val, i64);
-    stop_val = self._coerce_type(stop_val, i64);
+    start_val = self._coerce_typed(start_val, i64, self._expr_type_of(_start_nd));
+    stop_val = self._coerce_typed(stop_val, i64, self._expr_type_of(_stop_nd));
     loop_alloca = self._entry_alloca(i64, loop_var_name);
     self.builder.store(start_val, loop_alloca);
     self.local_vars[loop_var_name] = loop_alloca;

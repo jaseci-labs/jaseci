@@ -82,13 +82,8 @@ impl NaIRGenPybInterop._pyb_native_override_owner(
     same place the shadow would find it, so it is no longer a divergence
     and must not be reported as one.
     """;
-    for _sc in self._mro_of(arch_name) {
-        _k = f"{_sc}.{meth}";
-        if _k in self.method_funcs and _k not in self._native_skipped_methods {
-            return _sc;
-        }
-    }
-    return None;
+    (_owner, _slot, _demoted) = self._slot_function(arch_name, [meth]);
+    return _owner if (_owner is not None and not _demoted) else None;
 }
 
 impl NaIRGenPybInterop._pyb_shadowed_dispatch(
@@ -980,18 +975,10 @@ impl NaIRGenPybInterop._codegen_pyb_shadow_init(
         return True;
     }
     (bname, bpath) = pb;
-    suppress = 0;
-    for _sc in self._mro_of(type_name) {
-        for pn in [f"{_sc}.__post_init__", f"{_sc}.postinit"] {
-            if pn in self.method_funcs and pn not in self._native_skipped_methods {
-                suppress = 1;
-                break;
-            }
-        }
-        if suppress {
-            break;
-        }
-    }
+    (_pi_owner, _pi_slot, _pi_demoted) = self._slot_function(
+        type_name, ["__post_init__", "postinit"]
+    );
+    suppress = 1 if (_pi_owner is not None and not _pi_demoted) else 0;
     if not suppress {
         shadow_owner = self._pyb_shadow_postinit_owner(type_name);
         if shadow_owner is not None {
