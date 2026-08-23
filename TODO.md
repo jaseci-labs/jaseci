@@ -554,6 +554,16 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Same silent-wrong-answers family as 46. Owner: YoungHawk queue after 40
     (or UltraMoon lane when ceval frees).
 
+EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
+    exceptions/nesting already GREEN; except* split execution ERRORED as
+    expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
+    machinery) when the VM arm lands.
+
+LITERAL-BUG SET RETIRED (KeenFalcon 58b344f34): parser literal bugs 1-3
+    (float/base-prefix/complex) were already fixed by 7c1ab5b35; bug 4
+    (negative-int constant folding) fixed in compiler_emit + tokenizer with
+    64 lines parity tests. All four closed.
+
 47. **[MED] INTRINSIC_TYPEALIAS opcode undispatched in ceval** (band-11
     TypeAlias slice 0c5a15a61, byte-exact compiler side). `type X = int`
     compiles but runtime raises unsupported-opcode until VM arm lands.
