@@ -231,18 +231,17 @@ test "wave18 non-int seeding hashes then splits like size_t" {
         assert repr(r1.random()) == repr(r2.random()) , "str vs hash seed";
     }
 
-    # Absolute host goldens exist too, but they depend on the process-wide
-    # SipHash secret matching the authoring capture (PYTHONHASHSEED=0).
-    # Gate on the pinned hash so the pins fire wherever the secret matches
-    # (CI sets PYTHONHASHSEED=0) instead of failing under randomized secrets.
+    # Absolute host goldens: they depend on the process-wide SipHash secret
+    # matching the capture conditions (PYTHONHASHSEED=0, CPython 3.14.x,
+    # zero key), so gate on both the env var and a runtime digest check
+    # before arming. Under any other secret the pins would be meaningless.
     if os.environ.get("PYTHONHASHSEED") != "0" {
         return;
     }
     if hash("spam") != -7643603308804133256 {
-        # Runtime str hashing diverges from the host oracle (known VM gap:
-        # builtin hash does not route through pyhash's SipHash). Skip the
-        # absolute pins rather than fail spuriously; the int-seed suites
-        # above still cover the full seeding path bit-exactly.
+        # Runtime str hashing diverges from the host seed-0 digest; skip
+        # rather than fail spuriously (the int-seed suites above still
+        # cover the full seeding path bit-exactly).
         return;
     }
     abc = Random_new(b"abc");
@@ -250,17 +249,21 @@ test "wave18 non-int seeding hashes then splits like size_t" {
     for _ in range(10) {
         wa.append(abc.getrandbits(32));
     }
-    assert wa == [3315820543, 4246262336, 2397318194, 1976556168,
-                  3047419019, 3939654856, 1521820844, 4110710813,
-                  3554365004, 3327441255] , wa;
+    # Captured from host CPython 3.14.6 with PYTHONHASHSEED=0:
+    # _random.Random().seed(b"abc") then ten getrandbits(32) draws.
+    assert wa == [1399766851, 1564118375, 2785668419, 1563851763,
+                  3101890135, 3843218830, 4087631572, 3024535857,
+                  3531209205, 2721367187] , wa;
     spam = Random_new("spam");
     ws: list[int] = [];
     for _ in range(10) {
         ws.append(spam.getrandbits(32));
     }
-    assert ws == [3261861754, 3325817736, 515662279, 4154225791,
-                  1108062388, 23110383, 3074787849, 3046931747,
-                  1395870847, 3992235586] , ws;
+    # Captured from host CPython 3.14.6 with PYTHONHASHSEED=0:
+    # _random.Random().seed("spam") then ten getrandbits(32) draws.
+    assert ws == [4173631440, 81402601, 2196835559, 2439179921,
+                  3761322200, 1838750950, 3875367247, 1645180411,
+                  499267165, 2764153328] , ws;
 }
 
 
