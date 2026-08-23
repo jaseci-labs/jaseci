@@ -558,6 +558,12 @@ import from opcode_meta {
     OP_UNARY_NOT,
     OP_WITH_EXCEPT_START,
     OP_BINARY_OP,
+    NB_INPLACE_ADD,
+    NB_INPLACE_AND,
+    NB_INPLACE_MULTIPLY,
+    NB_INPLACE_OR,
+    NB_INPLACE_SUBTRACT,
+    NB_INPLACE_XOR,
     OP_BUILD_LIST,
     OP_BUILD_MAP,
     OP_BUILD_TUPLE,
@@ -2977,11 +2983,143 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     return py_ordering_type_error(kind, lhs, rhs, _compare_type_name);
 }
 
+# ---------------- NB_INPLACE_* : mutate-and-return-self protocol ----------------
+
+# list.__iadd__ / list.__imul__ (CPython listobject.c list_inplace_concat /
+# list_inplace_repeat): mutate `lst` storage and return it, so every alias
+# observes the update and the trailing STORE_FAST re-binds the SAME object.
+def list_inplace_binop(lst: PyList, kind: int, rhs: PyObj) -> PyObj {
+    if kind == NB_INPLACE_ADD {
+        # Extend semantics: any iterable is accepted (unlike __add__, which
+        # only concatenates lists).
+        drained = iter_drain(rhs);
+        if is_error(drained) {
+            return drained;
+        }
+        for x in (drained as PyList).items {
+            lst.items.append(x);
+        }
+        return lst;
+    }
+    if kind == NB_INPLACE_MULTIPLY {
+        idx = rhs.to_index();
+        if is_error(idx) {
+            return py_error(
+                "TypeError",
+                "can't multiply sequence by non-int of type '" + rhs.t + "'",
+            );
+        }
+        n = (idx as PyInt).val;
+        repeated: list[PyObj] = [];
+        while n > 0 {
+            repeated.extend(lst.items);
+            n = n - 1;
+        }
+        lst.items = repeated;
+        return lst;
+    }
+    return PY_NOT_IMPLEMENTED;
+}
+
+# set |= &= -= ^= (CPython setobject.c set_ior/iand/isub/ixor): mutate `s`
+# storage and return it. Frozen sets decline (no in-place slots) -- py_binop
+# then folds to the base binop, producing a NEW frozenset on rebind, which is
+# exactly CPython's legal `fs |= {x}` behavior.
+def set_inplace_binop(s: PySet, kind: int, rhs: PyObj) -> PyObj {
+    if s.frozen {
+        return PY_NOT_IMPLEMENTED;
+    }
+    if kind != NB_INPLACE_OR and kind != NB_INPLACE_AND
+        and kind != NB_INPLACE_SUBTRACT and kind != NB_INPLACE_XOR {
+        return PY_NOT_IMPLEMENTED;
+    }
+    # All four arms consume any iterable (set_update-family semantics); drain
+    # up front so failed iteration raises before self mutates.
+    drained = iter_drain(rhs);
+    if is_error(drained) {
+        return drained;
+    }
+    elems = (drained as PyList).items;
+    if kind == NB_INPLACE_OR {
+        for x in elems {
+            err = s.set_add(x);
+            if is_error(err) {
+                return err;
+            }
+        }
+        return s;
+    }
+    # Hash incoming elements before touching self: an unhashable member raises
+    # with self still untouched.
+    other_hks: list[str] = [];
+    for x in elems {
+        hk = x.tp_hashkey();
+        if hk == "" {
+            return py_error("TypeError", "unhashable type: '" + x.t + "'");
+        }
+        other_hks.append(hk);
+    }
+    rebuilt: dict[str, PyObj] = {};
+    if kind == NB_INPLACE_AND {
+        # intersection_update keeps self elements present in other.
+        for hk in s.items {
+            if hk in other_hks {
+                rebuilt[hk] = s.items[hk];
+            }
+        }
+    } elif kind == NB_INPLACE_SUBTRACT {
+        for hk in s.items {
+            if not (hk in other_hks) {
+                rebuilt[hk] = s.items[hk];
+            }
+        }
+    } else {
+        # symmetric_difference_update: keep self-only members, add other-only
+        # ones (first occurrence wins on duplicates within other).
+        for hk in s.items {
+            if not (hk in other_hks) {
+                rebuilt[hk] = s.items[hk];
+            }
+        }
+        i = 0;
+        while i < len(other_hks) {
+            hk = other_hks[i];
+            if not (hk in s.items) and not (hk in rebuilt) {
+                rebuilt[hk] = elems[i];
+            }
+            i = i + 1;
+        }
+    }
+    s.items = rebuilt;
+    return s;
+}
+
+# The BINARY_OP in-place arm (opcode.h NB_INPLACE_* 13..25). Mutable native
+# containers expose CPython-style in-place slots that MUTATE the receiver and
+# return it -- aliases observe the update (`a = b = []; a += [x]` keeps
+# `a is b` True). Everything else returns PY_NOT_IMPLEMENTED and py_binop
+# folds the kind to its base binop (immutable fallback: str/bytes/int/tuple
+# legitimately rebind).
+def py_inplace_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
+    if isinstance(lhs, PyList) {
+        return list_inplace_binop(lhs as PyList, kind, rhs);
+    }
+    if isinstance(lhs, PySet) {
+        return set_inplace_binop(lhs as PySet, kind, rhs);
+    }
+    return PY_NOT_IMPLEMENTED;
+}
+
 def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
-    # NB_INPLACE_* (13..25) reduce to their base binop (0..12). jacpython values
-    # are immutable at this layer, so `x += y` is `x = x + y` -- the trailing
-    # STORE rebinds the name, matching CPython's immutable-type fallback.
+    # NB_INPLACE_* (13..25): try the receiver's in-place slot first; when it
+    # declines (immutables, frozen sets), reduce to the base binop (0..12) so
+    # `x += y` is `x = x + y` and the trailing STORE rebinds -- CPython's
+    # immutable-type fallback.
     if kind >= 13 and kind <= 25 {
+        inplace = py_inplace_binop(kind, lhs, rhs);
+        if not is_notimplemented(inplace) {
+            return inplace;
+        }
         kind = kind - 13;
     }
     # A user-class operand routes through the operator-overload protocol first.
