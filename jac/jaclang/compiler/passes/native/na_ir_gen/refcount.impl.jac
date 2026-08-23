@@ -1078,11 +1078,6 @@ impl NaIRGenRefcount._emit_str_desc_helpers -> None {
     _li = _dfields.index("len");
     _z = ir.Constant(i32, 0);
 
-    # Both entry points must derive the length from the RC header stamp when
-    # one exists and fall back to strlen only for unstamped (foreign C)
-    # pointers -- __jac_str_len does exactly that. A strlen-only wrap here
-    # truncated descriptors of runtime strings carrying embedded NULs
-    # (e.g. chr(0)) at assignment time.
     for fname in ("__jac_str_wrap", "__jac_str_wrap_raw") {
         wf = self._define_function(fname, ir.FunctionType(desc, [i8p]));
         wf.linkage = "private";
