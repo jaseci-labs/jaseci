@@ -16,6 +16,10 @@ import from _bisectmodule {
 }
 import from _heapqmodule { _p2_heappush, _p2_heappop, _p2_heapify, }
 import from _jsonmodule { dumps, loads }
+import from _warningsmodule {
+    warnings_module_attrs,
+    _p2_warn_state_reset,
+}
 import from _statmodule {
     _p2_S_ISDIR,
     _p2_S_ISCHR,
@@ -596,6 +600,11 @@ def p2_libtest_reset {
     register_shim_module(
         "_opcode", PyModule(t="module", name="_opcode", attrs=opcode_attrs)
     );
+    _p2_warn_state_reset();
+    register_shim_module(
+        "warnings",
+        PyModule(t="module", name="warnings", attrs=warnings_module_attrs())
+    );
 }
 
 
@@ -758,4 +767,82 @@ test "layer_p2_libtest: opcode_stack_effect snippet prints ok on JacPython" {
     );
     (ok, detail) = p2_libtest_expect_ok(snippet);
     assert ok , detail;
+}
+
+test "layer_p2_libtest: warnings record mode snippet prints ok on JacPython" {
+    snippet = (
+        "import warnings\n"
+        "with warnings.catch_warnings(record=True) as w:\n"
+        "    warnings.simplefilter('always')\n"
+        "    warnings.warn('hello')\n"
+        "    warnings.warn('cat only', DeprecationWarning)\n"
+        "    warnings.warn('with cat', ResourceWarning)\n"
+        "assert len(w) == 3, len(w)\n"
+        "assert str(w[0].message) == 'hello', str(w[0].message)\n"
+        "assert w[0].category.__name__ == 'UserWarning'\n"
+        "assert w[1].category.__name__ == 'DeprecationWarning'\n"
+        "assert str(w[1].message) == 'cat only'\n"
+        "assert w[2].category.__name__ == 'ResourceWarning'\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: warnings error action snippet raises UserWarning" {
+    snippet = (
+        "import warnings\n"
+        "with warnings.catch_warnings():\n"
+        "    warnings.simplefilter('error')\n"
+        "    try:\n"
+        "        warnings.warn('boom')\n"
+        "        print('no raise')\n"
+        "    except Exception as e:\n"
+        "        assert type(e).__name__ == 'UserWarning', type(e).__name__\n"
+        "        assert str(e) == 'boom', str(e)\n"
+        "        print('raised:ok')\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: warn_explicit record positions pin on JacPython" {
+    snippet = (
+        "import warnings\n"
+        "with warnings.catch_warnings(record=True) as w:\n"
+        "    warnings.simplefilter('always')\n"
+        "    warnings.warn_explicit('located', DeprecationWarning, 'fake.py', 42)\n"
+        "assert len(w) == 1, len(w)\n"
+        "assert w[0].filename == 'fake.py', w[0].filename\n"
+        "assert w[0].lineno == 42, w[0].lineno\n"
+        "assert w[0].category.__name__ == 'DeprecationWarning'\n"
+        "print('ok')\n"
+    );
+    (ok, detail) = p2_libtest_expect_ok(snippet);
+    assert ok , detail;
+}
+
+test "layer_p2_libtest: warning call-site line reaches traceback on JacPython" {
+    # simplefilter('error') makes warn() return an error to the VM, so
+    # recover_exception stamps the CALL site into e.__traceback__ -- the same
+    # PyTraceback machinery exceptions use. The harness wrapper prepends three
+    # lines, and exec'd code reports call-site linenos shifted by one more
+    # (uniform for direct raises too -- a pre-existing VM-wide convention),
+    # hence 5 + 4 = 9 for the warn on snippet line 5.
+    snippet = (
+        "import warnings\n"
+        "with warnings.catch_warnings():\n"
+        "    warnings.simplefilter('error')\n"
+        "    try:\n"
+        "        warnings.warn('tb')\n"
+        "    except Exception as e:\n"
+        "        tb = e.__traceback__\n"
+        "        assert tb is not None and tb.tb_lineno > 0\n"
+        "        assert isinstance(tb.tb_frame.f_code.co_filename, str)\n"
+        "        print('tb_lineno:' + str(tb.tb_lineno))\n"
+    );
+    (ok, detail) = p2_libtest_run_snippet(snippet);
+    assert ok , detail;
+    assert detail == "tb_lineno:9" , detail;
 }
