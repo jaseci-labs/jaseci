@@ -75,20 +75,20 @@ zig-out/
 # real jac.toml dependency). Must not land in the repo.
 reference/
 
+# Lifted-stub reference corpus: stub modules moved out of the jac-py/jacpython
+# import graph (zero callers) but kept verbatim as c2jac reference lifts.
+!jac-py/Modules/_lifted/reference/
+!jac-py/Modules/_lifted/reference/*.jac
+
 # c2jac sidecar reports are generated next to each input by `jac c2jac` (and by
 # running the transpiler over test fixtures) -- generated output, never tracked.
+# Baseline sidecar reports are reviewed provenance and stay tracked wherever a
+# baseline/ dir or lifted-module dir holds one; everything else is generated
+# output next to the transpiler input.
 *.c2jac.report.json
-!jac-py/tools/p1_corpus/baseline/project.c2jac.report.json
+!jac-py/tools/**/baseline/project.c2jac.report.json
 !jac-py/Modules/_lifted/p1_corpus_slice1b/project.c2jac.report.json
-!jac-py/tools/p2_corpus/baseline/project.c2jac.report.json
 !jac-py/Modules/_lifted/p2_corpus_wave1/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave5/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave6/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave7/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave8/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave9/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave10/baseline/project.c2jac.report.json
-!jac-py/tools/p2_corpus_wave11/baseline/project.c2jac.report.json
 !jac-py/Modules/_lifted/p2_corpus_wave1/*.jac
 
 # P2 corpus lift staging (ephemeral copies of manifest sources)
@@ -100,6 +100,17 @@ AGENTS.md
 PLAN.md
 IMPLEMENTATION.md
 RUNTIME_SPLIT_PROGRESS.md
+CURRENT.md
+FIXME.md
+INTEGRATION_PLAN.md
+PROGRESS.md
+PR_SPLIT_PLAN.md
+TASK.md
+SKILL.md
+AUDIT-*.md
+.cursor/
+.pi/
+.ralph/
 
 # Claude Code local instructions
 CLAUDE.local.md
@@ -123,3 +134,13 @@ jac/jaclang/compiler/native_materialize.jac
 
 # Pi subagent session artifacts
 .pi-subagents/
+
+# Throwaway debug/repro drivers under jac-py/jacpython (underscore-prefixed
+# scratch files; lifted C-module ports like _statmodule.jac do NOT match these
+# prefixed patterns and stay trackable).
+jac-py/jacpython/_tmp_*.jac
+jac-py/jacpython/_repro*.jac
+jac-py/jacpython/_smoke_*.jac
+jac-py/jacpython/_fuzz_*.jac
+jac-py/jacpython/_t[0-9]*.jac
+jac-py/jacpython/zz_*tmp*.jac

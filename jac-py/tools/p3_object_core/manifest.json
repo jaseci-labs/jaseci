@@ -376,7 +376,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "methodobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/methodobject.jac"
    }
   },
   {
@@ -395,7 +395,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "descrobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/descrobject.jac"
    }
   },
   {
@@ -490,7 +490,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "cellobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/cellobject.jac"
    }
   },
   {
@@ -509,7 +509,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "funcobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/funcobject.jac"
    }
   },
   {
@@ -547,7 +547,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "classobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/classobject.jac"
    }
   },
   {
@@ -585,7 +585,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "moduleobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/moduleobject.jac"
    }
   },
   {
@@ -718,7 +718,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "unionobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/unionobject.jac"
    }
   },
   {
@@ -737,7 +737,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "namespaceobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/namespaceobject.jac"
    }
   },
   {
@@ -756,7 +756,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "capsule.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/capsule.jac"
    }
   },
   {
@@ -794,7 +794,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "fileobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/fileobject.jac"
    }
   },
   {
@@ -851,7 +851,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "picklebufobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/picklebufobject.jac"
    }
   },
   {
@@ -870,7 +870,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "genericaliasobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/genericaliasobject.jac"
    }
   },
   {
@@ -889,7 +889,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "typevarobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/typevarobject.jac"
    }
   },
   {
@@ -908,7 +908,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "interpolationobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/interpolationobject.jac"
    }
   },
   {
@@ -927,7 +927,7 @@
      "errored": 0,
      "skipped": 0
     },
-    "jacpython_module": "templateobject.jac"
+    "jacpython_module": "jac-py/Modules/_lifted/reference/templateobject.jac"
    }
   },
   {
