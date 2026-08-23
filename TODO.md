@@ -467,6 +467,14 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Codec-error subclass wiring absent; likely family: LookupError/
     ValueError-specific codec types. Found fuzz round 51.
 
+58. **[HIGH] super().__new__() on builtin-set subclass returns None.**
+    class swn(frozenset): __new__ does self = super().__new__(cls, arg);
+    traced: super() call yields None -> subsequent attr write lands nowhere,
+    instance never materializes (u unset, NO error raised). This IS the
+    remaining keywords_in_subclass gate red (test_set x2 at 797b4118b with
+    item-40 patch applied - patch fixed plain subclass instantiation but NOT
+    the custom-__new__ path). Item-40 residual, YoungHawk.
+
 51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
