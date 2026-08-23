@@ -657,9 +657,309 @@ obj PyNoneType(PyObj) {
     }
 }
 
+# Complex-tower arithmetic kernels (pure doubles, na-clean): shared by
+# PyComplex.nb_binop (complex-on-left) and ._reflected_binop (complex-on-right
+# via the py_binop bridge). Formulas mirror Objects/complexobject.c.
+def _cx_add(ar: float, ai: float, br: float, bi: float) -> tuple[float, float] {
+    return (ar + br, ai + bi);
+}
+
+def _cx_sub(ar: float, ai: float, br: float, bi: float) -> tuple[float, float] {
+    return (ar - br, ai - bi);
+}
+
+def _cx_mul(ar: float, ai: float, br: float, bi: float) -> tuple[float, float] {
+    # Plain products/differences: double rounding matches CPython bit-for-bit,
+    # and overflow is SILENT here ((1e300+0j)*(1e300+0j) == inf+0j).
+    return (ar * br - ai * bi, ar * bi + ai * br);
+}
+
+def _cx_is_inf(v: float) -> bool {
+    # +-inf detector without math imports; NaN is NOT infinite (v != v first)
+    # so NaN results flow through pow silently like CPython's errno-free path.
+    if v != v {
+        return False;
+    }
+    return v * 0.0 != 0.0;
+}
+
+def _cx_div(ar: float, ai: float, br: float, bi: float) -> tuple[float, float] {
+    # CPython _Py_c_quot (Smith's algorithm): scale by the larger divisor
+    # component so finite/finite quotients never overflow spuriously. The
+    # scaled expressions are exactly CPython's, so results are bit-identical
+    # including inf/nan propagation. Caller guards divisor == 0+0j.
+    abs_br = br;
+    if abs_br < 0.0 {
+        abs_br = -abs_br;
+    }
+    abs_bi = bi;
+    if abs_bi < 0.0 {
+        abs_bi = -abs_bi;
+    }
+    if abs_br >= abs_bi {
+        ratio = bi / br;
+        denom = br + bi * ratio;
+        return ((ar + ai * ratio) / denom, (ai - ar * ratio) / denom);
+    }
+    ratio = br / bi;
+    denom = br * ratio + bi;
+    return ((ar * ratio + ai) / denom, (ai * ratio - ar) / denom);
+}
+
+def _cx_pow_int(ar: float, ai: float, exp: int) -> tuple[int, float, float] {
+    # CPython _Py_c_pow integer path: repeated squaring with an errno-style
+    # overflow check after EVERY product -- any infinite component (even from
+    # an infinite base) is OverflowError; NaN flows silently. err codes:
+    # 0 ok, 1 OverflowError, 2 ZeroDivisionError.
+    e = exp;
+    neg = False;
+    if e < 0 {
+        neg = True;
+        e = -e;
+    }
+    br = ar;
+    bi = ai;
+    if neg {
+        if br == 0.0 and bi == 0.0 {
+            return (2, 0.0, 0.0);
+        }
+        (br, bi) = _cx_div(1.0, 0.0, br, bi);
+    }
+    rr = 1.0;
+    ri = 0.0;
+    while e > 0 {
+        if e % 2 == 1 {
+            (rr, ri) = _cx_mul(rr, ri, br, bi);
+            if _cx_is_inf(rr) or _cx_is_inf(ri) {
+                return (1, 0.0, 0.0);
+            }
+        }
+        e = e // 2;
+        if e == 0 {
+            break;
+        }
+        (br, bi) = _cx_mul(br, bi, br, bi);
+        if _cx_is_inf(br) or _cx_is_inf(bi) {
+            return (1, 0.0, 0.0);
+        }
+    }
+    return (0, rr, ri);
+}
+
 obj PyComplex(PyObj) {
     has real: float,
         imag: float;
+
+    # Numeric coercion into the complex tower (CPython promotes int/bool/float
+    # operands to complex with zero imaginary part). ok=False marks operands
+    # the tower declines (str, containers, user instances).
+    def _coerce(other: PyObj) -> tuple[bool, float, float] {
+        if isinstance(other, PyComplex) {
+            c = other as PyComplex;
+            return (True, c.real, c.imag);
+        }
+        if other.t == "float" {
+            return (True, (other as PyFloat).val, 0.0);
+        }
+        if other.t == "int" {
+            return (True, float((other as PyInt).val), 0.0);
+        }
+        if other.t == "bool" {
+            if (other as PyBool).val {
+                return (True, 1.0, 0.0);
+            }
+            return (True, 0.0, 0.0);
+        }
+        return (False, 0.0, 0.0);
+    }
+
+    def nb_binop(kind: int, other: PyObj) -> PyObj {
+        (ok, br, bi) = self._coerce(other);
+        if not ok {
+            return py_error("TypeError", "unsupported operand types");
+        }
+        ar = self.real;
+        ai = self.imag;
+        if kind == NB_ADD {
+            (r, i) = _cx_add(ar, ai, br, bi);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_SUBTRACT {
+            (r, i) = _cx_sub(ar, ai, br, bi);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_MULTIPLY {
+            (r, i) = _cx_mul(ar, ai, br, bi);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_TRUE_DIVIDE {
+            # CPython: any zero divisor raises plain "division by zero"
+            # (3.14 unified message -- no "complex division by zero").
+            if br == 0.0 and bi == 0.0 {
+                return py_error("ZeroDivisionError", "division by zero");
+            }
+            (r, i) = _cx_div(ar, ai, br, bi);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_POWER {
+            # Integer-valued exponents use CPython's repeated-squaring path
+            # (native, incl. its overflow/zero rules). General exponents need
+            # polar-form transcendentals the na-clean leaf cannot import, so
+            # they decline and py_binop's host fallback answers byte-exactly.
+            if bi == 0.0 and -100.0 < br and br < 100.0 {
+                iv = int(br);
+                if float(iv) == br {
+                    (err, r, i) = _cx_pow_int(ar, ai, iv);
+                    if err == 1 {
+                        return py_error("OverflowError", "complex exponentiation");
+                    }
+                    if err == 2 {
+                        return py_error(
+                            "ZeroDivisionError", "zero to a negative or complex power"
+                        );
+                    }
+                    return PyComplex(t="complex", real=r, imag=i);
+                }
+            }
+            return py_error("TypeError", "unsupported operand types");
+        }
+        # // and % raise in CPython too -- but with the GENERIC binop message
+        # (no slot exists), which py_binop's host fallback renders verbatim.
+        return py_error("TypeError", "unsupported operand types");
+    }
+
+    # Reflected half of the tower (2 - 1j, 6 / (3+0j), 2 ** (3+0j)): the left
+    # operand arrives already known numeric (py_binop gates on int/float/bool).
+    # Declines with PY_NOT_IMPLEMENTED so the caller's host fallback keeps
+    # exotic messages byte-exact; ZeroDivision/Overflow propagate natively.
+    def _reflected_binop(kind: int, other: PyObj) -> PyObj {
+        (ok, lr, li) = self._coerce(other);
+        if not ok {
+            return PY_NOT_IMPLEMENTED;
+        }
+        ar = self.real;
+        ai = self.imag;
+        if kind == NB_ADD {
+            (r, i) = _cx_add(lr, li, ar, ai);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_SUBTRACT {
+            (r, i) = _cx_sub(lr, li, ar, ai);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_MULTIPLY {
+            (r, i) = _cx_mul(lr, li, ar, ai);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_TRUE_DIVIDE {
+            if ar == 0.0 and ai == 0.0 {
+                return py_error("ZeroDivisionError", "division by zero");
+            }
+            (r, i) = _cx_div(lr, li, ar, ai);
+            return PyComplex(t="complex", real=r, imag=i);
+        }
+        if kind == NB_POWER {
+            if ai == 0.0 and -100.0 < ar and ar < 100.0 {
+                iv = int(ar);
+                if float(iv) == ar {
+                    (err, r, i) = _cx_pow_int(lr, li, iv);
+                    if err == 1 {
+                        return py_error("OverflowError", "complex exponentiation");
+                    }
+                    if err == 2 {
+                        return py_error(
+                            "ZeroDivisionError", "zero to a negative or complex power"
+                        );
+                    }
+                    return PyComplex(t="complex", real=r, imag=i);
+                }
+            }
+        }
+        return PY_NOT_IMPLEMENTED;
+    }
+
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        # CPython complex_richcompare: ==/!= compare parts numerically (NaN
+        # unordered, so nan-complex equals nothing, not even itself). Ordering
+        # is NotImplemented; PyObject_RichCompare then raises the byte-exact
+        # "'<' not supported between instances of 'complex' and ..." error.
+        if kind != Py_EQ and kind != Py_NE {
+            return PY_NOT_IMPLEMENTED;
+        }
+        (ok, br, bi) = self._coerce(other);
+        if ok {
+            eqv = self.real == br and self.imag == bi;
+            if kind == Py_EQ {
+                return PyBool(t="bool", val=eqv);
+            }
+            return PyBool(t="bool", val=not eqv);
+        }
+        # Non-numeric operand: identity-tag (in)equality (CPython default).
+        if kind == Py_EQ {
+            return PyBool(t="bool", val=False);
+        }
+        return PyBool(t="bool", val=True);
+    }
+
+    def tp_bool -> bool {
+        return self.real != 0.0 or self.imag != 0.0;
+    }
+
+    # Dict/set keying must collapse with the numeric towers: 3+0j keys with
+    # int 3 / float 3.0, so a zero imaginary part delegates to PyFloat's
+    # n:/f: namespaces wholesale. Nonzero imag lives in "z:" keyed on both
+    # parts (str round-trips exactly; -0.0 normalized onto 0.0 because they
+    # compare equal). All-NaN divergence mirrors PyFloat's accepted note.
+    def tp_hashkey -> PyObj {
+        if self.imag == 0.0 {
+            return PyFloat(t="float", val=self.real).tp_hashkey();
+        }
+        r = self.real;
+        if r == 0.0 {
+            r = 0.0;
+        }
+        return PyStr(t="str", val="z:" + str(r) + "," + str(self.imag));
+    }
+
+    # .real/.imag are floats even for int-built complexes (CPython getters);
+    # conjugate() binds through the small wrapper below.
+    def tp_getattro(name: str) -> PyObj {
+        if name == "real" {
+            return PyFloat(t="float", val=self.real);
+        }
+        if name == "imag" {
+            return PyFloat(t="float", val=self.imag);
+        }
+        if name == "conjugate" {
+            return PyComplexMethod(t="complex_method", target=self, name=name);
+        }
+        return py_error(
+            "AttributeError", "'complex' object has no attribute '" + name + "'"
+        );
+    }
+}
+
+# Bound complex.conjugate(): pure arithmetic, answered in-VM.
+obj PyComplexMethod(PyObj) {
+    has target: PyComplex,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return py_error(
+                "TypeError", self.name + "() takes no keyword arguments"
+            );
+        }
+        if len(args) != 0 {
+            return py_error(
+                "TypeError",
+                self.name + "() takes no arguments (" + str(len(args)) + " given)",
+            );
+        }
+        return PyComplex(
+            t="complex", real=self.target.real, imag=-self.target.imag
+        );
+    }
 }
 
 # A dynamic slice value (slice(1, 7, 2) built at runtime, marshaled, or handed
