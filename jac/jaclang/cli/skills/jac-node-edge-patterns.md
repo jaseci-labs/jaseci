@@ -53,6 +53,7 @@ with entry {
 ```
 
   Ordering by an *edge* field has no other spelling: the reference returns nodes, so no key over the result can name the edge that carried them. `sorted(<reference>, key=lambda (m: Msg) { -m.at; })` is equivalent for a node field and is folded into the same query, so existing sorts keep working and get faster; a key that computes something (`-(m.at + m.boost)`) cannot fold and sorts in object space.
+
 - **Keyset pagination needs a composite key.** Ordering on a timestamp alone drops or repeats rows when two share it, so page on a tuple: `[chan ->:Posted:-> [?:Msg, (at, seq) < (cur.at, cur.seq)]]`. Left of the operator is field names, right is ordinary scope; both sides must be tuples of the same arity.
 - **Edge types are values, but the hop's type slot takes a bare name only.** `t = Coin; visit [->:t:->];` works (dynamic dispatch via a dict of edge types); inline expressions like `[->:table[ev]:->]` are a parse error - assign to a variable first.
 - `[edge n -->]` returns the *edge objects* instead of destination nodes - the way to read edge `has` fields, not just a deletion idiom: `[e.since for e in [edge alice ->:Follows:->]]`. Edge references are **not** deduplicated by endpoint: two parallel edges to the same node are two edges, so `len([edge n -->])` and `len([n -->])` legitimately differ.
