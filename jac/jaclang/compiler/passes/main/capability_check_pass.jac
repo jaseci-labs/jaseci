@@ -41,15 +41,7 @@ import from jaclang.jac0core.passes.module_codegen_pass {
     client_capability_violations
 }
 import from jaclang.jac0core.constant { SymbolType }
-import from jaclang.jac0core.diagnostics {
-    E5090,
-    E5096,
-    W6001,
-    W6002,
-    W6003,
-    W6004,
-    W6010
-}
+import from jaclang.jac0core.diagnostics { E5090, E5096, W6001, W6002, W6003, W6004 }
 import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
 
 glob NATIVE_REJECT_NODES: tuple[type[PyInlineCode]] = (PyInlineCode, );
@@ -107,7 +99,6 @@ obj NativeCapabilityCheckPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
-    def _check_str_nul_concat(mod: Module) -> None;
 }
 
 obj ClientCapabilityCheckPass(Transform) {

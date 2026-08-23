@@ -354,22 +354,20 @@ Native compilation maps Jac types to LLVM types:
 | `str` | `i8*` | pointer | Null-terminated byte string |
 | `None` | -- | -- | Null pointer |
 
-!!! warning "Native `str` is NUL-terminated -- do not pack binary buffers with it"
-    Because native `str` is a C string (`i8*`) with no explicit length, every
-    string operation measures its length with `strlen`. Concatenating strings
-    that contain an embedded `chr(0)` (NUL) byte therefore **silently truncates**
-    at the first NUL -- `chr(65) + chr(0) + chr(66)` has length `1` on `na`
-    (length `3` on `sv`), and packing a little-endian integer whose bytes include
-    a leading `0x00` loses those bytes. This is unsafe for hand-assembling libc
-    FFI buffers (`read`/`write`/`poll`/`ioctl`/`tcsetattr`, C structs, ...).
+!!! note "Native `str` is length-aware -- embedded NULs survive"
+    Although native `str` lowers to a NUL-terminated C string (`i8*`), every
+    string value carries its length in the runtime header (literals,
+    `chr()`, concatenation, and slicing all stamp it). Operations measure
+    lengths from that header, not with `strlen`, so an embedded `chr(0)`
+    (NUL) byte survives: `chr(65) + chr(0) + chr(66)` has length `3` on
+    both `na` and `sv`. Only strings received from foreign C code through
+    FFI are bounded by their terminator.
 
-    Use `bytes` for binary data: it is length-aware and preserves embedded NULs
-    (`b"A" + bytes([0]) + b"B"` keeps all three bytes). When an FFI declaration
-    insists on `i8*`, allocate the buffer with `calloc` and poke bytes with
-    `memset`/`memcpy` rather than building it with `str` + `chr()`.
-
-    The native compiler emits warning `W6005` when a literal `chr(0)` appears as
-    an operand of a native `str` concatenation.
+    Prefer `bytes` for binary data anyway: it is the explicit binary type
+    (`b"A" + bytes([0]) + b"B"` keeps all three bytes). When an FFI
+    declaration insists on `i8*`, allocate the buffer with `calloc` and poke
+    bytes with `memset`/`memcpy` rather than building it with `str` +
+    `chr()`.
 
 ### Fixed-Width Types
 

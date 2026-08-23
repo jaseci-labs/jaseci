@@ -732,42 +732,8 @@ impl NativeCapabilityCheckPass.transform(ir_in: Module) -> Module {
             }
         }
     }
-    self._check_str_nul_concat(ir_in);
     ir_in.native_viols_reported = True;
     return ir_in;
-}
-
-impl NativeCapabilityCheckPass._check_str_nul_concat(mod: Module) -> None {
-    import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-
-    for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.NATIVE) {
-        if isinstance(_stmt, Import) {
-            continue;
-        }
-        for _call in _stmt.get_all_sub_nodes(typ=FuncCall) {
-            if not isinstance(_call.target, Name) or _call.target.value != "chr" {
-                continue;
-            }
-            _args = [
-                a
-                for a in (_call.params or [])
-                if not isinstance(a, KWPair)
-            ];
-            if len(_args) != 1 or not isinstance(_args[0], Int) {
-                continue;
-            }
-            if _args[0].lit_value != 0 {
-                continue;
-            }
-            _concat = _call.find_parent_of_type(BinaryExpr);
-            if _concat is not None
-                and isinstance(_concat.op, Token)
-                and _concat.op.name == Tok.PLUS {
-                self.emit(W6010, node_override=_call);
-            }
-        }
-    }
 }
 
 impl ClientCapabilityCheckPass.postinit -> None {
