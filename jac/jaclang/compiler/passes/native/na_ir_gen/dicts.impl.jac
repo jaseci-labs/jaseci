@@ -274,12 +274,22 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any = None) -> ir.Value {
     } elif isinstance(value.type, ir.PointerType) {
         _i8p_box = ir.IntType(8).as_pointer();
         _tag: (int | None) = None;
-        _maybe_none = ty is None;
-        if ty is not None {
+        _dyn = ty is None or self._tb_kind(ty) in ("any", "unknown", "typevar");
+        _maybe_none = _dyn;
+        if not _dyn {
             _tag = self._jacval_tag_for_type(ty);
             _maybe_none = self._tb_has_none(ty);
         } elif value.type == _i8p_box {
             _tag = 2;
+        } else {
+            _pname = getattr(value.type.pointee, "name", "") or "";
+            _tag = (
+                3
+                    if _pname.startswith("List.")
+                    else 4
+                        if _pname.startswith("Dict.")
+                        else 5 if _pname.startswith("Set.") else 6
+            );
         }
         if _tag is None {
             raise AssertionError(

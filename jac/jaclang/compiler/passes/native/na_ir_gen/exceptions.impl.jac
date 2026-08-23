@@ -259,17 +259,12 @@ impl NaIRGenExceptions._user_exc_subclasses(type_name: str) -> list[str] {
     is asked, through its class type, whether `type_name` is one of its
     ancestors.
     """;
-    _ev = self.prog.get_type_evaluator();
     out: list[str] = [];
     for (_an, _arch) in self.arch_ast_map.items() {
         if _an == type_name or not isinstance(_arch, uni.Archetype) {
             continue;
         }
-        _sym = _arch.name_spec.sym;
-        if _sym is None {
-            continue;
-        }
-        _ct = _ev.get_type_of_symbol(_sym);
+        _ct = _arch.name_spec.type;
         if not isinstance(_ct, ClassType) or _ct._shared is None {
             continue;
         }

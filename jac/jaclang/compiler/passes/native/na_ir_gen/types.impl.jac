@@ -27,7 +27,7 @@ impl NaIRGenTypes._tb_is(t: any, names: tuple) -> bool {
 impl NaIRGenTypes._tb_args(t: any) -> list {
     t = self._tb_solve(t);
     if isinstance(t, ClassType) and t.private is not None {
-        return list(t.private.type_args or []);
+        return [self._tb_solve(_a) for _a in (t.private.type_args or [])];
     }
     return [];
 }
@@ -66,8 +66,29 @@ impl NaIRGenTypes._tb_opt_payload(t: any) -> (any | None) {
 
 impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
     _payload = self._tb_opt_payload(t);
-    _args = self._tb_args(_payload if _payload is not None else t);
+    _base = _payload if _payload is not None else t;
+    _args = self._tb_args(_base);
+    _view = self._tb_class_name(_base);
+    if _view == "dict_keys" and len(_args) >= 1 and idx == 0 {
+        return _args[0];
+    }
+    if _view == "dict_values" and len(_args) >= 2 and idx == 0 {
+        return _args[1];
+    }
+    if _view == "dict_items" and len(_args) >= 2 and idx == 0 {
+        return self._tuple_type_of([_args[0], _args[1]]);
+    }
     return _args[idx] if idx < len(_args) else None;
+}
+
+impl NaIRGenTypes._tuple_type_of(args: list) -> any {
+    _tuple_cls = self.prog.type_evaluator.prefetch.tuple_class;
+    if not isinstance(_tuple_cls, ClassType) {
+        return None;
+    }
+    _inst = _tuple_cls.clone_as_instance();
+    _inst.private.type_args = list(args);
+    return _inst;
 }
 
 impl NaIRGenTypes._tb_decl(t: any) -> (uni.UniNode | None) {
@@ -89,6 +110,9 @@ impl NaIRGenTypes._tb_kind(t: any) -> str {
     if t is None {
         return "unknown";
     }
+    if isinstance(t, TypeVarType) {
+        return "typevar";
+    }
     if isinstance(t, (AnyType, UnknownType))
         or t.is_any_type()
         or t.is_any_instance() {
@@ -96,9 +120,6 @@ impl NaIRGenTypes._tb_kind(t: any) -> str {
     }
     if isinstance(t, NeverType) {
         return "never";
-    }
-    if isinstance(t, TypeVarType) {
-        return "typevar";
     }
     if isinstance(t, FunctionType) {
         return "fn";
@@ -156,7 +177,10 @@ impl NaIRGenTypes._tb_kind(t: any) -> str {
         "BinaryFile": "binary_file",
         "Iterator": "iterator",
         "Iterable": "iterator",
-        "Generator": "iterator"
+        "Generator": "iterator",
+        "dict_keys": "list",
+        "dict_values": "list",
+        "dict_items": "list"
     };
     if _name in _by_name {
         return _by_name[_name];
@@ -575,6 +599,14 @@ impl NaIRGenTypes._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
 
 impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     cname = t.shared.class_name;
+    if (
+        not t.is_instance()
+        and t.is_instantiable()
+        and not t.shared.is_enum_class
+        and "type" in self.type_map
+    ) {
+        return self.type_map["type"];
+    }
     if cname in self.type_map {
         return self.type_map[cname];
     }

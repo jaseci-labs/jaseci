@@ -2395,6 +2395,14 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     var_type = value.type;
                 }
             }
+            if (
+                var_type is None
+                and value is not None
+                and self._tb_is(_decl_ty, ("tuple", ))
+                and not self._tb_args(_decl_ty)
+            ) {
+                var_type = value.type;
+            }
             if var_type is None {
                 raise AssertionError(
                     f"native: no lowerable type for local `{var_name}` ({_decl_ty}) at {os.path.basename(

@@ -88,6 +88,7 @@ obj NaIRGenExpr(NaIRGenState) {
         walker_name: str, walker_val: ir.Value, loc_val: ir.Value
     ) -> (ir.Value | None);
 
+    def _arch_instance_type(arch_name: str) -> any;
     def _spawn_operand_name(nd: uni.UniNode) -> (str | None);
     def _is_walker_arch(name: str) -> bool;
 }

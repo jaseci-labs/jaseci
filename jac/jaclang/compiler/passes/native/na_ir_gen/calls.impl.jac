@@ -153,6 +153,12 @@ impl NaIRGenCalls._codegen_bound_args(
             }
             v = self._codegen_expr(p);
             if v is not None {
+                _gslot = self_offset + len(args);
+                if _gslot < len(func.args) {
+                    v = self._coerce_type(
+                        v, func.args[_gslot].type, self._expr_type_of(p)
+                    );
+                }
                 args.append(v);
             }
         }
@@ -170,6 +176,28 @@ impl NaIRGenCalls._codegen_bound_args(
         and (params[0].is_self or params[0].is_cls)
         and id(params[0]) not in _bound_ids {
         params = params[1:];
+    }
+    _param_ids: set = {id(_q) for _q in params};
+    for (_ra, _rp) in arg_params.items() {
+        if (
+            _rp is not None
+            and (_rp.is_self or _rp.is_cls)
+            and id(_rp) not in _param_ids
+            and _ra in positional
+        ) {
+            positional.remove(_ra);
+            _rv = self._codegen_expr(_ra);
+            if _rv is None {
+                return self._abandoned_args(func, self_offset, args);
+            }
+            _rslot = self_offset + len(args);
+            if _rslot < len(func.args) {
+                _rv = self._coerce_type(
+                    _rv, func.args[_rslot].type, self._expr_type_of(_ra)
+                );
+            }
+            args.append(_rv);
+        }
     }
     if kw_spreads and not any(p.param_kind == ParamKind.KWARG for p in params) {
         self.emit(
@@ -1320,17 +1348,25 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             ) {
                 _fn_type = _loaded.type.pointee;
                 _iargs: list[ir.Value] = [];
+                _iarg_tys: list = [];
                 _iparams = nd.params or [];
                 for _ip in _iparams {
                     _iv = self._codegen_expr(_ip);
                     if _iv is not None {
                         _iargs.append(_iv);
+                        _iarg_tys.append(
+                            self._expr_type_of(
+                                _ip.value if isinstance(_ip, uni.KWPair) else _ip
+                            )
+                        );
                     }
                 }
                 _icoerced: list[ir.Value] = [];
                 for (_ii, _ia) in enumerate(_iargs) {
                     if _ii < len(_fn_type.args) {
-                        _icoerced.append(self._coerce_type(_ia, _fn_type.args[_ii]));
+                        _icoerced.append(
+                            self._coerce_type(_ia, _fn_type.args[_ii], _iarg_tys[_ii])
+                        );
                     } else {
                         _icoerced.append(_ia);
                     }

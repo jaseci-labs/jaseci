@@ -28,6 +28,7 @@ obj NaIRGenTypes(NaIRGenState) {
     def _tb_opt_payload(t: any) -> (any | None);
     def _tb_elem(t: any, idx: int = 0) -> (any | None);
     def _tb_decl(t: any) -> (uni.UniNode | None);
+    def _tuple_type_of(args: list) -> any;
     def _tb_kind(t: any) -> str;
     def _tb_payload_kind(t: any) -> str;
     def _tb_solve(t: any) -> any;

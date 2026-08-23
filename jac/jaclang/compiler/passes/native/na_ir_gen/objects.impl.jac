@@ -304,6 +304,10 @@ impl NaIRGenObjects._receiver_arch_name(expr: (uni.UniNode | None)) -> (str | No
     if kind == "struct" {
         return self._tb_class_name(t);
     }
+    if kind in ("file", "binary_file") {
+        self._emit_file_helpers();
+        return self._tb_class_name(t);
+    }
     return self._struct_name_of(expr);
 }
 
@@ -2781,6 +2785,16 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     type_name: (str | None) = self._receiver_arch_name(trailer.target);
     obj_val: (ir.Value | None) = None;
     if type_name is None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="method",
+            name=f"{self._tb_class_name(_recv_t) or _recv_kind}.{method_name}",
+            help_text=(
+                "The receiver of this method call has no native representation, "
+                "so the call cannot lower."
+            )
+        );
         return None;
     }
 
@@ -2841,6 +2855,13 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
         if self._pyb_base_of(type_name) is not None {
             return self._codegen_pyb_method_call(nd, type_name, method_name);
         }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="method",
+            name=f"{type_name}.{method_name}",
+            help_text="This method has no native lowering on its receiver type."
+        );
         return None;
     }
 
@@ -3091,7 +3112,7 @@ impl NaIRGenObjects._receiver_union_parts(
         return None;
     }
     _rt = self._flow_narrowed_type_of(nd.target);
-    if self._tb_kind(_rt) != "union" {
+    if len(self._tb_non_none(_rt)) < 2 {
         return None;
     }
     _rp: list[str] = [];

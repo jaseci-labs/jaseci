@@ -187,8 +187,9 @@ impl NaIRGenContainerHelpers._expr_type_of(expr: (uni.UniNode | None)) -> any {
 
 impl NaIRGenContainerHelpers._sym_type_of(nd: (uni.UniNode | None)) -> any {
     _sym = nd?.sym if isinstance(nd, uni.NameAtom) else None;
-    if _sym is not None {
-        _t = self.prog.get_type_evaluator().get_type_of_symbol(_sym);
+    _decl = _sym.decl if _sym is not None else None;
+    if isinstance(_decl, (uni.Expr, uni.AstTypedVarNode)) {
+        _t = _decl.type;
         if _t is not None and self._tb_kind(_t) not in ("unknown", "never") {
             return _t;
         }

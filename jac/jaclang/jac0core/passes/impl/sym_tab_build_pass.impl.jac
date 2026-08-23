@@ -578,6 +578,18 @@ impl SymTabBuildPass.exit_match_case(self: SymTabBuildPass, nd: MatchCase) -> No
     self.pop_scope();
 }
 
+impl SymTabBuildPass.enter_match_as(self: SymTabBuildPass, nd: MatchAs) -> None {
+    if isinstance(nd.name, AstSymbolNode) {
+        self.cur_scope.def_insert(nd.name, single_decl="match capture");
+    }
+}
+
+impl SymTabBuildPass.enter_match_star(self: SymTabBuildPass, nd: MatchStar) -> None {
+    if isinstance(nd.name, AstSymbolNode) {
+        self.cur_scope.def_insert(nd.name, single_decl="match capture");
+    }
+}
+
 impl SymTabBuildPass.enter_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None {
     self.push_scope_and_link(nd);
 }

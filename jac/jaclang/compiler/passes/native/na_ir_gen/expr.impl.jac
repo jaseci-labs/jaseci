@@ -878,13 +878,26 @@ impl NaIRGenExpr._codegen_kernel_spawn(
         osp_spawn_fn,
         [
             self._coerce_type(_rt, _argtys[0]),
-            self._coerce_type(walker_val, _argtys[1]),
+            self._coerce_type(
+                walker_val, _argtys[1], self._arch_instance_type(walker_name)
+            ),
             self._coerce_type(_descp, _argtys[2]),
             self._coerce_type(_starts, _argtys[3])
         ]
     );
     self._emit_rc_release_simple(_starts, op="spawn_starts", loc="");
     return walker_val;
+}
+
+impl NaIRGenExpr._arch_instance_type(arch_name: str) -> any {
+    _lay = self._arch_layout(arch_name);
+    _ct = _lay.class_type if _lay is not None else None;
+    if _ct is not None
+        and hasattr(_ct, "clone_as_instance")
+        and not _ct.is_instance() {
+        return _ct.clone_as_instance();
+    }
+    return _ct;
 }
 
 impl NaIRGenExpr._spawn_operand_name(nd: uni.UniNode) -> (str | None) {

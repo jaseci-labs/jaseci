@@ -362,6 +362,30 @@ impl TypeEvaluator._get_type_for_member_lookup(object_type: ClassType) -> ClassT
     return object_type;
 }
 
+impl TypeEvaluator._member_type_with_overloads(
+    member: ClassMember, recv: ClassType
+) -> TypeBase {
+    member_ty = self.get_type_of_member(member, recv);
+    if not isinstance(member_ty, FunctionType) {
+        return member_ty;
+    }
+    fns: list[FunctionType] = [member_ty];
+    for overload in member.overloads {
+        overload_ty = self.specialize_member_type(
+            self.get_type_of_symbol(overload),
+            recv,
+            self.declaring_class_of(overload, recv)
+        );
+        if isinstance(overload_ty, FunctionType) {
+            fns.append(overload_ty);
+        }
+    }
+    if len(fns) > 1 {
+        return OverloadedType(overloads=fns);
+    }
+    return member_ty;
+}
+
 impl TypeEvaluator.get_type_of_member(
     member: ClassMember, class_type: ClassType
 ) -> TypeBase {
@@ -603,17 +627,71 @@ impl TypeEvaluator._collect_unique_types(ty: TypeBase, result: list[TypeBase]) -
 impl TypeEvaluator._get_expected_element_type(
     expected_type: TypeBase | None, container_class: TypeBase
 ) -> TypeBase | None {
-    if expected_type is None {
-        return None;
-    }
+    expected_type = self._expected_container_peer(expected_type, container_class);
     if (
         isinstance(expected_type, ClassType)
-        and isinstance(container_class, ClassType)
-        and expected_type.shared == container_class.shared
         and expected_type.private.type_args
         and len(expected_type.private.type_args) >= 1
     ) {
-        return self._convert_to_instance(expected_type.private.type_args[0]);
+        _elem = expected_type.private.type_args[0];
+        if isinstance(_elem, (TypeVarType, UnknownType)) or self.is_any_type(_elem) {
+            return None;
+        }
+        return self._convert_to_instance(_elem);
+    }
+    return None;
+}
+
+impl TypeEvaluator._expected_container_peer(
+    expected_type: TypeBase | None, container_class: TypeBase
+) -> TypeBase | None {
+    if expected_type is None or not isinstance(container_class, ClassType) {
+        return None;
+    }
+    if isinstance(expected_type, UnionType) {
+        _members = [
+            m
+            for m in expected_type.types
+            if not self.is_none_type(m)
+        ];
+        if len(_members) == 1 {
+            expected_type = _members[0];
+        } else {
+            for m in _members {
+                _peer = self._expected_container_peer(m, container_class);
+                if _peer is not None {
+                    return _peer;
+                }
+            }
+            return None;
+        }
+    }
+    if not isinstance(expected_type, ClassType)
+        or not expected_type.private.type_args {
+        return None;
+    }
+    if expected_type.shared == container_class.shared {
+        return expected_type;
+    }
+    _abstract_for: dict[str, tuple] = {
+        "list": (
+            "Sequence",
+            "MutableSequence",
+            "Iterable",
+            "Collection",
+            "Container",
+            "Reversible",
+            "Sized"
+        ),
+        "set": ("AbstractSet", "MutableSet", "Set", "Iterable", "Collection"),
+        "frozenset": ("AbstractSet", "Set", "Iterable", "Collection"),
+        "dict": ("Mapping", "MutableMapping"),
+        "tuple": ("Sequence", "Iterable", "Collection"),
+
+    };
+    _names = _abstract_for.get(container_class.shared.class_name, ());
+    if expected_type.shared.class_name in _names and expected_type.is_builtin() {
+        return expected_type;
     }
     return None;
 }
@@ -621,6 +699,7 @@ impl TypeEvaluator._get_expected_element_type(
 impl TypeEvaluator._get_expected_kv_types(
     expected_type: TypeBase | None, dict_class: TypeBase
 ) -> tuple[TypeBase, TypeBase] | None {
+    expected_type = self._expected_container_peer(expected_type, dict_class);
     if expected_type is None {
         return None;
     }
@@ -677,10 +756,15 @@ impl TypeEvaluator._infer_list_elem_from_mutations(expr: ListVal) -> TypeBase | 
             saw_none = True;
             continue;
         }
-        if not (
+        _scalar = isinstance(widened, ClassType)
+            and widened.is_builtin(["int", "float", "str", "bool"]);
+        _instance = (
             isinstance(widened, ClassType)
-            and widened.is_builtin(["int", "float", "str", "bool"])
-        ) {
+            and widened.is_class_instance()
+            and not widened.is_any_instance()
+            and isinstance(widened.shared.symbol_table, (Archetype, Enum))
+        );
+        if not (_scalar or _instance) {
             return None;
         }
         if not self._type_in_list(widened, elem_types) {

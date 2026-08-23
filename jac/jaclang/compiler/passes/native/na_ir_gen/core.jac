@@ -18,7 +18,9 @@ obj NaIRGenCore(NaIRGenState) {
     def transform(ir_in: uni.Module) -> uni.Module;
     def _register_imported_struct_types -> None;
     def _permuted_walk_order(mods: list) -> list;
-    def _register_dep_module_layouts(imported_mod: uni.Module) -> None;
+    def _register_dep_module_struct_names(imported_mod: uni.Module) -> list;
+    def _register_dep_module_layouts(imported_mod: uni.Module, _ordered: list) -> None;
+
     def _walk_imported_module_abilities(
         imported_mod: uni.Module, with_fn_verdicts: bool = True
     ) -> None;

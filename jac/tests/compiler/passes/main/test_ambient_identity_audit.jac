@@ -678,7 +678,7 @@ test "optional_layout_signal" {
         mod = program.compile(path);
         registry = get_layout_registry(mod, program);
         lay = registry.get_layout("Wrap");
-        field_tags = [(fi.name, fi.type_tag) for fi in lay.fields]
+        field_tags = [(fi.name, str(fi.type)) for fi in lay.fields]
             if lay is not None
             else [];
         stamped = "<no-var>";

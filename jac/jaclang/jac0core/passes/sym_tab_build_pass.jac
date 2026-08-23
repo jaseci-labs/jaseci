@@ -25,7 +25,9 @@ import from jaclang.jac0core.unitree {
     IterForStmt,
     LambdaExpr,
     ListCompr,
+    MatchAs,
     MatchCase,
+    MatchStar,
     Module,
     ModuleItem,
     ModulePath,
@@ -181,6 +183,8 @@ class SymTabBuildPass(UniPass) {
     def enter_inner_compr(self: SymTabBuildPass, nd: InnerCompr) -> None;
     def exit_inner_compr(self: SymTabBuildPass, nd: InnerCompr) -> None;
     def enter_match_case(self: SymTabBuildPass, nd: MatchCase) -> None;
+    def enter_match_as(self: SymTabBuildPass, nd: MatchAs) -> None;
+    def enter_match_star(self: SymTabBuildPass, nd: MatchStar) -> None;
     def exit_match_case(self: SymTabBuildPass, nd: MatchCase) -> None;
     def enter_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;
     def exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;

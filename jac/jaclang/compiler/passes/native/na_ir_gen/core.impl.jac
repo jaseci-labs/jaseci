@@ -627,8 +627,14 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         self._process_clib_imports(imported_mod);
     }
 
+    _dep_layouts: list = [];
     for imported_mod in imported_mods {
-        self._register_dep_module_layouts(imported_mod);
+        _dep_layouts.append(
+            (imported_mod, self._register_dep_module_struct_names(imported_mod))
+        );
+    }
+    for (imported_mod, _ordered) in _dep_layouts {
+        self._register_dep_module_layouts(imported_mod, _ordered);
     }
 
     _self_real = os.path.realpath(self.ir_in.loc.mod_path)
@@ -648,7 +654,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     }
 }
 
-impl NaIRGenCore._register_dep_module_layouts(imported_mod: uni.Module) -> None {
+impl NaIRGenCore._register_dep_module_struct_names(imported_mod: uni.Module) -> list {
     import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
     dep_reg = ensure_layout_registry(imported_mod, self.prog);
     self._registry().merge_from(dep_reg);
@@ -685,6 +691,14 @@ impl NaIRGenCore._register_dep_module_layouts(imported_mod: uni.Module) -> None 
             self._enum_source_name[_ename] = imported_mod.name;
         }
     }
+    return _ordered;
+}
+
+impl NaIRGenCore._register_dep_module_layouts(
+    imported_mod: uni.Module, _ordered: list
+) -> None {
+    import from jaclang.compiler.passes.main.layout_pass { ensure_layout_registry }
+    dep_reg = ensure_layout_registry(imported_mod, self.prog);
     for _lay in _ordered {
         if _lay.name in self._struct_bodies_done {
             continue;

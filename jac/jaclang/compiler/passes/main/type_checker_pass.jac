@@ -172,6 +172,7 @@ class TypeCheckPass(UniPass) {
     def exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None;
     def exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None;
     def exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None;
+    def exit_index_slice(self: TypeCheckPass, nd: IndexSlice) -> None;
     def exit_expr_stmt(self: TypeCheckPass, nd: ExprStmt) -> None;
     def exit_match_stmt(self: TypeCheckPass, nd: MatchStmt) -> None;
     def exit_except(self: TypeCheckPass, nd: Except) -> None;

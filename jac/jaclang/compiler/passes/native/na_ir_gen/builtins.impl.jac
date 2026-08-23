@@ -404,7 +404,9 @@ impl NaIRGenBuiltins._emit_optional_str(
             return None;
         }
         _jv = self._coerce_type(
-            val, self.jacval_type, self._expr_type_of(part) if part is not None else None
+            val,
+            self.jacval_type,
+            self._expr_type_of(part) if part is not None else None
         );
         _rfn = self._repr_jacval_fn();
         if _rfn is None {

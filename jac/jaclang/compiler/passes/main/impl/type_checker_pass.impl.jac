@@ -1481,6 +1481,19 @@ impl TypeCheckPass.exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None
     }
 }
 
+impl TypeCheckPass.exit_index_slice(self: TypeCheckPass, nd: IndexSlice) -> None {
+    if self._lambda_depth > 0 {
+        return;
+    }
+    for _sl in (nd.slices or []) {
+        for _part in (_sl.start, _sl.stop, _sl.step) {
+            if _part is not None and _part.type is None {
+                self.evaluator.get_type_of_expression(_part);
+            }
+        }
+    }
+}
+
 impl TypeCheckPass.exit_expr_stmt(self: TypeCheckPass, nd: ExprStmt) -> None {
     if self._lambda_depth > 0 {
         return;

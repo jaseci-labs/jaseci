@@ -99,19 +99,6 @@ glob FORBIDDEN: dict[str, str] = {
              "Callable-over-RPC guard on endpoint params - the declared "
              "annotation is the consumed fact, not a resolved type"
          ),
-         ("native/na_ir_gen/generics.impl.jac", "type_tag.tag"): (
-             5,
-             "generic-template declared-annotation reads where the "
-             "declaration IS the fact: (1) the _solve_generic_call fallback "
-             "(a bundled/imported template compiled symtab_ir_only has no "
-             "stamped FunctionType, and an uninstantiated template has no "
-             "per-callsite resolved type to consume); (2)+(3) "
-             "_instantiate_generic_for_target (#7626 A5) matches the "
-             "template's declared TypeVar param annotations against the "
-             "binding's concrete Callable annotation to derive the "
-             "monomorphization solution - the template is uninstantiated, "
-             "so the declared annotations are the only TypeVar surface"
-         ),
          ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
              2,
              "classify_call as the shadowing-aware builtin test for the "
@@ -166,7 +153,7 @@ glob FORBIDDEN: dict[str, str] = {
              "of analysis"
          ),
          ("native/na_ir_gen/func.impl.jac", "type_tag.tag"): (
-             4,
+             5,
              "scalar LLVM materialization from declared clib annotations "
              "at the declaration site - the backend's lowering role "
              "(sysv sig planning + fixed-param lowering, #6707, #6708)"

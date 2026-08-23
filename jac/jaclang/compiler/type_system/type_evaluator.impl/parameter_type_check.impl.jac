@@ -55,6 +55,14 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
     caller_type = self.get_type_of_expression(expr.target);
 
     if self._is_expr_super(expr.target) {
+        if isinstance(caller_type, FunctionType) {
+            self._stamp_call_binding(
+                expr,
+                caller_type,
+                self.match_args_to_params(expr.params, expr, caller_type),
+                None
+            );
+        }
         return caller_type;
     }
 
@@ -178,6 +186,19 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
             if not isinstance(cast_target_type, UnknownType) {
                 return self._convert_to_instance(cast_target_type);
             }
+        }
+    }
+
+    if isinstance(caller_type, UnionType) {
+        _known = [
+            m
+            for m in caller_type.types
+            if not (isinstance(m, (AnyType, UnknownType)) or m.is_any_instance())
+        ];
+        if len(_known) == 1
+            and len(_known) < len(caller_type.types)
+            and isinstance(_known[0], (FunctionType, OverloadedType)) {
+            caller_type = _known[0];
         }
     }
 
@@ -695,6 +716,12 @@ impl TypeEvaluator._stamp_call_binding(
                 continue;
             }
             idx = index_of.get(id(param));
+            if idx is None
+                and (param.is_self or param.is_cls)
+                and resolved.parameters
+                and (resolved.parameters[0].is_self or resolved.parameters[0].is_cls) {
+                idx = 0;
+            }
             arg_params[arg] = resolved.parameters[idx] if idx is not None else param;
         }
     }

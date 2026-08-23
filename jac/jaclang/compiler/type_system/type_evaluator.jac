@@ -2,6 +2,9 @@ import os;
 import from pathlib { Path }
 import from typing { cast }
 import from jaclang.jac0core.unitree {
+    MatchSequence,
+    MatchKVPair,
+    MatchStar,
     Ability,
     Archetype,
     AssertStmt,
@@ -464,6 +467,12 @@ obj TypeEvaluator {
         src_type: TypeBase, dest_type: TypeBase, strict: bool = False
     ) -> bool;
 
+    def _type_of_match_binding(binder: UniNode) -> TypeBase;
+    def _adopt_expected_container(
+        expr: FuncCall, call_t: TypeBase, expected_type: TypeBase | None
+    ) -> TypeBase | None;
+
+    def _is_untyped_empty_literal(node_: Expr, ty: TypeBase) -> bool;
     def resolve_operator(
         owner: TypeBase, method: str, reflected: bool
     ) -> ResolvedOperator;
@@ -495,6 +504,7 @@ obj TypeEvaluator {
     def _get_type_of_symbol_decl(symbol: Symbol, decl: NameAtom) -> TypeBase;
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
     def get_type_of_member(member: ClassMember, class_type: ClassType) -> TypeBase;
+    def _member_type_with_overloads(member: ClassMember, recv: ClassType) -> TypeBase;
     def declaring_class_of(symbol: Symbol, base_type: ClassType) -> (ClassType | None);
     def specialize_member_type(
         member_type: TypeBase,
@@ -555,6 +565,10 @@ obj TypeEvaluator {
 
     def _type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool;
     def _collect_unique_types(ty: TypeBase, result: list[TypeBase]) -> None;
+    def _expected_container_peer(
+        expected_type: TypeBase | None, container_class: TypeBase
+    ) -> TypeBase | None;
+
     def _get_expected_element_type(
         expected_type: TypeBase | None, container_class: TypeBase
     ) -> TypeBase | None;
