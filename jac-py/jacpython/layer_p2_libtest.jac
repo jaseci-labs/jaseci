@@ -765,7 +765,6 @@ def p2_libtest_reset {
         "S_IFLNK": PyInt(t="int", val=S_IFLNK),
         "S_IFSOCK": PyInt(t="int", val=S_IFSOCK),
     };
-    register_shim_module(
     stat_attrs: dict[str, PyObj] = {
         "S_ISDIR": P2StatSIsDirFn(t="function"),
         "S_ISCHR": P2StatSIsChrFn(t="function"),
