@@ -95,14 +95,14 @@ obj PyObj {
         return py_error("TypeError", "object is not callable");
     }
 
-    # Canonical dict/set key string (the internal hash-key protocol). Encodes a
-    # VALUE into a type-prefixed, collision-safe string so the backing Jac dict
-    # keys on value-equality with Python's numeric collapse (see PyInt/PyFloat).
-    # The empty string is the "unhashable" sentinel (na-clean: no exceptions in
-    # this leaf) -- callers turn it into a TypeError. Real keys are never empty
-    # (every hashable type emits a non-empty prefix).
-    def tp_hashkey -> str {
-        return "";
+    # Canonical dict/set key (the internal hash-key protocol): a PyStr encoding
+    # a VALUE into a type-prefixed, collision-safe string so the backing Jac
+    # dict keys on value-equality with Python's numeric collapse (see
+    # PyInt/PyFloat). Unhashable is an explicit PyError marker (the codebase's
+    # is_error idiom) -- never an in-band string -- so no path can mistake it
+    # for a legitimate key; callers turn it into their own TypeError.
+    def tp_hashkey -> PyObj {
+        return py_error("TypeError", "unhashable type");
     }
 
     # __index__: the PyInt to use when this object is a sequence index / slice
@@ -244,8 +244,8 @@ obj PyInt(PyObj) {
     }
     # Shared numeric namespace so `hash(1) == hash(1.0) == hash(True)` and all
     # three key the same dict/set slot (PyBool and integral PyFloat emit "n:" too).
-    def tp_hashkey -> str {
-        return "n:" + str(self.val);
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="n:" + str(self.val));
     }
     # int is its own real part / numerator; imag is 0, denominator is 1.
     def tp_getattro(name: str) -> PyObj {
@@ -326,8 +326,8 @@ obj PyStr(PyObj) {
     }
     # "s:" keeps strings disjoint from the numeric namespace (the string "n:5"
     # hashes to "s:n:5", never colliding with int 5's "n:5").
-    def tp_hashkey -> str {
-        return "s:" + self.val;
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="s:" + self.val);
     }
 }
 
@@ -371,12 +371,12 @@ obj PyBytes(PyObj) {
         return len(self.val) != 0;
     }
 
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         key = "b:";
         for v in self.val {
             key = key + str(v) + ",";
         }
-        return key;
+        return PyStr(t="str", val=key);
     }
 }
 
@@ -506,19 +506,19 @@ obj PyFloat(PyObj) {
     # float("inf") parsing (na-safe): v != v is nan, v*0.0 != 0.0 is +/-inf.
     # NB: all nan collapse to one key (value-based), unlike CPython's per-object
     # nan keys -- an accepted edge divergence given the leaf has no key identity.
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         v = self.val;
         if v != v {
-            return "f:nan";
+            return PyStr(t="str", val="f:nan");
         }
         if v * 0.0 != 0.0 {
-            return "f:" + str(v);
+            return PyStr(t="str", val="f:" + str(v));
         }
         iv = int(v);
         if float(iv) == v {
-            return "n:" + str(iv);
+            return PyStr(t="str", val="n:" + str(iv));
         }
-        return "f:" + str(v);
+        return PyStr(t="str", val="f:" + str(v));
     }
 }
 
@@ -536,11 +536,11 @@ obj PyBool(PyObj) {
         return PyInt(t="int", val=0);
     }
     # bool is an int subclass: True keys as int 1, False as int 0.
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         if self.val {
-            return "n:1";
+            return PyStr(t="str", val="n:1");
         }
-        return "n:0";
+        return PyStr(t="str", val="n:0");
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
@@ -605,13 +605,13 @@ obj PyNoneType(PyObj) {
         return PY_NOT_IMPLEMENTED;
     }
 
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         # Byte-parity with the host oracle: CPython hash(None) is process-
         # stable (4238894112 on the pinned 3.14), and the "n:" namespace
         # passes numeric digests through verbatim (see _hashkey_digest). The
         # old bare "none" string FNV-digested to a value no host comparison
         # could ever match (item 41).
-        return "n:4238894112";
+        return PyStr(t="str", val="n:4238894112");
     }
 }
 
@@ -751,17 +751,18 @@ obj PyTuple(PyObj) {
         return len(self.items) != 0;
     }
     # Recursive, length-framed so ("a","b") and ("a","b","") stay distinct.
-    # An unhashable element (empty sub-key) makes the whole tuple unhashable.
-    def tp_hashkey -> str {
+    # An unhashable element makes the whole tuple unhashable (error propagates).
+    def tp_hashkey -> PyObj {
         key = "t:";
         for item in self.items {
             sub = item.tp_hashkey();
-            if sub == "" {
-                return "";
+            if is_error(sub) {
+                return sub;
             }
-            key = key + str(len(sub)) + ":" + sub;
+            subk = hashkey_str(sub);
+            key = key + str(len(subk)) + ":" + subk;
         }
-        return key;
+        return PyStr(t="str", val=key);
     }
 }
 
@@ -1015,7 +1016,7 @@ obj PyCode(PyObj) {
 
     # Each nested PyCode in a const table must stay distinct (deco vs f). The
     # default PyObj hashkey is "" and would incorrectly dedupe all code objects.
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         result = (
             "code:"
             + self.name
@@ -1031,7 +1032,7 @@ obj PyCode(PyObj) {
             result = result + ":" + str(self.co_code[ci]);
             ci = ci + 1;
         }
-        return result;
+        return PyStr(t="str", val=result);
     }
 
     # Expose the CPython-visible co_* attribute surface so introspection
@@ -1154,10 +1155,11 @@ obj PyDict(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
-        hk = index.tp_hashkey();
-        if hk == "" {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type");
         }
+        hk = hashkey_str(hkr);
         if hk in self.items {
             return self.items[hk].value;
         }
@@ -1165,10 +1167,11 @@ obj PyDict(PyObj) {
     }
 
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
-        hk = index.tp_hashkey();
-        if hk == "" {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type");
         }
+        hk = hashkey_str(hkr);
         if hk in self.items {
             # Overwrite value, keep the FIRST key object + slot position (CPython
             # semantics). Rebuild the entry rather than writing a nested obj field
@@ -1184,10 +1187,11 @@ obj PyDict(PyObj) {
     }
 
     def mp_del_subscript(index: PyObj) -> PyObj {
-        hk = index.tp_hashkey();
-        if hk == "" {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type");
         }
+        hk = hashkey_str(hkr);
         if hk in self.items {
             del self.items[hk];
             self.version = self.version + 1;
@@ -1202,11 +1206,11 @@ obj PyDict(PyObj) {
     }
 
     def dict_contains(keyobj: PyObj) -> bool {
-        hk = keyobj.tp_hashkey();
-        if hk == "" {
+        hkr = keyobj.tp_hashkey();
+        if is_error(hkr) {
             return False;
         }
-        return hk in self.items;
+        return hashkey_str(hkr) in self.items;
     }
 
     def dict_keys -> list[PyObj] {
@@ -1279,10 +1283,11 @@ obj PySet(PyObj) {
     }
 
     def set_add(member: PyObj) -> PyObj {
-        hk = member.tp_hashkey();
-        if hk == "" {
+        hkr = member.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type");
         }
+        hk = hashkey_str(hkr);
         # First occurrence wins: {1, 1.0, True} keeps the int 1 it saw first
         # (CPython set-literal insertion order). Overwriting would keep the last.
         if not (hk in self.items) {
@@ -1303,10 +1308,11 @@ obj PySet(PyObj) {
     }
 
     def set_discard(member: PyObj) -> PyObj {
-        hk = member.tp_hashkey();
-        if hk == "" {
+        hkr = member.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type");
         }
+        hk = hashkey_str(hkr);
         if hk in self.items {
             del self.items[hk];
         }
@@ -1342,12 +1348,12 @@ obj PySet(PyObj) {
         return len(self.items) != 0;
     }
 
-    # Only frozensets are hashable (mutable set -> "" unhashable). The digest is
-    # order-independent: member subkeys are sorted (manual insertion sort, na-
-    # clean) so frozenset({1,2}) and frozenset({2,1}) share one key.
-    def tp_hashkey -> str {
+    # Only frozensets are hashable (mutable set -> explicit unhashable error).
+    # The digest is order-independent: member subkeys are sorted (manual insertion
+    # sort, na-clean) so frozenset({1,2}) and frozenset({2,1}) share one key.
+    def tp_hashkey -> PyObj {
         if not self.frozen {
-            return "";
+            return py_error("TypeError", "unhashable type");
         }
         keys: list[str] = [];
         for hk in self.items {
@@ -1368,7 +1374,7 @@ obj PySet(PyObj) {
         for k in keys {
             result = result + ":" + str(len(k)) + ":" + k;
         }
-        return result;
+        return PyStr(t="str", val=result);
     }
 
     def nb_binop(kind: int, other: PyObj) -> PyObj {
@@ -1545,10 +1551,11 @@ def _obj_eq_bool(a: PyObj, b: PyObj) -> int {
 }
 
 def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
-    hk = key.tp_hashkey();
-    if hk == "" {
+    hkr = key.tp_hashkey();
+    if is_error(hkr) {
         return PyBool(t="bool", val=False);
     }
+    hk = hashkey_str(hkr);
     if hk in so.items {
         stored = so.items[hk];
         cmp = _obj_eq_bool(key, stored);
@@ -2066,7 +2073,11 @@ def dict_key_repr(index: PyObj) -> str {
     if isinstance(index, PyInt) {
         return str((index as PyInt).val);
     }
-    return index.tp_hashkey();
+    hkr = index.tp_hashkey();
+    if is_error(hkr) {
+        return "<unhashable>";
+    }
+    return hashkey_str(hkr);
 }
 
 def expect_float(o: PyObj) -> float {
@@ -2121,6 +2132,22 @@ def py_error(type_name: str, message: str) -> PyObj {
 
 def py_exception_type(name: str) -> PyObj {
     return PyExceptionType(t="exception_type", name=name);
+}
+
+# Unwrap a SUCCESSFUL tp_hashkey result to its key string. Only call after an
+# is_error check -- the unhashable marker is a PyError, not a string.
+def hashkey_str(hk_res: PyObj) -> str {
+    return (hk_res as PyStr).val;
+}
+
+# True iff two tp_hashkey results encode the same key. An unhashable operand
+# (a PyError marker) matches nothing -- const-table dedup and friends only ever
+# see hashable values, so this stays total without raising.
+def hashkey_equal(a: PyObj, b: PyObj) -> bool {
+    if isinstance(a, PyStr) and isinstance(b, PyStr) {
+        return (a as PyStr).val == (b as PyStr).val;
+    }
+    return False;
 }
 
 def is_error(value: PyObj) -> bool {

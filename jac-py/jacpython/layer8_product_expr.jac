@@ -11,7 +11,7 @@
 #
 # Test harness only: host_oracle is used solely to produce the expected PyCode.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error, PyError }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error, hashkey_equal, PyError }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -32,7 +32,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     }
     i = 0;
     while i < len(a) {
-        if a[i].tp_hashkey() != b[i].tp_hashkey() {
+        if not hashkey_equal(a[i].tp_hashkey(), b[i].tp_hashkey()) {
             return False;
         }
         i = i + 1;

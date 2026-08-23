@@ -1,7 +1,7 @@
 # Band 9 slice: sequence-unpacking assignment targets + tuple/list displays.
 # Byte-exact PyCode parity against the CPython 3.14.6 oracle, plus VM execution.
 
-import from objects { PyObj, PyCode, PyInt, expect_int, is_error }
+import from objects { PyObj, PyCode, PyInt, expect_int, is_error, hashkey_equal }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -20,7 +20,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     }
     i = 0;
     while i < len(a) {
-        if a[i].tp_hashkey() != b[i].tp_hashkey() {
+        if not hashkey_equal(a[i].tp_hashkey(), b[i].tp_hashkey()) {
             return False;
         }
         i = i + 1;

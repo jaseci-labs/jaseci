@@ -7,7 +7,7 @@
 # na-clean leaf: no host calls, no import cycles. Location encoding matches
 # CPython 3.14 (PEP 626); col offsets are 0-based byte offsets, NO_COLUMN = -1.
 
-import from objects { PyObj, py_none }
+import from objects { PyObj, py_none, hashkey_equal }
 import from opcode_meta { opcode_cache_count, OP_LOAD_CONST }
 import from compiler_diagnostics { compiler_diagnostic }
 import from compiler_symtable { sym_block }
@@ -330,7 +330,7 @@ obj unverified_cfg {
         key = c.tp_hashkey();
         i = 0;
         while i < len(self.consts) {
-            if self.consts[i].tp_hashkey() == key {
+            if hashkey_equal(self.consts[i].tp_hashkey(), key) {
                 return i;
             }
             i = i + 1;
@@ -358,7 +358,7 @@ obj unverified_cfg {
         key = c.tp_hashkey();
         k = 0;
         while k < len(self.late_consts) {
-            if self.late_consts[k].tp_hashkey() == key {
+            if hashkey_equal(self.late_consts[k].tp_hashkey(), key) {
                 return -(k + 1);
             }
             k = k + 1;

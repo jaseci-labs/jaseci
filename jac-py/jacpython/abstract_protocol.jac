@@ -8,6 +8,7 @@ import from objects {
     PyBool,
     PyInt,
     is_error,
+    hashkey_str,
     py_error,
     PY_NOT_IMPLEMENTED,
     Py_LT,
@@ -114,11 +115,11 @@ def PyObject_HashNotImplemented(v: PyObj) -> PyObj {
 }
 
 def PyObject_Hash(v: PyObj) -> PyObj {
-    hk = v.tp_hashkey();
-    if hk == "" {
+    hkr = v.tp_hashkey();
+    if is_error(hkr) {
         return PyObject_HashNotImplemented(v);
     }
-    return PyInt(t="int", val=_hashkey_digest(hk));
+    return PyInt(t="int", val=_hashkey_digest(hashkey_str(hkr)));
 }
 
 # ``abstract.c`` iterator surface: ``tp_iter`` + iterator-type check.

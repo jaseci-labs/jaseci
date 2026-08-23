@@ -19,7 +19,7 @@
 #     names...]; body is a format>2 guard raising NotImplementedError, then
 #     BUILD_MAP 0 plus one guarded COPY/STORE_SUBSCR entry per annotation.
 
-import from objects { PyStr, PyInt, py_none }
+import from objects { PyStr, PyInt, py_none, hashkey_equal }
 import from opcode_meta {
     OP_RESUME,
     OP_LOAD_FAST,
@@ -671,7 +671,7 @@ def finish_module_annotations(g: cfg_builder, plan: ann_scope_plan) {
     none_key = py_none().tp_hashkey();
     ni2 = 0;
     while ni2 < len(g.u.consts) {
-        if g.u.consts[ni2].tp_hashkey() == none_key {
+        if hashkey_equal(g.u.consts[ni2].tp_hashkey(), none_key) {
             ci = ni2;
             break;
         }

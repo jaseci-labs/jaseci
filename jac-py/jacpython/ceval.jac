@@ -71,11 +71,28 @@ def _jac_is_range_type(value):
     # subclass machinery that range must NOT join).
     return value is range
 
+def _jac_conversion_ctor_kind(value):
+    # Which conversion constructor ("int"/"float"/"bool") value is, or "".
+    # Identity against the exact host builtins -- the same mechanism-level
+    # idiom as _jac_is_object_type/_jac_is_range_type -- because the tp_call
+    # fast path below must match ONLY the real constructors: name matching
+    # (_jac_builtin_base_name) would also catch a user-defined class merely
+    # named "int", and that class's instances must take their own call path.
+    import builtins
+    if value is builtins.int:
+        return "int"
+    if value is builtins.float:
+        return "float"
+    if value is builtins.bool:
+        return "bool"
+    return ""
+
 def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
     # host objects share a hash, hence a bucket; the dict layer confirms a bucket
-    # hit with a real == (PyHostProxy needs_eq_confirm). '' means unhashable.
+    # hit with a real == (PyHostProxy needs_eq_confirm). "" means unhashable --
+    # tp_hashkey turns it into the explicit PyError marker.
     try:
         return "host:" + str(hash(value))
     except BaseException:
@@ -569,6 +586,7 @@ import from objects {
     dict_key_repr,
     _pyobj_repr,
     is_error,
+    hashkey_str,
     PY_NOT_IMPLEMENTED
 }
 import from opcode_meta {
@@ -1102,25 +1120,31 @@ obj PyHostProxy(PyObj) {
         # answer through the implicit slot machinery instead of crossing the
         # bridge: to_host of a plain user object is None, so the host constructor
         # saw nothing (bool(obj) was literally False; int(obj)/float(obj) raised).
-        bname = str(_jac_builtin_base_name(self.val));
-        if len(args) >= 1 and (bname == "int" or bname == "float" or bname == "bool") {
+        # Each native operand found converts ITSELF (never args[0]): multi-arg
+        # shapes like int("ff", user_base) route the native operand only.
+        ckind = str(_jac_conversion_ctor_kind(self.val));
+        if len(args) >= 1 and ckind != "" {
             for a in args {
                 if isinstance(a, PyUserObj) {
-                    if bname == "bool" {
-                        return py_slot_truth(args[0]);
+                    if ckind == "bool" {
+                        return py_slot_truth(a);
                     }
-                    if bname == "int" {
-                        return py_convert_int(args[0]);
+                    if ckind == "int" {
+                        return py_convert_int(a);
                     }
-                    return py_convert_float(args[0]);
+                    return py_convert_float(a);
                 }
             }
         }
         return py_call_host(self, args, kwargs);
     }
 
-    def tp_hashkey -> str {
-        return _jac_host_hashkey(self.val) as str;
+    def tp_hashkey -> PyObj {
+        hks = _jac_host_hashkey(self.val);
+        if hks == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        return PyStr(t="str", val=hks);
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
@@ -1166,7 +1190,7 @@ obj PyRange(PyObj) {
     # byte-parity with the host ratchet, not just equivalence classes.
     # hash(None) is process-stable in CPython (4238894112); substituting an
     # int of that value keeps every lane's hash identical to the real triple.
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         n = self.length();
         triple: list[PyObj] = [PyInt(t="int", val=n)];
         if n == 0 {
@@ -1182,11 +1206,11 @@ obj PyRange(PyObj) {
         }
         th = tuple_hash(PyTuple(t="tuple", items=triple));
         if is_error(th) {
-            return "";
+            return th;
         }
         # Already-signed numeric digest: the "n:" namespace passes it through
         # verbatim (see _hashkey_digest).
-        return "n:" + str((th as PyInt).val);
+        return PyStr(t="str", val="n:" + str((th as PyInt).val));
     }
 
     def tp_iter -> PyObj {
@@ -1412,8 +1436,8 @@ obj PyClass(PyObj) {
 
     # A class is hashable by identity (type-keyed dispatch tables, base_chain sets
     # in enum's _find_data_type_). Distinct classes get distinct buckets.
-    def tp_hashkey -> str {
-        return "obj:" + str(id(self));
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     # Classes compare by identity: `ReprEnum in (Enum,)` must be False so enum's
@@ -1662,7 +1686,7 @@ obj PyUserObj(PyObj) {
         return py_error("TypeError", "object cannot be interpreted as an integer");
     }
 
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         # A user-defined __hash__ keys the object by value (shares the numeric
         # "n:" namespace so hash()-equal objects bucket together); it overrides
         # a boxed builtin base's own keying, as CPython's slot inheritance does.
@@ -1672,21 +1696,21 @@ obj PyUserObj(PyObj) {
                 h = PyInt(t="int", val=1 if (h as PyBool).val else 0);
             }
             if isinstance(h, PyInt) {
-                return "n:" + str((h as PyInt).val);
+                return PyStr(t="str", val="n:" + str((h as PyInt).val));
             }
         }
         if self._has_base() {
             return self._base_obj().tp_hashkey();
         }
         # CPython type.__new__: __eq__ without an explicit __hash__ anywhere in
-        # the MRO leaves tp_hash NULL -- instances are unhashable. The empty
-        # string is the established unhashable sentinel; dict/set keying and
-        # PyObject_Hash both turn it into the TypeError.
+        # the MRO leaves tp_hash NULL -- instances are unhashable. The explicit
+        # unhashable error marker; dict/set keying and PyObject_Hash both turn
+        # it into their own TypeError.
         if user_has_dunder(self, "__eq__") {
-            return "";
+            return py_error("TypeError", "unhashable type");
         }
         # Default object.__hash__: identity-keyed, distinct per object.
-        return "obj:" + str(id(self));
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     def tp_bool -> bool {
@@ -2126,8 +2150,8 @@ obj PyFunction(PyObj) {
 
     # Functions are hashable by identity (enum keys candidate __new__ callables in
     # a set; dispatch tables key on functions).
-    def tp_hashkey -> str {
-        return "obj:" + str(id(self));
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -2222,7 +2246,7 @@ def from_host(raw: any) -> PyObj {
         native = PyDict(t="dict", items={});
         for key in raw {
             keyobj = from_host(key);
-            if keyobj.tp_hashkey() == "" {
+            if is_error(keyobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             native.dict_set(keyobj, from_host(raw[key]));
@@ -2233,7 +2257,7 @@ def from_host(raw: any) -> PyObj {
         fs = PySet(t="frozenset", items={}, frozen=True);
         for member in raw {
             memberobj = from_host(member);
-            if memberobj.tp_hashkey() == "" {
+            if is_error(memberobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             fs.set_add(memberobj);
@@ -2244,7 +2268,7 @@ def from_host(raw: any) -> PyObj {
         ns = PySet(t="set", items={}, frozen=False);
         for member in raw {
             memberobj = from_host(member);
-            if memberobj.tp_hashkey() == "" {
+            if is_error(memberobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             ns.set_add(memberobj);
@@ -2761,21 +2785,6 @@ def py_host_convert(name: str, x: PyObj) -> PyObj {
         return fn.tp_call([x], {});
     }
     return py_error(str(result[1]), str(result[2]));
-}
-
-# The dispatchers below are thin adapters over the object model's virtual
-# slots: they exist only so the ceval reads naturally. Behavior selection is
-# the method call (self's vtable), never a tag comparison.
-def py_truth(value: PyObj) -> bool {
-    # Implicit-truth slot consultation (__bool__/__len__ on user objects). A
-    # raising dunder cannot propagate through this bool-valued adapter -- the
-    # opcode-level entry points (branching, TO_BOOL, UNARY_NOT, bool(), `in`)
-    # call py_slot_truth directly so the exception surfaces like PyObject_IsTrue.
-    result = py_slot_truth(value);
-    if is_error(result) {
-        return value.tp_bool();
-    }
-    return (result as PyBool).val;
 }
 
 # A key/value that is NOT a builtin (a user object or a host proxy) can carry a
@@ -3328,7 +3337,11 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             if is_error(res) {
                 return res;
             }
-            return PyBool(t="bool", val=not py_truth(res));
+            truth = py_slot_truth(res);
+            if is_error(truth) {
+                return truth;
+            }
+            return PyBool(t="bool", val=not (truth as PyBool).val);
         }
         return PyBool(t="bool", val=lhs is not rhs);
     }
@@ -3405,11 +3418,11 @@ def set_inplace_binop(s: PySet, kind: int, rhs: PyObj) -> PyObj {
     # with self still untouched.
     other_hks: list[str] = [];
     for x in elems {
-        hk = x.tp_hashkey();
-        if hk == "" {
+        hkr = x.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type: '" + x.t + "'");
         }
-        other_hks.append(hk);
+        other_hks.append(hashkey_str(hkr));
     }
     rebuilt: dict[str, PyObj] = {};
     if kind == NB_INPLACE_AND {
@@ -3863,7 +3876,11 @@ def calliter_next(it: PyCallableIter) -> PyObj {
     if is_error(eq) {
         return eq;
     }
-    if py_truth(eq) {
+    truth = py_slot_truth(eq);
+    if is_error(truth) {
+        return truth;
+    }
+    if (truth as PyBool).val {
         it.exhausted = True;
         return PyGenStop(t="genstop", val=py_none());
     }
@@ -3926,8 +3943,8 @@ def py_hash(value: PyObj) -> PyObj {
         # Default tp_hash: object.__hash__ (the identity-keyed digest), or the
         # __eq__-without-__hash__ unhashable rule -- both owned by tp_hashkey,
         # so hash() and dict/set keying cannot disagree.
-        hk = u.tp_hashkey();
-        if hk == "" {
+        hkr = u.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type: '" + u.cls.name + "'");
         }
         return PyObject_Hash(value);
@@ -4935,8 +4952,8 @@ obj PyNativeNew(PyObj) {
 
     # Value identity by base_name so every object.__new__ producer compares equal
     # (enum's _find_new_ does `target in {object.__new__, ...}`).
-    def tp_hashkey -> str {
-        return "nativenew:" + self.base_name;
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="nativenew:" + self.base_name);
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
@@ -6247,7 +6264,11 @@ def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj
         if kw == "key" {
             key_fn = kwargs[kw];
         } elif is_sorted and kw == "reverse" {
-            do_reverse = py_truth(kwargs[kw]);
+            rev = py_slot_truth(kwargs[kw]);
+            if is_error(rev) {
+                return rev;
+            }
+            do_reverse = (rev as PyBool).val;
         } elif not is_sorted and kw == "default" {
             has_default = True;
             default_val = kwargs[kw];
@@ -6309,7 +6330,11 @@ def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj
             if is_error(cmp) {
                 return cmp;
             }
-            take = py_truth(cmp);
+            ctruth = py_slot_truth(cmp);
+            if is_error(ctruth) {
+                return ctruth;
+            }
+            take = (ctruth as PyBool).val;
         }
         if take {
             best = v;
@@ -6538,7 +6563,11 @@ obj PyListMethod(PyObj) {
                 if kw == "key" {
                     key_fn = kwargs[kw];
                 } elif kw == "reverse" {
-                    do_reverse = py_truth(kwargs[kw]);
+                    rev = py_slot_truth(kwargs[kw]);
+                    if is_error(rev) {
+                        return rev;
+                    }
+                    do_reverse = (rev as PyBool).val;
                 } else {
                     return py_error("TypeError", "'" + kw + "' is an invalid keyword argument for sort()");
                 }
@@ -6723,10 +6752,11 @@ obj PyAbsent(PyObj) {}
 # Membership test for a key, confirming a hashkey-bucket hit with a real eq when
 # either side carries a custom __eq__. Returns PyBool or a PyError (raising eq).
 def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
-    hk = key.tp_hashkey();
-    if hk == "" {
+    hkr = key.tp_hashkey();
+    if is_error(hkr) {
         return py_error("TypeError", "unhashable type");
     }
+    hk = hashkey_str(hkr);
     if not (hk in d.items) {
         return PyBool(t="bool", val=False);
     }
@@ -6736,17 +6766,19 @@ def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
         if is_error(keq) {
             return keq;
         }
-        return PyBool(t="bool", val=py_truth(keq));
+        # py_slot_truth returns a PyBool on success -- hand it straight back.
+        return py_slot_truth(keq);
     }
     return PyBool(t="bool", val=True);
 }
 
 # The stored value for a key, a PyAbsent sentinel if not present, or a PyError.
 def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
-    hk = key.tp_hashkey();
-    if hk == "" {
+    hkr = key.tp_hashkey();
+    if is_error(hkr) {
         return py_error("TypeError", "unhashable type");
     }
+    hk = hashkey_str(hkr);
     if not (hk in d.items) {
         return PyAbsent(t="absent");
     }
@@ -6756,7 +6788,11 @@ def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
         if is_error(keq) {
             return keq;
         }
-        if not py_truth(keq) {
+        truth = py_slot_truth(keq);
+        if is_error(truth) {
+            return truth;
+        }
+        if not (truth as PyBool).val {
             return PyAbsent(t="absent");
         }
     }
@@ -6841,7 +6877,11 @@ def view_contains(view: PyDictView, elem: PyObj) -> PyObj {
         if is_error(c) {
             return c;
         }
-        if py_truth(c) {
+        ctruth = py_slot_truth(c);
+        if is_error(ctruth) {
+            return ctruth;
+        }
+        if (ctruth as PyBool).val {
             return PyBool(t="bool", val=True);
         }
     }
@@ -6897,7 +6937,11 @@ def all_contained(x: PyObj, y: PyObj) -> PyObj {
         if is_error(c) {
             return c;
         }
-        if not py_truth(c) {
+        ctruth = py_slot_truth(c);
+        if is_error(ctruth) {
+            return ctruth;
+        }
+        if not (ctruth as PyBool).val {
             return PyBool(t="bool", val=False);
         }
     }
@@ -6923,7 +6967,11 @@ def dictview_richcompare(kind: int, a: PyObj, b: PyObj) -> PyObj {
         if is_error(r) {
             return r;
         }
-        return PyBool(t="bool", val=not py_truth(r));
+        truth = py_slot_truth(r);
+        if is_error(truth) {
+            return truth;
+        }
+        return PyBool(t="bool", val=not (truth as PyBool).val);
     }
     if kind == 1 {
         return all_contained(a, b);
@@ -7967,7 +8015,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             any_unhashable = False;
             j = 0;
             while j < arg {
-                if popped[j * 2].tp_hashkey() == "" {
+                if is_error(popped[j * 2].tp_hashkey()) {
                     any_unhashable = True;
                 }
                 j = j + 1;
@@ -9250,7 +9298,16 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 return contained;
             }
-            present = py_truth(contained);
+            truth = py_slot_truth(contained);
+            if is_error(truth) {
+                target = recover_exception(co, truth, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return truth;
+            }
+            present = (truth as PyBool).val;
             if arg == 1 {
                 present = not present;
             }

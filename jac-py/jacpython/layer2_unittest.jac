@@ -38,7 +38,7 @@ import from pyc_first {
     to_host,
     class_lookup_attr,
     py_raise_value,
-    py_truth
+    py_slot_truth
 }
 
 def _l2_host_equal(a: any, b: any) -> bool {
@@ -290,14 +290,22 @@ def layer2_assert_not_equal(
 }
 
 def layer2_assert_true(self: PyObj, expr: PyObj, msg: str = "") -> PyObj {
-    if py_truth(expr) {
+    truth = py_slot_truth(expr);
+    if is_error(truth) {
+        return truth;
+    }
+    if (truth as PyBool).val {
         return py_none();
     }
     return layer2_fail("assertTrue");
 }
 
 def layer2_assert_false(self: PyObj, expr: PyObj, msg: str = "") -> PyObj {
-    if not py_truth(expr) {
+    truth = py_slot_truth(expr);
+    if is_error(truth) {
+        return truth;
+    }
+    if not (truth as PyBool).val {
         return py_none();
     }
     return layer2_fail("assertFalse");

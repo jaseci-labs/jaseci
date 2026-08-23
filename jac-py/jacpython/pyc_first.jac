@@ -45,7 +45,6 @@ import from ceval {
     py_hash,
     py_subscript,
     py_binop,
-    py_truth,
     py_attr,
     py_invoke,
     py_isinstance,
@@ -1090,7 +1089,7 @@ test "pyc-first: native sets via the hash-key protocol (H3)" {
 
     # A mutable set is unhashable.
     unh = PySet(t="set", items={}, frozen=False).tp_hashkey();
-    assert unh == "";
+    assert is_error(unh);
 }
 
 test "pyc-first: builtin subclassing (Track B)" {
