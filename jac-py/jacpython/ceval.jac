@@ -550,6 +550,7 @@ import from objects {
     PyExceptionType,
     PyException,
     PyError,
+    PyTraceback,
     PyIter,
     PyCallableIter,
     PyHandler,
@@ -2445,21 +2446,6 @@ def host_exception(exc: PyException) -> any {
     return fallback[1];
 }
 
-# BaseException attribute view of a USER exception instance: CPython records
-# args at construction time (BaseException_new) and its tp_str/tp_repr read
-# that slot, so a subclass without custom __str__/__repr__ presents exactly
-# like its builtin base. The wrapper borrows the class name + stored args.
-def user_exception_view(u: PyUserObj) -> PyException {
-    exc_args: list[PyObj] = [];
-    stored = u.attrs.get("args");
-    if isinstance(stored, PyTuple) {
-        exc_args.extend((stored as PyTuple).items);
-    }
-    return PyException(
-        t="exception", type_name=u.cls.name, message="", args=exc_args
-    );
-}
-
 # f-string / format machinery. Formatting is delegated to host CPython's
 # format()/repr()/ascii() during bootstrap -- the __format__ / __str__ protocols
 # are not natively ported yet, and routing here keeps objects.jac na-clean.
@@ -4147,6 +4133,15 @@ def deref_cell(
     return resolve_cell(co, arg, cells, closure);
 }
 
+# Signed varint (zigzag-style: bit 0 is the sign) used by linetable line deltas.
+def read_svarint(data: list[int], pos: int) -> tuple[int, int] {
+    (uval, npos) = read_varint(data, pos);
+    if uval % 2 == 1 {
+        return (-(uval >> 1), npos);
+    }
+    return ((uval >> 1), npos);
+}
+
 def read_varint(data: list[int], pos: int) -> tuple[int, int] {
     value = 0;
     current = 0;
@@ -4159,6 +4154,61 @@ def read_varint(data: list[int], pos: int) -> tuple[int, int] {
         }
     }
     return (value, pos);
+}
+
+# Line number for a bytecode offset, decoded from the PEP 626 location table
+# (same format the assembler emits and host marshal delivers; entry layout per
+# CPython advance_with_locations in Objects/codeobject.c: first byte carries a
+# 128 start bit, kind in bits 3-6, run length in bits 0-2).
+def pycode_lineno(co: PyCode, offset: int) -> int {
+    line = co.firstlineno;
+    table = co.linetable;
+    pos = 0;
+    span_start = 0;
+    while pos < len(table) {
+        first = table[pos];
+        if (first & 128) == 0 {
+            # Not an entry start byte: corrupt table, stop with best-known line.
+            break;
+        }
+        kind = (first >> 3) & 15;
+        units = (first & 7) + 1;
+        pos = pos + 1;
+        span_end = span_start + units * 2;
+        # NONE entries carry no location; keep the last known line so a raise
+        # inside an unlocated region still reports something sane.
+        if kind != 15 {
+            if kind == 14 {
+                # LONG: signed line delta + three varints (endline delta, cols).
+                dec = read_svarint(table, pos);
+                line = line + dec[0];
+                pos = dec[1];
+                dec = read_varint(table, pos);
+                pos = dec[1];
+                dec = read_varint(table, pos);
+                pos = dec[1];
+                dec = read_varint(table, pos);
+                pos = dec[1];
+            } elif kind == 13 {
+                # NO_COLUMNS: signed line delta only.
+                dec = read_svarint(table, pos);
+                line = line + dec[0];
+                pos = dec[1];
+            } elif kind >= 10 {
+                # ONE_LINE0..2: fixed line deltas, two raw column bytes.
+                line = line + (kind - 10);
+                pos = pos + 2;
+            } else {
+                # SHORT0..9: same line, one raw column-pair byte.
+                pos = pos + 1;
+            }
+            if offset >= span_start and offset < span_end {
+                return line;
+            }
+        }
+        span_start = span_end;
+    }
+    return line;
 }
 
 def find_handler(co: PyCode, offset: int) -> PyHandler | None {
@@ -4198,6 +4248,21 @@ def recover_exception(
     if value.t != "error" {
         return -1;
     }
+    # Traceback growth (CPython PyTraceBack_Here): every frame the exception
+    # passes through -- including the frame that catches it -- prepends one
+    # entry, so e.__traceback__ heads at the catching frame and tb_next walks
+    # toward the raise point. recover_exception runs exactly once per frame
+    # per propagation, which is precisely that cadence. Entries hold the code
+    # object + line, never the live frame, so no stack/exception cycles.
+    error = value as PyError;
+    prev = error.exception.traceback;
+    error.exception.traceback = PyTraceback(
+        t="traceback",
+        tb_next=prev,
+        code=co,
+        tb_lineno=pycode_lineno(co, offset),
+        tb_lasti=offset
+    );
     handler = find_handler(co, offset);
     if handler is None {
         return -1;
@@ -4274,6 +4339,21 @@ def class_is_exception(cls: PyClass) -> bool {
         }
     }
     return False;
+}
+
+# BaseException attribute view of a USER exception instance: CPython records
+# args at construction time (BaseException_new) and its tp_str/tp_repr read
+# that slot, so a subclass without custom __str__/__repr__ presents exactly
+# like its builtin base. The wrapper borrows the class name + stored args.
+def user_exception_view(u: PyUserObj) -> PyException {
+    exc_args: list[PyObj] = [];
+    stored = u.attrs.get("args");
+    if isinstance(stored, PyTuple) {
+        exc_args.extend((stored as PyTuple).items);
+    }
+    return PyException(
+        t="exception", type_name=u.cls.name, message="", args=exc_args
+    );
 }
 
 def py_raise_value(value: PyObj) -> PyObj {
