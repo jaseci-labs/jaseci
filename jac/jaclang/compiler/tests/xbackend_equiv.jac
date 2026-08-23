@@ -16,6 +16,7 @@ are checked, so a backend that returns {} (unimplemented) is silently skipped.
 """
 
 import ctypes;
+import importlib;
 import json;
 import os;
 import struct;
@@ -31,39 +32,48 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"
-     );
+     ),
+     _FIXTURE_SHADOW: list[str] = [];
 
 # -----------------------------------------------------------------------
 # Python reference helper
 # -----------------------------------------------------------------------
+def _fixture_shadow_dir -> str {
+    # The reference lane imports the fixture from a copy of the fixtures
+    # directory that lives outside the jaclang tree: a module under jaclang/
+    # imported while the package itself is being served skips analysis (a
+    # bootstrap guard), and this lane needs the checker's annotations
+    # (coerce_to) so the server codegen emits the same conversions the native
+    # and client lanes emit. Importing keeps the compile on the ordinary
+    # module path, so no compiler state leaks into the client and native
+    # compiles that follow in the same process.
+    import shutil;
+    import tempfile;
+    if not _FIXTURE_SHADOW {
+        base_dir = tempfile.mkdtemp(prefix="jac_xbackend_fixtures_");
+        shadow = os.path.join(base_dir, "fixtures");
+        shutil.copytree(FIXTURES, shadow);
+        _FIXTURE_SHADOW.append(shadow);
+    }
+    return _FIXTURE_SHADOW[0];
+}
+
 def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
-    # The fixture is compiled like user code -- a fresh program with the
-    # checker on the critical path -- rather than imported through the
-    # package-tree importer, which skips analysis for in-flight imports of
-    # modules under jaclang/ and so never stamps the annotations (coerce_to)
-    # the server codegen consumes. That keeps the reference lane honest with
-    # the native and client lanes, which compile through the same route.
-    import marshal;
-    import types;
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    fixture_path = os.path.join(FIXTURES, fixture_stem + ".jac");
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=fixture_path,
-        options=CompileOptions(force_codespace="server", force_target_program=True)
-    );
-    errors = [str(e) for e in prog.errors_had];
-    assert not errors , f"Compilation errors in {fixture_stem}.jac: {errors}";
-    bytecode = ir.gen.py_bytecode;
-    assert bytecode , f"No Python bytecode produced for {fixture_stem}.jac";
-    mod = types.ModuleType(fixture_stem);
-    mod.__file__ = fixture_path;
-    sys.modules[fixture_stem] = mod;
+    shadow = _fixture_shadow_dir();
+    added = False;
+    if shadow not in sys.path {
+        sys.path.insert(0, shadow);
+        added = True;
+    }
     try {
-        exec(marshal.loads(bytecode), mod.__dict__);
+        sys.modules.pop(fixture_stem, None);
+        mod = importlib.import_module(fixture_stem);
         fn = getattr(mod, func_name);
         return json.loads(json.dumps(fn()));
     } finally {
+        if added {
+            sys.path.remove(shadow);
+        }
         sys.modules.pop(fixture_stem, None);
     }
 }

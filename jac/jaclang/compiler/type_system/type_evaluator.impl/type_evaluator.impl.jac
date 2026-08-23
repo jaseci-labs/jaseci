@@ -711,7 +711,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     return expr.right.type;
                 }
                 if isinstance(base_type, ModuleType) {
-                    if base_type.is_external {
+                    if base_type.is_external or base_type.symbol_table is None {
                         expr.right.type = AnyType(is_foreign=True);
                         return expr.right.type;
                     }
