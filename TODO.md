@@ -428,6 +428,12 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     host_binop whose to_host/from_host round-trip turned references into copies.
     Native kind-5 arm + reflected-repeat step. 9-point driver green.
 
+52. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
+    .encode('ascii') raises the right MESSAGE but type is generic Exception,
+    not UnicodeEncodeError (so `except UnicodeEncodeError` misses it).
+    Codec-error subclass wiring absent; likely family: LookupError/
+    ValueError-specific codec types. Found fuzz round 51.
+
 51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
