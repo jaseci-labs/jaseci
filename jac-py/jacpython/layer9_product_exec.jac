@@ -77,6 +77,26 @@ def nested_code_by_name(co: PyCode, name: str) -> PyCode {
     return co;
 }
 
+# Strict list-of-ints check: fails loudly unless o is a PyList whose items are
+# exactly the expected ints in order. expect_int alone coerces any non-PyInt to
+# 0, so comparing its result against a literal can pass vacuously on wrong-typed
+# containers; this helper pins both the container type and every element.
+def assert_list_of_ints(o: PyObj, expected: list[int]) {
+    assert isinstance(o, PyList), "not a list: " + o.t;
+    items = (o as PyList).items;
+    assert len(items) == len(expected),
+        "length " + str(len(items)) + " != " + str(len(expected));
+    i = 0;
+    while i < len(expected) {
+        assert isinstance(items[i], PyInt),
+            "item " + str(i) + " not int: " + items[i].t;
+        assert (items[i] as PyInt).val == expected[i],
+            "item " + str(i) + " = " + str((items[i] as PyInt).val)
+            + ", want " + str(expected[i]);
+        i = i + 1;
+    }
+}
+
 def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     if len(a) != len(b) {
         return False;
@@ -1905,14 +1925,21 @@ test "layer9: cell-targeted comprehensions agree with host oracle" {
         + "    return ([g() for g in x], [g() for g in y])\n"
         + "R = f()\n";
     ons: dict[str, PyObj] = {};
-    oout = exec_code(oracle_exec(src) as PyCode, [], ons);
+    oout = exec_code(oracle_exec(src, "<f>") as PyCode, [], ons);
     pns: dict[str, PyObj] = {};
     pout = exec_code(product_exec(src) as PyCode, [], pns);
     assert not is_error(oout);
     assert not is_error(pout);
-    assert expect_int(py_subscript(ons["R"], PyInt(t="int", val=0))) ==
-        expect_int(py_subscript(pns["R"], PyInt(t="int", val=0)));
-    assert expect_int(py_subscript(pns["R"], PyInt(t="int", val=1))) == 444;
+    # R is a tuple of two lists; extract each lane strictly and pin EVERY
+    # element against the host-oracle late-binding values ([2,2,2] / [4,4,4]).
+    o_x = py_subscript(ons["R"], PyInt(t="int", val=0));
+    o_y = py_subscript(ons["R"], PyInt(t="int", val=1));
+    p_x = py_subscript(pns["R"], PyInt(t="int", val=0));
+    p_y = py_subscript(pns["R"], PyInt(t="int", val=1));
+    assert_list_of_ints(o_x, [2, 2, 2]);
+    assert_list_of_ints(o_y, [4, 4, 4, 4, 4]);
+    assert_list_of_ints(p_x, [2, 2, 2]);
+    assert_list_of_ints(p_y, [4, 4, 4, 4, 4]);
 }
 
 # The tail STORE_FAST restore must put back the ORIGINAL binding even though a
