@@ -182,6 +182,13 @@ Emitted by the type checker and type evaluator.
 | `E1010` | Operator "{op}" not supported for type "{type}" |
 | `E1011` | Unsupported operand types for {op}: {left} and {right} |
 | `E1110` | Operator "{op}" not supported between types "{left}" and "{right}" (comparison operators) |
+| `E1126` | Integer literal {value} does not fit in {type} (range {min}..{max}) |
+| `E1127` | Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving |
+| `E1128` | Operands of '{op}' have no common fixed-width type ({left} and {right}) |
+| `E1129` | Unary minus on unsigned type {type} |
+
+!!! tip "Fixing `E1126`-`E1129` (fixed-width numerics)"
+    The ten sized types (`i8`..`u64`, `f32`, `f64`) convert implicitly only along the value-preserving lattice (widening, unsigned into a strictly wider signed type, exactly-representable ints into floats, `f32 -> f64 -> float`). `E1126`: the literal is out of range -- use a wider type or spell the modular result with `T.wrap(x)`. `E1127`: cast at the boundary with the checked `T(x)` (raises `OverflowError` out of range) or widen the destination; extern `i32`/`u64` parameters need the cast from a plain `int`. `E1128`: neither operand widens into the other -- cast one side so the operation's width and sign are explicit. `E1129`: negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)`. See `jac guide jac-types` and [Fixed-width semantics](language/types-and-values.md#fixed-width-semantics).
 
 ### Iterability / Callable
 
