@@ -622,6 +622,7 @@ obj LayoutPass(Transform) {
     def build_shared_registry(modules: list[Module]) -> LayoutRegistry;
     def arch_tid(arch: Archetype) -> str;
     def resolve_ref(arch: Archetype, name: str) -> str;
+    def resolve_type_tag(arch: Archetype, tag: str) -> str;
     def _collect_archetypes(module: Module) -> dict[str, Archetype];
     def _merge_archetypes(
         module: Module, arch_map: dict[str, Archetype]

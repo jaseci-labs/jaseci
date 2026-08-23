@@ -51,6 +51,41 @@ impl LayoutPass.resolve_ref(arch: Archetype, name: str) -> str {
     return name;
 }
 
+impl LayoutPass.resolve_type_tag(arch: Archetype, tag: str) -> str {
+    """Resolve each identifier in an unparsed type tag to its shared-registry tid.
+
+    `resolve_ref` exact-matches a whole name, which can never match a compound
+    tag like ``list[Foo]`` -- the generic annotation was left with the inner
+    archetype unresolved. Resolve identifier-by-identifier instead so only
+    names visible in the declaring module's scope are rewritten.
+    """;
+    if self.tid_index is None or (not tag) {
+        return tag;
+    }
+    mp = arch.loc.mod_path if arch.loc else "";
+    scope = self.mod_scopes.get(mp, {});
+    if not scope {
+        return tag;
+    }
+    out: list[str] = [];
+    ident = "";
+    for ch in tag {
+        if ch.isalnum() or ch == "_" {
+            ident += ch;
+        } else {
+            if ident {
+                out.append(scope.get(ident, ident));
+                ident = "";
+            }
+            out.append(ch);
+        }
+    }
+    if ident {
+        out.append(scope.get(ident, ident));
+    }
+    return "".join(out);
+}
+
 impl LayoutPass._merge_archetypes(
     module: Module, arch_map: dict[str, Archetype]
 ) -> None {
@@ -391,7 +426,7 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         if var.type_tag and var.type_tag.tag {
             type_node = var.type_tag.tag;
             type_tag = unparse_node(type_node) or str(type_node);
-            type_tag = self.resolve_ref(arch, type_tag);
+            type_tag = self.resolve_type_tag(arch, type_tag);
         }
         is_fn_ptr = type_node is not None and isinstance(type_node, FuncSignature);
         new_field = FieldInfo(
