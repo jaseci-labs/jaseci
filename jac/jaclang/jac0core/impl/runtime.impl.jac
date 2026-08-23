@@ -1115,7 +1115,23 @@ impl JacPersistence.destroy(
         if not isinstance(`obj, (Archetype, Anchor)) {
             return;
         }
-        anchor = `obj.__jac__ if isinstance(`obj, Archetype) else `obj;
+        if not isinstance(`obj, Archetype) {
+            anchor = `obj;
+        } else {
+            # Non-materializing probe: destroy must never mint an anchor as a
+            # side effect of checking. Reading the lazy `__jac__`
+            # cached_property here would cache an ObjectAnchor into the
+            # object's __dict__, forming a strong obj<->anchor cycle that
+            # defeats immediate refcount death on `del`. An archetype with no
+            # cached anchor has nothing persisted and no edges to detach.
+            # Anchors of deserialized/persistent objects are attached directly
+            # to __dict__ by the serializer, so the probe finds every object
+            # that genuinely carries OSP state.
+            anchor = `obj.__dict__.get('__jac__');
+            if anchor is None {
+                continue;
+            }
+        }
         if JacRuntimeInterface.check_write_access(anchor, op_hint="delete") {
             match anchor {
                 case NodeAnchor():
