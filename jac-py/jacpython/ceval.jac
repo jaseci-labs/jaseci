@@ -597,6 +597,7 @@ import from floatobject { float_repr, }
 import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
+import from tb_render { tb_display_error, }
 import from objects {
     _zero_step_error,
     slice_indices,
@@ -10672,11 +10673,28 @@ def run_frame(frame: PyFrame) -> PyObj {
     return py_none();
 }
 
+# Depth of exec_code invocations on the current host stack. Guest execution
+# re-enters exec_code for synthesized operator/comprehension code objects
+# (pyc_first), so the final-error traceback display must only fire at the
+# OUTERMOST call -- where an error genuinely escapes the program -- never for
+# inner errors a guest handler may still catch.
+glob _tb_exec_depth: int = 0;
+
 def exec_code(co: PyObj, args: list[PyObj], globals: dict[str, PyObj]) -> PyObj {
     match co {
         case PyCode():
-            return exec_code_frame(co, args, {}, globals, globals, [], [], {});
-
+            _tb_exec_depth += 1;
+            try {
+                outcome = exec_code_frame(co, args, {}, globals, globals, [], [], {});
+            } finally {
+                _tb_exec_depth -= 1;
+            }
+            if is_error(outcome) and _tb_exec_depth == 0 {
+                # Final-error surfacing: render the guest traceback chain to
+                # stderr shaped exactly like CPython's uncaught-exception path.
+                tb_display_error(outcome);
+            }
+            return outcome;
     }
     return py_error("TypeError", "expected code object");
 }
