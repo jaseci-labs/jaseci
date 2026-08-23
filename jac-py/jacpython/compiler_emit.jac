@@ -2492,9 +2492,23 @@ def comp_emit_filters(
     ii = 0;
     while ii < len(ifs) {
         ife = ifs[ii];
-        visit_comp_elt(g, ife, bound_names, True);
+        # CPython lowers filters through codegen_jump_if: `not` folds into the
+        # branch polarity, a single comparison keeps its bool-oparg COMPARE_OP
+        # (no TO_BOOL -- comparisons yield exact bools), and every other
+        # expression gets TO_BOOL before the branch.
+        fe = ife;
+        invert = False;
+        while isinstance(fe, UnaryOp) and isinstance((fe as UnaryOp).op, Not) {
+            invert = not invert;
+            fe = (fe as UnaryOp).operand;
+        }
+        is_single_cmp = isinstance(fe, Compare) and len((fe as Compare).ops) == 1;
+        visit_comp_elt(g, fe, bound_names, True);
         if codegen_busy(g) {
             return (element_entry, region_start);
+        }
+        if not is_single_cmp {
+            g.emit_op(OP_TO_BOOL, 0, expr_loc(fe));
         }
         filter_post = g.new_block();
         comp_append_handler(
@@ -2510,7 +2524,11 @@ def comp_emit_filters(
         );
         g.use(filter_post);
         pass_blk = g.new_block();
-        g.emit_jump(OP_POP_JUMP_IF_TRUE, pass_blk.id, filter_jump_loc);
+        jump_op = OP_POP_JUMP_IF_TRUE;
+        if invert {
+            jump_op = OP_POP_JUMP_IF_FALSE;
+        }
+        g.emit_jump(jump_op, pass_blk.id, filter_jump_loc);
         g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, filter_jump_loc);
         g.use(pass_blk);
         region_start = pass_blk.id;
@@ -3675,13 +3693,29 @@ def compile_genexp_cfg(
         while fj < len(gen.ifs) {
             fexpr = gen.ifs[fj];
             floc = expr_loc(fexpr);
-            visit_comp_elt(g, fexpr, bound_names, True);
+            # Same codegen_jump_if lowering as statement filters: fold `not`
+            # into the branch polarity; TO_BOOL unless a single comparison.
+            fe = fexpr;
+            invert = False;
+            while isinstance(fe, UnaryOp) and isinstance((fe as UnaryOp).op, Not) {
+                invert = not invert;
+                fe = (fe as UnaryOp).operand;
+            }
+            is_single_cmp_gx = isinstance(fe, Compare) and len((fe as Compare).ops) == 1;
+            visit_comp_elt(g, fe, bound_names, True);
             if codegen_busy(g) {
                 u.flush_late_consts();
                 return u;
             }
+            if not is_single_cmp_gx {
+                g.emit_op(OP_TO_BOOL, 0, expr_loc(fe));
+            }
             pass_blk = g.new_block();
-            g.emit_jump(OP_POP_JUMP_IF_TRUE, pass_blk.id, floc);
+            jump_op_gx = OP_POP_JUMP_IF_TRUE;
+            if invert {
+                jump_op_gx = OP_POP_JUMP_IF_FALSE;
+            }
+            g.emit_jump(jump_op_gx, pass_blk.id, floc);
             g.emit_jump(OP_JUMP_BACKWARD, hdr.id, floc);
             g.use(pass_blk);
             fj = fj + 1;

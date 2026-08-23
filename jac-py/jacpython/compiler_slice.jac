@@ -4181,3 +4181,24 @@ test "compiler_slice: def defaults/*args/**kw shapes match oracle bytes" {
         assert_parsed_matches_oracle(src);
     }
 }
+
+# GAP 3c: comprehension filters lower through CPython's codegen_jump_if --
+# `not` folds into the branch polarity, single comparisons keep their
+# bool-oparg COMPARE_OP with no TO_BOOL, every other expression gets TO_BOOL
+# before the branch. Deferred comp cleanup handlers must be emitted even when
+# the enclosing body ends in a terminator.
+test "compiler_slice: comprehension filters match oracle bytes" {
+    for src in [
+        "a = [y*2 for y in z if y % 3]\nb = [y*2 for y in z]\n",
+        "def f(z):\n    return [y*2 for y in z]\n",
+        "def f(z):\n    return [y*2 for y in z if y % 3]\n",
+        "def f(z):\n    return [y for y in z if y < 2]\n",
+        "def f(z):\n    return [y for y in z if not y % 3]\n",
+        "def f(z):\n    return [y for y in z if abs(y)]\n",
+        "def f(z):\n    return {y for y in z if y % 3}\n",
+        "def f(z):\n    return {y: 1 for y in z if y % 3}\n",
+        "def f(z):\n    return [w for w in z if w]\n",
+    ] {
+        assert_parsed_matches_oracle(src);
+    }
+}

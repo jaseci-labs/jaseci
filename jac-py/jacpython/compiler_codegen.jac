@@ -1435,6 +1435,7 @@ def compile_exec(
             # are emitted here too -- CPython lays them out after the (dead)
             # epilogue regardless of how the body ended.
             u.add_const(py_none());
+            emit_deferred_comp_handlers(g);
             u.flush_late_consts();
             return u;
         }
@@ -1459,6 +1460,7 @@ def compile_exec(
         # Dead implicit-return None const, interned like CPython's unreachable
         # epilogue; kept by remove_unused_consts only at index 0.
         u.add_const(py_none());
+        emit_deferred_comp_handlers(g);
         u.flush_late_consts();
         return u;
     }

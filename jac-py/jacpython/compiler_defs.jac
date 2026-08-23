@@ -704,6 +704,7 @@ def compile_fn_cfg(
             # are emitted here too -- CPython lays them out after the (dead)
             # epilogue regardless of how the body ended.
             u.add_const(py_none());
+            emit_deferred_comp_handlers(g);
             u.flush_late_consts();
             return u;
         }
