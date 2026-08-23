@@ -566,6 +566,41 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     error (compiles clean). Verified by CalmKnight pin. Found fuzz r60c.
     Full report: ~/notes/match-stmt-fuzz-r60c.md.
 
+67. **[HIGH] Instance truthiness ignores __bool__ AND __len__ - always
+    truthy.** if obj: takes TRUE branch even when __bool__ returns False
+    or __len__ returns 0. POP_JUMP_IF path never consults either dunder.
+    Silent-wrong control flow on every user-class conditional. Found fuzz
+    r60b, verified by CalmKnight pin.
+
+68. **[MED] bool(obj) returns False for ANY user instance.** Even plain
+    objects and __bool__-returning-True classes: builtin bool() yields
+    literal False. Independent path from 67 (conditionals always-true vs
+    bool() always-false). Native-Jac classes unaffected - confined to
+    Python-source/ceval class path. Found fuzz r60b, verified.
+
+69. **[HIGH] `in` on user class returns None - __contains__ undispatched
+    via operator.** n.__contains__(x) direct call works; `x in n` yields
+    None (sq_contains slot/fallback unwired; no iteration fallback,
+    consistent with 63). Silent-wrong. Found fuzz r60b, verified.
+
+70. **[HIGH] Default hash of plain instances raises unhashable.**
+    hash(R()) on a bare class -> RuntimeError('unhashable type:
+    ''instance'''); two distinct instances also fail. Default tp_hash
+    slot missing on ceval-created classes. User-defined __hash__ works;
+    instance-keyed dicts work when populated directly (identity-eq).
+    Found fuzz r60b, verified.
+
+71. **[MED] int(obj)/float(obj) return None.** User __int__/__float__
+    defined and callable directly, but conversion builtins yield None -
+    nb_int/nb_float slots never look up the dunders. Found fuzz r60b,
+    verified.
+
+CONSOLIDATION (r60): 65+67+68+69+70+71 share one root shape - implicit
+    slot machinery (nb_bool/sq_contains/tp_hash/nb_int/descriptor dunders)
+    is not wired to dunder lookup on the Python-source/ceval class path.
+    Likely ONE slot-init/dispatch fix family; native-Jac classes unaffected
+    throughout. Owner: VM lane (ceval/type-ready slot init).
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
