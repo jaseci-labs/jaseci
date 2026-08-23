@@ -29,7 +29,11 @@ obj NativeTargetPlan {
         """Mach-O linkage applies for an explicit macOS target or a darwin host.""";
         import sys;
         return self.is_macos_target
-            or ((sys.platform == "darwin") and not self.is_windows);
+            or (
+                (sys.platform == "darwin")
+                and not self.is_windows
+                and not self.is_linux_target
+            );
     }
 }
 
@@ -94,7 +98,6 @@ def _prepare_native_compile(filename: str, gc: str = "") -> (NativeCompilePrep |
     Common prologue for ``nacompile`` and ``nacompile_sealed_pair``.
     """;
     import from jaclang.jac0core.ext_registry { is_jac }
-    import from jaclang.jac0core.program { JacProgram }
     import from jaclang.project { get_config }
 
     if not is_jac(filename) {
@@ -339,8 +342,6 @@ def _compile_native_link_ctx(
     plan: NativeTargetPlan | None = None
 ) -> (NativeLinkCtx | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
-
-    import from jaclang.jac0core.compile_options { CompileOptions }
 
     gc = prep.gc;
     _gc_cfg = prep.gc_cfg;

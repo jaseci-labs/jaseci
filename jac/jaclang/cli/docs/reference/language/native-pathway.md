@@ -345,7 +345,7 @@ Module globals are initialized automatically when the library is loaded -- there
 Two things differ from a plain `--shared` build:
 
 - **Entry stub synthesis.** A module with no `with entry { }` block still gets a `jac_entry`: the compiler emits an empty stub so the host protocol always resolves the symbol (the stub simply returns). With a plain `--shared` build the same module exports only its `:pub` surface and no entry is expected.
-- **No load-time init registration.** A plain shared library registers `__jac_shared_init` in the platform's automatic init mechanism so globals initialize on `dlopen`. An entry library skips that registration -- the host sets `__jac_argv`/`__jac_argc` first and then calls `__jac_shared_init` explicitly before invoking `jac_entry`. If a module has neither an entry nor anything to export beyond the protocol set, the `__jac_shared_init`-only export configuration is skipped entirely.
+- **No load-time init registration.** A plain shared library registers `__jac_shared_init` in the platform's automatic init mechanism so globals initialize on `dlopen`. An entry library skips that registration -- the host sets `__jac_argv`/`__jac_argc` first and then calls `__jac_shared_init` explicitly before invoking `jac_entry`. If a module has neither an entry nor anything to export beyond the protocol set, the `__jac_shared_init`-only export configuration is skipped entirely -- the symbol itself is still always exported for entry libraries.
 
 The sealed-jab boot path that consumes these libraries is described in [CLI tools & native binaries](../../build/cli-and-native.md).
 
