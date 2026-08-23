@@ -373,6 +373,28 @@ Status per item as of last update. Verified = I reproduced it myself; fixed = fi
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
 
+27. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
+    raises NameError: name 'Py_EQ' is not defined - an internal symbol leaking
+    as a guest NameError from the bytes comparison path. bytearray == also
+    returns wrong values. All 10 gen-bytes cases red. Owner: runtime lane.
+
+28. **[MED] return value lost after catching user-defined exception subclass
+    (F2, gen-closure cases).** Function raises SubCls, caller catches it,
+    subsequent return value vanishes. Owner: runtime/exception lane.
+
+29. **[MED] implicit __context__ chain broken (F3, gen-exc cases).**
+    raise-inside-except leaves e.__context__ = None; CPython chains
+    ValueError('inner') onto TypeError('outer'). Verified by BrightTiger at
+    HEAD f2848d5d6. Relevant to YoungHawk's exception work; interacts with
+    pin-ok-exc-chaining-nesteddef (already red).
+
+30. **[MED] two lambda-returning comprehensions in one scope corrupt first
+    closure cells (F4, gen-closure-002/005/008).** Second comprehension's
+    cell writes clobber the first's. Compiler-lane suspect (cellvar/closure
+    emission). Owner: KeenFalcon or compiler lane.
+
+Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
+
 INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
     own opcode body must route through recover_exception(co, err, offset, stack)
     before any bare return - a bare `return py_error(...)` bypasses handler
@@ -694,6 +716,28 @@ green. Class-decorator support needs pinning elsewhere.
     (native leaf?) raises raw without conversion. Breaks harness errored-vs-
     failed classification and any guest try/except around display literals.
     Repro: _l1_jac_raise_name(ns, "d = {[]: 'nope'}") blows up top-level.
+
+27. **[HIGH] bytes richcompare broken (fuzz-widener-2 F1).** b'a' == b'a'
+    raises NameError: name 'Py_EQ' is not defined - an internal symbol leaking
+    as a guest NameError from the bytes comparison path. bytearray == also
+    returns wrong values. All 10 gen-bytes cases red. Owner: runtime lane.
+
+28. **[MED] return value lost after catching user-defined exception subclass
+    (F2, gen-closure cases).** Function raises SubCls, caller catches it,
+    subsequent return value vanishes. Owner: runtime/exception lane.
+
+29. **[MED] implicit __context__ chain broken (F3, gen-exc cases).**
+    raise-inside-except leaves e.__context__ = None; CPython chains
+    ValueError('inner') onto TypeError('outer'). Verified by BrightTiger at
+    HEAD f2848d5d6. Relevant to YoungHawk's exception work; interacts with
+    pin-ok-exc-chaining-nesteddef (already red).
+
+30. **[MED] two lambda-returning comprehensions in one scope corrupt first
+    closure cells (F4, gen-closure-002/005/008).** Second comprehension's
+    cell writes clobber the first's. Compiler-lane suspect (cellvar/closure
+    emission). Owner: KeenFalcon or compiler lane.
+
+Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
 
 INVARIANT (from item 26 residual, 94892ac40): errors created INSIDE run_frame's
     own opcode body must route through recover_exception(co, err, offset, stack)
