@@ -938,7 +938,7 @@ obj PyList(PyObj) {
             i = len(self.items) + i;
         }
         if i >= 0 and i < len(self.items) {
-            _py_container_del(self.items, i);
+            del self.items[i];
             return py_none();
         }
         return py_error("IndexError", "list assignment index out of range");
@@ -1173,7 +1173,7 @@ obj PyDict(PyObj) {
             return py_error("TypeError", "unhashable type");
         }
         if hk in self.items {
-            _py_container_del(self.items, hk);
+            del self.items[hk];
             self.version = self.version + 1;
             return py_none();
         }
@@ -1280,7 +1280,7 @@ obj PySet(PyObj) {
     def set_pop -> PyObj {
         for hk in self.items {
             member = self.items[hk];
-            _py_container_del(self.items, hk);
+            del self.items[hk];
             return member;
         }
         return py_error("KeyError", "pop from an empty set");
@@ -1292,7 +1292,7 @@ obj PySet(PyObj) {
             return py_error("TypeError", "unhashable type");
         }
         if hk in self.items {
-            _py_container_del(self.items, hk);
+            del self.items[hk];
         }
         return py_none();
     }
@@ -2466,18 +2466,3 @@ def str_mod_format(fmt: str, args: PyObj) -> PyObj {
     }
     return PyStr(t="str", val=out);
 }
-
-::py::
-
-def _py_container_del(container, key):
-    # Compiled-jac `del container[key]` on a typed dict pins the removed value:
-    # the runtime's anchor system caches an ObjectAnchor in the value's __dict__
-    # (a strong root gc.collect cannot reach), so deleted user objects leak.
-    # Python-mode deletion has plain refcount semantics. See the weakref shim
-    # and OP_DELETE_NAME for context; remove once the compiler fixes del.
-    del container[key]
-
-def _py_container_del_index(lst, i):
-    del lst[i]
-
-::py::

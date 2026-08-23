@@ -414,9 +414,6 @@ def _jac_dbg_dead_check_simple(r):
     wr = getattr(r, "wr")
     return wr() is None
 
-def _py_dict_del(d, k):
-    del d[k]
-
 def _jac_recover_native(raw) -> PyObj | None:
     # If raw is a trampoline we minted, hand back the native function it wraps
     # so a host->native round-trip collapses instead of nesting proxies. Read the
@@ -499,7 +496,6 @@ import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
 import from objects {
-    _py_container_del,
     _zero_step_error,
     slice_indices,
     PyObj,
@@ -759,7 +755,7 @@ def clear_sys3_modules {
 # execution raised, so a retry re-runs it instead of seeing a half-built shell).
 def _sys3_forget(name: str) {
     if name in sys3_modules {
-        _py_container_del(sys3_modules, name);
+        del sys3_modules[name];
     }
 }
 
@@ -3744,7 +3740,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyClass) {
         c = value as PyClass;
         if name in c.attrs {
-            _py_container_del(c.attrs, name);
+            del c.attrs[name];
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -3766,7 +3762,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
             return py_error("AttributeError", "can't delete attribute '" + name + "'");
         }
         if name in u.attrs {
-            _py_container_del(u.attrs, name);
+            del u.attrs[name];
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -3774,7 +3770,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyModule) {
         m = value as PyModule;
         if name in m.attrs {
-            _py_container_del(m.attrs, name);
+            del m.attrs[name];
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -3782,7 +3778,7 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     if isinstance(value, PyFunction) {
         f = value as PyFunction;
         if name in f.attrs {
-            _py_container_del(f.attrs, name);
+            del f.attrs[name];
             return py_none();
         }
         return py_error("AttributeError", name);
@@ -7736,7 +7732,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_DELETE_GLOBAL {
             gdel_name = co.names[arg];
             if gdel_name in globals {
-                _py_container_del(globals, gdel_name);
+                del globals[gdel_name];
                 continue;
             }
             gdeleted = py_error("NameError", "name '" + gdel_name + "' is not defined");
@@ -7750,7 +7746,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_DELETE_NAME {
             del_name = co.names[arg];
             if del_name in locals {
-                _py_dict_del(locals, del_name);
+                del locals[del_name];
                 continue;
             }
             deleted = py_error("NameError", "name '" + del_name + "' is not defined");

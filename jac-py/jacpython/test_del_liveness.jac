@@ -1,16 +1,16 @@
 # Delete-path liveness regression (TODO.md adversarial item 0).
 #
 # Compiled-jac `del` lowering inserts a destroy([targets]) call whose runtime
-# touches the removed value's lazy `__jac__` anchor; the cached ObjectAnchor
-# pins the value past gc.collect(), so objects whose last reference died
-# through a compiled-jac delete leaked forever. The VM routes its
-# value-bearing name/container delete sites through python-mode helpers
-# (_py_container_del / _py_dict_del) which carry plain refcount semantics.
+# touches the removed value's lazy `__jac__` anchor; before the sv_forget root
+# fix (osp_graph_sv.sv_forget_by_id releasing the strong anchor ref), the
+# cached ObjectAnchor pinned values past gc.collect(), so objects whose last
+# reference died through a delete leaked forever. The VM now deletes through
+# native paths directly; these fixtures pin the refcount contract end-to-end.
 #
-# These fixtures pin that contract where it holds today: dropping an object's
-# last reference via a VM delete path must free it immediately (weakref
-# returns None with NO gc.collect -- the CPython refcount contract). A revert
-# of the routing or a new unrouted delete site keeps the object alive here.
+# Dropping an object's last reference via a VM delete path must free it
+# immediately (weakref returns None with NO gc.collect -- the CPython
+# refcount contract). A regression in the anchor release or a new delete site
+# that over-retains keeps the object alive here.
 #
 # KNOWN OPEN (not asserted yet -- still over-retained past gc.collect, see
 # TODO.md item 0): dict subscript delete, dict.pop/popitem, del attr. The

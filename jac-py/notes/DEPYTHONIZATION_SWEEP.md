@@ -1,4 +1,4 @@
-# De-Pythonization Sweep — `::py::` Block Removal (2026-08-22, agent QuickViper)
+# De-Pythonization Sweep -- `::py::` Block Removal (2026-08-22, agent QuickViper)
 
 Sweep converting embedded `::py::` blocks in `jac-py/jacpython/*.jac` to native
 Jac. Motivation: the branch's goal is a pure-Jac implementation; `::py::` escape
@@ -23,7 +23,7 @@ hatches bypass the static checker and hide semantics.
 | File | Why skipped |
 |---|---|
 | `ceval.jac` (439-line host bridge) | Hot file at sweep time: item-40/43 lanes mid-flight plus queued follow-ups. Revisit after the chain drains. |
-| `objects.jac` (`_py_container_del`) | Load-bearing workaround for the compiled-jac `del container[key]` anchor-leak bug. Stays until TODO item 0 layer-2 lands. |
+| `objects.jac` (`_py_container_del`) | Was a load-bearing workaround for the compiled-jac `del container[key]` anchor-leak bug; removed after the sv_forget root fix landed (the ::py:: block no longer exists). |
 
 Also excluded by lane ownership: `parser_actions.jac`, `compiler_literals_slice.jac`
 (band-11 lit-fix agent active) and HappyZenith's throwaway `_smoke_tmp.jac` /
