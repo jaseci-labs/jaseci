@@ -535,6 +535,11 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
+    CORRECTION (YoungHawk, r61): earlier claims that finalize_class_slots
+    'landed' are WRONG - type_slots.jac is an UNTRACKED UNWIRED leaf;
+    PyClass has no slots state; PyUserObj.tp_setattro writes unconditionally
+    (ceval ~1536). Full diagnosis: jac-py/tools/SPEC_ITEM_51.md. Fix needs
+    held-file ceval.jac. Item remains LIVE.
 
 50. **[MED] C.__mro__ returns tuple of Nones.** Diamond-inheritance class:
     str(C.__mro__) -> '(None, None, None, None)' instead of the class tuple.
@@ -624,6 +629,39 @@ CONSOLIDATION (r60): 65+67+68+69+70+71 share one root shape - implicit
     is not wired to dunder lookup on the Python-source/ceval class path.
     Likely ONE slot-init/dispatch fix family; native-Jac classes unaffected
     throughout. Owner: VM lane (ceval/type-ready slot init).
+
+72. **[LOW-MED] int-subclass user __init__ with kwargs fails.**
+    class N(int): def __init__(self, v, **kw): super().__init__(v); then
+    N(5, foo=1) -> EXEC ERROR. PRE-EXISTING on unpatched tree; item-40's
+    patch did NOT cover it (distinct from keywords_in_subclass shapes).
+    Locus: PyClass.tp_call immutable-base path, ceval.jac. Source:
+    subclass-diag 14-case matrix R3, relayed via UltraMoon. Found during
+    item-40 verification.
+
+73. **[LOW] Chained-raise repr loses args.** repr(e.__cause__) yields
+    'OSError()' where host gives "OSError('o')" - args vanish on chained
+    exceptions accessed via __cause__/__context__. Locus: raise path /
+    exception construction, ceval.jac. Found by exc-setattr agent during
+    item-39 verification (797b4118b).
+
+DEFERRED - exception-attr type-enforcement [INFO]: CPython raises TypeError
+    for non-traceback __traceback__, non-bool __suppress_context__,
+    non-exception cause/context writes; our tp_setattro (objects.jac) is
+    permissive BY NECESSITY - enforcement needs exception-type checks
+    unavailable in the na-clean leaf (objects.jac cannot import ceval/
+    pyc_first without an import cycle). Harmless until traceback objects
+    exist; fix belongs with the traceback-object lane.
+
+E5092 CROSS-REF (YoungHawk): from PROXY_HASH_FINDINGS.md - PyHostProxy
+    tp_hashkey->FNV fallthrough for scalar proxies is a REAL latent issue,
+    routed to UltraMoon's post-ceval queue (item-27 shim family). E5092
+    itself = item 57 (status logged at 9c121d634); numbering reconciled.
+
+CLOSURE RECONCILIATION (YoungHawk, r61): YoungHawk reports items
+    4/5/19/28/29/39/40/41/43-collab/58-harness CLOSED per their closure run
+    (verification-owner assertion recorded verbatim; individual status
+    lines to be flipped as each gets re-checked). test_set baseline bump
+    5->7 pending embed-verification closure run.
 
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
