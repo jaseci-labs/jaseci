@@ -6,7 +6,7 @@ Microservice architecture:
   - orders_app.jac: order functions; sv imports cart_app for inter-service calls
   - main.jac: this file - client UI + gateway entry point
 
-Run: jac start main.jac
+Run: jac run --serve main.jac
   Gateway on :8000
   Services auto-spawn on-demand via sv import (hash-based ports in 18xxx)
 """

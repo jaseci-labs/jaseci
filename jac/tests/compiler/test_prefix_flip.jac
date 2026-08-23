@@ -404,7 +404,7 @@ test "a quarantined module reports the parity-guard trip by name" {
     }
 }
 
-test "a module with annexes declines before it is parsed" {
+test "a module with annexes crosses, and the impl arrives woven" {
     _reset();
     import tempfile;
     try {
@@ -418,10 +418,22 @@ test "a module with annexes declines before it is parsed" {
             );
             (_prog, mod) = _compile(path);
             assert mod is not None;
+            impls = [
+                st
+                for st in mod.body
+                if type(st).__name__ == "ImplDef"
+            ];
+            assert len(impls) == 1 , (
+                "the annex body did not reach the module the crossing "
+                f"produced: {[type(st).__name__ for st in mod.body]}. The "
+                "weave is part of producing a module now, so a module whose "
+                "impl lives in an annex must arrive carrying it."
+            );
         }
         by_clause = prefix_fallbacks_by_clause();
-        assert by_clause.get("annex-present", 0) >= 1 , (
-            f"an annexed module was not declined by name: {by_clause}"
+        assert by_clause.get("annex-present", 0) == 0 , (
+            "an annexed module was declined for carrying annexes, but the "
+            f"bound entry serves the multi-source crossing: {by_clause}"
         );
     } finally {
         _reset();

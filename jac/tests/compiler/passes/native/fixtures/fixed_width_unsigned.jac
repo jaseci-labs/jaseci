@@ -92,6 +92,12 @@ def:pub i8_min_div_m1_traps -> int {
     return out;
 }
 
+"""Only the quotient of MIN // -1 leaves the range. The remainder is 0, so
+this returns a value rather than trapping (and the raw srem would fault)."""
+def:pub i8_min_mod_m1 -> int {
+    return int(i8.MIN % i8(-1)) + 7;
+}
+
 def:pub i8_neg_min_traps -> int {
     out: int = 0;
     try {

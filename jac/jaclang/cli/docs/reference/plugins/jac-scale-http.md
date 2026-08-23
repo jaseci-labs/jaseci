@@ -7,10 +7,10 @@
 ### Basic Server
 
 !!! note
-    `main.jac` is the default entry point. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
-jac start
+jac run
 ```
 
 ### Server Options
@@ -27,7 +27,6 @@ jac start
 | `--client` | Client build target for dev server (web, pwa, mobile, desktop) | web |
 | `--host` | Mobile dev (`--client mobile --dev`): host/IP override for Capacitor live-reload (auto-selected when omitted) | - |
 | `--platform` | Mobile start/dev: `android` or `ios` (`auto` uses `[client.mobile]` default_platform, or android) | auto |
-| `--scale` | Deploy to a target platform instead of running locally | false |
 | `--target` | Deployment target (kubernetes, aws, gcp) | kubernetes |
 | `--enable-tls` | Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB) | false |
 | `--dry-run` | Print the manifests that would be applied; change nothing | false |
@@ -37,26 +36,26 @@ jac start
 
 ```bash
 # Custom port
-jac start --port 3000
+jac run --port 3000
 
 # Development with HMR (client framework built into jaclang core)
-jac start --dev
+jac run --dev
 
 # API only -- skip client bundling
-jac start --dev --no-client
+jac run --dev --no-client
 
 # Preview generated API endpoints without starting
-jac start --faux
+jac run --faux
 
 # Production with profile
-jac start --port 8000 --profile prod
+jac run --port 8000 --profile prod
 ```
 
 ### Default Persistence
 
-When running locally (without `--scale`), Jac uses **SQLite** for graph persistence by default. You'll see `"Using SQLite for persistence"` in the server output. No external database setup is required for development.
+When running locally (that is, not deployed with `jac scale deploy`), Jac uses **SQLite** for graph persistence by default. You'll see `"Using SQLite for persistence"` in the server output. No external database setup is required for development.
 
-Persistence is Postgres-native everywhere: the same store serves `jac run`, `jac start`, and `--scale` deployments, with full schema-migration support (fingerprints, drift repair, and the quarantine sidecar). See [CLI -> Database Operations](../cli/index.md#database-operations) and [Persistence & Schema Migration](../persistence.md) for the full model.
+Persistence is Postgres-native everywhere: the same store serves local `jac run`, served projects, and `jac scale deploy` deployments, with full schema-migration support (fingerprints, drift repair, and the quarantine sidecar). See [CLI -> Database Operations](../cli/index.md#database-operations) and [Persistence & Schema Migration](../persistence.md) for the full model.
 
 ```bash
 # Inspect a live Mongo-backed deployment.
@@ -83,7 +82,7 @@ Set `suppress_health_check_logs = true` to suppress access log entries for healt
 
 ### CORS Configuration
 
-In single-process `jac start` mode the FastAPI app installs a permissive
+In single-process `jac run` mode the FastAPI app installs a permissive
 CORS middleware (`allow_origins=['*']`, all methods/headers); there is
 no `[scale.cors]` knob to tune it.
 
@@ -1118,7 +1117,7 @@ Export the password before starting the server:
 
 ```bash
 export EMAILER_SMTP_PASSWORD="<app-password>"
-jac start
+jac run
 ```
 
 Test the flow end to end:
@@ -1201,10 +1200,10 @@ Run:
 
 ```bash
 export SENDGRID_API_KEY="SG.xxxxxxxx"
-jac start
+jac run
 ```
 
-Run `jac start` from the directory containing `myapp/` so the package is importable. The factory verifies `issubclass(SendGridEmailer, Emailer)` at startup; on a typo or wrong base class it logs an error and disables email (the server keeps running).
+Run `jac run` from the directory containing `myapp/` so the package is importable. The factory verifies `issubclass(SendGridEmailer, Emailer)` at startup; on a typo or wrong base class it logs an error and disables email (the server keeps running).
 
 ---
 
@@ -1634,7 +1633,7 @@ A plain import bridges the boundary in two flavors depending on where the import
 - **client-to-server**: client code calls server functions. Calls go over HTTP from browser to server.
 - **sv-to-sv (server-to-server)**: one server module calls another server module that runs as a separate microservice. Calls go over HTTP from one server process to another.
 
-In the sv-to-sv flavor, `order_service.jac` doing `import from inventory_service { check_stock }` -- with `inventory_service` in the routes table -- does not load `inventory_service` into the consumer's process. Calling `check_stock(sku)` issues a `POST /function/check_stock` against the inventory service's URL and returns the result. The same source runs unchanged whether `inventory_service` is a separate microservice, a sibling process started by the same `jac start` command, or (when the routes entry is removed) a normal in-process import.
+In the sv-to-sv flavor, `order_service.jac` doing `import from inventory_service { check_stock }` -- with `inventory_service` in the routes table -- does not load `inventory_service` into the consumer's process. Calling `check_stock(sku)` issues a `POST /function/check_stock` against the inventory service's URL and returns the result. The same source runs unchanged whether `inventory_service` is a separate microservice, a sibling process started by the same `jac run` command, or (when the routes entry is removed) a normal in-process import.
 
 Both `def:pub` functions and `walker:pub` archetypes can cross the boundary. Function imports POST to `/function/<name>` and return the function's value. Walker imports POST to `/walker/<name>` and return the rehydrated walker instance with its `has` fields populated and `reports` attached, so call sites read the result the same way they would after a local spawn. See [Walker Imports](#walker-imports) for the wire shape and ergonomics.
 
@@ -1647,8 +1646,8 @@ A few preconditions for cross-service calls to work:
 - **Routes-table membership.** The provider module must be a key in `[scale.microservices.routes]` (`jac scale split <module>` writes the entry). Without it, the import is an ordinary in-process import.
 - **Public functions only.** Provider functions reached across the boundary must be declared `def:pub`; non-public functions are not exposed as endpoints, and calls into them return 404. Walkers similarly need `walker:pub`. `def:pub` / `walker:pub` is the cross-service contract.
 - **jac-scale on the consumer.** Explicit URLs and env vars work with any jaclang install. Automatic spawning of siblings is provided by jac-scale; a bare jaclang install can still call providers registered by URL.
-- **Project layout.** `jac start <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` first, or pass an absolute path.
-- **Services in the same directory when auto-spawning.** If the consumer auto-spawns a provider, it loads the provider source from the directory you ran `jac start` in. Keep all services in the same project directory, or point the consumer at a provider URL explicitly so auto-spawning never runs.
+- **Project layout.** `jac run <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` first, or pass an absolute path.
+- **Services in the same directory when auto-spawning.** If the consumer auto-spawns a provider, it loads the provider source from the directory you ran `jac run` in. Keep all services in the same project directory, or point the consumer at a provider URL explicitly so auto-spawning never runs.
 
 ### Boundary Types
 
@@ -1716,11 +1715,11 @@ This applies to **sv-to-sv** (server-to-server) imports. Walker imports across t
 
 ### Automatic Startup
 
-When you run `jac start consumer.jac`, the consumer finds every routes-table service it imports and brings them all up **before** it starts accepting requests. Transitive dependencies are included: if A imports B and B imports C (all in the cut), starting A brings up all three.
+When you run `jac run consumer.jac`, the consumer finds every routes-table service it imports and brings them all up **before** it starts accepting requests. Transitive dependencies are included: if A imports B and B imports C (all in the cut), starting A brings up all three.
 
 Startup is **fail-fast**: if any service fails to come up (missing source file, syntax error, port in use), the consumer crashes at startup with the underlying error. You find out at deploy time, not at first request.
 
-Automatic startup only applies to `jac start`. `jac run` is for one-shot scripts and does not bring up long-running sibling services; if it calls a service-stub function it will try to discover the provider lazily using the rules in [Service Discovery](#service-discovery) below.
+Automatic startup only applies to `jac run`. `jac run` is for one-shot scripts and does not bring up long-running sibling services; if it calls a service-stub function it will try to discover the provider lazily using the rules in [Service Discovery](#service-discovery) below.
 
 ### Service Discovery
 
@@ -1729,11 +1728,11 @@ For each imported routes-table provider, the consumer resolves it in this order.
 1. **Test client** -- if tests have wired up an in-process `TestClient` for the provider, calls go through it with no HTTP. See [Testing](#testing).
 2. **Explicit URL** -- a URL the consumer was handed programmatically (e.g. by a custom orchestrator). See the [sv_client API](#sv_client-api-reference).
 3. **`JAC_SV_<MODULE>_URL` environment variable** -- automatically consulted using the upper-cased module name. This is the knob to reach for when the provider lives on a different host.
-4. **Automatic spawn** -- jac-scale brings up the provider as a sibling inside the consumer process. This is the path that lets `jac start consumer.jac` run the whole cluster from one command.
+4. **Automatic spawn** -- jac-scale brings up the provider as a sibling inside the consumer process. This is the path that lets `jac run consumer.jac` run the whole cluster from one command.
 
 Automatically-spawned siblings are bound to `127.0.0.1` -- they are reachable from inside the consumer process but not from outside. This makes single-command mode a supported deployment for **single-host** setups, but you cannot reach a sibling from another machine. For multi-host deployments, wire the consumer with `JAC_SV_<MODULE>_URL` pointing at the provider running elsewhere.
 
-Siblings are assigned ports in the range `18000-18999`. Pick ports outside this range (e.g. in the 8000s) for your own `jac start --port` flags so a manual port does not collide with a future automatic spawn.
+Siblings are assigned ports in the range `18000-18999`. Pick ports outside this range (e.g. in the 8000s) for your own `jac run --port` flags so a manual port does not collide with a future automatic spawn.
 
 ### Production Patterns
 
@@ -1767,15 +1766,15 @@ For multi-service local dev, the simplest pattern is `JAC_SV_*_URL` env vars in 
 ```bash
 export JAC_SV_INVENTORY_SERVICE_URL=http://localhost:8001
 export JAC_SV_MATH_SERVICE_URL=http://localhost:8002
-jac start order_service.jac --port 8000
+jac run --port 8000 order_service.jac
 ```
 
-Alternatively, omit the env vars entirely and run `jac start order_service.jac` on its own. The consumer will find every routes-table service it imports and bring them all up automatically (including transitive dependencies) before serving the first request. This is a supported deployment mode for **single-host** setups -- one process, many logical services. For **multi-host** deployments use the `JAC_SV_*_URL` path instead: automatically-started services bind `127.0.0.1` only and cannot serve traffic to other hosts.
+Alternatively, omit the env vars entirely and run `jac run order_service.jac` on its own. The consumer will find every routes-table service it imports and bring them all up automatically (including transitive dependencies) before serving the first request. This is a supported deployment mode for **single-host** setups -- one process, many logical services. For **multi-host** deployments use the `JAC_SV_*_URL` path instead: automatically-started services bind `127.0.0.1` only and cannot serve traffic to other hosts.
 
 #### Troubleshooting
 
 - **`{"detail":"Invalid anchor id ..."}` 500s.** Stale anchors persisted from a previous run with a different schema. Stop the server, `rm -rf .jac/data/`, and restart. Not specific to sv-to-sv; any `def:pub` call can hit this after a schema change.
-- **Consumer crashes at startup with `ModuleNotFoundError: No module named '<provider>'`.** Automatic startup could not find the provider source in the directory you ran `jac start` from. Either move all services into the same project directory, or set `JAC_SV_<MODULE>_URL` to point the consumer at a provider running elsewhere.
+- **Consumer crashes at startup with `ModuleNotFoundError: No module named '<provider>'`.** Automatic startup could not find the provider source in the directory you ran `jac run` from. Either move all services into the same project directory, or set `JAC_SV_<MODULE>_URL` to point the consumer at a provider running elsewhere.
 - **Cross-service call returns 404.** The provider function is not declared `def:pub`. Walkers similarly need `walker:pub`.
 
 ### Testing
@@ -1844,11 +1843,11 @@ Overrides for `sv_walker_call` must end by returning the rehydrated walker insta
 
 | Command | Description |
 |---------|-------------|
-| `jac start app.jac` | Start local API server |
-| `jac start app.jac --scale` | Deploy to Kubernetes |
-| `jac start app.jac --scale --dry-run` | Print the manifests that would be applied; change nothing |
-| `jac start app.jac --scale --target kubernetes` | Explicit deployment target (default) |
-| `jac start app.jac --scale --enable-tls` | Enable HTTPS on a live deployment (no redeploy) |
+| `jac run app.jac` | Start local API server |
+| `jac scale deploy app.jac` | Deploy to Kubernetes |
+| `jac scale deploy app.jac --dry-run` | Print the manifests that would be applied; change nothing |
+| `jac scale deploy app.jac --target kubernetes` | Explicit deployment target (default) |
+| `jac scale deploy app.jac --enable-tls` | Enable HTTPS on a live deployment (no redeploy) |
 | `jac scale status app.jac` | Show live deployment status |
 | `jac scale status app.jac --target kubernetes` | Status for a specific target |
 | `jac scale destroy app.jac` | Remove Kubernetes deployment (prompts for confirmation) |

@@ -237,7 +237,8 @@ glob BUILTIN_NAMES: set[str] = {
 
 def is_bootstrap_compiled_module(mod_path: str) -> bool {
     import os;
-    return "/jaclang/jac0core/" in os.path.normpath(mod_path).replace("\\", "/");
+    norm = os.path.normpath(mod_path).replace("\\", "/");
+    return norm.startswith("jaclang/jac0core/") or "/jaclang/jac0core/" in norm;
 }
 
 def is_ambient_provider_module(mod_path: str) -> bool {

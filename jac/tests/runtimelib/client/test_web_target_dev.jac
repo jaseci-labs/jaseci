@@ -1,7 +1,7 @@
 """Regression tests for WebTarget.dev() -- the web/static/PWA dev flow.
 
 Bug (#7660): WebTarget.dev() started Vite without compiling the .jac
-client entry first, so a fresh project's first `jac start -d` failed
+client entry first, so a fresh project's first `jac run -d` failed
 with "Failed to resolve import /compiled/_entry.js". StaticTarget and
 PWATarget inherit this method, so both were affected too.
 
@@ -112,7 +112,7 @@ test "web target dev wires up the hmr watcher and always stops it" {
 }
 
 
-"""`jac start -d` on a `kind = "web-static"` project (the bug's original repro)
+"""`jac run -d` on a `kind = "web-static"` project (the bug's original repro)
 runs StaticTarget.dev(), which is WebTarget's inherited one; PWATarget defines
 its own only to print a notice before delegating via super.dev(). Both must end
 up on the fixed compile-then-serve path."""
@@ -134,7 +134,7 @@ test "static and pwa dev flows inherit the compile-before-serve fix" {
 """The dev server writes its own index.html rather than going through
 HeaderBuilder, so `[client.app_meta_data] scripts` has to be injected there too.
 Without it an SDK the app depends on is present in `jac build` output but
-silently missing under `jac start --dev`, which reads as a bug.
+silently missing under `jac run --dev`, which reads as a bug.
 
 Only the plugin lookup is patched, on the real config class: replacing
 `get_config` wholesale with a stand-in breaks whatever else reads the config

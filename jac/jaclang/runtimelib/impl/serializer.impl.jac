@@ -61,7 +61,14 @@ impl Serializer._serialize_value(
     ref_mode: bool = False,
     _seen: (tuple[set, set] | None) = None
 ) -> object {
-    if val is None or isinstance(val, (str, int, float, bool)) {
+    if val is None {
+        return None;
+    }
+    if isinstance(val, (str, int, float, bool)) {
+        if api_mode and type(val) not in _PLAIN_WIRE_SCALARS {
+            import from jaclang.runtimelib.sized { json_wire_form }
+            return json_wire_form(val);
+        }
         return val;
     }
     if isinstance(val, UUID) {
@@ -93,6 +100,9 @@ impl Serializer._serialize_value(
             'all': val.all.value,
             'roots': Serializer._serialize_value(
                 val.roots, include_type, api_mode, ref_mode, _seen
+            ),
+            'groups': Serializer._serialize_value(
+                val.groups, include_type, api_mode, ref_mode, _seen
             )
         };
     }
@@ -432,6 +442,13 @@ impl Serializer.coerce(val: object, target_type: object) -> tuple {
     }
 
     try {
+        if (sized_name := base?.__jac_sized__) is not None {
+            import from jaclang.runtimelib.sized { json_wire_read }
+            if isinstance(val, (bool, int, float, str)) {
+                return (json_wire_read(sized_name, val), True);
+            }
+            return (val, False);
+        }
         if base is bool {
             if isinstance(val, (int, float)) {
                 return (bool(val), True);
@@ -946,6 +963,9 @@ impl Serializer._deserialize_permission(data: object) -> Permission {
     perm.all = access_level_cast(data.get('all', -1));
     if (roots := data.get('roots')) {
         perm.roots = Serializer._deserialize_access(roots);
+    }
+    if (groups := data.get('groups')) {
+        perm.groups = Serializer._deserialize_access(groups);
     }
     return perm;
 }

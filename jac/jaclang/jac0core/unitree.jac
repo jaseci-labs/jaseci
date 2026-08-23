@@ -368,8 +368,7 @@ obj Module(AstDocNode, UniScopeNode) {
         rc_move_in: set[int] postinit,
         anon_region_open: dict[int, int] postinit,
         anon_region_close: dict[int, int] postinit,
-        anon_region_locals: dict[int, list[str]] postinit,
-        annex_mods: list[Module] postinit;
+        anon_region_locals: dict[int, list[str]] postinit;
 
     def postinit -> None;
 

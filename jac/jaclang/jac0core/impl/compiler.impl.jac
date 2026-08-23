@@ -805,8 +805,6 @@ impl JacCompiler.parse_str(
     }
     target_program.mod.hub[hub_key] = mod;
 
-    mod.annex_mods = self.load_annex_modules(mod, target_program);
-    run_pass(JacAnnexPass, mod, target_program);
     if run_codespace_infer {
         _opts = target_program._compile_options;
         _analysis_only = _opts is not None and _opts.no_cgen;
@@ -827,32 +825,6 @@ impl JacCompiler.parse_str(
         }
     }
     return mod;
-}
-
-impl JacCompiler.load_annex_modules(
-    mod: uni.Module, target_program: JacProgram
-) -> list[uni.Module] {
-    import from jaclang.jac0core.bccache { discover_annex_files }
-    import from jaclang.jac0core.parser { parse as rd_parse }
-    mod_path = mod.loc.mod_path;
-    if (mod.stub_only or not mod_path.endswith('.jac') or mod.annexable_by) {
-        return [];
-    }
-    annexes: list[uni.Module] = [];
-    seen: set[str] = set();
-    for path in [
-        *discover_annex_files(mod_path, '.impl.jac'),
-        *discover_annex_files(mod_path, '.test.jac')
-    ] {
-        if path in seen {
-            continue;
-        }
-        seen.add(path);
-        source_str = read_file_with_encoding(path);
-        (annex_mod, _had_error) = rd_parse(source_str, path, prog=target_program);
-        annexes.append(annex_mod);
-    }
-    return annexes;
 }
 
 impl JacCompiler.resolve_absorb_imports(

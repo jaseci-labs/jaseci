@@ -6,6 +6,7 @@ import from enum { StrEnum }
 import from uuid { UUID }
 
 import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.runtimelib.exceptions { WriteConflict }
 
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
@@ -166,6 +167,7 @@ obj PgStore(Store) {
     def _side -> any;
     def _run(sql: str, params: dict) -> list;
     def _promotion_columns -> list[tuple[str, str, str]];
+    def _promoted_column_type(col: str) -> (str | None);
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;

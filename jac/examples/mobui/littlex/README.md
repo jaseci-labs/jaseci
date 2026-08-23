@@ -27,10 +27,10 @@ primitives instead of raw `<div>`/`<button>`/antd -- so it isn't locked to the b
 
 ```bash
 # web -- View=<div>, Text=<span> via react-native-web
-jac start main.jac --dev
+jac run --dev main.jac
 
 # native -- real React Native components on a device/simulator
-jac start main.jac --dev --client react-native
+jac run --dev --client react-native main.jac
 ```
 
 Then post something. It's stored as a `Tweet` node on the shared root graph and

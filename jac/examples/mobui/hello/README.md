@@ -5,8 +5,8 @@ Starter for **mobUI** -- Jac's cross-platform UI model
 web (via `react-native-web`) and **React Native** (Android/iOS).
 
 ```bash
-jac start main.jac                       # web    -> View=<div>, Text=<span> (react-native-web)
-jac start main.jac --client react-native # native -> real RN components (Expo + Metro)
+jac run main.jac                         # web    -> View=<div>, Text=<span> (react-native-web)
+jac run --client react-native main.jac   # native -> real RN components (Expo + Metro)
 ```
 
 ## The `@jac/mobui` vocabulary

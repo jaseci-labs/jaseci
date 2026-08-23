@@ -76,7 +76,11 @@ with entry {
 }
 ```
 
-On the server lane each sized type is a real class (`type(x) is i8`, `isinstance(x, int)`), so hints resolve and serializers see ordinary numbers. On the client lane 8-, 16- and 32-bit values and `f32` are JS numbers, while `i64` and `u64` are `BigInt`; a 64-bit value serializes as a JSON number when it fits in 2^53 and as a string otherwise.
+On the server lane each sized type is a real class (`type(x) is i8`, `isinstance(x, int)`), so hints resolve and serializers see ordinary numbers. On the client lane 8-, 16- and 32-bit values and `f32` are JS numbers, while `i64` and `u64` are `BigInt`.
+
+**On the wire.** Both lanes encode 64-bit sized values the same way: a JSON number when the value fits in 2^53, and a JSON string otherwise (an ECMAScript reader cannot hold a larger integer as a number). Both decoders accept either form, so `i64`/`u64` fields round-trip between the server and the client without losing precision. Narrower widths and the float kinds are always JSON numbers.
+
+**Cost on the server lane.** A sized value there is a Python object and every operation is a dunder call, so sized arithmetic runs an order of magnitude slower than plain `int`. Reach for these types where the width is part of the contract (an FFI signature, a native function, a binary format, a wire field), not as documentation on a hot loop: plain `int` and `float` are untouched and pay nothing. The native lane lowers them to machine integers, where they cost nothing.
 
 ## 2 Type Annotations
 

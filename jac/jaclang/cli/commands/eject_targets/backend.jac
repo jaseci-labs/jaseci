@@ -522,7 +522,7 @@ def _emit_main_py(
         lines += [
             '',
             '# Import the entry module for its side effects: its `with entry`',
-            '# code runs at server boot, as it would under `jac start`.',
+            '# code runs at server boot, as it would under `jac run`.',
             'import ' + entry_module
         ];
     }
@@ -822,7 +822,7 @@ def _emit_main_py(
             '',
             '',
             '# Functions decorated with @restspec(path=...) are also mounted at',
-            '# their declared paths (parity with `jac start` custom REST routes).',
+            '# their declared paths (parity with `jac run` custom REST routes).',
             '# GET/HEAD routes carry no body: call the handler with the model',
             "# defaults instead of FastAPI's required JSON body.",
             'def _mount_restspec(fn, handler, model):',

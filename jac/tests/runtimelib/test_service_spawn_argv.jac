@@ -1,6 +1,6 @@
 """Every service spawn site must emit argv the real `jac` CLI accepts.
 
-The runtime spawns sibling services by shelling out to `jac start ...
+The runtime spawns sibling services by shelling out to `jac run --serve ...
 --no-client`. That argv is a cross-component contract with the CLI's argparse
 layer, but it is assembled far from the parser: when #7512 renamed
 `--no_client` to the documented `--no-client`, every auto-spawned service died

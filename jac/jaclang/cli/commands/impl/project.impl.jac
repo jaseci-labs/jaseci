@@ -378,7 +378,7 @@ Start with `jac guide jac-core-cheatsheet` and `jac guide jac-types`.
 - `jac check <file>` -- type-check and lint. Compiler diagnostics link to the
   relevant guide; follow the `-> run 'jac guide ...'` hints.
 - `jac run <file>` -- execute a Jac script.
-- `jac start --dev main.jac` -- start a web-app or service in dev mode
+- `jac run --dev main.jac` -- serve a web-app or service in dev mode
   (hot-reload for client files; restart for server changes). Use this instead
   of `jac run` for apps.
 - `jac browse <action>` -- QA a running app in a headless browser:
@@ -1200,7 +1200,7 @@ impl script(name: str = '', list_scripts: bool = False) -> int {
                 style="muted"
             );
             console.print('  [scripts]', style="muted");
-            console.print('  dev = "jac start main.jac"', style="muted");
+            console.print('  dev = "jac run --dev main.jac"', style="muted");
             console.print('  test = "jac test"', style="muted");
             return 0;
         }
