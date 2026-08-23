@@ -12,6 +12,7 @@ glob _SCHEMA_SQL = [
         undirected     boolean NOT NULL DEFAULT false,
         props          jsonb NOT NULL DEFAULT '{}'::jsonb,
         format_version integer NOT NULL DEFAULT 1,
+        version        bigint NOT NULL DEFAULT 0,
         updated_at     timestamptz NOT NULL DEFAULT now(),
         seq            bigserial
     )
@@ -583,6 +584,13 @@ impl PgStore._apply_schema_ddl -> None {
         if not has_seq {
             self._run('ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {});
         }
+        if self._promoted_column_type('version') is None {
+            self._run(
+                'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS version bigint '
+                'NOT NULL DEFAULT 0',
+                {}
+            );
+        }
         self._apply_promotions();
         self._property_graph_ddl();
     } finally {
@@ -774,7 +782,7 @@ impl PgStore.load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] {
     rows = self._run(
         """
         SELECT a.id, a.kind, a.arch_type, a.arch_module, a.fingerprint,
-               a.root_id, a.src, a.dst, a.undirected, a.props, a.xmin::text,
+               a.root_id, a.src, a.dst, a.undirected, a.props, a.version,
                CASE WHEN a.kind = 'NodeAnchor' THEN
                    (SELECT string_agg(e.id::text, ',' ORDER BY e.seq, e.id)
                       FROM anchors e WHERE e.src = a.id OR e.dst = a.id)
@@ -827,6 +835,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
     }
     by_id: dict[UUID, AnchorRow] = {row.id: row for row in rows_in};
     rows = list(by_id.values());
+    stale: list[AnchorRow] = [];
     chunk = 200;
     for start in range(0, len(rows), chunk) {
         batch = rows[start:start + chunk];
@@ -837,7 +846,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
                 f"(CAST(:id{i} AS uuid), :kind{i}, :arch_type{i}, "
                 f":arch_module{i}, :fp{i}, CAST(:root_id{i} AS uuid), "
                 f"CAST(:src{i} AS uuid), CAST(:dst{i} AS uuid), "
-                f":undirected{i}, CAST(:props{i} AS jsonb), :fv{i}, now())"
+                f":undirected{i}, CAST(:props{i} AS jsonb), :fv{i}, :ver{i}, now())"
             );
             params[f"id{i}"] = str(row.id);
             params[f"kind{i}"] = row.kind;
@@ -850,12 +859,13 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
             params[f"undirected{i}"] = row.undirected;
             params[f"props{i}"] = json.dumps(row.props, `default=_jsonable);
             params[f"fv{i}"] = SCHEMA_VERSION;
+            params[f"ver{i}"] = int(row.version);
         }
-        self._run(
+        written = self._run(
             """
             INSERT INTO anchors
                 (id, kind, arch_type, arch_module, fingerprint, root_id,
-                 src, dst, undirected, props, format_version, updated_at)
+                 src, dst, undirected, props, format_version, version, updated_at)
             VALUES
             """
                 + ',\n'.join(values)
@@ -871,9 +881,33 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
                 undirected = EXCLUDED.undirected,
                 props = EXCLUDED.props,
                 format_version = EXCLUDED.format_version,
+                version = EXCLUDED.version + 1,
                 updated_at = now()
+            WHERE anchors.version = EXCLUDED.version
+            RETURNING id, version
             """,
             params
+        );
+        landed: dict[str, int] = {str(r[0]): int(r[1]) for r in written};
+        for row in batch {
+            got = landed.get(str(row.id));
+            if got is None {
+                stale.append(row);
+            } else {
+                row.version = got;
+            }
+        }
+    }
+    if stale {
+        first = stale[0];
+        found = self._run(
+            'SELECT version FROM anchors WHERE id = CAST(:i AS uuid)',
+            {'i': str(first.id)}
+        );
+        raise WriteConflict(
+            anchor_id=first.id,
+            expected_version=int(first.version),
+            actual_version=int(found[0][0]) if found else -1
         );
     }
     pairs: list[tuple[str, str]] = [];

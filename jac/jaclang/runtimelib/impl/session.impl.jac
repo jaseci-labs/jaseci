@@ -249,6 +249,7 @@ impl Session.postinit -> None {
     self._flushing = None;
     self._read_scopes = 0;
     self._snapshot_reads = set();
+    self._version_seen = {};
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
@@ -688,6 +689,11 @@ impl Session.unit_exit -> None {
         }
         try {
             self.commit();
+        } except WriteConflict {
+            try {
+                self.store.rollback();
+            } except Exception { }
+            raise;
         } except Exception as e {
             logger.warning(
                 f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
@@ -797,9 +803,10 @@ impl Session._flush_locked(full: bool) -> None {
         }
         if rows {
             self.store.upsert(rows);
-            for (anchor, h) in pending {
+            for (i, (anchor, h)) in enumerate(pending) {
                 self._flushed_hash[anchor.id] = h;
                 anchor.hash = h;
+                self._version_seen[anchor.id] = rows[i].version;
                 self._txn_changed.add(anchor.id);
             }
         }
@@ -847,6 +854,7 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
         arch_module=arch_module,
         fingerprint=fingerprint,
         root_id=anchor.root,
+        version=self._version_seen.get(anchor.id, 0),
         props=props if isinstance(props, dict) else {},
         src=src,
         dst=dst,
@@ -895,6 +903,10 @@ impl Session._materialize(
         }
         anchor.edges = edges;
     }
+    if isinstance(anchor, NodeAnchor) {
+        anchor.version = row.version;
+    }
+    self._version_seen[row.id] = row.version;
     self.__mem__[row.id] = anchor;
     self._flushed_hash[row.id] = _persist_hash(anchor);
     anchor.hash = self._flushed_hash[row.id];

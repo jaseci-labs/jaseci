@@ -6,6 +6,7 @@ import from enum { StrEnum }
 import from uuid { UUID }
 
 import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.runtimelib.exceptions { WriteConflict }
 
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
