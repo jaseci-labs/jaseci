@@ -4370,63 +4370,27 @@ def dictiter_error -> PyObj {
     return py_error("RuntimeError", "dictionary changed size during iteration");
 }
 
-def find_cell(cells: list[PyCell], names: list[str], name: str) -> PyCell | None {
-    i = find_name(names, name);
-    if i >= 0 and i < len(cells) {
-        return cells[i];
-    }
-    return None;
-}
-
 # CPython 3.11+ indexes LOAD_FAST / *_DEREF / MAKE_CELL into a single merged
 # "localsplus" array laid out as [varnames(nlocals)] [cellvars-not-already-a-var]
-# [freevars]. A cell variable that is ALSO an argument keeps its varname slot
-# (it is NOT duplicated in the appended region) -- so the appended region holds
-# only the non-arg cellvars, then the freevars. resolve_cell maps a merged index
-# to its PyCell (or None for a plain local). Getting this layout wrong swaps a
-# parameter-cell with a sibling local-cell (breaks every closure/decorator).
-def resolve_cell(
-    co: PyCode, arg: int, cells: list[PyCell], closure: list[PyCell]
-) -> PyCell | None {
-    nl = len(co.varnames);
-    if arg < nl {
-        pos = find_name(co.cellvars, co.varnames[arg]);
-        if pos >= 0 and pos < len(cells) {
-            return cells[pos];
-        }
-        return None;
-    }
-    j = arg - nl;
-    # Walk the non-arg cellvars in cellvar order; the j-th is this slot.
-    seen = 0;
-    ci = 0;
-    while ci < len(co.cellvars) {
-        if find_name(co.varnames, co.cellvars[ci]) < 0 {
-            if seen == j and ci < len(cells) {
-                return cells[ci];
-            }
-            seen = seen + 1;
-        }
-        ci = ci + 1;
-    }
-    # Past the non-arg cellvars lies the freevar region (the closure cells).
-    free_index = j - seen;
-    if free_index >= 0 and free_index < len(closure) {
-        return closure[free_index];
+# [freevars]. This VM mirrors that with ONE physical array (frame.fast): entries
+# hold a plain value OR a PyCell -- cells live IN their slots, seeded at frame
+# setup and extended mid-frame by OP_MAKE_CELL (inlined comprehensions), which
+# is what makes per-execution fresh comprehension cells possible. resolve_cell
+# reads the slot directly; there is deliberately NO static name->cell map (a
+# static map pins one cell per name per frame, clobbering cells captured by
+# earlier comprehension runs).
+def resolve_cell(fast: list[PyObj], arg: int) -> PyCell | None {
+    if arg < len(fast) and isinstance(fast[arg], PyCell) {
+        return fast[arg] as PyCell;
     }
     return None;
 }
 
-def fast_value(
-    co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell], closure: list[PyCell]
-) -> PyObj {
-    # A cell slot (an arg-cell in the varname region, or any appended cell/free
-    # slot) yields the CELL OBJECT -- that is how LOAD_FAST/LOAD_CLOSURE fetch a
-    # cell to seed an inner function's closure. A plain local yields its value.
-    cell = resolve_cell(co, arg, cells, closure);
-    if cell is not None {
-        return cell as PyObj;
-    }
+def fast_value(co: PyCode, arg: int, fast: list[PyObj]) -> PyObj {
+    # A converted (cell) slot yields the CELL OBJECT -- that is how LOAD_FAST /
+    # LOAD_FAST_BORROW fetch a live cell to seed an inner function's closure
+    # (CPython's GETLOCAL returns whatever lives in the slot). A plain local
+    # yields its value.
     if arg < len(fast) {
         return fast[arg];
     }
@@ -4438,17 +4402,15 @@ def fast_value_check(
     arg: int,
     fast: list[PyObj],
     assigned: list[bool],
-    cells: list[PyCell],
-    closure: list[PyCell],
 ) -> PyObj {
     # LOAD_FAST_CHECK: like LOAD_FAST but raises UnboundLocalError when the
     # plain-local slot was never STORE_FAST-bound (CPython 3.14+ null check).
-    cell = resolve_cell(co, arg, cells, closure);
-    if cell is not None {
-        return cell as PyObj;
-    }
+    # Converted (cell) slots are always bound.
     if arg >= len(fast) {
         return py_error("UnboundLocalError", "local variable is not set");
+    }
+    if isinstance(fast[arg], PyCell) {
+        return fast[arg];
     }
     if arg < len(assigned) and not assigned[arg] {
         vname = "?";
@@ -4463,12 +4425,6 @@ def fast_value_check(
         );
     }
     return fast[arg];
-}
-
-def deref_cell(
-    co: PyCode, arg: int, fast: list[PyObj], cells: list[PyCell], closure: list[PyCell]
-) -> PyCell | None {
-    return resolve_cell(co, arg, cells, closure);
 }
 
 # Signed varint (zigzag-style: bit 0 is the sign) used by linetable line deltas.
@@ -5680,15 +5636,17 @@ def make_function_from_stack(stack: list[PyObj], globals: dict[str, PyObj]) -> P
 
 # ---------------- generator frame machinery (PLAN.md §5, P5) ----------------
 # CPython implements a generator as a suspended frame; jacpython mirrors that.
-# PyFrame captures the resumable eval state (stack/fast/cells/ip). YIELD_VALUE
+# PyFrame captures the resumable eval state (stack/fast/ip). YIELD_VALUE
 # saves it and hands a PyYield up to run_frame's caller; PyGenerator drives the
 # frame forward one yield at a time. PyGenStop is the "frame returned normally"
 # (StopIteration) sentinel that distinguishes exhaustion from a real raise.
 obj PyFrame(PyObj) {
     has co: PyCode,
+        # Merged localsplus: [varnames] [non-arg cellvar cells] [freevar cells].
+        # Entries hold values or PyCell objects (see resolve_cell); OP_MAKE_CELL
+        # converts more slots dynamically mid-frame.
         fast: list[PyObj],
         assigned: list[bool],
-        cells: list[PyCell],
         closure: list[PyCell],
         stack: list[PyObj],
         globals: dict[str, PyObj],
@@ -7231,16 +7189,18 @@ def frame_clear(frame: PyFrame) -> None {
     held: list[PyObj] = [];
     idx = 0;
     while idx < len(frame.fast) {
-        if idx < len(frame.assigned) and frame.assigned[idx] {
-            held.append(frame.fast[idx]);
+        # Converted (cell) slots release the cell's contents; plain slots release
+        # their value when bound. Covers dynamically MAKE_CELL'd slots too.
+        slot_entry = frame.fast[idx];
+        if isinstance(slot_entry, PyCell) {
+            held.append((slot_entry as PyCell).val);
+        } elif idx < len(frame.assigned) and frame.assigned[idx] {
+            held.append(slot_entry);
         }
         idx = idx + 1;
     }
     for item in frame.stack {
         held.append(item);
-    }
-    for cell in frame.cells {
-        held.append(cell.val);
     }
     for name in frame.locals {
         held.append(frame.locals[name]);
@@ -7613,21 +7573,36 @@ def exec_code_frame(
         i = i + 1;
     }
 
-    cells: list[PyCell] = [];
-    for name in co.cellvars {
-        fast_index = find_name(co.varnames, name);
-        value = py_none();
+    # Extend the varname region into the full merged localsplus: cellvars that
+    # share a varname slot convert that slot in place to a cell wrapping the
+    # already-bound argument/local value (the runtime effect of the prologue
+    # MAKE_CELLs); remaining cellvars append their cells in cellvar order, then
+    # the freevar (closure) cells append -- CPython's exact layout.
+    ci = 0;
+    while ci < len(co.cellvars) {
+        fast_index = find_name(co.varnames, co.cellvars[ci]);
         if fast_index >= 0 {
-            value = fast[fast_index];
+            fast[fast_index] = PyCell(t="cell", val=fast[fast_index]);
+        } else {
+            fast.append(PyCell(t="cell", val=py_none()));
         }
-        cells.append(PyCell(t="cell", val=value));
+        ci = ci + 1;
+    }
+    fi = 0;
+    while fi < len(closure) {
+        fast.append(closure[fi] as PyObj);
+        fi = fi + 1;
+    }
+    # The bound-tracking flags cover the FULL merged localsplus (a cell-targeted
+    # comprehension's tail STORE_FAST restore addresses appended slots too).
+    while len(assigned) < len(fast) {
+        assigned.append(False);
     }
     frame = PyFrame(
         t="frame",
         co=co,
         fast=fast,
         assigned=assigned,
-        cells=cells,
         closure=closure,
         stack=[],
         globals=globals,
@@ -7652,7 +7627,6 @@ def run_frame(frame: PyFrame) -> PyObj {
     co = frame.co;
     fast = frame.fast;
     assigned = frame.assigned;
-    cells = frame.cells;
     closure = frame.closure;
     stack = frame.stack;
     globals = frame.globals;
@@ -7699,7 +7673,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_FAST or op == OP_LOAD_FAST_BORROW {
-            fast_result = fast_value(co, arg, fast, cells, closure);
+            fast_result = fast_value(co, arg, fast);
             if is_error(fast_result) {
                 return fast_result;
             }
@@ -7707,7 +7681,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_FAST_CHECK {
-            fast_result = fast_value_check(co, arg, fast, assigned, cells, closure);
+            fast_result = fast_value_check(co, arg, fast, assigned);
             if is_error(fast_result) {
                 return fast_result;
             }
@@ -7734,15 +7708,18 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_LOAD_FAST_AND_CLEAR {
             # Inlined comprehensions save the loop var's outer binding here and
-            # clear the slot; a STORE_FAST at the tail restores it. NULL (an
-            # unbound slot) is modeled with the None placeholder.
-            if arg < len(fast) and assigned[arg] {
+            # clear the slot; a STORE_FAST at the tail restores it. The saved
+            # entry is the slot's contents WHOLESALE: for a converted (cell)
+            # slot that is the old cell itself, so save/restore also undoes a
+            # mid-frame MAKE_CELL exactly like CPython's GETLOCAL/SETLOCAL.
+            # NULL (an unbound slot) is modeled with the None placeholder.
+            if arg < len(fast) {
                 stack.append(fast[arg]);
+                fast[arg] = py_none();
             } else {
                 stack.append(py_none());
             }
-            if arg < len(fast) {
-                fast[arg] = py_none();
+            if arg < len(assigned) {
                 assigned[arg] = False;
             }
             continue;
@@ -7755,7 +7732,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             fast[store_index] = stack.pop();
             assigned[store_index] = True;
-            load_result = fast_value(co, load_index, fast, cells, closure);
+            load_result = fast_value(co, load_index, fast);
             if is_error(load_result) {
                 return load_result;
             }
@@ -7778,8 +7755,8 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW or op == OP_LOAD_FAST_LOAD_FAST {
             first = arg // 16;
             second = arg % 16;
-            first_result = fast_value(co, first, fast, cells, closure);
-            second_result = fast_value(co, second, fast, cells, closure);
+            first_result = fast_value(co, first, fast);
+            second_result = fast_value(co, second, fast);
             if is_error(first_result) {
                 return first_result;
             }
@@ -7838,7 +7815,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_DEREF {
-            cell = deref_cell(co, arg, fast, cells, closure);
+            cell = resolve_cell(fast, arg);
             if cell is None {
                 return py_error("NameError", "free variable is not set");
             }
@@ -7846,7 +7823,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_LOAD_CLOSURE {
-            cell = deref_cell(co, arg, fast, cells, closure);
+            cell = resolve_cell(fast, arg);
             if cell is None {
                 return py_error("NameError", "free variable is not set");
             }
@@ -7855,7 +7832,7 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_STORE_DEREF {
             value = stack.pop();
-            cell = deref_cell(co, arg, fast, cells, closure);
+            cell = resolve_cell(fast, arg);
             if cell is None {
                 return py_error("NameError", "free variable is not set");
             }
@@ -7863,9 +7840,22 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         if op == OP_MAKE_CELL {
+            # Dynamic slot conversion (CPython _PyFrame_MakeAndSetCell): wrap
+            # the slot's current value in a fresh cell. Subsequent *_DEREF ops
+            # and closure captures go through that cell while plain *_FAST ops
+            # keep addressing the slot wholesale -- which is also how a tail
+            # STORE_FAST un-converts it after an inlined comprehension. Each
+            # comprehension execution mints a NEW cell per loop var, so lambda
+            # sets captured by earlier comprehensions keep their own cells.
+            # Idempotent on already-converted slots (prologue MAKE_CELLs).
+            if arg < len(fast) and not isinstance(fast[arg], PyCell) {
+                fast[arg] = PyCell(t="cell", val=fast[arg]);
+            }
             continue;
         }
         if op == OP_COPY_FREE_VARS {
+            # No-op: frame setup already placed the closure cells in the
+            # appended freevar region of the merged localsplus.
             continue;
         }
         if op == OP_LOAD_LOCALS {
@@ -7930,24 +7920,16 @@ def run_frame(frame: PyFrame) -> PyObj {
             } elif arg == 2 and attribute.t == "dict" {
                 function.kwdefaults = (attribute as PyDict).dict_str_map();
             } elif arg == 8 and attribute.t == "tuple" {
+                # Closure seeding: elements are already live cells (captured via
+                # LOAD_FAST_BORROW/LOAD_CLOSURE on converted localsplus slots);
+                # any raw value gets boxed in a fresh cell.
                 function.closure = [];
-                closure_index = 0;
                 for item in tuple_value(attribute) {
                     if item.t == "cell" {
                         function.closure.append(item as PyCell);
-                    } elif closure_index < len(function.code.freevars) {
-                        outer_cell = find_cell(
-                            cells, co.cellvars, function.code.freevars[closure_index]
-                        );
-                        if outer_cell is not None {
-                            function.closure.append(outer_cell);
-                        } else {
-                            function.closure.append(PyCell(t="cell", val=item));
-                        }
                     } else {
                         function.closure.append(PyCell(t="cell", val=item));
                     }
-                    closure_index = closure_index + 1;
                 }
             }
             stack.append(function);

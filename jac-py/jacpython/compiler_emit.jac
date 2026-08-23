@@ -2124,9 +2124,57 @@ def try_emit_fast_local_pair_load(
     return True;
 }
 
+# True when every bound name of the comprehension target is a cell variable of
+# the enclosing scope -- i.e. the loop variable is captured by an inner function
+# (lambda/nested def), so CPython runs the comprehension through the slot's live
+# cell (LOAD_FAST_AND_CLEAR + MAKE_CELL + STORE_DEREF) instead of plain fasts.
+# Module scope is excluded to match emit_name_load's DEREF gating.
+def comp_name_is_cell(g: cfg_builder, name: str) -> bool {
+    if g.sym_top is None or g.sym_top.block_type == "module" {
+        return False;
+    }
+    flags = sym_dict_get(g.sym_top.symbols, name, 0);
+    return sym_scope_of(flags) == SCOPE_CELL;
+}
+
+def comp_target_is_cell(g: cfg_builder, target: expr) -> bool {
+    if isinstance(target, Name) {
+        return comp_name_is_cell(g, (target as Name).id);
+    }
+    if isinstance(target, Tuple) {
+        elts = (target as Tuple).elts;
+        if len(elts) == 0 {
+            return False;
+        }
+        ni = 0;
+        while ni < len(elts) {
+            if not isinstance(elts[ni], Name)
+                or not comp_name_is_cell(g, (elts[ni] as Name).id) {
+                return False;
+            }
+            ni = ni + 1;
+        }
+        return True;
+    }
+    return False;
+}
+
+# Slot index for a comprehension target name: plain fasts keep their varname
+# index; cell-scope names address the merged localsplus region.
+def comp_target_slot_index(g: cfg_builder, name: str) -> int {
+    fi = fast_local_index(g, name);
+    if fi >= 0 {
+        return fi;
+    }
+    if comp_name_is_cell(g, name) {
+        return localsplus_index(g, name);
+    }
+    return -1;
+}
+
 def comp_target_slots(g: cfg_builder, target: expr) -> list[int] | None {
     if isinstance(target, Name) {
-        fi = fast_local_index(g, (target as Name).id);
+        fi = comp_target_slot_index(g, (target as Name).id);
         if fi < 0 {
             return None;
         }
@@ -2140,14 +2188,27 @@ def comp_target_slots(g: cfg_builder, target: expr) -> list[int] | None {
         if not isinstance(elts[0], Name) or not isinstance(elts[1], Name) {
             return None;
         }
-        fi0 = fast_local_index(g, (elts[0] as Name).id);
-        fi1 = fast_local_index(g, (elts[1] as Name).id);
+        fi0 = comp_target_slot_index(g, (elts[0] as Name).id);
+        fi1 = comp_target_slot_index(g, (elts[1] as Name).id);
         if fi0 < 0 or fi1 < 0 {
             return None;
         }
         return [fi0, fi1];
     }
     return None;
+}
+
+# A cell-targeted comprehension clears its slot(s) into a fresh cell before the
+# loop: each execution mints new cells so closures captured by earlier runs are
+# not clobbered (pairs with the tail STORE_FAST wholesale restore).
+def comp_emit_cell_init(g: cfg_builder, target: expr, slots: list[int], loc: cloc) {
+    if comp_target_is_cell(g, target) {
+        si = 0;
+        while si < len(slots) {
+            g.emit_op(OP_MAKE_CELL, slots[si], loc);
+            si = si + 1;
+        }
+    }
 }
 
 # True when the comprehension's first evaluated body expression begins with the
@@ -2356,6 +2417,16 @@ def comp_emit_bind_target(
 ) {
     tloc = expr_loc(target);
     g.u.comp_pending_borrow = -1;
+    if comp_target_is_cell(g, target) {
+        # Cell-scope target: bind through the slot's live cell. UNPACK_SEQUENCE
+        # pushes elements left-to-right, so stores run last-to-first.
+        si = len(slots) - 1;
+        while si >= 0 {
+            g.emit_op(OP_STORE_DEREF, slots[si], tloc);
+            si = si - 1;
+        }
+        return;
+    }
     if len(slots) == 1 {
         if lead {
             pair_arg = slots[0] * 16 + slots[0];
@@ -2537,6 +2608,7 @@ def comp_emit_setup(
         g.emit_op(OP_LOAD_FAST_AND_CLEAR, slots[si], cloc_comp);
         si = si + 1;
     }
+    comp_emit_cell_init(g, gen.target, slots, cloc_comp);
     swap_depth = 2;
     if len(slots) == 2 {
         swap_depth = 3;
@@ -2592,6 +2664,7 @@ def visit_list_comp_async(
         g.emit_op(OP_LOAD_FAST_AND_CLEAR, slots[si], cloc_comp);
         si = si + 1;
     }
+    comp_emit_cell_init(g, gen.target, slots, cloc_comp);
     g.emit_op(OP_SWAP, swap_depth, cloc_comp);
 
     # --- comp body block: BUILD_LIST, SWAP (protected list-build) ---
@@ -2743,6 +2816,7 @@ def visit_set_comp_async(
         g.emit_op(OP_LOAD_FAST_AND_CLEAR, slots[si], cloc_comp);
         si = si + 1;
     }
+    comp_emit_cell_init(g, gen.target, slots, cloc_comp);
     g.emit_op(OP_SWAP, swap_depth, cloc_comp);
 
     comp_body = g.new_block();
@@ -2880,6 +2954,7 @@ def visit_dict_comp_async(
         g.emit_op(OP_LOAD_FAST_AND_CLEAR, slots[si], cloc_comp);
         si = si + 1;
     }
+    comp_emit_cell_init(g, gen.target, slots, cloc_comp);
     g.emit_op(OP_SWAP, swap_depth, cloc_comp);
 
     comp_body = g.new_block();
