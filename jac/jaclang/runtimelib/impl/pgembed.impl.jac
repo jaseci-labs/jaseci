@@ -572,25 +572,45 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
     os.makedirs(self.data_dir, exist_ok=True);
     os.chmod(self.data_dir, 0o700);
     self._grant_dir(self.data_dir);
-    res = subprocess.run(
-        [
-            os.path.join(bin_dir, 'initdb'),
-            '-D',
-            self.data_dir,
-            '-U',
-            self.superuser,
-            '-A',
-            'trust',
-            '-E',
-            'UTF8',
-            '--no-locale'
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        **self._as_user()
-    );
-    assert res.returncode == 0 , f"initdb failed: {res.stderr.strip()}";
+    timeout = float(os.environ.get('JAC_PG_INITDB_TIMEOUT', '120'));
+    last_err: str = '';
+    for attempt in range(2) {
+        try {
+            res = subprocess.run(
+                [
+                    os.path.join(bin_dir, 'initdb'),
+                    '-D',
+                    self.data_dir,
+                    '-U',
+                    self.superuser,
+                    '-A',
+                    'trust',
+                    '-E',
+                    'UTF8',
+                    '--no-locale'
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                **self._as_user()
+            );
+            if res.returncode == 0 {
+                return;
+            }
+            last_err = res.stderr.strip() or f"initdb exited {res.returncode}";
+        } except Exception as e {
+            # TimeoutExpired and spawn failures leave a partial cluster
+            # behind; initdb refuses non-empty data dirs, so the retry
+            # must start from a clean slate.
+            last_err = str(e);
+        }
+        logger.warning(
+            f"initdb attempt {attempt + 1}/2 failed, "
+            f"resetting data dir: {last_err}"
+        );
+        shutil.rmtree(self.data_dir, ignore_errors=True);
+    }
+    assert False , f"initdb failed after retry: {last_err}";
 }
 
 
