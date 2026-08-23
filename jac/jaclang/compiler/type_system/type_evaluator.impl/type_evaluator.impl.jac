@@ -2216,7 +2216,12 @@ impl TypeEvaluator._get_type_of_expression_core(
 
 impl TypeEvaluator._bind_filter_compare(cmp: Expr, filter_type: ClassType) -> None {
     if not isinstance(cmp, CompareExpr) {
-        self.emit_diag(E5094, cmp, reason="not a comparison");
+        term = self._filter_order_name(cmp);
+        if term is not None {
+            self._bind_filter_member(term, filter_type);
+            return;
+        }
+        self.emit_diag(E5094, cmp, reason="not a comparison or an ordering term");
         return;
     }
     if len(cmp.ops) != 1 {
@@ -2263,6 +2268,18 @@ impl TypeEvaluator._bind_filter_compare(cmp: Expr, filter_type: ClassType) -> No
         return;
     }
     self._bind_filter_member(left, filter_type);
+}
+
+
+impl TypeEvaluator._filter_order_name(expr: Expr) -> (Name | None) {
+    inner = expr;
+    if isinstance(inner, UnaryExpr) {
+        if inner.op.name != Tok.MINUS {
+            return None;
+        }
+        inner = inner.operand;
+    }
+    return inner if isinstance(inner, Name) else None;
 }
 
 

@@ -399,6 +399,11 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _is_edge_ref_target(target: UniNode) -> bool;
     def _cmp_op_str(op: CgNode) -> (str | None);
     def _query_filter_kws(fc: FilterCompr, type_arg: str, preds_arg: str) -> list;
+    def _order_name_of(x: Expr) -> (tuple[str, bool] | None);
+    def _query_filter_kws_ord(
+        fc: FilterCompr, type_arg: str, preds_arg: str, on_edge: bool, order_out: list
+    ) -> tuple[list, bool];
+
     def _recipe_contains_root(v: any) -> bool;
     def resolve_switch_pattern(pattern: MatchPattern, target: Expr) -> CgNode;
     def resolve_switch_stmt(nd: SwitchStmt) -> list[CgItem];
@@ -503,6 +508,16 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def exit_atom_trailer(nd: AtomTrailer) -> None;
     def exit_atom_unit(nd: AtomUnit) -> None;
     def exit_func_call(nd: FuncCall) -> None;
+    def _fold_sorted_traversal(nd: FuncCall) -> bool;
+    def _order_term(
+        expr: Expr, param: str, node_ty: str, edge_ty: str
+    ) -> (tuple[str, bool, bool] | None);
+
+    def _sort_order_specs(
+        key: Expr, node_ty: str, edge_ty: str
+    ) -> (list[tuple[str, bool, bool]] | None);
+
+    def _final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str];
     def exit_index_slice(nd: IndexSlice) -> None;
     def exit_special_var_ref(nd: SpecialVarRef) -> None;
     def exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None;
