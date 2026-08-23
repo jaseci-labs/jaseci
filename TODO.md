@@ -450,6 +450,17 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Matrix: UltraMoon /tmp/slot_coverage_matrix.md (197 lines, ~90 rows,
     10 material gaps). Canonical copy to jac-py/docs pending user nod.
 
+57. **[MED] E5092 native-lowering fallback: builtin hash() nondeterministic,
+    ignores PYTHONHASHSEED.** `with entry { print(hash("spam"), ...); }` run
+    via jac run emits error[E5092] (Native lowering failed for builtin call
+    'hash') and downgrades to a route where str/bytes hashing uses a
+    randomized per-process secret - different value EVERY RUN despite pinned
+    seed. The ceval/exec_code route IS host-exact (verified both sides at
+    d556e35d7). Route-dependent divergence; breaks absolute hash-seeded
+    goldens (wave-18 parity suite gates on exactly this). Repro by
+    OakArrow, verified by BrightTiger + proxy-hash-probe agent tracing locus.
+    Fix-spec pending from trace.
+
 52. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
     .encode('ascii') raises the right MESSAGE but type is generic Exception,
     not UnicodeEncodeError (so `except UnicodeEncodeError` misses it).
