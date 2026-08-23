@@ -1708,27 +1708,29 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_hashkey -> PyObj {
-        # A user-defined __hash__ keys the object by value (shares the numeric
-        # "n:" namespace so hash()-equal objects bucket together); it overrides
-        # a boxed builtin base's own keying, as CPython's slot inheritance does.
+        # CPython slot machinery (Objects/typeobject.c): inherit_slots (~8372)
+        # copies tp_richcompare AND tp_hash together from the first MRO base
+        # only while this class overrides neither; otherwise a still-NULL
+        # tp_hash is resolved by type_ready_set_hash (~8773), which injects
+        # tp_dict["__hash__"] = None (update_one_slot ~11655 maps that None to
+        # PyObject_HashNotImplemented). Net rule, reproduced here without the
+        # dict mutation: walk the MRO; the NEAREST class dict defining either
+        # name decides.
+        if mro_hash_blocked(self) {
+            return py_error("TypeError", "unhashable type");
+        }
+        # A user-defined __hash__ keys the object by value; routing through
+        # py_hash keeps raised/non-int returns byte-exact with hash() itself
+        # (slot_tp_hash, typeobject.c ~10295).
         if user_has_dunder(self, "__hash__") {
-            h = call_user_dunder(self, "__hash__", []);
-            if isinstance(h, PyBool) {
-                h = PyInt(t="int", val=1 if (h as PyBool).val else 0);
+            h = py_hash(self as PyObj);
+            if is_error(h) {
+                return h;
             }
-            if isinstance(h, PyInt) {
-                return PyStr(t="str", val="n:" + str((h as PyInt).val));
-            }
+            return PyStr(t="str", val="n:" + str((h as PyInt).val));
         }
         if self._has_base() {
             return self._base_obj().tp_hashkey();
-        }
-        # CPython type.__new__: __eq__ without an explicit __hash__ anywhere in
-        # the MRO leaves tp_hash NULL -- instances are unhashable. The explicit
-        # unhashable error marker; dict/set keying and PyObject_Hash both turn
-        # it into their own TypeError.
-        if user_has_dunder(self, "__eq__") {
-            return py_error("TypeError", "unhashable type");
         }
         # Default object.__hash__: identity-keyed, distinct per object.
         return PyStr(t="str", val="obj:" + str(id(self)));
@@ -2850,12 +2852,30 @@ def py_slot_truth(value: PyObj) -> PyObj {
     return PyBool(t="bool", val=value.tp_bool());
 }
 
-# int(x) conversion slot (nb_int over dunders): __int__, then the index slot
-# (__index__ / a boxed int base), then a boxed non-int base converted on its
-# own terms; nothing applicable is CPython's TypeError.
+# True iff the boxed builtin base supplies its own number slot that a heap
+# subclass inherits wholesale (CPython typeobject.c inherit_special copies
+# tp_as_number; update_one_slot resolves __int__/__float__ wrappers from the
+# base's tp_dict): int/bool carry long's slots, float carries its own. Such an
+# inherited slot PREEMPTS a user-defined __index__ -- PyNumber_Long/
+# PyNumber_Float consult nb_index only when nb_int/nb_float is absent -- while
+# non-number bases (str/list/dict, ...) do not.
+def boxed_number_base(u: PyUserObj) -> bool {
+    if not u._has_base() {
+        return False;
+    }
+    b = u._base_obj();
+    return isinstance(b, PyInt) or isinstance(b, PyBool) or isinstance(b, PyFloat);
+}
+
+# int(x) conversion slot (nb_int over dunders): __int__ first, then an
+# inherited builtin number slot, then the index slot; nothing applicable is
+# CPython's TypeError.
 def py_convert_int(x: PyObj) -> PyObj {
     if isinstance(x, PyUserObj) {
         u = x as PyUserObj;
+        # CPython abstract.c PyNumber_Long: once nb_int exists its result and
+        # its exceptions are final -- __index__ is tried only when nb_int is
+        # absent entirely.
         if user_has_dunder(u, "__int__") {
             res = call_user_dunder(u, "__int__", []);
             if is_error(res) {
@@ -2868,13 +2888,20 @@ def py_convert_int(x: PyObj) -> PyObj {
                 return res;
             }
             return py_error(
-                "TypeError", "__int__ returned non-int of type '" + res.t + "'"
+                "TypeError", "__int__ returned non-int (type " + res.t + ")"
             );
         }
-        idx = (u as PyObj).to_index();
-        if not is_error(idx) {
-            return idx;
+        # A builtin number base's own slot is inherited by the subclass.
+        if boxed_number_base(u) {
+            return py_convert_int(u._base_obj());
         }
+        # No nb_int anywhere in the hierarchy: nb_index next; its exceptions
+        # and non-int reports propagate verbatim (PyNumber_Index).
+        if user_has_dunder(u, "__index__") {
+            return (u as PyObj).to_index();
+        }
+        # Remaining bases convert on their own terms (str/bytes parsing, ...);
+        # none applicable is CPython's final TypeError.
         if u._has_base() {
             return py_convert_int(u._base_obj());
         }
@@ -2887,11 +2914,15 @@ def py_convert_int(x: PyObj) -> PyObj {
     return py_host_convert("int", x);
 }
 
-# float(x) conversion slot (nb_float over dunders): __float__, then the index
-# slot / boxed base; nothing applicable is CPython's TypeError.
+# float(x) conversion slot (nb_float over dunders): __float__ first, then an
+# inherited builtin number slot, then the index slot; nothing applicable is
+# CPython's TypeError.
 def py_convert_float(x: PyObj) -> PyObj {
     if isinstance(x, PyUserObj) {
         u = x as PyUserObj;
+        # CPython abstract.c PyNumber_Float: once nb_float exists its result and
+        # exceptions are final -- nb_index is tried only when nb_float is
+        # absent entirely.
         if user_has_dunder(u, "__float__") {
             res = call_user_dunder(u, "__float__", []);
             if is_error(res) {
@@ -2901,13 +2932,26 @@ def py_convert_float(x: PyObj) -> PyObj {
                 return res;
             }
             return py_error(
-                "TypeError", "__float__ returned non-float of type '" + res.t + "'"
+                "TypeError",
+                u.cls.name + ".__float__ returned non-float (type " + res.t + ")"
             );
         }
-        idx = (u as PyObj).to_index();
-        if not is_error(idx) {
+        # A builtin number base's own slot is inherited by the subclass.
+        if boxed_number_base(u) {
+            return py_convert_float(u._base_obj());
+        }
+        # No nb_float anywhere in the hierarchy: nb_index next; its exceptions
+        # and non-int reports propagate verbatim (PyNumber_Index).
+        if user_has_dunder(u, "__index__") {
+            idx = (u as PyObj).to_index();
+            if is_error(idx) {
+                return idx;
+            }
             return PyFloat(t="float", val=float((idx as PyInt).val));
         }
+        # Remaining bases convert on their own terms (str parsing, ...); none
+        # applicable is CPython's final TypeError (PyNumber_Float falls back to
+        # PyFloat_FromString, which the host constructor path reproduces).
         if u._has_base() {
             return py_convert_float(u._base_obj());
         }
@@ -4061,10 +4105,36 @@ def py_iter(value: PyObj) -> PyObj {
     return PyObject_GetIter(value);
 }
 
+# The __eq__/__hash__ MRO decision of CPython's slot machinery, shared by
+# hash() and the hash-key protocol so they can never disagree. True iff the
+# nearest class dict in the MRO defining either name makes instances
+# unhashable: a callable __hash__ wins; an explicit `__hash__ = None` (or the
+# marker type_ready_set_hash would inject for __eq__-without-__hash__, which
+# shadows every ancestor's explicit __hash__) blocks.
+def mro_hash_blocked(u: PyUserObj) -> bool {
+    for klass in class_mro(u.cls) {
+        if "__hash__" in klass.attrs {
+            return isinstance(klass.attrs["__hash__"], PyNoneType);
+        }
+        if "__eq__" in klass.attrs {
+            return True;
+        }
+    }
+    return False;
+}
+
 # Native ``hash()`` for ported builtins and user ``__hash__``; no host fallback.
 def py_hash(value: PyObj) -> PyObj {
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
+        # The MRO pair decision gates everything: it beats both a plain
+        # user_has_dunder("__hash__") hit (an ancestor's __hash__ does not
+        # rescue a subclass whose body defines only __eq__) and the boxed
+        # builtin base delegation (an int subclass defining __eq__ is
+        # unhashable despite int's own hashing).
+        if mro_hash_blocked(u) {
+            return py_error("TypeError", "unhashable type: '" + u.cls.name + "'");
+        }
         if user_has_dunder(u, "__hash__") {
             h = call_user_dunder(u, "__hash__", []);
             if is_error(h) {
@@ -4076,7 +4146,8 @@ def py_hash(value: PyObj) -> PyObj {
             if isinstance(h, PyInt) {
                 return h;
             }
-            return py_error("TypeError", "__hash__ should return an integer");
+            # slot_tp_hash (typeobject.c ~10318) message, byte-exact.
+            return py_error("TypeError", "__hash__ method should return an integer");
         }
         if u._has_base() {
             return py_hash(u._base_obj());
