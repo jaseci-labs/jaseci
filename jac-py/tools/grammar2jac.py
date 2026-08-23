@@ -467,6 +467,7 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("    peg_check_memo, peg_insert_memo, peg_update_memo,")
         self.print("    peg_expect_token, peg_expect_soft_keyword, peg_expect_forced_token,")
         self.print("    peg_expect_forced_result, peg_has_error, peg_fill_token,")
+        self.print("    peg_get_last_nonnwhitespace_token,")
         self.print("    peg_positive_lookahead_token, peg_negative_lookahead_token,")
         self.print("    peg_left_rec_finish, peg_token,")
         self.print("}")
@@ -738,10 +739,21 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self._rule_memo = False
             self.print("mark = peg_mark(p);")
             if self._uses_extra(rhs):
+                # Mirror pegen: the raw body of a left-recursive leader still
+                # extracts start metadata from the first token. The caller's
+                # loop resets p.mark to the rule entry before each attempt,
+                # so tokens[p.mark] is the first token of the full chain
+                # (e.g. 'self' in self.a.b), matching CPython positions.
                 self.print("start_lineno = 1;")
                 self.print("start_col_offset = 0;")
                 self.print("end_lineno = 1;")
                 self.print("end_col_offset = 0;")
+                self.print("if peg_fill_token(p) {")
+                with self.indent():
+                    self.print("t0 = p.tokens[p.mark];")
+                    self.print("start_lineno = t0.lineno;")
+                    self.print("start_col_offset = t0.col_offset;")
+                self.print("}")
             self.visit(rhs, is_loop=False, is_gather=False)
             self.print("return None;")
         self.print("}")
@@ -815,7 +827,15 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
     ) -> None:
         if idx >= len(items):
             if node.action and "EXTRA" in node.action:
-                self.print("end_tok = p.tokens[p.mark - 1];")
+                # Mirror pegen's _set_up_token_end_metadata_extraction: the end
+                # position comes from the last non-whitespace token (NEWLINE,
+                # INDENT, DEDENT, NL and COMMENT carry no usable positions).
+                self.print("end_tok = peg_get_last_nonnwhitespace_token(p);")
+                self.print("if end_tok is None {")
+                self.print("    p.error_indicator = True;")
+                self.print("    peg_reset(p, mark);")
+                self.print("    return None;")
+                self.print("}")
                 self.print("end_lineno = end_tok.end_lineno;")
                 self.print("end_col_offset = end_tok.end_col_offset;")
             action = self._emit_action(node, is_gather)
@@ -875,7 +895,12 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
     ) -> None:
         if idx >= len(items):
             if node.action and "EXTRA" in node.action:
-                self.print("end_tok = p.tokens[p.mark - 1];")
+                # Same pegen parity as _emit_alt_body_nested above.
+                self.print("end_tok = peg_get_last_nonnwhitespace_token(p);")
+                self.print("if end_tok is None {")
+                self.print("    p.error_indicator = True;")
+                self.print("    return None;")
+                self.print("}")
                 self.print("end_lineno = end_tok.end_lineno;")
                 self.print("end_col_offset = end_tok.end_col_offset;")
             action = self._emit_action(node, is_gather)
@@ -914,7 +939,9 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
     def _emit_action(self, node: Alt, is_gather: bool) -> str:
         if node.action:
             try:
-                return self.action_translator.translate(node.action)
+                return _escape_jac_kwargs(
+                    self.action_translator.translate(node.action)
+                )
             except ActionTranslationError as err:
                 raise ActionTranslationError(f"in alt {node!s}: {err}") from err
         names = list(self.local_variable_names)
@@ -928,6 +955,37 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         if len(names) == 1:
             return names[0]
         return f"[{', '.join(names)}]"
+
+
+# Jac reserved identifiers that collide with AST constructor kwarg names
+# (e.g. Assert(test=...), If(test=...)). Mirrors jaclang's RESERVED_IDENT_NAMES
+# (jac/jaclang/jac0core/constant.jac TOKEN_MAP values minus the escaped-type
+# names float/int/str/bool/self). Emitted kwargs for these get backtick-escaped
+# so regenerated parser.jac compiles without a hand post-pass.
+_JAC_RESERVED_IDENTS = frozenset(
+    {
+        "None", "True", "abst", "and", "any", "as", "assert", "async", "await",
+        "awaiting", "break", "by", "bytes", "can", "case", "class", "continue",
+        "def", "default", "del", "dict", "disengage", "edge", "elif", "else",
+        "entry", "enum", "except", "exit", "finally", "flow", "for", "forever",
+        "from", "glob", "has", "here", "if", "impl", "import", "in", "include",
+        "init", "is", "lambda", "list", "match", "node", "not", "obj",
+        "override", "postinit", "priv", "props", "protect", "pub", "raise",
+        "report", "return", "root", "sem", "set", "skip", "spawn", "static",
+        "super", "switch", "test", "try", "tuple", "type", "visit", "visitor",
+        "wait", "walker", "while", "with", "yield",
+    }
+)
+_KWARG_RE = re.compile(r"(?<![\w`=!<>+\-*/%&|^~])([A-Za-z_][A-Za-z0-9_]*)(=(?!=))")
+
+
+def _escape_jac_kwargs(action: str) -> str:
+    return _KWARG_RE.sub(
+        lambda m: f"`{m.group(1)}{m.group(2)}"
+        if m.group(1) in _JAC_RESERVED_IDENTS
+        else m.group(0),
+        action,
+    )
 
 
 def load_token_sets() -> tuple[set[str], dict[str, int]]:
