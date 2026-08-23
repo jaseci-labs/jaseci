@@ -554,7 +554,8 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     Same silent-wrong-answers family as 46. Owner: YoungHawk queue after 40
     (or UltraMoon lane when ceval frees).
 
-62. **[MED] `!=` ignores user `__eq__` - identity fallback.** class V with
+62. **[MED][FIXED 93629975c, VERIFIED] `!=` ignores user `__eq__` - identity
+    fallback.** class V with
     __eq__ returning True: V(1) != V(1) (distinct objects) yields True.
     Default __ne__ not derived from user __eq__; falls back to identity so
     any ==-but-not-same object compares unequal. Sneaky: pin tests where
@@ -564,6 +565,10 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     until fixed: never pin user-class != on distinct objects; assert
     __eq__ directly instead. Found fuzz r59
     via richcmp pin-down (individual <, ==, != ops green; combo case red).
+    FIX VERIFIED (CalmKnight, r61): pins at 93629975c - user-eq negation
+    green AND default identity semantics intact (== False / != True /
+    same-instance != False). Pre-fix control at parent 205f367d3 fails as
+    expected.
 
 63. **[MED-HIGH] for-loop over user iterator ERRORS.** class with
     __iter__/__next__/StopIteration: `for x in obj` raises, while
@@ -672,6 +677,14 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     QuickViper's landed state - one rebase pass; acceptance gates = pins
     for 70 unhashable-default + 69 in-returns-None). Item 72 unclaimed.
     CalmKnight verifies shas and flips ledger status same-day.
+
+74. **[LOW-MED] unittest assertNotEqual errors when either arg is a
+    user-class instance.** assertNotEqual(P(), P()) and (P(), 5) both fail;
+    int args fine; direct p != q comparison fine. Suspect harness/shim
+    hashes or richcompares args outside normal dispatch (correlates with
+    item 70 hash family). PRE-EXISTING - reproduced at 205f367d3 (pre-62-
+    fix), NOT caused by the 62 fix. Found r61 during 62-fix verification.
+    Owner: QuickViper lane (owns unittest shim + replay pins).
 
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
