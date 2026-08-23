@@ -712,7 +712,7 @@ obj PySlice(PyObj) {
         fields: list[PyObj] = [self.start, self.stop, self.step];
         other_fields: list[PyObj] = [os.start, os.stop, os.step];
         for i in range(len(fields)) {
-            eq = _obj_eq(fields[i], other_fields[i]);
+            eq = PyObject_RichCompare(fields[i], other_fields[i], Py_EQ);
             if is_error(eq) {
                 return eq;
             }
@@ -2037,7 +2037,7 @@ obj PyException(PyObj) {
             }
             # CPython's BaseException_new initializes __suppress_context__ to
             # False (not None) -- truthiness must be false-yet-bool.
-            return PyBool(t="bool", val=false);
+            return PyBool(t="bool", val=False);
         }
         return py_error("AttributeError", name);
     }
