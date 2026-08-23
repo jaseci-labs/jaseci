@@ -341,6 +341,16 @@ obj PyBytes(PyObj) {
         return py_error("IndexError", "index out of range");
     }
 
+    def tp_iter -> PyObj {
+        # Iterating bytes yields ints (CPython bytes_iterator), unlike str
+        # which yields 1-char strings.
+        items: list[PyObj] = [];
+        for v in self.val {
+            items.append(PyInt(t="int", val=v));
+        }
+        return PyIter(t="iter", items=items, index=0);
+    }
+
     def tp_bool -> bool {
         return len(self.val) != 0;
     }
