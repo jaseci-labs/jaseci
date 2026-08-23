@@ -314,7 +314,7 @@ import from compiler_diagnostics { lowering_diagnostic }
 import from flowgraph { verify_cfg, optimize_swap_range }
 import from assembler { assemble }
 import from codegen_util {
-    fold_default_values,
+    fold_default_leaf_values,
     args_have_kw_defaults,
     function_argcounts,
     function_code_flags,
@@ -740,10 +740,32 @@ def emit_function_defaults(g: cfg_builder, defaults: list[expr], tloc: cloc) -> 
     if len(defaults) == 0 {
         return True;
     }
-    folded = fold_default_values(defaults);
-    if folded is not None {
-        tup = PyTuple(t="tuple", items=folded);
-        idx = g.u.add_const(tup);
+    # CPython visits each default expr (interning every scalar leaf const in
+    # pre-order), then the optimizer folds the BUILD_TUPLE and appends the
+    # folded tuple const AFTER all visit-time consts (stage_late_const). Dead
+    # leaves are dropped later by remove_unused_consts (index 0 always kept).
+    values: list[PyObj] = [];
+    leaves: list[expr] = [];
+    di = 0;
+    while di < len(defaults) {
+        v = fold_default_leaf_values(defaults[di], leaves);
+        if v is None {
+            break;
+        }
+        values.append(v);
+        di = di + 1;
+    }
+    if len(values) == len(defaults) {
+        li = 0;
+        while li < len(leaves) {
+            lf = leaves[li];
+            register_int_literal_const(g, lf, True);
+            if isinstance(lf, Constant) and not isinstance((lf as Constant).value, PyInt) {
+                g.u.add_const((lf as Constant).value);
+            }
+            li = li + 1;
+        }
+        idx = g.u.stage_late_const(PyTuple(t="tuple", items=values));
         g.emit_op(OP_LOAD_CONST, idx, tloc);
         return True;
     }
@@ -796,7 +818,8 @@ def emit_make_function_with_closure(
 ) {
     has_defaults = args is not None and len(args.defaults) > 0;
     has_kwdefaults = args is not None and args_have_kw_defaults(args);
-    cidx = g.u.add_const(co);
+    # CPython adds the code object const at MAKE_FUNCTION emission time, i.e.
+    # AFTER the defaults/kwdefaults visitors interned their consts.
     if has_defaults {
         if not emit_function_defaults(g, args.defaults, tloc) {
             return;
@@ -817,6 +840,7 @@ def emit_make_function_with_closure(
         }
         g.emit_op(OP_BUILD_TUPLE, len(child_free), tloc);
     }
+    cidx = g.u.add_const(co);
     g.emit_op(OP_LOAD_CONST, cidx, tloc);
     g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
     if len(child_free) > 0 {
@@ -3512,6 +3536,10 @@ def compile_lambda_cfg(
         return u;
     }
     g.emit_op(OP_RETURN_VALUE, 0, bloc);
+    # CPython appends a dead implicit-return None epilogue to every function
+    # unit, interning the const after all body consts (kept at index 0 by
+    # remove_unused_consts, dropped otherwise).
+    u.add_const(py_none());
     return u;
 }
 

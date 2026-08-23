@@ -263,19 +263,31 @@ import from compiler_ir {
     comp_handler,
 }
 
-# Fold default expressions when every value is a Constant (CPython LOAD_CONST tuple).
-def fold_default_values(defaults: list[expr]) -> list[PyObj] | None {
-    items: list[PyObj] = [];
-    di = 0;
-    while di < len(defaults) {
-        d = defaults[di];
-        if not isinstance(d, Constant) {
-            return None;
-        }
-        items.append((d as Constant).value);
-        di = di + 1;
+# Deep-fold one default expression into its constant value, collecting the
+# scalar leaf exprs in CPython visit (pre-)order. Tuples fold recursively like
+# CPython's instruction-level BUILD_TUPLE folding; anything else refuses.
+# Returns None when e is not an all-constant display.
+def fold_default_leaf_values(e: expr, leaves: list[expr]) -> PyObj | None {
+    if isinstance(e, Constant) {
+        leaves.append(e);
+        return (e as Constant).value;
     }
-    return items;
+    if isinstance(e, Tuple) {
+        t = e as Tuple;
+        elts = t.elts if t.elts is not None else [];
+        items: list[PyObj] = [];
+        ei = 0;
+        while ei < len(elts) {
+            v = fold_default_leaf_values(elts[ei], leaves);
+            if v is None {
+                return None;
+            }
+            items.append(v);
+            ei = ei + 1;
+        }
+        return PyTuple(t="tuple", items=items);
+    }
+    return None;
 }
 
 def args_have_kw_defaults(args: arguments) -> bool {

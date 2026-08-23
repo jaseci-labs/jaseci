@@ -49,6 +49,7 @@ import from parser { parse_file }
 import from ast_nodes { Module }
 import from compiler_codegen { compile_eval, compile_exec }
 import from flowgraph { verify_cfg }
+import from pycode_diff { pycode_diff_message }
 import from assembler { assemble }
 import from compiler_validate { validate_module_body }
 import from compiler_symtable { build_module_symtable }
@@ -4141,4 +4142,42 @@ test "compiler_slice: f-string in function scope matches oracle nested co_code" 
     af = nested_code_by_name(actual, "f");
     ef = nested_code_by_name(expected as PyCode, "f");
     assert af.co_code == ef.co_code;
+}
+
+# Byte-parity helpers for parsed-exec sources: full recursive PyCode compare
+# against the host oracle with a precise diff path on mismatch.
+def assert_parsed_matches_oracle(src: str) {
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    msg = pycode_diff_message(expected as PyCode, actual);
+    assert msg == "", msg;
+}
+
+# GAP 3b: def defaults / *args / **kw const interning order must match the
+# host exactly -- scalar default leaves interned at visit time, kwdefault keys
+# next, code object after them (CPython adds it at MAKE_FUNCTION emission),
+# folded defaults tuple appended last by the optimizer; dead leaves dropped by
+# remove_unused_consts except index 0.
+test "compiler_slice: def defaults/*args/**kw shapes match oracle bytes" {
+    for src in [
+        "def f(a, b=2):\n    return a\n",
+        "def f(a, b=(1,3)):\n    return a\n",
+        "def f(a, b=((1,2),3)):\n    return a\n",
+        "def f(a, b=2, *args, c=3, d=4, **kw):\n    return a\n",
+        "def f(a, *args, c=3, **kw):\n    return a\n",
+        "def f(*args, **kw):\n    return args\n",
+        "def f(a, b=(1,2), *args, c={'k':3}, **kw):\n    return a\n",
+        "def f(a, *args, c=300, **kw):\n    return a\n",
+        "def f(a, *args, c='s', **kw):\n    return a\n",
+        "def f(a, b=2):\n    return a\ndef g(q, w=9):\n    return q\n",
+        "def f(a, b=2):\n    return a\nx = 5\ny = 'z'\n",
+        "f = lambda a, b=2, *args, c=3, **kw: a\n",
+        "def f(a, b=x):\n    return a\n",
+        "def f():\n    return 1\n",
+        "def f(x):\n    return x\n",
+        "def f():\n    raise ValueError()\n",
+    ] {
+        assert_parsed_matches_oracle(src);
+    }
 }

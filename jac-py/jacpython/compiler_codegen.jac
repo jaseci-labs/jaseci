@@ -376,7 +376,6 @@ import from compiler_emit {
     visit_test_expr,
 }
 import from codegen_util {
-    fold_default_values,
     args_have_kw_defaults,
     function_argcounts,
     function_code_flags,
@@ -1430,6 +1429,12 @@ def compile_exec(
             # CPython compiles the remaining statements and then drops them as
             # unreachable blocks (flowgraph remove_unreachable). Visiting them
             # here would append live bytes after a terminator, so stop now.
+            # The implicit-return None const is still interned by CPython's
+            # (dead) epilogue emission; remove_unused_consts keeps it only at
+            # index 0, exactly like the host. Deferred comp cleanup handlers
+            # are emitted here too -- CPython lays them out after the (dead)
+            # epilogue regardless of how the body ended.
+            u.add_const(py_none());
             u.flush_late_consts();
             return u;
         }
@@ -1451,6 +1456,9 @@ def compile_exec(
         }
     }
     if terminated {
+        # Dead implicit-return None const, interned like CPython's unreachable
+        # epilogue; kept by remove_unused_consts only at index 0.
+        u.add_const(py_none());
         u.flush_late_consts();
         return u;
     }

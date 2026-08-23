@@ -8,10 +8,11 @@
 # Product module: imports compiler_ir + opcode_meta + objects only.
 # Never imports assembler.
 
-import from objects { PyInt }
+import from objects { PyInt, PyObj }
 import from opcode_meta {
     OP_LOAD_CONST,
     OP_LOAD_SMALL_INT,
+    opcode_has_const,
     OP_NOT_TAKEN,
     OP_POP_JUMP_IF_FALSE,
     OP_POP_JUMP_IF_TRUE,
@@ -1281,6 +1282,62 @@ def optimize_load_fast(u: unverified_cfg) {
     }
 }
 
+# CPython flowgraph.c remove_unused_consts: after optimization, drop co_consts
+# entries no longer referenced by any instruction. Index 0 is always kept
+# (CPython preserves it as the potential docstring slot). Pure emission-level
+# cleanup: survivors keep their relative order and const opargs are remapped.
+def remove_unused_consts(u: unverified_cfg, flat: list[cinstr]) {
+    n = len(u.consts);
+    if n == 0 {
+        return;
+    }
+    keep: list[bool] = [];
+    remap: list[int] = [];
+    i = 0;
+    while i < n {
+        keep.append(i == 0);
+        remap.append(-1);
+        i = i + 1;
+    }
+    for ins in flat {
+        if opcode_has_const(ins.opcode) {
+            a = ins.oparg;
+            if a >= 0 and a < n {
+                keep[a] = True;
+            }
+        }
+    }
+    used = 0;
+    i = 0;
+    while i < n {
+        if keep[i] {
+            remap[i] = used;
+            used = used + 1;
+        }
+        i = i + 1;
+    }
+    if used == n {
+        return;
+    }
+    kept: list[PyObj] = [];
+    i = 0;
+    while i < n {
+        if keep[i] {
+            kept.append(u.consts[i]);
+        }
+        i = i + 1;
+    }
+    u.consts = kept;
+    for ins in flat {
+        if opcode_has_const(ins.opcode) {
+            a = ins.oparg;
+            if a >= 0 and a < n and remap[a] >= 0 {
+                ins.oparg = remap[a];
+            }
+        }
+    }
+}
+
 def verify_cfg(u: unverified_cfg) -> verified_cfg {
     optimize_cfg(u);
     insert_superinstructions(u);
@@ -1304,6 +1361,7 @@ def verify_cfg(u: unverified_cfg) -> verified_cfg {
     block_starts = fr.block_starts;
     resolve_jump_offsets(flat, block_starts);
     rewrite_small_ints(u, flat);
+    remove_unused_consts(u, flat);
     return verified_cfg(
         unit=u, flat=flat, block_starts=block_starts, stacksize=stacksize
     );

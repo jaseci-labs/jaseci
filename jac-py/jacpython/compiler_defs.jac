@@ -698,6 +698,12 @@ def compile_fn_cfg(
             # CPython compiles the remaining statements and then drops them as
             # unreachable blocks (flowgraph remove_unreachable). Visiting them
             # here would append live bytes after a terminator, so stop now.
+            # The implicit-return None const is still interned by CPython's
+            # (dead) epilogue emission; remove_unused_consts keeps it only at
+            # index 0, exactly like the host. Deferred comp cleanup handlers
+            # are emitted here too -- CPython lays them out after the (dead)
+            # epilogue regardless of how the body ended.
+            u.add_const(py_none());
             u.flush_late_consts();
             return u;
         }
