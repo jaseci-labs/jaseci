@@ -136,6 +136,17 @@ def _jac_host_delattr(host_obj, name):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_reraise_pyerror(type_name, message):
+    # Surface a guest PyError to HOST control flow with its real exception type
+    # (same convention as the tp_call trampoline below): import-style callers
+    # of the VM must see module-body failures, never a silently discarded
+    # error. Falls back to RuntimeError for names builtins doesn't carry.
+    import builtins as _b
+    etype = getattr(_b, type_name, None)
+    if etype is None or not isinstance(etype, type):
+        etype = RuntimeError
+    raise etype(message)
+
 def _jac_wrap_classmethod(host_fn):
     return classmethod(host_fn)
 
@@ -9595,6 +9606,15 @@ def exec_code(co: PyObj, args: list[PyObj], globals: dict[str, PyObj]) -> PyObj 
 
 def exec_module(co: PyObj) -> dict[str, PyObj] {
     globals: dict[str, PyObj] = {"__name__": PyStr(t="str", val="__main__")};
-    exec_code(co, [], globals);
+    outcome = exec_code(co, [], globals);
+    # CPython import semantics: an exception raised by a module body propagates
+    # to the importer. Discarding it here silently handed callers partial
+    # globals on any failure.
+    if is_error(outcome) {
+        _jac_reraise_pyerror(
+            (outcome as PyError).exception.type_name,
+            (outcome as PyError).exception.message
+        );
+    }
     return globals;
 }
