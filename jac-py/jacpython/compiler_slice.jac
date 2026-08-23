@@ -3657,22 +3657,68 @@ test "compiler_slice: band-11 module attr/subscript AnnAssign matches oracle" {
     }
 }
 
-# Band 11 guard: CLASS-scope annotated assignment still requires the
-# __classdict__/__annotate_func__ closure plumbing -- it must FAIL LOUDLY,
-# never emit silently-wrong bytes (missing annotations at runtime). Module
-# scope lowered in the tests above; function locals were always assignment-only.
-test "compiler_slice: band-11 class AnnAssign traps until classdict closure lands" {
-    cls_src = parse_file("class C:\n    y: str = 'a'\n", "<f>");
-    assert cls_src is not None;
-    cdef = ((cls_src as Module).body[0] as ClassDef);
-    vr = validate_module_body([cdef]);
-    assert vr.diag is None;
-    sr = build_module_symtable([cdef]);
-    assert sr.diag is None;
-    u = compile_exec([cdef], "<f>", "<module>", 1, sr.top);
-    assert u.diag is not None;
-    assert u.diag.kind == "NotImplementedError";
+# Band 11 slice 3: CLASS-scope annotated assignments lower into the PEP 649
+# classdict machinery: cellvar __classdict__, synthetic __annotate__(format)
+# closed over the classdict cell (STORE_NAME __annotate_func__), per-name
+# LOAD_DEREF/LOAD_FROM_DICT_OR_GLOBALS resolution, and COPY 2 above each
+# evaluated annotation before the key push. Byte-parity against the host
+# oracle for code, tables, stack, name/const pools and scope tables, on the
+# class object and its nested __annotate__.
+test "compiler_slice: band-11 class AnnAssign matches oracle bytes" {
+    for src in [
+        "class C:\n    y: str = 'a'\n    z: dict\n",
+        "class C:\n    y: str = 'a'\n",
+        "class C:\n    z: dict\n",
+        "class C:\n    x: int = 1\n    y: list[int]\n    z: 'MyStr'\n    w: mod.Attr[int]\n",
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+        assert actual.names == exp.names;
+        assert actual.varnames == exp.varnames;
+        assert actual.cellvars == exp.cellvars;
+        assert consts_equal(actual.consts, exp.consts);
+        cls_a = nested_code_by_name(actual, "C");
+        cls_e = nested_code_by_name(exp, "C");
+        assert cls_a.co_code == cls_e.co_code;
+        assert cls_a.exceptiontable == cls_e.exceptiontable;
+        assert cls_a.stacksize == cls_e.stacksize;
+        assert cls_a.names == cls_e.names;
+        assert cls_a.varnames == cls_e.varnames;
+        assert cls_a.cellvars == cls_e.cellvars;
+        assert cls_a.freevars == cls_e.freevars;
+        assert consts_equal(cls_a.consts, cls_e.consts);
+        ann_a = nested_code_by_name(cls_a, "__annotate__");
+        ann_e = nested_code_by_name(cls_e, "__annotate__");
+        assert ann_a.qualname == ann_e.qualname;
+        assert ann_a.co_code == ann_e.co_code;
+        assert ann_a.exceptiontable == ann_e.exceptiontable;
+        assert ann_a.stacksize == ann_e.stacksize;
+        assert ann_a.names == ann_e.names;
+        assert ann_a.varnames == ann_e.varnames;
+        assert ann_a.freevars == ann_e.freevars;
+        assert consts_equal(ann_a.consts, ann_e.consts);
+    }
 }
+
+# Known gaps NOT covered above (each blocks its shape today; flip to parity
+# coverage when unblocked):
+#  - Conditional entries (AnnAssign under if/while/try in a class body): ANY
+#    control flow in a class body fails to compile with "Invalid CFG,
+#    instructions after terminator" -- pre-existing on HEAD, independent of
+#    annotations (function-scope control flow works). The conditional-entry
+#    emitter (__conditional_annotations__ cellvar, two-cell closure,
+#    membership-guarded annotate body) is implemented and matches the pinned
+#    CPython shape but cannot be exercised until that bug is fixed.
+#  - Nested classes: our compiler lacks <locals>-qualified qualnames for ALL
+#    nested scopes (def-in-def emits co_qualname "g" where CPython emits
+#    "f.<locals>.g"), so the nested-class annotate qualname and the class's
+#    own __qualname__ const differ. collect_ann_plan_class inherits the full
+#    qualname automatically once sym_class_qualname produces it.
 
 # Codegen-parity gap (c): `not` in jump context must fold into an inverted
 # conditional jump (CPython compiler_jump_if_not); UNARY_NOT only survives in

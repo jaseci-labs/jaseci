@@ -2,6 +2,43 @@
 
 ## Landed
 
+### Slice 3 (class scope, this drop)
+
+- Class-scope AnnAssign lowers byte-exact vs the host oracle: cellvar
+  `__classdict__` (plus `__conditional_annotations__` only when an entry sits
+  under control flow), synthetic `__annotate__(format)` closed over the
+  classdict cell via `LOAD_FAST_BORROW/BUILD_TUPLE/LOAD_CONST/MAKE_FUNCTION/
+  SET_FUNCTION_ATTRIBUTE 8/STORE_NAME __annotate_func__`, emitted after the
+  body loop and before the epilogue.
+- STACK DISCIPLINE (pinned against host dis): BUILD_MAP pushes a dead
+  accumulator; `LOAD_DEREF __classdict__` then stays on the value stack
+  across ALL entries and is what RETURN_VALUE actually returns -- the classdict
+  IS the annotations dict. Every bare-Name load inside an annotation emits the
+  full `LOAD_DEREF __classdict__/LOAD_FROM_DICT_OR_GLOBALS name` pair (the
+  pair re-seeds the cell mid-expression, e.g. between `list` and `int` in
+  `list[int]`). Each entry ends `COPY 2` (dup the dict above the evaluated
+  annotation), key const, STORE_SUBSCR. A leading constant entry relies on the
+  leftover cell below and COPYs whatever sits there -- replicate exactly,
+  including when no name load ever pushed the cell.
+- Conditional-entry machinery is implemented (per-entry membership guard
+  inside __annotate__, two-cell closure, SET_ADD registration at the
+  AnnAssign site) but UNEXERCISABLE: any if/while/try in a class body fails
+  to compile on HEAD with "Invalid CFG, instructions after terminator"
+  (pre-existing, function-scope control flow works). Blocked shapes + host
+  bytes documented in compiler_slice.jac comments; flip them to parity tests
+  once that bug lands.
+- Nested classes need `<locals>`-qualified qualnames (`f.<locals>.C.__annotate__`
+  for the nested fn AND the class's own __qualname__ const). Our compiler has
+  no such machinery for ANY nested def/class yet; collect_ann_plan_class takes
+  class_qname so it inherits the fix automatically when sym_class_qualname
+  produces full qualnames.
+- Runtime: ceval dispatches the stored function's absence of opcode 91 --
+  OP_LOAD_FROM_DICT_OR_GLOBALS is NOT implemented in ceval.jac, so calling
+  C.__annotate_func__() raises "unsupported opcode 91". Also missing: type
+  machinery mapping __annotate_func__ -> dynamic C.__annotate__ /
+  C.__annotations__ attributes. layer9 test covers execution up to the
+  callable being present in the class dict.
+
 - Module-scope AnnAssign lowers byte-exact vs the host oracle (b11_annotations
   goldens): module gains cellvar `__conditional_annotations__` (MAKE_CELL with
   NO_LOCATION before RESUME), scope-entry setup bytes
@@ -14,9 +51,8 @@
   guarded COPY/STORE_SUBSCR entry per annotation, RETURN_VALUE.
 - Attribute/subscript targets never join the annotation dict (plain assignment
   semantics; bare forms evaluate the target object and POP_TOP).
-- Function-local behavior unchanged; class scope still traps loudly
-  (NotImplementedError) until the `__classdict__`/`__annotate_func__` closure
-  slice lands.
+- Function-local behavior unchanged; class scope lowered by slice 3 (see
+  above).
 - Runtime: layer9 ceval executes the whole machinery (module MAKE_CELL,
   annotate fn object, format-guarded dict) -- covered by new layer9 tests.
 
@@ -50,9 +86,7 @@
 2. Import-cycle gate currently FAILS on HEAD independent of this slice
    (compiler_codegen -> compiler_loops/match cycles introduced by the
    codegen-decomposition merge); needs its own fix lane.
-3. Class scope: host shape fully documented in goldens (cellvar
-   `__classdict__`, `__annotate_func__` closure, LOAD_DEREF index counts fast
-   locals first, LOAD_FROM_DICT_OR_GLOBALS for names) -- implementable as a
-   follow-up slice; requires an emit-layer hook for classdict name loads.
+3. RESOLVED by slice 3 (class scope lowered byte-exact; remaining class
+   runtime gaps tracked above).
 4. Lambda/comprehensions/walrus inside deferred annotations trap loudly
    (unsupported construct) rather than mis-lower.

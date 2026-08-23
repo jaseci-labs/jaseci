@@ -270,6 +270,10 @@ obj unverified_cfg {
         dead_small_int_const: bool = False,
         # Set after MAKE_FUNCTION; suppresses dead small-int consts on call args.
         nested_code_emitted: bool = False,
+        # Class-scope __annotate__ mode: bare Name loads compile to
+        # LOAD_DEREF __classdict__ / LOAD_FROM_DICT_OR_GLOBALS (PEP 649 class
+        # namespace resolution) instead of LOAD_GLOBAL.
+        classdict_names: bool = False,
         # except_region indices whose handler_block is the PEP 479 handler (filled at end).
         pending_pep479_regions: list[int] = [],
         # try/except unwind handler_block indices (filled after reraise epilogue).

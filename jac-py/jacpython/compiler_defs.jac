@@ -79,6 +79,11 @@ import from codegen_util {
 }
 import from compiler_codegen { emit_name_store, visit_stmt }
 import from compiler_exc { emit_generator_except_handler, emit_deferred_comp_handlers }
+import from compiler_annotations {
+    collect_ann_plan_class,
+    emit_class_annotation_setup,
+    finish_class_annotations
+}
 def sym_class_child(parent: sym_block, class_name: str) -> sym_block | None {
     ci = 0;
     while ci < len(parent.children) {
@@ -362,17 +367,26 @@ def compile_class_cfg(
     if sym_cls.nested {
         u.flags = CO_NESTED;
     }
-    if class_body_has_function(cd) {
+    ann_plan = collect_ann_plan_class(cd, class_qname, sym_cls.nested);
+    if class_body_has_function(cd) or ann_plan.any_annotation {
         u.cellvars = ["__classdict__"];
+        if ann_plan.any_conditional {
+            u.cellvars.append("__conditional_annotations__");
+        }
     }
     entry_blk = u.add_block();
     g = new_cfg_builder(u, entry_blk, sym_cls, cd.name);
     emit_class_body_prologue(g, cd, class_qname);
+    emit_class_annotation_setup(g, ann_plan, nloc(cd.lineno, cd.end_lineno,
+        cd.col_offset, cd.end_col_offset));
     last = loc(0, cd.lineno, 0, 0);
     bi = 0;
     while bi < len(cd.body) {
         s = cd.body[bi];
-        cont = visit_stmt(g, s, exec_tail_emits_code(cd.body, bi + 1), cd.body, bi + 1);
+        cont = visit_stmt(
+            g, s, exec_tail_emits_code(cd.body, bi + 1), cd.body, bi + 1,
+            None, ann_plan
+        );
         last = cont.loc;
         if codegen_busy(g) {
             return u;
@@ -382,6 +396,10 @@ def compile_class_cfg(
         } else {
             bi = bi + 1;
         }
+    }
+    finish_class_annotations(g, ann_plan);
+    if codegen_busy(g) {
+        return u;
     }
     emit_class_body_epilogue(g, last);
     return u;

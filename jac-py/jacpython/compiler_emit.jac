@@ -42,6 +42,7 @@ import from opcode_meta {
     OP_MAKE_CELL,
     OP_COPY_FREE_VARS,
     OP_LOAD_DEREF,
+    OP_LOAD_FROM_DICT_OR_GLOBALS,
     OP_STORE_DEREF,
     OP_BUILD_TUPLE,
     OP_SET_FUNCTION_ATTRIBUTE,
@@ -1054,6 +1055,18 @@ def emit_name_load(
             g.emit_op(OP_LOAD_DEREF, idx, tloc);
             return True;
         }
+    }
+    if g.u.classdict_names {
+        # Class-scope __annotate__ body: every free name resolves through the
+        # class namespace first, then globals/builtins (PEP 649 classdict
+        # resolution; CPython emits the LOAD_DEREF/LOAD_FROM_DICT_OR_GLOBALS
+        # pair per name -- the pair also (re-)seeds the __classdict__ cell
+        # that stays on the value stack across entries).
+        clp = localsplus_index_u(g.u, "__classdict__");
+        g.emit_op(OP_LOAD_DEREF, clp, tloc);
+        idx = g.u.add_name(name);
+        g.emit_op(OP_LOAD_FROM_DICT_OR_GLOBALS, idx, tloc);
+        return True;
     }
     opc = name_load_opcode(g, name);
     idx = g.u.add_name(name);
