@@ -442,7 +442,21 @@ obj PyFloat(PyObj) {
             return PyFloat(t="float", val=a // b);
         }
         if kind == NB_POWER {
-            return PyFloat(t="float", val=a ** b);
+            # float.__pow__ never lets the host raise through: a zero base
+            # with a negative exponent is ZeroDivisionError and a too-large
+            # finite result is OverflowError (Objects/floatobject.c).
+            if a == 0.0 and b < 0.0 {
+                return py_error(
+                    "ZeroDivisionError", "zero to a negative power"
+                );
+            }
+            try {
+                return PyFloat(t="float", val=a ** b);
+            } except OverflowError {
+                return py_error(
+                    "OverflowError", "(34, 'Numerical result out of range')"
+                );
+            }
         }
         return py_error("TypeError", "unsupported operand types");
     }
