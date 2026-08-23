@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 20,
+     FORMAT_VERSION: int = 22,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -178,10 +178,10 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
     rels: list[str] = [];
-    for entry in COMPILER_DIGEST_ROOTS {
-        target = os.path.join(base, entry.replace("/", os.sep));
+    for `entry in COMPILER_DIGEST_ROOTS {
+        target = os.path.join(base, `entry.replace("/", os.sep));
         if os.path.isfile(target) {
-            rels.append(entry);
+            rels.append(`entry);
             continue;
         }
         if not os.path.isdir(target) {
@@ -441,7 +441,7 @@ def scrub_cache_dirs(root_dir: str) -> int {
     removed = 0;
     seen: set[str] = set();
     for pattern in patterns {
-        for cache_dir in _glob.glob(pattern, recursive=True) {
+        for cache_dir in _glob.`glob(pattern, recursive=True) {
             if cache_dir in seen or not os.path.isdir(cache_dir) {
                 continue;
             }

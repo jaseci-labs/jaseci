@@ -132,6 +132,7 @@ def _reusable_case(tmp: Path) -> tuple {
     lib.write_bytes(b"artifact-bytes");
     layout.write_text("{}\n", encoding="utf-8");
     keys = pb.seal_source_keys(pkg, [str(src)]);
+    assert keys is not None;
     record = {
         "key": pb.seal_artifact_key("a.jac", "host", keys),
         "compiler": "compiler-1",
@@ -204,7 +205,10 @@ test "the reuse decision refuses on every kind of doubt" {
         assert _decide(pkg, record, keys) == "" , (
             f"the happy path was refused: {_decide(pkg, record, keys)}"
         );
-        assert "no artifact" in _decide(pkg, None, keys) , _decide(pkg, None, keys);
+        _no_rec: any = None;
+        assert "no artifact" in _decide(pkg, _no_rec, keys) , (
+            _decide(pkg, _no_rec, keys)
+        );
 
         for (field, value, expect) in [
             ("triple", "elsewhere", "not"),
@@ -253,7 +257,7 @@ test "the waiver table gates the build, it is not part of the content key" {
         );
 
         # But it must still force a rebuild, because the only way to re-reach
-        # the demotion verdict is to recompile under the census. Reuse would
+        # the demotion verdict is to recompile under the coverage. Reuse would
         # skip the gate and let a build through that the new table forbids.
         assert pb.seal_waiver_digest("a.jac", {})
             != pb.seal_waiver_digest("a.jac", {"a.jac": ("a.jac::A.method", )}) , "the waiver digest does not distinguish two different waiver tables";

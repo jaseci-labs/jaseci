@@ -572,11 +572,9 @@ test "callable interface enforces its call-signature return type" {
     }
 }
 
-test "readonly interface member rejects reassignment (issue #7354)" {
-    # `readonly label: string` on Config is parsed by the .d.ts parser and
-    # threaded into the synthesized member symbol as ImmutabilityKind.READONLY;
-    # direct
-    # reassignment must raise E1126 while writable members stay assignable.
+test "readonly interface member rejects reassignment" {
+    # A `readonly` interface member is threaded into the synthesized symbol, so
+    # writing it raises E1131 while writable members stay assignable.
     with TemporaryDirectory() as td {
         proj = make_iface_npm_project(Path(cast(str, td)));
         f = proj / "lib" / "ro_member.jac";
@@ -589,14 +587,18 @@ test "readonly interface member rejects reassignment (issue #7354)" {
             '}\n'
         );
         (program, err_codes, _) = check_npm_file(f);
-        assert "E1126" in err_codes , f"Expected E1126 for readonly member write, got codes {err_codes}:"
+        assert "E1131" in err_codes , f"Expected E1131 for readonly member write, got codes {err_codes}:"
         f"\n{pretty_checker_errors(program)}";
-        assert err_codes.count("E1126") == 1 , f"Writable member 'theme' must not be flagged, got codes {err_codes}:"
+        assert not [
+            e
+            for e in program.errors_had
+            if "'theme'" in e.pretty_print()
+        ] , f"Writable member 'theme' must not be flagged:"
         f"\n{pretty_checker_errors(program)}";
         ro_err = [
             e
             for e in program.errors_had
-            if "E1126" in e.pretty_print()
+            if "E1131" in e.pretty_print()
         ][0].pretty_print();
         assert "label" in ro_err;
         assert "read-only" in ro_err;

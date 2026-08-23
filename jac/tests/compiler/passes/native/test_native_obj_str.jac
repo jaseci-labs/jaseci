@@ -9,35 +9,11 @@ shape it would take on the `sv` pathway.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
-import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
+import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 """Run a void JIT function and capture what it writes to fd 1 (C stdout).
 
@@ -117,6 +93,6 @@ test "str(obj) on a null (None) struct pointer renders \"None\", not a crash" {
 # --- print(obj) ---
 test "print(obj) writes __str__ to stdout" {
     (eng, _) = compile_native("obj_str.jac");
-    entry = get_func(eng, "jac_entry", None);
-    assert capture_stdout(entry) == b"printed\n";
+    `entry = get_func(eng, "jac_entry", None);
+    assert capture_stdout(`entry) == b"printed\n";
 }

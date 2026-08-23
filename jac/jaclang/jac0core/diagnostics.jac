@@ -21,23 +21,57 @@ obj DiagnosticInfo {
         blocks_codegen: bool = False;
 
     def format_message(**kwargs: object) -> str {
-        try {
-            return self.message_template.format(**kwargs);
-        } except KeyError as e {
-            return f"{self.message_template} (missing key: {e})";
+        filled = _fill_template(self.message_template, kwargs);
+        if filled is None {
+            return f"{self.message_template} (missing key)";
         }
+        return filled;
     }
 
     def format_help(**kwargs: object) -> (str | None) {
         if self.help_text is None {
             return None;
         }
-        try {
-            return self.help_text.format(**kwargs);
-        } except (KeyError, ValueError, IndexError) {
+        filled = _fill_template(self.help_text, kwargs);
+        if filled is None {
             return self.help_text;
         }
+        return filled;
     }
+}
+
+def _fill_template(template: str, kwargs: dict[str, object]) -> (str | None) {
+    esc_open = chr(1);
+    esc_close = chr(2);
+    out = template.replace("{{", esc_open).replace("}}", esc_close);
+    for (k, v) in kwargs.items() {
+        key = "{" + str(k) + "}";
+        out = out.replace(key, str(v));
+    }
+    scan = 0;
+    while True {
+        b_open = out.find("{", scan);
+        if b_open < 0 {
+            break;
+        }
+        b_close = out.find("}", b_open + 1);
+        if b_close < 0 {
+            break;
+        }
+        inner = out[b_open + 1:b_close];
+        is_name = len(inner) > 0;
+        for ch in inner {
+            if not (ch.isalnum() or ch == "_") {
+                is_name = False;
+                break;
+            }
+        }
+        if is_name {
+            return None;
+        }
+        scan = b_open + 1;
+    }
+    return out.replace(esc_open, "{").replace(esc_close, "}");
 }
 
 glob DIAGNOSTICS: dict[str, DiagnosticInfo] = {};
@@ -114,6 +148,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0013",
          Category.SYNTAX,
          "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
+     ),
+     E0014 = _err(
+         "E0014",
+         Category.SYNTAX,
+         "'{name}' is not a keyword -- remove the backtick",
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
      ),
      E0020 = _err(
          "E0020",
@@ -711,10 +751,45 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E1126 = _err(
          "E1126",
          Category.TYPE,
+         "Integer literal {value} does not fit in {type} (range {min}..{max})",
+         help="A literal must be in the target's range; a value outside it never"
+         " truncates silently. Use a wider type, or spell the modular result"
+         " explicitly with `{type}.wrap({value})`."
+     ),
+     E1127 = _err(
+         "E1127",
+         Category.TYPE,
+         "Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving",
+         help="Only widening conversions are implicit (i8 -> i16 -> i32 -> i64 -> int,"
+         " u8 -> u16 -> u32 -> u64 -> int, unsigned into a strictly wider signed type,"
+         " f32 -> f64 -> float). Narrowing, a same-width sign change, `int` into a"
+         " sized type, and 64-bit ints into floats need the checked cast `{dest}(x)`,"
+         " which raises OverflowError out of range, or the modular `{dest}.wrap(x)`."
+     ),
+     E1128 = _err(
+         "E1128",
+         Category.TYPE,
+         "Operands of '{op}' have no common fixed-width type ({left} and {right})",
+         help="Neither operand widens into the other, so the operator has no width"
+         " to compute at. Cast one operand explicitly, e.g. `{left}(rhs)` or"
+         " `{right}(lhs)`, to choose the width and sign of the operation."
+     ),
+     E1129 = _err(
+         "E1129",
+         Category.TYPE,
+         "Unary minus on unsigned type {type}",
+         help="An unsigned type has no negative values, so `-x` cannot be typed."
+         " Negate in a signed type (`-i64(x)`), or use `wrapping_neg(x)` for the"
+         " two's-complement result at the same width."
+     ),
+     E1131 = _err(
+         "E1131",
+         Category.TYPE,
          "Cannot assign to '{name}': it is declared {kind}",
          help="A binding annotated with 'Final' (or a 'readonly' member of an"
          " imported TypeScript interface) can only be set at its declaration,"
-         " or in 'init'/'postinit' when the declaration has no initializer."
+         " or in the 'init'/'postinit' of the object that declares it when the"
+         " declaration has no initializer."
      ),
      E1301 = _err(
          "E1301",
@@ -1248,9 +1323,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Empty parentheses can be removed [remove-empty-parens]"
      ),
-     W3006 = _warn(
-         "W3006", Category.LINT, "Unnecessary keyword escape on '{name}' [remove-kwesc]"
-     ),
      W3007 = _warn(
          "W3007",
          Category.LINT,
@@ -1392,7 +1464,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "combine-glob": "W3003",
          "init-to-can": "W3004",
          "remove-empty-parens": "W3005",
-         "remove-kwesc": "W3006",
          "hasattr-to-null-ok": "W3007",
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
@@ -1473,7 +1544,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5018",
          Category.CODEGEN,
          "match pattern {construct} is not supported by client codegen",
-         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         help="`match` itself lowers to the client; only this pattern shape does not. {fix}",
          blocks_codegen=True
      ),
      W5013 = _warn(
@@ -1702,6 +1773,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code imports '{name}' from native module '{module}', but '{name}' is not a function",
          help="A client import of a native module is the cl->na edge: every name is bound to a lazily instantiated wasm export via `__na_bind`. A wasm module exports only functions, so a type, a variable, or an enum has no export to bind to -- '{name}' would come back as a plain async callable, and the page fails the first time it is constructed or read with a TypeError. This holds even where '{name}' is only used as an annotation, because the binding is emitted either way. Import the native functions that operate on '{name}' and keep the declaration itself in a client or shared module.",
+         blocks_codegen=True
+     ),
+     E5101 = _err(
+         "E5101",
+         Category.CODEGEN,
+         "Client codegen emitted '{name}', which the module never binds",
+         help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
          blocks_codegen=True
      ),
      E5089 = _err(

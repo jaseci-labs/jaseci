@@ -70,7 +70,8 @@ test "every `-> None` callable terminates with ret void" {
 
 test "the returned expression is still evaluated for its effects" {
     ir = void_fixture();
-    addr = ir.gen.native_engine.get_function_address("run");
+    _eng: any = ir.gen.native_engine;
+    addr = _eng.get_function_address("run");
     assert addr != 0 , "'run' not found in the JIT engine";
     run = ctypes.CFUNCTYPE(ctypes.c_int64)(addr);
     assert run() == 201 , (

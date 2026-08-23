@@ -23,7 +23,7 @@ glob FIXTURES = os.path.join(
      FIXTURE = "hetero_list_str.jac";
 
 
-def _compile(fixture: str) -> object {
+def _compile(fixture: str) -> any {
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
@@ -36,7 +36,7 @@ def _compile(fixture: str) -> object {
 }
 
 
-def _get(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
@@ -57,7 +57,7 @@ class JacStrABI(ctypes.Structure) {
 }
 
 
-def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def _get_s(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI variant of _get: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -67,7 +67,7 @@ def _get_s(eng: object, name: str, restype: type | None, *argtypes: type) -> obj
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {

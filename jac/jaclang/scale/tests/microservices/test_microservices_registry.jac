@@ -5,17 +5,17 @@ import from jaclang.scale.runtime.gateway.service_registry {
 }
 
 test "service entry has correct defaults" {
-    entry = ServiceEntry(name="orders", file="orders.jac", prefix="/api/orders");
-    assert entry.port == 0;
-    assert entry.url == "";
-    assert entry.pid is None;
-    assert entry.status == ServiceStatus.REGISTERED;
-    assert entry.replicas == 1;
-    assert entry.env == {};
+    `entry = ServiceEntry(name="orders", file="orders.jac", prefix="/api/orders");
+    assert `entry.port == 0;
+    assert `entry.url == "";
+    assert `entry.pid is None;
+    assert `entry.status == ServiceStatus.REGISTERED;
+    assert `entry.replicas == 1;
+    assert `entry.env == {};
 }
 
 test "service entry accepts custom fields" {
-    entry = ServiceEntry(
+    `entry = ServiceEntry(
         name="payments",
         file="payments.jac",
         prefix="/api/payments",
@@ -23,9 +23,9 @@ test "service entry accepts custom fields" {
         replicas=3,
         env={"STRIPE_KEY": "sk_test"}
     );
-    assert entry.port == 8002;
-    assert entry.replicas == 3;
-    assert entry.env["STRIPE_KEY"] == "sk_test";
+    assert `entry.port == 8002;
+    assert `entry.replicas == 3;
+    assert `entry.env["STRIPE_KEY"] == "sk_test";
 }
 
 test "register and lookup by path" {
@@ -82,8 +82,12 @@ test "longest prefix wins" {
             name="orders_v2", file="orders_v2.jac", prefix="/api/orders/v2", port=8002
         )
     );
-    assert reg.match_route("/api/orders/v2/list").name == "orders_v2";
-    assert reg.match_route("/api/orders/list").name == "orders";
+    matched_v2 = reg.match_route("/api/orders/v2/list");
+    assert matched_v2 is not None;
+    assert matched_v2.name == "orders_v2";
+    matched_v1 = reg.match_route("/api/orders/list");
+    assert matched_v1 is not None;
+    assert matched_v1.name == "orders";
 }
 
 test "multiple services route correctly" {
@@ -99,9 +103,15 @@ test "multiple services route correctly" {
     reg.register(
         ServiceEntry(name="users", file="users.jac", prefix="/api/users", port=8003)
     );
-    assert reg.match_route("/api/orders/list").name == "orders";
-    assert reg.match_route("/api/payments/charge").name == "payments";
-    assert reg.match_route("/api/users/me").name == "users";
+    matched_orders = reg.match_route("/api/orders/list");
+    assert matched_orders is not None;
+    assert matched_orders.name == "orders";
+    matched_payments = reg.match_route("/api/payments/charge");
+    assert matched_payments is not None;
+    assert matched_payments.name == "payments";
+    matched_users = reg.match_route("/api/users/me");
+    assert matched_users is not None;
+    assert matched_users.name == "users";
 }
 
 test "deregister removes service" {
@@ -131,7 +141,9 @@ test "deregister preserves other services" {
     );
     reg.deregister("orders");
     assert reg.match_route("/api/orders/list") is None;
-    assert reg.match_route("/api/payments/charge").name == "payments";
+    matched_payments = reg.match_route("/api/payments/charge");
+    assert matched_payments is not None;
+    assert matched_payments.name == "payments";
 }
 
 test "health summary returns all fields" {

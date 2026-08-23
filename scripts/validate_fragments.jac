@@ -35,7 +35,7 @@ def validate(files: list[str]) -> int {
         if (path.name in ("README.md", ) or path.suffix == ".gitkeep") {
             continue;
         }
-        if not PATTERN.match(path.name) {
+        if not PATTERN.`match(path.name) {
             print(  # jac:ignore[no-print]
                 f"ERROR: Invalid fragment filename: {filepath}\n"
                 "       Expected format: <PR_number>.<category>.md\n"
@@ -49,5 +49,5 @@ def validate(files: list[str]) -> int {
 }
 
 with entry:__main__ {
-    sys.exit(validate(sys.argv[1:]));
+    sys.`exit(validate(sys.argv[1:]));
 }

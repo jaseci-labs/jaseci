@@ -1,4 +1,4 @@
-"""Fixture: Final immutability enforcement (issue #7354)."""
+"""Fixture: Final immutability enforcement."""
 import from typing { Final }
 
 obj Config {
@@ -68,9 +68,8 @@ obj LoopInit {
     }
 }
 
-# The symbol table gives a `for` target its own scope, but the emitted code
-# writes the enclosing binding: after the loop the Final holds the last item.
-# So a Final name used as a loop variable is a write, not a shadow.
+# The emitted code writes the enclosing binding, not a fresh one, so a Final
+# name used as a loop variable is a write rather than a shadow.
 def for_target_writes_final(items: list[int]) -> int {
     t: Final[int] = 1;
     total = t;

@@ -64,7 +64,7 @@ def _fake_artifact(fullname: str) -> (tuple | None) {
     return None;
 }
 
-def _run_annex -> object {
+def _run_annex -> any {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 
@@ -237,6 +237,7 @@ test "the program handle is stamped by the rim, not declared by the unit" {
 
 test "a pass constructed without a program handle refuses" {
     with testraises(TypeError, `match="constructing a pass requires") {
-        LocalPass(ir_in=uni.Module.make_stub());
+        _lp: any = LocalPass;
+        _lp(ir_in=uni.Module.make_stub());
     }
 }

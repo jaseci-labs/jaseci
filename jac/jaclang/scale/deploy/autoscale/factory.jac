@@ -13,7 +13,7 @@ class AutoscalerFactory {
     static def create(
         engine: (str | None), config: dict[str, any], logger: (Logger | None) = None
     ) -> Autoscaler {
-        if engine in AutoscalerFactory._registry {
+        if engine is not None and engine in AutoscalerFactory._registry {
             factory = AutoscalerFactory._registry[engine];
             return factory(config, logger);
         }

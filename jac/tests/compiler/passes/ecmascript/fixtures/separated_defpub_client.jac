@@ -6,7 +6,6 @@ The sv import triggers stub generation so the browser can call server
 functions over HTTP.
 """
 
-
 import from "@jac/runtime" { jacIsLoggedIn }
 
 # Server function imports - tells compiler these are def:pub endpoints
@@ -22,7 +21,7 @@ def:pub app -> JsxElement {
         tasksLoading = False;
     }
 
-    async def addTask -> None {
+    async def addTask {
         if taskText.strip() {
             task = await add_task(taskText.strip());
             tasks = tasks + [task];
@@ -30,12 +29,10 @@ def:pub app -> JsxElement {
         }
     }
 
-    async def toggleTask(id: str) -> None {
+    async def toggleTask(id: str) {
         updated = await toggle_task(id);
         if updated {
-            tasks = tasks.map(
-                lambda (t: any) -> any { return updated if t.id == id else t; }
-            );
+            tasks = [(updated if t.id == id else t) for t in tasks];
         }
     }
 
@@ -44,15 +41,13 @@ def:pub app -> JsxElement {
             <h1>Tasks</h1>
             <input
                 value={taskText}
-                onChange={lambda (e: any) -> None { taskText = e.target.value; }}
+                onChange={lambda (e: any) { taskText = e.target.value; }}
             />
             <button onClick={addTask}>Add</button>
             {[
                 <div key={t.id}>
                     <span>{t.title}</span>
-                    <button onClick={lambda -> None { toggleTask(t.id); }}>
-                        Toggle
-                    </button>
+                    <button onClick={lambda { toggleTask(t.id); }}>Toggle</button>
                 </div> for t in tasks
             ]}
         </div>;

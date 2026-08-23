@@ -13,6 +13,10 @@ import from jaclang.runtimelib.source_mapping {
     read_source_snippet
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # =============================================================================
 # VLQ Decoding
 # =============================================================================
@@ -310,7 +314,7 @@ test "es compiler produces exact line mapping for function body statements" {
         assert mod.gen.es_ast is not None , "No ES AST generated";
         # Get JS code and line map
         import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js_with_map }
-        (js_code, line_map) = es_to_js_with_map(mod.gen.es_ast);
+        (js_code, line_map) = es_to_js_with_map(_as_any(mod.gen.es_ast));
         assert len(line_map) > 0 , "No line mappings generated";
         # Build a lookup: output_line -> jac_line
         out_to_jac: dict[int, int] = {};
@@ -363,7 +367,7 @@ test "source mapper invalidates on file change" {
         # Modify a .map file to invalidate cache
         time.sleep(0.1);
         dist_dir = Path(tmpdir) / ".jac" / "client" / "dist";
-        for f in dist_dir.glob("*.js.map") {
+        for f in dist_dir.`glob("*.js.map") {
             f.write_text(f.read_text());  # touch to change mtime
         }
         mapper2 = SourceMapper.from_bundle(tmpdir);

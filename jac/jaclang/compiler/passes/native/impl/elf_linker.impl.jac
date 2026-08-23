@@ -619,7 +619,7 @@ impl ElfLinker.parse_object -> bool {
     }
 
     self.symbols = [];
-    symtab_sec = None;
+    symtab_sec: (ElfSection | None) = None;
     strtab_data = b"\x00";
     for sec in self.sections {
         if sec.typ == SHT_SYMTAB {
@@ -704,6 +704,7 @@ def _apply_debug_reloc(
 
 impl ElfLinker.build_executable -> bytes {
     arch = self.arch;
+    assert arch is not None;
     BASE_VADDR = arch.base_vaddr;
     PAGE_SIZE = arch.page_size;
 
@@ -1325,7 +1326,7 @@ impl ElfLinker.build_executable -> bytes {
             }
         }
 
-        sh_specs: list = [["", SHT_NULL, 0, 0, 0, 0, "", 0, 0, 0]];
+        sh_specs: list[list[str | int]] = [["", SHT_NULL, 0, 0, 0, 0, "", 0, 0, 0]];
         sh_specs.append(
             [
                 ".interp",
@@ -1559,7 +1560,7 @@ impl ElfLinker.build_executable -> bytes {
                 dplace[0], dplace[1] + dsym.value, text_vaddr, rodata_vaddr, data_vaddr
             );
             styp = STT_FUNC if dplace[0] == "code" else STT_OBJECT;
-            entry = (
+            `entry = (
                 dsym.name,
                 sva,
                 dsym.size,
@@ -1568,9 +1569,9 @@ impl ElfLinker.build_executable -> bytes {
                 seg_shndx.get(dplace[0], text_idx)
             );
             if dsym.bind >= STB_GLOBAL {
-                sym_globals.append(entry);
+                sym_globals.append(`entry);
             } else {
-                sym_locals.append(entry);
+                sym_locals.append(`entry);
             }
         }
         ordered_syms = sym_locals + sym_globals;
@@ -1613,7 +1614,7 @@ impl ElfLinker.build_executable -> bytes {
 
         sh_name_list: list[str] = [];
         for sp in sh_specs {
-            sh_name_list.append(sp[0]);
+            sh_name_list.append(str(sp[0]));
         }
         (shstr_data, shstr_off) = _build_strtab(sh_name_list);
         _shi = sh_name_to_idx[".shstrtab"];
@@ -1625,11 +1626,11 @@ impl ElfLinker.build_executable -> bytes {
             output.extend(b"\x00" * (shoff - len(output)));
         }
         for sp in sh_specs {
-            slink = sh_name_to_idx.get(sp[6], 0) if sp[6] else 0;
+            slink = sh_name_to_idx.get(str(sp[6]), 0) if sp[6] else 0;
             output.extend(
                 struct.pack(
                     "<IIQQQQIIQQ",
-                    shstr_off.get(sp[0], 0),
+                    shstr_off.get(str(sp[0]), 0),
                     sp[1],
                     sp[2],
                     sp[3],
@@ -1655,6 +1656,7 @@ impl ElfLinker.build_executable -> bytes {
 
 impl ElfLinker.build_shared_object -> bytes {
     arch = self.arch;
+    assert arch is not None;
     BASE_VADDR = 0;
     PAGE_SIZE = arch.page_size;
 
@@ -1801,7 +1803,7 @@ impl ElfLinker.build_shared_object -> bytes {
     cur_offset += len(extern_func_syms) * 24;
     cur_offset = _align(cur_offset, 8);
 
-    data_abs_relocs: list[tuple] = [];
+    data_abs_relocs: list[tuple[ElfRela, tuple[str, int]]] = [];
     for rela in self.relocations {
         if rela.rtype == arch.abs64_rtype and rela.target_sec in data_sections {
             tgt = local_sym_map.get(rela.sym_name) if rela.sym_name else None;
@@ -1906,7 +1908,9 @@ impl ElfLinker.build_shared_object -> bytes {
     }
 
     PF_NONE = 0;
-    sh_specs: list = [("", SHT_NULL, 0, 0, 0, 0, "", 0, 0, 0)];
+    sh_specs: list[tuple[str, int, int, int, int, int, str, int, int, int]] = [
+        ("", SHT_NULL, 0, 0, 0, 0, "", 0, 0, 0)
+    ];
     sh_specs.append(
         (
             ".hash",
@@ -2671,7 +2675,7 @@ def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes, merge_ns: int = 0) ->
             } else {
                 existing_def = existing_sym.shndx != SHN_UNDEF and not existing_common;
                 new_def = crt_sym.shndx != SHN_UNDEF and not new_common;
-                override = (
+                `override = (
                     existing_sym.shndx == SHN_UNDEF and crt_sym.shndx != SHN_UNDEF
                 )
                     or (existing_common and new_def)
@@ -2681,7 +2685,7 @@ def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes, merge_ns: int = 0) ->
                         and new_def
                         and crt_sym.bind == STB_GLOBAL
                     );
-                if override {
+                if `override {
                     new_shndx = sec_idx_map.get(crt_sym.shndx, crt_sym.shndx);
                     linker.symbols[existing_idx] = ElfSymbol(
                         name=crt_sym.name,
@@ -2753,6 +2757,7 @@ def _merge_crt_object(linker: ElfLinker, crt_bytes: bytes, merge_ns: int = 0) ->
 
 impl ElfLinker.build_static_executable -> bytes {
     arch = self.arch;
+    assert arch is not None;
     BASE_VADDR = arch.base_vaddr;
     PAGE_SIZE = arch.page_size;
     SHF_TLS = 0x400;

@@ -184,13 +184,15 @@ def stage_compiled_entry(compiled_dir: Path, rn_dir: Path, entry_module: str) ->
     return dest;
 }
 
-def stage_native_image_assets(js_tree_dir: Path, rn_dir: Path) {
+def stage_native_image_assets(
+    js_tree_dir: Path, rn_dir: Path
+) -> dict[str, (list[str] | int)] {
     import hashlib;
 
     img_src_pattern = _IMG_SRC_PATTERN;
-    replacements_by_file = {};
-    token_to_asset = {};
-    unresolved = set();
+    replacements_by_file: dict[Path, list[dict[str, (int | str)]]] = {};
+    token_to_asset: dict[str, Path] = {};
+    unresolved: set[str] = set();
     rewritten_refs = 0;
 
     for js_file in _iter_user_js_files(js_tree_dir) {
@@ -295,8 +297,8 @@ def lint_unmapped_tags(
         sources = read_user_js_sources(compiled_dir);
     }
     for (js_file, text) in sources {
-        for match in pattern.finditer(text) {
-            tag = match.group(1);
+        for `match in pattern.finditer(text) {
+            tag = `match.group(1);
             if tag not in supported_rn_html_tags() {
                 seen_unmapped.add(tag);
             }
@@ -650,7 +652,7 @@ def run_xcodebuild_ios(
         app_candidates.extend(
             [
                 f
-                for f in products_dir.glob("*.app")
+                for f in products_dir.`glob("*.app")
                 if f.is_dir()
             ]
         );
@@ -755,11 +757,11 @@ def run_eas_update_opt_in(rn_dir: Path, platform: str, branch: str, message: str
 }
 
 def _find_first_workspace_or_project(ios_dir: Path) -> Path | None {
-    workspaces = sorted(list(ios_dir.glob("*.xcworkspace")));
+    workspaces = sorted(list(ios_dir.`glob("*.xcworkspace")));
     if workspaces {
         return workspaces[0];
     }
-    projects = sorted(list(ios_dir.glob("*.xcodeproj")));
+    projects = sorted(list(ios_dir.`glob("*.xcodeproj")));
     if projects {
         return projects[0];
     }

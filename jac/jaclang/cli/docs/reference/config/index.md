@@ -244,7 +244,6 @@ Build configuration:
 
 ```toml
 [build]
-typecheck = false           # Enable type checking
 dir = ".jac"                # Build artifacts directory
 default_codespace = "native"  # Codespace for markerless .jac modules: "native"/"na" or "server"/"sv"
 ```
@@ -400,7 +399,6 @@ select = ["combine-has", "remove-empty-parens"]
 | `combine-glob` | `W3003` | Combine consecutive `glob` statements with same modifiers | default |
 | `init-to-can` | `W3004` | Convert `def __init__` / `def __post_init__` to `can init` / `can postinit` | default |
 | `remove-empty-parens` | `W3005` | Remove empty parentheses from declarations (`def foo()` → `def foo`) | default |
-| `remove-kwesc` | `W3006` | Remove unnecessary backtick escaping from non-keyword names | default |
 | `hasattr-to-null-ok` | `W3007` | Convert `hasattr(obj, "attr")` to null-safe access (`obj?.attr`) | default |
 | `simplify-ternary` | `W3008` | Simplify `x if x else default` to `x or default` | default |
 | `remove-future-annotations` | `W3009` | Remove `import from __future__ { annotations }` (not needed in Jac) | default |
@@ -825,7 +823,6 @@ directory = "tests"
 verbose = true
 
 [build]
-typecheck = true
 dir = ".jac"
 
 [check.lint]

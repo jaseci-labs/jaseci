@@ -115,10 +115,10 @@ obj JacScaleTestRunner {
         if self.server_process {
             self.server_process.terminate();
             try {
-                self.server_process.wait(timeout=5);
+                self.server_process.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 self.server_process.kill();
-                self.server_process.wait();
+                self.server_process.`wait();
             }
             if self.server_process.stdout {
                 self.server_process.stdout.close();
@@ -200,7 +200,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             response = requests.request(
                 method=method, url=url, json=data, headers=headers, timeout=timeout
@@ -266,7 +266,7 @@ obj JacScaleTestRunner {
             headers["Authorization"] = f"Bearer {self.token}";
         }
 
-        response = None;
+        response: any = None;
         for attempt in range(max_retries) {
             try {
                 response = requests.request(

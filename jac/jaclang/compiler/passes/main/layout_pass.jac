@@ -23,25 +23,16 @@ import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
          "int",
          "float",
          "bool",
          "str",
-         "bytes",
-         "i8",
-         "u8",
-         "i16",
-         "u16",
-         "i32",
-         "u32",
-         "i64",
-         "u64",
-         "f32",
-         "f64",
-
-     },
+         "bytes"
+     }
+         | set(JAC_TYPE_REGISTRY.sized_scalar_names()),
      VTABLE_HEADER_SLOTS: int = 1;
 
 glob LAYOUT_COMPATIBLE_SCALARS: set[str] = LAYOUT_COMPATIBLE_PRIMITIVES | {"type"};
@@ -157,17 +148,23 @@ def layout_slot_count(lay: ArchetypeLayout) -> int {
 
 def declaring_module_path(base_expr: UniNode) -> str {
     import os;
-    sym = base_expr?.sym;
-    decl = sym.decl if sym is not None else None;
-    if decl is None {
+    if not isinstance(base_expr, AstSymbolNode) {
         return "";
     }
+    sym = base_expr.sym;
+    if sym is None {
+        return "";
+    }
+    decl = sym.decl;
     base_arch = decl.find_parent_of_type(Archetype);
     if base_arch is None {
         return "";
     }
     decl_mod = decl.find_parent_of_type(Module);
-    path = decl_mod.loc.mod_path if decl_mod?.loc else None;
+    if decl_mod is None {
+        return "";
+    }
+    path = decl_mod.loc.mod_path;
     return os.path.realpath(path) if path else "";
 }
 
@@ -247,7 +244,7 @@ def extended_mro(reg: LayoutRegistry, lay: ArchetypeLayout) -> list[str] {
 }
 
 def adopt_imported_bases(module: Module) -> list[str] {
-    reg = module.gen.layout_registry;
+    reg: (LayoutRegistry | None) = module.gen.layout_registry;
     if reg is None {
         return [];
     }
@@ -258,9 +255,8 @@ def adopt_imported_bases(module: Module) -> list[str] {
             reg.mro_order[name] = list(full);
         }
     }
-    order = sorted(
-        reg.layouts.keys(), key=lambda (n: str) { len(reg.layouts[n].mro or [n]); }
-    );
+    layouts = reg.layouts;
+    order = sorted(layouts.keys(), key=lambda (n: str) { len(layouts[n].mro or [n]); });
     adopted: list[str] = [];
     for name in order {
         lay = reg.layouts.get(name);
@@ -472,10 +468,10 @@ def is_enum_auto(value_expr: (UniNode | None)) -> bool {
         return False;
     }
     _sym = _target.sym;
-    _decl = _sym.decl if _sym is not None else None;
-    if _decl is None {
+    if _sym is None {
         return False;
     }
+    _decl = _sym.decl;
     _item = _decl.find_parent_of_type(ModuleItem);
     if _item is not None and _item.name is not None {
         _from = _item.from_parent.from_loc;
@@ -536,8 +532,8 @@ def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] 
         _values[mname] = _asn.value;
     }
     _placed.sort();
-    for entry in _placed {
-        out.append((entry[2], _values[entry[2]]));
+    for `entry in _placed {
+        out.append((`entry[2], _values[`entry[2]]));
     }
     return out;
 }

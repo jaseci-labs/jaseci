@@ -3,7 +3,7 @@
 Two faults reached the IR builder with operands it could not take and raised
 there. The granular-demotion layer caught the exception and reported "native
 emitter error in <callable>", which is honest about the outcome and silent
-about the cause: nothing in the census said which operand was wrong, so the
+about the cause: nothing in the coverage said which operand was wrong, so the
 seam could not be classified or acted on.
 
 Neither construct is supported yet, and this test does not make them supported.
@@ -16,7 +16,7 @@ behaviour a stale waiver should have.
 
 import os;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 import from tests.support { JAC_ROOT }
 
@@ -27,28 +27,25 @@ glob FIXTURES = os.path.join(
 
 glob _MEMO: list = [];
 
-"""Compile the fixture once and return (census record, program, ir)."""
+"""Compile the fixture once and return (coverage record, program, ir)."""
 def measured -> tuple {
     if _MEMO {
         return _MEMO[0];
     }
     path = os.path.join(FIXTURES, FIXTURE);
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=path,
             options=CompileOptions(
-                type_check=False,
-                force_codespace='native',
-                force_target_program=True,
-                no_ir_cache=True
+                force_codespace='native', force_target_program=True, no_ir_cache=True
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(os.path.realpath(path));
+    rec = coverage.get(os.path.realpath(path));
     seams = [str(s) for s in ((rec.get("seams") or []) if rec is not None else [])];
     out = (seams, prog, ir, );
     _MEMO.append(out);
@@ -83,15 +80,44 @@ test "a tuple prefix refuses by name rather than crashing the emitter" {
 }
 
 
-test "a mismatched call argument refuses by callee and position" {
-    (seams, _prog, _ir) = measured();
-    owned = seam_for(seams, "arg_shape_mismatch");
-    assert owned , f"expected exactly one seam for arg_shape_mismatch, got: {seams}";
-    assert "emitter error in" not in owned , (
-        f"the argument mismatch must refuse, not raise out of the builder: {owned}"
+test "a mismatched call argument is the checker's refusal, not the emitter's" {
+    # With type checking on the critical path a plainly-typed mismatch never
+    # reaches codegen: the checker names the parameter at check time, which
+    # is this pin now. The emitter's own crash-hardening is pinned by the
+    # tuple-prefix seam above and the no-raise assertion below.
+    import tempfile;
+    src = (
+        "obj Holder { has n: int = 0; }\n"
+        + "def takes_holder(h: Holder) -> int { return h.n; }\n"
+        + "def arg_shape_mismatch(s: str) -> int { return takes_holder(s); }\n"
     );
-    assert "takes_holder parameter 1" in owned , (
-        f"the refusal must name the callee and which parameter: {owned}"
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "arg_shape_probe.jac");
+        with open(path, "w") as f {
+            f.write(src);
+        }
+        prog = JacProgram();
+        prog.compile(
+            file_path=path,
+            options=CompileOptions(
+                force_codespace='native', force_target_program=True, no_ir_cache=True
+            )
+        );
+        hits = [
+            str(e)
+            for e in prog.errors_had
+            if e.code is not None and e.code.code == "E1053" and "'h'" in str(e)
+        ];
+        assert hits , (
+            "the direct mismatch must be refused at check time naming the "
+            f"parameter, got: {[str(e) for e in prog.errors_had]}"
+        );
+    }
+    # The boxed variant in the fixture reaches the emitter and must not
+    # raise out of the builder.
+    (seams, _prog, _ir) = measured();
+    assert "emitter error in" not in " ".join(seams) , (
+        f"an emitter crash leaked into the seams: {seams}"
     );
 }
 
