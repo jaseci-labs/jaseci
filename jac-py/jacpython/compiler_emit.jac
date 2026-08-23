@@ -60,6 +60,7 @@ import from opcode_meta {
     OP_PUSH_NULL,
     OP_CALL,
     OP_CALL_KW,
+    OP_CALL_FUNCTION_EX,
     OP_LOAD_LOCALS,
     OP_COMPARE_OP,
     OP_IS_OP,
@@ -93,6 +94,7 @@ import from opcode_meta {
     OP_MATCH_KEYS,
     OP_MATCH_CLASS,
     OP_DICT_UPDATE,
+    OP_DICT_MERGE,
     OP_TO_BOOL,
     OP_NOP,
     OP_NOT_TAKEN,
@@ -1488,18 +1490,25 @@ def visit_expr(
         }
         cmp_cleanup: basicblock | None = None;
         call_args = call_effective_args(ca);
-        ai = 0;
-        while ai < len(call_args) {
-            arg_cleanup = visit_expr(
-                g, call_args[ai], False, False, not g.u.nested_code_emitted
-            );
-            if arg_cleanup is not None {
-                cmp_cleanup = arg_cleanup;
-            }
-            ai = ai + 1;
-        }
         cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
         kws = call_effective_keywords(ca);
+        if call_has_unpacking(ca) {
+            # CALL_FUNCTION_EX site: build the positional slot here; the kwargs
+            # mapping and the call itself go through emit_call_keyword_values /
+            # emit_call_instruction below (and in the compare-cleanup paths).
+            emit_call_ex_positional(g, ca, cloc_call, not g.u.nested_code_emitted);
+        } else {
+            ai = 0;
+            while ai < len(call_args) {
+                arg_cleanup = visit_expr(
+                    g, call_args[ai], False, False, not g.u.nested_code_emitted
+                );
+                if arg_cleanup is not None {
+                    cmp_cleanup = arg_cleanup;
+                }
+                ai = ai + 1;
+            }
+        }
         if len(kws) > 0 {
             emit_call_keyword_values(
                 g, ca, cloc_call, False, not g.u.nested_code_emitted
@@ -1804,6 +1813,63 @@ def emit_call_keyword_values(
     register_int_const: bool = True
 ) {
     kws = call_effective_keywords(ca);
+    if call_has_unpacking(ca) {
+        # CALL_FUNCTION_EX kwargs side: a base BUILD_MAP over the leading run of
+        # explicit keywords (possibly zero pairs) opens the mapping; every
+        # subsequent element -- an explicit-keyword run or a ** mapping -- is
+        # merged onto it with DICT_MERGE, all in source order.
+        ki = 0;
+        while ki < len(kws) and kws[ki].arg is not None {
+            kwl = kws[ki];
+            name_idx = g.u.add_const(PyStr(t="str", val=kwl.arg));
+            g.emit_op(OP_LOAD_CONST, name_idx, cloc_call);
+            if comp_mode {
+                visit_comp_elt(g, kwl.value, [], False);
+            } else {
+                visit_expr(g, kwl.value, False, False, register_int_const);
+            }
+            if codegen_busy(g) {
+                return;
+            }
+            ki = ki + 1;
+        }
+        g.emit_op(OP_BUILD_MAP, ki, cloc_call);
+        while ki < len(kws) {
+            kw = kws[ki];
+            if kw.arg is None {
+                if comp_mode {
+                    visit_comp_elt(g, kw.value, [], False);
+                } else {
+                    visit_expr(g, kw.value, False, False, register_int_const);
+                }
+                if codegen_busy(g) {
+                    return;
+                }
+                g.emit_op(OP_DICT_MERGE, 1, cloc_call);
+            } else {
+                run_start = ki;
+                while ki < len(kws) and kws[ki].arg is not None {
+                    kwr = kws[ki];
+                    name_idx = g.u.add_const(PyStr(t="str", val=kwr.arg));
+                    g.emit_op(OP_LOAD_CONST, name_idx, cloc_call);
+                    if comp_mode {
+                        visit_comp_elt(g, kwr.value, [], False);
+                    } else {
+                        visit_expr(g, kwr.value, False, False, register_int_const);
+                    }
+                    if codegen_busy(g) {
+                        return;
+                    }
+                    ki = ki + 1;
+                }
+                g.emit_op(OP_BUILD_MAP, ki - run_start, cloc_call);
+                g.emit_op(OP_DICT_MERGE, 1, cloc_call);
+                continue;
+            }
+            ki = ki + 1;
+        }
+        return;
+    }
     ki = 0;
     while ki < len(kws) {
         kw = kws[ki];
@@ -1837,21 +1903,113 @@ def emit_call_keyword_values(
     g.emit_op(OP_LOAD_CONST, tidx, cloc_call);
 }
 
+# True when any positional argument is starred or any keyword is a ** mapping;
+# such call sites lower to CALL_FUNCTION_EX instead of CALL/CALL_KW.
+def call_has_unpacking(ca: Call) -> bool {
+    args = call_effective_args(ca);
+    ai = 0;
+    while ai < len(args) {
+        if isinstance(args[ai], Starred) {
+            return True;
+        }
+        ai = ai + 1;
+    }
+    kws = call_effective_keywords(ca);
+    ki = 0;
+    while ki < len(kws) {
+        if kws[ki].arg is None {
+            return True;
+        }
+        ki = ki + 1;
+    }
+    return False;
+}
+
+# Emit the positional slot of a CALL_FUNCTION_EX site (below it: callable,
+# NULL; above it: the kwargs mapping when present). CPython shapes:
+#   - single lone *x: evaluate x directly (the VM tuple-izes it),
+#   - otherwise BUILD_LIST over plain elements with LIST_EXTEND per *starred,
+#     closed by CALL_INTRINSIC_1(LIST_TO_TUPLE); a kwargs-only call uses an
+#     empty-tuple constant instead.
+def emit_call_ex_positional(
+    g: cfg_builder,
+    ca: Call,
+    cloc_call: cloc,
+    register_int_const: bool = True
+) -> None {
+    args = call_effective_args(ca);
+    if len(args) == 1 and isinstance(args[0], Starred) {
+        # Single lone *x: CPython evaluates x directly; the VM tuple-izes it.
+        visit_expr(g, (args[0] as Starred).value, False, False, register_int_const);
+        return;
+    }
+    any_star = False;
+    ai = 0;
+    while ai < len(args) {
+        if isinstance(args[ai], Starred) {
+            any_star = True;
+        }
+        ai = ai + 1;
+    }
+    if not any_star {
+        # Plain-only positional side lowers as a tuple display (folded to a
+        # late const tuple when every element is constant).
+        tup = Tuple(
+            elts=args, ctx=Load(), lineno=ca.lineno,
+            col_offset=ca.col_offset, end_lineno=ca.end_lineno,
+            end_col_offset=ca.end_col_offset
+        );
+        visit_expr(g, tup as expr, False, False, register_int_const);
+        return;
+    }
+    n_lead = 0;
+    while n_lead < len(args) and not isinstance(args[n_lead], Starred) {
+        ai = n_lead;
+        visit_expr(g, args[ai], False, False, register_int_const);
+        if codegen_busy(g) {
+            return None;
+        }
+        n_lead = n_lead + 1;
+    }
+    g.emit_op(OP_BUILD_LIST, n_lead, cloc_call);
+    ai = n_lead;
+    while ai < len(args) {
+        el = args[ai];
+        if isinstance(el, Starred) {
+            visit_expr(g, (el as Starred).value, False, False, register_int_const);
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_LIST_EXTEND, 1, cloc_call);
+        } else {
+            visit_expr(g, el, False, False, register_int_const);
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_LIST_APPEND, 1, cloc_call);
+        }
+        ai = ai + 1;
+    }
+    # INTRINSIC_LIST_TO_TUPLE == 6
+    g.emit_op(OP_CALL_INTRINSIC_1, 6, cloc_call);
+    return None;
+}
+
 # Positional and keyword values must already be on the stack (names tuple last for CALL_KW).
 def emit_call_instruction(g: cfg_builder, ca: Call, cloc_call: cloc) {
     args = call_effective_args(ca);
     kws = call_effective_keywords(ca);
-    if len(kws) > 0 {
-        ki = 0;
-        while ki < len(kws) {
-            if kws[ki].arg is None {
-                codegen_fail(
-                    g, "NotImplementedError", "keyword argument unpacking not supported"
-                );
-                return;
-            }
-            ki = ki + 1;
+    if call_has_unpacking(ca) {
+        # CPython 3.14's CALL_FUNCTION_EX takes no oparg: the kwargs slot above
+        # the positional tuple is either a mapping built by the keyword-side
+        # emission or a NULL placeholder pushed here for pure *args calls.
+        if len(kws) == 0 {
+            g.emit_op(OP_PUSH_NULL, 0, cloc_call);
         }
+        g.emit_op(OP_CALL_FUNCTION_EX, 0, cloc_call);
+        return;
+    }
+    if len(kws) > 0 {
         g.emit_op(OP_CALL_KW, len(args) + len(kws), cloc_call);
     } else {
         g.emit_op(OP_CALL, len(args), cloc_call);

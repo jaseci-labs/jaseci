@@ -3723,3 +3723,40 @@ test "compiler_slice: value-context not keeps UNARY_NOT" {
     exp = expected as PyCode;
     assert actual.co_code == exp.co_code;
 }
+
+# Band 11: call-site * / ** argument unpacking lowers to CALL_FUNCTION_EX.
+# CPython 3.14 shapes pinned from host dis:
+#   - single lone *x evaluates x directly (the VM tuple-izes it);
+#   - otherwise BUILD_LIST over the leading plain run, LIST_EXTEND per
+#     *starred / LIST_APPEND per trailing plain, closed by
+#     CALL_INTRINSIC_1(LIST_TO_TUPLE); a kwargs-only call uses a late-const
+#     empty tuple instead;
+#   - the kwargs side opens with BUILD_MAP over the leading explicit-keyword
+#     run (possibly zero pairs) and DICT_MERGEs every following element in
+#     source order; a pure *args call pushes a NULL placeholder for the slot;
+#   - CALL_FUNCTION_EX itself carries no oparg in 3.14.
+test "compiler_slice: band-11 call-site star unpacking matches oracle bytes" {
+    for src in [
+        "def f(*a, **k):\n    pass\nargs = 'ab'\nr = f(*args)\n",
+        "def f(*a, **k):\n    pass\nkw = {'x': 1}\nr = f(**kw)\n",
+        "def f(*a, **k):\n    pass\nargs = 'ab'\nr = f(1, *args)\n",
+        "def f(*a, **k):\n    pass\nkw = {'y': 3}\nr = f(x=1, **kw)\n",
+        "def f(*a, **k):\n    pass\nargs = 'ab'\nkw = {'z': 7}\nr = f(1, *args, x=2, **kw)\n",
+        "def f(*a, **k):\n    pass\nargs = 'ab'\nmore = 'cd'\nr = f(*args, *more)\n",
+        "def f(*a, **k):\n    pass\nkw = {'a': 1}\nkw2 = {'b': 2}\nr = f(**kw, **kw2)\n",
+        "def f(*a, **k):\n    pass\nargs = 'ab'\nr = f(*args, x=1)\n",
+        "def f(*a, **k):\n    pass\nk1 = {'m': 1}\nk2 = {'n': 2}\nr = f(**k1, y=2, **k2)\n",
+        "def f(*a, **k):\n    pass\np = 1\na2 = 'ef'\nr = f(p, *a2)\n",
+        "def f(*a, **k):\n    pass\np = 1\nr = f(p, 2, y=3, **kw0)\n",
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+        assert actual.names == exp.names;
+        assert consts_equal(actual.consts, exp.consts);
+    }
+}
