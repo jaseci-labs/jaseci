@@ -8,7 +8,7 @@ so a single boot-time build failure disabled every client page for the life of
 the process: requests came back 503 in under 150ms because no rebuild was ever
 attempted again. Recovery needed a restart.
 
-End to end against a real `jac start` subprocess. The build really fails (the
+End to end against a real `jac run --serve` subprocess. The build really fails (the
 client module imports an npm package that does not exist), and the assertion is
 on whether the server keeps trying, read from its own log.
 """

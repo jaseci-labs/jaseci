@@ -1,7 +1,7 @@
 # Single-file full-stack build: the SAME rlgl shooter as ../shooter.jac. The
 # game code infers native from its extern raylib import and is compiled to
-# wasm by `jac build`/`jac start`; the WebGL shim + page infer client in the
-# same module. Run: jac start (open localhost).
+# wasm by `jac build`/`jac run --serve`; the WebGL shim + page infer client in the
+# same module. Run: jac run --serve (open localhost).
 
 # ─── Client: the page + HUD. The WebGL shim (rlgl/input/libc -> wasm imports) is
 # the reusable raylib_shim.jac library; here we mount the canvas, style the

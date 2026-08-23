@@ -79,7 +79,7 @@ def _write_preact_project(dest: Path) {
     shutil.copy(Path(FIXTURES) / "preact_counter_app.jac", dest / "main.jac");
 }
 
-"""Start `jac start` for a temp preact project. Returns (process, port, url)."""
+"""Start `jac run --serve` for a temp preact project. Returns (process, port, url)."""
 def _start_preact_server(project_dir: Path) -> tuple {
     import shutil as sh;
     import sys;

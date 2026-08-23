@@ -553,7 +553,7 @@ test "--serve is a plain serve: the kind's dev default does not ride along" {
     assert plan is not None and plan.flags.get("dev") == True;
     # Bare `jac run` takes the kind's default (the dev loop)...
     assert execution._kind_serve_flags(plan, True, None).get("dev") == True;
-    # ...but `--serve`, the successor to `jac start`, serves plainly.
+    # ...but `--serve`, the successor to `jac run --serve`, serves plainly.
     assert "dev" not in execution._kind_serve_flags(plan, True, True);
     # Kind properties other than the dev default still ride along.
     svc = _plan("kind = \"service\"\nentry-point = \"api.jac\"\n", "api.jac");

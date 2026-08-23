@@ -270,7 +270,7 @@ test "start with nonexistent file error" {
 }
 
 # --- Dev Mode Tests ---
-test "jac start dev auto-installs watchdog even when not in jac.toml" {
+test "jac run --dev auto-installs watchdog even when not in jac.toml" {
     mock_provider = MagicMock();
     mock_provider.install_specs.return_value = True;
     mock_config = MagicMock();

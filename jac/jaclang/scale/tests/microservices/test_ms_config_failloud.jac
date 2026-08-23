@@ -1,4 +1,4 @@
-"""A microservice config error must stop `jac start`, not silently start the
+"""A microservice config error must stop `jac run --serve`, not silently start the
 app as a monolith. The route-name guard raises ValueError for a route that
 collides with a gateway builtin; before the fix, scale_start swallowed every
 exception from route resolution and fell through to single-process serving

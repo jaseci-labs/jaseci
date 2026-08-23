@@ -131,7 +131,7 @@ def request_endpoint(
     );
 }
 
-"""Start `jac start main.jac` for a project dir and wait for the port.
+"""Start `jac run --serve main.jac` for a project dir and wait for the port.
 
 ``extra_args`` is inserted after ``start`` (e.g. ``["--profile", "prod"]``).
 Returns ``(server_process, port)``. Caller must ``stop_server`` it.

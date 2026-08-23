@@ -66,7 +66,7 @@ test "create jac app" {
             }
 
             assert f"# {test_project_name}" in readme_content;
-            assert "jac start main.jac" in readme_content;
+            assert "jac run main.jac" in readme_content;
 
             # Verify jac.toml was created
             jac_toml_path = os.path.join(project_path, "jac.toml");
@@ -1110,7 +1110,7 @@ test "vite build injects core deps without prompting" {
     }
 }
 
-"""Test that jac start --dev auto-installs watchdog and performs initial compilation."""
+"""Test that jac run --dev auto-installs watchdog and performs initial compilation."""
 test "start dev with client does initial compilation" {
     test_project_name = "test-start-dev-client";
     with tempfile.TemporaryDirectory() as temp_dir {
@@ -1129,7 +1129,7 @@ test "start dev with client does initial compilation" {
             assert process.returncode == 0;
             # Change to project directory
             os.chdir(test_project_name);
-            # Run jac start --dev main.jac (should auto-install watchdog and compile)
+            # Run jac run --dev main.jac (should auto-install watchdog and compile)
             process = Popen(
                 ["jac", "run", "--dev", "main.jac"],
                 stdout=PIPE,
