@@ -422,6 +422,11 @@ ITEM 0 STATUS: root cause deeper than documented - na-runtime over-retains
 USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
     to implement on ceval release. Items 28/30 assignment still open.
 
+34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
+    packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
+    BUILD_LIST 1/STORE_NAME - byte-exact vs oracle (re-probed at 34bbd0df9 by
+    BrightTiger; the >=3 threshold fix in emit covered the 1-element shape).
+
 40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
     + test_generators 2 errors.** Bisected by BrightTiker through tonight's
     entire window: red at db7e9edcb, d34b16c7e~1, ce4b400e0, 936df7898,
@@ -828,6 +833,11 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     read returns None; CPython guarantees a traceback object there (used by
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
+
+34. **[LOW-MED][FIXED, absorbed by band-11 walrus work] Constant-list-display
+    packing.** Module-level a = [1] now emits RESUME/LOAD_SMALL_INT 1/
+    BUILD_LIST 1/STORE_NAME - byte-exact vs oracle (re-probed at 34bbd0df9 by
+    BrightTiger; the >=3 threshold fix in emit covered the 1-element shape).
 
 40. **[GATE-RED, PRE-EXISTING] keywords_in_subclass across test_set/list/tuple
     + test_generators 2 errors.** Bisected by BrightTiker through tonight's
