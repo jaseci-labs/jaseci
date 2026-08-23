@@ -16,6 +16,22 @@ def type_ready(flags: int) -> int {
     return flags | Py_TPFLAGS_READY;
 }
 
+# CPython ``_Py_Mangle``: a private name (two leading underscores, at most one
+# trailing underscore) is rewritten to ``_<class>__name`` with the class name's
+# own leading underscores stripped; everything else passes through unchanged.
+# ``type_new`` applies this to every ``__slots__`` entry, so the member key in
+# the class dict and the storage key are BOTH the mangled form.
+def type_slots_mangle(name: str, class_name: str) -> str {
+    if not name.startswith("__") or name.endswith("__") {
+        return name;
+    }
+    stripped = class_name;
+    while len(stripped) > 0 and stripped.startswith("_") {
+        stripped = stripped[1:];
+    }
+    return "_" + stripped + name;
+}
+
 def slots_is_dict_name(name: str) -> bool {
     return name == "__dict__";
 }
