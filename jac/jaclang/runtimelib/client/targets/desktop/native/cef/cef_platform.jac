@@ -18,7 +18,7 @@ def _write_uint(n: int) {
         _write_uint(n // 10);
     }
     digit_buf: int = calloc(1, 2);
-    memset(digit_buf, 48 + (n % 10), 1);
+    memset(digit_buf, i32(48 + (n % 10)), 1);
     write(2, digit_buf, 1);
     free(digit_buf);
 }
