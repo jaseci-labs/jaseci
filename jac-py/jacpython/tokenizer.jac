@@ -760,6 +760,16 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
                 end_col_offset=start_col
             );
         }
+        # CPython tokenizes '.' as NUMBER when digits follow (.5 == 0.5);
+        # anything else ('.', '..', '...') falls through to the operator path.
+        if ch == "." {
+            nxt = st.pos + 1;
+            if nxt < len(st.source) and _is_digit(st.source[nxt]) {
+                tok = _read_number(st);
+                st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
+                return tok;
+            }
+        }
         if _is_digit(ch) {
             tok = _read_number(st);
             st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);

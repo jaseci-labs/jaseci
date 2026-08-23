@@ -287,3 +287,67 @@ test "number spelling: fractional imaginary parses to PyComplex" {
     assert z.real == 0.0;
     assert z.imag == 0.5;
 }
+
+# ---------------- negative-int folding (post-visit const interning) ----------------
+#
+# CPython folds USub-over-int-constant in its post-codegen optimizer: the
+# operand keeps its visit-time const slot and the negated value is interned
+# AFTER every visit-time const (incl. the epilogue None). Parity here pins
+# both co_code and the exact const-table ordering.
+
+test "negative int fold: -1 matches oracle" {
+    assert_literal_parity("x = -1\n", "neg-small-int");
+}
+
+test "negative int fold: -300 matches oracle" {
+    assert_literal_parity("x = -300\n", "neg-gt255");
+}
+
+test "negative int fold: mid-expression operand matches oracle" {
+    assert_literal_parity("z = x + -1\n", "neg-mid-expr");
+}
+
+test "negative int fold: after prior statement matches oracle" {
+    assert_literal_parity("y = 5\nx = -256\n", "neg-after-stmt");
+}
+
+test "negative int fold: call argument matches oracle" {
+    assert_literal_parity("r = f(-300)\n", "neg-call-arg");
+}
+
+test "negative int fold: function body matches oracle recursively" {
+    assert_literal_parity(
+        "def f():\n    a = -7\n    b = -900\n    return a + b\n",
+        "fn-neg-int"
+    );
+}
+
+test "negative int fold: comprehension element matches oracle" {
+    assert_literal_parity("v = [i * -1 for i in r]\n", "neg-comprehension");
+}
+
+# ---------------- edge number spellings vs oracle ----------------
+
+test "literal frontier: leading-dot float matches oracle" {
+    assert_literal_parity("f = .5\n", "float-leading-dot");
+}
+
+test "literal frontier: trailing-dot float matches oracle" {
+    assert_literal_parity("f = 255.\n", "float-trailing-dot");
+}
+
+test "literal frontier: exponent float matches oracle" {
+    assert_literal_parity("f = 1e10\n", "float-exp-pos");
+}
+
+test "literal frontier: underscored float matches oracle" {
+    assert_literal_parity("f = 1_000.5\n", "float-underscore");
+}
+
+test "literal frontier: zero hex / upper-case octal / upper-case binary match oracle" {
+    assert_literal_parity("a = 0x0\nb = 0O17\nc = 0B1\n", "int-prefix-cases");
+}
+
+test "literal frontier: upper-case J imaginary matches oracle" {
+    assert_literal_parity("z = 1J\n", "imag-upper-j");
+}

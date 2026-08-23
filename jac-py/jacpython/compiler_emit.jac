@@ -1431,6 +1431,30 @@ def visit_expr(
     }
     if isinstance(e, UnaryOp) {
         un = e as UnaryOp;
+        # CPython folds unary minus on int constants in its POST-visit
+        # optimizer pass: the operand keeps its visit-time const slot (dead
+        # small-int registration included) and the negated const is interned
+        # AFTER every visit-time const (incl. the epilogue None), so -1
+        # lowers to LOAD_CONST <late>, never LOAD_SMALL_INT + UNARY_NEGATIVE.
+        if isinstance(un.op, USub) and isinstance(un.operand, Constant) {
+            cv = (un.operand as Constant).value;
+            if isinstance(cv, PyInt) {
+                uloc = nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset);
+                # The operand's own const is removed by CPython's optimizer
+                # unless it occupies the protected index-0 dead slot.
+                if len(g.u.consts) == 0 {
+                    in_class_body = g.sym_top is not None
+                        and g.sym_top.block_type == "class";
+                    if not in_class_body {
+                        g.u.add_const(cv);
+                        g.u.dead_small_int_const = True;
+                    }
+                }
+                late_idx = g.u.stage_late_const(PyInt(t="int", val=-((cv as PyInt).val)));
+                g.emit_op(OP_LOAD_CONST, late_idx, uloc);
+                return None;
+            }
+        }
         visit_expr(g, un.operand);
         opc = unary_opcode(un.op);
         if opc < 0 {
@@ -2345,6 +2369,25 @@ def visit_comp_elt(
     }
     if isinstance(e, UnaryOp) {
         un = e as UnaryOp;
+        # Same negative-int fold as visit_expr (CPython's post-visit optimizer
+        # folds comprehension elements too; negated consts are interned late).
+        if isinstance(un.op, USub) and isinstance(un.operand, Constant) {
+            cv = (un.operand as Constant).value;
+            if isinstance(cv, PyInt) {
+                ul = nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset);
+                if len(g.u.consts) == 0 {
+                    in_class_body = g.sym_top is not None
+                        and g.sym_top.block_type == "class";
+                    if not in_class_body {
+                        g.u.add_const(cv);
+                        g.u.dead_small_int_const = True;
+                    }
+                }
+                late_idx = g.u.stage_late_const(PyInt(t="int", val=-((cv as PyInt).val)));
+                g.emit_op(OP_LOAD_CONST, late_idx, ul);
+                return;
+            }
+        }
         ul = nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset);
         visit_comp_elt(g, un.operand, bound_names, filter_compare);
         if codegen_busy(g) {
