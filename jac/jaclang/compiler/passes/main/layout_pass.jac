@@ -23,25 +23,16 @@ import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
          "int",
          "float",
          "bool",
          "str",
-         "bytes",
-         "i8",
-         "u8",
-         "i16",
-         "u16",
-         "i32",
-         "u32",
-         "i64",
-         "u64",
-         "f32",
-         "f64",
-
-     },
+         "bytes"
+     }
+         | set(JAC_TYPE_REGISTRY.sized_scalar_names()),
      VTABLE_HEADER_SLOTS: int = 1;
 
 glob LAYOUT_COMPATIBLE_SCALARS: set[str] = LAYOUT_COMPATIBLE_PRIMITIVES | {"type"};

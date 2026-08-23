@@ -226,7 +226,7 @@ def:pub open_tree(rt: str, exe_path: str) -> Embed {
     os.environ["JAC_STANDALONE"] = "1";
     os.environ["JAC_EXECUTABLE"] = exe_path;
     libpath = f"{rt}/python/lib/libpython{PY_VER}{SHLIB_EXT}";
-    handle = dlopen(libpath, RTLD_NOW | RTLD_GLOBAL);
+    handle = dlopen(libpath, i32(RTLD_NOW | RTLD_GLOBAL));
     if handle == 0 {
         die(f"cannot load the bundled interpreter {libpath}: {dl_error()}");
     }
