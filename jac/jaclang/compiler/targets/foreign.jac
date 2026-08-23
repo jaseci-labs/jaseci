@@ -1,22 +1,5 @@
 import jaclang.jac0core.unitree as uni;
-
-glob FOREIGN_SCALARS: dict[str, tuple[int, int, bool, int]] = {
-         "u8": (1, 1, False, 8),
-         "i8": (1, 1, False, 8),
-         "bool": (1, 1, False, 8),
-         "u16": (2, 2, False, 16),
-         "i16": (2, 2, False, 16),
-         "u32": (4, 4, False, 32),
-         "i32": (4, 4, False, 32),
-         "u64": (8, 8, False, 64),
-         "i64": (8, 8, False, 64),
-         "int": (8, 8, False, 64),
-         "f32": (4, 4, True, 32),
-         "f64": (8, 8, True, 64),
-         "float": (8, 8, True, 64),
-         "str": (8, 8, False, 64),
-
-     };
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 def collect_foreign_structs(modules: list) -> dict {
     out: dict = {};
@@ -112,9 +95,11 @@ def foreign_struct_layout(
     for (fname, tname) in fields {
         if isinstance(tname, str) and tname in structs {
             (sz, al, subs) = foreign_struct_layout(structs, tname);
-        } elif isinstance(tname, str) and tname in FOREIGN_SCALARS {
-            (sz, al, isf, bits) = FOREIGN_SCALARS[tname];
-            subs = [(0, isf, bits)];
+        } elif isinstance(tname, str)
+            and (scalar := JAC_TYPE_REGISTRY.get(tname)) is not None
+            and scalar.width > 0 {
+            (sz, al) = (scalar.size_bytes(), scalar.align());
+            subs = [(0, scalar.is_float, max(8, scalar.width))];
         } else {
             (sz, al, subs) = (8, 8, [(0, False, 64)]);
         }

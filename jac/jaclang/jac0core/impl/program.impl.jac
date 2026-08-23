@@ -297,6 +297,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
             if isinstance(nd, uni.Expr) {
                 nd.type = None;
                 nd.narrowed_type = None;
+                nd.coerce_to = None;
             }
             for kid in nd.kid {
                 stack.append(kid);
