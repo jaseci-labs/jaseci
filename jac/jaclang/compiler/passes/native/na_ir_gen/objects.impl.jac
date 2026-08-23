@@ -3603,7 +3603,10 @@ impl NaIRGenObjects._codegen_field_aug_assign(
 }
 
 impl NaIRGenObjects._codegen_field_assign(
-    target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
+    target: uni.AtomTrailer,
+    value: ir.Value,
+    skip_narrow_coerce: bool = False,
+    value_ty: any = None
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
@@ -3737,7 +3740,7 @@ impl NaIRGenObjects._codegen_field_assign(
     if _is_clib_cb {
         value = self._clib_coerce_callback(value, ftype);
     } elif not (skip_narrow_coerce and value.type != ftype) {
-        value = self._coerce_type(value, ftype);
+        value = self._coerce_typed(value, ftype, value_ty);
     }
     field_ptr: (ir.Value | None) = None;
     _fs_parts = self._receiver_union_parts(target);

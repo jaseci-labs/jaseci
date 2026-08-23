@@ -1955,7 +1955,9 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     );
                 }
             } else {
-                self._codegen_field_assign(target_expr, value);
+                self._codegen_field_assign(
+                    target_expr, value, value_ty=self._expr_type_of(nd.value)
+                );
             }
             continue;
         }

@@ -186,7 +186,10 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_field_assign(
-        target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
+        target: uni.AtomTrailer,
+        value: ir.Value,
+        skip_narrow_coerce: bool = False,
+        value_ty: any = None
     ) -> None;
 
     def _read_field_or_refuse(
