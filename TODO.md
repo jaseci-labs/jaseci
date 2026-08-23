@@ -495,6 +495,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
     bool. Precedent: D-RANGE-ID document-don't-fake.
 
+60. **[MED] User __format__ never dispatched.** format(obj, spec) with
+    user-defined __format__ raises TypeError('unsupported format string
+    passed to NoneType.__format__') - the dunder is ignored, falls to
+    default object formatting which rejects non-empty specs. f'{obj:spec}'
+    broken for all custom formatters. Walker/dunder synthesis family.
+    Found fuzz r56.
+
 51. **[MED] __slots__ not enforced / no __dict__ suppression.**59. **[LOW] to_host(PyClass) name-faithful mirror for repr fidelity**
     (split from 58): guest PyType crossing the bridge yields None; a
     name-faithful mirror (repr/type-name only, NOT identity) would fix
@@ -507,6 +514,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     YoungHawk implements atomic guest-side eval of identity-family asserts
     (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
     bool. Precedent: D-RANGE-ID document-don't-fake.
+
+60. **[MED] User __format__ never dispatched.** format(obj, spec) with
+    user-defined __format__ raises TypeError('unsupported format string
+    passed to NoneType.__format__') - the dunder is ignored, falls to
+    default object formatting which rejects non-empty specs. f'{obj:spec}'
+    broken for all custom formatters. Walker/dunder synthesis family.
+    Found fuzz r56.
 
 51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
