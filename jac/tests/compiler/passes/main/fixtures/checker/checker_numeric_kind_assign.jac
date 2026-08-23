@@ -1,10 +1,10 @@
-"""Numeric-kind assignability: float literal -> f64, int literal -> i32.
+"""Numeric assignability along the fixed-width lattice.
 
-Fixed-width primitives (i8..u64, f32, f64) are width refinements of the
-same numeric kind as int / float, not unrelated subclasses. Same-kind
-assignment must typecheck; cross-kind IntKind -> FloatKind also works
-(the existing int -> float allowance generalises). FloatKind -> IntKind
-stays banned and is covered by checker_numeric_kind_disallowed.jac.
+Fixed-width primitives (i8..u64, f32, f64) are real types: a conversion is
+implicit only when it is value-preserving (widening, unsigned into a
+strictly wider signed, exactly-representable int-kind into float-kind).
+Narrowing and sign changes are explicit casts; FloatKind -> IntKind stays
+banned and is covered by checker_numeric_kind_disallowed.jac.
 """
 
 # ---------- Literal -> primitive ----------
@@ -34,7 +34,7 @@ def f32_to_f64(x: f32) -> f64 {
 }
 
 def f64_to_f32(x: f64) -> f32 {
-    return x;
+    return f32(x);
 }
 
 def i8_to_i64(x: i8) -> i64 {
@@ -42,6 +42,10 @@ def i8_to_i64(x: i8) -> i64 {
 }
 
 def i64_to_u32(x: i64) -> u32 {
+    return u32(x);
+}
+
+def u16_to_i32(x: u16) -> i32 {
     return x;
 }
 
