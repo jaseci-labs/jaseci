@@ -409,6 +409,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     being treated as real. Bundles the phantom-cascade pattern seen with
     objects/ceval mid-edits + annotations partials.
 
+GIT HYGIENE RULE (formalized from tonight's incidents): silent git operations
+    are the enemy. Stash cycles sweeping foreign files, checkout wiping reserved
+    edits, worktree commits silently no-op'ing - same failure class. Protocol:
+    after EVERY state-changing git op (commit/push/merge/checkout/worktree),
+    VERIFY the ref actually moved (git log origin/..HEAD, git show --stat)
+    before declaring done. Never trust the command's silence as success.
+
 MESH-HYGIENE LESSONS (UltraMoon, tonight): (a) reservation transfers MUST
     steer all in-flight agents - del-leak agent wiped uncommitted ceval work
     via git checkout because ownership moved without notice; (b) jac check
