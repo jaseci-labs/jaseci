@@ -676,6 +676,514 @@
   {
    "name": "gen-loop-009",
    "src": "class T(unittest.TestCase):\n    def test_case(self):\n        total = 0\n        aug = 30\n        aug //= 4\n        aug %= 7\n        aug **= 2\n        total += aug\n        idx_aug = [1, 2, 3]\n        idx_aug[1] += 10\n        self.assertEqual(total == 0, True)\n        self.assertEqual(idx_aug == [1, 12, 3], True)\n        self.assertEqual(((5,),)[0][0] == 5, True)\n"
+  },
+  {
+   "name": "w2-rich-list-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, [2, 3], 'a']\n        b = [1, [2, 3], 'a']\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-elt-diff",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2, 3]\n        b = [1, 2, 4]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-prefix",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2]\n        b = [1, 2, 3]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-longer",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2, 3]\n        b = [1, 2]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, False)\n        self.assertEqual(a > b, True)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, True)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, False)\n"
+  },
+  {
+   "name": "w2-rich-list-str-elts",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = ['a', 'b']\n        b = ['a', 'c']\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-nested",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [[1, 2], [3]]\n        b = [[1, 2], [3]]\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-nested-diff",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [[1, 2]]\n        b = [[1, 3]]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-tuple-basic",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = (1, 2)\n        b = (1, 3)\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-tuple-vs-list",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = (1, 2)\n        b = [1, 2]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-empty",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = []\n        b = []\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-empty-vs-one",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = []\n        b = [[]]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-bytes-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = b'abc'\n        b = b'abc'\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-bytes-order",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = b'abc'\n        b = b'abd'\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-bytes-prefix",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = b'ab'\n        b = b'abc'\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-bytes-vs-bytearray",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = b'abc'\n        b = bytearray(b'abc')\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-dict-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: 'x', 2: 'y'}\n        b = {2: 'y', 1: 'x'}\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n"
+  },
+  {
+   "name": "w2-rich-dict-val-diff",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: 'x'}\n        b = {1: 'z'}\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n"
+  },
+  {
+   "name": "w2-rich-dict-key-miss",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: 'x'}\n        b = {1: 'x', 2: 'y'}\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n"
+  },
+  {
+   "name": "w2-rich-dict-empty-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {}\n        b = {}\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n"
+  },
+  {
+   "name": "w2-rich-dict-vs-list",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: 2}\n        b = [1, 2]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n"
+  },
+  {
+   "name": "w2-rich-dict-nested-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: [2, {'k': 3}]}\n        b = {1: [2, {'k': 3}]}\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n"
+  },
+  {
+   "name": "w2-rich-set-eq",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1, 2, 3}\n        b = {3, 2, 1}\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-set-subset",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1, 2}\n        b = {1, 2, 3}\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, False)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, False)\n        self.assertEqual(b > a, True)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-set-superset",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1, 2, 3, 4}\n        b = {1, 2}\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, False)\n        self.assertEqual(a > b, True)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n        self.assertEqual(b < a, True)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, False)\n"
+  },
+  {
+   "name": "w2-rich-frozenset-vs-set",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = frozenset({1, 2})\n        b = {1, 2}\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n        self.assertEqual(a < b, False)\n        self.assertEqual(a <= b, True)\n        self.assertEqual(a > b, False)\n        self.assertEqual(a >= b, True)\n        self.assertEqual(b == a, True)\n        self.assertEqual(b != a, False)\n        self.assertEqual(b < a, False)\n        self.assertEqual(b <= a, True)\n        self.assertEqual(b > a, False)\n        self.assertEqual(b >= a, True)\n"
+  },
+  {
+   "name": "w2-rich-int-vs-str-list",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1]\n        b = ['1']\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(b == a, False)\n        self.assertEqual(b != a, True)\n"
+  },
+  {
+   "name": "w2-rich-list-int-str-lt-raises",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1]\n        b = ['x']\n        def probe():\n            try:\n                a < b\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', \"'<' not supported between instances of 'int' and 'str'\"))\n"
+  },
+  {
+   "name": "w2-rich-dict-lt-raises",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = {1: 2}\n        b = {3: 4}\n        def probe():\n            try:\n                a < b\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', \"'<' not supported between instances of 'dict' and 'dict'\"))\n"
+  },
+  {
+   "name": "w2-rich-set-lt-ok-and-type",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = {1, 2}\n        t = {1, 2, 3}\n        self.assertEqual(s < t, True)\n        self.assertEqual(t < s, False)\n        self.assertEqual(s <= t, True)\n        self.assertEqual(type(s < t).__name__, 'bool')\n"
+  },
+  {
+   "name": "w2-rich-chained-container",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [(1, [2]), (3, [4])]\n        b = [(1, [2]), (3, [5])]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a != b, True)\n        self.assertEqual(a < b, True)\n        self.assertEqual(b > a, True)\n"
+  },
+  {
+   "name": "w2-rich-deep-nesting",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [[[[[1]]]]]\n        b = [[[[[2]]]]]\n        self.assertEqual(a == b, False)\n        self.assertEqual(a < b, True)\n        self.assertEqual([[[[[1]]]]] == [[[[[1]]]]], True)\n"
+  },
+  {
+   "name": "w2-rich-dict-keys-view-cmp",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {1: 'a', 2: 'b'}\n        e = {1: 'x'}\n        self.assertEqual(d.keys() >= e.keys(), True)\n        self.assertEqual(d.keys() <= d.keys(), True)\n        self.assertEqual(e.keys() < d.keys(), True)\n"
+  },
+  {
+   "name": "w2-rich-items-view",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {1: 'a'}\n        e = {1: 'a'}\n        self.assertEqual(d.items() == e.items(), True)\n        self.assertEqual(list(d.items()) == list(e.items()), True)\n"
+  },
+  {
+   "name": "w2-fmt-str-dunder-both",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class P():\n            def __repr__(me): return 'P-repr'\n            def __str__(me): return 'P-str'\n        p = P()\n        self.assertEqual(str(p), 'P-str')\n        self.assertEqual(repr(p), 'P-repr')\n        self.assertEqual(f'{p}', 'P-str')\n        self.assertEqual(f'{p!r}', 'P-repr')\n        self.assertEqual(f'{p!s}', 'P-str')\n"
+  },
+  {
+   "name": "w2-fmt-str-only-repr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Q():\n            def __repr__(me): return 'Q-repr'\n        q = Q()\n        self.assertEqual(str(q), 'Q-repr')\n        self.assertEqual(repr(q), 'Q-repr')\n        self.assertEqual(f'{q}', 'Q-repr')\n"
+  },
+  {
+   "name": "w2-fmt-format-default-uses-str",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class S():\n            def __str__(me): return 'S-str'\n        s = S()\n        self.assertEqual(format(s), 'S-str')\n        self.assertEqual(f'{s}', 'S-str')\n        self.assertEqual(str(s), 'S-str')\n"
+  },
+  {
+   "name": "w2-fmt-format-int-specs",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        x = 255\n        self.assertEqual(format(x, 'x'), 'ff')\n        self.assertEqual(format(x, '#010b'), '0b11111111')\n        self.assertEqual(format(x, '08o'), '00000377')\n        self.assertEqual(format(x, '+d'), '+255')\n        self.assertEqual(f'{x:,}', '255')\n"
+  },
+  {
+   "name": "w2-fmt-format-float-specs",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        x = 3.14159\n        self.assertEqual(format(x, '.2f'), '3.14')\n        self.assertEqual(format(x, '10.3e'), ' 3.142e+00')\n        self.assertEqual(f'{x:%}', '314.159000%')\n        self.assertEqual(format(x, '<12.4g'), '3.142       ')\n"
+  },
+  {
+   "name": "w2-fmt-format-string-specs",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'hi'\n        self.assertEqual(format(s, '>7'), '     hi')\n        self.assertEqual(format(s, '*^9'), '***hi****')\n        self.assertEqual(f\"{s:=<8}\", 'hi======')\n"
+  },
+  {
+   "name": "w2-fmt-format-none-bool",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = None\n        b = True\n        self.assertEqual(format(a), 'None')\n        self.assertEqual(format(b, '^7'), '   1   ')\n        self.assertEqual(f'{b}', 'True')\n        self.assertEqual(str(a), 'None')\n        self.assertEqual(repr(a), 'None')\n"
+  },
+  {
+   "name": "w2-fmt-format-no-str-method",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class T1(): pass\n        t = T1()\n        self.assertEqual(type(str(t)).__name__, 'str')\n        self.assertEqual('T1' in repr(t), True)\n        self.assertEqual(len(repr(t)) > 0, True)\n"
+  },
+  {
+   "name": "w2-fmt-format-inherit-str",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class B():\n            def __str__(me): return 'B-str'\n        class D(B): pass\n        d = D()\n        self.assertEqual(str(d), 'B-str')\n        self.assertEqual(f'{d}', 'B-str')\n        self.assertEqual(format(d), 'B-str')\n"
+  },
+  {
+   "name": "w2-fmt-format-override-in-sub",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class B2():\n            def __str__(me): return 'B2'\n        class D2(B2):\n            def __str__(me): return 'D2'\n        objs = [B2(), D2()]\n        self.assertEqual([str(o) for o in objs], ['B2', 'D2'])\n        self.assertEqual('|'.join(str(o) for o in objs), 'B2|D2')\n"
+  },
+  {
+   "name": "w2-fmt-repr-dict-of-custom",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class K():\n            def __repr__(me): return 'K!'\n        dd = {K(): 1}\n        self.assertEqual(repr(dd), '{K!: 1}')\n        self.assertEqual(len(dd), 1)\n"
+  },
+  {
+   "name": "w2-fmt-format-exc-bad-spec",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        x = 5\n        def probe():\n            try:\n                format(x, ';s')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ValueError', \"Invalid format specifier ';s' for object of type 'int'\"))\n"
+  },
+  {
+   "name": "w2-fmt-format-bytes-repr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        bs = b'a\\x00b'\n        ba = bytearray(b'xy')\n        self.assertEqual(repr(bs), \"b'a\\\\x00b'\")\n        self.assertEqual(str(bs), \"b'a\\\\x00b'\")\n        self.assertEqual(repr(ba), \"bytearray(b'xy')\")\n        self.assertEqual(str(ba.decode()), 'xy')\n"
+  },
+  {
+   "name": "w2-fmt-format-nested-fstring",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        w = 3\n        val = 7.12345\n        self.assertEqual(f'{val:{w}.2f}', '7.12')\n        self.assertEqual(f'{val:>{w}}', '7.12345')\n"
+  },
+  {
+   "name": "w2-slice-list-00",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]\n        self.assertEqual(s[::2], [0, 2, 4, 6, 8])\n        self.assertEqual(s[1::3], [1, 4, 7])\n        self.assertEqual(s[::-1], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0])\n        self.assertEqual(s[::-2], [9, 7, 5, 3, 1])\n        self.assertEqual(s[2:8], [2, 3, 4, 5, 6, 7])\n        self.assertEqual(s[2:8:2], [2, 4, 6])\n"
+  },
+  {
+   "name": "w2-slice-list-01",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]\n        self.assertEqual(s[8:2:-1], [8, 7, 6, 5, 4, 3])\n        self.assertEqual(s[-3:], [7, 8, 9])\n        self.assertEqual(s[:-3], [0, 1, 2, 3, 4, 5, 6])\n        self.assertEqual(s[-3:-1], [7, 8])\n        self.assertEqual(s[5:100], [5, 6, 7, 8, 9])\n        self.assertEqual(s[-100:3], [0, 1, 2])\n"
+  },
+  {
+   "name": "w2-slice-list-02",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]\n        self.assertEqual(s[3:3], [])\n        self.assertEqual(s[100:200], [])\n"
+  },
+  {
+   "name": "w2-slice-tuple-00",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)\n        self.assertEqual(s[::2], (0, 2, 4, 6, 8))\n        self.assertEqual(s[1::3], (1, 4, 7))\n        self.assertEqual(s[::-1], (9, 8, 7, 6, 5, 4, 3, 2, 1, 0))\n        self.assertEqual(s[::-2], (9, 7, 5, 3, 1))\n        self.assertEqual(s[2:8], (2, 3, 4, 5, 6, 7))\n        self.assertEqual(s[2:8:2], (2, 4, 6))\n"
+  },
+  {
+   "name": "w2-slice-tuple-01",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)\n        self.assertEqual(s[8:2:-1], (8, 7, 6, 5, 4, 3))\n        self.assertEqual(s[-3:], (7, 8, 9))\n        self.assertEqual(s[:-3], (0, 1, 2, 3, 4, 5, 6))\n        self.assertEqual(s[-3:-1], (7, 8))\n        self.assertEqual(s[5:100], (5, 6, 7, 8, 9))\n        self.assertEqual(s[-100:3], (0, 1, 2))\n"
+  },
+  {
+   "name": "w2-slice-tuple-02",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)\n        self.assertEqual(s[3:3], ())\n        self.assertEqual(s[100:200], ())\n"
+  },
+  {
+   "name": "w2-slice-str-00",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'abcdefghij'\n        self.assertEqual(s[::2], 'acegi')\n        self.assertEqual(s[1::3], 'beh')\n        self.assertEqual(s[::-1], 'jihgfedcba')\n        self.assertEqual(s[::-2], 'jhfdb')\n        self.assertEqual(s[2:8], 'cdefgh')\n        self.assertEqual(s[2:8:2], 'ceg')\n"
+  },
+  {
+   "name": "w2-slice-str-01",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'abcdefghij'\n        self.assertEqual(s[8:2:-1], 'ihgfed')\n        self.assertEqual(s[-3:], 'hij')\n        self.assertEqual(s[:-3], 'abcdefg')\n        self.assertEqual(s[-3:-1], 'hi')\n        self.assertEqual(s[5:100], 'fghij')\n        self.assertEqual(s[-100:3], 'abc')\n"
+  },
+  {
+   "name": "w2-slice-str-02",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'abcdefghij'\n        self.assertEqual(s[3:3], '')\n        self.assertEqual(s[100:200], '')\n"
+  },
+  {
+   "name": "w2-slice-bytes-00",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = b'0123456789'\n        self.assertEqual(s[::2], b'02468')\n        self.assertEqual(s[1::3], b'147')\n        self.assertEqual(s[::-1], b'9876543210')\n        self.assertEqual(s[::-2], b'97531')\n        self.assertEqual(s[2:8], b'234567')\n        self.assertEqual(s[2:8:2], b'246')\n"
+  },
+  {
+   "name": "w2-slice-bytes-01",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = b'0123456789'\n        self.assertEqual(s[8:2:-1], b'876543')\n        self.assertEqual(s[-3:], b'789')\n        self.assertEqual(s[:-3], b'0123456')\n        self.assertEqual(s[-3:-1], b'78')\n        self.assertEqual(s[5:100], b'56789')\n        self.assertEqual(s[-100:3], b'012')\n"
+  },
+  {
+   "name": "w2-slice-bytes-02",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = b'0123456789'\n        self.assertEqual(s[3:3], b'')\n        self.assertEqual(s[100:200], b'')\n"
+  },
+  {
+   "name": "w2-slice-zero-step",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = [1, 2, 3]\n        def probe():\n            try:\n                s[::0]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ValueError', 'slice step cannot be zero'))\n"
+  },
+  {
+   "name": "w2-slice-zero-step-str",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'abc'\n        def probe():\n            try:\n                s[::0]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ValueError', 'slice step cannot be zero'))\n"
+  },
+  {
+   "name": "w2-slice-obj-indices",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        sl = slice(1, 7, 2)\n        s = 'abcdefghij'\n        self.assertEqual(s[sl], 'bdf')\n        self.assertEqual(sl.start, 1)\n        self.assertEqual(sl.stop, 7)\n        self.assertEqual(sl.step, 2)\n        self.assertEqual(sl.indices(10), (1, 7, 2))\n        self.assertEqual(sl.indices(3), (1, 3, 2))\n"
+  },
+  {
+   "name": "w2-slice-assign",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2, 3, 4, 5]\n        a[1:3] = [20, 30, 40]\n        snap1 = list(a)\n        a[::2] = [9, 9, 9]\n        snap2 = list(a)\n        b = [0, 1, 2, 3]\n        b[::-1] = [10, 20, 30, 40]\n        self.assertEqual(snap1, [1, 20, 30, 40, 4, 5])\n        self.assertEqual(snap2, [9, 20, 9, 40, 9, 5])\n        self.assertEqual(b, [40, 30, 20, 10])\n        self.assertEqual(a, [9, 20, 9, 40, 9, 5])\n"
+  },
+  {
+   "name": "w2-slice-del",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [0, 1, 2, 3, 4, 5]\n        del a[1:3]\n        s1 = list(a)\n        del a[::2]\n        s2 = list(a)\n        t = [1, 2, 3]\n        def probe():\n            try:\n                del t[0]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(s1, [0, 3, 4, 5])\n        self.assertEqual(s2, [3, 5])\n        self.assertEqual(probe(), ('NO-RAISE', ''))\n"
+  },
+  {
+   "name": "w2-slice-out-of-range-index",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                return [1, 2, 3][5]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('IndexError', 'list index out of range'))\n"
+  },
+  {
+   "name": "w2-slice-negative-index-ok",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = [1, 2, 3]\n        self.assertEqual(s[-1], 3)\n        self.assertEqual(s[-3], 1)\n        self.assertEqual(('abc'[-2]), 'b')\n        self.assertEqual('ab'[0], 'a')\n"
+  },
+  {
+   "name": "w2-mro-diamond",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class A(): pass\n        class B(A): pass\n        class C(A): pass\n        class D(B, C): pass\n        self.assertEqual([c.__name__ for c in D.mro()], ['D', 'B', 'C', 'A', 'object'])\n        self.assertEqual(D.__mro__ == D.mro(), False)\n        self.assertEqual([c.__name__ for c in D.__mro__], ['D', 'B', 'C', 'A', 'object'])\n"
+  },
+  {
+   "name": "w2-mro-multi-level",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class A(): pass\n        class B(A): pass\n        class C(B): pass\n        self.assertEqual([c.__name__ for c in C.mro()], ['C', 'B', 'A', 'object'])\n        self.assertEqual(C.mro()[0] is C, True)\n"
+  },
+  {
+   "name": "w2-mro-object-root",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Z(): pass\n        self.assertEqual([c.__name__ for c in Z.mro()], ['Z', 'object'])\n        self.assertEqual(len(object.mro()), 1)\n"
+  },
+  {
+   "name": "w2-mro-builtin-mro",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        self.assertEqual([c.__name__ for c in bool.mro()], ['bool', 'int', 'object'])\n        self.assertEqual(len(bool.mro()), 3)\n        self.assertEqual([c.__name__ for c in int.mro()], ['int', 'object'])\n"
+  },
+  {
+   "name": "w2-seq-iter-manual",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        it = iter([10, 20, 30])\n        a = next(it)\n        b = next(it)\n        c = next(it)\n        def probe():\n            try:\n                next(it)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        def probe():\n            try:\n                next(it, 'sentinel')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(a, 10)\n        self.assertEqual(b, 20)\n        self.assertEqual(c, 30)\n        self.assertEqual(probe(), ('NO-RAISE', ''))\n        self.assertEqual(next(iter(()), None), None)\n"
+  },
+  {
+   "name": "w2-seq-iter-exhaustion-msg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                it = iter(())\n                next(it)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('StopIteration', ''))\n"
+  },
+  {
+   "name": "w2-seq-iter-tuple-str-bytes",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        t_it = iter((1, 2))\n        s_it = iter('ab')\n        b_it = iter(b'ab')\n        self.assertEqual(next(t_it), 1)\n        self.assertEqual(next(s_it), 'a')\n        self.assertEqual(next(b_it), 97)\n        self.assertEqual(list(iter('abc')), ['a', 'b', 'c'])\n        self.assertEqual(list(iter((4, 5))), [4, 5])\n        self.assertEqual(list(iter(b'hi')), [104, 105])\n"
+  },
+  {
+   "name": "w2-seq-iter-getitem-only-class",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Seq():\n            def __getitem__(me, i):\n                if i >= 3: raise IndexError(i)\n                return i * 10\n        vals = list(Seq())\n        self.assertEqual(vals, [0, 10, 20])\n        self.assertEqual(list(Seq()) == [0, 10, 20], True)\n"
+  },
+  {
+   "name": "w2-seq-iter-getitem-class-direct",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class Seq2():\n            def __getitem__(me, i):\n                if i > 1: raise IndexError\n                return i * i\n        it = iter(Seq2())\n        self.assertEqual(next(it), 0)\n        self.assertEqual(next(it), 1)\n        self.assertEqual(list(Seq2()), [0, 1])\n"
+  },
+  {
+   "name": "w2-seq-iter-reversed-list",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2, 3]\n        rv = reversed(a)\n        self.assertEqual(list(rv), [3, 2, 1])\n        self.assertEqual(a, [1, 2, 3])\n        self.assertEqual(list(reversed('abc')), ['c', 'b', 'a'])\n        self.assertEqual(list(reversed((1, 2))), [2, 1])\n"
+  },
+  {
+   "name": "w2-seq-iter-self-return",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        lst = [1]\n        li = iter(lst)\n        self.assertEqual(iter(li) is li, True)\n        self.assertEqual(type(li).__name__, 'list_iterator')\n"
+  },
+  {
+   "name": "w2-exc-attr-error-msg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                (1, 2).nope\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('AttributeError', \"'tuple' object has no attribute 'nope'\"))\n"
+  },
+  {
+   "name": "w2-exc-zero-div-msg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                1 // 0\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ZeroDivisionError', 'division by zero'))\n"
+  },
+  {
+   "name": "w2-exc-value-error-int",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                int('zz')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ValueError', \"invalid literal for int() with base 10: 'zz'\"))\n"
+  },
+  {
+   "name": "w2-exc-index-error-range",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                range(3)[7]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('IndexError', 'range object index out of range'))\n"
+  },
+  {
+   "name": "w2-exc-key-error-msg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                {}['missing']\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('KeyError', \"'missing'\"))\n"
+  },
+  {
+   "name": "w2-exc-recursion-free-depth",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                [][10 ** 6]\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('IndexError', 'list index out of range'))\n"
+  },
+  {
+   "name": "w2-exc-chain-none-when-handled",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                try:\n                    pass\n                except Exception:\n                    pass\n                raise TypeError('clean')\n            except TypeError as t:\n                return t.__context__ is None, t.__cause__ is None\n        self.assertEqual(probe(), (True, True))\n"
+  },
+  {
+   "name": "w2-exc-nested-reraise",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            stage = []\n            try:\n                try:\n                    raise IndexError('deep')\n                except IndexError:\n                    stage.append('caught1')\n                    raise\n            except IndexError as e:\n                stage.append(type(e).__name__)\n                stage.append(str(e))\n            return stage\n        self.assertEqual(probe(), ['caught1', 'IndexError', 'deep'])\n"
+  },
+  {
+   "name": "w2-exc-exc-group-ish-nested-types",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            seen = []\n            try:\n                try:\n                    raise ValueError('a')\n                except ValueError:\n                    try:\n                        raise TypeError('b')\n                    except TypeError:\n                        raise KeyError('c')\n            except BaseException as e:\n                while e is not None:\n                    seen.append(type(e).__name__)\n                    e = e.__context__\n            return seen\n        self.assertEqual(probe(), ['KeyError', 'TypeError', 'ValueError'])\n"
+  },
+  {
+   "name": "w2-exc-custom-hierarchy",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class AppError(Exception): pass\n        class NotFound(AppError): pass\n        def probe():\n            try:\n                raise NotFound('x')\n            except AppError as e:\n                return (type(e).__name__, isinstance(e, Exception),\n                        e.args, str(e))\n        self.assertEqual(probe(), ('NotFound', True, ('x',), 'x'))\n"
+  },
+  {
+   "name": "w2-exc-exception-str-repr",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        e = RuntimeError('msg')\n        self.assertEqual(str(e), 'msg')\n        self.assertEqual(repr(e), \"RuntimeError('msg')\")\n        self.assertEqual(e.__class__.__name__, 'RuntimeError')\n        self.assertEqual(isinstance(e, Exception), True)\n"
+  },
+  {
+   "name": "w2-exc-multi-except-first-match",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe(kind):\n            try:\n                if kind == 'v': raise ValueError('vv')\n                if kind == 't': raise TypeError('tt')\n                return 'none'\n            except (TypeError, ValueError) as e:\n                return (type(e).__name__, str(e))\n        self.assertEqual(probe('v'), ('ValueError', 'vv'))\n        self.assertEqual(probe('t'), ('TypeError', 'tt'))\n        self.assertEqual(probe('other'), 'none')\n"
+  },
+  {
+   "name": "w2-exc-finally-with-return-order",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        log = []\n        def f():\n            try:\n                log.append('try')\n                return 'from-try'\n            finally:\n                log.append('finally')\n        res = f()\n        self.assertEqual(res, 'from-try')\n        self.assertEqual(log, ['try', 'finally'])\n"
+  },
+  {
+   "name": "w2-exc-else-clause",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def f(x):\n            out = []\n            try:\n                out.append('try')\n                if x:\n                    raise ValueError('e')\n            except ValueError as e:\n                out.append('except:' + str(e))\n            else:\n                out.append('else')\n            finally:\n                out.append('finally')\n            return out\n        self.assertEqual(f(True), ['try', 'except:e', 'finally'])\n        self.assertEqual(f(False), ['try', 'else', 'finally'])\n"
+  },
+  {
+   "name": "w2-exc-stopiteration-vs-runtime",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def gen(): yield 1\n        g = gen()\n        next(g)\n        def probe():\n            try:\n                next(g)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('StopIteration', ''))\n"
+  },
+  {
+   "name": "w2-exc-assert-message",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                assert 1 == 2, 'custom assert msg'\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('AssertionError', 'custom assert msg'))\n"
+  },
+  {
+   "name": "w2-exc-import-error-shape",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                raise ImportError('nope mod')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ImportError', 'nope mod'))\n"
+  },
+  {
+   "name": "w2-desc-str-center-justify",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'mid'\n        self.assertEqual(s.center(9, '*'), '***mid***')\n        self.assertEqual(s.ljust(7, '<'), 'mid<<<<')\n        self.assertEqual(s.rjust(7, '>'), '>>>>mid')\n        self.assertEqual(s.zfill(8), '00000mid')\n"
+  },
+  {
+   "name": "w2-seq-concat-repeat",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1] * 3\n        b = (1,) * 2 + (2,)\n        c = 'ab' * 2\n        self.assertEqual(a, [1, 1, 1])\n        self.assertEqual(b, (1, 1, 2))\n        self.assertEqual(c, 'abab')\n        self.assertEqual(len(a + a), 6)\n        self.assertEqual([] * 5, [])\n        self.assertEqual('' * 100 == '', True)\n"
+  },
+  {
+   "name": "w2-desc-list-pop-empty",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                [].pop()\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('IndexError', 'pop from empty list'))\n"
+  },
+  {
+   "name": "w2-desc-list-remove-missing",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                [].remove(5)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('ValueError', 'list.remove(x): x not in list'))\n"
+  },
+  {
+   "name": "w2-desc-dict-pop-missing",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                {}.pop('k')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('KeyError', \"'k'\"))\n"
+  },
+  {
+   "name": "w2-desc-set-add-hashable",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                set().add([])\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', \"cannot use 'list' as a set element (unhashable type: 'list')\"))\n"
+  },
+  {
+   "name": "w2-desc-str-split-wrong-kw",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                'a,b'.split(maxsplit='x')\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', \"'str' object cannot be interpreted as an integer\"))\n"
+  },
+  {
+   "name": "w2-desc-bytes-join-nonbytes",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                b','.join([1, 2])\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'sequence item 0: expected a bytes-like object, int found'))\n"
+  },
+  {
+   "name": "w2-desc-tuple-count-wrong",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                (1,).count()\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'tuple.count() takes exactly one argument (0 given)'))\n"
+  },
+  {
+   "name": "w2-desc-int-bit-length-arg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                (5).bit_length(1)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'int.bit_length() takes no arguments (1 given)'))\n"
+  },
+  {
+   "name": "w2-desc-float-is-integer-arg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                abs()\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'abs() takes exactly one argument (0 given)'))\n"
+  },
+  {
+   "name": "w2-desc-sorted-kwonly-key-reverse",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        data = ['bb', 'a', 'ccc']\n        self.assertEqual(sorted(data, key=len), ['a', 'bb', 'ccc'])\n        self.assertEqual(sorted(data, reverse=True), ['ccc', 'bb', 'a'])\n        self.assertEqual(sorted(data, key=len, reverse=True), ['ccc', 'bb', 'a'])\n        self.assertEqual(sorted(data), ['a', 'bb', 'ccc'])\n"
+  },
+  {
+   "name": "w2-desc-print-kwonly-sep-end",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        import io\n        buf = io.StringIO()\n        print('x', 'y', sep='-', end='!\\n', file=buf)\n        out = buf.getvalue()\n        self.assertEqual(out, 'x-y!\\n')\n"
+  },
+  {
+   "name": "w2-desc-dict-get-default-positional",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {'a': 1}\n        self.assertEqual(d.get('a'), 1)\n        self.assertEqual(d.get('zz'), None)\n        self.assertEqual(d.get('zz', 99), 99)\n        self.assertEqual(d.setdefault('b', 2), 2)\n        self.assertEqual(d, {'a': 1, 'b': 2})\n"
+  },
+  {
+   "name": "w2-desc-str-methods-optional-args",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        s = 'Hello World'\n        self.assertEqual(s.lower(), 'hello world')\n        self.assertEqual(s.replace('l', 'L'), 'HeLLo WorLd')\n        self.assertEqual(s.replace('l', 'L', 2), 'HeLLo World')\n        self.assertEqual(s.split(), ['Hello', 'World'])\n        self.assertEqual(s.split('o'), ['Hell', ' W', 'rld'])\n        self.assertEqual(s.split('o', 1), ['Hell', ' World'])\n        self.assertEqual(s.startswith('He'), True)\n        self.assertEqual(s.startswith('e', 1), True)\n        self.assertEqual(s.find('o'), 4)\n        self.assertEqual(s.find('o', 5), 7)\n        self.assertEqual(s.rfind('o'), 7)\n"
+  },
+  {
+   "name": "w2-desc-range-ctor-arity",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                range()\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'range expected at least 1 argument, got 0'))\n        self.assertEqual(list(range(3)), [0, 1, 2])\n        self.assertEqual(list(range(1, 4)), [1, 2, 3])\n        self.assertEqual(list(range(10, 0, -3)), [10, 7, 4, 1])\n        self.assertEqual(len(range(0, 10, 3)), 4)\n"
+  },
+  {
+   "name": "w2-desc-zip-strict-kwonly",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [1, 2, 3]\n        b = [4, 5]\n        self.assertEqual(list(zip(a, b)), [(1, 4), (2, 5)])\n        self.assertEqual([p for p in zip(a, b)], [(1, 4), (2, 5)])\n"
+  },
+  {
+   "name": "w2-desc-enumerate-start",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        xs = ['a', 'b']\n        self.assertEqual(list(enumerate(xs)), [(0, 'a'), (1, 'b')])\n        self.assertEqual(list(enumerate(xs, 10)), [(10, 'a'), (11, 'b')])\n        self.assertEqual(list(enumerate(xs, start=5)), [(5, 'a'), (6, 'b')])\n"
+  },
+  {
+   "name": "w2-desc-min-max-key-default",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        words = ['pear', 'fig']\n        self.assertEqual(min(words, key=len), 'fig')\n        self.assertEqual(max(words, key=len), 'pear')\n        self.assertEqual(max([], default='empty'), 'empty')\n        self.assertEqual(min([], default=0), 0)\n        self.assertEqual(max(words), 'pear')\n        self.assertEqual(min(words), 'fig')\n"
+  },
+  {
+   "name": "w2-desc-hasattr-getattr-3arg",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        class O(): x = 5\n        self.assertEqual(hasattr(O, 'x'), True)\n        self.assertEqual(hasattr(O, 'zz'), False)\n        self.assertEqual(getattr(O, 'x'), 5)\n        self.assertEqual(getattr(O, 'zz', 'dflt'), 'dflt')\n        self.assertEqual(getattr(O(), 'x'), 5)\n"
+  },
+  {
+   "name": "w2-desc-isinstance-arity",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                isinstance()\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'isinstance expected 2 arguments, got 0'))\n        self.assertEqual(isinstance(1, int), True)\n        self.assertEqual(isinstance(1, (str, int)), True)\n        self.assertEqual(isinstance(True, int), True)\n"
+  },
+  {
+   "name": "w2-desc-pow-mod-forms",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        def probe():\n            try:\n                pow(2, 3, 4, 5)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(probe(), ('TypeError', 'pow() takes at most 3 arguments (4 given)'))\n        self.assertEqual(pow(2, 10), 1024)\n        self.assertEqual(pow(2, 10, 100), 24)\n        self.assertEqual(pow(2, -1, 7), 4)\n        self.assertEqual(2 ** 10, 1024)\n"
+  },
+  {
+   "name": "w2-desc-round-ndigits",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        x = 3.14159\n        self.assertEqual(round(x), 3)\n        self.assertEqual(round(x, 2), 3.14)\n        self.assertEqual(round(x, ndigits=3), 3.142)\n        self.assertEqual(round(2.5), 2)\n        self.assertEqual(round(3.5), 4)\n        self.assertEqual(round(-0.5), 0)\n        self.assertEqual(round(1234, -2), 1200)\n"
+  },
+  {
+   "name": "w2-desc-divmod-signs",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = divmod(7, 3)\n        b = divmod(-7, 3)\n        c = divmod(7, -3)\n        self.assertEqual(a, (2, 1))\n        self.assertEqual(b, (-3, 2))\n        self.assertEqual(c, (-3, -2))\n        self.assertEqual(divmod(7.5, 2), (3.0, 1.5))\n"
+  },
+  {
+   "name": "w2-desc-sum-start",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        xs = [1, 2, 3]\n        self.assertEqual(sum(xs), 6)\n        self.assertEqual(sum(xs, 10), 16)\n        self.assertEqual(sum([], 0), 0)\n        self.assertEqual(sum([[1], [2]], []), [1, 2])\n"
+  },
+  {
+   "name": "w2-desc-any-all-empty",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        xs = [True, False]\n        self.assertEqual(any(xs), True)\n        self.assertEqual(all(xs), False)\n        self.assertEqual(any([]), False)\n        self.assertEqual(all([]), True)\n"
+  },
+  {
+   "name": "w2-desc-list-sort-key-reverse-inplace",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [3, 1, 2]\n        r1 = a.sort()\n        snap = list(a)\n        a.sort(reverse=True)\n        snap2 = list(a)\n        b = ['bbb', 'a']\n        b.sort(key=len)\n        self.assertEqual(r1, None)\n        self.assertEqual(snap, [1, 2, 3])\n        self.assertEqual(snap2, [3, 2, 1])\n        self.assertEqual(b, ['a', 'bbb'])\n"
+  },
+  {
+   "name": "w2-desc-str-format-method-kwargs",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        tpl = '{x}-{y}'\n        self.assertEqual(tpl.format(x=1, y=2), '1-2')\n        self.assertEqual('{0}{0}'.format('ab'), 'abab')\n        self.assertEqual('{}{}'.format(1, 2), '12')\n"
+  },
+  {
+   "name": "w2-desc-file-write-return",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        import io\n        f = io.StringIO()\n        n = f.write('hello')\n        self.assertEqual(n, 5)\n        self.assertEqual(f.getvalue(), 'hello')\n"
+  },
+  {
+   "name": "w2-desc-int-from-str-bases",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        v1 = int('ff', 16)\n        v2 = int('0x10', 16)\n        v3 = int('0b101', 2)\n        v4 = int('11', 0)\n        def probe():\n            try:\n                int('12', 2)\n            except BaseException as e:\n                return (type(e).__name__, str(e))\n            return ('NO-RAISE', '')\n        self.assertEqual(v1, 255)\n        self.assertEqual(v2, 16)\n        self.assertEqual(v3, 5)\n        self.assertEqual(v4, 11)\n        self.assertEqual(probe(), ('ValueError', \"invalid literal for int() with base 2: '12'\"))\n"
+  },
+  {
+   "name": "w2-rich-list-of-dicts",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        a = [{'x': 1}, {'y': 2}]\n        b = [{'x': 1}, {'y': 2}]\n        self.assertEqual(a == b, True)\n        self.assertEqual(a != b, False)\n"
+  },
+  {
+   "name": "w2-rich-empty-containers-xtype",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        vals = ([], (), '', b'', {}, set())\n        self.assertEqual(all(v == v for v in vals), True)\n        self.assertEqual(len({type(v) for v in vals}), 6)\n        self.assertEqual([vals[i] == vals[j] for i in range(6) for j in range(6) if i < j].count(True), 0)\n"
+  },
+  {
+   "name": "w2-fmt-nested-repr-containers",
+   "src": "class T(unittest.TestCase):\n    def test_case(self):\n        d = {(1, 2): [b'a', None]}\n        self.assertEqual(repr(d), \"{(1, 2): [b'a', None]}\")\n        self.assertEqual(repr(d) == repr(eval(repr(d))), True)\n"
   }
  ]
 }
