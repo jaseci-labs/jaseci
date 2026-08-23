@@ -67,7 +67,7 @@ Objects/_lifted/rangeobject_core.jac). PyRange slots call these directly.
 
 | Slot | Behavior |
 |---|---|
-| ctor | Intercept exact builtin `range` in `py_call_host` via `_jac_builtin_base_name(fn.val) == "range"` - same pattern as the landed list() fix (4beb645eb). Args validated with `to_index` (int subclasses like `_NamedIntConstant` unwrap); ANY non-int arg falls through to the host call so error messages stay byte-exact CPython ("range() integer end argument expected..."). Arity 1/2/3; arity 0 or >3 falls through to host for the exact TypeError. |
+| ctor | Intercept the EXACT host builtin `range` in `py_call_host`. Detection: dedicated ::py:: shim `_jac_is_range_type(v): return v is range` (mirrors `_jac_is_object_type`/`_jac_is_type_type`). NOT `_jac_builtin_base_name(...)` as first drafted - "range" is not in `_JAC_BUILTIN_BASES`, and adding it there leaks into Track B subclass machinery (PyHostProxy.**new** resolution ~:1017, native-base/isinstance paths ~:4212/:4241/:4288). Args validated with `to_index` (int subclasses like `_NamedIntConstant` unwrap); ANY non-int arg falls through to the host call so error messages stay byte-exact CPython ("range() integer end argument expected..."). Arity 1/2/3; arity 0 or >3 falls through to host for the exact TypeError. |
 | tp_iter | fresh PyRangeIter cursor |
 | len | `get_len_of_range(start, stop, step)` - O(1) |
 | contains | int fast path: `range_contains_longs`; non-int operand: item-by-item comparison fallback (CPython semantics: `1.0 in range(2)` is True, `'a' in range(2)` is False) |
