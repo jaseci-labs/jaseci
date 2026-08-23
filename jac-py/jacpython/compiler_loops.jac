@@ -14,10 +14,13 @@ import from opcode_meta {
     OP_NOP,
     OP_NOT_TAKEN,
     OP_POP_ITER,
+    OP_POP_JUMP_IF_FALSE,
+    OP_POP_JUMP_IF_TRUE,
     OP_POP_TOP,
     OP_RETURN_VALUE,
     has_target,
     is_scope_exit_opcode,
+    is_unconditional_jump_opcode,
 }
 import from ast_nodes {
     AsyncFor,
@@ -36,15 +39,18 @@ import from compiler_ir {
     loc,
     loop_frame,
     mk_instr,
+    no_loc,
     stmt_cont,
 }
 import from objects { py_none }
 import from flowgraph { MAX_COPY_SIZE, copy_cinstr }
 import from compiler_emit {
     codegen_busy,
+    codegen_fail,
     emit_anext_send_loop_footer,
     emit_anext_send_loop_header,
     emit_branch_if_test_false,
+    emit_branch_if_test_true,
     visit_expr,
     visit_test_expr,
 }
@@ -70,6 +76,84 @@ import from compiler_exc { emit_anext_send_except_regions }
 # once, then finish_break_sites copies it over each break jump when CPython
 # would have.
 
+# A loop compiled with a None tail (nested-loop context) cannot finish its
+# break sites inline: its shared continuation is appended to by the CALLER
+# after this visitor returns (the enclosing loop's back edge, following
+# statements, or the driver epilogue). Those loops record a finish job; the
+# enclosing visitor flushes the queue once the continuation block can receive
+# no further instructions. Flushing drives the SAME finish_break_sites
+# mechanism as the synchronous tail-present path -- there is one splicer, and
+# deferral only changes WHEN it observes the finalized continuation.
+obj pending_break_finish {
+    has frame: loop_frame,
+        join: basicblock,
+        allow_nop: bool,
+        # While-family nested loops only: the conditional that guards the loop
+        # body targets the continuation as its FALSE edge. When the finalized
+        # continuation turns out artificial, CPython's passes thread that edge
+        # through it (conditional reversal): jump-true to the body, with a
+        # copy of the continuation inlined after the test.
+        test_blk: basicblock | None = None,
+        branch_idx: int = -1,
+        body_hdr: basicblock | None = None;
+}
+
+glob pending_break_finishes: list[pending_break_finish] = [];
+
+def push_pending_break_finish(frame: loop_frame, join: basicblock, allow_nop: bool) {
+    pending_break_finishes.append(
+        pending_break_finish(frame=frame, join=join, allow_nop=allow_nop)
+    );
+}
+
+# Does control fall out of the block (CPython BB_HAS_FALLTHROUGH)?
+def block_is_terminated(b: basicblock) -> bool {
+    n = len(b.instrs);
+    if n == 0 {
+        return False;
+    }
+    op = b.instrs[n - 1].opcode;
+    return is_unconditional_jump_opcode(op) or is_scope_exit_opcode(op);
+}
+
+# Finish every job recorded since `from_idx`. Called only at points where all
+# continuation blocks touched by those jobs are final: right after the owning
+# visitor emitted its own trailing instructions (back edge) into the current
+# block. Jobs are consumed even when neither inline predicate fires -- keeping
+# the plain jump then matches CPython, whose pass simply does not rewrite.
+def flush_pending_break_finishes(g: cfg_builder, from_idx: int) {
+    while from_idx < len(pending_break_finishes) {
+        job = pending_break_finishes[from_idx];
+        pending_break_finishes.pop(from_idx);
+        if not block_is_terminated(job.join) {
+            # Falling-through continuations are finalized by the unit drivers
+            # (epilogue synthesis needs tail context this lane does not have);
+            # leaving the plain jump matches today's verified shapes.
+            continue;
+        }
+        finish_break_sites(g, job.frame, job.join, no_loc(), True, job.allow_nop);
+        if job.test_blk is not None and job.branch_idx >= 0
+            and job.body_hdr is not None
+            and join_artificial_tail(job.join) {
+            # Thread the test's false edge through the artificial anchor
+            # exactly as CPython's optimizer does: reverse the conditional
+            # onto the body and inline the anchor copy after the test (the
+            # NOT_TAKEN after the forward conditional is added later).
+            br = job.test_blk.instrs[job.branch_idx];
+            if br.opcode == OP_POP_JUMP_IF_FALSE {
+                br.opcode = OP_POP_JUMP_IF_TRUE;
+                hdr = job.body_hdr as basicblock;
+                br.target_block = hdr.id;
+                ci = 0;
+                while ci < len(job.join.instrs) {
+                    job.test_blk.instrs.append(copy_cinstr(job.join.instrs[ci]));
+                    ci = ci + 1;
+                }
+            }
+        }
+    }
+}
+
 # Mirror inline_small_exit_blocks' target test for the continuation block.
 # The driver-appended unit epilogue (LOAD_CONST None; RETURN_VALUE) counts
 # toward MAX_COPY_SIZE when the tail itself falls through.
@@ -93,6 +177,29 @@ def join_inlinable(join: basicblock, tail_terminated: bool) -> bool {
         if has_target(join.instrs[ii].opcode) {
             # A branch inside the continuation means CPython's block would have
             # been split before the scope exit; no duplication happened there.
+            return False;
+        }
+        ii = ii + 1;
+    }
+    return True;
+}
+
+# Mirror inline_small_or_no_lineno_blocks' second target test (flowgraph.c):
+# a continuation consisting solely of artificial (line-less) instructions that
+# does not fall through is appended to every jumping predecessor regardless of
+# size -- this is the shape nested-loop continuations take (the enclosing loop's
+# back edge, END_FOR/POP_ITER cleanups). No MAX_COPY_SIZE cap applies there.
+def join_artificial_tail(join: basicblock) -> bool {
+    n = len(join.instrs);
+    if n == 0 {
+        return False;
+    }
+    if not block_is_terminated(join) {
+        return False;
+    }
+    ii = 0;
+    while ii < n {
+        if join.instrs[ii].loc.lineno >= 0 {
             return False;
         }
         ii = ii + 1;
@@ -126,19 +233,78 @@ def finish_break_sites(
     tail_terminated: bool,
     allow_nop: bool
 ) {
-    if not join_inlinable(join, tail_terminated) {
+    # CPython tries the small scope-exit copy first, then the artificial
+    # no-lineno copy (optimize_cfg runs inline_small_or_no_lineno_blocks).
+    copies: list[cinstr] | None = None;
+    if join_inlinable(join, tail_terminated) {
+        copies = [];
+        ci = 0;
+        while ci < len(join.instrs) {
+            copies.append(copy_cinstr(join.instrs[ci]));
+            ci = ci + 1;
+        }
+        if not tail_terminated {
+            none_idx = g.u.add_const(py_none());
+            copies.append(mk_instr(OP_LOAD_CONST, none_idx, tail_loc));
+            copies.append(mk_instr(OP_RETURN_VALUE, 0, tail_loc));
+        }
+    } elif join_artificial_tail(join) {
+        copies = [];
+        ci = 0;
+        while ci < len(join.instrs) {
+            copies.append(copy_cinstr(join.instrs[ci]));
+            ci = ci + 1;
+        }
+    }
+    if copies is None or len(copies) == 0 {
         return;
     }
-    copies: list[cinstr] = [];
-    ci = 0;
-    while ci < len(join.instrs) {
-        copies.append(copy_cinstr(join.instrs[ci]));
-        ci = ci + 1;
-    }
-    if not tail_terminated {
-        none_idx = g.u.add_const(py_none());
-        copies.append(mk_instr(OP_LOAD_CONST, none_idx, tail_loc));
-        copies.append(mk_instr(OP_RETURN_VALUE, 0, tail_loc));
+    # Exit-per-block invariant (mirrors CPython flowgraph.c structure):
+    # cfg_builder_maybe_start_new_block starts a fresh block after any
+    # terminator, so a jump is always the LAST instruction of its block and
+    # inline_small_or_no_lineno_blocks only ever rewrites
+    # basicblock_last_instr -- one exit per block, structurally. Our break
+    # sites record the index of their jump, which is last-instruction at
+    # record time and stays last because visit_stmts halts at the
+    # unconditional terminator. Several sites may still share a block; the
+    # splice below therefore runs in DESCENDING index order, which keeps
+    # lower indices valid while higher ones are rewritten. Enforce both
+    # properties loudly instead of trusting callers.
+    prev_blk_id = -1;
+    prev_idx = -1;
+    si = len(frame.break_sites) - 1;
+    while si >= 0 {
+        site = frame.break_sites[si];
+        if site.instr_idx < 0 or site.instr_idx >= len(site.blk.instrs) {
+            codegen_fail(
+                g,
+                "SystemError",
+                "break site index out of range in finish_break_sites"
+            );
+            return;
+        }
+        if not is_unconditional_jump_opcode(site.blk.instrs[site.instr_idx].opcode) {
+            codegen_fail(
+                g,
+                "SystemError",
+                "break site does not point at its recorded jump"
+            );
+            return;
+        }
+        if site.blk.id == prev_blk_id and site.instr_idx >= prev_idx {
+            # Same block as the site spliced just before us (higher index);
+            # ours must sit strictly below it or the rebuild above would
+            # drop instructions between the two exits.
+            codegen_fail(
+                g,
+                "SystemError",
+                "break sites in one block not in descending order"
+            );
+            return;
+        }
+        prev_blk_id = site.blk.id;
+        prev_idx = site.instr_idx;
+        si = si - 1;
     }
     first_loc = copies[0].loc;
     si = len(frame.break_sites) - 1;
@@ -358,6 +524,7 @@ def visit_while(
             g.push_loop(head, exit_blk, False);
         }
         emit_branch_if_test_false(g, kind, exit_blk.id, test_loc);
+        body_snap = len(pending_break_finishes);
         body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
@@ -367,14 +534,19 @@ def visit_while(
             g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
         }
         g.pop_loop();
+        # The back edge above is the last write into any nested loop's
+        # continuation; finish its deferred break sites now.
+        flush_pending_break_finishes(g, body_snap);
         tail_more = tail is not None and exec_tail_emits_code(tail, tail_idx);
         g.use(exit_blk);
         else_terminated = False;
         if len(w.orelse) > 0 {
+            else_snap = len(pending_break_finishes);
             else_cont = visit_stmts(g, w.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
+            flush_pending_break_finishes(g, else_snap);
             else_terminated = else_cont.terminated;
         }
         if else_terminated and not has_break {
@@ -397,7 +569,10 @@ def visit_while(
         }
         g.use(join);
         if tail is None {
-            # Break edges target join; the caller's continuation lands here too.
+            # Nested-loop context: the caller appends the continuation into
+            # `join` after this returns. Defer finishing until the enclosing
+            # visitor finalizes the block.
+            push_pending_break_finish(break_frame, join, True);
             return stmt_cont(loc=wloc);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
@@ -420,26 +595,54 @@ def visit_while(
         );
     }
     if len(g.loop_stack) > 0 {
-        after_body = g.new_block();
+        # CPython lowers a nested trailing loop with its anchor as a shared
+        # continuation: the enclosing loop's back edge is appended into it
+        # once this visitor returns, and the optimizer threads BOTH the break
+        # edges AND the test's false edge through that artificial block
+        # (conditional reversal: jump-true to the body, continuation copy
+        # inlined after the test; normalize_jumps adds NOT_TAKEN). body_hdr
+        # reserves the body-start position the reversed conditional targets;
+        # it stays an unreferenced (zero-byte) boundary when the continuation
+        # ends up line-bearing and no threading happens.
+        parent = g.current_loop();
+        body_hdr = g.new_block();
+        after_body = g.new_deferred_block();
         emit_branch_if_test_false(g, kind, after_body.id, test_loc);
+        test_blk = g.cur;
+        branch_idx = len(g.cur.instrs) - 1;
         if has_break {
-            break_blk = g.new_block();
-            g.push_loop(head, break_blk, True);
+            g.push_loop(head, after_body, True);
+            break_frame = g.current_loop();
         } else {
             g.push_loop(head, after_body, False);
         }
+        body_snap = len(pending_break_finishes);
+        g.use(body_hdr);
         body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
             return stmt_cont(loc=body_cont.loc);
         }
         if not body_cont.terminated {
-            g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
+            # Artificial like CPython's NO_LOCATION back edge: the copied jump
+            # on each break edge must carry no line, and the all-artificial
+            # predicate below keys off it.
+            g.emit_jump(OP_JUMP_BACKWARD, head.id, no_loc());
         }
         g.pop_loop();
-        if has_break {
-            g.use(break_blk);
-            g.emit_jump(OP_JUMP_BACKWARD, after_body.id, wloc);
+        flush_pending_break_finishes(g, body_snap);
+        if has_break and parent is not None {
+            # Our own continuation gains the caller's back edge after we
+            # return; defer like the tail-is-None path above.
+            job = pending_break_finish(
+                frame=break_frame,
+                join=after_body,
+                allow_nop=True,
+                test_blk=test_blk,
+                branch_idx=branch_idx,
+                body_hdr=body_hdr
+            );
+            pending_break_finishes.append(job);
         }
         g.use(after_body);
         return stmt_cont(loc=wloc, terminated=False);
@@ -447,6 +650,7 @@ def visit_while(
     emit_branch_if_test_false(g, kind, 0, test_loc);
     pop_false_ins = g.cur.instrs[len(g.cur.instrs) - 1];
     g.push_loop(head, head, False);
+    body_snap = len(pending_break_finishes);
     body_cont = visit_stmts(g, w.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         g.pop_loop();
@@ -456,14 +660,17 @@ def visit_while(
         g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
     }
     g.pop_loop();
+    flush_pending_break_finishes(g, body_snap);
     exit_blk = g.new_block();
     pop_false_ins.target_block = exit_blk.id;
     g.use(exit_blk);
     if len(w.orelse) > 0 {
+        else_snap = len(pending_break_finishes);
         else_cont = visit_stmts(g, w.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
+        flush_pending_break_finishes(g, else_snap);
         emit_module_return(g, else_cont.loc);
     } else {
         emit_module_return(g, test_loc);
@@ -508,6 +715,7 @@ def visit_for(
             g.pop_loop();
             return stmt_cont(loc=store.loc);
         }
+        body_snap = len(pending_break_finishes);
         body_cont = visit_stmts(g, f.body, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             g.pop_loop();
@@ -517,16 +725,21 @@ def visit_for(
             g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
         }
         g.pop_loop();
+        # The back edge above is the last write into any nested loop's
+        # continuation; finish its deferred break sites now.
+        flush_pending_break_finishes(g, body_snap);
         tail_more = tail is not None and exec_tail_emits_code(tail, tail_idx);
         g.use(after);
         g.emit_op(OP_END_FOR, 0, iter_loc);
         g.emit_op(OP_POP_ITER, 0, iter_loc);
         else_terminated = False;
         if len(f.orelse) > 0 {
+            else_snap = len(pending_break_finishes);
             else_cont = visit_stmts(g, f.orelse, 0, False, None, 0, None, ann_ctx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
+            flush_pending_break_finishes(g, else_snap);
             else_terminated = else_cont.terminated;
         }
         if else_terminated and not has_break {
@@ -549,7 +762,10 @@ def visit_for(
         }
         g.use(join);
         if tail is None {
-            # Break edges target join; the caller's continuation lands here too.
+            # Nested-loop context: the caller appends the continuation into
+            # `join` after this returns. Defer finishing until the enclosing
+            # visitor finalizes the block.
+            push_pending_break_finish(break_frame, join, False);
             return stmt_cont(loc=floc);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more, ann_ctx);
@@ -568,16 +784,67 @@ def visit_for(
             loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
         );
     }
-    break_blk = after;
-    needs_break_stub = has_break;
-    if needs_break_stub {
-        break_blk = g.new_block();
+    if len(g.loop_stack) > 0 {
+        # Nested trailing loop: CPython emits the exhaustion target as the
+        # END_FOR/POP_ITER cleanup, then continues IN THE SAME BLOCK STREAM into
+        # the shared continuation (`end`, USE_LABEL after the cleanup) which
+        # receives the enclosing loop's back edge once this visitor returns.
+        # Break edges target that continuation; inline_small_or_no_lineno_blocks
+        # then copies its artificial content over each break jump.
+        after = g.new_deferred_block();
+        join = after;
+        if has_break {
+            join = g.new_deferred_block();
+            g.push_loop(loop_hdr, join, True);
+            break_frame = g.current_loop();
+            break_frame.pops_iter = True;
+        } else {
+            g.push_loop(loop_hdr, after, False);
+        }
+        g.emit_jump(OP_FOR_ITER, after.id, iter_loc);
+        store = visit_store_target_tos(g, f.target);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=store.loc);
+        }
+        body_snap = len(pending_break_finishes);
+        body_cont = visit_stmts(g, f.body, 0, False, None, 0, None, ann_ctx);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not body_cont.terminated {
+            # Artificial like CPython's NO_LOCATION back edge: the copied jump
+            # on each break edge must carry no line, and the all-artificial
+            # predicate in finish_break_sites keys off it.
+            g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, no_loc());
+        }
+        g.pop_loop();
+        flush_pending_break_finishes(g, body_snap);
+        g.use(after);
+        g.emit_op(OP_END_FOR, 0, iter_loc);
+        g.emit_op(OP_POP_ITER, 0, iter_loc);
+        if has_break {
+            # Our own continuation gains the caller's back edge after we
+            # return; defer like the tail-is-None path above.
+            push_pending_break_finish(break_frame, join, False);
+            g.use(join);
+        }
+        return stmt_cont(loc=floc);
     }
-    g.push_loop(loop_hdr, break_blk, needs_break_stub);
-    if needs_break_stub {
-        # Break sites emit the iterator POP_TOP themselves (CPython unwind).
-        f_frame = g.current_loop();
-        f_frame.pops_iter = True;
+    # Module/unit-final loop (no enclosing loop, nothing follows): same shared
+    # continuation shape as CPython. The unit driver appends its implicit
+    # return into the continuation for the natural path; finish_break_sites
+    # synthesizes that epilogue over each break edge now.
+    after = g.new_deferred_block();
+    if has_break {
+        join = g.new_deferred_block();
+        g.push_loop(loop_hdr, join, True);
+        break_frame = g.current_loop();
+        break_frame.pops_iter = True;
+    } else {
+        g.push_loop(loop_hdr, after, False);
+        join = after;
     }
     g.emit_jump(OP_FOR_ITER, after.id, iter_loc);
     store = visit_store_target_tos(g, f.target);
@@ -585,32 +852,39 @@ def visit_for(
         g.pop_loop();
         return stmt_cont(loc=store.loc);
     }
+    body_snap = len(pending_break_finishes);
     body_cont = visit_stmts(g, f.body, 0, False, None, 0, None, ann_ctx);
     if codegen_busy(g) {
         g.pop_loop();
         return stmt_cont(loc=body_cont.loc);
     }
     if not body_cont.terminated {
-        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, no_loc());
     }
     g.pop_loop();
-    if needs_break_stub {
-        g.use(break_blk);
-        emit_module_return(g, iter_loc);
-    }
+    flush_pending_break_finishes(g, body_snap);
     g.use(after);
     g.emit_op(OP_END_FOR, 0, iter_loc);
     g.emit_op(OP_POP_ITER, 0, iter_loc);
+    else_terminated = False;
     if len(f.orelse) > 0 {
+        else_snap = len(pending_break_finishes);
         else_cont = visit_stmts(g, f.orelse, 0, False, None, 0, None, ann_ctx);
         if codegen_busy(g) {
             return stmt_cont(loc=else_cont.loc);
         }
-        emit_module_return(g, else_cont.loc);
-    } else {
-        emit_module_return(g, iter_loc);
+        flush_pending_break_finishes(g, else_snap);
+        else_terminated = else_cont.terminated;
     }
-    return stmt_cont(loc=floc, terminated=True);
+    if has_break {
+        g.use(join);
+        finish_break_sites(g, break_frame, join, floc, else_terminated, False);
+        return stmt_cont(loc=floc, terminated=else_terminated);
+    }
+    if else_terminated {
+        return stmt_cont(loc=floc, terminated=True);
+    }
+    return stmt_cont(loc=floc, terminated=False);
 }
 
 
