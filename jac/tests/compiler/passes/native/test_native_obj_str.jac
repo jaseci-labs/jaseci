@@ -61,13 +61,7 @@ def capture_stdout(fn: object) -> bytes {
         data = os.read(r, 65536);
         os.close(r);
     }
-    # Sealed-binary cold-start chatter can land on inherited descriptors;
-    # drop those lines so tests assert on program output only.
-    return b"".join(
-        line + b"\n"
-        for line in data.split(b"\n")
-        if line and not line.startswith(b"jac:")
-    );
+    return data;
 }
 
 # --- str(obj) ---
