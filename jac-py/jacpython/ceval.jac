@@ -145,8 +145,33 @@ def _jac_builtin_base_name(host_val) -> str:
 
 def _jac_construct_builtin(name, raw_args):
     import builtins
-    t = getattr(builtins, name)
+    # Unknown names (a user Exception subclass) must degrade gracefully -- the
+    # callers fall back to a base type instead of crashing the boundary.
+    t = getattr(builtins, name, None)
+    if t is None:
+        return (False, "AttributeError", "module 'builtins' has no attribute '" + name + "'")
     try:
+        if raw_args:
+            return (True, t(*raw_args))
+        return (True, t())
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
+# Dynamic host Exception subclass for a USER exception name, cached per name so
+# repeated crossings keep one host class (stable repr/isinstance).
+_JAC_USER_EXC_TYPES = {}
+def _jac_make_exception_type(name):
+    import builtins
+    t = _JAC_USER_EXC_TYPES.get(name)
+    if t is None:
+        t = type(name, (getattr(builtins, "Exception"),), {})
+        _JAC_USER_EXC_TYPES[name] = t
+    return t
+
+def _jac_instantiate_exception_type(name, raw_args):
+    # Instantiate a dynamic host Exception subclass by name; never raises.
+    try:
+        t = _jac_make_exception_type(name)
         if raw_args:
             return (True, t(*raw_args))
         return (True, t())
@@ -202,10 +227,15 @@ def _jac_is_exception_type(host_val):
     return isinstance(host_val, type) and issubclass(host_val, BaseException)
 
 def _jac_host_exception_instance(raw):
-  # True with (type_name, message) when raw is a raised host BaseException instance.
+  # True with (type_name, message, args) when raw is a raised host BaseException
+  # instance. Args carries the FULL constructor tuple (BaseException.args) so a
+  # host-proxied exception raised through the VM keeps its arguments -- a single
+  # `message` string alone made repr(e.__cause__) lose args. getattr with a
+  # default cannot raise on a BaseException, so no guard is needed.
     if isinstance(raw, BaseException):
-        return (True, type(raw).__name__, str(raw))
-    return (False, "", "")
+        exc_args = [from_host(a) for a in getattr(raw, "args", ())]
+        return (True, type(raw).__name__, str(raw), exc_args)
+    return (False, "", "", [])
 
 def _jac_host_issubclass(host_cls, host_type) -> bool:
     try:
@@ -1477,6 +1507,14 @@ obj PyClass(PyObj) {
             }
         }
         instance = PyUserObj(t="instance", cls=self, attrs={}, base=boxed);
+        if class_is_exception(self) {
+            # CPython's BaseException_new records the constructor args on the
+            # instance BEFORE __init__ runs, so a user __init__ that never calls
+            # super().__init__ still leaves e.args == constructor args.
+            arg_items: list[PyObj] = [];
+            arg_items.extend(args);
+            instance.attrs["args"] = PyTuple(t="tuple", items=arg_items);
+        }
         if has_user_init {
             initialized = bind_attribute(init, instance).tp_call(args, kwargs);
             if initialized.t == "error" {
@@ -2202,9 +2240,15 @@ def to_host(value: PyObj) -> any {
 
         case PyUserObj():
             # A builtin subclass reaching the host boundary (len/print/format)
-            # presents as its boxed value; a plain user object has no host form.
+            # presents as its boxed value; an exception-derived user instance
+            # presents as a REAL host BaseException carrying its args -- so
+            # str(e)/print(e) match CPython instead of degrading to None. Any
+            # other plain user object has no host form.
             if value._has_base() {
                 return to_host(value._base_obj());
+            }
+            if class_is_exception(value.cls) {
+                return host_exception(user_exception_view(value));
             }
             return None;
 
@@ -2390,8 +2434,30 @@ def host_exception(exc: PyException) -> any {
     if bool(built[0]) {
         return built[1];
     }
+    # A user Exception subclass degrades to a dynamically minted host subclass
+    # of the SAME NAME -- str()/repr()/type() then read like CPython
+    # (repr(MyErr('m')) == "MyErr('m')") instead of collapsing to 'Exception'.
+    maker_result = _jac_instantiate_exception_type(exc.type_name, raw_args);
+    if bool(maker_result[0]) {
+        return maker_result[1];
+    }
     fallback = _jac_construct_builtin("Exception", raw_args);
     return fallback[1];
+}
+
+# BaseException attribute view of a USER exception instance: CPython records
+# args at construction time (BaseException_new) and its tp_str/tp_repr read
+# that slot, so a subclass without custom __str__/__repr__ presents exactly
+# like its builtin base. The wrapper borrows the class name + stored args.
+def user_exception_view(u: PyUserObj) -> PyException {
+    exc_args: list[PyObj] = [];
+    stored = u.attrs.get("args");
+    if isinstance(stored, PyTuple) {
+        exc_args.extend((stored as PyTuple).items);
+    }
+    return PyException(
+        t="exception", type_name=u.cls.name, message="", args=exc_args
+    );
 }
 
 # f-string / format machinery. Formatting is delegated to host CPython's
@@ -4223,16 +4289,17 @@ def py_raise_value(value: PyObj) -> PyObj {
     }
     # A raised user exception instance (class Exc(Exception); raise Exc()) surfaces
     # as a PyException tagged with the user class name, keeping the instance in
-    # `raw` so `except <UserClass>` can match it by MRO.
+    # `raw` so `except <UserClass>` can match it by MRO. The wrapper's args mirror
+    # the args the instance recorded at construction time (PyClass.tp_call stores
+    # them for exception-derived classes, matching CPython's BaseException_new),
+    # so str(e)/repr(e)/e.args on a caught user exception see real arguments.
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if class_is_exception(u.cls) {
-            return PyError(
-                t="error",
-                exception=PyException(
-                    t="exception", type_name=u.cls.name, message="", raw=value
-                )
-            );
+            view = user_exception_view(u);
+            # Keep the instance so `except <UserClass>` can match by MRO.
+            view.raw = value;
+            return PyError(t="error", exception=view);
         }
     }
     # A raised exception CLASS (raise Exc) auto-instantiates, then re-raises.
@@ -4261,6 +4328,7 @@ def py_raise_value(value: PyObj) -> PyObj {
                     t="exception",
                     type_name=str(inst[1]),
                     message=str(inst[2]),
+                    args=inst[3],
                     raw=value
                 )
             );
