@@ -1,4 +1,4 @@
-glob _PLACEHOLDER: set = {
+glob _PLACEHOLDER: set[str] = {
          "__linear_memory",
          "__indirect_function_table",
          "__stack_pointer",

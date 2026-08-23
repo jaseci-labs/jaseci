@@ -260,7 +260,7 @@ impl NaIRGenDicts._jacval_scalar_bits(value: ir.Value, payload_ty: any) -> tuple
     i64 = ir.IntType(64);
     _kind = self._tb_kind(payload_ty);
     if _kind == "enum" {
-        _kind = self._enum_value_kind(payload_ty);
+        _kind = "int";
     }
     if _kind == "bool" {
         _bv = value;

@@ -1238,7 +1238,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
     }
 }
 
-glob _FMT_KERNEL_IR_CACHE: dict = {};
+glob _FMT_KERNEL_IR_CACHE: dict[str, str] = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
     import from jaclang.jac0core.kernel_units {

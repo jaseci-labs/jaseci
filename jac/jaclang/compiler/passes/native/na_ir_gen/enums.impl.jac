@@ -42,7 +42,7 @@ impl NaIRGenEnums._ensure_enum_lowered(t: any) -> (ir.Type | None) {
         }
     }
     if class_form_enum_scalar(t) is not None {
-        return self._lower_type(enum_value_type_of(t));
+        return self._lower_type(convert_to_instance(enum_value_type_of(t)));
     }
     return ir.IntType(64);
 }

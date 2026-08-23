@@ -61,7 +61,7 @@ obj TsDecl {
         call_sig: (TsType | None) = None;
 }
 
-glob _PRIM_NAMES: frozenset = frozenset(
+glob _PRIM_NAMES: frozenset[str] = frozenset(
          {'string', 'number', 'boolean', 'object', 'symbol', 'bigint'}
      ),
      _ANY_NAMES: frozenset = frozenset({'any', 'unknown', 'this'}),

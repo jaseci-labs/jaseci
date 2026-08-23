@@ -5,7 +5,7 @@ import sys;
 import from pathlib { Path }
 import from jaclang.jac0core.ext_registry { MODULE_SUFFIXES, language_of }
 
-glob _project_root_cache: dict = {},
+glob _project_root_cache: dict[str, (str | None)] = {},
      _import_base_stack: list = [],
      COMPILER_PACKAGE: str = 'jaclang';
 

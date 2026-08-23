@@ -44,6 +44,7 @@ import from jaclang.jac0core.unitree {
     SpecialVarRef,
     SubTag,
     Token,
+    UnaryExpr,
     TupleVal,
     TypeAlias,
     UniNode,

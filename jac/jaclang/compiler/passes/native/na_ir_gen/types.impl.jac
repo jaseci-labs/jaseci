@@ -94,7 +94,7 @@ impl NaIRGenTypes._tb_elem(t: any, idx: int = 0) -> (any | None) {
         and isinstance(_base, ClassType)
         and _base._shared is not None
         and _base.is_instance()
-        and _base.is_builtin(["list", "set", "frozenset", "dict"])
+        and _base.is_builtin(["list", "set", "frozenset", "dict", "Sequence"])
         and idx < (2 if _view == "dict" else 1)
     ) {
         return self._tb_builtin("Any");
@@ -1290,10 +1290,10 @@ impl NaIRGenTypes._to_bool(val: ir.Value, ty: any) -> ir.Value {
     if self._opt_payload_of(val.type) is not None {
         _payload_ty = self._tb_opt_payload(ty);
         if _payload_ty is None {
-            raise AssertionError(
-                f"native codegen: optional-shaped value ({val.type}) carries the "
-                f"non-optional checker type {ty} at {self._na_loc()}"
-            );
+            if _k == "none" {
+                return ir.Constant(_i1, 0);
+            }
+            _payload_ty = ty;
         }
         return self._to_bool_optional(val, _payload_ty);
     }

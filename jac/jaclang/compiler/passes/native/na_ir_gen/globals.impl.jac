@@ -133,11 +133,18 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
             var_type: (ir.Type | None) = None;
             if assign.type_tag is not None {
                 _widened = self._widened_tuple_decl_type(assign.type_tag, assign.value);
-                if (
-                    _widened is None
-                    and self._quiet_glob_type(assign.type_tag) is None
-                    and not self._glob_native_use_exists(target)
-                ) {
+                if _widened is None
+                    and self._quiet_glob_type(assign.type_tag) is None {
+                    if not self._glob_native_use_exists(target) {
+                        continue;
+                    }
+                    self.emit(
+                        E5092,
+                        node_override=target,
+                        kind="global",
+                        name=var_name,
+                        help_text="The global's declared type has no native lowering, so its native uses cannot be served."
+                    );
                     continue;
                 }
                 var_type = self._resolve_decl_type(assign.type_tag, assign.value);

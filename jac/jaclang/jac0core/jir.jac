@@ -126,7 +126,7 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
     return result;
 }
 
-glob _client_kind_probe: dict = {"active": False};
+glob _client_kind_probe: dict[str, bool] = {"active": False};
 
 def is_compiler_source_path(source_path: str) -> bool {
     try {

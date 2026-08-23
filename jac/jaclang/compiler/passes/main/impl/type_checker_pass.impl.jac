@@ -181,6 +181,22 @@ impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
         return;
     }
     self.evaluator.get_type_of_expression(nd);
+    for _arg in nd.params or [] {
+        _spread = _arg.value if isinstance(_arg, KWPair) and _arg.key is None else _arg;
+        if (
+            isinstance(_spread, UnaryExpr)
+            and isinstance(_spread.op, Token)
+            and _spread.op.name in (Tok.STAR_MUL, Tok.STAR_POW)
+            and isinstance(_spread.operand, Expr)
+            and _spread.operand.type is None
+        ) {
+            self.evaluator.get_type_of_expression(_spread.operand);
+        } elif isinstance(_spread, Expr)
+            and _spread.type is None
+            and _spread is not _arg {
+            self.evaluator.get_type_of_expression(_spread);
+        }
+    }
 
     nd.call_kind = classify_call(nd).value;
 

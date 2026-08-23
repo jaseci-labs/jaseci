@@ -1,6 +1,6 @@
 import from jaclang.jac0core.scalars { sized_scalar_names }
 
-glob JCIR_BUILTIN_NAMES: frozenset = frozenset(
+glob JCIR_BUILTIN_NAMES: frozenset[str] = frozenset(
          {
              "APIProtocol",
              "AccessLevel",

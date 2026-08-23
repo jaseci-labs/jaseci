@@ -138,7 +138,7 @@ def _load_libc_module(libc_dir: str, triple: str) -> (ModuleRef | None) {
     return merged;
 }
 
-glob _LATE_BOUND: set = {
+glob _LATE_BOUND: set[str] = {
          "memcpy",
          "memmove",
          "memset",
