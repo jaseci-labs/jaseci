@@ -474,6 +474,7 @@ obj TypeEvaluator {
     def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
     def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
     def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
+    def _extern_field_type(field: HasVar) -> TypeBase;
     def assign_expr(
         expr: Expr | None,
         src_type: TypeBase,

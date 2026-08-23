@@ -12,7 +12,7 @@ import from jaclang.jac0core.unitree {
 import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E1126, E1127, E1128 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
-import from .types { ClassType, TypeBase, UnionType, UnknownType }
+import from .types { AnyType, ClassType, TypeBase, UnionType, UnknownType }
 import type from .type_evaluator { TypeEvaluator }
 
 obj AssignVerdict {
@@ -21,6 +21,9 @@ obj AssignVerdict {
 }
 
 def numeric_name_of(t: TypeBase | None) -> str | None {
+    if isinstance(t, AnyType) {
+        return t.foreign_scalar;
+    }
     if not isinstance(t, ClassType) or not t.is_builtin() or not t.is_instance() {
         return None;
     }

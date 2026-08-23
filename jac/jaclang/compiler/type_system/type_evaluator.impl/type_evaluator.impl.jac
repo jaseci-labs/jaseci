@@ -4429,7 +4429,14 @@ impl TypeEvaluator._get_type_from_flow_node(
                         )
                             is not None
                     );
+                    import from jaclang.compiler.type_system.fixed_width {
+                        numeric_name_of
+                    }
+                    _decl_num = numeric_name_of(declared_type);
+                    _assigned_num = numeric_name_of(assigned_type);
                     if _decl_extern {
+                        narrowed_from_assignment = None;
+                    } elif _decl_num is not None and _assigned_num is not None {
                         narrowed_from_assignment = None;
                     } elif self.is_none_type(declared_type) {
                         narrowed_from_assignment = assigned_type;

@@ -706,6 +706,9 @@ impl TypeEvaluator._extern_scalar_type(type_expr: Expr | None) -> TypeBase {
                 return self._convert_to_instance(declared);
             }
         }
+        if JAC_TYPE_REGISTRY.is_numeric(name) {
+            return AnyType(is_foreign=True, foreign_scalar=name);
+        }
     }
     return AnyType(is_foreign=True);
 }
@@ -733,31 +736,35 @@ impl TypeEvaluator._check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> N
         if field is None {
             continue;
         }
-        dest = self._extern_scalar_type(field.type_tag.tag);
-        if isinstance(dest, AnyType) {
+        dest = self._extern_field_type(field);
+        if isinstance(dest, AnyType) and dest.foreign_scalar is None {
             continue;
         }
-        self.assign_expr(
-            arg,
-            self.get_type_of_expression(arg),
-            dest,
-            strict=self._is_strict_site(arg)
-        );
+        src = self.get_type_of_expression(arg);
+        verdict = self.assign_expr(arg, src, dest, strict=self._is_strict_site(arg));
+        if not verdict.ok and not verdict.diagnosed {
+            self.emit_diag(
+                E1053,
+                arg,
+                actual=str(src),
+                name=field.name.sym_name,
+                expected=str(dest)
+            );
+        }
     }
 }
 
 impl TypeEvaluator._extern_member_type(arch: Archetype, name: str) -> TypeBase {
-    import from jaclang.compiler.type_system.types { create_callable_type }
-    field: HasVar | None = None;
     for hv in arch.get_has_vars() {
         if hv.name.sym_name == name {
-            field = hv;
-            break;
+            return self._extern_field_type(hv);
         }
     }
-    if field is None {
-        return AnyType(is_foreign=True);
-    }
+    return AnyType(is_foreign=True);
+}
+
+impl TypeEvaluator._extern_field_type(field: HasVar) -> TypeBase {
+    import from jaclang.compiler.type_system.types { create_callable_type }
     tag = field.type_tag.tag;
     if (
         isinstance(tag, AtomTrailer)

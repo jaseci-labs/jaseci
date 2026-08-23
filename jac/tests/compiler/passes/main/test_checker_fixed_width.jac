@@ -466,3 +466,55 @@ test "sized fields and Callable members of an extern struct are typed on every l
     assert fw_only(check(src)) == expected , check(src);
     assert fw_only(check(src, "native")) == expected , check(src, "native");
 }
+
+test "a foreign int return keeps its declared scalar for the lattice on every lane" {
+    src = (
+        'import from "libc.so.6" {\n'
+        '    def strlen(s: str) -> int;\n'
+        '    def take(n: i32) -> i32;\n'
+        '}\n'
+        'def f(title: str) -> int {\n'
+        '    take(strlen(title));\n'
+        '    w: i32 = strlen(title);\n'
+        '    n: int = strlen(title);\n'
+        '    if strlen(title) == 0 {\n'
+        '        return n;\n'
+        '    }\n'
+        '    return take(i32(strlen(title)));\n'
+        '}\n'
+    );
+    expected = [("E1127", 6, 10), ("E1127", 7, 14)];
+    assert fw_only(check(src)) == expected , check(src);
+    assert fw_only(check(src, "native")) == expected , check(src, "native");
+}
+
+test "a Callable member of an extern struct is enforced at construction" {
+    src = (
+        'import from m {\n'
+        '    obj VT { has size: int = 0, on_event: Callable[[i32, i32], i32] = 0; }\n'
+        '}\n'
+        'def cb_int(a: int, b: int) -> int {\n'
+        '    return a + b;\n'
+        '}\n'
+        'def cb_i32(a: i32, b: i32) -> i32 {\n'
+        '    return a + b;\n'
+        '}\n'
+        'def build -> int {\n'
+        '    bad = VT(size=1, on_event=cb_int);\n'
+        '    good = VT(size=1, on_event=cb_i32);\n'
+        '    return 0;\n'
+        '}\n'
+    );
+    diags = [
+        d
+        for d in check(src)
+        if d[0] in ("E1053", "E1127")
+    ];
+    assert len(diags) == 1 and diags[0][1] == 11 , check(src);
+    diags_na = [
+        d
+        for d in check(src, "native")
+        if d[0] in ("E1053", "E1127")
+    ];
+    assert len(diags_na) == 1 and diags_na[0][1] == 11 , check(src, "native");
+}
