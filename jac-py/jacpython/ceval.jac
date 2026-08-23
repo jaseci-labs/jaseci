@@ -1793,9 +1793,27 @@ obj PyHostProxy(PyObj) {
         # the bridge: to_host of a plain user object is None, so the host
         # constructor saw nothing (bool(obj) was literally False; int(obj),
         # float(obj) raised; str(obj) yielded 'None'). Each native operand found
-        # converts ITSELF (never args[0]): multi-arg shapes like int("ff",
-        # user_base) route the native operand only.
+        # converts ITSELF (never args[0]).
+        #
+        # EXCEPTION -- explicit-base int(x, base): every operand must cross,
+        # so builtin-mixin instances (an Enum-style str/int subclass) unwrap
+        # to their boxed base value and the host constructor parses with the
+        # FULL argument list. Hijacking the native operand alone dropped the
+        # base (int(str_sub('ff'), 16) failed as "base 10"). A plain user
+        # instance stays opaque; the host then reports CPython's own "can't
+        # convert non-string with explicit base" TypeError.
         ckind = str(_jac_conversion_ctor_kind(self.val));
+        if ckind == "int" and (len(args) >= 2 or len(kwargs) > 0) {
+            unwrapped: list[PyObj] = [];
+            for a in args {
+                if isinstance(a, PyUserObj) and (a as PyUserObj)._has_base() {
+                    unwrapped.append((a as PyUserObj)._base_obj());
+                } else {
+                    unwrapped.append(a);
+                }
+            }
+            return py_call_host(self, unwrapped, kwargs);
+        }
         if len(args) >= 1 and ckind != "" {
             for a in args {
                 if isinstance(a, PyUserObj) {

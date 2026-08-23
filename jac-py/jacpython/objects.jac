@@ -176,6 +176,14 @@ obj PyInt(PyObj) {
             if b < 0 {
                 return py_error("ValueError", "negative shift count");
             }
+            # A shift count at or beyond 2**63 overflows the C ssize_t shift
+            # bound; CPython rejects it before allocating
+            # (OverflowError "too many digits in integer"), never MemoryError.
+            # Without this guard the underlying bigint op escapes as a fatal
+            # runtime error instead of a guest-visible Python exception.
+            if b >= 9223372036854775808 {
+                return py_error("OverflowError", "too many digits in integer");
+            }
             return PyInt(t="int", val=a << b);
         }
         if kind == NB_RSHIFT {
@@ -185,11 +193,13 @@ obj PyInt(PyObj) {
             return PyInt(t="int", val=a >> b);
         }
         if kind == NB_POWER {
-            # int ** negative -> float (2 ** -1 == 0.5); 0 ** negative raises.
+            # int ** negative -> float (2 ** -1 == 0.5); 0 ** negative raises
+            # with CPython's INT wording -- the float slot says "0.0 cannot be
+            # raised...", the int slot says "zero to a negative power".
             if b < 0 {
                 if a == 0 {
                     return py_error(
-                        "ZeroDivisionError", "0.0 cannot be raised to a negative power"
+                        "ZeroDivisionError", "zero to a negative power"
                     );
                 }
                 return PyFloat(t="float", val=float(a) ** float(b));
@@ -578,6 +588,17 @@ obj PyBool(PyObj) {
                 b = 1;
             }
             return _bool_from_cmp(_cmp3(a, b), kind);
+        }
+        # bool vs float is an exact numeric compare (True == 1.0, False ==
+        # -0.0): answer through the int arm -- eq/ne must be a real value
+        # comparison, never the identity fallback below (CPython reflects
+        # into float_richcompare and the values coincide).
+        if other.t == "float" {
+            v = 0;
+            if self.val {
+                v = 1;
+            }
+            return PyInt(t="int", val=v).tp_richcompare(kind, other);
         }
         if kind == 2 {
             return PyBool(t="bool", val=False);
