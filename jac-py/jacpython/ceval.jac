@@ -1090,6 +1090,15 @@ obj PyHostProxy(PyObj) {
         if name == "__new__" and _jac_is_object_type(self.val) {
             return PyNativeNew(t="native_new", base_name="object");
         }
+        # Unbound object.__getattribute__/__setattr__/__delattr__: the canonical
+        # delegation target inside user overrides (object.__setattr__(self, n,
+        # v)). A host proxy would see to_host(instance) == None; route through
+        # PyObjectAttrSlot instead, which runs the default protocol in-VM.
+        if _jac_is_object_type(self.val)
+            and (name == "__getattribute__" or name == "__setattr__"
+                or name == "__delattr__") {
+            return PyObjectAttrSlot(t="obj_attr_slot", op=name);
+        }
         # A subclassable builtin's __new__ (str.__new__, int.__new__, ...) builds a
         # native subclass instance boxing that value, so `str.__new__(EnumCls, v)`
         # (enum member creation for a str/int mixin) yields a PyUserObj tagged with
@@ -1589,64 +1598,43 @@ obj PyUserObj(PyObj) {
     }
 
     def tp_getattro(name: str) -> PyObj {
-        # A property is a data descriptor: it wins over the instance dict, so
-        # `o.v` runs the getter even after `o.v = ...` routed through the setter.
-        classattr = class_lookup_attr(self.cls, name);
-        if isinstance(classattr, PyProperty) {
-            return descriptor_get(classattr, self, self.cls);
+        # CPython slot_tp_getattro: the MRO-resolved __getattribute__ IS the get
+        # protocol -- it wraps EVERYTHING (properties, instance dict, __class__,
+        # the boxed base). The lookup is a raw class-dict walk (never an
+        # attribute access), so resolving the override cannot re-enter it.
+        attr_override = class_lookup_attr(self.cls, "__getattribute__");
+        if not is_error(attr_override) {
+            res = bind_attribute(attr_override, self as PyObj).tp_call(
+                [PyStr(t="str", val=name)], {}
+            );
+        } else {
+            res = default_user_getattro(self, name);
         }
-        if name in self.attrs {
-            return bind_attribute(self.attrs[name], self);
+        # slot_tp_getattr: an AttributeError from the get protocol (user
+        # override or default) falls back to a type-level __getattr__.
+        if is_error(res)
+            and isinstance(res, PyError)
+            and (res as PyError).exception.type_name == "AttributeError" {
+            fallback = class_lookup_attr(self.cls, "__getattr__");
+            if not is_error(fallback) {
+                return bind_attribute(fallback, self as PyObj).tp_call(
+                    [PyStr(t="str", val=name)], {}
+                );
+            }
         }
-        found = classattr;
-        if not is_error(found) {
-            # Instance access: bind a method, invoke a property getter, unwrap a
-            # staticmethod, or bind a classmethod to the instance's class.
-            return descriptor_get(found, self, self.cls);
-        }
-        # Fall through to the boxed builtin value's own attributes/methods
-        # (str.upper on a str subclass, etc.).
-        if self._has_base() {
-            return py_attr(self._base_obj(), name);
-        }
-        # A plain instance's __dict__ is its own attribute namespace (an explicit
-        # `self.__dict__ = ...` assignment, handled above, wins over this).
-        if name == "__dict__" {
-            return dict_from_str_map(self.attrs);
-        }
-        # Identity dunder: every object's __class__ resolves to its type object
-        # (CPython object.__class__ descriptor). Needed for e.__class__.__name__
-        # on caught exceptions and isinstance-style idioms.
-        if name == "__class__" {
-            return self.cls;
-        }
-        # object's attribute-protocol methods are real attributes of every
-        # instance (hasattr(inst, '__getattribute__') is True); expose them as
-        # bound slot wrappers over the generic attribute dispatch.
-        if name == "__getattribute__" or name == "__setattr__"
-            or name == "__delattr__" {
-            return PyObjectAttrSlot(t="obj_attr_slot", target=self as PyObj, op=name);
-        }
-        return py_error("AttributeError", name);
+        return res;
     }
 
     def tp_setattro(name: str, value: PyObj) -> PyObj {
-        # A property with a setter is a data descriptor: assignment routes through
-        # fset instead of writing the instance dict.
-        classattr = class_lookup_attr(self.cls, name);
-        if isinstance(classattr, PyProperty) {
-            p = classattr as PyProperty;
-            if p.fset is not None {
-                res = py_invoke(p.fset as PyObj, [self, value], {});
-                if is_error(res) {
-                    return res;
-                }
-                return py_none();
-            }
-            return py_error("AttributeError", "can't set attribute '" + name + "'");
+        # Mirror of tp_getattro for writes: a type-level __setattr__ intercepts
+        # every assignment BEFORE data-descriptor checks (slot_tp_setattro).
+        attr_override = class_lookup_attr(self.cls, "__setattr__");
+        if not is_error(attr_override) {
+            return bind_attribute(attr_override, self as PyObj).tp_call(
+                [PyStr(t="str", val=name), value], {}
+            );
         }
-        self.attrs[name] = value;
-        return py_none();
+        return default_user_setattro(self, name, value);
     }
 
     # ---- boxed-builtin slot delegation (subclass of int/str/list/...) --------
@@ -1787,6 +1775,97 @@ obj PyUserObj(PyObj) {
         }
         return py_error("TypeError", "object does not support item deletion");
     }
+}
+
+# The DEFAULT attribute protocol for a generic instance -- what
+# object.__getattribute__/__setattr__/__delattr__ do in CPython. Factored out of
+# PyUserObj so the slot dispatch AND the exposed object.__*attr__ slot wrappers
+# (PyObjectAttrSlot) share one implementation: calling through the wrapper runs
+# the default protocol directly, which is exactly CPython's recursion guard for
+# a user __getattribute__/__setattr__ delegating via
+# object.__getattribute__(self, n) / super().__setattr__(n, v).
+def default_user_getattro(u: PyUserObj, name: str) -> PyObj {
+    # A property is a data descriptor: it wins over the instance dict, so
+    # `o.v` runs the getter even after `o.v = ...` routed through the setter.
+    classattr = class_lookup_attr(u.cls, name);
+    if isinstance(classattr, PyProperty) {
+        return descriptor_get(classattr, u, u.cls);
+    }
+    if name in u.attrs {
+        return bind_attribute(u.attrs[name], u);
+    }
+    found = classattr;
+    if not is_error(found) {
+        # Instance access: bind a method, invoke a property getter, unwrap a
+        # staticmethod, or bind a classmethod to the instance's class.
+        return descriptor_get(found, u, u.cls);
+    }
+    # Fall through to the boxed builtin value's own attributes/methods
+    # (str.upper on a str subclass, etc.).
+    if u._has_base() {
+        return py_attr(u._base_obj(), name);
+    }
+    # A plain instance's __dict__ is its own attribute namespace (an explicit
+    # `self.__dict__ = ...` assignment, handled above, wins over this).
+    if name == "__dict__" {
+        return dict_from_str_map(u.attrs);
+    }
+    # Identity dunder: every object's __class__ resolves to its type object
+    # (CPython object.__class__ descriptor). Needed for e.__class__.__name__
+    # on caught exceptions and isinstance-style idioms.
+    if name == "__class__" {
+        return u.cls;
+    }
+    # object's attribute-protocol methods are real attributes of every
+    # instance (hasattr(inst, '__getattribute__') is True); expose them as
+    # bound slot wrappers over the generic attribute dispatch.
+    if name == "__getattribute__" or name == "__setattr__"
+        or name == "__delattr__" {
+        return PyObjectAttrSlot(t="obj_attr_slot", target=u as PyObj, op=name);
+    }
+    return py_error("AttributeError", name);
+}
+
+def default_user_setattro(u: PyUserObj, name: str, value: PyObj) -> PyObj {
+    # A property with a setter is a data descriptor: assignment routes through
+    # fset instead of writing the instance dict.
+    classattr = class_lookup_attr(u.cls, name);
+    if isinstance(classattr, PyProperty) {
+        p = classattr as PyProperty;
+        if p.fset is not None {
+            res = py_invoke(p.fset as PyObj, [u as PyObj, value], {});
+            if is_error(res) {
+                return res;
+            }
+            return py_none();
+        }
+        return py_error("AttributeError", "can't set attribute '" + name + "'");
+    }
+    u.attrs[name] = value;
+    return py_none();
+}
+
+def default_user_delattro(u: PyUserObj, name: str) -> PyObj {
+    # A property with a deleter is a data descriptor: deletion routes through
+    # fdel instead of removing an instance-dict entry (mirror of the setter
+    # branch in default_user_setattro).
+    classattr = class_lookup_attr(u.cls, name);
+    if isinstance(classattr, PyProperty) {
+        p = classattr as PyProperty;
+        if p.fdel is not None {
+            res = py_invoke(p.fdel as PyObj, [u as PyObj], {});
+            if is_error(res) {
+                return res;
+            }
+            return py_none();
+        }
+        return py_error("AttributeError", "can't delete attribute '" + name + "'");
+    }
+    if name in u.attrs {
+        del u.attrs[name];
+        return py_none();
+    }
+    return py_error("AttributeError", name);
 }
 
 obj PyBoundMethod(PyObj) {
@@ -1968,37 +2047,69 @@ obj PyNoOpInit(PyObj) {
 
 # Bound object.__getattribute__/__setattr__/__delattr__ over a native instance:
 # the generic attribute protocol exposed AS attributes, exactly as CPython's
-# slot wrappers are (hasattr(inst, '__getattribute__') is True).
+# slot wrappers are (hasattr(inst, '__getattribute__') is True). With target
+# None it is the UNBOUND wrapper (object.__setattr__ read off the type); the
+# receiver then comes from the first call argument. On a PyUserObj receiver it
+# runs default_user_* directly -- the wrapper IS object.__*attr__, so a user
+# override delegating through it must not re-enter itself.
 obj PyObjectAttrSlot(PyObj) {
-    has target: PyObj,
-        op: str;
+    has op: str,
+        target: any = None;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if self.op == "__getattribute__" {
-            if len(args) != 1 {
+        recv: PyObj;
+        rest: list[PyObj] = [];
+        if self.target is None {
+            if len(args) < 1 {
                 return py_error(
-                    "TypeError",
-                    "__getattribute__ expected 1 argument, got " + str(len(args)),
+                    "TypeError", "unbound attribute slot needs an instance"
                 );
             }
-            return py_attr(self.target, expect_str(args[0]));
+            recv = args[0];
+            for i in range(1, len(args)) {
+                rest.append(args[i]);
+            }
+        } else {
+            recv = self.target as PyObj;
+            rest.extend(args);
+        }
+        if self.op == "__getattribute__" {
+            if len(rest) != 1 {
+                return py_error(
+                    "TypeError",
+                    "__getattribute__ expected 1 argument, got " + str(len(rest)),
+                );
+            }
+            name = expect_str(rest[0]);
+            if isinstance(recv, PyUserObj) {
+                return default_user_getattro(recv as PyUserObj, name);
+            }
+            return py_attr(recv, name);
         }
         if self.op == "__setattr__" {
-            if len(args) != 2 {
+            if len(rest) != 2 {
                 return py_error(
                     "TypeError",
-                    "__setattr__ expected 2 arguments, got " + str(len(args)),
+                    "__setattr__ expected 2 arguments, got " + str(len(rest)),
                 );
             }
-            return py_set_attr(self.target, expect_str(args[0]), args[1]);
+            name2 = expect_str(rest[0]);
+            if isinstance(recv, PyUserObj) {
+                return default_user_setattro(recv as PyUserObj, name2, rest[1]);
+            }
+            return py_set_attr(recv, name2, rest[1]);
         }
-        if len(args) != 1 {
+        if len(rest) != 1 {
             return py_error(
                 "TypeError",
-                "__delattr__ expected 1 argument, got " + str(len(args)),
+                "__delattr__ expected 1 argument, got " + str(len(rest)),
             );
         }
-        return py_del_attr(self.target, expect_str(args[0]));
+        name3 = expect_str(rest[0]);
+        if isinstance(recv, PyUserObj) {
+            return default_user_delattro(recv as PyUserObj, name3);
+        }
+        return py_del_attr(recv, name3);
     }
 }
 
@@ -3817,25 +3928,15 @@ def py_del_attr(value: PyObj, name: str) -> PyObj {
     }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
-        # A property with a deleter is a data descriptor: deletion routes through
-        # fdel instead of removing an instance-dict entry (mirror of tp_setattro).
-        classattr = class_lookup_attr(u.cls, name);
-        if isinstance(classattr, PyProperty) {
-            p = classattr as PyProperty;
-            if p.fdel is not None {
-                res = py_invoke(p.fdel as PyObj, [u as PyObj], {});
-                if is_error(res) {
-                    return res;
-                }
-                return py_none();
-            }
-            return py_error("AttributeError", "can't delete attribute '" + name + "'");
+        # slot_tp_setattro dispatches deletion through the type-level
+        # __delattr__ when the MRO defines one, before any default handling.
+        attr_override = class_lookup_attr(u.cls, "__delattr__");
+        if not is_error(attr_override) {
+            return bind_attribute(attr_override, u as PyObj).tp_call(
+                [PyStr(t="str", val=name)], {}
+            );
         }
-        if name in u.attrs {
-            del u.attrs[name];
-            return py_none();
-        }
-        return py_error("AttributeError", name);
+        return default_user_delattro(u, name);
     }
     if isinstance(value, PyModule) {
         m = value as PyModule;
@@ -5153,6 +5254,15 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
     # to the base value's own slot.
     if name != "__new__" and isinstance(instance, PyUserObj) {
         inst = instance as PyUserObj;
+        # object.__getattribute__/__setattr__/__delattr__ close every MRO: a
+        # super().<attr-protocol>() delegation resolves to the DEFAULT protocol
+        # -- never a re-dispatch through the override that called super(). This
+        # is the recursion guard inside user __setattr__/__delattr__/
+        # __getattribute__ implementations.
+        if name == "__getattribute__" or name == "__setattr__"
+            or name == "__delattr__" {
+            return PyObjectAttrSlot(t="obj_attr_slot", target=inst as PyObj, op=name);
+        }
         if inst._has_base() {
             return PyBuiltinSuperMethod(
                 t="builtin_super", base=inst._base_obj(), name=name
