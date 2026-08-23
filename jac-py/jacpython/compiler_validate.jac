@@ -682,19 +682,18 @@ def validate_eval_expr(e: expr) -> validation_result {
 
 # ---------------- tests ----------------
 
-::py::
-def _host_compile_syntax_error(source, mode="exec"):
-    try:
-        _compile = compile
-        _compile(source, "<t>", mode)
-    except SyntaxError as e:
-        return e.msg
-    return None
-::py::
+def _host_compile_syntax_error(source: str, mode: str = "exec") -> str | None {
+    try {
+        compile(source, "<t>", mode);
+    } except SyntaxError as e {
+        return e.msg;
+    }
+    return None;
+}
 
 
 def host_compile_syntax_error(source: str, mode: str = "exec") -> str | None {
-    return _host_compile_syntax_error(source, mode) as str | None;
+    return _host_compile_syntax_error(source, mode);
 }
 
 def assert_validate_rejects_like_compile(source: str) {
