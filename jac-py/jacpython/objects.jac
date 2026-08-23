@@ -1213,6 +1213,35 @@ obj PyCell(PyObj) {
         filled: bool = False;
 }
 
+# PEP 695 `type X = v` runtime stand-in (CPython types.TypeAliasType), built by
+# CALL_INTRINSIC_1(INTRINSIC_TYPEALIAS). Data-only in this na-clean leaf: the
+# lazy __value__ evaluation re-enters the interpreter, so it lives in ceval's
+# typealias_value, reached through py_attr's __value__ intercept.
+obj PyTypeAlias(PyObj) {
+    has name: str,
+        # The (possibly empty) type-parameter tuple from the alias statement;
+        # codegen passes a real tuple for `type X[T, ...]` and None otherwise.
+        type_params: PyObj,
+        # The hidden lazy value function (sole param `.format`, guard raises
+        # NotImplementedError above format 2 -- emitted by codegen itself).
+        value_fn: PyObj,
+        computed: bool = False,
+        cached_value: PyObj = py_none();
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__name__" {
+            return PyStr(t="str", val=self.name);
+        }
+        if name == "__type_params__" {
+            if self.type_params.t == "none" {
+                return PyTuple(t="tuple", items=[]);
+            }
+            return self.type_params;
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
 # Backing slot for the hash-key protocol: the original key object is kept next
 # to its value so keys()/iteration/repr/KeyError return real keys, never the
 # internal hashkey string. A plain obj (not a PyObj) -- pure storage.

@@ -269,10 +269,24 @@ def _jac_host_isinstance(host_obj, host_type):
         return False
 
 def _jac_type_has_flag(host_obj, flag_bit) -> bool:
+    # Accepts BOTH shapes: a host INSTANCE (SEQUENCE/MAPPING checks inspect the
+    # subject's type) and a host CLASS itself (MATCH_SELF checks inspect the
+    # match pattern's own tp_flags -- type(cls).__flags__ would wrongly read
+    # the metaclass).
     try:
-        return bool(type(host_obj).__flags__ & flag_bit)
+        cls = host_obj if isinstance(host_obj, type) else type(host_obj)
+        return bool(cls.__flags__ & flag_bit)
     except BaseException:
         return False
+
+def _jac_host_pattern_name(host_val):
+    # Name quoted by the MATCH_CLASS TypeError messages. A class-pattern proxy
+    # wraps the HOST CLASS itself (int, str, ...), whose name is its own --
+    # type(host_val).__name__ would quote the metaclass ('type') instead.
+    try:
+        return host_val.__name__ if isinstance(host_val, type) else type(host_val).__name__
+    except BaseException:
+        return "?"
 
 def _jac_host_type_name(host_obj):
     try:
@@ -690,6 +704,7 @@ import from objects {
     PyList,
     PyCode,
     PyCell,
+    PyTypeAlias,
     PyDict,
     PyDictIter,
     PySet,
@@ -3564,6 +3579,11 @@ def py_repr(value: PyObj) -> PyObj {
                 + ")",
         );
     }
+    # CPython TypeAliasType_repr prints the bare alias name (repr(type X = int
+    # alias) == 'X'), never a qualified or angled form.
+    if isinstance(value, PyTypeAlias) {
+        return PyStr(t="str", val=(value as PyTypeAlias).name);
+    }
     if isinstance(value, PyTuple) {
         return tuple_repr(value as PyTuple);
     }
@@ -4453,7 +4473,30 @@ def _is_host_backed(t: str) -> bool {
         or t == "complex";
 }
 
+# PEP 695 lazy alias evaluation (CPython TypeAliasType.__value__ /
+# evaluate_value): run the hidden value function once at format 0, cache the
+# result, and serve every later access from the cache. Errors propagate
+# uncached, so a retry re-evaluates (and re-raises) exactly like a fresh call.
+def typealias_value(ta: PyTypeAlias) -> PyObj {
+    if ta.computed {
+        return ta.cached_value;
+    }
+    res = py_invoke(ta.value_fn, [PyInt(t="int", val=0)], {});
+    if is_error(res) {
+        return res;
+    }
+    ta.computed = True;
+    ta.cached_value = res;
+    return res;
+}
+
 def py_attr(value: PyObj, name: str) -> PyObj {
+    # The alias's lazy __value__ re-enters the interpreter (it runs the hidden
+    # value function), so it is served here rather than in the na-clean obj's
+    # tp_getattro -- see typealias_value.
+    if isinstance(value, PyTypeAlias) and name == "__value__" {
+        return typealias_value(value as PyTypeAlias);
+    }
     result = value.tp_getattro(name);
     # A native dict's keys()/values()/items() are bound zero-arg constructors of
     # a live, set-like PyDictView (not host proxies), so view comparison / set
@@ -4943,8 +4986,10 @@ def match_class_type_name(type_obj: PyObj) -> str {
     if isinstance(type_obj, PyClass) {
         return (type_obj as PyClass).name;
     }
+    # A host class pattern wraps the class itself; _jac_host_pattern_name
+    # quotes its own name (not the metaclass's) like CPython's tp_name.
     if isinstance(type_obj, PyHostProxy) {
-        return str(_jac_host_type_name((type_obj as PyHostProxy).val));
+        return str(_jac_host_pattern_name((type_obj as PyHostProxy).val));
     }
     return "?";
 }
@@ -11442,6 +11487,41 @@ def run_frame(frame: PyFrame) -> PyObj {
                 # INTRINSIC_LIST_TO_TUPLE: the tuple()-of-genexpr fast path
                 # builds a list, then converts it in place.
                 stack.append(PyTuple(t="tuple", items=(operand as PyList).items));
+                continue;
+            }
+            if arg == 4 {
+                # INTRINSIC_ASYNC_GEN_WRAP: CPython wraps each async-generator
+                # yield in an AsyncGenWrappedValue so the anext/asend machinery
+                # can tell yields from returns. This VM has no async-generator
+                # driver yet -- nothing consumes the wrapper and no path can
+                # observe it -- so the wrap is currently identity (same policy
+                # as UNARY_POSITIVE below). Revisit when the anext surface
+                # lands; the compiler already emits this before YIELD_VALUE.
+                stack.append(operand);
+                continue;
+            }
+            if arg == 11 {
+                # INTRINSIC_TYPEALIAS (PEP 695 `type X = v`): operand is the
+                # (name, type_params_or_None, lazy-value-fn) triple codegen
+                # builds. Produce the lazily-evaluating alias object.
+                if not isinstance(operand, PyTuple)
+                    or len((operand as PyTuple).items) != 3 {
+                    return py_error(
+                        "SystemError", "malformed CALL_INTRINSIC_1 TYPEALIAS operand"
+                    );
+                }
+                parts = (operand as PyTuple).items;
+                if not isinstance(parts[0], PyStr) {
+                    return py_error(
+                        "SystemError", "CALL_INTRINSIC_1 TYPEALIAS name must be a str"
+                    );
+                }
+                stack.append(PyTypeAlias(
+                    t="TypeAliasType",
+                    name=(parts[0] as PyStr).val,
+                    type_params=parts[1],
+                    value_fn=parts[2],
+                ));
                 continue;
             }
             if arg == 3 {
