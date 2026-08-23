@@ -748,6 +748,40 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " ('{name} as LocalName').",
          blocks_codegen=True
      ),
+     E1126 = _err(
+         "E1126",
+         Category.TYPE,
+         "Integer literal {value} does not fit in {type} (range {min}..{max})",
+         help="A literal must be in the target's range; a value outside it never"
+         " truncates silently. Use a wider type, or spell the modular result"
+         " explicitly with `{type}.wrap({value})`."
+     ),
+     E1127 = _err(
+         "E1127",
+         Category.TYPE,
+         "Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving",
+         help="Only widening conversions are implicit (i8 -> i16 -> i32 -> i64 -> int,"
+         " u8 -> u16 -> u32 -> u64 -> int, unsigned into a strictly wider signed type,"
+         " f32 -> f64 -> float). Narrowing, a same-width sign change, `int` into a"
+         " sized type, and 64-bit ints into floats need the checked cast `{dest}(x)`,"
+         " which raises OverflowError out of range, or the modular `{dest}.wrap(x)`."
+     ),
+     E1128 = _err(
+         "E1128",
+         Category.TYPE,
+         "Operands of '{op}' have no common fixed-width type ({left} and {right})",
+         help="Neither operand widens into the other, so the operator has no width"
+         " to compute at. Cast one operand explicitly, e.g. `{left}(rhs)` or"
+         " `{right}(lhs)`, to choose the width and sign of the operation."
+     ),
+     E1129 = _err(
+         "E1129",
+         Category.TYPE,
+         "Unary minus on unsigned type {type}",
+         help="An unsigned type has no negative values, so `-x` cannot be typed."
+         " Negate in a signed type (`-i64(x)`), or use `wrapping_neg(x)` for the"
+         " two's-complement result at the same width."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,

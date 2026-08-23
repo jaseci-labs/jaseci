@@ -77,7 +77,8 @@ obj AnyType(TypeBase) {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Any;
     }
 
-    has is_foreign: bool = False;
+    has is_foreign: bool = False,
+        foreign_scalar: (str | None) = None;
 
     def __str__ -> str;
 }

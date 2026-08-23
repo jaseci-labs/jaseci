@@ -2206,9 +2206,29 @@ impl NaIRGenTypes._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.
 
     if isinstance(val.type, ir.IntType) and isinstance(target_type, ir.IntType) {
         if val.type.width < target_type.width {
+            if val?.jac_signed {
+                return self.builder.sext(val, target_type, name="sext");
+            }
             return self.builder.zext(val, target_type, name="zext");
         } elif val.type.width > target_type.width {
-            return self.builder.trunc(val, target_type, name="trunc");
+            if target_type.width == 1 {
+                return self.builder.icmp_signed(
+                    "!=", val, ir.Constant(val.type, 0), name="int.truth"
+                );
+            }
+            if isinstance(val, ir.Constant) and isinstance(val.constant, int) {
+                _w = target_type.width;
+                if -(1 << (_w - 1)) <= val.constant < (1 << _w) {
+                    return ir.Constant(target_type, val.constant);
+                }
+            }
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="silent narrowing",
+                name=f"{val.type} into {target_type}"
+            );
+            return val;
         }
     }
 
@@ -2243,14 +2263,48 @@ impl NaIRGenTypes._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.
 }
 
 impl NaIRGenTypes._promote_to_float(
+    left: ir.Value, right: ir.Value, unsigned: bool = False
+) -> tuple[(ir.Value, ir.Value)] {
+    target: ir.Type = (
+        ir.FloatType()
+            if isinstance(left.type, ir.FloatType)
+                and isinstance(right.type, ir.FloatType)
+            else ir.DoubleType()
+    );
+    return (
+        self._to_float_type(left, target, unsigned),
+        self._to_float_type(right, target, unsigned)
+    );
+}
+
+impl NaIRGenTypes._to_float_type(
+    val: ir.Value, target: ir.Type, unsigned: bool
+) -> ir.Value {
+    if val.type == target {
+        return val;
+    }
+    if isinstance(val.type, ir.IntType) {
+        if unsigned or val.type.width == 1 {
+            return self.builder.uitofp(val, target, name="u2f");
+        }
+        return self.builder.sitofp(val, target, name="s2f");
+    }
+    if isinstance(val.type, ir.FloatType) and isinstance(target, ir.DoubleType) {
+        return self.builder.fpext(val, target, name="fpext");
+    }
+    if isinstance(val.type, ir.DoubleType) and isinstance(target, ir.FloatType) {
+        return self.builder.fptrunc(val, target, name="fptrunc");
+    }
+    return val;
+}
+
+impl NaIRGenTypes._unify_int_widths(
     left: ir.Value, right: ir.Value
 ) -> tuple[(ir.Value, ir.Value)] {
-    f64 = ir.DoubleType();
-    if isinstance(left.type, (ir.IntType, ir.FloatType)) {
-        left = self._coerce_type(left, f64);
-    }
-    if isinstance(right.type, (ir.IntType, ir.FloatType)) {
-        right = self._coerce_type(right, f64);
+    if left.type.width == 1 and right.type.width > 1 {
+        left = self.builder.zext(left, right.type, name="bool.widen");
+    } elif right.type.width == 1 and left.type.width > 1 {
+        right = self.builder.zext(right, left.type, name="bool.widen");
     }
     return (left, right);
 }
@@ -2292,7 +2346,11 @@ impl NaIRGenTypes._codegen_float_floor_mod(
 }
 
 impl NaIRGenTypes._emit_binary_op(
-    op: str, left: ir.Value, right: ir.Value
+    op: str,
+    left: ir.Value,
+    right: ir.Value,
+    unsigned: bool = False,
+    checked: bool = False
 ) -> (ir.Value | None) {
     left = self._str_norm(left);
     right = self._str_norm(right);
@@ -2664,7 +2722,7 @@ impl NaIRGenTypes._emit_binary_op(
         or isinstance(right.type, (ir.DoubleType, ir.FloatType))
         or op == Tok.DIV;
     if is_float {
-        (left, right) = self._promote_to_float(left, right);
+        (left, right) = self._promote_to_float(left, right, unsigned=unsigned);
     }
     if is_float {
         if op == Tok.PLUS {
@@ -2674,7 +2732,7 @@ impl NaIRGenTypes._emit_binary_op(
         } elif op == Tok.STAR_MUL {
             return self.builder.fmul(left, right, name="fmul");
         } elif op == Tok.DIV {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="fdiv.zero.chk"
             );
@@ -2683,7 +2741,7 @@ impl NaIRGenTypes._emit_binary_op(
             );
             return self.builder.fdiv(left, right, name="fdiv");
         } elif op == Tok.MOD {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="fmod.zero.chk"
             );
@@ -2692,7 +2750,7 @@ impl NaIRGenTypes._emit_binary_op(
             );
             return self._codegen_float_floor_mod(left, right);
         } elif op == Tok.FLOOR_DIV {
-            fzero = ir.Constant(ir.DoubleType(), 0.0);
+            fzero = ir.Constant(right.type, 0.0);
             is_zero = self.builder.fcmp_ordered(
                 "==", right, fzero, name="ffloordiv.zero.chk"
             );
@@ -2712,44 +2770,34 @@ impl NaIRGenTypes._emit_binary_op(
             );
             return None;
         }
-        if left.type.width < right.type.width {
-            left = self.builder.sext(left, right.type, name="int.sext.l");
-        } elif right.type.width < left.type.width {
-            right = self.builder.sext(right, left.type, name="int.sext.r");
+        (left, right) = self._unify_int_widths(left, right);
+        if op == Tok.LSHIFT {
+            if checked {
+                return self._emit_checked_shl(left, right, unsigned);
+            }
+            return self.builder.shl(left, right, name="shl");
+        } elif op == Tok.RSHIFT {
+            if checked {
+                return self._emit_shr(left, right, unsigned);
+            }
+            return self.builder.ashr(left, right, name="ashr");
+        }
+        if left.type != right.type {
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="integer operator layout",
+                name=f"{op} on {left.type} vs {right.type}"
+            );
+            return None;
         }
         int_ty = left.type;
-        _w = int_ty.width;
-        i1 = ir.IntType(1);
         if op == Tok.PLUS {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.sadd.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="add.ovf");
-            val = self.builder.extract_value(result, 0, name="add.val");
-            overflow = self.builder.extract_value(result, 1, name="add.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("add", left, right, unsigned);
         } elif op == Tok.MINUS {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.ssub.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="sub.ovf");
-            val = self.builder.extract_value(result, 0, name="sub.val");
-            overflow = self.builder.extract_value(result, 1, name="sub.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("sub", left, right, unsigned);
         } elif op == Tok.STAR_MUL {
-            overflow_ret = ir.LiteralStructType([int_ty, i1]);
-            intrinsic = self._get_or_declare_extern(
-                f"llvm.smul.with.overflow.i{_w}", overflow_ret, [int_ty, int_ty]
-            );
-            result = self.builder.call(intrinsic, [left, right], name="mul.ovf");
-            val = self.builder.extract_value(result, 0, name="mul.val");
-            overflow = self.builder.extract_value(result, 1, name="mul.overflow");
-            self._emit_runtime_raise(overflow, "OverflowError", "integer overflow");
-            return val;
+            return self._emit_overflow_op("mul", left, right, unsigned);
         } elif op == Tok.FLOOR_DIV {
             izero = ir.Constant(int_ty, 0);
             is_zero = self.builder.icmp_signed(
@@ -2758,7 +2806,7 @@ impl NaIRGenTypes._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            (q, _) = self._codegen_int_floor_divmod(left, right);
+            (q, _) = self._emit_int_divmod(left, right, unsigned);
             return q;
         } elif op == Tok.MOD {
             izero = ir.Constant(int_ty, 0);
@@ -2766,7 +2814,7 @@ impl NaIRGenTypes._emit_binary_op(
             self._emit_runtime_raise(
                 is_zero, "ZeroDivisionError", "integer division or modulo by zero"
             );
-            (_, r) = self._codegen_int_floor_divmod(left, right);
+            (_, r) = self._emit_int_divmod(left, right, unsigned);
             return r;
         }
     }
@@ -2779,12 +2827,6 @@ impl NaIRGenTypes._emit_binary_op(
     }
     if op == Tok.BW_XOR {
         return self.builder.xor(left, right, name="bwxor");
-    }
-    if op == Tok.LSHIFT {
-        return self.builder.shl(left, right, name="shl");
-    }
-    if op == Tok.RSHIFT {
-        return self.builder.ashr(left, right, name="ashr");
     }
 
     if op == Tok.KW_AND {
@@ -3106,7 +3148,7 @@ impl NaIRGenTypes._emit_mixed_jacval_comparison(
 }
 
 impl NaIRGenTypes._emit_comparison(
-    op: str, left: ir.Value, right: ir.Value, is_float: bool
+    op: str, left: ir.Value, right: ir.Value, is_float: bool, unsigned: bool = False
 ) -> (ir.Value | None) {
     if self?.jacval_type
         and left.type == self.jacval_type
@@ -3782,10 +3824,20 @@ impl NaIRGenTypes._emit_comparison(
                 );
                 return None;
             }
-            if left.type.width < right.type.width {
-                left = self.builder.sext(left, right.type, name="sext.l");
-            } elif right.type.width < left.type.width {
-                right = self.builder.sext(right, left.type, name="sext.r");
+            (left, right) = self._unify_int_widths(left, right);
+            if left.type != right.type {
+                self.emit(
+                    E5090,
+                    kind="comparison",
+                    name=f"{left.type} against {right.type}",
+                    help_text="The two sides of this comparison lower to different integer widths. The checker unifies fixed-width operands, so a mismatch here is a lowering bug."
+                );
+                return None;
+            }
+            if unsigned {
+                return self.builder.icmp_unsigned(
+                    icmp_map[op], left, right, name="icmp"
+                );
             }
             return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
         }
