@@ -77,7 +77,13 @@ glob PARITY_CORPUS: list[str] = [
          "tests/compiler/passes/ecmascript/fixtures/advanced_language_features.jac",
 
      ],
-     _SKIP_FIELDS: tuple[str] = ("rc_last_use", "_deferred_type_diags", "_gen", ),
+     _SKIP_FIELDS: tuple[str] = (
+         "rc_last_use",
+         "_deferred_type_diags",
+         "_gen",
+         "arg_params",
+
+     ),
      _CO_FIELDS: tuple[str] = (
          "co_argcount",
          "co_posonlyargcount",
@@ -228,11 +234,14 @@ def _code_diffs(a: any, b: any, where: str = "<module>") -> list[str] {
 """Every scalar, enum, list length, dict key set and class name across two
 trees. Unparse sees kid text; this sees field VALUES.
 
-`_SKIP_FIELDS` names the three slots whose contents are not compiler output:
+`_SKIP_FIELDS` names the slots whose contents are not comparable as strings:
 `rc_last_use` and `_deferred_type_diags` are keyed by `id(node)`, so their key
 SETS are allocator addresses and differ between any two compiles of anything;
-`_gen` is a lazily materialized slot whose mere presence records that someone
-read `.gen`, not what the compiler decided. Everything else is compared."""
+`arg_params` is keyed by the argument nodes themselves, whose `str` carries
+the same addresses (its values, the bound Parameters, are compared through
+`resolved_callee`); `_gen` is a lazily materialized slot whose mere presence
+records that someone read `.gen`, not what the compiler decided. Everything
+else is compared."""
 def _field_diffs(a: any, b: any, where: str = "mod") -> list[str] {
     import enum as _py_enum;
     stack: list[any] = [(a, b, where, )];

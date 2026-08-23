@@ -201,7 +201,6 @@ obj AstSymbolNode(UniNode) {
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
     has expr_ctx: ExprCtx { getter; }
-    has type_sym_tab: (UniScopeNode | None) { getter; }
 }
 
 obj AstSymbolStubNode(AstSymbolNode) {
@@ -264,17 +263,11 @@ obj ConditionalNode(UniCFGNode) {
 }
 
 obj Expr(UniNode) {
-    has _type_sym_tab: (UniScopeNode | None) postinit,
-        type: (TypeBase | None) postinit,
+    has type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
-
-    has type_sym_tab: (UniScopeNode | None) {
-        getter;
-        setter(type_sym_tab: UniScopeNode);
-    }
 }
 
 obj CfgExpr(Expr, ConditionalNode) {

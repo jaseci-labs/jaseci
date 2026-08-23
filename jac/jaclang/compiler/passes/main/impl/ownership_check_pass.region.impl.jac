@@ -52,13 +52,7 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
             continue;
         }
         _psr_recv = _tr.target;
-        _psr_m = "";
-        try {
-            _psr_m = _psr_recv.type.mangle() if _psr_recv.type is not None else "";
-        } except Exception {
-            _psr_m = "";
-        }
-        if _psr_m != "Region" {
+        if not self._type_is_class_named(_psr_recv.type, ("Region", )) {
             continue;
         }
         reason = self._partition_sugar_reason(call);
@@ -89,8 +83,7 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
     }
 }
 
-glob _REGION_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType"),
-     _REGION_SAFE_CALLEES: frozenset[str] = frozenset(
+glob _REGION_SAFE_CALLEES: frozenset[str] = frozenset(
          {
              "print",
              "len",
@@ -472,13 +465,10 @@ impl OwnershipCheckPass._region_expr_is_scalar(expr: Expr | None) -> bool {
     if isinstance(expr, UnaryExpr) and expr.ownership == OwnershipKind.OWN {
         _op = expr.operand;
         if isinstance(_op, Expr) and _op.type is not None {
-            _om = "";
-            try {
-                _om = _op.type.mangle();
-            } except Exception {
-                _om = "";
-            }
-            if _om in _REGION_SCALARS or _om in ("str", "LiteralString", "bytes") {
+            if self._nogc_shape_of(_op.type) == "scalar"
+                or self._type_is_class_named(
+                    _op.type, ("str", "LiteralString", "bytes")
+                ) {
                 return True;
             }
         }
@@ -487,13 +477,7 @@ impl OwnershipCheckPass._region_expr_is_scalar(expr: Expr | None) -> bool {
     if expr.type is None {
         return False;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle();
-    } except Exception {
-        return False;
-    }
-    return _m in _REGION_SCALARS;
+    return self._nogc_shape_of(expr.type) == "scalar";
 }
 
 impl OwnershipCheckPass._region_callee_is_safe(

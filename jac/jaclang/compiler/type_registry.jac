@@ -8,7 +8,9 @@ obj JacTypeEntry {
     has name: str,
         emitter_suffix: str,
         na_type_spec: str | None = None,
-        numeric_kind: NumericKind = NumericKind.NotNumeric;
+        numeric_kind: NumericKind = NumericKind.NotNumeric,
+        bit_width: int | None = None,
+        is_unsigned: bool = False;
 }
 
 obj JacTypeRegistry {
@@ -54,6 +56,32 @@ obj JacTypeRegistry {
             return NumericKind.NotNumeric;
         }
         return `entry.numeric_kind;
+    }
+
+    def bit_width_of(name: str) -> int | None {
+        `entry = self._entries.get(name, None);
+        return `entry.bit_width if `entry is not None else None;
+    }
+
+    def is_fixed_width(name: str) -> bool {
+        return self.bit_width_of(name) is not None;
+    }
+
+    def scalar_names -> set[str] {
+        return {
+            e.name
+            for e in self._entries.values()
+            if e.numeric_kind != NumericKind.NotNumeric
+        }
+            | {"str", "bytes"};
+    }
+
+    def na_scalar_names -> set[str] {
+        return {
+            e.name
+            for e in self._entries.values()
+            if e.numeric_kind != NumericKind.NotNumeric
+        };
     }
 
     def is_exception(name: str) -> bool {
@@ -133,61 +161,81 @@ glob JAC_TYPE_REGISTRY = JacTypeRegistry(
                  name="i8",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=8,
+                 is_unsigned=False
              ),
              "u8": JacTypeEntry(
                  name="u8",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=8,
+                 is_unsigned=True
              ),
              "i16": JacTypeEntry(
                  name="i16",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=16,
+                 is_unsigned=False
              ),
              "u16": JacTypeEntry(
                  name="u16",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=16,
+                 is_unsigned=True
              ),
              "i32": JacTypeEntry(
                  name="i32",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=32,
+                 is_unsigned=False
              ),
              "u32": JacTypeEntry(
                  name="u32",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=32,
+                 is_unsigned=True
              ),
              "i64": JacTypeEntry(
                  name="i64",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=64,
+                 is_unsigned=False
              ),
              "u64": JacTypeEntry(
                  name="u64",
                  emitter_suffix="IntEmitter",
                  na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
+                 numeric_kind=NumericKind.IntKind,
+                 bit_width=64,
+                 is_unsigned=True
              ),
              "f32": JacTypeEntry(
                  name="f32",
                  emitter_suffix="FloatEmitter",
                  na_type_spec="f32",
-                 numeric_kind=NumericKind.FloatKind
+                 numeric_kind=NumericKind.FloatKind,
+                 bit_width=32,
+                 is_unsigned=False
              ),
              "f64": JacTypeEntry(
                  name="f64",
                  emitter_suffix="FloatEmitter",
                  na_type_spec="f64",
-                 numeric_kind=NumericKind.FloatKind
+                 numeric_kind=NumericKind.FloatKind,
+                 bit_width=64,
+                 is_unsigned=False
              ),
 
          },

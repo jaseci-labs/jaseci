@@ -34,6 +34,7 @@ import from jaclang.jac0core.diagnostics {
     E1118
 }
 import type from .type_evaluator { TypeEvaluator }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 
 glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.PLUS: ('__add__', '__radd__'),
@@ -65,17 +66,6 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.MOD,
          Tok.STAR_POW
      },
-     INT_LIKE_WIDTHS: dict[str, int] = {
-         "i8": 8,
-         "u8": 8,
-         "i16": 16,
-         "u16": 16,
-         "i32": 32,
-         "u32": 32,
-         "i64": 64,
-         "u64": 64
-     },
-     FLOAT_LIKE_NAMES: set[str] = {"f32", "f64"},
      AUG_OPERATOR_MAP: dict[str, str] = {
          Tok.ADD_EQ: '__iadd__',
          Tok.SUB_EQ: '__isub__',
@@ -135,13 +125,16 @@ def _has_gradual_type_args(t: TypeBase) -> bool {
 }
 
 def _is_int_like(t: ClassType) -> bool {
-    return t.is_builtin("int")
-        or (t.is_builtin() and t.shared.class_name in INT_LIKE_WIDTHS);
+    return t.is_builtin()
+        and t.shared.class_name != "bool"
+        and JAC_TYPE_REGISTRY.numeric_kind_of(t.shared.class_name)
+            == NumericKind.IntKind;
 }
 
 def _is_float_like(t: ClassType) -> bool {
-    return t.is_builtin("float")
-        or (t.is_builtin() and t.shared.class_name in FLOAT_LIKE_NAMES);
+    return t.is_builtin()
+        and JAC_TYPE_REGISTRY.numeric_kind_of(t.shared.class_name)
+            == NumericKind.FloatKind;
 }
 
 def get_numeric_promotion_type(
@@ -165,24 +158,30 @@ def get_numeric_promotion_type(
         return None;
     }
 
-    if op == Tok.DIV {
-        return evaluator._convert_to_instance(float_class);
-    }
-
-    if left_is_float or right_is_float {
-        return evaluator._convert_to_instance(float_class);
-    }
-
     left_name = left_type.shared.class_name;
     right_name = right_type.shared.class_name;
-    left_fw = left_name in INT_LIKE_WIDTHS;
-    right_fw = right_name in INT_LIKE_WIDTHS;
+    left_w = JAC_TYPE_REGISTRY.bit_width_of(left_name);
+    right_w = JAC_TYPE_REGISTRY.bit_width_of(right_name);
 
-    if not left_fw or not right_fw {
+    if op == Tok.DIV or left_is_float or right_is_float {
+        if (
+            left_is_float
+            and right_is_float
+            and left_w is not None
+            and right_w is not None
+        ) {
+            return evaluator._convert_to_instance(
+                left_type if left_w >= right_w else right_type
+            );
+        }
+        return evaluator._convert_to_instance(float_class);
+    }
+
+    if left_w is None or right_w is None {
         return evaluator._convert_to_instance(int_class);
     }
 
-    if INT_LIKE_WIDTHS[left_name] >= INT_LIKE_WIDTHS[right_name] {
+    if left_w >= right_w {
         return evaluator._convert_to_instance(left_type);
     }
     return evaluator._convert_to_instance(right_type);

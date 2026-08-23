@@ -52,8 +52,9 @@ impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
     param_map: dict[str, Parameter] = {};
+    _erase = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
-        if cls.shared.is_native_erased {
+        if _erase and cls.shared.is_native_erased {
             continue;
         }
         for has_var in cls.shared.symbol_table.get_has_vars() {

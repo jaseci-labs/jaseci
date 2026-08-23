@@ -214,9 +214,9 @@ def print_ast_tree(
         access = f"Access: {nd.access.tag.value} ,"
             if (isinstance(nd, uni.AstAccessNode) and (nd.access is not None))
             else '';
-        sym_table_link = f"SymbolTable: {nd.type_sym_tab.scope_name}"
-            if (isinstance(nd, AstSymbolNode) and nd.type_sym_tab)
-            else 'SymbolTable: None' if isinstance(nd, AstSymbolNode) else '';
+        sym_table_link = f"Symbol: {nd.sym.sym_name}"
+            if (isinstance(nd, AstSymbolNode) and nd.sym)
+            else 'Symbol: None' if isinstance(nd, AstSymbolNode) else '';
         if (isinstance(nd, AstSymbolNode) and isinstance(nd, Token)) {
             type_str = str(nd.type) if (isinstance(nd, uni.Expr) and nd.type) else '';
             out = f"{nd.__class__.__name__} - {nd.value} - Type: {type_str}, {access} {sym_table_link}";

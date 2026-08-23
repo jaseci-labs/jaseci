@@ -907,16 +907,10 @@ impl OwnershipCheckPass._owned_sym_of(nd: UniNode | None) -> (SymId | None) {
 }
 
 impl OwnershipCheckPass._owned_sym_of_expr(nd: Expr | None) -> (SymId | None) {
-    if isinstance(nd, AtomTrailer) and isinstance(nd.right, IndexSlice) {
-        _m = "";
-        try {
-            _m = nd.type.mangle() if nd.type is not None else "";
-        } except Exception {
-            _m = "";
-        }
-        if _m == "str" {
-            return None;
-        }
+    if isinstance(nd, AtomTrailer)
+        and isinstance(nd.right, IndexSlice)
+        and self._nogc_type_is_str(nd.type) {
+        return None;
     }
     cur = nd;
     while isinstance(cur, AtomTrailer) {

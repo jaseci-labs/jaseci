@@ -3986,7 +3986,7 @@ impl EsastGenPass.exit_try_stmt(nd: uni.TryStmt) -> None {
             import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
             (ex_ty_known, ex_builtin) = _raised_exc_identity(except_node.ex_type);
-            if ex_ty_known {
+            if ex_ty_known and ex_builtin is not None {
                 exc_type_name = ex_builtin;
             }
             test_expr: (es.Expression | None) = None;

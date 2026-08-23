@@ -8,25 +8,6 @@ import from jaclang.jac0core.diagnostics {
     E1406
 }
 
-glob _NOGC_SCALARS: tuple = (
-         "int",
-         "float",
-         "bool",
-         "None",
-         "NoneType",
-         "type",
-         "i8",
-         "i16",
-         "i32",
-         "i64",
-         "u8",
-         "u16",
-         "u32",
-         "u64",
-         "f32",
-         "f64"
-     );
-
 def _nogc_name_candidates(mod_name: str) -> list[str] {
     _cands = [mod_name];
     for _suf in (".na", ".cl") {
@@ -103,59 +84,57 @@ impl OwnershipCheckPass._nogc_setup -> None {
     }
 }
 
-impl OwnershipCheckPass._nogc_tag_shape(tag: SubTag | None) -> str {
-    if tag is None {
+impl OwnershipCheckPass._nogc_shape_of(t: TypeBase | None) -> str {
+    if t is None {
         return "unknown";
     }
-    _expr = tag.tag;
-    while isinstance(_expr, AtomTrailer) {
-        _expr = _expr.target;
-    }
-    _root: (Name | None) = _expr if isinstance(_expr, Name) else None;
-    if _root is None {
-        return "unknown";
-    }
-    _tname = _root.sym_name;
-    if _tname in _NOGC_SCALARS {
-        return "scalar";
-    }
-    if _tname == "any" {
+    if isinstance(t, (AnyType, UnknownType)) or t.is_any_instance() {
         return "any";
     }
-    if _root.sym is not None and _root.sym.decl is not None {
-        _arch = _root.sym.decl.find_parent_of_type(Archetype);
-        if _arch is not None
-            and _arch.arch_type.name in (Tok.KW_NODE, Tok.KW_EDGE, Tok.KW_WALKER) {
-            return "osp";
+    if isinstance(t, UnionType) {
+        _shapes = {self._nogc_shape_of(m) for m in t.types};
+        _shapes.discard("scalar");
+        if not _shapes {
+            return "scalar";
         }
+        return _shapes.pop() if len(_shapes) == 1 else "heap";
+    }
+    if not isinstance(t, ClassType) or t._shared is None {
+        return "unknown";
+    }
+    _name = t.shared.class_name;
+    if _name in ("NoneType", "None", "type") {
+        return "scalar";
+    }
+    if (
+        t.is_builtin()
+        and JAC_TYPE_REGISTRY.numeric_kind_of(_name) != NumericKind.NotNumeric
+    ) {
+        return "scalar";
+    }
+    if not t.is_instance() and t.is_instantiable() {
+        return "scalar";
+    }
+    if t.is_node_type() or t.is_edge_type() or t.is_walker_type() {
+        return "osp";
     }
     return "heap";
 }
 
+impl OwnershipCheckPass._nogc_tag_shape(tag: SubTag | None) -> str {
+    if tag is None {
+        return "unknown";
+    }
+    _ty = tag.tag.type if isinstance(tag.tag, Expr) else None;
+    if _ty is None {
+        return "unknown";
+    }
+    import from jaclang.compiler.type_system.type_utils { convert_to_instance }
+    return self._nogc_shape_of(convert_to_instance(_ty));
+}
+
 impl OwnershipCheckPass._nogc_local_shape(nm: Name) -> str {
-    _t = nm.type;
-    if _t is None {
-        return "unknown";
-    }
-    _mangled = "";
-    try {
-        _mangled = _t.mangle();
-    } except Exception {
-        return "unknown";
-    }
-    if _mangled in _NOGC_SCALARS {
-        return "scalar";
-    }
-    if _mangled in ("any", "Unknown", "") {
-        return "any";
-    }
-    for _arch in self.ir_in.get_all_sub_nodes(Archetype) {
-        if _arch.name.value == _mangled
-            and _arch.arch_type.name in (Tok.KW_NODE, Tok.KW_EDGE, Tok.KW_WALKER) {
-            return "osp";
-        }
-    }
-    return "heap";
+    return self._nogc_shape_of(nm.type);
 }
 
 impl OwnershipCheckPass._nogc_infer_locals -> None {
@@ -217,13 +196,17 @@ impl OwnershipCheckPass._nogc_str_slice_value(expr: Expr | None) -> bool {
     if not isinstance(expr.right, IndexSlice) {
         return False;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle() if expr.type is not None else "";
-    } except Exception {
-        return False;
-    }
-    return _m == "str";
+    return self._nogc_type_is_str(expr.type);
+}
+
+impl OwnershipCheckPass._nogc_type_is_str(t: TypeBase | None) -> bool {
+    return self._type_is_class_named(t, ("str", "LiteralString"));
+}
+
+impl OwnershipCheckPass._type_is_class_named(t: TypeBase | None, names: tuple) -> bool {
+    return isinstance(t, ClassType)
+        and t._shared is not None
+        and t.shared.class_name in names;
 }
 
 impl OwnershipCheckPass._nogc_str_elem_ok(
@@ -232,13 +215,7 @@ impl OwnershipCheckPass._nogc_str_elem_ok(
     if not isinstance(expr, Expr) {
         return False;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle() if expr.type is not None else "";
-    } except Exception {
-        return False;
-    }
-    if _m != "str" {
+    if not self._nogc_type_is_str(expr.type) {
         return False;
     }
     if idx_ctx {
@@ -293,49 +270,25 @@ impl OwnershipCheckPass._nogc_expr_type_is_heap(expr: Expr | None) -> bool {
     if not isinstance(expr, Expr) or expr.type is None {
         return False;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle();
-    } except Exception {
-        return False;
-    }
-    if _m in _NOGC_SCALARS or _m in ("any", "Unknown", "") {
-        return False;
-    }
-    for _arch in self.ir_in.get_all_sub_nodes(Archetype) {
-        if _arch.name.value == _m
-            and _arch.arch_type.name in (Tok.KW_NODE, Tok.KW_EDGE, Tok.KW_WALKER) {
-            return False;
-        }
-    }
-    return True;
+    return self._nogc_shape_of(expr.type) == "heap";
 }
 
 impl OwnershipCheckPass._expr_scalar_typed(expr: Expr | None) -> bool {
     if not isinstance(expr, Expr) or expr.type is None {
         return False;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle();
-    } except Exception {
-        return False;
-    }
-    return _m in _NOGC_SCALARS;
+    return self._nogc_shape_of(expr.type) == "scalar";
 }
 
 impl OwnershipCheckPass._nogc_is_container_expr(expr: Expr | None) -> bool {
     if not isinstance(expr, Expr) or expr.type is None {
         return False;
     }
-    _tk = "";
-    try {
-        _tk = expr.type.mangle();
-    } except Exception {
-        return False;
-    }
-    for _nm in ("list", "set", "dict") {
-        if _tk == _nm or _tk.startswith(_nm + "[") {
+    _members = expr.type.types if isinstance(expr.type, UnionType) else [expr.type];
+    for _m in _members {
+        if isinstance(_m, ClassType)
+            and _m._shared is not None
+            and _m.shared.class_name in ("list", "set", "dict") {
             return True;
         }
     }
@@ -639,14 +592,7 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                     and _gav.target.sym_name == "managed" {
                     continue;
                 }
-                _is_str = False;
-                try {
-                    _is_str = (_gav.type.mangle() if _gav.type is not None else "")
-                        == "str";
-                } except Exception {
-                    _is_str = False;
-                }
-                if _is_str {
+                if self._nogc_type_is_str(_gav.type) {
                     if not self._nogc_str_elem_ok(_gav) {
                         self.emit(
                             E1406,
@@ -831,13 +777,7 @@ impl OwnershipCheckPass._view_base_place(expr: Expr | None) -> (Name | None) {
     if not isinstance(_sl, Slice) or _sl.step is not None {
         return None;
     }
-    _m = "";
-    try {
-        _m = expr.type.mangle() if expr.type is not None else "";
-    } except Exception {
-        return None;
-    }
-    if _m != "str" {
+    if not self._nogc_type_is_str(expr.type) {
         return None;
     }
     _base = self._place_of(expr.target);

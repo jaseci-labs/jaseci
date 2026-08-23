@@ -632,10 +632,6 @@ impl AstSymbolNode.expr_ctx.getter -> ExprCtx {
     return self.name_spec.expr_ctx;
 }
 
-impl AstSymbolNode.type_sym_tab.getter -> (UniScopeNode | None) {
-    return self.name_spec.type_sym_tab;
-}
-
 impl AstSymbolStubNode._init_stub(sym_type: SymbolType) -> None {
     AstSymbolNode._init_symbol(
         self,
@@ -757,7 +753,6 @@ impl UniCFGNode.get_tail -> UniCFGNode {
 }
 
 impl Expr.postinit -> None {
-    self._type_sym_tab = None;
     self.type = None;
     self.narrowed_type = None;
     self.attached_tokens = None;
@@ -2670,14 +2665,6 @@ impl UniNode.gen.getter -> CodeGenTarget {
 
 impl UniNode.gen.setter(value: CodeGenTarget) {
     self._gen = value;
-}
-
-impl Expr.type_sym_tab.getter -> (UniScopeNode | None) {
-    return self._type_sym_tab;
-}
-
-impl Expr.type_sym_tab.setter(type_sym_tab: UniScopeNode) {
-    self._type_sym_tab = type_sym_tab;
 }
 
 impl NameAtom.sym.getter -> (Symbol | None) {

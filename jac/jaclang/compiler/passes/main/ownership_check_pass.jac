@@ -57,6 +57,14 @@ import from jaclang.jac0core.constant {
     is_mut_kind
 }
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.type_system.types {
+    AnyType,
+    ClassType,
+    TypeBase,
+    UnionType,
+    UnknownType
+}
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import from jaclang.compiler.passes.main.dataflow { solve_backward, solve_forward }
 
 glob SymId: TypeAlias = int,
@@ -124,6 +132,9 @@ obj OwnershipCheckPass(Transform) {
     def _view_call_owner(call: FuncCall) -> (SymId | None);
     def _emit_view_diagnostics -> None;
     def _nogc_str_elem_ok(expr: Expr | None, idx_ctx: bool = False) -> bool;
+    def _nogc_shape_of(t: TypeBase | None) -> str;
+    def _nogc_type_is_str(t: TypeBase | None) -> bool;
+    def _type_is_class_named(t: TypeBase | None, names: tuple) -> bool;
     def _nogc_tag_shape(tag: SubTag | None) -> str;
     def _nogc_local_shape(nm: Name) -> str;
     def _nogc_local_shape_expr_heap(expr: Expr | None) -> bool;
