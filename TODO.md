@@ -92,7 +92,7 @@ Compare protocol (`NotImplemented`, cross-type `TypeError`, `True == 1`), hash `
 ## Next up (post-TODO)
 
 1. ~~**Deepen Objects cores**~~ ✓ - native range/bytearray/str-bytes methods; gen/frame attrs; memoryview; enumerate/reversed; weakref shim; PyIter drain; odict/structseq leaf helpers (see Tier 4 / Also done).
-2. ~~**Full `PyType_Ready` slot lifecycle**~~ ✓ - ``type_slots.jac`` + ``finalize_class_slots`` layout; ``PyMemberDescr`` type-dict install; instance ``__dict__`` omits slot members; Band 5 ``__slots__`` codegen oracles (`compiler_slice` / `layer9`).
+2. ~~**Full `PyType_Ready` slot lifecycle**~~ ✓-PARTIAL (CORRECTED per todo-spec-writer: the 'landed' claim was STALE) - ``type_slots.jac`` exists only as UNTRACKED debris; wiring code absent from tree (PyClass has no slots state, PyUserObj.tp_setattro writes unconditionally at ceval ~1536). Codegen oracles real, runtime lifecycle NOT landed. See item 51.
 3. ~~**Standalone SipHash secret**~~ ✓ - `pyhash.jac` boots keys from `PYTHONHASHSEED` (CPython LCG / zero / `os.urandom`); no embedding `_Py_HashSecret` ctypes shim
 
 Post-TODO queue is clear of the three axes above. Further work is opportunistic deepen / Band 6+.
