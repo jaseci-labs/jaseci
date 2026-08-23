@@ -400,6 +400,9 @@ Full detail + repros: jac-py/tools/fuzz_findings_20260822.md (fuzz-widener-2).
     logging/trio-style re-raise helpers). Value-mismatch class, not raise.
     Ownerless; exception-adjacent so YoungHawk candidate.
 
+USER APPROVAL LOG: item 19 (native PyRange) given go-ahead; YoungHawk cleared
+    to implement on ceval release. Items 28/30 assignment still open.
+
 33. **[HIGH][FIXED e3eb69a80/b1fedc73b BrightTiger] except (A, B) tuple-form
     handler never matched** - exception_matches treated tuple targets as
     unmatchable (target_name stayed ""), so `except (TypeError, ValueError):`
