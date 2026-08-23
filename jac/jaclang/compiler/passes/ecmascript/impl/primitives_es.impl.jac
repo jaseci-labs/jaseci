@@ -2028,7 +2028,9 @@ impl ESBuiltinEmitter.emit_str(
     if len(args) == 0 {
         return '""';
     }
-    return "String(" + args[0] + ")";
+    # Dispatch __str__ on archetype instances; plain values keep String()
+    # semantics.
+    return _rt("builtin", "str", [args[0]]);
 }
 
 impl ESBuiltinEmitter.emit_int(
