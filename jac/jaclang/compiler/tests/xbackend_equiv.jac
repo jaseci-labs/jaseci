@@ -32,15 +32,37 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = str(
          Path(jaclang.__file__).parent / "compiler" / "tests" / "fixtures"
-     );
+     ),
+     _FIXTURE_SHADOW: list[str] = [];
 
 # -----------------------------------------------------------------------
 # Python reference helper
 # -----------------------------------------------------------------------
+def _fixture_shadow_dir -> str {
+    # The reference lane imports the fixture from a copy of the fixtures
+    # directory that lives outside the jaclang tree: a module under jaclang/
+    # imported while the package itself is being served skips analysis (a
+    # bootstrap guard), and this lane needs the checker's annotations
+    # (coerce_to) so the server codegen emits the same conversions the native
+    # and client lanes emit. Importing keeps the compile on the ordinary
+    # module path, so no compiler state leaks into the client and native
+    # compiles that follow in the same process.
+    import shutil;
+    import tempfile;
+    if not _FIXTURE_SHADOW {
+        base_dir = tempfile.mkdtemp(prefix="jac_xbackend_fixtures_");
+        shadow = os.path.join(base_dir, "fixtures");
+        shutil.copytree(FIXTURES, shadow);
+        _FIXTURE_SHADOW.append(shadow);
+    }
+    return _FIXTURE_SHADOW[0];
+}
+
 def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
+    shadow = _fixture_shadow_dir();
     added = False;
-    if FIXTURES not in sys.path {
-        sys.path.insert(0, FIXTURES);
+    if shadow not in sys.path {
+        sys.path.insert(0, shadow);
         added = True;
     }
     try {
@@ -50,7 +72,7 @@ def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
         return json.loads(json.dumps(fn()));
     } finally {
         if added {
-            sys.path.remove(FIXTURES);
+            sys.path.remove(shadow);
         }
         sys.modules.pop(fixture_stem, None);
     }

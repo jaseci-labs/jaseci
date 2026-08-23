@@ -90,7 +90,7 @@ test "clib SysV: by-value float structs pass and return in SSE registers" {
             f"    return ptd_sum(p);\n"
             f"}}\n"
             f"def use_ptf(a: f64, b: f64) -> f64 {{\n"
-            f"    p = PtF(a=a, b=b);\n"
+            f"    p = PtF(a=f32(a), b=f32(b));\n"
             f"    return ptf_sum(p);\n"
             f"}}\n"
             f"def roundtrip(x: f64, y: f64) -> f64 {{\n"

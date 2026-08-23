@@ -4602,18 +4602,29 @@ impl NativeBuiltinEmitter.emit_abs(
     }
     arg_val = args[0];
     b = ctx.pass_ref.builder;
-    i64 = ir.IntType(64);
     if isinstance(arg_val.type, ir.IntType) {
-        zero = ir.Constant(i64, 0);
-        is_neg = b.icmp_signed("<", arg_val, zero, name="abs.neg");
-        negated = b.sub(zero, arg_val, name="abs.negate");
-        return b.select(is_neg, negated, arg_val, name="abs.result");
+        if arg_val.type.width == 1 {
+            return arg_val;
+        }
+        if ctx.arg_nodes and ctx.pass_ref._is_sized_node(ctx.arg_nodes[0]) {
+            return ctx.pass_ref._emit_checked_abs(arg_val);
+        }
+        _zero = ir.Constant(arg_val.type, 0);
+        _is_neg = b.icmp_signed("<", arg_val, _zero, name="abs.neg");
+        _negv = b.neg(arg_val, name="abs.negv");
+        return b.select(_is_neg, _negv, arg_val, name="abs");
     }
     if isinstance(arg_val.type, ir.DoubleType) {
         fabs_fn = ctx.pass_ref._get_or_declare_extern(
             "fabs", ir.DoubleType(), [ir.DoubleType()]
         );
         return b.call(fabs_fn, [arg_val], name="abs.fresult");
+    }
+    if isinstance(arg_val.type, ir.FloatType) {
+        fabsf_fn = ctx.pass_ref._get_or_declare_extern(
+            "fabsf", ir.FloatType(), [ir.FloatType()]
+        );
+        return b.call(fabsf_fn, [arg_val], name="abs.f32result");
     }
     return None;
 }
@@ -5194,9 +5205,16 @@ impl NativeBuiltinEmitter.emit_int(
         if arg_val.type.width == 64 {
             return arg_val;
         }
+        _src_node = ctx.arg_nodes[0] if ctx.arg_nodes else None;
+        if arg_val.type.width > 1 and not p._is_unsigned_node(_src_node) {
+            return b.sext(arg_val, i64, name="int.from.int");
+        }
         return b.zext(arg_val, i64, name="int.from.int");
     }
 
+    if isinstance(arg_val.type, ir.FloatType) {
+        arg_val = b.fpext(arg_val, ir.DoubleType(), name="int.from.f32");
+    }
     if isinstance(arg_val.type, ir.DoubleType) {
         return b.fptosi(arg_val, i64, name="int.from.float");
     }
@@ -5246,6 +5264,10 @@ impl NativeBuiltinEmitter.emit_float(
     }
 
     if isinstance(arg_val.type, ir.IntType) {
+        _src_node = ctx.arg_nodes[0] if ctx.arg_nodes else None;
+        if arg_val.type.width == 1 or p._is_unsigned_node(_src_node) {
+            return b.uitofp(arg_val, ir.DoubleType(), name="float.from.uint");
+        }
         return b.sitofp(arg_val, ir.DoubleType(), name="float.from.int");
     }
     if isinstance(arg_val.type, ir.DoubleType) {

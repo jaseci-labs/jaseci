@@ -1230,6 +1230,13 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     _call_kind = nd.call_kind;
 
+    _sized_call = self._codegen_sized_builtin_call(
+        nd, self._get_name(nd.target), _call_kind
+    );
+    if _sized_call is not None {
+        return _sized_call;
+    }
+
     _mod_qual: (str | None) = None;
     _qualified_builtin = qualified_builtin_name(nd.target);
     if _qualified_builtin is not None {
@@ -1334,6 +1341,10 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if func_name == "type" {
             _cid_params = nd.params or [];
             if len(_cid_params) == 1 {
+                _scalar = self._scalar_shape(_cid_params[0]);
+                if _scalar is not None {
+                    return self._codegen_type_name_str(_scalar.name);
+                }
                 _cid = self._codegen_class_id(_cid_params[0]);
                 if _cid is not None {
                     return _cid;
@@ -1709,7 +1720,8 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         [arg_val],
                         kwargs=self._split_call_kwargs(nd),
                         kw_node=nd,
-                        type_key=(self._type_key_of(params_l[0]) or "")
+                        type_key=(self._type_key_of(params_l[0]) or ""),
+                        arg_nodes=[params_l[0]]
                     );
 
                     if isinstance(arg_val.type, ir.PointerType)
@@ -2177,7 +2189,6 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
-        result = self._clib_sext_ret(func_name, result);
         if _clib_str_ret and isinstance(result.type, ir.PointerType) {
             result = self._membrane_str_in(self.builder, result);
         }
@@ -3303,4 +3314,33 @@ impl NaIRGenCalls._prep_kwbind_record(
         rec["missing_msg"] = f"missing 1 required {required_kind} argument: '{name}'";
     }
     return rec;
+}
+
+impl NaIRGenCalls._codegen_sized_builtin_call(
+    nd: uni.FuncCall, func_name: (str | None), call_kind: str
+) -> (ir.Value | None) {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if call_kind == "method" and isinstance(nd.target, uni.AtomTrailer) {
+        _owner = self._get_name(nd.target.target);
+        _attr = self._get_name(nd.target.right);
+        if (
+            _owner is not None
+            and _attr == "wrap"
+            and JAC_TYPE_REGISTRY.is_sized(_owner)
+            and _owner not in self.local_vars
+        ) {
+            return self._codegen_sized_wrap(nd, _owner);
+        }
+        return None;
+    }
+    if func_name is None or func_name in self.local_vars {
+        return None;
+    }
+    if JAC_TYPE_REGISTRY.is_sized(func_name) {
+        return self._codegen_sized_cast(nd, func_name);
+    }
+    if func_name.startswith("wrapping_") and JAC_TYPE_REGISTRY.is_builtin(func_name) {
+        return self._codegen_wrapping(nd, func_name);
+    }
+    return None;
 }
