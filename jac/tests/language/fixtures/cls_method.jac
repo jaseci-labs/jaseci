@@ -1,7 +1,7 @@
 """Test file for class method."""
 
 class MyClass {
-    def simple_method()  -> str {
+    def simple_method -> str {
         return "Hello, World1!";
     }
 

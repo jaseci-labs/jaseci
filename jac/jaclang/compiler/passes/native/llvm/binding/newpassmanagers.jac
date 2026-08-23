@@ -21,10 +21,10 @@ def create_pipeline_tuning_options(speed_level: any = 2) -> PipelineTuningOption
 """ Holds statistics from reference count pruning.
     """
 class PruneStats(NamedTuple) {
-    has basicblock: int;
-    has diamond: int;
-    has fanout: int;
-    has fanout_raise: int;
+    has basicblock: int,
+        diamond: int,
+        fanout: int,
+        fanout_raise: int;
 
     def __add__(self: PruneStats, other: any) -> object {
         if not isinstance(other, PruneStats) {

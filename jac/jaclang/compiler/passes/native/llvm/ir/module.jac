@@ -31,9 +31,7 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def _fix_di_operands(
-        self: Module, operands: any
-    ) -> list[tuple[str, any]] {
+    def _fix_di_operands(self: Module, operands: any) -> list[tuple[str, any]] {
         fixed_ops: list[tuple[str, any]] = [];
         for (name, op) in operands {
             if isinstance(op, (`list, `tuple)) {
@@ -44,9 +42,7 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def str_ditok_operands(
-        self: Module, operands: any
-    ) -> list[tuple[str, any]] {
+    def str_ditok_operands(self: Module, operands: any) -> list[tuple[str, any]] {
         str_ops: list[tuple[str, any]] = [];
         for (name, op) in operands {
             if ((name == 'encoding') and isinstance(op, values.DIToken)) {
@@ -175,9 +171,7 @@ class Module(object) {
         self.globals[globalvalue.name] = globalvalue;
     }
 
-    def get_identified_types(
-        self: Module
-    ) -> dict[str, types.IdentifiedStructType] {
+    def get_identified_types(self: Module) -> dict[str, types.IdentifiedStructType] {
         return self.context.identified_types;
     }
 

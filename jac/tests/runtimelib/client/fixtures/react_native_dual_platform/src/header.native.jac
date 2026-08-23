@@ -1,6 +1,5 @@
 """Native variant of the platform header (inline styles only)."""
 
-
 def:pub PlatformHeader(props: any) -> JsxElement {
     <div style={{"padding": 16, "backgroundColor": "#f3f4f6"}}>
         <h1 style={{"fontSize": 24, "fontWeight": "bold"}}>{props.title}</h1>

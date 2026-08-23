@@ -53,7 +53,6 @@ class _MissingShimFunc {
     shim those assignments land here and vanish, so the modules stay
     importable (the checker resolving an import must not demand LLVM).
     Only an actual call raises, with the original locate error."""
-
     def init(self: _MissingShimFunc, err: OSError) {
         self._err: OSError = err;
     }

@@ -17,20 +17,27 @@ obj User {
 
 with entry {
     user = User(Name("Alice"));
-    ghost = None;
+}
+glob ghost = None;
+with entry {
     print(ghost?.name?.value);
     print(user?.name?.value);
     print(user?.item?.value);
     print(user?.name?.items);
-    mylist = [1, 2, 3];
+}
+
+glob mylist = [1, 2, 3];
+with entry {
     print(mylist?[2]);
     print(mylist?[10]);
     print(mylist?[-1]);
     print(mylist?[-10]);
     print(mylist?[1:3]);
     print(mylist?[10:20]);
+}
 
-    none_list = None;
+glob none_list = None;
+with entry {
     print(none_list?[0]);
     print(none_list?[1:3]);
 }

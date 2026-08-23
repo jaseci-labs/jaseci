@@ -619,7 +619,7 @@ class NamedValue(_StrCaching, _StringReferenceCaching, Value) {
     }
 
     @name.setter
-    def name(self: NamedValue, value: any) -> None {
+    def name(self: NamedValue, value: any) {
         self._set_name(value);
     }
 

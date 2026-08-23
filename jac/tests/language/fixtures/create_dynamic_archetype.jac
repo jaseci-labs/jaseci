@@ -7,10 +7,8 @@ can print_value with entry {
 print("Dynamic Node Value:", f'{self.value}');
 }
 }
-""";
-
-# Create a new walker archetype dynamically
-glob walker_code = """
+""",
+     walker_code = """
 walker dynamic_walker {
 can visit_nodes with entry {
 visit [-->];
@@ -18,6 +16,7 @@ visit [-->];
 }
 """;
 
+# Create a new walker archetype dynamically
 with entry {
     node_arch = JacRuntime.create_archetype_from_source(source_code);
     assert node_arch is not None;
