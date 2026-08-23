@@ -574,6 +574,21 @@ obj PyNoneType(PyObj) {
         return False;
     }
 
+    # None == None is True by VALUE, not identity: py_none() mints a fresh
+    # instance per call, so two Nones are distinct objects that CPython still
+    # reports equal (x is None uses the singleton; x == None compares values).
+    # Without this, `None in {None}` / dict lookups / (1, None) == (1, None)
+    # all fail on non-identical instances.
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if kind == 2 or kind == 3 {
+            if isinstance(other, PyNoneType) {
+                return PyBool(t="bool", val=kind == 2);
+            }
+            return PY_NOT_IMPLEMENTED;
+        }
+        return PY_NOT_IMPLEMENTED;
+    }
+
     def tp_hashkey -> str {
         # Byte-parity with the host oracle: CPython hash(None) is process-
         # stable (4238894112 on the pinned 3.14), and the "n:" namespace
