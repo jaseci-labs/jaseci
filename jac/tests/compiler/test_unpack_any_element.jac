@@ -52,7 +52,7 @@ def check_errors(fixture: str) -> list {
     prog = JacProgram();
     prog.compile(
         file_path=str(os.path.join(FIXTURES, fixture)),
-        options=CompileOptions(type_check=True, no_cgen=True)
+        options=CompileOptions(no_cgen=True)
     );
     return [str(e) for e in (prog.errors_had or [])];
 }

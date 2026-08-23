@@ -37,6 +37,7 @@ test "create --kind desktop" {
     assert 'kind = "desktop"' in toml;
     assert (proj / "main.jac").exists();
     cfg = JacConfig.discover(start_path=proj);
+    assert cfg is not None;
     assert cfg.project.kind == "desktop";
     _cleanup();
 }

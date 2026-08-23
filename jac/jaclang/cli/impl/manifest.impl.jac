@@ -1,86 +1,6 @@
 def _command_routes -> list[CommandMeta] {
     return [
         CommandMeta(
-            name='ai',
-            help='Launch an interactive Jac coding agent',
-            group='general',
-            tier='',
-            hidden=False,
-            handler_module='jaclang.cli.commands.ai',
-            handler_name='ai',
-            examples=[
-                (
-                    'jac ai',
-                    "Start a session (uses jac.toml's model, else local default)"
-                ),
-                ('jac ai "add a walker to main.jac"', 'Run a single request and exit'),
-                (
-                    'jac ai -m openai/gpt-4o',
-                    'Use a cloud model (key from jac.toml or env)'
-                ),
-                ('jac ai -m local:gemma-4-e2b', 'Use a smaller/faster local model'),
-                (
-                    'jac ai --n_ctx 32768',
-                    'Give the local model a larger context window'
-                ),
-                ('jac ai --safe', 'Approve each file write and command before it runs'),
-                (
-                    'jac ai -q "fix the build"',
-                    'Compact output -- just tool calls and the answer'
-                ),
-                (
-                    'jac ai --ui',
-                    'Open a web UI with a live agent phase-graph visualizer'
-                )
-            ],
-            args=[
-                ArgMeta(
-                    name='prompt',
-                    kind=ArgKind.POSITIONAL,
-                    `default='',
-                    help='Optional one-shot request; omit for an interactive session'
-                ),
-                ArgMeta(
-                    name='model',
-                    `default='',
-                    help='Model to use, e.g. local:gemma-4-e4b or openai/gpt-4o',
-                    short='m'
-                ),
-                ArgMeta(
-                    name='n_ctx',
-                    typ='int',
-                    `default=0,
-                    help='Context-window size for local models (tokens)',
-                    short='n'
-                ),
-                ArgMeta(
-                    name='safe',
-                    kind=ArgKind.FLAG,
-                    typ='bool',
-                    `default=False,
-                    help='Confirm every file write and code execution (off by default)',
-                    short='s'
-                ),
-                ArgMeta(
-                    name='quiet',
-                    kind=ArgKind.FLAG,
-                    typ='bool',
-                    `default=False,
-                    help='Compact output: hide live reasoning, timings, and step detail',
-                    short='q'
-                ),
-                ArgMeta(
-                    name='ui',
-                    kind=ArgKind.FLAG,
-                    typ='bool',
-                    `default=False,
-                    help='Open the agent in a web UI with a live phase-graph visualizer',
-                    short='u'
-                ),
-
-            ]
-        ),
-        CommandMeta(
             name='browse',
             help='Headless browser automation over CDP (open, click, snapshot, ...)',
             group='tools',
@@ -145,12 +65,14 @@ def _command_routes -> list[CommandMeta] {
             handler_module='jaclang.cli.commands.build',
             handler_name='build',
             examples=[
-                ('jac build', 'Gate + build a single .jab into dist/'),
-                ('jac build --as binary', 'Gate + build a self-contained executable'),
-                ('jac build --fat', 'Gate + build a fat jab (Python deps vendored)'),
-                ('jac build --as wheel', 'Gate + build a PyPI wheel'),
-                ('jac build --check_only', 'Run the whole-program gate only'),
-                ('jac build --no_typecheck', 'Build without the gate (escape hatch)'),
+                ('jac build', 'Build a single .jab into dist/'),
+                ('jac build --as binary', 'Build a self-contained executable'),
+                ('jac build --fat', 'Build a fat jab (Python deps vendored)'),
+                ('jac build --as wheel', 'Build a PyPI wheel'),
+                (
+                    'jac build --check_only',
+                    'Type-check the whole project without building'
+                ),
                 ('jac build --client mobile', 'Build the mobile client shell')
             ],
             args=[
@@ -181,13 +103,6 @@ def _command_routes -> list[CommandMeta] {
                     `default='dist',
                     help='Output directory for the built artifact',
                     short='o'
-                ),
-                ArgMeta(
-                    name='no_typecheck',
-                    typ='bool',
-                    `default=False,
-                    help='Skip the whole-program type-check gate (escape hatch)',
-                    short='n'
                 ),
                 ArgMeta(
                     name='fat',
@@ -1394,6 +1309,10 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac nacompile service.jac --gc none --assert-no-rc',
                     'Compile and prove the artifact contains no RC/collector machinery'
+                ),
+                (
+                    'jac nacompile launcher.jac --strict',
+                    'Compile and refuse any Python-only demotion in the native closure'
                 )
             ],
             args=[
@@ -1456,19 +1375,15 @@ def _command_routes -> list[CommandMeta] {
                     help='Enforce zero-RC ownership coverage (E140x hard errors) on the compiled module, regardless of jac.toml [gc.enforce] patterns',
                     short=''
                 ),
+                ArgMeta(
+                    name='strict',
+                    kind=ArgKind.FLAG,
+                    `default=False,
+                    help="Fail when any function in the program's native closure was demoted to Python-only (a demoted function cannot run in a self-contained binary); JAC_NA_DEBUG=1 prints why",
+                    short=''
+                ),
 
             ]
-        ),
-        CommandMeta(
-            name='ninja',
-            help='Open the built-in jac editor (fused Neovim + LSP + tree-sitter)',
-            group='tools',
-            tier='',
-            hidden=False,
-            handler_module='jaclang.cli.commands.tools',
-            handler_name='ninja',
-            examples=[('jac ninja file.jac', 'Edit a jac file in the built-in editor')],
-            args=[]
         ),
         CommandMeta(
             name='precommit',

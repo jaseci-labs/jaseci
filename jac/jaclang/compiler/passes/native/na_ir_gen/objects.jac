@@ -69,7 +69,10 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Constant | None);
 
     def _forward_declare_method(
-        arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
+        arch_name: str,
+        method: uni.Ability,
+        field: (uni.HasVar | None) = None,
+        imported: bool = False
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
@@ -87,9 +90,14 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _emit_dispatched_field_ptr(
-        obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+        obj_val: ir.Value,
+        type_name: str,
+        field_name: str,
+        ftype: (ir.Type | None),
+        parts: (list[str] | None) = None
     ) -> (ir.Value | None);
 
+    def _receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] | None);
     def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
     def _class_const_global(
         arch_name: str, field_name: str
@@ -114,7 +122,11 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Function | None);
 
     def _demote_method_if_unlowerable(
-        full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
+        full_name: str,
+        func: ir.Function,
+        local_mark: int,
+        keep_func: bool = False,
+        stub_body: bool = True
     ) -> bool;
 
     def _seam_warnings_on -> bool;

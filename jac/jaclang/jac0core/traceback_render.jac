@@ -52,10 +52,12 @@ def dump_traceback(e: Exception) -> str {
             )
         ) {
             line_o = frame.line;
-            if frame?._original_line {
-                line_o = frame._original_line.rstrip();
-            } elif frame?._original_lines {
-                line_o = frame._original_lines.split('\n')[0].rstrip();
+            original_line = frame?._original_line;
+            original_lines = frame?._original_lines;
+            if isinstance(original_line, str) and original_line {
+                line_o = original_line.rstrip();
+            } elif isinstance(original_lines, str) and original_lines {
+                line_o = original_lines.split('\n')[0].rstrip();
             }
             if ((frame.colno is not None) and (frame.end_colno is not None)) {
                 off_start = byte_offset_to_char_offset(line_o, frame.colno) - 1;

@@ -137,6 +137,41 @@ impl JcirGenPass.exit_node(nd: UniNode) -> None {
         return;
     }
     super.exit_node(nd);
+    if isinstance(nd, Expr) and nd.coerce_to is not None {
+        self._apply_coercion(nd);
+    }
+}
+
+impl JcirGenPass._apply_coercion(nd: Expr) -> None {
+    target = nd.coerce_to;
+    got = self.outs(nd);
+    if target is None or len(got) != 1 or not isinstance(got[0], CgNode) {
+        return;
+    }
+    parent = nd.parent;
+    if (
+        isinstance(parent, FuncCall)
+        and isinstance(parent.target, Name)
+        and parent.target.sym_name == target
+        and parent.params is not None
+        and len(parent.params) == 1
+    ) {
+        return;
+    }
+    if target in self._get_builtin_names() {
+        self.builtin_imports.add(target);
+    }
+    self.set_out(
+        nd,
+        [
+            self.nod(
+                'Call',
+                ['func', 'args', 'keywords'],
+                [self.name_load(target), [got[0]], []],
+                jac_node=nd
+            )
+        ]
+    );
 }
 
 impl JcirGenPass.nod(
@@ -4055,6 +4090,9 @@ impl JcirGenPass.exit_bool(nd: Bool) -> None {
 }
 
 impl JcirGenPass.exit_builtin_type(nd: BuiltinType) -> None {
+    if nd.sym_name in self._get_builtin_names() {
+        self.builtin_imports.add(nd.sym_name);
+    }
     if nd.sym_name == "any" {
         parent = nd.parent;
         is_call_func = (
@@ -4332,7 +4370,7 @@ impl JcirGenPass._top_level_bound_names(items: any) -> list {
 }
 
 impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
-    import from jaclang.jac0core.codeinfo { native_test_symbol, native_safe_sym }
+    import from jaclang.jac0core.codeinfo { native_test_symbol, native_glob_init_name }
     test_name = nd.name.sym_name;
     line = nd.loc.first_line if nd.loc else 0;
     symbol = native_test_symbol(test_name, line);
@@ -4341,7 +4379,7 @@ impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
     init_syms: list[str] = [];
     for dep_src in (dep_sources or []) {
         if dep_src {
-            dep_init = f"__jac_glob_init_{native_safe_sym(dep_src)}";
+            dep_init = native_glob_init_name(dep_src, manifest);
             if dep_init not in init_syms {
                 init_syms.append(dep_init);
             }

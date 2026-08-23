@@ -18,7 +18,7 @@ obj NotificationPlugin(OsPlugin) {
     }
 
     static def build(ctx: PluginContext, config: object) -> DesktopPlugin {
-        return NotificationPlugin(config);
+        return NotificationPlugin(DesktopPlugin._coerce_config(config));
     }
 
     def init(config: dict) {

@@ -20,6 +20,8 @@ obj SavableObject {
 }
 
 walker create_custom_object {
+    has `obj: (SavableObject | None) = None;
+
     can enter1 with Root entry {
         self.`obj = SavableObject(
             val=0,
@@ -53,7 +55,7 @@ walker get_custom_object {
 
     can enter1 with Root entry {
         try {
-            print(& (self.object_id));
+            print(&(self.object_id));
         } except Exception as e {
             print(None);
         }
@@ -64,7 +66,7 @@ walker update_custom_object {
     has object_id: str;
 
     can enter1 with Root entry {
-        savable_object = & (self.object_id);
+        savable_object = &(self.object_id);
         savable_object.parent.child.json["c"] = 3;
         savable_object.parent.child.arr.append(3);
         savable_object.parent.child.val = 3;
@@ -85,7 +87,7 @@ walker delete_custom_object {
     has object_id: str;
 
     can enter1 with Root entry {
-        savable_object = & (self.object_id);
-        del savable_object ;
+        savable_object = &(self.object_id);
+        del savable_object;
     }
 }

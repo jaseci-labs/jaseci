@@ -141,6 +141,14 @@ import from jaclang.compiler.type_system.operations {
     get_type_of_binary_operation,
     is_annotation_type
 }
+import from jaclang.compiler.type_system.fixed_width {
+    AssignVerdict,
+    assign_numeric_expr,
+    both_numeric,
+    fixed_width_call_type,
+    is_unsigned_type,
+    unify_numeric_operands
+}
 import from jaclang.compiler.type_system.type_utils {
     ClassMember,
     ParamAssignmentTracker,
@@ -222,6 +230,7 @@ import from jaclang.jac0core.diagnostics {
     E1111,
     E1120,
     E1121,
+    E1129,
     E0049,
     W1050,
     W1051,
@@ -235,6 +244,7 @@ obj PrefetchedTypes {
         object_class: ClassType | None = None,
         type_class: ClassType | None = None,
         coroutine_class: ClassType | None = None,
+        generator_class: ClassType | None = None,
         function_class: ClassType | None = None,
         tuple_class: ClassType | None = None,
         bool_class: ClassType | None = None,
@@ -424,6 +434,7 @@ obj TypeEvaluator {
         mod: Module, name: str, visited: set[int] | None = None
     ) -> Symbol | None;
 
+    def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
     def _is_class_scoped_type_param(node_: TypeParam) -> bool;
     def _collect_typevars_from_base(
@@ -460,6 +471,18 @@ obj TypeEvaluator {
         src_type: TypeBase, dest_type: TypeBase, strict: bool = False
     ) -> bool;
 
+    def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
+    def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
+    def _extern_field_type(field: HasVar) -> TypeBase;
+    def assign_expr(
+        expr: Expr | None,
+        src_type: TypeBase,
+        dest_type: TypeBase,
+        strict: bool = False,
+        probe: bool = False
+    ) -> AssignVerdict;
+
     def get_type_of_magic_method_call(
         obj_type: TypeBase,
         method_name: str,
@@ -484,6 +507,7 @@ obj TypeEvaluator {
     ) -> bool;
 
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
+    def _get_type_of_symbol_decl(symbol: Symbol, decl: NameAtom) -> TypeBase;
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
     def get_type_of_member(member: ClassMember, class_type: ClassType) -> TypeBase;
     def declaring_class_of(symbol: Symbol, base_type: ClassType) -> (ClassType | None);
@@ -498,7 +522,10 @@ obj TypeEvaluator {
     ) -> TypeBase;
 
     def _walk_compr_clauses(comprs: list[InnerCompr]) -> None;
-    def _null_ok_attr_type(expr: AtomTrailer) -> TypeBase;
+    def _null_ok_attr_type(
+        expr: AtomTrailer, base_type: (TypeBase | None) = None
+    ) -> TypeBase;
+
     def _set_module_item_symbol_and_type(node_: ModuleItem, sym: Symbol) -> TypeBase;
     def resolve_imported_symbols(sym: Symbol) -> Symbol;
     def _set_symbol_to_expr(expr: Expr, sym: Symbol) -> TypeBase;
@@ -518,6 +545,7 @@ obj TypeEvaluator {
     def _get_enclosing_class(nd: UniNode) -> Archetype | None;
     def _get_type_of_self(node_: SpecialVarRef) -> TypeBase;
     def _get_type_of_super(node_: SpecialVarRef) -> TypeBase;
+    def _super_owner_for(node_: SpecialVarRef, rest: list[ClassType]) -> ClassType;
     def _get_type_of_root(node_: SpecialVarRef) -> TypeBase;
     def _get_type_of_lhs_assignment(expr: Name) -> TypeBase | None;
     def _extract_tuple_element_type(tuple_type: TypeBase, idx: int) -> TypeBase | None;
@@ -594,6 +622,10 @@ obj TypeEvaluator {
 
     def _literal_type_from_expr(val: Expr) -> TypeBase | None;
     def _build_typeddict_fields(class_type: ClassType) -> dict[str, TypeBase];
+    def _enum_member_attr_type(
+        base_type: EnumMemberType, member_name: str
+    ) -> (TypeBase | None);
+
     def _has_typeddict_special_form_base(node_: Archetype) -> bool;
     def _typeddict_value_union(base_type: ClassType) -> TypeBase;
     def _get_typeddict_indexed_type(
@@ -621,6 +653,11 @@ obj TypeEvaluator {
         param_type: TypeBase, arg_type: TypeBase, bindings: dict[str, TypeBase]
     ) -> bool;
 
+    def bind_type_vars_to_opaque(
+        param_type: TypeBase, bindings: dict[str, TypeBase], fill: TypeBase
+    ) -> None;
+
+    def class_constructor_callables(cls_type: ClassType) -> list[FunctionType];
     def _infer_type_args_from_method(
         caller_type: ClassType, expr: FuncCall, matched_method: FunctionType | None
     ) -> list[TypeBase];
@@ -667,6 +704,7 @@ obj TypeEvaluator {
     def create_key_for_reference(expr: Expr) -> str | None;
     def _find_symbol_by_key(key: str, condition: Expr) -> Symbol | None;
     def classify_condition(condition: Expr) -> ConditionInfo | None;
+    def flow_pred_never_returns(pred: UniCFGNode) -> bool;
     def get_narrowed_type(symbol: Symbol, at_node: UniNode) -> TypeBase | None;
     def get_narrowed_type_for_expr(
         expr: Expr, declared_type: TypeBase, at_node: UniNode
@@ -732,6 +770,7 @@ obj TypeEvaluator {
     def _filter_union_to_callables(union_type: TypeBase) -> TypeBase;
     def _is_ellipsis_only_body(body: list[CodeBlockStmt]) -> bool;
     def _is_type_alias_annotation(annotation_type: TypeBase, tag_expr: Expr) -> bool;
+    def _type_alias_tag_ident(tag_expr: Expr) -> (str | None);
     def _resolve_type_alias_rhs(value: Expr) -> TypeBase;
     def _brand_distinct_alias(node_: TypeAlias, resolved: TypeBase) -> TypeBase;
     def _distinct_brand_mismatch(src_type: TypeBase, dest_type: TypeBase) -> bool;

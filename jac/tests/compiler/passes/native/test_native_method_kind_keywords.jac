@@ -50,7 +50,7 @@ def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
 }
 
 """Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
@@ -64,10 +64,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_mkind_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
-            no_cgen=True,
-            force_codespace="native",
-            force_target_program=True
+            no_cgen=True, force_codespace="native", force_target_program=True
         )
     );
     return prog;
