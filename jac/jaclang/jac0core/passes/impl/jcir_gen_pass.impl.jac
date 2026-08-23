@@ -137,6 +137,41 @@ impl JcirGenPass.exit_node(nd: UniNode) -> None {
         return;
     }
     super.exit_node(nd);
+    if isinstance(nd, Expr) and nd.coerce_to is not None {
+        self._apply_coercion(nd);
+    }
+}
+
+impl JcirGenPass._apply_coercion(nd: Expr) -> None {
+    target = nd.coerce_to;
+    got = self.outs(nd);
+    if target is None or len(got) != 1 or not isinstance(got[0], CgNode) {
+        return;
+    }
+    parent = nd.parent;
+    if (
+        isinstance(parent, FuncCall)
+        and isinstance(parent.target, Name)
+        and parent.target.sym_name == target
+        and parent.params is not None
+        and len(parent.params) == 1
+    ) {
+        return;
+    }
+    if target in self._get_builtin_names() {
+        self.builtin_imports.add(target);
+    }
+    self.set_out(
+        nd,
+        [
+            self.nod(
+                'Call',
+                ['func', 'args', 'keywords'],
+                [self.name_load(target), [got[0]], []],
+                jac_node=nd
+            )
+        ]
+    );
 }
 
 impl JcirGenPass.nod(
@@ -4055,6 +4090,9 @@ impl JcirGenPass.exit_bool(nd: Bool) -> None {
 }
 
 impl JcirGenPass.exit_builtin_type(nd: BuiltinType) -> None {
+    if nd.sym_name in self._get_builtin_names() {
+        self.builtin_imports.add(nd.sym_name);
+    }
     if nd.sym_name == "any" {
         parent = nd.parent;
         is_call_func = (
