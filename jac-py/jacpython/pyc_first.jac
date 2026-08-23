@@ -1089,7 +1089,7 @@ test "pyc-first: native sets via the hash-key protocol (H3)" {
 
     # A mutable set is unhashable.
     unh = PySet(t="set", items={}, frozen=False).tp_hashkey();
-    assert unh == "";
+    assert is_error(unh);
 }
 
 test "pyc-first: builtin subclassing (Track B)" {

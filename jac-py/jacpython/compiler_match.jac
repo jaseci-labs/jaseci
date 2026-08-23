@@ -7,6 +7,7 @@ import from objects {
     PyObj,
     PyStr,
     PyTuple,
+    hashkey_equal,
 }
 import from opcode_meta {
     CMP_EQ,
@@ -878,7 +879,7 @@ def emit_match_pattern_mapping(
             hk = kv.tp_hashkey();
             si = 0;
             while si < len(seen) {
-                if seen[si].tp_hashkey() == hk {
+                if hashkey_equal(seen[si].tp_hashkey(), hk) {
                     codegen_fail(
                         g, "SyntaxError", "mapping pattern checks duplicate key"
                     );

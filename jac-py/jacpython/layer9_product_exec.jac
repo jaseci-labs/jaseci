@@ -25,6 +25,7 @@ import from objects {
     expect_int,
     expect_str,
     is_error,
+    hashkey_equal,
     PyError,
     py_none
 }
@@ -82,7 +83,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     }
     i = 0;
     while i < len(a) {
-        if a[i].tp_hashkey() != b[i].tp_hashkey() {
+        if not hashkey_equal(a[i].tp_hashkey(), b[i].tp_hashkey()) {
             return False;
         }
         i = i + 1;

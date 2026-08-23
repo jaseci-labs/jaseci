@@ -3,7 +3,7 @@
 # Source -> PyCode for if / while / for via native compile_exec, byte-exact
 # against the host oracle plus VM execution smoke tests.
 
-import from objects { PyObj, PyCode, PyInt, PyTuple, expect_int, expect_str, is_error }
+import from objects { PyObj, PyCode, PyInt, PyTuple, expect_int, expect_str, is_error, hashkey_equal }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -35,7 +35,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     }
     i = 0;
     while i < len(a) {
-        if a[i].tp_hashkey() != b[i].tp_hashkey() {
+        if not hashkey_equal(a[i].tp_hashkey(), b[i].tp_hashkey()) {
             return False;
         }
         i = i + 1;

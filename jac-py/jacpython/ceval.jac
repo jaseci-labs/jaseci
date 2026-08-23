@@ -91,7 +91,8 @@ def _jac_host_hashkey(value) -> str:
     # Bucket a proxied host object by its host hash so it can be a dict/set key
     # (type-keyed dispatch tables in functools/copyreg/typing/contextlib). Equal
     # host objects share a hash, hence a bucket; the dict layer confirms a bucket
-    # hit with a real == (PyHostProxy needs_eq_confirm). '' means unhashable.
+    # hit with a real == (PyHostProxy needs_eq_confirm). "" means unhashable --
+    # tp_hashkey turns it into the explicit PyError marker.
     try:
         return "host:" + str(hash(value))
     except BaseException:
@@ -554,6 +555,7 @@ import from objects {
     dict_key_repr,
     _pyobj_repr,
     is_error,
+    hashkey_str,
     PY_NOT_IMPLEMENTED
 }
 import from opcode_meta {
@@ -1106,8 +1108,12 @@ obj PyHostProxy(PyObj) {
         return py_call_host(self, args, kwargs);
     }
 
-    def tp_hashkey -> str {
-        return _jac_host_hashkey(self.val) as str;
+    def tp_hashkey -> PyObj {
+        hks = _jac_host_hashkey(self.val);
+        if hks == "" {
+            return py_error("TypeError", "unhashable type");
+        }
+        return PyStr(t="str", val=hks);
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
@@ -1153,7 +1159,7 @@ obj PyRange(PyObj) {
     # byte-parity with the host ratchet, not just equivalence classes.
     # hash(None) is process-stable in CPython (4238894112); substituting an
     # int of that value keeps every lane's hash identical to the real triple.
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         n = self.length();
         triple: list[PyObj] = [PyInt(t="int", val=n)];
         if n == 0 {
@@ -1169,11 +1175,11 @@ obj PyRange(PyObj) {
         }
         th = tuple_hash(PyTuple(t="tuple", items=triple));
         if is_error(th) {
-            return "";
+            return th;
         }
         # Already-signed numeric digest: the "n:" namespace passes it through
         # verbatim (see _hashkey_digest).
-        return "n:" + str((th as PyInt).val);
+        return PyStr(t="str", val="n:" + str((th as PyInt).val));
     }
 
     def tp_iter -> PyObj {
@@ -1399,8 +1405,8 @@ obj PyClass(PyObj) {
 
     # A class is hashable by identity (type-keyed dispatch tables, base_chain sets
     # in enum's _find_data_type_). Distinct classes get distinct buckets.
-    def tp_hashkey -> str {
-        return "obj:" + str(id(self));
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     # Classes compare by identity: `ReprEnum in (Enum,)` must be False so enum's
@@ -1641,7 +1647,7 @@ obj PyUserObj(PyObj) {
         return py_error("TypeError", "object cannot be interpreted as an integer");
     }
 
-    def tp_hashkey -> str {
+    def tp_hashkey -> PyObj {
         # A user-defined __hash__ keys the object by value (shares the numeric
         # "n:" namespace so hash()-equal objects bucket together); it overrides
         # a boxed builtin base's own keying, as CPython's slot inheritance does.
@@ -1651,21 +1657,21 @@ obj PyUserObj(PyObj) {
                 h = PyInt(t="int", val=1 if (h as PyBool).val else 0);
             }
             if isinstance(h, PyInt) {
-                return "n:" + str((h as PyInt).val);
+                return PyStr(t="str", val="n:" + str((h as PyInt).val));
             }
         }
         if self._has_base() {
             return self._base_obj().tp_hashkey();
         }
         # CPython type.__new__: __eq__ without an explicit __hash__ anywhere in
-        # the MRO leaves tp_hash NULL -- instances are unhashable. The empty
-        # string is the established unhashable sentinel; dict/set keying and
-        # PyObject_Hash both turn it into the TypeError.
+        # the MRO leaves tp_hash NULL -- instances are unhashable. The explicit
+        # unhashable error marker; dict/set keying and PyObject_Hash both turn
+        # it into their own TypeError.
         if user_has_dunder(self, "__eq__") {
-            return "";
+            return py_error("TypeError", "unhashable type");
         }
         # Default object.__hash__: identity-keyed, distinct per object.
-        return "obj:" + str(id(self));
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     def tp_bool -> bool {
@@ -2105,8 +2111,8 @@ obj PyFunction(PyObj) {
 
     # Functions are hashable by identity (enum keys candidate __new__ callables in
     # a set; dispatch tables key on functions).
-    def tp_hashkey -> str {
-        return "obj:" + str(id(self));
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -2201,7 +2207,7 @@ def from_host(raw: any) -> PyObj {
         native = PyDict(t="dict", items={});
         for key in raw {
             keyobj = from_host(key);
-            if keyobj.tp_hashkey() == "" {
+            if is_error(keyobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             native.dict_set(keyobj, from_host(raw[key]));
@@ -2212,7 +2218,7 @@ def from_host(raw: any) -> PyObj {
         fs = PySet(t="frozenset", items={}, frozen=True);
         for member in raw {
             memberobj = from_host(member);
-            if memberobj.tp_hashkey() == "" {
+            if is_error(memberobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             fs.set_add(memberobj);
@@ -2223,7 +2229,7 @@ def from_host(raw: any) -> PyObj {
         ns = PySet(t="set", items={}, frozen=False);
         for member in raw {
             memberobj = from_host(member);
-            if memberobj.tp_hashkey() == "" {
+            if is_error(memberobj.tp_hashkey()) {
                 return PyHostProxy(t="host", val=raw);
             }
             ns.set_add(memberobj);
@@ -3360,11 +3366,11 @@ def set_inplace_binop(s: PySet, kind: int, rhs: PyObj) -> PyObj {
     # with self still untouched.
     other_hks: list[str] = [];
     for x in elems {
-        hk = x.tp_hashkey();
-        if hk == "" {
+        hkr = x.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type: '" + x.t + "'");
         }
-        other_hks.append(hk);
+        other_hks.append(hashkey_str(hkr));
     }
     rebuilt: dict[str, PyObj] = {};
     if kind == NB_INPLACE_AND {
@@ -3885,8 +3891,8 @@ def py_hash(value: PyObj) -> PyObj {
         # Default tp_hash: object.__hash__ (the identity-keyed digest), or the
         # __eq__-without-__hash__ unhashable rule -- both owned by tp_hashkey,
         # so hash() and dict/set keying cannot disagree.
-        hk = u.tp_hashkey();
-        if hk == "" {
+        hkr = u.tp_hashkey();
+        if is_error(hkr) {
             return py_error("TypeError", "unhashable type: '" + u.cls.name + "'");
         }
         return PyObject_Hash(value);
@@ -4842,8 +4848,8 @@ obj PyNativeNew(PyObj) {
 
     # Value identity by base_name so every object.__new__ producer compares equal
     # (enum's _find_new_ does `target in {object.__new__, ...}`).
-    def tp_hashkey -> str {
-        return "nativenew:" + self.base_name;
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="nativenew:" + self.base_name);
     }
 
     def tp_richcompare(kind: int, other: PyObj) -> PyObj {
@@ -6640,10 +6646,11 @@ obj PyAbsent(PyObj) {}
 # Membership test for a key, confirming a hashkey-bucket hit with a real eq when
 # either side carries a custom __eq__. Returns PyBool or a PyError (raising eq).
 def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
-    hk = key.tp_hashkey();
-    if hk == "" {
+    hkr = key.tp_hashkey();
+    if is_error(hkr) {
         return py_error("TypeError", "unhashable type");
     }
+    hk = hashkey_str(hkr);
     if not (hk in d.items) {
         return PyBool(t="bool", val=False);
     }
@@ -6661,10 +6668,11 @@ def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
 
 # The stored value for a key, a PyAbsent sentinel if not present, or a PyError.
 def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
-    hk = key.tp_hashkey();
-    if hk == "" {
+    hkr = key.tp_hashkey();
+    if is_error(hkr) {
         return py_error("TypeError", "unhashable type");
     }
+    hk = hashkey_str(hkr);
     if not (hk in d.items) {
         return PyAbsent(t="absent");
     }
@@ -7877,7 +7885,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             any_unhashable = False;
             j = 0;
             while j < arg {
-                if popped[j * 2].tp_hashkey() == "" {
+                if is_error(popped[j * 2].tp_hashkey()) {
                     any_unhashable = True;
                 }
                 j = j + 1;
