@@ -8348,6 +8348,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 result = host_convert(value, arg);
             }
             if is_error(result) {
+                # A guest __format__/__str__/__repr__ raising during conversion
+                # must dispatch to a same-frame handler.
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return result;
             }
             stack.append(result);
@@ -8357,6 +8364,11 @@ def run_frame(frame: PyFrame) -> PyObj {
             value = stack.pop();
             result = host_format(value, "");
             if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return result;
             }
             stack.append(result);
@@ -8367,6 +8379,11 @@ def run_frame(frame: PyFrame) -> PyObj {
             value = stack.pop();
             result = host_format(value, expect_str(spec));
             if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
                 return result;
             }
             stack.append(result);
