@@ -542,16 +542,16 @@ import from objects {
     Py_EQ,
     Py_LE,
     Py_GE,
+    PyObject_RichCompare,
+    PyObject_RichCompareBool,
+    py_ordering_type_error,
+    _base_type_name,
 }
 import from abstract_protocol {
     PyObject_GetIter,
     PyIter_Check,
     PyObject_Hash,
     PyObject_HashNotImplemented,
-    PyObject_RichCompare,
-    PyObject_RichCompareBool,
-    py_ordering_type_error,
-    _base_type_name,
 }
 import from rangeobject { get_len_of_range, range_contains_longs, range_equals_longs, }
 import from tupleobject { tuple_hash, tuple_richcompare, }
@@ -1752,6 +1752,12 @@ obj PyUserObj(PyObj) {
         }
         # Default object.__hash__: identity-keyed, distinct per object.
         return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
+    # CPython ``tp_name``: error messages quote the real class name, not the
+    # internal "instance" tag (e.g. "cannot use 'AlwaysEq' as a set element").
+    def tp_type_name -> str {
+        return self.cls.name;
     }
 
     def tp_bool -> bool {
@@ -7196,6 +7202,10 @@ obj PyDictViewCtor(PyObj) {
 obj PyDictView(PyObj) {
     has d: PyDict,
         mode: str;
+
+    def tp_type_name -> str {
+        return "dict_" + self.mode;
+    }
 
     def tp_iter -> PyObj {
         return self.d.dict_iter(self.mode);

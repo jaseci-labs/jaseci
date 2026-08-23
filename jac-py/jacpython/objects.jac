@@ -105,6 +105,13 @@ obj PyObj {
         return py_error("TypeError", "unhashable type");
     }
 
+    # CPython ``tp_name``: the type label error messages quote. Native types
+    # report their ``t`` tag; ceval's PyUserObj/PyDictView override with the
+    # real class / view name so messages match CPython verbatim.
+    def tp_type_name -> str {
+        return self.t;
+    }
+
     # __index__: the PyInt to use when this object is a sequence index / slice
     # bound. int is itself; bool coerces; a builtin-int subclass (a PyUserObj
     # boxing an int, e.g. re._constants._NamedIntConstant) unwraps to its base.
@@ -764,6 +771,40 @@ obj PyTuple(PyObj) {
         }
         return PyStr(t="str", val=key);
     }
+
+    # CPython ``tuple_richcompare`` as the real tp_richcompare slot:
+    # lexicographic element-wise compare through the full protocol (so nested
+    # tuples/lists/dicts/user objects compare by value). Ordering falls back to
+    # comparing the first differing pair under the original op.
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if not isinstance(other, PyTuple) {
+            return PY_NOT_IMPLEMENTED;
+        }
+        w = other as PyTuple;
+        vlen = len(self.items);
+        wlen = len(w.items);
+        i = 0;
+        while i < vlen and i < wlen {
+            k = PyObject_RichCompareBool(self.items[i], w.items[i], Py_EQ);
+            if k < 0 {
+                return PyObject_RichCompare(self.items[i], w.items[i], Py_EQ);
+            }
+            if k == 0 {
+                break;
+            }
+            i = i + 1;
+        }
+        if i >= vlen or i >= wlen {
+            return _bool_from_cmp(_cmp3(vlen, wlen), kind);
+        }
+        if kind == Py_EQ {
+            return PyBool(t="bool", val=False);
+        }
+        if kind == Py_NE {
+            return PyBool(t="bool", val=True);
+        }
+        return PyObject_RichCompare(self.items[i], w.items[i], kind);
+    }
 }
 
 obj PyList(PyObj) {
@@ -965,6 +1006,48 @@ obj PyList(PyObj) {
         return PyIter(t="iter", items=self.items, index=0);
     }
 
+    # CPython ``list_richcompare_impl`` as the real tp_richcompare slot:
+    # EQ/NE length shortcut, element-wise value compare through the full
+    # protocol, ordering via the first differing pair.
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if not isinstance(other, PyList) {
+            return PY_NOT_IMPLEMENTED;
+        }
+        w = other as PyList;
+        if len(self.items) != len(w.items) and (kind == Py_EQ or kind == Py_NE) {
+            return PyBool(t="bool", val=kind == Py_NE);
+        }
+        i = 0;
+        while i < len(self.items) and i < len(w.items) {
+            vitem = self.items[i];
+            witem = w.items[i];
+            if vitem is witem {
+                i = i + 1;
+                continue;
+            }
+            keq = PyObject_RichCompare(vitem, witem, Py_EQ);
+            if is_error(keq) {
+                return keq;
+            }
+            if not _object_is_true(keq) {
+                break;
+            }
+            i = i + 1;
+        }
+        vlen = len(self.items);
+        wlen = len(w.items);
+        if i >= vlen or i >= wlen {
+            return _bool_from_cmp(_cmp3(vlen, wlen), kind);
+        }
+        if kind == Py_EQ {
+            return PyBool(t="bool", val=False);
+        }
+        if kind == Py_NE {
+            return PyBool(t="bool", val=True);
+        }
+        return PyObject_RichCompare(self.items[i], w.items[i], kind);
+    }
+
     def tp_bool -> bool {
         return len(self.items) != 0;
     }
@@ -1163,7 +1246,7 @@ obj PyDict(PyObj) {
     def mp_subscript(index: PyObj) -> PyObj {
         hkr = index.tp_hashkey();
         if is_error(hkr) {
-            return py_error("TypeError", "unhashable type");
+            return _unhashable_error("a dict key", index);
         }
         hk = hashkey_str(hkr);
         if hk in self.items {
@@ -1175,7 +1258,7 @@ obj PyDict(PyObj) {
     def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
         hkr = index.tp_hashkey();
         if is_error(hkr) {
-            return py_error("TypeError", "unhashable type");
+            return _unhashable_error("a dict key", index);
         }
         hk = hashkey_str(hkr);
         if hk in self.items {
@@ -1195,7 +1278,7 @@ obj PyDict(PyObj) {
     def mp_del_subscript(index: PyObj) -> PyObj {
         hkr = index.tp_hashkey();
         if is_error(hkr) {
-            return py_error("TypeError", "unhashable type");
+            return _unhashable_error("a dict key", index);
         }
         hk = hashkey_str(hkr);
         if hk in self.items {
@@ -1209,6 +1292,58 @@ obj PyDict(PyObj) {
     # Public helpers so bootstrap/ceval code never touches the raw entry map.
     def dict_set(keyobj: PyObj, value: PyObj) -> PyObj {
         return self.mp_ass_subscript(keyobj, value);
+    }
+
+    # CPython ``dict_equal`` adapted to hashkey buckets, as a method so both
+    # the tp_richcompare slot and free helpers share one implementation.
+    def dict_equal(b: PyDict) -> PyObj {
+        if len(self.items) != len(b.items) {
+            return PyBool(t="bool", val=False);
+        }
+        for hk in self.items {
+            ak = self.items[hk].key;
+            av = self.items[hk].value;
+            if not (hk in b.items) {
+                return PyBool(t="bool", val=False);
+            }
+            bk = b.items[hk].key;
+            bv = b.items[hk].value;
+            if ak is not bk {
+                keq = PyObject_RichCompare(ak, bk, Py_EQ);
+                if is_error(keq) {
+                    return keq;
+                }
+                if not _object_is_true(keq) {
+                    return PyBool(t="bool", val=False);
+                }
+            }
+            if av is not bv {
+                veq = PyObject_RichCompare(av, bv, Py_EQ);
+                if is_error(veq) {
+                    return veq;
+                }
+                if not _object_is_true(veq) {
+                    return PyBool(t="bool", val=False);
+                }
+            }
+        }
+        return PyBool(t="bool", val=True);
+    }
+
+    # CPython dicts have no ordering (dict_compare only answers EQ/NE), so any
+    # other op defers to the reflected/identity fallback -> ordering TypeError.
+    def tp_richcompare(kind: int, other: PyObj) -> PyObj {
+        if (kind != Py_EQ and kind != Py_NE) or not isinstance(other, PyDict) {
+            return PY_NOT_IMPLEMENTED;
+        }
+        eq = self.dict_equal(other as PyDict);
+        if is_error(eq) {
+            return eq;
+        }
+        if kind == Py_NE {
+            return PyBool(t="bool", val=not _object_is_true(eq));
+        }
+        return eq;
     }
 
     def dict_contains(keyobj: PyObj) -> bool {
@@ -1291,7 +1426,7 @@ obj PySet(PyObj) {
     def set_add(member: PyObj) -> PyObj {
         hkr = member.tp_hashkey();
         if is_error(hkr) {
-            return py_error("TypeError", "unhashable type");
+            return _unhashable_error("a set element", member);
         }
         hk = hashkey_str(hkr);
         # First occurrence wins: {1, 1.0, True} keeps the int 1 it saw first
@@ -1477,6 +1612,76 @@ def _richcompare_to_bool(res: PyObj) -> int {
     return 0;
 }
 
+# CPython ``PyObject_RichCompare`` (abstract.c do_richcompare): left slot,
+# reflected right slot, then the EQ/NE identity fallback; ordering without a
+# slot raises the standard TypeError. Lives on the leaf so container
+# tp_richcompare slots below can run element comparisons through the same
+# protocol -- user dunders ride along via PyUserObj.tp_richcompare.
+def PyObject_RichCompare(v: PyObj, w: PyObj, op: int) -> PyObj {
+    res = v.tp_richcompare(op, w);
+    if is_error(res) {
+        return res;
+    }
+    if res is not PY_NOT_IMPLEMENTED {
+        return res;
+    }
+    swapped = _PY_SWAPPED_OP[op];
+    res = w.tp_richcompare(swapped, v);
+    if is_error(res) {
+        return res;
+    }
+    if res is not PY_NOT_IMPLEMENTED {
+        return res;
+    }
+    if op == Py_EQ {
+        return PyBool(t="bool", val=v is w);
+    }
+    if op == Py_NE {
+        return PyBool(t="bool", val=v is not w);
+    }
+    return py_ordering_type_error(op, v, w, _base_type_name);
+}
+
+# CPython ``tp_name`` for a builtin-boxed value, keyed by the ``t`` tag.
+# User subclasses and dict views carry richer names; ceval layers those on in
+# ``_compare_type_name``, which wraps this for its own ordering/binop sites.
+def _base_type_name(v: PyObj) -> str {
+    if v.t == "none" {
+        return "NoneType";
+    }
+    return v.t;
+}
+
+# The CPython ordering TypeError:
+# "'<' not supported between instances of 'int' and 'str'".
+# ``type_name_fn`` resolves each operand's type name so callers with richer
+# operand kinds (user classes, dict views) can supply their own namer.
+def py_ordering_type_error(op_kind: int, v: PyObj, w: PyObj, type_name_fn: any) -> PyObj {
+    ops = ["<", "<=", "", "", ">", ">="];
+    if op_kind < 0 or op_kind >= len(ops) or ops[op_kind] == "" {
+        return py_error("TypeError", "invalid rich comparison opcode");
+    }
+    return py_error(
+        "TypeError",
+        "'" + ops[op_kind] + "' not supported between instances of '"
+            + (type_name_fn(v) as str) + "' and '" + (type_name_fn(w) as str) + "'"
+    );
+}
+
+# Integer tri-state: 1 true, 0 false, -1 error (matches C API).
+def PyObject_RichCompareBool(v: PyObj, w: PyObj, op: int) -> int {
+    if v is w {
+        if op == Py_EQ {
+            return 1;
+        }
+        if op == Py_NE {
+            return 0;
+        }
+    }
+    res = PyObject_RichCompare(v, w, op);
+    return _richcompare_to_bool(res);
+}
+
 # Three-way integer compare (-1 / 0 / +1). Only for NaN-free values:
 # float richcompare keeps its direct-operator ladder because every IEEE
 # comparison against NaN is false, which a three-way fold would misreport.
@@ -1534,26 +1739,15 @@ def _signed_hash(acc: int) -> int {
     return acc;
 }
 
-# Tri-state ``==`` for set membership (1 true, 0 false, -1 error).
-def _obj_eq_bool(a: PyObj, b: PyObj) -> int {
-    if a is b {
-        return 1;
-    }
-    res = a.tp_richcompare(2, b);
-    if is_error(res) {
-        return -1;
-    }
-    if res is not PY_NOT_IMPLEMENTED {
-        return _richcompare_to_bool(res);
-    }
-    res = b.tp_richcompare(2, a);
-    if is_error(res) {
-        return -1;
-    }
-    if res is not PY_NOT_IMPLEMENTED {
-        return _richcompare_to_bool(res);
-    }
-    return 0;
+# CPython 3.14's two-part unhashable TypeError, quoted at the insertion site
+# (set element / dict key) with the operand's real type name.
+def _unhashable_error(what: str, v: PyObj) -> PyObj {
+    name = v.tp_type_name();
+    return py_error(
+        "TypeError",
+        "cannot use '" + name + "' as " + what
+            + " (unhashable type: '" + name + "')"
+    );
 }
 
 def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
@@ -1562,26 +1756,29 @@ def _set_contains_elem(so: PySet, key: PyObj) -> PyObj {
         return PyBool(t="bool", val=False);
     }
     hk = hashkey_str(hkr);
+    # Bucket hit confirms through the full compare protocol; a raising element
+    # __eq__ propagates verbatim (CPython set_add_entry / set_contains_key).
     if hk in so.items {
-        stored = so.items[hk];
-        cmp = _obj_eq_bool(key, stored);
-        if cmp < 0 {
-            return py_error("TypeError", "comparison failed");
+        res = PyObject_RichCompare(key, so.items[hk], Py_EQ);
+        if is_error(res) {
+            return res;
         }
-        if cmp != 0 {
+        if _object_is_true(res) {
             return PyBool(t="bool", val=True);
         }
     }
+    # Hash collision / cross-hashkey scan (numeric collapse makes 1 and 1.0
+    # distinct hashkeys here, so True-in-{1} relies on this sweep).
     for hk2 in so.items {
         stored = so.items[hk2];
         if key is stored {
             return PyBool(t="bool", val=True);
         }
-        cmp = _obj_eq_bool(key, stored);
-        if cmp < 0 {
-            return py_error("TypeError", "comparison failed");
+        res = PyObject_RichCompare(key, stored, Py_EQ);
+        if is_error(res) {
+            return res;
         }
-        if cmp != 0 {
+        if _object_is_true(res) {
             return PyBool(t="bool", val=True);
         }
     }

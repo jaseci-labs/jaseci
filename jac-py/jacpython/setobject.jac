@@ -2,11 +2,10 @@
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/setobject_core.c``
 # (lift: ``jac-py/Objects/_lifted/setobject_core.jac``).
-import from objects { PyObj, PySet, PyBool, PyInt, is_error, _pyset_richcompare_na, _signed_hash, Py_LT, Py_LE, Py_EQ, Py_NE, Py_GT, Py_GE, }
+import from objects { PyObj, PySet, PyInt, is_error, _signed_hash, }
 import from hash_dispatch { hash_element, }
 import from abstract_protocol {
     PyObject_HashNotImplemented,
-    PyObject_RichCompare,
 }
 
 glob _PySet_MASK: int = 0xFFFFFFFFFFFFFFFF;
@@ -45,15 +44,9 @@ def set_hash_obj(s: PySet) -> PyObj {
     return frozenset_hash_impl(s);
 }
 
-# CPython ``set_richcompare`` for two any-set operands.
+# CPython ``set_richcompare`` for two any-set operands. Thin wrapper kept for
+# callers that import by name: the implementation lives on the PySet.
+# tp_richcompare slot in objects.jac (subset algebra over element ``==``).
 def set_richcompare(op: int, v: PySet, w: PySet) -> PyObj {
-    if op == Py_EQ
-        or op == Py_NE
-        or op == Py_LT
-        or op == Py_LE
-        or op == Py_GT
-        or op == Py_GE {
-        return _pyset_richcompare_na(op, v, w);
-    }
-    return PyObject_RichCompare(v, w, op);
+    return v.tp_richcompare(op, w);
 }

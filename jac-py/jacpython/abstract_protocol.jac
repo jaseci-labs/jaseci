@@ -1,93 +1,20 @@
-# P3.1e — PyObject_* protocol helpers (comparison / iter / hash).
+# P3.1e — PyObject_* protocol helpers (hash / iter).
 #
 # c2jac-assisted from ``jac-py/tools/p3_object_core/corpus/abstract_protocol.c``
 # (lift: ``jac-py/Objects/_lifted/abstract_protocol.jac``). Runtime uses Jac
 # virtual slots on ``PyObj`` instead of C ``tp_*`` function pointers.
+#
+# The comparison half (PyObject_RichCompare / PyObject_RichCompareBool /
+# _base_type_name / py_ordering_type_error) lives in objects.jac next to the
+# tp_richcompare slots it drives -- container value equality must run element
+# compares through that protocol, and Jac forbids import cycles.
 import from objects {
     PyObj,
-    PyBool,
     PyInt,
     is_error,
     hashkey_str,
     py_error,
-    PY_NOT_IMPLEMENTED,
-    Py_LT,
-    Py_LE,
-    Py_EQ,
-    Py_NE,
-    Py_GT,
-    Py_GE,
-    _object_is_true,
-    _richcompare_to_bool,
     _signed_hash,
-    _PY_SWAPPED_OP,
-}
-
-
-def PyObject_RichCompare(v: PyObj, w: PyObj, op: int) -> PyObj {
-    res = v.tp_richcompare(op, w);
-    if is_error(res) {
-        return res;
-    }
-    if res is not PY_NOT_IMPLEMENTED {
-        return res;
-    }
-    swapped = _PY_SWAPPED_OP[op];
-    res = w.tp_richcompare(swapped, v);
-    if is_error(res) {
-        return res;
-    }
-    if res is not PY_NOT_IMPLEMENTED {
-        return res;
-    }
-    if op == Py_EQ {
-        return PyBool(t="bool", val=v is w);
-    }
-    if op == Py_NE {
-        return PyBool(t="bool", val=v is not w);
-    }
-    return py_ordering_type_error(op, v, w, _base_type_name);
-}
-
-
-# CPython ``tp_name`` for a builtin-boxed value, keyed by the ``t`` tag.
-# User subclasses and dict views carry richer names; ceval layers those on in
-# ``_compare_type_name``, which wraps this for its own ordering/binop sites.
-def _base_type_name(v: PyObj) -> str {
-    if v.t == "none" {
-        return "NoneType";
-    }
-    return v.t;
-}
-
-# The CPython ordering TypeError:
-# "'<' not supported between instances of 'int' and 'str'".
-# ``type_name_fn`` resolves each operand's type name so callers with richer
-# operand kinds (user classes, dict views) can supply their own namer.
-def py_ordering_type_error(op_kind: int, v: PyObj, w: PyObj, type_name_fn: any) -> PyObj {
-    ops = ["<", "<=", "", "", ">", ">="];
-    if op_kind < 0 or op_kind >= len(ops) or ops[op_kind] == "" {
-        return py_error("TypeError", "invalid rich comparison opcode");
-    }
-    return py_error(
-        "TypeError",
-        "'" + ops[op_kind] + "' not supported between instances of '"
-            + (type_name_fn(v) as str) + "' and '" + (type_name_fn(w) as str) + "'"
-    );
-}
-
-# Integer tri-state: 1 true, 0 false, -1 error (matches C API).
-def PyObject_RichCompareBool(v: PyObj, w: PyObj, op: int) -> int {
-    if v is w {
-        if op == Py_EQ {
-            return 1;
-        }
-        if op == Py_NE {
-            return 0;
-        }
-    }
-    res = PyObject_RichCompare(v, w, op);
-    return _richcompare_to_bool(res);
 }
 
 # Deterministic digest of ``tp_hashkey()`` for dict/set keying only — not the
@@ -111,7 +38,7 @@ def _hashkey_digest(hk: str) -> int {
 }
 
 def PyObject_HashNotImplemented(v: PyObj) -> PyObj {
-    return py_error("TypeError", "unhashable type: '" + v.t + "'");
+    return py_error("TypeError", "unhashable type: '" + v.tp_type_name() + "'");
 }
 
 def PyObject_Hash(v: PyObj) -> PyObj {

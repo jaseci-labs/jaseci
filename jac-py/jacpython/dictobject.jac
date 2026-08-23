@@ -6,60 +6,25 @@
 # Runtime dicts use hashkey-backed ``dict[str, DictEntry]`` in ``objects.jac``;
 # CPython's open-addressing table is not modeled. The c2jac reference lives in
 # ``Objects/_lifted/dictobject_core.jac`` if a native table lands later.
-import from objects { PyObj, PyDict, PyBool, PyStr, is_error, py_error, expect_str, _object_is_true, Py_EQ, Py_NE, }
-import from abstract_protocol {
-    PyObject_RichCompareBool,
-}
-# CPython dict equality adapted to PyDict hashkey buckets (``dict_equal_lock_held``).
-# ``compare_fn`` is ``py_compare`` from ceval (element-wise dispatch + user slots).
-def dict_equal(a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
-    if len(a.items) != len(b.items) {
-        return PyBool(t="bool", val=False);
-    }
-    for hk in a.items {
-        ak = a.items[hk].key;
-        av = a.items[hk].value;
-        if not (hk in b.items) {
-            return PyBool(t="bool", val=False);
-        }
-        bk = b.items[hk].key;
-        bv = b.items[hk].value;
-        if ak is not bk {
-            keq = compare_fn(Py_EQ, ak, bk);
-            if is_error(keq) {
-                return keq;
-            }
-            if not _object_is_true(keq) {
-                return PyBool(t="bool", val=False);
-            }
-        }
-        if av is not bv {
-            veq = compare_fn(Py_EQ, av, bv);
-            if is_error(veq) {
-                return veq;
-            }
-            if not _object_is_true(veq) {
-                return PyBool(t="bool", val=False);
-            }
-        }
-    }
-    return PyBool(t="bool", val=True);
+import from objects { PyObj, PyDict, PyStr, is_error, py_error, expect_str, Py_EQ, Py_NE, }
+
+# Thin wrappers kept for callers that import by name (the ``compare_fn``
+# parameter is obsolete): the implementation lives on the PyDict.tp_richcompare
+# slot / PyDict.dict_equal in objects.jac, which run key/value compares through
+# the full protocol.
+def dict_equal(a: PyDict, b: PyDict) -> PyObj {
+    return a.dict_equal(b);
 }
 
 def dict_richcompare(op: int, a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
+    # Direct callers (py_compare's dict branch) need the ordering TypeError
+    # raised here -- the tp_richcompare slot itself defers non-EQ/NE ops.
     if op != Py_EQ and op != Py_NE {
         return py_error(
             "TypeError", "'<' not supported between instances of 'dict' and 'dict'"
         );
     }
-    eq = dict_equal(a, b, compare_fn);
-    if is_error(eq) {
-        return eq;
-    }
-    if op == Py_EQ {
-        return eq;
-    }
-    return PyBool(t="bool", val=not _object_is_true(eq));
+    return a.tp_richcompare(op, b);
 }
 
 # CPython ``dict_repr_lock_held`` — insertion-order walk with strong refs.
