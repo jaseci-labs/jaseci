@@ -166,3 +166,45 @@
 6. Walrus inside a type alias value is a host SyntaxError ("named expression
    cannot be used within a type alias"); our parser accepts it -- validation
    gap if anyone cares later.
+
+## Band 11: TryStar (except*) lowering (commit 4886e7de4)
+
+Shapes byte-exact vs host dis (co_code + exceptiontable + linetable + names):
+bare except*, as-binding, multiple handlers (mixed/unbound binds), else with
+reused names. Emission is a literal port of codegen_try_star_except with these
+infra-specific findings:
+
+- Region depths: assembler computes `depth = stack_depth - 1 - preserve_lasti`.
+  Handler-section spans to the COPY3/POP_EXCEPT/RERAISE1 unwind need
+  stack_depth=3+nest; per-handler body regions 6+nest; body region 1+nest.
+- Zero-length handler bodies (`pass`): collapse b/x into one block AND skip the
+  inner span in the merge input, or the degenerate span blocks merge_except_spans
+  from coalescing the he+mid [1]-lasti runs (host emits a single entry).
+- NOT_TAKEN placement: handler i>0 needs a standalone block between match and
+  bind-store (uncovered by the table); it carries the handler span loc. The
+  reraise-walk NOT_TAKEN stays noloc. normalize_jumps auto-inlines handler-0's.
+- x-path success epilogue ops take hbody.loc; ce-path stays noloc; nm-path takes
+  the handler span. rr_pe's module return must be no_loc.
+
+Bugs/gaps found (pre-existing on HEAD unless noted):
+
+1. PARSER (blocked, not fixed here): try/except*parse rules set
+   end_lineno/end_col_offset from a post-block token -> e.g. `5,-1` for a
+   4-line file. Affects plain Try too. compiler_exc.jac carries local
+   trystar_*_loc helpers reconstructing CPython spans from clause children;
+   delete them when the parser rules are fixed and route through
+   try_handler_span/stmt_loc again.
+2. FLOWGRAPH/visit_try tail (blocks many shapes): ANY try statement followed by
+   unconsumed module/function-level code fails verify_cfg with "Invalid CFG,
+   instructions after terminator" (plain try included; if/while are fine).
+   Repro: compile_parsed_exec("try:\n    x = 1\nexcept ValueError:\n    a = 1\nprint(x)\n").
+   Blocks: except*/else with trailing code, function-scope try+return-after.
+3. co_names ordering for `else` clauses binding FRESH names: our emit order is
+   body->orelse->handlers so orelse names get lower indices than CPython's
+   AST-order allocation. Masked in band6 tests because they reuse one name.
+4. ceval: CHECK_EG_MATCH unimplemented ("unsupported opcode 5"): runtime exec
+   of except* waits on ExceptionGroup support in ceval.jac.
+5. visit_try_star guards with explicit codegen_fail for: except*+ finally,
+   bare except*, and except*nested inside a plain except handler (the
+   handler_fallthrough_* duplication convention conflicts with the per-handler
+   SETUP_CLEANUP wrapping; its own slice).
