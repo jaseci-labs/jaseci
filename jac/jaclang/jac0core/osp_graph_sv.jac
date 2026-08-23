@@ -253,9 +253,16 @@ def sv_forget_by_id(anchor_id: any, mem: any = None) {
     key = str(anchor_id);
     st.registered.discard(key);
     st.forgotten.add(key);
-    h = st.h_of_id.get(key, 0);
+    h = st.h_of_id.pop(key, 0);
     if h > 0 {
         _graph.osp_disconnect(h);
+        # Release the handle slot: `_obj_of_h` is a process-global strong
+        # root, so a retained entry would pin the anchor (and through
+        # `anchor.archetype` the archetype object) against gc forever.
+        if h < len(_obj_of_h) {
+            _obj_of_h[h] = None;
+            _h_free.append(h);
+        }
     }
 }
 

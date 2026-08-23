@@ -1139,6 +1139,12 @@ impl JacPersistence.destroy(
                         `edge.detach();
                         JacRuntimeInterface.get_context().mem.delete(`edge.id);
                     }
+                    # Drop the node's own sv-store handle: `_mint` pins a
+                    # strong ref in the process-global `_obj_of_h` table, and
+                    # without this the destroyed node's anchor (and through
+                    # it, the archetype object) survives every gc pass.
+                    import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
+                    sv_forget_by_id(anchor.id);
 
                 case EdgeAnchor():
                     anchor.detach();
