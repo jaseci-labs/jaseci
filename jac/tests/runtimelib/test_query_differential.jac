@@ -144,14 +144,14 @@ test "cost invariant through real syntax: fetches == |result|" {
             assert ranch is not None;
             origin = ranch.archetype;
             ctx2.mem.reset_fetch_count();
-            winners = [origin-->[?:DA, val==2]];
-            assert len(winners) == 1;
+            assert len([origin-->[?:DA, val==2]]) == 1;
             counted = ctx2.mem.get_fetch_count();
             assert counted == 0 , (
-                f"a count has a SQL equivalent and must deserialize nothing; "
-                f"got {counted} fetches"
+                f"a count over a traversal read on the spot has a SQL "
+                f"equivalent and must deserialize nothing; got {counted}"
             );
             ctx2.mem.reset_fetch_count();
+            winners = [origin-->[?:DA, val==2]];
             consumed = [w for w in winners];
             fetches = ctx2.mem.get_fetch_count();
             assert len(consumed) == 1;

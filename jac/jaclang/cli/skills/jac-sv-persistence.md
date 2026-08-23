@@ -60,7 +60,26 @@ todo = root ++> Todo(title=t);             # untyped edge; returns the connected
 user +>:Wrote(at="..."):+> existing_post;  # attach an existing node
 ```
 
-Edge-type filter / creation / deletion syntax: see `jac-node-edge-patterns`.
+**Ask the store, not the process.** A predicate, an ordering term and a bound inside the reference all compile into one SQL statement, so the query answers the question instead of the neighbourhood being loaded and filtered in Python:
+
+```jac
+[u ->:Wrote:-> [?:Post, published, -at]][:20]   # WHERE + ORDER BY + LIMIT, one query
+len([u ->:Wrote:-> [?:Post]])                   # a COUNT; deserializes nothing
+if [u ->:Wrote:-> [?:Post, published]] { ... }  # stops at the first row
+```
+
+The cost only lands in the query when the traversal is read on the spot. Bind it to a name first and it materialises there, because a reference holds the graph as of the line it was written on.
+
+**Promote the fields you filter and order by.** Field predicates and orderings read a jsonb path, which is a scan unless the field has an index. Declare them and the compiler names the promoted column instead:
+
+```toml
+[scale.database]
+indexes = { Post = ["at", "published"], Msg = ["at", "seq"] }
+```
+
+Without this a `[?:Post, -at]` still returns the right rows -- correctness never depends on the declaration -- it just sorts the whole set to do it.
+
+Edge-type filter / creation / deletion syntax, and the ordering-term rules: see `jac-node-edge-patterns`.
 
 ## View models: report views, not raw nodes
 

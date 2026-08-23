@@ -214,7 +214,8 @@ class JacAccessValidation {
 class JacGraph {
     static def refs(
         path: GraphQuery | NodeArchetype | list[NodeArchetype],
-        slc: (slice | None) = None
+        slc: (slice | None) = None,
+        lazy: bool = False
     ) -> list[NodeArchetype]
         | list[EdgeArchetype]
         | list[(NodeArchetype | EdgeArchetype)];

@@ -192,3 +192,54 @@ test "an unfoldable operation realises and behaves exactly as a list" {
         }
     }
 }
+
+
+test "an edges-only count counts edges, not their endpoints" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        try {
+            b = FBoard(name="b");
+            root ++> b;
+            one = FItem(rank=0);
+            b +>:FHas():+> one;
+            b +>:FHas():+> one;
+            ctx.mem.commit();
+            assert len([edge b-->]) == 2 , (
+                f"two edges to one node is two edges; got {len([edge b-->])}"
+            );
+            assert len([b-->[?:FItem]]) == 1 , (
+                f"...but one distinct node; got {len([b-->[?:FItem]])}"
+            );
+            assert [edge b-->] , "an edges-only truthiness test must see them";
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+    }
+}
+
+
+test "a reference is evaluated where it appears, not where it is read" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        try {
+            b = _seed(3);
+            ctx.mem.commit();
+            snapshot = [b->:FHas:->[?:FItem]];
+            b +>:FHas():+> FItem(rank=99);
+            assert len(snapshot) == 3 , (
+                f"the reference must hold the graph as of the line it was "
+                f"written on; got {len(snapshot)} after a later attach"
+            );
+            fresh = [b->:FHas:->[?:FItem]];
+            assert len(fresh) == 4 , f"a later reference sees it; got {len(fresh)}";
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+    }
+}

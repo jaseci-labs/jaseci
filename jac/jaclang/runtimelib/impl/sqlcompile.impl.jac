@@ -281,8 +281,9 @@ impl compile_query(
         return out;
     }
     if count_only {
+        counted = f"e{n}.id" if q.edges_only else f"n{n}.id";
         out.sql = (
-            f"SELECT count(DISTINCT n{n}.id) "
+            f"SELECT count(DISTINCT {counted}) "
             f"FROM unnest(CAST(:origin AS uuid[])) AS f0(id) "
             f"LEFT JOIN anchors s1 ON s1.id = f0.id "
             + ' '.join(joins)

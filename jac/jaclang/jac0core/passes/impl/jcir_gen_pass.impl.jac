@@ -3595,6 +3595,13 @@ impl JcirGenPass._is_edge_ref_target(target: UniNode) -> bool {
     if (isinstance(target, AtomTrailer) and isinstance(target.right, FilterCompr)) {
         return self._is_edge_ref_target(target.target);
     }
+    if isinstance(target, FuncCall)
+        and isinstance(target.target, Name)
+        and target.target.sym_name == 'sorted'
+        and target.params is not None
+        and len(target.params) >= 1 {
+        return self._is_edge_ref_target(target.params[0]);
+    }
     return False;
 }
 
@@ -3648,8 +3655,12 @@ impl JcirGenPass._order_name_of(x: Expr) -> (tuple[str, bool] | None) {
 
 
 impl JcirGenPass._query_filter_kws_ord(
-    fc: FilterCompr, type_arg: str, preds_arg: str, on_edge: bool, order_out: list
-) -> tuple[list, bool] {
+    fc: FilterCompr,
+    type_arg: str,
+    preds_arg: str,
+    on_edge: bool,
+    order_out: list[CgNode]
+) -> tuple[list[CgNode], bool] {
     kws: list[CgNode] = [];
     if fc.f_type {
         kws.append(
@@ -3826,6 +3837,32 @@ impl JcirGenPass._query_filter_kws_ord(
     return (kws, saw_order);
 }
 
+impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
+    parent = nd.parent;
+    if parent is None {
+        return False;
+    }
+    if isinstance(parent, (IfStmt, WhileStmt, AssertStmt)) {
+        return parent.condition is nd;
+    }
+    if isinstance(parent, BoolExpr) {
+        return True;
+    }
+    if isinstance(parent, UnaryExpr) {
+        return parent.op.name == Tok.NOT and parent.operand is nd;
+    }
+    if isinstance(parent, FuncCall) {
+        tgt = parent.target;
+        return isinstance(tgt, Name)
+            and tgt.sym_name == 'len'
+            and parent.params is not None
+            and len(parent.params) == 1
+            and parent.params[0] is nd;
+    }
+    return False;
+}
+
+
 impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
     origin: (CgNode | None) = None;
     cur = nd.chain[0];
@@ -3945,10 +3982,16 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
             [self.jaclib_obj('arefs'), [pynode], []]
         );
     } else {
+        ref_kws: list[CgNode] = [];
+        if self._traversal_consumed_now(nd) {
+            ref_kws.append(
+                self.nod('keyword', ['arg', 'value'], ['lazy', self.const_of(True)])
+            );
+        }
         pynode = self.nod(
             'Call',
             ['func', 'args', 'keywords'],
-            [self.jaclib_obj('refs'), [pynode], []]
+            [self.jaclib_obj('refs'), [pynode], ref_kws]
         );
     }
     self.set_out(nd, [pynode]);

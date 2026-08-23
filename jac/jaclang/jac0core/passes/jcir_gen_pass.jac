@@ -401,8 +401,12 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _query_filter_kws(fc: FilterCompr, type_arg: str, preds_arg: str) -> list;
     def _order_name_of(x: Expr) -> (tuple[str, bool] | None);
     def _query_filter_kws_ord(
-        fc: FilterCompr, type_arg: str, preds_arg: str, on_edge: bool, order_out: list
-    ) -> tuple[list, bool];
+        fc: FilterCompr,
+        type_arg: str,
+        preds_arg: str,
+        on_edge: bool,
+        order_out: list[CgNode]
+    ) -> tuple[list[CgNode], bool];
 
     def _recipe_contains_root(v: any) -> bool;
     def resolve_switch_pattern(pattern: MatchPattern, target: Expr) -> CgNode;
@@ -521,6 +525,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def exit_index_slice(nd: IndexSlice) -> None;
     def exit_special_var_ref(nd: SpecialVarRef) -> None;
     def exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None;
+    def _traversal_consumed_now(nd: EdgeRefTrailer) -> bool;
     def exit_edge_op_ref(nd: EdgeOpRef) -> None;
     def exit_disconnect_op(nd: DisconnectOp) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;

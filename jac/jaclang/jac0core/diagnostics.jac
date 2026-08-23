@@ -1656,11 +1656,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5094",
          Category.CODEGEN,
          "Graph query filter outside the closed sublanguage: {reason}",
-         help="Predicates inside [?...] on a graph reference must be "
-         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
-         "where the value is a scalar expression evaluated once at query "
-         "construction. Move anything else to a list comprehension over "
-         "the query result, where its object-space cost is visible.",
+         help="A term inside [?...] on a graph reference, or between the "
+         "colons of a typed hop, is one of three shapes. A predicate is "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, where "
+         "the value is a scalar expression evaluated once at query "
+         "construction. A composite key compares a tuple of field names "
+         "against a tuple value of the same arity, for keyset paging. An "
+         "ordering term is a bare field name (ascending) or its negation "
+         "(descending), written after every predicate on that hop, and only "
+         "on the final hop of a chain. Move anything else to a list "
+         "comprehension over the query result, where its object-space cost "
+         "is visible.",
          blocks_codegen=True
      ),
      E5095 = _err(

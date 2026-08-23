@@ -425,24 +425,29 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
 impl resolve_query_count(mem: Session, q: GraphQuery) -> int {
     store = mem.store;
     origins = _origin_anchors(q);
-    if store is None or _acl_gated() or not origins {
-        return len(resolve_query(mem, q));
+    if store is None or _acl_gated() or not origins or q.from_visit {
+        return len(_resolve_for(mem, q));
     }
     ids: list[UUID] = [];
     for oanch in origins {
         if not oanch.persistent {
-            return len(resolve_query(mem, q));
+            return len(_resolve_for(mem, q));
         }
         ids.append(oanch.id);
     }
     mem.read_barrier();
     cq = compile_query(q, len(q.hops), promotions=store?.promotions, count_only=True);
     if cq.residual {
-        return len(resolve_query(mem, q));
+        return len(_resolve_for(mem, q));
     }
     cq.params['origin'] = [str(i) for i in ids];
     rows = store.rows(cq.sql, cq.params);
     return int(rows[0][0]) if rows else 0;
+}
+
+
+def _resolve_for(mem: Session, q: GraphQuery) -> list[Anchor] {
+    return resolve_query_edges(mem, q) if q.edges_only else resolve_query(mem, q);
 }
 
 
@@ -457,7 +462,7 @@ impl resolve_query_exists(mem: Session, q: GraphQuery) -> bool {
         level=q.level
     );
     probe.from_visit = q.from_visit;
-    return bool(resolve_query(mem, probe));
+    return bool(_resolve_for(mem, probe));
 }
 
 
@@ -524,7 +529,7 @@ impl LazyRefs.__bool__(self: LazyRefs) -> bool {
         return list.__len__(self) > 0;
     }
     try {
-        return resolve_query_exists(self._mem(), self._query);
+        return bool(self._bounded(1, 0));
     } except Exception {
         self._realize();
         return list.__len__(self) > 0;

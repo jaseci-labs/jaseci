@@ -923,7 +923,9 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacGraph.refs(
-    path: GraphQuery | NodeArchetype | list[NodeArchetype], slc: (slice | None) = None
+    path: GraphQuery | NodeArchetype | list[NodeArchetype],
+    slc: (slice | None) = None,
+    lazy: bool = False
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
@@ -954,7 +956,7 @@ impl JacGraph.refs(
         }
         return out;
     }
-    if path.slc is None and ctx.mem?.store is not None {
+    if lazy and path.slc is None and ctx.mem?.store is not None {
         return LazyRefs(_run, path);
     }
     return _run(path);
