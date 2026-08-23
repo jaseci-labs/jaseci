@@ -259,6 +259,9 @@ def _show_run(plan: (RunPlan | None), filename: str, want_serve: bool) -> int {
     if (not want_serve) and plan.action == "serve" {
         console.print("override     : --no-serve forces execution");
     }
+    if (not want_serve) and plan.action == "build" and filename {
+        console.print("override     : a named file executes; a bare run builds");
+    }
     return 0;
 }
 
@@ -531,7 +534,7 @@ impl run(
             main
         );
     }
-    if plan is not None and plan.action == "build" {
+    if plan is not None and plan.action == "build" and not filename {
         return _build_plan(plan);
     }
 

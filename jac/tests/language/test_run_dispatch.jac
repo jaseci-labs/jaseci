@@ -414,6 +414,25 @@ test "an explicitly named file resolves the project kind, not a bare execute" {
     assert plan.entry_path == os.path.join(d, "main.jac");
 }
 
+test "a named file executes in a build kind; only a bare run builds" {
+    d = _mk_project(
+        "kind = \"mobile\"\nentry-point = \"main.jac\"\n",
+        "main.jac",
+        entry_body="with entry { }"
+    );
+    saved = os.getcwd();
+    try {
+        os.chdir(d);
+        # A bare `jac run` builds the mobile app shell; naming the file runs it.
+        # Without this split, `jac run main.jac` would shell out to gradle.
+        rc = execution.run(filename="main.jac", show=True);
+    } finally {
+        os.chdir(saved);
+    }
+    assert rc == 0;
+    _cleanup();
+}
+
 test "entry_override keeps a named file for kinds that plan without one" {
     d = _mk_project("kind = \"py-package\"\n", "lib.jac");
     cfg = JacConfig.discover(start_path=Path(d));

@@ -100,7 +100,7 @@ test "faux flag prints endpoint docs" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -152,7 +152,7 @@ test "faux flag with littlex example" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(filename=littlex_path, port=port, main=True, faux=True);
+                execution.serve(filename=littlex_path, port=port, main=True, faux=True);
             }
         }
         output = captured_output.getvalue();
@@ -180,7 +180,7 @@ test "start with default main jac" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                execution.start(filename="main.jac", port=port, main=True, faux=True);
+                execution.serve(filename="main.jac", port=port, main=True, faux=True);
             }
 
             output = captured_output.getvalue();
@@ -206,7 +206,7 @@ test "start without main jac error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="main.jac", port=port, main=True, faux=True
                 );
             }
@@ -229,7 +229,7 @@ test "start with explicit file" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -254,7 +254,7 @@ test "start with nonexistent file error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="nonexistent.jac", port=port, main=True, faux=True
                 );
             }

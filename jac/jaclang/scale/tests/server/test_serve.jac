@@ -1541,6 +1541,7 @@ def setup_dev_mode_server -> subprocess.Popen {
     cmd = [
         jac_executable(),
         "run",
+        "--serve",
         "--port",
         str(dm_vite_port),
         "--api-port",
@@ -2176,7 +2177,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "run", "--client", "pwa", "-p", str(port), "main.jac"],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
