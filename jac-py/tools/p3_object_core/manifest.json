@@ -75,6 +75,16 @@
         "failed": 0,
         "errored": 0
       }
+    },
+    {
+      "stem": "test_range",
+      "path": "Lib/test/test_range.py",
+      "baseline": {
+        "passed": 10,
+        "failed": 18,
+        "errored": 0
+      },
+      "note": "item-19 P1 acceptance ratchet (PyRange); failed=18 is the deferred-P2 spec (.index x8, .count x7, hash x2, repr(range(1))); hangs pre-P1"
     }
   ],
   "layer1_files": [
