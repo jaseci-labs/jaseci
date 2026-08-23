@@ -1,3 +1,4 @@
 def:pub getcwd -> str {
-    return process.cwd();
+    proc = globalThis.process;
+    return str(proc.cwd());
 }

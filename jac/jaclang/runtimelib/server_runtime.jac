@@ -6,7 +6,7 @@ import from "./bun_store.js" {
     __jacServerSpawnWalker
 }
 
-async def parseJsonBody(req: any) -> (dict | None) {
+async def parseJsonBody(req: any) -> any {
     try {
         text = await req.text();
         # Empty body means no fields — mirrors the cpython host, where a bare
@@ -26,17 +26,18 @@ def deserializeWireValue(val: any) -> any {
         return val;
     }
     if Array.isArray(val) {
-        mapped: list = [];
+        mapped: any = [];
         for item in val {
             mapped.push(deserializeWireValue(item));
         }
         return mapped;
     }
+    gtab: any = globalThis;
     if val.__type__ and val.__type__.__from_wire {
         return val.__type__.__from_wire(val);
     }
     if val.__type__ {
-        ctor = globalThis[val.__type__];
+        ctor: any = gtab[val.__type__];
         if ctor and ctor.__from_wire {
             return ctor.__from_wire(val);
         }
@@ -61,7 +62,7 @@ def serializeApiValue(val: any) -> any {
         return val;
     }
     if Array.isArray(val) {
-        mapped: list = [];
+        mapped: any = [];
         for item in val {
             mapped.push(serializeApiValue(item));
         }
@@ -73,7 +74,7 @@ def serializeApiValue(val: any) -> any {
     if type(val) == 'object' {
         out: dict = {};
         for key in Object.keys(val) {
-            if not key.startsWith('_') {
+            if key[:1] != '_' {
                 out[key] = serializeApiValue(val[key]);
             }
         }
@@ -96,14 +97,15 @@ def finalizeCallResponse(result: any, reports: any = []) -> dict {
     return {'result': serializeApiValue(result), 'reports': serializeApiValue(reports)};
 }
 
-def envelopeResponse(payload: dict) -> any {
+def envelopeResponse(payload: any) -> any {
     # Mirrors _get_http_status in scale/server/impl/serve.impl.jac: failed
     # transport envelopes are 500, successful ones 200.
-    status = 200;
+    status: any = 200;
     if not payload.ok {
         status = 500;
     }
-    return Response.json(payload, {status: status});
+    resp: any = Response;
+    return resp.json(payload, {status: status});
 }
 
 def okEnvelope(data: any) -> dict {
@@ -111,7 +113,11 @@ def okEnvelope(data: any) -> dict {
     return {'ok': True, 'type': 'response', 'data': data, 'error': None};
 }
 
-def errorEnvelope(message: str) -> dict {
+def _error_text(e: any) -> str {
+    return e.message or String(e);
+}
+
+def errorEnvelope(message: any) -> dict {
     return {
         'ok': False,
         'type': 'error',
@@ -132,7 +138,7 @@ async def _preparePersistContext {
 }
 
 async def handleFunctionCall(
-    req: any, name: str, handlers: dict, params: (dict | None) = None
+    req: any, name: str, handlers: any, params: any = None
 ) -> dict {
     fn = handlers[name];
     if not fn {
@@ -157,19 +163,19 @@ async def handleFunctionCall(
     }
     try {
         await _preparePersistContext();
-        result = Reflect.apply(fn, null, call_args);
+        refl: any = Reflect;
+        result = refl.apply(fn, null, call_args);
         if result and type(result) == 'object' and result.then {
             result = await result;
         }
         await __jacCommitGraph();
         return okEnvelope(finalizeCallResponse(result, []));
     } except Exception as e {
-        msg = e.message or String(e);
-        return errorEnvelope(msg);
+        return errorEnvelope(_error_text(e));
     }
 }
 
-async def handleWalkerSpawn(req: any, name: str, nodeId: str, handlers: dict) -> dict {
+async def handleWalkerSpawn(req: any, name: str, nodeId: str, handlers: any) -> dict {
     spawnFn = handlers[name];
     if not spawnFn {
         return errorEnvelope(f"Unknown walker '{name}'");
@@ -194,52 +200,57 @@ async def handleWalkerSpawn(req: any, name: str, nodeId: str, handlers: dict) ->
         }
         return okEnvelope(payload);
     } except Exception as e {
-        msg = e.message or String(e);
-        return errorEnvelope(msg);
+        return errorEnvelope(_error_text(e));
     }
 }
 
-def:pub startBunServer(opts: dict) {
+def:pub startBunServer(opts: any) {
     project = opts.project or 'jac-service';
     walkers = opts.walkers or [];
     functions = opts.functions or [];
-    handlers = opts.handlers or {};
-    params = opts.params or {};
+    handlers: any = opts.handlers or {};
+    params: any = opts.params or {};
     port = Number(opts.port or 8000);
-    walkerFns = handlers.walkers or {};
-    functionFns = handlers.functions or {};
-    restspec = handlers.restspec or [];
+    walkerFns: any = handlers.walkers or {};
+    functionFns: any = handlers.functions or {};
+    restspec: any = handlers.restspec or [];
 
     async def fetchHandler(req: any) -> any {
-        url = new(URL, req.url);
+        ucls: any = URL;
+        url: any = new(ucls, req.url);
         path = url.pathname;
         method = req.method;
 
+        resp: any = Response;
         if method == 'GET' and path == '/functions' {
-            return Response.json(functions);
+            return resp.json(functions);
         }
         if method == 'GET' and path == '/walkers' {
-            return Response.json(walkers);
+            return resp.json(walkers);
         }
         if method == 'GET' and (path == '/healthz' or path == '/__health') {
-            return Response.json(
+            return resp.json(
                 {'project': project, 'walkers': walkers, 'functions': functions}
             );
         }
 
-        fnMatch = new(RegExp, '^/function/([^/]+)$').exec(path);
+        re1: any = new(RegExp, '^/function/([^/]+)$');
+        fnMatch = re1.exec(path);
         if fnMatch and method == 'POST' {
-            name = decodeURIComponent(fnMatch[1]);
+            dec: any = decodeURIComponent;
+            name = dec(fnMatch[1]);
             payload = await handleFunctionCall(req, name, functionFns, params);
             return envelopeResponse(payload);
         }
 
-        walkerMatch = new(RegExp, '^/walker/([^/]+)(?:/([^/]+))?$').exec(path);
+        re2: any = new(RegExp, '^/walker/([^/]+)(?:/([^/]+))?$');
+        walkerMatch = re2.exec(path);
         if walkerMatch and method == 'POST' {
-            name = decodeURIComponent(walkerMatch[1]);
+            dec2: any = decodeURIComponent;
+            name = dec2(walkerMatch[1]);
             nodeId = '';
             if walkerMatch[2] {
-                nodeId = decodeURIComponent(walkerMatch[2]);
+                nodeId = dec2(walkerMatch[2]);
             }
             payload = await handleWalkerSpawn(req, name, nodeId, walkerFns);
             return envelopeResponse(payload);
@@ -250,14 +261,14 @@ def:pub startBunServer(opts: dict) {
             if not spec {
                 continue;
             }
-            specPath = String(spec.path or '');
+            specPath: str = str(spec.path or '');
             if specPath == '' {
                 continue;
             }
-            if not specPath.startsWith('/') {
+            if specPath[0:1] != '/' {
                 specPath = '/' + specPath;
             }
-            specMethod = String(spec.method or 'POST').toUpperCase();
+            specMethod: str = str(spec.method or 'POST').upper();
             if path == specPath and method == specMethod {
                 carrier_handlers: dict = {};
                 carrier_handlers[carrier.name] = carrier.handler;
@@ -268,9 +279,10 @@ def:pub startBunServer(opts: dict) {
             }
         }
 
-        return new(Response, 'Not Found', {status: 404});
+        return new(resp, 'Not Found', {status: 404});
     }
 
-    Bun.serve({port: port, hostname: '0.0.0.0', fetch: fetchHandler});
+    bun: any = Bun;
+    bun.serve({port: port, hostname: '0.0.0.0', fetch: fetchHandler});
     console.log(f"Bun sv service '{project}' listening on http://0.0.0.0:{port}");
 }

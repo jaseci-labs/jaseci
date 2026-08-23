@@ -17,7 +17,7 @@ obj UUID {
 }
 
 
-def _strip_dashes(s: str) -> str {
+def _strip_dashes(s: any) -> str {
     # UUID(hex=...) parses plain hex only; strip the UUID's canonical dashes.
     out: str = "";
     for ch in s {

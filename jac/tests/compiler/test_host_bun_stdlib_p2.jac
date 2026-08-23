@@ -233,7 +233,11 @@ def _assert_real_js_impl(mod: str) {
         assert '1700000000' not in js , f"{mod} must not use compile stub epoch";
     }
     if mod == 'os' {
-        assert 'process.cwd' in js , "os.getcwd must delegate to process.cwd()";
+        # Delegation, not a stub: the emitted body must reach the host
+        # process object (aliased locals are fine, 'process' must appear).
+        assert 'globalThis.process' in js and '.cwd()' in js , (
+            "os.getcwd must delegate to the host process object"
+        );
     }
     if mod == 'random' {
         assert (

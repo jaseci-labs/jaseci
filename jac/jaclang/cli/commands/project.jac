@@ -205,7 +205,7 @@ def create(
         Arg.create(
             "server",
             typ=bool,
-            default=False,
+            `default=False,
             help="With --npm: sync the Bun server npm root at .jac/server/ (for Bun-hosted sv services). Ignored without --npm.",
             short=""
         ),

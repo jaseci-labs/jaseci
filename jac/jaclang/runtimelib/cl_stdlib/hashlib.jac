@@ -8,7 +8,8 @@ obj _SHA256 {
 
 
 def _sha256_hex(data: bytes) -> str {
-    hasher = new(Bun.CryptoHasher, "sha256");
+    bun_glob: any = globalThis.Bun;
+    hasher: any = new(bun_glob.CryptoHasher, "sha256");
     hasher.update(data);
     return hasher.digest("hex");
 }
