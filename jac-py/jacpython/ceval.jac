@@ -1096,6 +1096,7 @@ import from objects {
     PyCode,
     PyCell,
     PyTypeAlias,
+    PyTypeVar,
     PyDict,
     PyDictIter,
     PySet,
@@ -4238,6 +4239,11 @@ def py_str(value: PyObj) -> PyObj {
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
     }
+    # TypeVar has no __str__ of its own; object.__str__ falls back to tp_repr,
+    # so str(T) == 'T' byte-exact.
+    if isinstance(value, PyTypeVar) {
+        return py_repr(value);
+    }
     # A member descriptor's str is its repr (host: str(C.__dict__['x']) ==
     # "<member 'x' of 'C' objects>").
     if isinstance(value, PyMemberDescr) {
@@ -4297,6 +4303,12 @@ def py_repr(value: PyObj) -> PyObj {
     # alias) == 'X'), never a qualified or angled form.
     if isinstance(value, PyTypeAlias) {
         return PyStr(t="str", val=(value as PyTypeAlias).name);
+    }
+    # CPython typing.TypeVar.__repr__ for implicit PEP 695 parameters prints
+    # the bare name (module 'typing'); '~T' belongs to explicitly-constructed
+    # TypeVars outside typing.
+    if isinstance(value, PyTypeVar) {
+        return PyStr(t="str", val=(value as PyTypeVar).name);
     }
     if isinstance(value, PyTuple) {
         return tuple_repr(value as PyTuple);
@@ -12435,6 +12447,19 @@ def run_frame(frame: PyFrame) -> PyObj {
                 # INTRINSIC_LIST_TO_TUPLE: the tuple()-of-genexpr fast path
                 # builds a list, then converts it in place.
                 stack.append(PyTuple(t="tuple", items=(operand as PyList).items));
+                continue;
+            }
+            if arg == 7 {
+                # INTRINSIC_TYPEVAR (PEP 695 type parameter): operand is just
+                # the parameter name string. Bounds/constraints never come
+                # through here -- codegen wraps an unparameterized TypeVar via
+                # CALL_INTRINSIC_2 TYPEVAR_WITH_BOUND/_WITH_CONSTRAINTS.
+                if not isinstance(operand, PyStr) {
+                    return py_error(
+                        "SystemError", "CALL_INTRINSIC_1 TYPEVAR name must be a str"
+                    );
+                }
+                stack.append(PyTypeVar(t="TypeVar", name=(operand as PyStr).val));
                 continue;
             }
             if arg == 11 {

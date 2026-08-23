@@ -1277,6 +1277,40 @@ obj PyTypeAlias(PyObj) {
     }
 }
 
+# PEP 695 type-parameter stand-in (CPython typing.TypeVar as produced by
+# CALL_INTRINSIC_1(INTRINSIC_TYPEVAR)). Data-only: the intrinsic operand is
+# just the parameter name string, so __bound__ is None and __constraints__ is
+# the empty tuple -- bounded/constrained parameters wrap this object through
+# CALL_INTRINSIC_2 INTRINSIC_TYPEVAR_WITH_BOUND/_WITH_CONSTRAINTS instead.
+# Implicit PEP 695 parameters live in module 'typing' with inferred variance,
+# and their host repr is the bare name ('T'; the '~T' form belongs to
+# explicitly-constructed TypeVars outside typing).
+obj PyTypeVar(PyObj) {
+    has name: str;
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "__name__" {
+            return PyStr(t="str", val=self.name);
+        }
+        if name == "__module__" {
+            return PyStr(t="str", val="typing");
+        }
+        if name == "__bound__" {
+            return py_none();
+        }
+        if name == "__constraints__" {
+            return PyTuple(t="tuple", items=[]);
+        }
+        if name == "__infer_variance__" {
+            return PyBool(t="bool", val=True);
+        }
+        return py_error(
+            "AttributeError",
+            "'typing.TypeVar' object has no attribute '" + name + "'"
+        );
+    }
+}
+
 # Backing slot for the hash-key protocol: the original key object is kept next
 # to its value so keys()/iteration/repr/KeyError return real keys, never the
 # internal hashkey string. A plain obj (not a PyObj) -- pure storage.
