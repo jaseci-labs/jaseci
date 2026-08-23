@@ -409,6 +409,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     being treated as real. Bundles the phantom-cascade pattern seen with
     objects/ceval mid-edits + annotations partials.
 
+41. **[MED][FIXED f162551ed UltraMoon] hash(None) FNV digest vs CPython constant**
+    4238894112 - byte-parity now.
+
+41b. **[MED][FIXED 59239107b UltraMoon, same-day] None equality was identity-based**
+    - py_none() mints fresh instances with no richcompare arm, so None in {None}
+    returned False. Fixed via eq/ne-vs-PyNoneType arm; None==0/'' correctly False.
+
 44. **[MED] Old-style __getitem__ iteration protocol not implemented.**
     list(obj) where obj defines only __getitem__ (+IndexError terminator)
     raises TypeError("'NoneType' object is not iterable") - py_iter returns
