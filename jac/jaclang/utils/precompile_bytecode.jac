@@ -3031,7 +3031,7 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
         caps.append("attachable");
     }
 
-    meta = {"kind": kind, "capabilities": caps, "entry": `entry};
+    meta: dict[str, any] = {"kind": kind, "capabilities": caps, "entry": `entry};
     native_dir = pkg_path / NATIVE_DIR_REL;
     if native_dir.is_dir() {
         triples = sorted(

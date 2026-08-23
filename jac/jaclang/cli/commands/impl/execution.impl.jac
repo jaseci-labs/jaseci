@@ -3,6 +3,7 @@ import os;
 import sys;
 import types;
 import from pathlib { Path }
+import from ctypes { CDLL }
 import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
@@ -59,7 +60,7 @@ def _build_c_argv(argv: list[str]) -> tuple {
     return (argc, c_argv, c_strings);
 }
 
-def _set_native_argv_in_dll(lib: object, argv: list[str]) -> bool {
+def _set_native_argv_in_dll(lib: CDLL, argv: list[str]) -> bool {
     import ctypes;
 
     (argc, c_argv, c_strings) = _build_c_argv(argv);
@@ -75,7 +76,7 @@ def _set_native_argv_in_dll(lib: object, argv: list[str]) -> bool {
         );
         return False;
     }
-    lib._jac_argv_refs = (c_strings, c_argv);
+    setattr(lib, "_jac_argv_refs", (c_strings, c_argv));
     return True;
 }
 
@@ -265,13 +266,13 @@ def _jab_native_artifact(
     return cand;
 }
 
-def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
+def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
     stem = base_stem(os.path.basename(entry_rel));
     return _jab_native_artifact(img_root, stem, need_exec=True);
 }
 
-def _jab_native_lib(img_root: object, entry_rel: str) -> (str | None) {
+def _jab_native_lib(img_root: Path, entry_rel: str) -> (str | None) {
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.runtimelib.sealed_serve { native_lib_name }
     stem = base_stem(os.path.basename(entry_rel));

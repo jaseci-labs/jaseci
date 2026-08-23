@@ -8,6 +8,10 @@ import os;
 import sys;
 
 import from jaclang.cli.console { console }
+import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.program { JacProgram }
+import from jaclang.project.config { GcConfig }
 
 
 enum NativeLinkTarget { STANDALONE_EXE = 'standalone_exe', SHARED_LIB = 'shared_lib' }
@@ -69,8 +73,8 @@ def _parse_native_target(target: str) -> NativeTargetPlan {
 
 
 obj NativeLinkCtx {
-    has ir_module: any,
-        options: any,
+    has ir_module: uni.Module,
+        options: CompileOptions,
         base_llvm_ir: str,
         auto_promote: bool,
         plan: NativeTargetPlan;
@@ -79,8 +83,8 @@ obj NativeLinkCtx {
 
 obj NativeCompilePrep {
     has gc: str,
-        gc_cfg: any,
-        prog: any;
+        gc_cfg: (GcConfig | None),
+        prog: JacProgram;
 }
 
 
@@ -101,13 +105,17 @@ def _prepare_native_compile(filename: str, gc: str = "") -> (NativeCompilePrep |
         console.error(f"File not found: {filename}");
         return None;
     }
-    _gc_cfg = None;
+    _gc_cfg: (GcConfig | None) = None;
     _cfg = get_config();
     if _cfg {
         _gc_cfg = _cfg.gc;
     }
-    if not gc {
-        gc = _gc_cfg.`default if _gc_cfg else "cycles";
+    if gc == "" {
+        if _gc_cfg is None {
+            gc = "cycles";
+        } else {
+            gc = _gc_cfg.`default;
+        }
     }
     if gc not in ("cycles", "rc", "none") {
         console.error(f"Invalid --gc mode '{gc}' (expected: cycles, rc, none)");
@@ -118,7 +126,7 @@ def _prepare_native_compile(filename: str, gc: str = "") -> (NativeCompilePrep |
 }
 
 
-def _native_import_names(ir_module: object) -> list {
+def _native_import_names(ir_module: uni.Module) -> list {
     mf = ir_module.gen.interop_manifest;
     if mf {
         return list(mf.native_imports);
