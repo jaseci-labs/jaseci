@@ -547,6 +547,18 @@ def _l1_host_eval_in(ns, expr_src):
     return eval(compile(expr_src, "<layer1>", "eval"), ns)
 
 
+def _l1_host_identity_rel(name, host_a, host_b):
+    # Host side of an identity-family assert: the same relation the guest
+    # evaluates atomically (see _L1_IDENTITY_CHECKS), computed natively here.
+    if name == "assertIs":
+        return bool(host_a is host_b)
+    if name == "assertIsNot":
+        return bool(host_a is not host_b)
+    if name == "assertIsInstance":
+        return bool(isinstance(host_a, host_b))
+    return bool(not isinstance(host_a, host_b))
+
+
 def _l1_host_raises(ns, body_src):
     """Execute a statement block; return the raised exception's type name, or
     None if it completed without raising."""
@@ -707,6 +719,18 @@ def _l1_jac_raise_name(ns: dict[str, PyObj], body_src: str) -> str {
 # evaluate every assert argument against both in source order (so shared
 # generator state advances identically) and diff each. Returns 1 (all match),
 # 0 (a real divergence), or -1 (jacpython raised -- a ceval/marshal gap).
+# Identity-family asserts evaluate the assertion RELATION atomically on each
+# engine -- `(a) is (b)` wholly in jacpython, `host_a is host_b` over
+# host-evaluated operands -- instead of marshaling operands across the bridge.
+# The engines run independent executions of the same source, so no to_host
+# mapping can make a guest type object is-identical to the host's own class
+# object (cf. TODO item 58; same identity-non-round-trip class as deviation
+# D-RANGE-ID). NB: must stay in native-jac scope -- ::py:: codespace globals
+# and compiled-jac globals do not share a namespace at runtime.
+glob _L1_IDENTITY_CHECKS: set[str] = {
+    "assertIs", "assertIsNot", "assertIsInstance", "assertNotIsInstance",
+};
+
 def _l1_replay_method(setup_src: str, checks: any) -> int {
     try {
         ns_jac = layer1_run_setup(setup_src);
@@ -718,6 +742,33 @@ def _l1_replay_method(setup_src: str, checks: any) -> int {
                 jac_name = _l1_jac_raise_name(ns_jac, chk[1][1] as str);
                 host_name = _l1_host_raises(ns_host, chk[1][1]);
                 if not (_l1_raise_match(jac_name, host_name) as bool) {
+                    return 0;
+                }
+                continue;
+            }
+            if (chk[0] as str) in _L1_IDENTITY_CHECKS and len(chk[1]) == 2 {
+                # Relation evaluated where its operands live: synthesize ONE
+                # eval-mode expression for the guest; compute the identical
+                # relation natively over host-evaluated operands on the host.
+                name_id = chk[0] as str;
+                a_src = chk[1][0] as str;
+                b_src = chk[1][1] as str;
+                if name_id == "assertIs" {
+                    rel_src = "(" + a_src + ") is (" + b_src + ")";
+                } elif name_id == "assertIsNot" {
+                    rel_src = "(" + a_src + ") is not (" + b_src + ")";
+                } elif name_id == "assertIsInstance" {
+                    rel_src = "isinstance((" + a_src + "), (" + b_src + "))";
+                } else {
+                    rel_src = (
+                        "not isinstance((" + a_src + "), (" + b_src + "))"
+                    );
+                }
+                jac_rel = to_host(layer1_eval_in(ns_jac, rel_src));
+                host_a = _l1_host_eval_in(ns_host, a_src);
+                host_b = _l1_host_eval_in(ns_host, b_src);
+                host_rel = _l1_host_identity_rel(name_id, host_a, host_b);
+                if ((jac_rel as bool) != (host_rel as bool)) {
                     return 0;
                 }
                 continue;
