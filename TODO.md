@@ -701,6 +701,16 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     correct (member identity passes). Found fuzz r61c, verified by
     CalmKnight pin.
 
+77. **[HIGH] `raise ... from e` inside except block FAILS - cause leaks,
+    new exception never raised.** Minimal: try: raise ValueError('v')
+    except ValueError as e: raise RuntimeError('r') from e -> jacpython
+    errors uncaught with the CAUSE'S message ('Error: v') instead of
+    raising catchable RuntimeError('r'). Plain raise inside except is
+    green; raise-from OUTSIDE except unknown. Same locus family as item
+    73 (exception construction, ceval raise path) but distinct symptom:
+    73 = repr loses args post-hoc; 77 = chained raise itself broken.
+    Found fuzz r63 hand-sweep, verified by CalmKnight standalone diff.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
