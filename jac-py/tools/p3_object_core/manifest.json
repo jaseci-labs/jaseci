@@ -115,6 +115,19 @@
       "status": "gated"
     },
     {
+      "stem": "test_hashlib",
+      "path": "Lib/test/test_hashlib.py",
+      "baseline": {
+        "passed": 7,
+        "failed": 0,
+        "errored": 0,
+        "skipped": 8
+      },
+      "fixtures": true,
+      "gate": "P3.1b",
+      "status": "gated"
+    },
+    {
       "stem": "test_tuple",
       "path": "Lib/test/test_tuple.py",
       "baseline": {
