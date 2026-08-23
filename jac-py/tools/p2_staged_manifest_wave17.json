@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "wave": "p2_wave17",
+  "description": "P2 wave 17 staging policy (_csv reader/writer/dialect kernels)",
+  "staged_dir": "jac-py/Modules",
+  "lifted_dir": "jac-py/Modules/_lifted/p2_corpus_wave17",
+  "modules": [
+    {
+      "stem": "_csv",
+      "staging": "lift"
+    }
+  ]
+}

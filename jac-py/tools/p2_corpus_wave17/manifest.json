@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "p2_corpus_wave17",
+  "description": "P2 wave 17: _csv reader/writer/dialect kernels (parse_process_char state machine with escaped-CRNL and strict quote handling, end-of-input record verdict, dialect char validation with lineterminator membership, writer join_append_data quoting/escape machine, QUOTE_* flag switch, empty-field guards)",
+  "source_dir": "corpus",
+  "lift_output": "jac-py/Modules/_lifted/p2_corpus_wave17",
+  "baseline_report": "jac-py/tools/p2_corpus_wave17/baseline/project.c2jac.report.json",
+  "files": [
+    {
+      "stem": "_csv",
+      "source": "jac-py/tools/p2_corpus_wave17/corpus/_csv.c",
+      "header_free": true
+    }
+  ]
+}

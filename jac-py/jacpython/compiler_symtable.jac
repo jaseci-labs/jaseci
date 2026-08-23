@@ -47,7 +47,6 @@ import from ast_nodes {
     SetComp,
     DictComp,
     GeneratorExp,
-    NamedExpr,
     Lambda,
     comprehension,
     Yield,
@@ -356,9 +355,7 @@ def sym_visit_genexp(b: sym_builder, e: GeneratorExp) -> bool {
     }
     nested = sym_compute_nested(b);
     in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
-    if not b.push_block(
-        "function", "genexpr", e.lineno, nested, in_class, e.col_offset
-    ) {
+    if not b.push_block("function", "genexpr", e.lineno, nested, in_class) {
         return False;
     }
     b.cur.comprehension = "gen";
@@ -539,16 +536,6 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
             di = di + 1;
         }
         return True;
-    }
-    if isinstance(e, NamedExpr) {
-        ne = e as NamedExpr;
-        # PEP 572: the walrus target binds in the current scope (for inlined
-        # comprehensions that is the enclosing function, matching the shared
-        # fast-local slots); the value side is an ordinary load.
-        if not sym_visit_store_target(b, ne.target) {
-            return False;
-        }
-        return sym_visit_load_expr(b, ne.value);
     }
     if isinstance(e, ListComp) {
         lc = e as ListComp;
@@ -909,12 +896,6 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     }
     if isinstance(s, Assign) {
         a = s as Assign;
-        # CPython's symtable defines the value side before the assignment
-        # targets, so a PEP 572 walrus target inside the value lands in
-        # co_varnames ahead of the statement's own targets.
-        if not sym_visit_load_expr(b, a.value) {
-            return False;
-        }
         ti = 0;
         while ti < len(a.targets) {
             if not sym_visit_store_target(b, a.targets[ti]) {
@@ -922,7 +903,7 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             }
             ti = ti + 1;
         }
-        return True;
+        return sym_visit_load_expr(b, a.value);
     }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
