@@ -548,6 +548,17 @@ def _jac_star_names(host_val):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_dir_names(value):
+    # Every attribute name on a host module (full dir(), not the __all__/
+    # public-only view _jac_star_names serves for star-imports). The stdlib
+    # delegation registry snapshots the complete surface so underscored API
+    # (re._compile, datetime's C internals) stays reachable, matching dir()
+    # on a real host module.
+    try:
+        return (True, [n for n in dir(value)])
+    except BaseException as exc:
+        return (False, type(exc).__name__, str(exc))
+
 def _jac_make_host_trampoline(native_fn):
     # Native-callable -> host round-trip. When a native PyFunction crosses the
     # host boundary (to_host), it can't become None -- host machinery that wraps
@@ -931,6 +942,88 @@ def shim_module_get(name: str) -> PyObj {
     return py_error("ImportError", "shim module '" + name + "' is not installed");
 }
 
+# ---------------- stdlib delegation registry ---------------------------------
+# Principled stdlib DELEGATION: pure-C / heavy CPython modules are best served
+# by the host interpreter rather than ported or run in-VM. A guest
+# ``import <mod>`` / ``from <mod> import ...`` whose module has no NATIVE
+# facade (shim_modules) resolves through this single registry instead of the
+# ad-hoc per-call-site host proxies used before: the host module is imported
+# once, its full dir() surface is snapshotted into a native PyModule (scalars
+# converted natively, callables/classes left as transparent host proxies),
+# and __name__ carries the full dotted module name.
+#
+# Precedence: native facades win automatically -- every resolution site checks
+# shim_modules BEFORE this registry, so landing e.g. a native ``re`` facade
+# later needs no registry edit; deletion of the entry re-activates delegation.
+#
+# Policy "full": snapshot the whole dir() surface minus non-value module
+# machinery (__loader__/__spec__/__path__/__builtins__ never round-trip
+# meaningfully); synthesized __name__ always wins over the host's copy.
+glob delegate_modules: dict[str, str] = {
+    "re": "full",
+    "datetime": "full",
+    "hashlib": "full",
+    "base64": "full",
+    "zlib": "full",
+    "binascii": "full",
+    "uuid": "full",
+};
+
+# sys.modules semantics: one delegated PyModule per name, identity-stable
+# across repeated imports in guest code.
+glob delegate_cache: dict[str, PyObj] = {};
+
+def register_delegate_module(name: str, policy: str) {
+    if policy != "full" {
+        raise ValueError("unknown delegation policy: " + policy);
+    }
+    delegate_modules[name] = policy;
+}
+
+def clear_delegate_modules {
+    delegate_modules = {};
+    delegate_cache = {};
+}
+
+# Build (or fetch cached) the native PyModule standing in for host module
+# `name`. Raises through py_error exactly like host_import when the HOST
+# import itself fails (ModuleNotFoundError etc. cross faithfully).
+def delegated_module(name: str) -> PyObj {
+    if name in delegate_cache {
+        return delegate_cache[name];
+    }
+    star: list[PyObj] = [PyStr(t="str", val="*")];
+    result = _jac_host_import(name, to_host(PyList(t="list", items=star)));
+    if not ((result[0] as bool)) {
+        return py_error(str(result[1]), str(result[2]));
+    }
+    raw = result[1];
+    names_res = _jac_dir_names(raw);
+    if not ((names_res[0] as bool)) {
+        return py_error(str(names_res[1]), str(names_res[2]));
+    }
+    attrs: dict[str, PyObj] = {};
+    for attr_name in names_res[1] {
+        if attr_name == "__loader__" or attr_name == "__spec__"
+            or attr_name == "__path__" or attr_name == "__builtins__"
+            or attr_name == "__name__" {
+            continue;
+        }
+        got = _jac_host_getattr(raw, attr_name);
+        if not ((got[0] as bool)) {
+            # A lazy attribute that refuses getattr is simply absent from the
+            # snapshot; the guest sees our AttributeError, mirroring a failed
+            # host access without poisoning the whole import.
+            continue;
+        }
+        attrs[attr_name] = from_host(got[1]);
+    }
+    attrs["__name__"] = PyStr(t="str", val=name);
+    mod = PyModule(t="module", name=name, attrs=attrs);
+    delegate_cache[name] = mod;
+    return mod;
+}
+
 # ---------------- Layer 3: real un-proxied module import ---------------------
 # (jac-py/PLAN.md Layer 3 -- "real unittest boots un-proxied".) When
 # layer3_active is set, IMPORT_NAME resolves a module by running its actual
@@ -1039,6 +1132,17 @@ def import_native(absname: str) -> PyObj {
     }
     if absname in shim_modules {
         return shim_modules[absname];
+    }
+    if absname in delegate_modules {
+        # Delegation precedes the module-info lookup: a pure-Python delegatee
+        # (re, uuid) must NOT be executed in-VM, and a C module must not take
+        # the generic host-proxy path -- both resolve to the same snapshot.
+        mod = delegated_module(absname);
+        if is_error(mod) {
+            return mod;
+        }
+        sys3_modules[absname] = mod;
+        return mod;
     }
     if absname in layer3_force_host {
         star2: list[PyObj] = [PyStr(t="str", val="*")];
@@ -3073,6 +3177,9 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
     }
     if name in shim_modules {
         return shim_modules[name];
+    }
+    if name in delegate_modules {
+        return delegated_module(name);
     }
     result = _jac_host_import(name, to_host(fromlist));
     if host_result_ok(result) {

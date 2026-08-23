@@ -1,0 +1,80 @@
+{
+ "version": 1,
+ "wave": "stdlib_delegate",
+ "description": "Stdlib delegation registry ratchet (ceval.jac delegate_modules): pure-C/heavy modules resolved through the single host-delegation registry instead of ad-hoc proxies or in-VM execution; host CPython 3.14 oracle parity pinned in test_stdlib_delegate.jac",
+ "module_count": 7,
+ "modules": [
+  {
+   "stem": "re",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "named groups/backrefs, compile objects + flags, search/findall/split/sub/subn/fullmatch, M|S|I flag combos, byte-exact re.error text"
+  },
+  {
+   "stem": "datetime",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "date/datetime/timedelta arithmetic, isoformat/strftime, replace, comparisons, total_seconds; tz classes exposed but unpinned"
+  },
+  {
+   "stem": "hashlib",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "sha256/md5/sha1/sha224 digests, incremental update, pbkdf2_hmac"
+  },
+  {
+   "stem": "base64",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "b64/urlsafe/b32/b16 encode+decode round-trips, decodebytes"
+  },
+  {
+   "stem": "zlib",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "compress/decompress round-trip, compressobj/decompressobj streaming, crc32/adler32, byte-exact zlib.error text"
+  },
+  {
+   "stem": "binascii",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "hexlify/unhexlify/a2b_base64/crc_hqx, byte-exact binascii.Error text via except binascii.Error class-proxy lane"
+  },
+  {
+   "stem": "uuid",
+   "gate_type": "oracle",
+   "status": "gated",
+   "pinned_tests": [
+    "test_stdlib_delegate.jac"
+   ],
+   "notes": "uuid5/uuid3 determinism, UUID parsing/fields/int round-trip, namespace constants"
+  }
+ ],
+ "jacpython_results": {
+  "re": {"passed": 7, "total": 7},
+  "datetime": {"passed": 2, "total": 2},
+  "hashlib": {"passed": 1, "total": 1},
+  "base64": {"passed": 1, "total": 1},
+  "zlib": {"passed": 2, "total": 2},
+  "binascii": {"passed": 2, "total": 2},
+  "uuid": {"passed": 1, "total": 1}
+ }
+}

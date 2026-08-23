@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "updated": "2026-08-22",
+  "updated": "2026-08-23",
   "description": "Pinned D2 conformance pass-set (grow-only ratchet). Regenerate with: python3 tools/conformance_dashboard.py --update-baseline",
-  "entry_count": 58,
+  "entry_count": 65,
   "entries": {
     "_bisectmodule": {
       "wave": "p2_wave1",
@@ -46,6 +46,20 @@
       "cases_passed": null,
       "cases_total": null
     },
+    "base64": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 1,
+      "cases_total": 1
+    },
+    "binascii": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 2,
+      "cases_total": 2
+    },
     "binasciimodule": {
       "wave": "p2_wave16",
       "gate_type": "oracle",
@@ -59,6 +73,13 @@
       "status": "gated",
       "cases_passed": null,
       "cases_total": null
+    },
+    "datetime": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 2,
+      "cases_total": 2
     },
     "getbuildinfo": {
       "wave": "p2_wave1",
@@ -84,6 +105,13 @@
     "getplatform": {
       "wave": "p2_wave1",
       "gate_type": "libtest",
+      "status": "gated",
+      "cases_passed": 1,
+      "cases_total": 1
+    },
+    "hashlib": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
       "status": "gated",
       "cases_passed": 1,
       "cases_total": 1
@@ -389,6 +417,13 @@
       "cases_passed": null,
       "cases_total": null
     },
+    "re": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 7,
+      "cases_total": 7
+    },
     "rotatingtree": {
       "wave": "p2_wave1",
       "gate_type": "oracle",
@@ -409,6 +444,20 @@
       "status": "gated",
       "cases_passed": null,
       "cases_total": null
+    },
+    "uuid": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 1,
+      "cases_total": 1
+    },
+    "zlib": {
+      "wave": "stdlib_delegate",
+      "gate_type": "oracle",
+      "status": "gated",
+      "cases_passed": 2,
+      "cases_total": 2
     }
   }
 }
