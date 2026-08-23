@@ -2349,7 +2349,7 @@ impl JacAPIServer.build_app -> ServingApp {
                 f"{', '.join(sorted(_spec_carriers))} will serve at the "
                 "default /walker/ and /function/ POST routes only. Custom "
                 "methods, paths, webhooks, and websockets need the scale "
-                "serving stack (`jac start`)."
+                "serving stack (`jac run`)."
             );
         }
     } except Exception {

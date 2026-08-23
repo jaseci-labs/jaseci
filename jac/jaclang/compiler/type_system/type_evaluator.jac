@@ -141,6 +141,14 @@ import from jaclang.compiler.type_system.operations {
     get_type_of_binary_operation,
     is_annotation_type
 }
+import from jaclang.compiler.type_system.fixed_width {
+    AssignVerdict,
+    assign_numeric_expr,
+    both_numeric,
+    fixed_width_call_type,
+    is_unsigned_type,
+    unify_numeric_operands
+}
 import from jaclang.compiler.type_system.type_utils {
     ClassMember,
     ParamAssignmentTracker,
@@ -222,6 +230,7 @@ import from jaclang.jac0core.diagnostics {
     E1111,
     E1120,
     E1121,
+    E1129,
     E0049,
     E5094,
     W1050,
@@ -462,6 +471,18 @@ obj TypeEvaluator {
     def assign_type(
         src_type: TypeBase, dest_type: TypeBase, strict: bool = False
     ) -> bool;
+
+    def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
+    def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
+    def _extern_field_type(field: HasVar) -> TypeBase;
+    def assign_expr(
+        expr: Expr | None,
+        src_type: TypeBase,
+        dest_type: TypeBase,
+        strict: bool = False,
+        probe: bool = False
+    ) -> AssignVerdict;
 
     def get_type_of_magic_method_call(
         obj_type: TypeBase,

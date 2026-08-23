@@ -55,7 +55,7 @@ console.log("%%SENTINEL%%" + JSON.stringify(__jac_results));
 import sys
 import jaclang
 from jaclang.cli.commands import execution
-execution.start(
+execution.serve(
     filename=sys.argv[1], port=int(sys.argv[2]), main=True, no_client=True
 )
 """;

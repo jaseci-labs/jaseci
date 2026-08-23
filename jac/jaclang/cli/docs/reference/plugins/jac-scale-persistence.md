@@ -380,7 +380,7 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 
 - **Local development**: the runtime auto-provisions an embedded Postgres server, one database per project. `jac db status` / `jac db stop` manage it; nothing to install.
 - **External server**: set `[scale.database].url` (or the `JAC_DB_URL` env var, which wins) and everything -- graph anchors, identity, scheduler jobs, webhook API keys, the event stream, and the WebSocket broadcast backplane -- runs against that database.
-- **Kubernetes**: `jac start app.jac --scale` provisions a Postgres StatefulSet with a PersistentVolumeClaim and injects `JAC_DB_URL` into every pod via a Kubernetes Secret. Subsequent deployments only update the application; the database remains untouched.
+- **Kubernetes**: `jac scale deploy app.jac` provisions a Postgres StatefulSet with a PersistentVolumeClaim and injects `JAC_DB_URL` into every pod via a Kubernetes Secret. Subsequent deployments only update the application; the database remains untouched.
 
 | `jac.toml` key (`[scale.database]`) | Default | Description |
 |----------|---------|-------------|

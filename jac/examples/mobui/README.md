@@ -13,6 +13,6 @@ One source tree, two platforms: these apps are written in the portable
 Run either from its own directory:
 
 ```bash
-jac start main.jac --dev                          # web
-jac start main.jac --client react-native --dev    # native (Expo)
+jac run --dev main.jac                            # web
+jac run --client react-native --dev main.jac      # native (Expo)
 ```

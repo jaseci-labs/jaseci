@@ -335,7 +335,6 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 
 glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/unitree.jac",
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
@@ -376,7 +375,6 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/annex_weave.jac",
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/decl_impl_match_pass.jac",
@@ -388,6 +386,7 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/expr_keys.jac",
@@ -437,8 +436,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::class_implements_protocol",
          "compiler/type_system/type_utils.jac::collect_member_syms",
          "compiler/type_system/type_utils.jac::get_completion_items",
-         "compiler/type_system/type_utils.jac::completion_kind_from_sym",
-         "compiler/type_system/type_utils.jac::completion_item_from_sym",
          "compiler/type_system/type_utils.jac::compute_mro_linearization",
          "compiler/type_system/type_utils.jac::build_type_var_solution",
          "compiler/type_system/type_utils.jac::shadowed_type_var_names",
@@ -526,7 +523,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
@@ -587,9 +583,9 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "against a layout not reachable from the root "
              "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
              "as a for-loop iterable (`build_type_var_solution`, "
-             "`build_solution_from_specialized_class`), and comprehensions or "
-             "matches over element-erased collections "
-             "(`shadowed_type_var_names`, `completion_kind_from_sym`). "
+             "`build_solution_from_specialized_class`), and comprehensions "
+             "over element-erased collections "
+             "(`shadowed_type_var_names`). "
              "Each clears with the named gap."
          ),
          (
@@ -1521,7 +1517,7 @@ glob _MERGE_PROBE_MAIN: tuple[str, ...] = (
 def _merge_probe_parity(np: any) -> str {
     import from jaclang.jac0core.parser.lexer { tokenize_full }
     import from jaclang.jac0core.parser.parser { Parser }
-    import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+    import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     nl = chr(10);
@@ -1544,7 +1540,7 @@ def _merge_probe_parity(np: any) -> str {
     py_main = Parser(tokens=mt, file_path=main_path, source_code=main_src).parse();
     (at, _ac, _ald, _ale) = tokenize_full(annex_src, annex_path);
     py_annex = Parser(tokens=at, file_path=annex_path, source_code=annex_src).parse();
-    JacAnnexPass._merge_annex(py_main, py_annex);
+    merge_annex_into(py_main, py_annex);
     if len(merged.body) != len(py_main.body) {
         return (
             f"merge probe: woven body lengths diverged (native "

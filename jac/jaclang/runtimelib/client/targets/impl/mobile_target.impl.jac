@@ -157,14 +157,14 @@ impl MobileTarget.setup(project_dir: Path) -> None {
     if needs_android {
         console.print("  Android:");
         console.print(
-            "    Dev:   jac start main.jac --client mobile --dev", style="muted"
+            "    Dev:   jac run --client mobile --dev main.jac", style="muted"
         );
         console.print("    Build: jac build --client mobile --platform android");
     }
     if needs_ios {
         console.print("  iOS:");
         console.print(
-            "    Dev:   jac start main.jac --client mobile --dev --platform ios",
+            "    Dev:   jac run --client mobile --dev --platform ios main.jac",
             style="muted"
         );
         console.print("    Build: jac build --client mobile --platform ios");
@@ -348,7 +348,7 @@ impl MobileTarget.start(
 
     if api_port != 8000 {
         console.print(
-            f"  Note: --port {api_port} applies to `jac start` flows; "
+            f"  Note: --port {api_port} applies to `jac run` flows; "
             "`cap run` uses the baked web bundle only.",
             style="muted"
         );
