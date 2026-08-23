@@ -15,5 +15,5 @@ obj CompiledQuery {
 
 
 def compile_query(
-    q: GraphQuery, upto: int, promotions: (dict | None) = None
+    q: GraphQuery, upto: int, promotions: (dict | None) = None, count_only: bool = False
 ) -> CompiledQuery;

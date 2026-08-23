@@ -146,7 +146,15 @@ test "cost invariant through real syntax: fetches == |result|" {
             ctx2.mem.reset_fetch_count();
             winners = [origin-->[?:DA, val==2]];
             assert len(winners) == 1;
+            counted = ctx2.mem.get_fetch_count();
+            assert counted == 0 , (
+                f"a count has a SQL equivalent and must deserialize nothing; "
+                f"got {counted} fetches"
+            );
+            ctx2.mem.reset_fetch_count();
+            consumed = [w for w in winners];
             fetches = ctx2.mem.get_fetch_count();
+            assert len(consumed) == 1;
             assert fetches == 1 , (
                 f"a fully-pushable query must deserialize exactly its result "
                 f"set; got {fetches} fetches for 1 winner"
@@ -155,11 +163,11 @@ test "cost invariant through real syntax: fetches == |result|" {
             # A more selective query never reads more than a less selective
             # one (the #7790 P3 anomaly, inverted into an invariant).
             ctx2.mem.reset_fetch_count();
-            all_da = [origin-->[?:DA]];
+            all_da = [w for w in [origin-->[?:DA]]];
             broad = ctx2.mem.get_fetch_count();
             assert len(all_da) == 3;
             ctx2.mem.reset_fetch_count();
-            narrow_hits = [origin-->[?:DA, val==3]];
+            narrow_hits = [w for w in [origin-->[?:DA, val==3]]];
             narrow = ctx2.mem.get_fetch_count();
             assert narrow <= broad , (
                 f"selective query read more than broad one: {narrow} > {broad}"

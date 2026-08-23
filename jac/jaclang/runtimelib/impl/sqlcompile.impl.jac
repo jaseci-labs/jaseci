@@ -102,8 +102,11 @@ def _row_cond(
     if op is None {
         return None;
     }
-    names: tuple = p.field;
-    vals: tuple = p.value;
+    names = p.field;
+    vals = p.value;
+    if not isinstance(names, tuple) or not isinstance(vals, tuple) {
+        return None;
+    }
     lhs: list[str] = [];
     rhs: list[str] = [];
     for (i, name) in enumerate(names) {
@@ -201,7 +204,7 @@ def _nd_types(hop: QHop) -> list {
 
 
 impl compile_query(
-    q: GraphQuery, upto: int, promotions: (dict | None) = None
+    q: GraphQuery, upto: int, promotions: (dict | None) = None, count_only: bool = False
 ) -> CompiledQuery {
     out = CompiledQuery();
     params: dict = {};
@@ -267,7 +270,22 @@ impl compile_query(
     }
     if n == 0 {
         out.sql = (
-            'SELECT f0.id, NULL FROM ' 'unnest(CAST(:origin AS uuid[])) AS f0(id)'
+            'SELECT count(DISTINCT f0.id) FROM '
+            'unnest(CAST(:origin AS uuid[])) AS f0(id)'
+        )
+            if count_only
+            else (
+                'SELECT f0.id, NULL FROM ' 'unnest(CAST(:origin AS uuid[])) AS f0(id)'
+            );
+        out.params = params;
+        return out;
+    }
+    if count_only {
+        out.sql = (
+            f"SELECT count(DISTINCT n{n}.id) "
+            f"FROM unnest(CAST(:origin AS uuid[])) AS f0(id) "
+            f"LEFT JOIN anchors s1 ON s1.id = f0.id "
+            + ' '.join(joins)
         );
         out.params = params;
         return out;

@@ -1,5 +1,8 @@
 impl QPred._check_composite -> None {
-    names: tuple = self.field;
+    names = self.field;
+    if not isinstance(names, tuple) {
+        return;
+    }
     if self.op not in ORDERED_OPS and self.op not in ('==', '!=') {
         raise ValueError(
             f"QPred composite key admits ==, != and {sorted(ORDERED_OPS)}, "

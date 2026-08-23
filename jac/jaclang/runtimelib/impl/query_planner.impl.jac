@@ -18,6 +18,29 @@ impl _acl_read_ok(anchor: Anchor) -> bool {
 }
 
 
+def _effective_bound(q: GraphQuery) -> (tuple[(int | None), int] | None) {
+    if q.limit is not None {
+        return (q.limit, q.offset);
+    }
+    slc = q.slc;
+    if slc is None {
+        return None;
+    }
+    (start, stop, step) = (slc.start, slc.stop, slc.step);
+    if step is not None and step != 1 {
+        return None;
+    }
+    if start is not None and (not isinstance(start, int) or start < 0) {
+        return None;
+    }
+    if stop is not None and (not isinstance(stop, int) or stop < 0) {
+        return None;
+    }
+    off = start or 0;
+    return (None if stop is None else max(0, stop - off), off);
+}
+
+
 def _bound_pushable -> bool {
     return not _acl_gated();
 }
@@ -45,14 +68,18 @@ impl _sql_pairs(
         return ([], []);
     }
     mem.read_barrier();
+    bound = _effective_bound(q);
+    push = bound is not None and _bound_pushable();
     eff = q;
-    if q.limit is not None and not _bound_pushable() {
+    if bound is not None {
         eff = GraphQuery(
             q.origin,
             hops=q.hops,
             edges_only=q.edges_only,
-            slc=q.slc,
+            slc=None,
             order=q.order,
+            limit=bound[0] if push else None,
+            offset=bound[1] if push else 0,
             level=q.level
         );
         eff.from_visit = q.from_visit;
@@ -305,13 +332,29 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
             if _acl_read_ok(a)
         ];
     }
-    if q.limit is not None and not _bound_pushable() {
-        out = out[q.offset:q.offset + q.limit];
-    }
-    if q.slc is not None {
+    bound = _effective_bound(q);
+    if bound is not None {
+        if not _pushed_bound(mem, q) {
+            stop = None if bound[0] is None else bound[1] + bound[0];
+            out = out[bound[1]:stop];
+        }
+    } elif q.slc is not None {
         out = out[q.slc];
     }
     return out;
+}
+
+
+def _pushed_bound(mem: Session, q: GraphQuery) -> bool {
+    if mem.store is None or not _bound_pushable() {
+        return False;
+    }
+    for oanch in _origin_anchors(q) {
+        if not oanch.persistent {
+            return False;
+        }
+    }
+    return bool(_origin_anchors(q));
 }
 
 
@@ -376,4 +419,254 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
         out = out[q.slc];
     }
     return out;
+}
+
+
+impl resolve_query_count(mem: Session, q: GraphQuery) -> int {
+    store = mem.store;
+    origins = _origin_anchors(q);
+    if store is None or _acl_gated() or not origins {
+        return len(resolve_query(mem, q));
+    }
+    ids: list[UUID] = [];
+    for oanch in origins {
+        if not oanch.persistent {
+            return len(resolve_query(mem, q));
+        }
+        ids.append(oanch.id);
+    }
+    mem.read_barrier();
+    cq = compile_query(q, len(q.hops), promotions=store?.promotions, count_only=True);
+    if cq.residual {
+        return len(resolve_query(mem, q));
+    }
+    cq.params['origin'] = [str(i) for i in ids];
+    rows = store.rows(cq.sql, cq.params);
+    return int(rows[0][0]) if rows else 0;
+}
+
+
+impl resolve_query_exists(mem: Session, q: GraphQuery) -> bool {
+    probe = GraphQuery(
+        q.origin,
+        hops=q.hops,
+        edges_only=q.edges_only,
+        slc=None,
+        order=q.order,
+        limit=1,
+        level=q.level
+    );
+    probe.from_visit = q.from_visit;
+    return bool(resolve_query(mem, probe));
+}
+
+
+impl LazyRefs.init(self: LazyRefs, resolve: any, query: GraphQuery) -> None {
+    super.init();
+    self._resolve = resolve;
+    self._query = query;
+    self._done = False;
+}
+
+
+impl LazyRefs._realize(self: LazyRefs) -> None {
+    if self._done {
+        return;
+    }
+    self._done = True;
+    list.extend(self, self._resolve(self._query));
+}
+
+
+impl LazyRefs._bounded(self: LazyRefs, limit: (int | None), offset: int) -> list {
+    q = self._query;
+    bounded = GraphQuery(
+        q.origin,
+        hops=q.hops,
+        edges_only=q.edges_only,
+        slc=None,
+        order=q.order,
+        limit=limit,
+        offset=offset,
+        level=q.level
+    );
+    bounded.from_visit = q.from_visit;
+    return self._resolve(bounded);
+}
+
+
+impl LazyRefs.__len__(self: LazyRefs) -> int {
+    if self._done {
+        return list.__len__(self);
+    }
+    return self._count();
+}
+
+
+impl LazyRefs._count(self: LazyRefs) -> int {
+    try {
+        return resolve_query_count(self._mem(), self._query);
+    } except Exception {
+        self._realize();
+        return list.__len__(self);
+    }
+}
+
+
+impl LazyRefs._mem(self: LazyRefs) -> any {
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    return JacRuntimeInterface.get_context().mem;
+}
+
+
+impl LazyRefs.__bool__(self: LazyRefs) -> bool {
+    if self._done {
+        return list.__len__(self) > 0;
+    }
+    try {
+        return resolve_query_exists(self._mem(), self._query);
+    } except Exception {
+        self._realize();
+        return list.__len__(self) > 0;
+    }
+}
+
+
+impl LazyRefs.__iter__(self: LazyRefs) -> any {
+    self._realize();
+    return list.__iter__(self);
+}
+
+
+impl LazyRefs.__getitem__(self: LazyRefs, key: any) -> any {
+    if self._done {
+        return list.__getitem__(self, key);
+    }
+    if isinstance(key, int) and key >= 0 {
+        got = self._bounded(1, key);
+        if not got {
+            raise IndexError('list index out of range');
+        }
+        return got[0];
+    }
+    if isinstance(key, slice) {
+        (start, stop, step) = (key.start, key.stop, key.step);
+        if (step is None or step == 1)
+            and (start is None or (isinstance(start, int) and start >= 0))
+            and (stop is None or (isinstance(stop, int) and stop >= 0)) {
+            off = start or 0;
+            lim = None if stop is None else max(0, stop - off);
+            return self._bounded(lim, off);
+        }
+    }
+    self._realize();
+    return list.__getitem__(self, key);
+}
+
+
+impl LazyRefs.__repr__(self: LazyRefs) -> str {
+    self._realize();
+    return list.__repr__(self);
+}
+
+
+impl LazyRefs.__eq__(self: LazyRefs, other: any) -> bool {
+    self._realize();
+    return list.__eq__(self, other);
+}
+
+
+impl LazyRefs.__contains__(self: LazyRefs, item: any) -> bool {
+    self._realize();
+    return list.__contains__(self, item);
+}
+
+
+impl LazyRefs.__reversed__(self: LazyRefs) -> any {
+    self._realize();
+    return list.__reversed__(self);
+}
+
+
+impl LazyRefs.__add__(self: LazyRefs, other: any) -> any {
+    self._realize();
+    return list.__add__(self, other);
+}
+
+
+impl LazyRefs.__setitem__(self: LazyRefs, key: any, value: any) -> None {
+    self._realize();
+    list.__setitem__(self, key, value);
+}
+
+
+impl LazyRefs.__delitem__(self: LazyRefs, key: any) -> None {
+    self._realize();
+    list.__delitem__(self, key);
+}
+
+
+impl LazyRefs.append(self: LazyRefs, item: any) -> None {
+    self._realize();
+    list.append(self, item);
+}
+
+
+impl LazyRefs.extend(self: LazyRefs, items: any) -> None {
+    self._realize();
+    list.extend(self, items);
+}
+
+
+impl LazyRefs.insert(self: LazyRefs, i: int, item: any) -> None {
+    self._realize();
+    list.insert(self, i, item);
+}
+
+
+impl LazyRefs.remove(self: LazyRefs, item: any) -> None {
+    self._realize();
+    list.remove(self, item);
+}
+
+
+impl LazyRefs.pop(self: LazyRefs, i: int = -1) -> any {
+    self._realize();
+    return list.pop(self, i);
+}
+
+
+impl LazyRefs.clear(self: LazyRefs) -> None {
+    self._done = True;
+    list.clear(self);
+}
+
+
+impl LazyRefs.sort(self: LazyRefs, **kw: any) -> None {
+    self._realize();
+    list.sort(self, **kw);
+}
+
+
+impl LazyRefs.reverse(self: LazyRefs) -> None {
+    self._realize();
+    list.reverse(self);
+}
+
+
+impl LazyRefs.index(self: LazyRefs, item: any, *a: any) -> int {
+    self._realize();
+    return list.index(self, item, *a);
+}
+
+
+impl LazyRefs.count(self: LazyRefs, item: any) -> int {
+    self._realize();
+    return list.count(self, item);
+}
+
+
+impl LazyRefs.copy(self: LazyRefs) -> list {
+    self._realize();
+    return list(self);
 }

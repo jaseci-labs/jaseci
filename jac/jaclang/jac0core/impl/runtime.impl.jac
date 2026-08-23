@@ -928,25 +928,36 @@ impl JacGraph.refs(
     if not isinstance(path, GraphQuery) {
         path = GraphQuery(path, hops=[QHop(dir=EdgeDir.OUT.value)]);
     }
-    import from jaclang.runtimelib.query_planner { resolve_query, resolve_query_edges }
+    import from jaclang.runtimelib.query_planner {
+        LazyRefs,
+        resolve_query,
+        resolve_query_edges
+    }
     ctx = JacRuntimeInterface.get_context();
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    planned = (
-        resolve_query_edges(ctx.mem, path)
-            if path.edges_only
-            else resolve_query(ctx.mem, path)
-    );
-    resolved: list[(NodeArchetype | EdgeArchetype)] = [];
-    for a in planned {
-        arch = a.archetype;
-        if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
-            resolved.append(arch);
+
+    def _run(q: GraphQuery) -> list {
+        planned = (
+            resolve_query_edges(ctx.mem, q)
+                if q.edges_only
+                else resolve_query(ctx.mem, q)
+        );
+        out: list[(NodeArchetype | EdgeArchetype)] = [];
+        for a in planned {
+            arch = a.archetype;
+            if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
+                out.append(arch);
+            }
         }
+        return out;
     }
-    return resolved;
+    if path.slc is None and ctx.mem?.store is not None {
+        return LazyRefs(_run, path);
+    }
+    return _run(path);
 }
 
 impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
