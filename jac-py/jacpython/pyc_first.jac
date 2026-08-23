@@ -45,7 +45,6 @@ import from ceval {
     py_hash,
     py_subscript,
     py_binop,
-    py_truth,
     py_attr,
     py_invoke,
     py_isinstance,

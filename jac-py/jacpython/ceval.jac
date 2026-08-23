@@ -2711,21 +2711,6 @@ def py_host_convert(name: str, x: PyObj) -> PyObj {
     return py_error(str(result[1]), str(result[2]));
 }
 
-# The dispatchers below are thin adapters over the object model's virtual
-# slots: they exist only so the ceval reads naturally. Behavior selection is
-# the method call (self's vtable), never a tag comparison.
-def py_truth(value: PyObj) -> bool {
-    # Implicit-truth slot consultation (__bool__/__len__ on user objects). A
-    # raising dunder cannot propagate through this bool-valued adapter -- the
-    # opcode-level entry points (branching, TO_BOOL, UNARY_NOT, bool(), `in`)
-    # call py_slot_truth directly so the exception surfaces like PyObject_IsTrue.
-    result = py_slot_truth(value);
-    if is_error(result) {
-        return value.tp_bool();
-    }
-    return (result as PyBool).val;
-}
-
 # A key/value that is NOT a builtin (a user object or a host proxy) can carry a
 # custom __eq__, so the hashkey-bucket match must be confirmed with a real
 # comparison. Between two builtins the hashkey protocol already IS value equality
@@ -3276,7 +3261,11 @@ def user_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
             if is_error(res) {
                 return res;
             }
-            return PyBool(t="bool", val=not py_truth(res));
+            truth = py_slot_truth(res);
+            if is_error(truth) {
+                return truth;
+            }
+            return PyBool(t="bool", val=not (truth as PyBool).val);
         }
         return PyBool(t="bool", val=lhs is not rhs);
     }
@@ -3811,7 +3800,11 @@ def calliter_next(it: PyCallableIter) -> PyObj {
     if is_error(eq) {
         return eq;
     }
-    if py_truth(eq) {
+    truth = py_slot_truth(eq);
+    if is_error(truth) {
+        return truth;
+    }
+    if (truth as PyBool).val {
         it.exhausted = True;
         return PyGenStop(t="genstop", val=py_none());
     }
@@ -6141,7 +6134,11 @@ def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj
         if kw == "key" {
             key_fn = kwargs[kw];
         } elif is_sorted and kw == "reverse" {
-            do_reverse = py_truth(kwargs[kw]);
+            rev = py_slot_truth(kwargs[kw]);
+            if is_error(rev) {
+                return rev;
+            }
+            do_reverse = (rev as PyBool).val;
         } elif not is_sorted and kw == "default" {
             has_default = True;
             default_val = kwargs[kw];
@@ -6203,7 +6200,11 @@ def builtin_sorted_min_max(name: str, args: list[PyObj], kwargs: dict[str, PyObj
             if is_error(cmp) {
                 return cmp;
             }
-            take = py_truth(cmp);
+            ctruth = py_slot_truth(cmp);
+            if is_error(ctruth) {
+                return ctruth;
+            }
+            take = (ctruth as PyBool).val;
         }
         if take {
             best = v;
@@ -6432,7 +6433,11 @@ obj PyListMethod(PyObj) {
                 if kw == "key" {
                     key_fn = kwargs[kw];
                 } elif kw == "reverse" {
-                    do_reverse = py_truth(kwargs[kw]);
+                    rev = py_slot_truth(kwargs[kw]);
+                    if is_error(rev) {
+                        return rev;
+                    }
+                    do_reverse = (rev as PyBool).val;
                 } else {
                     return py_error("TypeError", "'" + kw + "' is an invalid keyword argument for sort()");
                 }
@@ -6630,7 +6635,8 @@ def dict_haskey(d: PyDict, key: PyObj) -> PyObj {
         if is_error(keq) {
             return keq;
         }
-        return PyBool(t="bool", val=py_truth(keq));
+        # py_slot_truth returns a PyBool on success -- hand it straight back.
+        return py_slot_truth(keq);
     }
     return PyBool(t="bool", val=True);
 }
@@ -6650,7 +6656,11 @@ def dict_lookup_value(d: PyDict, key: PyObj) -> PyObj {
         if is_error(keq) {
             return keq;
         }
-        if not py_truth(keq) {
+        truth = py_slot_truth(keq);
+        if is_error(truth) {
+            return truth;
+        }
+        if not (truth as PyBool).val {
             return PyAbsent(t="absent");
         }
     }
@@ -6735,7 +6745,11 @@ def view_contains(view: PyDictView, elem: PyObj) -> PyObj {
         if is_error(c) {
             return c;
         }
-        if py_truth(c) {
+        ctruth = py_slot_truth(c);
+        if is_error(ctruth) {
+            return ctruth;
+        }
+        if (ctruth as PyBool).val {
             return PyBool(t="bool", val=True);
         }
     }
@@ -6791,7 +6805,11 @@ def all_contained(x: PyObj, y: PyObj) -> PyObj {
         if is_error(c) {
             return c;
         }
-        if not py_truth(c) {
+        ctruth = py_slot_truth(c);
+        if is_error(ctruth) {
+            return ctruth;
+        }
+        if not (ctruth as PyBool).val {
             return PyBool(t="bool", val=False);
         }
     }
@@ -6817,7 +6835,11 @@ def dictview_richcompare(kind: int, a: PyObj, b: PyObj) -> PyObj {
         if is_error(r) {
             return r;
         }
-        return PyBool(t="bool", val=not py_truth(r));
+        truth = py_slot_truth(r);
+        if is_error(truth) {
+            return truth;
+        }
+        return PyBool(t="bool", val=not (truth as PyBool).val);
     }
     if kind == 1 {
         return all_contained(a, b);
@@ -9120,7 +9142,16 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 return contained;
             }
-            present = py_truth(contained);
+            truth = py_slot_truth(contained);
+            if is_error(truth) {
+                target = recover_exception(co, truth, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return truth;
+            }
+            present = (truth as PyBool).val;
             if arg == 1 {
                 present = not present;
             }
