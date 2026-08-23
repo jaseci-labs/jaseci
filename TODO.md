@@ -463,6 +463,17 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     goldens (wave-18 parity suite gates on exactly this). Repro by
     OakArrow, verified by BrightTiger + proxy-hash-probe agent tracing locus.
     Fix-spec pending from trace.
+    STATUS (UltraMoon, r60): FIX LANDED (72204a6e9, jac/launcher/embed.zig
+    +23; str hash routes through pyhash SipHash at 3244919ae) - END-TO-END
+    VERIFICATION PENDING BINARY REBUILD. Installed ~/.local/bin/jac is a
+    stale prebuilt ELF (Aug 20) predating the change; YoungHawk's repro
+    through it still randomizes under seed=0. Rebuild agent verifying
+    goldens against zig-out/bin/jac WITHOUT installing. Closure = golden
+    matrix pass on fresh binary + explicit launcher reinstall on dev boxes.
+    MESH-WIDE: embed.zig changes REQUIRE launcher rebuild+reinstall -
+    .venv/bin/jac does not pick them up. Related pre-existing box issue:
+    jac/.pbs-build vendored python has no libpython*.so (corrupted/truncated,
+    user-flagged).
 
 52. **[LOW-MED] UnicodeEncodeError surfaces as bare Exception.** '\u20ac'
     .encode('ascii') raises the right MESSAGE but type is generic Exception,
