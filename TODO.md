@@ -439,7 +439,7 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     host_binop whose to_host/from_host round-trip turned references into copies.
     Native kind-5 arm + reflected-repeat step. 9-point driver green.
 
-53. **[MED] User __str__ ignored - str(obj) returns None.** class P with
+53. **[MED][ROUTE-REPLAY-ONLY] User __str__ ignored - str(obj) returns None.** class P with
     both __repr__ and __str__: repr(P()) works, str(P()) -> 'None'.
     __repr__-only classes also fail the str-falls-back-to-repr contract.
     tp_str synthesis absent at value-exit; walker family.
@@ -520,21 +520,21 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     (assertIs/Not) in harness - evaluate `X is Y` wholly in guest, marshal
     bool. Precedent: D-RANGE-ID document-don't-fake.
 
-60. **[MED] User __format__ never dispatched.** format(obj, spec) with
+60. **[MED][ROUTE-REPLAY-ONLY] User __format__ never dispatched (replay route).** format(obj, spec) with
     user-defined __format__ raises TypeError('unsupported format string
     passed to NoneType.__format__') - the dunder is ignored, falls to
     default object formatting which rejects non-empty specs. f'{obj:spec}'
     broken for all custom formatters. Walker/dunder synthesis family.
     Found fuzz r56.
 
-61. **[MED-HIGH] Class-body methods can't mutate enclosing function-scope
+61. **[MED-HIGH][ROUTE-REPLAY-ONLY] Class-body methods can't mutate enclosing function-scope
     cells.** def mk(): log=[]; class G: __setattr__ appends to log -> stays []
     after g.x=1. Module-global refs work; plain fn-in-fn closures work; ONLY
     class-body-method-over-function-local broken. Same cellvar-emission
     family as items 28/30 (KeenFalcon's F4 territory) - likely one root fix
     closes 30+61. Found fuzz r57 via setattr-intercept pin.
 
-51. **[MED] __slots__ not enforced / no __dict__ suppression.** p.z = 3 on a
+51. **[MED][ROUTE-REPLAY-ONLY] __slots__ not enforced (replay route; PRODUCTION ENFORCES).** p.z = 3 on a
     __slots__ class raises nothing; hasattr(p, '__dict__') True. Slot
     descriptors exist in layout (Band 5 codegen oracles) but instance-level
     restriction absent. Walker family.
@@ -544,13 +544,13 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     (ceval ~1536). Full diagnosis: jac-py/tools/SPEC_ITEM_51.md. Fix needs
     held-file ceval.jac. Item remains LIVE.
 
-50. **[MED] C.__mro__ returns tuple of Nones.** Diamond-inheritance class:
+50. **[MED][ROUTE-REPLAY-ONLY] C.__mro__ returns tuple of Nones.** Diamond-inheritance class:
     str(C.__mro__) -> '(None, None, None, None)' instead of the class tuple.
     MRO linearization itself works (pin-item2-mro-c3 exercises order via
     resolution, and issubclass/isinstance pass) - the __mro__ ATTRIBUTE
     exposes unfilled slots. Display/attr-materialization gap.
 
-49. **[HIGH-adjacent] INPLACE ops REBIND instead of MUTATE.** a = b = [];
+49. **[HIGH-adjacent][ROUTE-REPLAY-ONLY] INPLACE ops REBIND instead of MUTATE.** a = b = [];
     a += [1]: b stays [0], a is b -> False. CPython list.__iadd__/__imul__
     mutate in place and return self; jacpython rebinds to fresh object.
     Confirmed on lists (+/*) AND sets (-=); str/immutable forms correct.
@@ -573,22 +573,24 @@ INFRA ITEM A (check-mode hygiene): jac check gives FALSE FAILURES in the shared
     same-instance != False). Pre-fix control at parent 205f367d3 fails as
     expected.
 
-63. **[MED-HIGH] for-loop over user iterator ERRORS.** class with
+63. **[MED-HIGH][ROUTE-REPLAY-ONLY] for-loop over user iterator ERRORS (replay route).** class with
     __iter__/__next__/StopIteration: `for x in obj` raises, while
     list(obj) and comprehensions over the SAME class work. GET_ITER/FOR_ITER
     path skips guest dunder dispatch; only the list() builtin route
     resolves it. Found fuzz r59.
 
-64. **[MED] two-arg iter(callable, sentinel) errors.** it = iter(pop, 9)
+64. **[MED][ROUTE-REPLAY-ONLY] two-arg iter(callable, sentinel) errors (replay route). it = iter(pop, 9)
     raises before first next(); one-arg iter fine. Found fuzz r59.
 
-ROUTED-DIVERGENCE META-NOTE (r63 pin suite): items 65/67/68/69/70/71/75/76 were
-    found via the layer1_replay route but are GREEN on the compiled-.py production
-    route (`jac run x.py`) - verified byte-for-byte by ~/notes/jac-fuzz/pins/. Same
-    route-dependent pattern as item 57. They are RECLASSIFIED below as
-    [ROUTE-REPLAY-ONLY]: real divergences, but harness-lane only, NOT user-facing.
-    Fix priority drops accordingly; the meta-bug is 'routes diverge' not the
-    individual behaviors.
+ROUTE-DIVERGENCE META-NOTE (expanded r63/r64): items 49/50/51/53/60/61/63/64/65/
+    67/68/69/70/71/75/76 were found via the layer1_replay route but are ALL GREEN on
+    the compiled-.py production route (`jac run x.py`) - verified byte-for-byte by
+    ~/notes/jac-fuzz/pins/ and hand audits (slots ENFORCED, __format__ dispatched,
+    user-iter for-loops fine, class-body cells fine, __str__/__mro__/inplace/two-arg
+    iter all host-exact). Same route-dependent pattern as item 57. RECLASSIFIED as
+    [ROUTE-REPLAY-ONLY]: real harness-lane divergences, NOT user-facing bugs.
+    The actionable meta-bug: layer1_replay route diverges from production; fix the
+    route (or retire it) rather than the individual behaviors.
 
 65. **[MED][ROUTE-REPLAY-ONLY] Explicit descriptor-protocol dunders absent as attributes -
     silent None.** C.v.fget(c) works but C.v.__get__(c) returns None;
