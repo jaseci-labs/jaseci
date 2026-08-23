@@ -376,6 +376,15 @@ def compare_results(
 # -----------------------------------------------------------------------
 # Dispatch helper: run py reference, then try ES and NA backends
 # -----------------------------------------------------------------------
+def assert_full_parity(py_result: dict, backend_result: dict, label: str) {
+    missing = sorted(set(py_result.keys()) - set(backend_result.keys()));
+    extra = sorted(set(backend_result.keys()) - set(py_result.keys()));
+    assert not missing and not extra , (
+        f"[{label}] required backend key set drifted from the py reference: "
+        f"missing {missing}, extra {extra}"
+    );
+}
+
 def run_with_both(
     fixture: str,
     py_fn: str,
@@ -397,6 +406,9 @@ def run_with_both(
         js_code = compile_fixture_to_js(fixture);
         cl_result = run_js_function(js_code, cl_fn);
         cl_keys = len(set(py_result.keys()) & set(cl_result.keys()));
+        if "cl" in reqd {
+            assert_full_parity(py_result, cl_result, f"{label} [ES]");
+        }
         compare_results(py_result, cl_result, f"{label} [ES]", tolerance);
     } except Exception {
         if "cl" in reqd {
@@ -413,6 +425,9 @@ def run_with_both(
         (eng, na_ir) = compile_native(fixture);
         na_result = run_native_function(eng, na_fn, na_ir);
         na_keys = len(set(py_result.keys()) & set(na_result.keys()));
+        if "na" in reqd {
+            assert_full_parity(py_result, na_result, f"{label} [NA]");
+        }
         compare_results(py_result, na_result, f"{label} [NA]", tolerance);
     } except Exception {
         if "na" in reqd {

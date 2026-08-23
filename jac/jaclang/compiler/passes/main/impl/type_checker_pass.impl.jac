@@ -1214,6 +1214,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     self._check_unresolved_lambda_params();
+    self._stamp_fixed_width();
     if self._prev_eval_pass is not None and self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
@@ -1676,6 +1677,24 @@ impl TypeCheckPass._eval_unpacking_names(self: TypeCheckPass, container: Expr) -
             } elif isinstance(val, (TupleVal, ListVal)) {
                 self._eval_unpacking_names(val);
             }
+        }
+    }
+}
+
+impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    import from jaclang.compiler.type_system.fixed_width { numeric_name_of }
+    stack: list = [self.ir_in];
+    while stack {
+        nd = stack.pop();
+        if isinstance(nd, Expr) {
+            name = numeric_name_of(nd.type);
+            if name is not None and JAC_TYPE_REGISTRY.is_sized(name) {
+                nd.fw = name;
+            }
+        }
+        for k in nd.kid {
+            stack.append(k);
         }
     }
 }
