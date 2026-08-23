@@ -666,3 +666,253 @@ def _p2_deque(iterable: any = None, maxlen: any = None) -> _P2Deque {
     }
     return d;
 }
+
+
+# ---------------------------------------------------------------------------
+# defaultdict (defdict_missing/defdict_init/defdict_repr/defdict_copy/
+# defdict_reduce/defdict_or mirrors).
+#
+# Storage: parallel insertion-ordered key/value lists with ==-based lookup,
+# matching dictobject.jac's insertion-order equality walk semantics. The
+# PyObj/PyDict-backed runtime binding lands when this module is wired into
+# ceval; the Python-level observable surface is complete here.
+# ---------------------------------------------------------------------------
+
+
+obj _P2DefaultDict {
+    has default_factory: any = None,
+        keylist: list = [],
+        vallist: list = [];
+
+
+    def _pos_of(key: any) -> int {
+        i: int = 0;
+        while i < len(self.keylist) {
+            if self._items_eq(self.keylist[i], key) {
+                return i;
+            }
+            i += 1;
+        }
+        return -1;
+    }
+
+    def _items_eq(a: any, b: any) -> bool {
+        x: any = a;
+        y: any = b;
+        if x is y {
+            return True;
+        }
+        ev = (x == y);
+        return isinstance(ev, bool) and ev;
+    }
+
+    def __missing__(key: any) -> any {
+        # defdict_missing: None factory raises KeyError((key,)); otherwise
+        # call factory(), insert via setdefault, return the value.
+        if self.default_factory is None {
+            raise KeyError(key);
+        }
+        factory: any = self.default_factory;
+        value = factory();
+        pos = self._pos_of(key);
+        if pos == -1 {
+            self.keylist.append(key);
+            self.vallist.append(value);
+        }
+        return value;
+    }
+
+    def __getitem__(key: any) -> any {
+        pos = self._pos_of(key);
+        if pos == -1 {
+            return self.__missing__(key);
+        }
+        return self.vallist[pos];
+    }
+
+    def get(key: any, dflt: any = None) -> any {
+        pos = self._pos_of(key);
+        if pos == -1 {
+            return dflt;
+        }
+        return self.vallist[pos];
+    }
+
+    def __setitem__(key: any, v: any) {
+        pos = self._pos_of(key);
+        if pos == -1 {
+            self.keylist.append(key);
+            self.vallist.append(v);
+        } else {
+            self.vallist[pos] = v;
+        }
+    }
+
+    def setdefault(key: any, dflt: any = None) -> any {
+        pos = self._pos_of(key);
+        if pos == -1 {
+            self.keylist.append(key);
+            self.vallist.append(dflt);
+            return dflt;
+        }
+        return self.vallist[pos];
+    }
+
+    def __delitem__(key: any) {
+        pos = self._pos_of(key);
+        if pos == -1 {
+            raise KeyError(key);
+        }
+        del self.keylist[pos];
+        del self.vallist[pos];
+    }
+
+    def __contains__(key: any) -> bool {
+        return self._pos_of(key) != -1;
+    }
+
+    def __len__ -> int {
+        return len(self.keylist);
+    }
+
+    def __iter__ -> any {
+        out = list(self.keylist);
+        return iter(out);
+    }
+
+    def keys -> list {
+        return list(self.keylist);
+    }
+
+    def values -> list {
+        return list(self.vallist);
+    }
+
+    def items -> list {
+        out: list = [];
+        i: int = 0;
+        while i < len(self.keylist) {
+            out.append((self.keylist[i], self.vallist[i]));
+            i += 1;
+        }
+        return out;
+    }
+
+    def update(other: any) {
+        if _p2_defaultdict_is_map(other) {
+            pairs = other.items();
+        } else {
+            pairs = other;
+        }
+        for kv in pairs {
+            k = kv[0];
+            v = kv[1];
+            self.__setitem__(k, v);
+        }
+    }
+
+    def clear() {
+        self.keylist = [];
+        self.vallist = [];
+    }
+
+    def copy -> _P2DefaultDict {
+        # new_defdict: calls the class with (factory, mapping) so subclasses
+        # with compatible ctors keep working.
+        out = _p2_defaultdict(self.default_factory, self.items());
+        return out;
+    }
+
+    def __copy__ -> _P2DefaultDict {
+        return self.copy();
+    }
+
+    def __or__(other: any) -> any {
+        if not _p2_defaultdict_is_map(other) {
+            raise TypeError("unsupported operand type(s) for |: 'defaultdict'"
+                            " and '" + _p2_deque_type_name(other) + "'");
+        }
+        out = self.copy();
+        out.update(other);
+        return out;
+    }
+
+    def __repr__ -> str {
+        # defdict_repr: "%s(%U, %U)" over factory repr + dict repr.
+        parts: list = [];
+        i: int = 0;
+        while i < len(self.keylist) {
+            parts.append(repr(self.keylist[i]) + ": " + repr(self.vallist[i]));
+            i += 1;
+        }
+        inner = "{" + ", ".join(parts) + "}";
+        return "defaultdict(" + repr(self.default_factory) + ", " + inner + ")";
+    }
+
+    def __eq__(other: any) -> any {
+        # A defaultdict compares equal to a dict with the same items.
+        if not _p2_defaultdict_is_map(other) {
+            return False;
+        }
+        other_items = other.items();
+        if len(other_items) != len(self.keylist) {
+            return False;
+        }
+        for kv in other_items {
+            pos = self._pos_of(kv[0]);
+            if pos == -1 or not self._items_eq(self.vallist[pos], kv[1]) {
+                return False;
+            }
+        }
+        return True;
+    }
+
+    def __ne__(other: any) -> any {
+        eqv = self.__eq__(other);
+        if isinstance(eqv, bool) {
+            return not eqv;
+        }
+        return eqv;
+    }
+
+    def __reduce__ -> any {
+        # defdict_reduce 5-tuple: (type, (factory,), None, None, items_iter).
+        args: tuple = ();
+        if self.default_factory is not None {
+            args = (self.default_factory,);
+        }
+        return (type(self), args, None, None, iter(self.items()));
+    }
+}
+
+
+def _p2_defaultdict_is_map(v: any) -> bool {
+    # Anything exposing items()/keys()/values() plus membership counts as a
+    # mapping for copy/or/equality purposes.
+    if isinstance(v, _P2DefaultDict) {
+        return True;
+    }
+    try {
+        m = v.items;
+    } except Exception {
+        return False;
+    }
+    return m is not None and callable(m);
+}
+
+
+def _p2_defaultdict(default_factory: any = None, initial: any = None) -> _P2DefaultDict {
+    # defdict_init: first positional arg must be callable or None.
+    if default_factory is not None {
+        factory: any = default_factory;
+        if not callable(factory) {
+            raise TypeError("first argument must be callable or None");
+        }
+    }
+    dd = _P2DefaultDict();
+    dd.default_factory = default_factory;
+    if initial is not None {
+        dd.update(initial);
+    }
+    return dd;
+}
