@@ -232,6 +232,10 @@ test "cef host source boots inprocess and wires the sv bridge (#6596)" {
     assert "main.jac" in src;
     # The host reads the loopback port off the returned context.
     assert "_ctx.port" in src;
+    # 'exit' is a Jac keyword, so the generated host has to escape the attribute
+    # or the native compile of host.jac dies on E0013.
+    assert "sys.`exit(" in src;
+    assert "sys.exit(" not in src;
     # The cef branch of host_boot owns the sv bridge + in-process boot wiring.
     host_boot_src = (_cef_dir().parent / "host_boot.jac").read_text();
     assert "sv_bridge=inprocess_forward" in host_boot_src;
