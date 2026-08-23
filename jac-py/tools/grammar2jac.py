@@ -914,7 +914,9 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
     def _emit_action(self, node: Alt, is_gather: bool) -> str:
         if node.action:
             try:
-                return self.action_translator.translate(node.action)
+                return _escape_jac_kwargs(
+                    self.action_translator.translate(node.action)
+                )
             except ActionTranslationError as err:
                 raise ActionTranslationError(f"in alt {node!s}: {err}") from err
         names = list(self.local_variable_names)
@@ -928,6 +930,37 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         if len(names) == 1:
             return names[0]
         return f"[{', '.join(names)}]"
+
+
+# Jac reserved identifiers that collide with AST constructor kwarg names
+# (e.g. Assert(test=...), If(test=...)). Mirrors jaclang's RESERVED_IDENT_NAMES
+# (jac/jaclang/jac0core/constant.jac TOKEN_MAP values minus the escaped-type
+# names float/int/str/bool/self). Emitted kwargs for these get backtick-escaped
+# so regenerated parser.jac compiles without a hand post-pass.
+_JAC_RESERVED_IDENTS = frozenset(
+    {
+        "None", "True", "abst", "and", "any", "as", "assert", "async", "await",
+        "awaiting", "break", "by", "bytes", "can", "case", "class", "continue",
+        "def", "default", "del", "dict", "disengage", "edge", "elif", "else",
+        "entry", "enum", "except", "exit", "finally", "flow", "for", "forever",
+        "from", "glob", "has", "here", "if", "impl", "import", "in", "include",
+        "init", "is", "lambda", "list", "match", "node", "not", "obj",
+        "override", "postinit", "priv", "props", "protect", "pub", "raise",
+        "report", "return", "root", "sem", "set", "skip", "spawn", "static",
+        "super", "switch", "test", "try", "tuple", "type", "visit", "visitor",
+        "wait", "walker", "while", "with", "yield",
+    }
+)
+_KWARG_RE = re.compile(r"(?<![\w`=!<>+\-*/%&|^~])([A-Za-z_][A-Za-z0-9_]*)(=(?!=))")
+
+
+def _escape_jac_kwargs(action: str) -> str:
+    return _KWARG_RE.sub(
+        lambda m: f"`{m.group(1)}{m.group(2)}"
+        if m.group(1) in _JAC_RESERVED_IDENTS
+        else m.group(0),
+        action,
+    )
 
 
 def load_token_sets() -> tuple[set[str], dict[str, int]]:
