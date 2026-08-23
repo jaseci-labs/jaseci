@@ -136,16 +136,38 @@ def _jac_host_delattr(host_obj, name):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
-def _jac_reraise_pyerror(type_name, message):
-    # Surface a guest PyError to HOST control flow with its real exception type
-    # (same convention as the tp_call trampoline below): import-style callers
-    # of the VM must see module-body failures, never a silently discarded
-    # error. Falls back to RuntimeError for names builtins doesn't carry.
-    import builtins as _b
-    etype = getattr(_b, type_name, None)
-    if etype is None or not isinstance(etype, type):
-        etype = RuntimeError
-    raise etype(message)
+def _jac_exc_chain_to_host(value):
+    # __cause__/__context__ stored on a guest PyException arrive as PyException
+    # value-structs; convert them to their host form before attaching to the
+    # re-raised host exception. Non-exception values pass through unchanged.
+    if isinstance(value, PyException):
+        return host_exception(value)
+    return value
+
+def _jac_reraise_pyerror(err):
+    # Surface a guest PyError to HOST control flow with maximal fidelity:
+    # import-style callers of the VM must see module-body failures, never a
+    # silently discarded error. The carried PyException already holds
+    # everything CPython's import machinery would observe, so no synthesis:
+    #   - a host-proxied exception instance keeps its ORIGINAL host object in
+    #     `raw` -- raise it directly (identity/args/chaining/traceback intact);
+    #   - anything else converts through host_exception, which preserves type
+    #     name and the full args tuple (user Exception subclasses mint a cached
+    #     same-name host subclass, the same degradation to_host uses).
+    # Explicit (__cause__) and implicit (__context__) chains are re-attached so
+    # `raise ... from ...` inside a module body survives the boundary.
+    exc = err.exception
+    raw = exc.raw
+    if raw is not None and isinstance(raw, PyHostProxy):
+        raise raw.val
+    built = host_exception(exc)
+    cause = _jac_exc_chain_to_host(exc.cause)
+    if cause is not None:
+        setattr(built, "__cause__", cause)
+    context = _jac_exc_chain_to_host(exc.context)
+    if context is not None:
+        setattr(built, "__context__", context)
+    raise built
 
 def _jac_wrap_classmethod(host_fn):
     return classmethod(host_fn)
@@ -418,8 +440,8 @@ def _jac_make_host_trampoline(native_fn):
     # handed to a proxied C module) needs a REAL callable. Return a host closure
     # that marshals host args back into PyObjs, runs the function in jacpython's
     # own ceval via tp_call, and marshals the result back out. A raised PyError
-    # is re-raised as the matching host exception so host control flow sees it.
-    import builtins as _b
+    # is re-raised with its original object/args/chaining intact so host
+    # control flow sees it.
     def _trampoline(*args, **kwargs):
         pyargs = [from_host(a) for a in args]
         pykwargs = {}
@@ -427,11 +449,7 @@ def _jac_make_host_trampoline(native_fn):
             pykwargs[k] = from_host(kwargs[k])
         result = native_fn.tp_call(pyargs, pykwargs)
         if isinstance(result, PyError):
-            exc = result.exception
-            etype = getattr(_b, exc.type_name, None)
-            if etype is None or not isinstance(etype, type):
-                etype = RuntimeError
-            raise etype(exc.message)
+            _jac_reraise_pyerror(result)
         return to_host(result)
     # Present as the wrapped function so introspection (functools.wraps,
     # type()'s method registration, repr) sees the right identity. Keep a
@@ -9958,10 +9976,7 @@ def exec_module(co: PyObj) -> dict[str, PyObj] {
     # to the importer. Discarding it here silently handed callers partial
     # globals on any failure.
     if is_error(outcome) {
-        _jac_reraise_pyerror(
-            (outcome as PyError).exception.type_name,
-            (outcome as PyError).exception.message
-        );
+        _jac_reraise_pyerror(outcome as PyError);
     }
     return globals;
 }
