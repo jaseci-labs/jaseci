@@ -711,6 +711,17 @@ LANE ASSIGNMENTS (r61, coordinated): items 62/63/64 fixes = QuickViper
     73 = repr loses args post-hoc; 77 = chained raise itself broken.
     Found fuzz r63 hand-sweep, verified by CalmKnight standalone diff.
 
+ASYNC SURFACE VERDICT (fuzz r62a): compiled-Python path (`jac run x.py`) is
+    10/10 GREEN vs CPython - asyncio.run/await-chains/gather/create_task/
+    async-gen+async-for/exception-propagation/async-methods all byte-identical.
+    Pre-scout leads from native-.jac probes REFUTED on production path.
+    VM-REPLAY-PATH ONLY GAPS (layer1 harness, not user-facing; root causes
+    identified for whoever extends replay coverage to async): (a) no
+    PyObj-coroutine<->native-awaitable bridge - asyncio.run(guest_coro)
+    errors 'awaitable required'; (b) CALL_INTRINSIC_1 opcode 4
+    (INTRINSIC_ASYNC_GEN_WRAP) missing from ceval dispatch; (c) lossy
+    to_host(coroutine)->[]. Evidence: /tmp/fuzz-r62a/diff/.
+
 EXCEPT-STAR RUNTIME NOTE (fuzz r58): ExceptionGroup construct/message/
     exceptions/nesting already GREEN; except* split execution ERRORED as
     expected - folds into item 47's ceval-dispatch family (CHECK_EG_MATCH
