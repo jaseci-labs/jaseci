@@ -16,7 +16,6 @@ are checked, so a backend that returns {} (unimplemented) is silently skipped.
 """
 
 import ctypes;
-import importlib;
 import json;
 import os;
 import struct;
@@ -38,20 +37,33 @@ glob FIXTURES = str(
 # Python reference helper
 # -----------------------------------------------------------------------
 def run_py_fixture(fixture_stem: str, func_name: str) -> dict {
-    added = False;
-    if FIXTURES not in sys.path {
-        sys.path.insert(0, FIXTURES);
-        added = True;
-    }
+    # The fixture is compiled like user code -- a fresh program with the
+    # checker on the critical path -- rather than imported through the
+    # package-tree importer, which skips analysis for in-flight imports of
+    # modules under jaclang/ and so never stamps the annotations (coerce_to)
+    # the server codegen consumes. That keeps the reference lane honest with
+    # the native and client lanes, which compile through the same route.
+    import marshal;
+    import types;
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    fixture_path = os.path.join(FIXTURES, fixture_stem + ".jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=fixture_path,
+        options=CompileOptions(force_codespace="server", force_target_program=True)
+    );
+    errors = [str(e) for e in prog.errors_had];
+    assert not errors , f"Compilation errors in {fixture_stem}.jac: {errors}";
+    bytecode = ir.gen.py_bytecode;
+    assert bytecode , f"No Python bytecode produced for {fixture_stem}.jac";
+    mod = types.ModuleType(fixture_stem);
+    mod.__file__ = fixture_path;
+    sys.modules[fixture_stem] = mod;
     try {
-        sys.modules.pop(fixture_stem, None);
-        mod = importlib.import_module(fixture_stem);
+        exec(marshal.loads(bytecode), mod.__dict__);
         fn = getattr(mod, func_name);
         return json.loads(json.dumps(fn()));
     } finally {
-        if added {
-            sys.path.remove(FIXTURES);
-        }
         sys.modules.pop(fixture_stem, None);
     }
 }

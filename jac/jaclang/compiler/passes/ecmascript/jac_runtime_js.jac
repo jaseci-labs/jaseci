@@ -303,6 +303,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "string") return "str";
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
+      if (t === "bigint") return "int";
       if (t === "object") return (o.constructor && o.constructor.name) || "object";
       return t;
     },
@@ -1306,6 +1307,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return true;
     },
     float(x) {
+      if (typeof x === "bigint") return Number(x);
       if (typeof x === "number") return x;
       if (typeof x === "boolean") return x ? 1 : 0;
       if (typeof x === "string") {
@@ -1334,6 +1336,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         return sign * parseInt(s, base);
       }
       if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "bigint") return Number(x);
       if (typeof x === "boolean") return x ? 1 : 0;
       if (typeof x === "string") {
         const s = x.trim();
@@ -1425,6 +1428,8 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     }
   },
 
+  fw: __JAC_FW_RUNTIME__,
+
   exc: __JAC_EXC_RUNTIME__
 }""",
      _JS_RESERVED_EXC_NAMES: set[str] = {"TypeError", "ReferenceError"};
@@ -1470,6 +1475,7 @@ def _build_exc_runtime_js -> str {
 
 def _build_types_runtime_js -> str {
     import from jaclang.jac0core.constant { TOKEN_MAP }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
     import from jaclang.compiler.passes.ecmascript.primitives_es {
         ESBuiltinEmitter,
@@ -1483,14 +1489,18 @@ def _build_types_runtime_js -> str {
             continue;
         }
         emit_fn = getattr(emitter, "emit_" + name, None);
-        if emit_fn is None {
+        if emit_fn is None and not JAC_TYPE_REGISTRY.is_sized(name) {
             continue;
         }
 
         bodies: list[(str | None)] = [];
         for argv in ([], ["a[0]"], ["a[0]", "a[1]"]) {
             try {
-                bodies.append(emit_fn(ctx, argv));
+                if emit_fn is None {
+                    bodies.append(emitter.emit_sized_cast(name, argv));
+                } else {
+                    bodies.append(emit_fn(ctx, argv));
+                }
             } except Exception {
                 bodies.append(None);
             }
@@ -1525,6 +1535,31 @@ def _build_types_runtime_js -> str {
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
     }
+    import from jaclang.jac0core.scalars { NUMERIC_SHAPES }
+    sized_lines: list[str] = [];
+    for shape in NUMERIC_SHAPES {
+        if not shape.sized {
+            continue;
+        }
+        sized_lines.append(
+            "    T."
+                + shape.name
+                + ".wrap = (x) => _jac.fw.wrap('"
+                + shape.name
+                + "', x);"
+        );
+        if not shape.is_float {
+            sized_lines.append(
+                "    Object.defineProperties(T."
+                    + shape.name
+                    + ", { MIN: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[0] }, MAX: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[1] } });"
+            );
+        }
+    }
     return "\n".join(
         [
             "(() => {",
@@ -1532,9 +1567,125 @@ def _build_types_runtime_js -> str {
             "      __jac_type__: tag,",
             "      toString: () => \"<class '\" + tag + \"'>\"",
             "    });",
-            "    return {",
+            "    const T = {",
             ",\n".join(entries),
             "    };",
+            "\n".join(sized_lines),
+            "    return T;",
+            "  })()"
+        ]
+    );
+}
+
+def _build_fw_runtime_js -> str {
+    import from jaclang.jac0core.scalars { NUMERIC_SHAPES }
+    rows: list[str] = [];
+    for shape in NUMERIC_SHAPES {
+        if not shape.sized {
+            continue;
+        }
+        rows.append(
+            "      "
+                + shape.name
+                + ": { w: "
+                + str(shape.width)
+                + ", s: "
+                + ("true" if shape.signed else "false")
+                + ", f: "
+                + ("true" if shape.is_float else "false")
+                + ", big: "
+                + ("true" if (not shape.is_float and shape.width == 64) else "false")
+                + " }"
+        );
+    }
+    return "\n".join(
+        [
+            "(() => {",
+            "    const T = {",
+            ",\n".join(rows),
+            "    };",
+            "    if (typeof BigInt !== 'undefined' && !BigInt.prototype.toJSON) {",
+            "      Object.defineProperty(BigInt.prototype, 'toJSON', { configurable: true, value() {",
+            "        const n = Number(this); return Number.isSafeInteger(n) ? n : this.toString(); } });",
+            "    }",
+            "    const ovf = () => { throw new _jac.exc.OverflowError('integer overflow'); };",
+            "    const shiftErr = () => { throw new _jac.exc.OverflowError('shift count out of range'); };",
+            "    const zdiv = (m) => { throw new _jac.exc.ZeroDivisionError(m); };",
+            "    const lo = (t) => t.s ? -(1n << BigInt(t.w - 1)) : 0n;",
+            "    const hi = (t) => t.s ? (1n << BigInt(t.w - 1)) - 1n : (1n << BigInt(t.w)) - 1n;",
+            "    const toBig = (x) => {",
+            "      if (typeof x === 'bigint') return x;",
+            "      if (typeof x === 'boolean') return x ? 1n : 0n;",
+            "      const n = Number(x);",
+            "      if (!Number.isFinite(n)) ovf();",
+            "      return BigInt(Math.trunc(n));",
+            "    };",
+            "    const out = (t, b) => t.big ? b : Number(b);",
+            "    const check = (name, b) => { const t = T[name]; if (b < lo(t) || b > hi(t)) ovf(); return out(t, b); };",
+            "    const wrapBig = (t, b) => t.s ? BigInt.asIntN(t.w, b) : BigInt.asUintN(t.w, b);",
+            "    const fl = (name, v) => name === 'f32' ? Math.fround(v) : v;",
+            "    const cast = (name, x) => {",
+            "      const t = T[name];",
+            "      if (t.f) return fl(name, Number(x));",
+            "      return check(name, toBig(x));",
+            "    };",
+            "    const wrap = (name, x) => { const t = T[name]; return out(t, wrapBig(t, toBig(x))); };",
+            "    const widen = (name, x) => {",
+            "      const t = T[name];",
+            "      if (t.f) return fl(name, Number(x));",
+            "      return t.big ? toBig(x) : Number(x);",
+            "    };",
+            "    const toNum = (x) => Number(x);",
+            "    const divmod = (A, B) => {",
+            "      if (B === 0n) zdiv('integer division or modulo by zero');",
+            "      let q = A / B; let r = A % B;",
+            "      if (r !== 0n && ((r < 0n) !== (B < 0n))) { q -= 1n; r += B; }",
+            "      return [q, r];",
+            "    };",
+            "    const arith = (name, a, b, op) => {",
+            "      const t = T[name];",
+            "      if (t.f) {",
+            "        const x = Number(a), y = Number(b);",
+            "        if (op === '+') return fl(name, x + y);",
+            "        if (op === '-') return fl(name, x - y);",
+            "        if (op === '*') return fl(name, x * y);",
+            "        if (op === '/') { if (y === 0) zdiv('float division by zero'); return fl(name, x / y); }",
+            "        if (op === '//') { if (y === 0) zdiv('float floor division by zero'); return fl(name, Math.floor(x / y)); }",
+            "        if (op === '%') { if (y === 0) zdiv('float modulo by zero'); return fl(name, x - y * Math.floor(x / y)); }",
+            "        if (op === '**') return fl(name, Math.pow(x, y));",
+            "      }",
+            "      const A = toBig(a), B = toBig(b);",
+            "      if (op === '+') return check(name, A + B);",
+            "      if (op === '-') return check(name, A - B);",
+            "      if (op === '*') return check(name, A * B);",
+            "      if (op === '/') { if (B === 0n) zdiv('division by zero'); return Number(A) / Number(B); }",
+            "      if (op === '//') return check(name, divmod(A, B)[0]);",
+            "      if (op === '%') return check(name, divmod(A, B)[1]);",
+            "      if (op === '**') {",
+            "        if (B < 0n) return Math.pow(Number(A), Number(B));",
+            "        if ((A > 1n || A < -1n) && B >= BigInt(t.w)) ovf();",
+            "        return check(name, A ** B);",
+            "      }",
+            "      if (op === '&') return out(t, wrapBig(t, A & B));",
+            "      if (op === '|') return out(t, wrapBig(t, A | B));",
+            "      if (op === '^') return out(t, wrapBig(t, A ^ B));",
+            "      if (op === '<<') { if (B < 0n || B >= BigInt(t.w)) shiftErr(); return check(name, A << B); }",
+            "      if (op === '>>') { if (B < 0n || B >= BigInt(t.w)) shiftErr(); return out(t, A >> B); }",
+            "      throw new _jac.exc.TypeError('unsupported fixed-width operator ' + op);",
+            "    };",
+            "    const neg = (name, a) => { const t = T[name]; if (t.f) return fl(name, -Number(a)); return check(name, -toBig(a)); };",
+            "    const abs = (name, a) => { const t = T[name]; if (t.f) return fl(name, Math.abs(Number(a))); const A = toBig(a); return check(name, A < 0n ? -A : A); };",
+            "    const invert = (name, a) => { const t = T[name]; const A = toBig(a); return out(t, t.s ? ~A : ((1n << BigInt(t.w)) - 1n) ^ A); };",
+            "    const wrapping = (name, a, b, op) => {",
+            "      const t = T[name]; const A = toBig(a); const B = b === undefined ? 0n : toBig(b);",
+            "      let r;",
+            "      if (op === '+') r = A + B; else if (op === '-') r = A - B; else if (op === '*') r = A * B;",
+            "      else if (op === 'neg') r = -A; else if (op === '<<') r = A << (B & BigInt(t.w - 1));",
+            "      else throw new _jac.exc.TypeError('unsupported wrapping operator ' + op);",
+            "      return out(t, wrapBig(t, r));",
+            "    };",
+            "    const bounds = (name) => { const t = T[name]; return [out(t, lo(t)), out(t, hi(t))]; };",
+            "    return { T, cast, wrap, widen, toNum, arith, neg, abs, invert, wrapping, bounds };",
             "  })()"
         ]
     );
@@ -1545,6 +1696,8 @@ def build_jac_runtime_js -> str {
         "__JAC_EXC_RUNTIME__", _build_exc_runtime_js()
     ).replace(
         "__JAC_TYPES_RUNTIME__", _build_types_runtime_js()
+    ).replace(
+        "__JAC_FW_RUNTIME__", _build_fw_runtime_js()
     );
 }
 
