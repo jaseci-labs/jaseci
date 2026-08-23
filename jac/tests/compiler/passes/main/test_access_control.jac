@@ -85,7 +85,7 @@ def compile_entry(
     get_config(start_path=Path(proj), force_discover=True);
     try {
         program = JacProgram();
-        program.compile(os.path.join(proj, entry_file), type_check=True);
+        program.compile(os.path.join(proj, entry_file));
         return program;
     } finally {
         # Reset the global config so later tests re-discover their own.

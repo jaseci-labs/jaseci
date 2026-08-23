@@ -92,11 +92,11 @@ test "all type str methods" {
     assert str(union3) == "<Unknown> | <Never> | <any>";
 
     # ClassType
-    mock_module = MagicMock(spec=Module);
+    mock_module: any = MagicMock(spec=Module);
     mock_module.names_in_scope = {};
     mock_module.names_in_scope_overload = {};
 
-    shared = types.ClassType.ClassDetailsShared(
+    shared = types.ClassDetailsShared(
         class_name="TestClass", symbol_table=mock_module, mro=[]
     );
     class_type = types.ClassType(_shared=shared);

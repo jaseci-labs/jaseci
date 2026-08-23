@@ -17,7 +17,6 @@ import socket;
 import subprocess;
 import sys;
 import unittest.mock;
-import pytest;
 import from contextlib { redirect_stdout, redirect_stderr }
 
 import from jaclang.runtimelib.client.targets.mobile.deps {
@@ -122,9 +121,11 @@ test "adb reverse is skipped silently when adb is missing" {
     }
 
     buf = io.StringIO();
-    with unittest.mock.patch("shutil.which", side_effect=lambda (name) { None; }) as _, unittest.mock.patch(
-        "subprocess.run", side_effect=_record_run
-    ) as _, redirect_stdout(buf), redirect_stderr(buf) {
+    with unittest.mock.patch(
+        "shutil.which", side_effect=lambda (name: str) { None; }
+    ) as _, unittest.mock.patch("subprocess.run", side_effect=_record_run) as _, redirect_stdout(
+        buf
+    ), redirect_stderr(buf) {
         _mobile_setup_android_port_reverse(8000, 8001);
     }
 
@@ -160,7 +161,7 @@ test "port availability check raises when port is already bound" {
     busy_port = s.getsockname()[1];
     s.listen(1);
     try {
-        with pytest.raises(RuntimeError) as exc_info {
+        with testraises(RuntimeError) as exc_info {
             _assert_mobile_port_available(busy_port, "API");
         }
         msg = str(exc_info.value);

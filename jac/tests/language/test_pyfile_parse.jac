@@ -12,6 +12,7 @@ import jaclang;
 import jaclang.jac0core.unitree as ast;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { JACLANG_PYTHON_FILES }
 
@@ -27,7 +28,7 @@ def pyfile_parse_test(rel_path: str) {
     ).ir_out;
 
     assert isinstance(py_module, ast.Module);
-    unparsed = py_module.unparse(requires_format=False);
+    unparsed = unparse_module(py_module, requires_format=False);
     assert isinstance(unparsed, str);
 
     # Verify generated Jac can be re-parsed
@@ -42,6 +43,6 @@ with entry {
         "python file parses with pyast build pass",
         JACLANG_PYTHON_FILES,
         pyfile_parse_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }

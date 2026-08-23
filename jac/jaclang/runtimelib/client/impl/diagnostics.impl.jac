@@ -485,11 +485,12 @@ impl is_debug_mode(config: object = None) -> bool {
         return False;
     }
 
-    if config {
+    import from jaclang.project.config { JacConfig }
+    if isinstance(config, JacConfig) {
         try {
             client_cfg = config.get_plugin_config("client");
             if client_cfg {
-                return client_cfg.get("debug", True);
+                return bool(client_cfg.get("debug", True));
             }
         } except Exception {
             ;
@@ -562,7 +563,10 @@ def _create_build_context(
 }
 
 def _append_debug_info(formatted: str, error_output: str) -> str {
-    return formatted + "\n\n--- Raw Error (debug=true) ---\n" + error_output + "\n--- End Raw Error ---\n";
+    return formatted
+        + "\n\n--- Raw Error (debug=true) ---\n"
+        + error_output
+        + "\n--- End Raw Error ---\n";
 }
 
 impl format_build_error(

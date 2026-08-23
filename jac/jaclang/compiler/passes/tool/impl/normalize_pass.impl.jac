@@ -3,6 +3,39 @@ impl NormalizePass.enter_sub_tag(nd: uni.SubTag) -> None {
 }
 
 impl NormalizePass.enter_module(nd: uni.Module) -> None {
+    if nd.is_raised_from_py {
+        for imp in nd.get_all_sub_nodes(typ=uni.Import) {
+            if imp.from_loc is None or imp.from_loc.dot_path_str != "typing" {
+                continue;
+            }
+            _kept = [
+                i
+                for i in imp.items
+                if not (isinstance(i, uni.ModuleItem) and i.name.value == "Any")
+            ];
+            if not _kept and imp.parent is not None and imp in nd.body {
+                nd.body = [
+                    st
+                    for st in nd.body
+                    if st is not imp
+                ];
+            } elif len(_kept) != len(imp.items) {
+                imp.items = _kept;
+                imp.set_kids(
+                    nodes=[
+                        k
+                        for k in imp.kid
+                        if not (isinstance(k, uni.ModuleItem) and k.name.value == "Any")
+                    ]
+                );
+            }
+        }
+        for anm in nd.get_all_sub_nodes(typ=uni.Name) {
+            if anm.value == "Any" {
+                anm.value = "any";
+            }
+        }
+    }
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);
@@ -44,7 +77,9 @@ impl NormalizePass.enter_type_alias(nd: uni.TypeAlias) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    new_kid.append(nd.gen_token(Tok.EQ));
+    new_kid.append(
+        nd.gen_token(Tok.WALRUS_EQ) if nd.is_distinct else nd.gen_token(Tok.EQ)
+    );
     new_kid.append(nd.value);
     new_kid.append(nd.gen_token(Tok.SEMI));
     nd.set_kids(nodes=new_kid);
@@ -54,11 +89,6 @@ impl NormalizePass.enter_global_vars(nd: uni.GlobalVars) -> None {
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);
-    }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
     }
     new_kid.append(nd.gen_token(Tok.KW_GLOBAL));
     if nd.access {
@@ -77,11 +107,6 @@ impl NormalizePass.enter_test(nd: uni.Test) -> None {
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);
-    }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
     }
     if nd.decorators {
         new_kid.append(nd.gen_token(Tok.DECOR_OP));
@@ -112,50 +137,12 @@ impl NormalizePass.enter_module_code(nd: uni.ModuleCode) -> None {
     if nd.doc {
         new_kid.append(nd.doc);
     }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
-    }
     new_kid.append(nd.gen_token(Tok.KW_WITH));
     new_kid.append(nd.gen_token(Tok.KW_ENTRY));
     if nd.name {
         new_kid.append(nd.gen_token(Tok.COLON));
         new_kid.append(nd.name);
     }
-    new_kid.append(nd.gen_token(Tok.LBRACE));
-    for stmt in nd.body {
-        new_kid.append(stmt);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_client_block(nd: uni.ClientBlock) -> None {
-    new_kid: list[uni.UniNode] = [];
-    new_kid.append(nd.gen_token(Tok.KW_CLIENT));
-    new_kid.append(nd.gen_token(Tok.LBRACE));
-    for stmt in nd.body {
-        new_kid.append(stmt);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_server_block(nd: uni.ServerBlock) -> None {
-    new_kid: list[uni.UniNode] = [];
-    new_kid.append(nd.gen_token(Tok.KW_SERVER));
-    new_kid.append(nd.gen_token(Tok.LBRACE));
-    for stmt in nd.body {
-        new_kid.append(stmt);
-    }
-    new_kid.append(nd.gen_token(Tok.RBRACE));
-    nd.set_kids(nodes=new_kid);
-}
-
-impl NormalizePass.enter_native_block(nd: uni.NativeBlock) -> None {
-    new_kid: list[uni.UniNode] = [];
-    new_kid.append(nd.gen_token(Tok.KW_NATIVE));
     new_kid.append(nd.gen_token(Tok.LBRACE));
     for stmt in nd.body {
         new_kid.append(stmt);
@@ -177,14 +164,6 @@ impl NormalizePass.enter_import(nd: uni.Import) -> None {
     new_kid: list[uni.UniNode] = [];
     if nd.doc {
         new_kid.append(nd.doc);
-    }
-    ctx_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (ctx_tok is not None or not nd.in_client_context()) {
-        new_kid.append(ctx_tok or nd.gen_token(Tok.KW_CLIENT));
-    } elif nd.code_context == CodeContext.SERVER
-    and (ctx_tok is not None or nd.in_client_context()) {
-        new_kid.append(ctx_tok or nd.gen_token(Tok.KW_SERVER));
     }
     if nd.is_absorb {
         new_kid.append(nd.gen_token(Tok.KW_INCLUDE));
@@ -251,11 +230,6 @@ impl NormalizePass.enter_archetype(nd: uni.Archetype) -> None {
             new_kid.append(nd.gen_token(Tok.SEMI));
         }
     }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
-    }
     if nd.decorators {
         new_kid.append(nd.gen_token(Tok.DECOR_OP));
         for idx in range(len(nd.decorators)) {
@@ -283,11 +257,12 @@ impl NormalizePass.enter_archetype(nd: uni.Archetype) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    if nd.base_classes {
+    inherit: list = list(nd.base_classes) + list(nd.keywords);
+    if inherit {
         new_kid.append(nd.gen_token(Tok.LPAREN));
-        for idx in range(len(nd.base_classes)) {
-            new_kid.append(nd.base_classes[idx]);
-            if idx < len(nd.base_classes) - 1 {
+        for idx in range(len(inherit)) {
+            new_kid.append(inherit[idx]);
+            if idx < len(inherit) - 1 {
                 new_kid.append(nd.gen_token(Tok.COMMA));
             }
         }
@@ -390,11 +365,6 @@ impl NormalizePass.enter_enum(nd: uni.Enum) -> None {
     if nd.doc {
         new_kid.append(nd.doc);
     }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
-    }
     new_kid.append(nd.gen_token(Tok.KW_ENUM));
     if nd.access {
         new_kid.append(nd.access);
@@ -421,7 +391,7 @@ impl NormalizePass.enter_enum(nd: uni.Enum) -> None {
             prev_stmt = None;
             for stmt in nd.body {
                 if isinstance(prev_stmt, uni.EnumBlockStmt)
-                and prev_stmt.is_enum_stmt {
+                    and prev_stmt.is_enum_stmt {
                     new_kid.append(nd.gen_token(Tok.COMMA));
                 }
                 new_kid.append(stmt);
@@ -440,24 +410,9 @@ impl NormalizePass.enter_ability(nd: uni.Ability) -> None {
     if nd.doc {
         new_kid.append(nd.doc);
 
-        if not isinstance(
-            nd.parent,
-            (
-                uni.Module,
-                uni.Archetype,
-                uni.Enum,
-                uni.ClientBlock,
-                uni.ServerBlock,
-                uni.NativeBlock
-            )
-        ) {
+        if not isinstance(nd.parent, (uni.Module, uni.Archetype, uni.Enum)) {
             new_kid.append(nd.gen_token(Tok.SEMI));
         }
-    }
-    client_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (client_tok is not None or not nd.in_client_context()) {
-        new_kid.append(client_tok or nd.gen_token(Tok.KW_CLIENT));
     }
     if nd.decorators {
         new_kid.append(nd.gen_token(Tok.DECOR_OP));
@@ -635,7 +590,9 @@ impl NormalizePass.enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
     nd.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass._normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None {
+impl NormalizePass._normalize_cond_block(
+    nd: (uni.IfStmt | uni.WhileStmt), kw: Tok
+) -> None {
     new_kid: list[uni.UniNode] = [
         nd.gen_token(kw),
         nd.condition,
@@ -652,7 +609,9 @@ impl NormalizePass._normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None {
     nd.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass._normalize_name_list_stmt(nd: uni.UniNode, op: Tok) -> None {
+impl NormalizePass._normalize_name_list_stmt(
+    nd: (uni.SemDef | uni.ImplDef), op: Tok
+) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(op)];
     for idx in range(len(nd.target)) {
         new_kid.append(nd.target[idx]);
@@ -908,6 +867,10 @@ impl NormalizePass.enter_report_stmt(nd: uni.ReportStmt) -> None {
 }
 
 impl NormalizePass.enter_return_stmt(nd: uni.ReturnStmt) -> None {
+    if nd.is_implicit and nd.expr {
+        nd.set_kids(nodes=[nd.expr]);
+        return;
+    }
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_RETURN), ];
     if nd.expr {
         new_kid.append(nd.expr);
@@ -977,10 +940,10 @@ impl NormalizePass.enter_assignment(nd: uni.Assignment) -> None {
             new_kid.append(nd.gen_token(Tok.SEMI));
         }
     } elif (not nd.is_enum_stmt)
-    and not (
-        isinstance(nd.parent, uni.IterForStmt)
-        and nd in [nd.parent.iter, nd.parent.count_by]
-    ) {
+        and not (
+            isinstance(nd.parent, uni.IterForStmt)
+            and nd in [nd.parent.iter, nd.parent.count_by]
+        ) {
         new_kid.append(nd.gen_token(Tok.SEMI));
     }
     nd.set_kids(nodes=new_kid);
@@ -1068,7 +1031,10 @@ impl NormalizePass.enter_multi_string(nd: uni.MultiString) -> None {
 }
 
 impl NormalizePass.enter_f_string(nd: uni.FString) -> None {
-    new_kid: list[uni.UniNode] = [nd.start] if nd.start is not None else [];
+    new_kid: list[uni.UniNode] = [];
+    if nd.start is not None {
+        new_kid.append(nd.start);
+    }
     for part in nd.parts {
         new_kid.append(part);
     }
@@ -1106,9 +1072,10 @@ impl NormalizePass.enter_list_val(nd: uni.ListVal) -> None {
 
 impl NormalizePass.enter_set_val(nd: uni.SetVal) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.LBRACE)];
-    for idx in range(len(nd.values)) {
-        new_kid.append(nd.values[idx]);
-        if idx < len(nd.values) - 1 {
+    values = nd.values if nd.values is not None else [];
+    for idx in range(len(values)) {
+        new_kid.append(values[idx]);
+        if idx < len(values) - 1 {
             new_kid.append(nd.gen_token(Tok.COMMA));
         }
     }
@@ -1130,9 +1097,10 @@ impl NormalizePass.enter_tuple_val(nd: uni.TupleVal) -> None {
         and index_slice_parent.parent
         and isinstance(index_slice_parent.parent.parent, uni.FuncSignature)
     );
-    new_kid: list[uni.UniNode] = (
-        [nd.gen_token(Tok.LPAREN), ] if not in_ret_type else []
-    );
+    new_kid: list[uni.UniNode] = [];
+    if not in_ret_type {
+        new_kid.append(nd.gen_token(Tok.LPAREN));
+    }
     for idx in range(len(nd.values)) {
         new_kid.append(nd.values[idx]);
         if idx < len(nd.values) - 1 {
@@ -1272,13 +1240,14 @@ impl NormalizePass.enter_yield_expr(nd: uni.YieldExpr) -> None {
 
 impl NormalizePass.enter_func_call(nd: uni.FuncCall) -> None {
     new_kids: list[uni.UniNode] = [nd.target];
-    is_gencompr = len(nd.params) == 1 and isinstance(nd.params[0], uni.GenCompr);
+    params = nd.params if nd.params is not None else [];
+    is_gencompr = len(params) == 1 and isinstance(params[0], uni.GenCompr);
     if not is_gencompr {
         new_kids.append(nd.gen_token(Tok.LPAREN));
     }
-    for i in range(len(nd.params)) {
-        new_kids.append(nd.params[i]);
-        if i < len(nd.params) - 1 {
+    for i in range(len(params)) {
+        new_kids.append(params[i]);
+        if i < len(params) - 1 {
             new_kids.append(nd.gen_token(Tok.COMMA));
         }
     }
@@ -1561,18 +1530,14 @@ impl NormalizePass.enter_jsx_slot(nd: uni.JsxSlot) -> None {
 }
 
 impl NormalizePass.enter_jsx_comment(nd: uni.JsxComment) -> None {
-    if isinstance(nd.value, uni.Token) {
-        nd.set_kids(nodes=[nd.value]);
-    } else {
-        nd.set_kids(nodes=[nd.gen_token(Tok.JSX_COMMENT, value=str(nd.value))]);
-    }
+    nd.set_kids(nodes=[nd.value]);
 }
 
 impl NormalizePass.enter_match_stmt(nd: uni.MatchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_MATCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);
@@ -1594,8 +1559,8 @@ impl NormalizePass.enter_match_case(nd: uni.MatchCase) -> None {
 impl NormalizePass.enter_switch_stmt(nd: uni.SwitchStmt) -> None {
     new_kid: list[uni.UniNode] = [nd.gen_token(Tok.KW_SWITCH), nd.target, ];
     new_kid.append(nd.gen_token(Tok.LBRACE));
-    for case in nd.cases {
-        new_kid.append(case);
+    for `case in nd.cases {
+        new_kid.append(`case);
     }
     new_kid.append(nd.gen_token(Tok.RBRACE));
     nd.set_kids(nodes=new_kid);

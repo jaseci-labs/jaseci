@@ -11,6 +11,7 @@ the poisoned artifact anyway, so every later run executed silently with
 holes in the code (exit 0, zero diagnostics).
 """
 
+import from tests.support { native_force_opts }
 import os;
 import tempfile;
 import from jaclang.jac0core.program { JacProgram }
@@ -43,12 +44,26 @@ glob BAD_NA_SOURCE: str = (
          "    print(answer());\n"
          "}\n"
      ),
-     # An unresolvable type in a native *signature* position (issue #7139).
-     # `_resolve_jac_type` must route this through the `_emit_unlowerable_type`
-     # backstop (E5092) instead of silently defaulting the ABI to i64 -- every
-     # caller of `_resolve_jac_type` is an annotation position, so a silent
-     # i64 here would mis-lay-out storage with no diagnostic.
-     UNRESOLVED_ANNOT_SOURCE: str = (
+     # A signature-position annotation that cannot be lowered natively
+     # (issue #7139). `_resolve_jac_type` must route it through the
+     # `_emit_unlowerable_type` backstop (E5092) instead of silently defaulting
+     # the ABI to i64 -- every caller of `_resolve_jac_type` is an annotation
+     # position, so a silent i64 here would mis-lay-out storage with no
+     # diagnostic.
+     UNLOWERABLE_ANNOT_SOURCE: str = (
+         "def gives() -> type {\n"
+         "    return int;\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    print(gives());\n"
+         "}\n"
+     ),
+     # The builtin `type` used as a *param* annotation now resolves cleanly on
+     # the native pathway (the semantic pass stamps it and structural lowering
+     # accepts it), so it must NOT be diagnosed. Guards against over-eagerly
+     # diagnosing annotations that main's resolver handles structurally.
+     TYPE_PARAM_ANNOT_SOURCE: str = (
          "def takes(x: type) -> int {\n"
          "    return 1;\n"
          "}\n"
@@ -98,9 +113,9 @@ def fmt_errors(prog: JacProgram) -> str {
 }
 
 test "na codegen errors withhold the native artifact" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     prog = JacProgram();
-    mod = prog.compile(file_path=src);
+    mod = prog.compile(file_path=src, options=native_force_opts());
     assert has_error_code(prog, "E5092") , (
         f"Expected E5092 from native codegen, got: {fmt_errors(prog)}"
     );
@@ -112,41 +127,43 @@ test "na codegen errors withhold the native artifact" {
     );
 }
 
-test "na codegen errors produce no bytecode and no jir cache" {
-    src = write_module("gate_bad.na.jac", BAD_NA_SOURCE);
-    cache_path = get_module_cache_path(src);
+test "inferred module that cannot lower natively demotes to working bytecode" {
+    # With the .na.jac marker retired, an importable module has no way to
+    # *mandate* native: preference-driven inference demotes on lowering
+    # failure and the server bytecode must be complete, never a poisoned
+    # half-native artifact. (The loud error gate lives on the forced path --
+    # see "na codegen errors withhold the native artifact".)
+    src = write_module("gate_bad.jac", BAD_NA_SOURCE);
     bc = JacProgram().get_bytecode(src);
-    assert bc is None , (
-        "get_bytecode must refuse to return runnable bytecode for a native "
-        "module whose codegen errored"
-    );
-    assert not os.path.exists(cache_path) , (
-        f"a poisoned jir must never be written to the cache: {cache_path}"
-    );
-    bc2 = JacProgram().get_bytecode(src);
-    assert bc2 is None , (
-        "second lookup must re-diagnose, not silently succeed off a "
-        "poisoned cache entry"
+    assert bc is not None , (
+        "an inferred module whose native codegen errors must demote to a "
+        "complete server bytecode, not fail"
     );
 }
 
-test "import of an erroring na module raises with the diagnostics" {
-    src = write_module("gate_bad_import.na.jac", BAD_NA_SOURCE);
-    caught = "";
-    try {
-        JacRuntime.jac_import(target="gate_bad_import", base_path=os.path.dirname(src));
-    } except ImportError as e {
-        caught = str(e);
-    }
-    assert "E5092" in caught , (
-        f"import must fail loudly with the native diagnostics, got: {caught!r}"
+test "import of a natively-unlowerable module demotes and succeeds" {
+    # Marker-era pin was "import fails loudly": with placement inferred, the
+    # import instead lands on the server fallback and must succeed.
+    src = write_module("gate_bad_import.jac", BAD_NA_SOURCE);
+    mod: any = JacRuntime.jac_import(
+        target="gate_bad_import", base_path=os.path.dirname(src)
     );
+    assert mod is not None , "demoted module must import cleanly";
 }
 
 test "check-path compile surfaces native codegen errors (check/run parity)" {
-    src = write_module("gate_bad_check.na.jac", BAD_NA_SOURCE);
+    src = write_module("gate_bad_check.jac", BAD_NA_SOURCE);
     prog = JacProgram();
-    prog.compile(file_path=src, type_check=True, no_cgen=True);
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog.compile(
+        file_path=src,
+        options=CompileOptions(
+            no_cgen=True,
+            native_parity=True,
+            force_codespace="native",
+            force_target_program=True
+        )
+    );
     assert has_error_code(prog, "E5092") , (
         f"`jac check` path must report the same native errors `jac run` "
         f"does, got: {fmt_errors(prog)}"
@@ -164,16 +181,26 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
     }
 }
 
-test "unresolvable annotation in a native signature diagnoses, not silent i64" {
-    src = write_module("gate_unresolved_annot.na.jac", UNRESOLVED_ANNOT_SOURCE);
+test "unlowerable annotation in a native signature diagnoses, not silent i64" {
+    src = write_module("gate_unlowerable_annot.jac", UNLOWERABLE_ANNOT_SOURCE);
     prog = JacProgram();
-    mod = prog.compile(file_path=src);
+    mod = prog.compile(file_path=src, options=native_force_opts());
     assert has_error_code(prog, "E5092") , (
-        f"an unresolvable type in a native signature position must be "
+        f"an unlowerable type in a native signature position must be "
         f"diagnosed (not silently laid out as i64), got: {fmt_errors(prog)}"
     );
     assert mod.gen.llvm_ir is None , (
-        "a module with an unresolvable signature type must not publish llvm ir"
+        "a module with an unlowerable signature type must not publish llvm ir"
+    );
+}
+
+test "builtin type as param annotation resolves structurally, no false positive" {
+    src = write_module("gate_type_param_annot.jac", TYPE_PARAM_ANNOT_SOURCE);
+    prog = JacProgram();
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert not has_error_code(prog, "E5092") , (
+        f"a `type` param annotation resolves structurally and must not be "
+        f"diagnosed, got: {fmt_errors(prog)}"
     );
 }
 
@@ -192,9 +219,9 @@ test "absent return annotation is a legitimate i64 default, not a diagnostic" {
 }
 
 test "clean na module still publishes artifacts and caches" {
-    src = write_module("gate_good.na.jac", GOOD_NA_SOURCE);
+    src = write_module("gate_good.jac", GOOD_NA_SOURCE);
     prog = JacProgram();
-    mod = prog.compile(file_path=src);
+    mod = prog.compile(file_path=src, options=native_force_opts());
     assert not prog.errors_had , f"unexpected errors: {fmt_errors(prog)}";
     assert mod.gen.llvm_ir is not None , ("clean na module must still publish llvm ir");
     bc = JacProgram().get_bytecode(src);

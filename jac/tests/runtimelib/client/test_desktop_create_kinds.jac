@@ -28,7 +28,8 @@ test "create --kind desktop" {
     d = tempfile.mkdtemp(prefix="jacdesktopkind_");
     _tmp_dirs.append(d);
     os.chdir(d);
-    rc = project.create(name="app", kind="desktop", force=True);
+    # Scaffold only — full create-time install is covered elsewhere and needs network.
+    rc = project.create(name="app", kind="desktop", force=True, `skip=True);
     os.chdir(_orig_cwd);
     assert rc == 0 , f"create --kind desktop returned {rc}";
     proj = Path(d) / "app";
@@ -36,6 +37,7 @@ test "create --kind desktop" {
     assert 'kind = "desktop"' in toml;
     assert (proj / "main.jac").exists();
     cfg = JacConfig.discover(start_path=proj);
+    assert cfg is not None;
     assert cfg.project.kind == "desktop";
     _cleanup();
 }

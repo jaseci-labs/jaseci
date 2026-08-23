@@ -8,7 +8,7 @@ version-CAS primitive but not the runtime wiring that decides *when* it fires.
 Two defects motivated these:
 
   1. Read capture lived only in the `edges_to_nodes` slow path. Once a root
-     carries any child its topology index is populated, so `refs` resolves
+     carries any child its graph index rows exist, so `refs` resolves
      `[-->[?:T]]` via the planner fast path (`execute_path`) and returns
      without ever calling `edges_to_nodes` -- no read version recorded, the
      CAS never fires, and concurrent find-or-create still duplicates. Edge
@@ -31,6 +31,10 @@ import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.project.config { JacConfig, set_config }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 node Profile {
     has uid: str = "";
 }
@@ -42,11 +46,10 @@ node Tag {
 edge Owns {}
 
 
-"""Persistent ExecutionContext with the topology index on (the default), so
-`refs` takes the planner fast path once the root has a child."""
+"""Persistent ExecutionContext so `refs` resolves via the storage-owned
+graph index once the root has a child."""
 def _persistent_ctx(tmpdir: str) -> any {
     cfg = JacConfig();
-    cfg.run.topology_index = True;
     set_config(cfg);
     JacRuntime.set_base_path(tmpdir);
     ctx: any = ExecutionContext();
@@ -56,7 +59,7 @@ def _persistent_ctx(tmpdir: str) -> any {
 
 
 """Attach one child and flush, so the root is persisted (edge writes then
-merge + CAS) and its topology index is populated."""
+merge + CAS) and its graph_edges rows exist."""
 walker Seed {
     can go with entry {
         here ++> Tag(name="seed");
@@ -71,7 +74,7 @@ walker ReadProfiles {
     can go with entry {
         existing = [-->[?:Profile]];
         rv = JacRuntime.get_context().read_versions;
-        assert here.__jac__.id in rv , "planner fast path must record the origin version for OCC";
+        assert _as_any(here).__jac__.id in rv , "planner fast path must record the origin version for OCC";
     }
 }
 
@@ -82,7 +85,7 @@ walker ReadEdges {
     can go with entry {
         owned = [edge -->];
         rv = JacRuntime.get_context().read_versions;
-        assert here.__jac__.id in rv , "edge-only read must record the origin version for OCC";
+        assert _as_any(here).__jac__.id in rv , "edge-only read must record the origin version for OCC";
     }
 }
 
@@ -112,7 +115,6 @@ test "OCC read capture: planner fast path records the read dependency" {
     try {
         ctx: any = _persistent_ctx(tmpdir);
         root spawn Seed();
-        assert len(root.__jac__.get_topology_index()) > 0;
         ctx.read_versions.clear();
         root spawn ReadProfiles();
         ctx.close();
@@ -148,7 +150,7 @@ test "OCC read capture: a second commit does not self-conflict" {
         ctx: any = _persistent_ctx(tmpdir);
         root spawn Seed();
         ctx.read_versions.clear();
-        w: any = TwiceCommit();
+        w = TwiceCommit();
         root spawn w;
         assert not w.conflicted , "a request must not conflict with its own prior commit";
         ctx.close();
