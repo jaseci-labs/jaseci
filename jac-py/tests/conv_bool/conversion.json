@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_bool.py",
+    "-o",
+    "/var/tmp/laneb-out/test_bool",
+    "--name",
+    "conv_bool"
+  ],
+  "generated_at": "2026-08-24T10:31:02",
+  "hashes": {
+    "pins_jac": "f7049ff78851f8ee0df07b93774ca80d44e6b53b30242a73a26c9e4449a5af3d"
+  },
+  "source_file": "reference/cpython/Lib/test/test_bool.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "bool",
+  "pins_file": "conv_bool_pins.jac",
+  "pins": [
+    {
+      "ident": "BoolTest.test_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n\n        class C(bool):\n            pass\n    except TypeError:\n        pass\n    else:\n        raise AssertionError('bool should not be subclassable')\n    try:\n        int.__new__(*(bool, 0))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_repr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert repr(False) == 'False', ('assertEqual', repr(False), 'False')\n    assert repr(True) == 'True', ('assertEqual', repr(True), 'True')\n    assert eval(repr(False)) is False, ('assertIs', eval(repr(False)), False)\n    assert eval(repr(True)) is True, ('assertIs', eval(repr(True)), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert str(False) == 'False', ('assertEqual', str(False), 'False')\n    assert str(True) == 'True', ('assertEqual', str(True), 'True')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_int",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert int(False) == 0, ('assertEqual', int(False), 0)\n    assert int(False) is not False, ('assertIsNot', int(False), False)\n    assert int(True) == 1, ('assertEqual', int(True), 1)\n    assert int(True) is not True, ('assertIsNot', int(True), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_float",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert float(False) == 0.0, ('assertEqual', float(False), 0.0)\n    assert float(False) is not False, ('assertIsNot', float(False), False)\n    assert float(True) == 1.0, ('assertEqual', float(True), 1.0)\n    assert float(True) is not True, ('assertIsNot', float(True), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_complex",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert complex(False) == 0j, ('assertEqual', complex(False), 0j)\n    assert complex(False) == False, ('assertEqual', complex(False), False)\n    assert complex(True) == 1 + 0j, ('assertEqual', complex(True), 1 + 0j)\n    assert complex(True) == True, ('assertEqual', complex(True), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_convert",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        bool(*(42, 42))\n    except TypeError:\n        pass\n    assert bool(10) is True, ('assertIs', bool(10), True)\n    assert bool(1) is True, ('assertIs', bool(1), True)\n    assert bool(-1) is True, ('assertIs', bool(-1), True)\n    assert bool(0) is False, ('assertIs', bool(0), False)\n    assert bool('hello') is True, ('assertIs', bool('hello'), True)\n    assert bool('') is False, ('assertIs', bool(''), False)\n    assert bool() is False, ('assertIs', bool(), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_keyword_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    try:\n        bool(x=10)\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_format",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert '%d' % False == '0', ('assertEqual', '%d' % False, '0')\n    assert '%d' % True == '1', ('assertEqual', '%d' % True, '1')\n    assert '%x' % False == '0', ('assertEqual', '%x' % False, '0')\n    assert '%x' % True == '1', ('assertEqual', '%x' % True, '1')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_hasattr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert hasattr([], 'append') is True, ('assertIs', hasattr([], 'append'), True)\n    assert hasattr([], 'wobble') is False, ('assertIs', hasattr([], 'wobble'), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_callable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert callable(len) is True, ('assertIs', callable(len), True)\n    assert callable(1) is False, ('assertIs', callable(1), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_isinstance",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert isinstance(True, bool) is True, ('assertIs', isinstance(True, bool), True)\n    assert isinstance(False, bool) is True, ('assertIs', isinstance(False, bool), True)\n    assert isinstance(True, int) is True, ('assertIs', isinstance(True, int), True)\n    assert isinstance(False, int) is True, ('assertIs', isinstance(False, int), True)\n    assert isinstance(1, bool) is False, ('assertIs', isinstance(1, bool), False)\n    assert isinstance(0, bool) is False, ('assertIs', isinstance(0, bool), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_issubclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert issubclass(bool, int) is True, ('assertIs', issubclass(bool, int), True)\n    assert issubclass(int, bool) is False, ('assertIs', issubclass(int, bool), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_contains",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert (1 in {}) is False, ('assertIs', (1 in {}), False)\n    assert (1 in {1: 1}) is True, ('assertIs', (1 in {1: 1}), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert 'xyz'.endswith('z') is True, ('assertIs', 'xyz'.endswith('z'), True)\n    assert 'xyz'.endswith('x') is False, ('assertIs', 'xyz'.endswith('x'), False)\n    assert 'xyz0123'.isalnum() is True, ('assertIs', 'xyz0123'.isalnum(), True)\n    assert '@#$%'.isalnum() is False, ('assertIs', '@#$%'.isalnum(), False)\n    assert 'xyz'.isalpha() is True, ('assertIs', 'xyz'.isalpha(), True)\n    assert '@#$%'.isalpha() is False, ('assertIs', '@#$%'.isalpha(), False)\n    assert '0123'.isdigit() is True, ('assertIs', '0123'.isdigit(), True)\n    assert 'xyz'.isdigit() is False, ('assertIs', 'xyz'.isdigit(), False)\n    assert 'xyz'.islower() is True, ('assertIs', 'xyz'.islower(), True)\n    assert 'XYZ'.islower() is False, ('assertIs', 'XYZ'.islower(), False)\n    assert '0123'.isdecimal() is True, ('assertIs', '0123'.isdecimal(), True)\n    assert 'xyz'.isdecimal() is False, ('assertIs', 'xyz'.isdecimal(), False)\n    assert '0123'.isnumeric() is True, ('assertIs', '0123'.isnumeric(), True)\n    assert 'xyz'.isnumeric() is False, ('assertIs', 'xyz'.isnumeric(), False)\n    assert ' '.isspace() is True, ('assertIs', ' '.isspace(), True)\n    assert '\\xa0'.isspace() is True, ('assertIs', '\\xa0'.isspace(), True)\n    assert '\\u3000'.isspace() is True, ('assertIs', '\\u3000'.isspace(), True)\n    assert 'XYZ'.isspace() is False, ('assertIs', 'XYZ'.isspace(), False)\n    assert 'X'.istitle() is True, ('assertIs', 'X'.istitle(), True)\n    assert 'x'.istitle() is False, ('assertIs', 'x'.istitle(), False)\n    assert 'XYZ'.isupper() is True, ('assertIs', 'XYZ'.isupper(), True)\n    assert 'xyz'.isupper() is False, ('assertIs', 'xyz'.isupper(), False)\n    assert 'xyz'.startswith('x') is True, ('assertIs', 'xyz'.startswith('x'), True)\n    assert 'xyz'.startswith('z') is False, ('assertIs', 'xyz'.startswith('z'), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_fileclosed",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import os_helper\nimport os\n\ndef _t():\n    try:\n        with open(os_helper.TESTFN, 'w', encoding='utf-8') as f:\n            assert f.closed is False, ('assertIs', f.closed, False)\n        assert f.closed is True, ('assertIs', f.closed, True)\n    finally:\n        os.remove(os_helper.TESTFN)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    for t in [bool, complex, dict, float, int, list, object, set, str, tuple, type]:\n        assert bool(t) is True, ('assertIs', bool(t), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_operator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import operator\n    assert operator.truth(0) is False, ('assertIs', operator.truth(0), False)\n    assert operator.truth(1) is True, ('assertIs', operator.truth(1), True)\n    assert operator.not_(1) is False, ('assertIs', operator.not_(1), False)\n    assert operator.not_(0) is True, ('assertIs', operator.not_(0), True)\n    assert operator.contains([], 1) is False, ('assertIs', operator.contains([], 1), False)\n    assert operator.contains([1], 1) is True, ('assertIs', operator.contains([1], 1), True)\n    assert operator.lt(0, 0) is False, ('assertIs', operator.lt(0, 0), False)\n    assert operator.lt(0, 1) is True, ('assertIs', operator.lt(0, 1), True)\n    assert operator.is_(True, True) is True, ('assertIs', operator.is_(True, True), True)\n    assert operator.is_(True, False) is False, ('assertIs', operator.is_(True, False), False)\n    assert operator.is_not(True, True) is False, ('assertIs', operator.is_not(True, True), False)\n    assert operator.is_not(True, False) is True, ('assertIs', operator.is_not(True, False), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_marshal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import marshal\n    assert marshal.loads(marshal.dumps(True)) is True, ('assertIs', marshal.loads(marshal.dumps(True)), True)\n    assert marshal.loads(marshal.dumps(False)) is False, ('assertIs', marshal.loads(marshal.dumps(False)), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_pickle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import pickle\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        assert pickle.loads(pickle.dumps(True, proto)) is True, ('assertIs', pickle.loads(pickle.dumps(True, proto)), True)\n        assert pickle.loads(pickle.dumps(False, proto)) is False, ('assertIs', pickle.loads(pickle.dumps(False, proto)), False)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_picklevalues",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import pickle\n    assert pickle.dumps(True, protocol=0) == b'I01\\n.', ('assertEqual', pickle.dumps(True, protocol=0), b'I01\\n.')\n    assert pickle.dumps(False, protocol=0) == b'I00\\n.', ('assertEqual', pickle.dumps(False, protocol=0), b'I00\\n.')\n    assert pickle.dumps(True, protocol=1) == b'I01\\n.', ('assertEqual', pickle.dumps(True, protocol=1), b'I01\\n.')\n    assert pickle.dumps(False, protocol=1) == b'I00\\n.', ('assertEqual', pickle.dumps(False, protocol=1), b'I00\\n.')\n    assert pickle.dumps(True, protocol=2) == b'\\x80\\x02\\x88.', ('assertEqual', pickle.dumps(True, protocol=2), b'\\x80\\x02\\x88.')\n    assert pickle.dumps(False, protocol=2) == b'\\x80\\x02\\x89.', ('assertEqual', pickle.dumps(False, protocol=2), b'\\x80\\x02\\x89.')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_interpreter_convert_to_bool_raises",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class SymbolicBool:\n\n        def __bool__(self):\n            raise TypeError\n\n    class Symbol:\n\n        def __gt__(self, other):\n            return SymbolicBool()\n    x = Symbol()\n    try:\n        if x > 0:\n            msg = 'x > 0 was true'\n        else:\n            msg = 'x > 0 was false'\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    del x\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_from_bytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert bool.from_bytes(b'\\x00' * 8, 'big') is False, ('assertIs', bool.from_bytes(b'\\x00' * 8, 'big'), False)\n    assert bool.from_bytes(b'abcd', 'little') is True, ('assertIs', bool.from_bytes(b'abcd', 'little'), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_sane_len",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    for badval in ['illegal', -1, 1 << 32]:\n\n        class A:\n\n            def __len__(self):\n                return badval\n        try:\n            bool(A())\n        except Exception as e_bool:\n            try:\n                len(A())\n            except Exception as e_len:\n                assert str(e_bool) == str(e_len), ('assertEqual', str(e_bool), str(e_len))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_blocked",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n        __bool__ = None\n    try:\n        bool(*(A(),))\n    except TypeError:\n        pass\n\n    class B:\n\n        def __len__(self):\n            return 10\n        __bool__ = None\n    try:\n        bool(*(B(),))\n    except TypeError:\n        pass\n\n    class C:\n        __len__ = None\n    try:\n        bool(*(C(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_real_and_imag",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert True .real == 1, ('assertEqual', True .real, 1)\n    assert True .imag == 0, ('assertEqual', True .imag, 0)\n    assert type(True .real) is int, ('assertIs', type(True .real), int)\n    assert type(True .imag) is int, ('assertIs', type(True .imag), int)\n    assert False .real == 0, ('assertEqual', False .real, 0)\n    assert False .imag == 0, ('assertEqual', False .imag, 0)\n    assert type(False .real) is int, ('assertIs', type(False .real), int)\n    assert type(False .imag) is int, ('assertIs', type(False .imag), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BoolTest.test_bool_new",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert bool.__new__(bool) is False, ('assertIs', bool.__new__(bool), False)\n    assert bool.__new__(bool, 1) is True, ('assertIs', bool.__new__(bool, 1), True)\n    assert bool.__new__(bool, 0) is False, ('assertIs', bool.__new__(bool, 0), False)\n    assert bool.__new__(bool, False) is False, ('assertIs', bool.__new__(bool, False), False)\n    assert bool.__new__(bool, True) is True, ('assertIs', bool.__new__(bool, True), True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "BoolTest.test_math",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "BoolTest.test_boolean",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "ident": "BoolTest.test_convert_to_bool",
+      "reason": "uses-self.assertRaises"
+    },
+    {
+      "ident": "BoolTest.test_bool_called_at_least_once",
+      "reason": "uses-self.count"
+    }
+  ],
+  "counts": {
+    "extracted": 31,
+    "pinned": 27,
+    "quarantined": 4
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_tuple/conv_tuple_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:33:07",
+  "hashes": {
+    "pins_jac": "fc41d9d45225cd6cde8c420302e2e252d2919b2579bfb31a4a9fdde5dbd9a39c",
+    "conversion_json": "e9f7d7992e71507b29031045c5a34c2a5bc2ae2678ecaa4373972fa335e3b899",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "tuple",
+  "counts": {
+    "converted": 21,
+    "runnable": 7,
+    "green": 5,
+    "quarantined": 14
+  },
+  "pins": [
+    {
+      "id": "TupleTest.test_getitem_error",
+      "status": "pass"
+    },
+    {
+      "id": "TupleTest.test_constructors",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "TupleTest.test_keyword_args",
+      "status": "pass"
+    },
+    {
+      "id": "TupleTest.test_truth",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "TupleTest.test_len",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "TupleTest.test_iadd",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "TupleTest.test_imul",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "TupleTest.test_tupleresizebug",
+      "status": "pass"
+    },
+    {
+      "id": "TupleTest.test_hash_exact",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'seq_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "TupleTest.test_hash_optional",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'seq_tests' from '<unknown>'\">"
+    },
+    {
+      "id": "TupleTest.test_repr_large",
+      "status": "pass"
+    },
+    {
+      "id": "TupleTest.test_no_comdat_folding",
+      "status": "pass"
+    },
+    {
+      "id": "TupleTest.test_track_literals",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TupleTest.test_track_dynamic",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TupleTest.test_track_subtypes",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TupleTest.test_bug7466",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TupleTest.test_keywords_in_subclass",
+      "status": "quarantined",
+      "reason": "uses-self.newarg"
+    },
+    {
+      "id": "TupleTest.test_repr",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "TupleTest.test_iterator_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "TupleTest.test_reversed_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "id": "TupleTest.test_lexicographic_ordering",
+      "status": "quarantined",
+      "reason": "uses-self.type2test"
+    }
+  ]
+}

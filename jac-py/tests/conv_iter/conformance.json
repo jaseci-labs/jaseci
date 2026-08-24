@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_iter/conv_iter_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:33:03",
+  "hashes": {
+    "pins_jac": "dc3be110afc324710d97f3fdf2532037f67a1f5be8fb0faada0f1f88fc223c2a",
+    "conversion_json": "2e8311552a0ec24d4d96ac80d5d9e1d337432ff52e935d6ec514757d08fc3ab6",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "iter",
+  "counts": {
+    "converted": 57,
+    "runnable": 18,
+    "green": 11,
+    "quarantined": 39
+  },
+  "pins": [
+    {
+      "id": "TestCase.test_iter_idempotency",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_iter_independence",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestCase.test_nested_comprehensions_iter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object is not iterable'\">"
+    },
+    {
+      "id": "TestCase.test_nested_comprehensions_for",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_new_style_iter_class",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_iter_function_concealing_reentrant_exhaustion",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "TestCase.test_exception_function",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_countOf",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_list",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_tuple",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_string",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_callable",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'dictiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+    },
+    {
+      "id": "TestCase.test_sinkstate_yield",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_sinkstate_range",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'rangeiter\\' has policy BridgePolicy.LAZY_ITER but no to_host conversion arm\"'>"
+    },
+    {
+      "id": "TestCase.test_sinkstate_enumerate",
+      "status": "pass"
+    },
+    {
+      "id": "TestCase.test_3720",
+      "status": "fail",
+      "classification": "VM-CRASH",
+      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/slatepetrel-wt/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n13703 |             }\n13704 |             iterator = top as PyIter;\n13705 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n13706 |      "
+    },
+    {
+      "id": "TestCase.test_extending_list_with_iterator_does_not_segfault",
+      "status": "fail",
+      "classification": "VM-CRASH",
+      "detail": "\ud83d\udee0  jac dev mode \u2014 using compiler source at /var/tmp/slatepetrel-wt/jac\n\u2716 Error: 'PyUserObj' object has no attribute 'index'\n13703 |             }\n13704 |             iterator = top as PyIter;\n13705 |             if iterator.index < len(iterator.items) {\n      |           ^^^^^^^^^^^^^^\n13706 |      "
+    },
+    {
+      "id": "TestCase.test_iter_basic",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_iter_for_loop",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_class_for",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_class_iter",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_seq_class_for",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_seq_class_iter",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_mutating_seq_class_iter_pickle",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_mutating_seq_class_exhausted_iter",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_reduce_mutating_builtins_iter",
+      "status": "quarantined",
+      "reason": "uses-self.name"
+    },
+    {
+      "id": "TestCase.test_iter_callable",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_iter_function",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_iter_function_stop",
+      "status": "quarantined",
+      "reason": "self.check_iterator"
+    },
+    {
+      "id": "TestCase.test_exception_sequence",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_stop_sequence",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_big_range",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_empty",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_tuple",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_range",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_string",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_dict",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_iter_file",
+      "status": "quarantined",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "id": "TestCase.test_builtin_list",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_builtin_tuple",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_builtin_filter",
+      "status": "quarantined",
+      "reason": "uses-self.truth"
+    },
+    {
+      "id": "TestCase.test_builtin_max_min",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_builtin_map",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_builtin_zip",
+      "status": "quarantined",
+      "reason": "uses-self.i"
+    },
+    {
+      "id": "TestCase.test_unicode_join_endcase",
+      "status": "quarantined",
+      "reason": "uses-self.it"
+    },
+    {
+      "id": "TestCase.test_in_and_not_in",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "id": "TestCase.test_indexOf",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "id": "TestCase.test_writelines",
+      "status": "quarantined",
+      "reason": "uses-self.start"
+    },
+    {
+      "id": "TestCase.test_unpack_iter",
+      "status": "quarantined",
+      "reason": "unresolved-name:IteratingSequenceClass"
+    },
+    {
+      "id": "TestCase.test_ref_counting_behavior",
+      "status": "quarantined",
+      "reason": "uses-self.__class__"
+    },
+    {
+      "id": "TestCase.test_sinkstate_sequence",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_iter_overflow",
+      "status": "quarantined",
+      "reason": "unresolved-name:UnlimitedSequenceClass"
+    },
+    {
+      "id": "TestCase.test_iter_neg_setstate",
+      "status": "quarantined",
+      "reason": "unresolved-name:UnlimitedSequenceClass"
+    },
+    {
+      "id": "TestCase.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "id": "TestCase.test_error_iter",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "id": "TestCase.test_exception_locations",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    }
+  ]
+}

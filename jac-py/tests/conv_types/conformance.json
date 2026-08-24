@@ -1,0 +1,678 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_types/conv_types_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:32:40",
+  "hashes": {
+    "pins_jac": "29d348c7b83943fb617886fd6d28d014f22cece8eb9ded03cfbc253edbd4e3eb",
+    "conversion_json": "8e9a7744742cedc4efd508430b5df6ce0a96681175af40a9ddcc4db604ffab1e",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "types",
+  "counts": {
+    "converted": 129,
+    "runnable": 95,
+    "green": 45,
+    "quarantined": 34
+  },
+  "pins": [
+    {
+      "id": "TypesTests.test_names",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    },
+    {
+      "id": "TypesTests.test_truth_values",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "TypesTests.test_boolean_ops",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_comparisons",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_float_constructor",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_zero_division",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_numeric_types",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_float_to_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "TypesTests.test_normal_integers",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_floats",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_strings",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_type_function",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_int__format__",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_float__format__locale",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm\">"
+    },
+    {
+      "id": "TypesTests.test_int__format__locale",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: bridge-table: type 'globals' has policy BridgePolicy.FAIL but no to_host conversion arm\">"
+    },
+    {
+      "id": "TypesTests.test_float__format__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "TypesTests.test_format_spec_errors",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_internal_sizes",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_slot_wrapper_types",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_method_wrapper_types",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_method_descriptor_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <built-in method join of str object>, <class \\'builtin_function_or_method\\'>)\"'>"
+    },
+    {
+      "id": "TypesTests.test_ellipsis_type",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_notimplemented_type",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_none_type",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_traceback_and_frame_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC object ''\">"
+    },
+    {
+      "id": "TypesTests.test_capsule_type",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTests.test_call_unbound_crash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
+    },
+    {
+      "id": "UnionTests.test_hash",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_of_unhashable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for |: \\'UnhashableMeta\\' and \\'UnhashableMeta\\'\"'>"
+    },
+    {
+      "id": "UnionTests.test_unhashable_becomes_hashable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for |: \\'UnhashableMeta\\' and \\'UnhashableMeta\\'\"'>"
+    },
+    {
+      "id": "UnionTests.test_bad_instancecheck",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"unsupported operand type(s) for |: \\'host\\' and \\'BadMeta\\'\"'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_TypeVar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_parameter_chaining",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_parameter_substitution",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_pickle",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "UnionTests.test_union_parameter_substitution_errors",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_Protocol",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_Alias",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_NamedTuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'UserDict' from '<unknown>'\">"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_TypedDict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_NewType",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_IO",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_SpecialForm",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_Literal",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_bad_module",
+      "status": "pass"
+    },
+    {
+      "id": "UnionTests.test_instantiation",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_basics",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_metaclass_keywords",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_defaults",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry_genericalias",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry_none",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry_error",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry_multiple",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_with_mro_entry_multiple_2",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_get_original_bases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "ClassCreationTests.test_prepare_class",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases'\">"
+    },
+    {
+      "id": "ClassCreationTests.test_bad___prepare__",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "ClassCreationTests.test_resolve_bases",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_resolve_bases_with_mro_entry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "ClassCreationTests.test_metaclass_derivation",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'too many positional arguments'\">"
+    },
+    {
+      "id": "ClassCreationTests.test_metaclass_override_callable",
+      "status": "pass"
+    },
+    {
+      "id": "ClassCreationTests.test_metaclass_new_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "ClassCreationTests.test_subclass_inherited_slot_update",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"descriptor \\'__getitem__\\' for \\'dict\\' objects doesn\\'t apply to a \\'NoneType\\' object\"'>"
+    },
+    {
+      "id": "ClassCreationTests.test_tuple_subclass_as_bases",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <class \\'tuple\\'>, <class \\'__main__.TupleSubclass\\'>)\"'>"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_constructor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'UserDict' from '<unknown>'\">"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_unbound",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_underlying_dict",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_attrget",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_attrset",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_attrdel",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\'namespace(w=3, y=2, x=1)\\', \\'namespace(x=1, y=2, w=3)\\')\"'>"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_equal",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_nested",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_recursive",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_recursive_repr",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_as_dict",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {\\'_jac_guest_\\': PyUserObj(t=\\'instance\\', cls=PyClass(t=\\'class\\', name=\\'Spam\\', attrs={\\'__name__\\': PyStr(t=\\'str\\', val=\\'__main__\\'), \\'__module__\\': PyStr(t=\\'str\\', val=\\'__main__\\'), \\'__qualname__\\': PyStr(t=\\'str\\', val=\\'_t.<locals>.Spam\\'), \\'__firstlineno__\\': PyInt(t=\\'int\\', val=9), \\'__static_attributes__\\': PyTuple(t=\\'tuple\\', items=[])}, bases=[PyHostProxy(t=\\'host\\', val=<class \\'types.SimpleNamespace\\'>)], native_base=\\'\\', metaclass=None, tp_flags=4096, slot_members=[], slots_declared=False, instance_has_dict=True), attrs={}, base=PyNoneType(t=\\'none\\'))}, {\\'ham\\': 8, \\'eggs\\': 9})\"'>"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_pickle",
+      "status": "pass"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_replace",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_replace_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_fake_namespace_compare",
+      "status": "pass"
+    },
+    {
+      "id": "CoroutineTests.test_wrong_args",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaises: did not raise'\">"
+    },
+    {
+      "id": "CoroutineTests.test_non_gen_values",
+      "status": "pass"
+    },
+    {
+      "id": "CoroutineTests.test_async_def",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'cr_code'\">"
+    },
+    {
+      "id": "CoroutineTests.test_duck_coro",
+      "status": "pass"
+    },
+    {
+      "id": "CoroutineTests.test_duck_corogen",
+      "status": "pass"
+    },
+    {
+      "id": "CoroutineTests.test_duck_gen",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CoroutineTests.test_gen",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7fa79c5c6710>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
+    },
+    {
+      "id": "CoroutineTests.test_returning_itercoro",
+      "status": "pass"
+    },
+    {
+      "id": "CoroutineTests.test_genfunc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm\">"
+    },
+    {
+      "id": "CoroutineTests.test_wrapper_object",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7fa79c294ee0>\\')\"'>"
+    },
+    {
+      "id": "FunctionTests.test_function_type_defaults",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'code\\' has policy BridgePolicy.FAIL but no to_host conversion arm\"'>"
+    },
+    {
+      "id": "FunctionTests.test_function_type_wrong_defaults",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "TypesTests.test_dunder_get_signature",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "TypesTests.test_method_descriptor_crash",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UnionTests.test_or_types_operator",
+      "status": "quarantined",
+      "reason": "unresolved-name:Example"
+    },
+    {
+      "id": "UnionTests.test_instancecheck_and_subclasscheck",
+      "status": "quarantined",
+      "reason": "self.assertNotIsInstance"
+    },
+    {
+      "id": "UnionTests.test_instancecheck_and_subclasscheck_order",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "UnionTests.test_bad_subclasscheck",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "UnionTests.test_union_args",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_forward",
+      "status": "quarantined",
+      "reason": "unresolved-name:Forward"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_genericalias",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_reference_cycle",
+      "status": "quarantined",
+      "reason": "self.skipTest"
+    },
+    {
+      "id": "MappingProxyTests.test_constructor",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_methods",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_get",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_missing",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_customdict",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_chainmap",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_contains",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_views",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_len",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_iterators",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_reversed",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_copy",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_union",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "MappingProxyTests.test_hash",
+      "status": "quarantined",
+      "reason": "uses-self.mappingproxy"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_subclass",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_meta",
+      "status": "quarantined",
+      "reason": "uses-self.Meta"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_exec_body",
+      "status": "quarantined",
+      "reason": "uses-self.Meta"
+    },
+    {
+      "id": "ClassCreationTests.test_new_class_meta_with_base",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "ClassCreationTests.test_metaclass_override_function",
+      "status": "quarantined",
+      "reason": "uses-self.Meta"
+    },
+    {
+      "id": "ClassCreationTests.test_one_argument_type",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "SimpleNamespaceTests.test_replace_invalid_subtype",
+      "status": "quarantined",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "id": "CoroutineTests.test_duck_functional_gen",
+      "status": "quarantined",
+      "reason": "uses-self._i"
+    },
+    {
+      "id": "SubinterpreterTests.test_static_types_inherited_slots",
+      "status": "quarantined",
+      "reason": "uses-self.maxDiff"
+    }
+  ]
+}
