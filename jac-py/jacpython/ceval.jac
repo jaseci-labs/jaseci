@@ -2520,7 +2520,14 @@ obj PyUserObj(PyObj) {
             return call_user_dunder(self, "__getitem__", [index]);
         }
         if self._has_base() {
-            return self._base_obj().mp_subscript(index);
+            base = self._base_obj();
+            # A builtin-dict base with no __getitem__ override IS
+            # ``dict.__getitem__`` -- route the miss through the type-level
+            # __missing__ consult (defaultdict / user subclasses).
+            if isinstance(base, PyDict) {
+                return dict_subscript_missing(self, base as PyDict, index);
+            }
+            return base.mp_subscript(index);
         }
         return py_error("TypeError", "object is not subscriptable");
     }
@@ -4749,6 +4756,30 @@ def rhs_reflected_priority(lhs: PyObj, rhs: PyObj, rname: str) -> bool {
 def call_user_dunder(u: PyUserObj, name: str, args: list[PyObj]) -> PyObj {
     method = class_lookup_attr(u.cls, name);
     return bind_attribute(method, u).tp_call(args, {});
+}
+
+# CPython ``dict_subscript`` consults a type-level ``__missing__``: when the
+# lookup on a dict whose TYPE is a subclass misses, ``dict.__getitem__`` calls
+# the MRO-resolved ``__missing__(key)`` and returns its value instead of
+# raising KeyError (this is defaultdict's mechanism). Only the subscript slot
+# does this -- get()/pop()/``in`` never invoke ``__missing__``. A user-defined
+# ``__getitem__`` replaces the slot wholesale, so callers that dispatched an
+# override never reach here. An unhashable key fails before lookup (TypeError),
+# so only a genuine KeyError miss falls back.
+def dict_subscript_missing(owner: PyUserObj, d: PyDict, index: PyObj) -> PyObj {
+    res = d.mp_subscript(index);
+    if not is_error(res) {
+        return res;
+    }
+    err = res as PyError;
+    if err.exception.type_name != "KeyError" {
+        return res;
+    }
+    missing = class_lookup_attr(owner.cls, "__missing__");
+    if is_error(missing) {
+        return res;
+    }
+    return bind_attribute(missing, owner).tp_call([index], {});
 }
 
 # CPython binary-operator protocol for PyUserObj operands: try lhs.__op__(rhs),
@@ -7100,7 +7131,12 @@ obj PyNativeNew(PyObj) {
 # boxed value at lookup time, so the call site applies only the operands.
 obj PyBuiltinSuperMethod(PyObj) {
     has base: PyObj,
-        name: str;
+        name: str,
+        # The subclass instance this super() binding came from. __getitem__ on
+        # a boxed dict base must consult the OWNER's type-level __missing__ on
+        # a miss (CPython dict.__getitem__ does), which needs the instance's
+        # class -- not just the boxed storage.
+        owner: PyObj = py_none();
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         n = self.name;
@@ -7163,6 +7199,12 @@ obj PyBuiltinSuperMethod(PyObj) {
             return py_store_subscript(b, args[0], args[1]);
         }
         if n == "__getitem__" {
+            if isinstance(b, PyDict) and isinstance(self.owner, PyUserObj)
+                and not user_has_dunder(self.owner as PyUserObj, "__getitem__") {
+                return dict_subscript_missing(
+                    self.owner as PyUserObj, b as PyDict, args[0]
+                );
+            }
             return b.mp_subscript(args[0]);
         }
         if n == "__delitem__" {
@@ -7233,7 +7275,10 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
         }
         if inst._has_base() {
             return PyBuiltinSuperMethod(
-                t="builtin_super", base=inst._base_obj(), name=name
+                t="builtin_super",
+                base=inst._base_obj(),
+                name=name,
+                owner=instance
             );
         }
     }
