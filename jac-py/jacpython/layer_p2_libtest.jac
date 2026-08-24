@@ -80,7 +80,7 @@ import from pyc_first {
     from_host,
 }
 import from objects { PyDict, PyTuple }
-import from ceval { py_attr, py_set_attr }
+import from ceval { py_attr, py_set_attr, members_of, builtin_sorted_min_max, is_error, py_error, PyList, PyInt, PyBool }
 import from _functoolsmodule {
     P2_MISSING,
     P2_WRAPPER_ASSIGNMENTS,
@@ -471,6 +471,48 @@ obj P2LibtestHeappopFn(PyObj) {
         got = _p2_heappop(host_heap);
         _p2_sync_pylist_from_host(heap, host_heap);
         return from_host(got);
+    }
+}
+
+# heapq.nlargest(n, iterable, key=None): CPython documents the result as
+# equivalent to sorted(iterable, key=key, reverse=True)[:n], which is exactly
+# what libtest snippets need (difflib.get_close_matches consumes it).
+obj P2LibtestNlargestFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 or len(args) > 3 {
+            return py_error(
+                "TypeError", "nlargest expected 2 or 3 arguments, got " + str(len(args))
+            );
+        }
+        if not isinstance(args[0], PyInt) {
+            return py_error("TypeError", "an integer is required");
+        }
+        n = (args[0] as PyInt).val;
+        items = members_of(args[1]);
+        if is_error(items) {
+            return items;
+        }
+        call_args: list[PyObj] = [items];
+        if len(args) == 3 {
+            call_args.append(args[2]);
+        }
+        sort_kwargs: dict[str, PyObj] = {};
+        for kw in kwargs {
+            sort_kwargs[kw] = kwargs[kw];
+        }
+        sort_kwargs["reverse"] = PyBool(t="bool", val=True);
+        sorted_list = builtin_sorted_min_max("sorted", call_args, sort_kwargs);
+        if is_error(sorted_list) {
+            return sorted_list;
+        }
+        all_items = (sorted_list as PyList).items;
+        if n <= 0 {
+            return PyList(t="list", items=[]);
+        }
+        if n >= len(all_items) {
+            return sorted_list;
+        }
+        return PyList(t="list", items=all_items[:n]);
     }
 }
 
@@ -885,6 +927,7 @@ def p2_libtest_reset {
         "heappush": P2LibtestHeappushFn(t="function"),
         "heappop": P2LibtestHeappopFn(t="function"),
         "heapify": P2LibtestHeapifyFn(t="function"),
+        "nlargest": P2LibtestNlargestFn(t="function"),
     };
     register_shim_module(
         "heapq", PyModule(t="module", name="heapq", attrs=heapq_attrs)
