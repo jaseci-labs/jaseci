@@ -142,17 +142,27 @@ obj NativeJServer {
                 {"http.method": request.method, "http.target": request.url.path}
             );
             user_id = request.state?.user_root_id if request?.state else None;
+            root_bind_error: (str | None) = None;
             if user_id {
                 root_ref: any = user_id;
                 try {
                     await ctx.aset_user_root(root_ref);
-                } except ValueError {
-                    logger.warning(
-                        f"Invalid user_root_id: {user_id}, using system root"
+                } except ValueError as bind_err {
+                    logger.error(
+                        f"failed to bind user_root_id {user_id}: "
+                        f"{type(bind_err).__name__}: {bind_err}"
                     );
+                    root_bind_error = str(bind_err);
                 }
             }
             try {
+                if root_bind_error is not None {
+                    import from jaclang.scale.runtime.context.errors { unauthorized }
+                    return unauthorized(
+                        'asserted caller identity could not be resolved; '
+                        're-register or contact the operator'
+                    );
+                }
                 next_fn: any = call_next;
                 response = await next_fn(request);
                 if trace_id {
