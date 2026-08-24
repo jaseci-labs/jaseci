@@ -360,6 +360,25 @@ impl _cleanup_test_bases -> None {
     }
 }
 
+impl _log_worker_footprint(
+    kid: dict[(str, any)], record: dict[(str, any)], files: list[str], done: any
+) -> None {
+    import sys;
+    if not os.environ.get("JAC_TEST_RSS_LOG", "") {
+        return;
+    }
+    rss = record.get("rss");
+    if rss is None {
+        return;
+    }
+    name = os.path.basename(files[done]) if isinstance(done, int) else "?";
+    sys.stderr.write(
+        f"[rss] slot={kid['slot']} served={record.get('served', 0)} "
+        f"rss={rss}MB{' retiring' if record.get('retire') else ''} {name}\n"
+    );
+    sys.stderr.flush();
+}
+
 impl _worker_rss_mb -> int {
     import resource;
     import sys;
@@ -966,12 +985,15 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
             ];
         }
         _served += 1;
-        _retire = _should_retire(_served, _recycle, _worker_rss_mb(), _rss_cap);
+        _rss = _worker_rss_mb();
+        _retire = _should_retire(_served, _recycle, _rss, _rss_cap);
         payload = json.dumps(
             {
                 "idx": request["idx"],
                 "outcomes": [o.to_wire() for o in outcomes],
-                "retire": _retire
+                "retire": _retire,
+                "rss": _rss,
+                "served": _served
             }
         );
         try {
@@ -1023,7 +1045,9 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     } except Exception {
         return;
     }
+    done = kid["inflight"];
     kid["inflight"] = None;
+    _log_worker_footprint(kid, record, self.plan.files, done);
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
