@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_string_literals.py",
+    "-o",
+    "/var/tmp/laneb-out/test_string_literals",
+    "--name",
+    "conv_string_literals"
+  ],
+  "generated_at": "2026-08-24T13:38:28",
+  "hashes": {
+    "pins_jac": "a61664bdbc91b3fef500f608b85d6b8db061280c40ef92dcb90a9189fc66e5d8"
+  },
+  "source_file": "reference/cpython/Lib/test/test_string_literals.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "string_literals",
+  "pins_file": "conv_string_literals_pins.jac",
+  "pins": [],
+  "quarantined": [
+    {
+      "ident": "TestLiterals.test_template",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_normal",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_incomplete",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_invalid_escape",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_invalid_octal_escape",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_invalid_escape_locations_with_offset",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_raw",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_normal",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_incomplete",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_invalid_escape",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_invalid_octal_escape",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_raw",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_u",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_uppercase_prefixes",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_utf_8",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_utf_8_error",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_utf8",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_iso_8859_1",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_latin_1",
+      "reason": "helper:setUp(uses-self.save_path)"
+    },
+    {
+      "ident": "TestLiterals.test_file_latin9",
+      "reason": "helper:setUp(uses-self.save_path)"
+    }
+  ],
+  "counts": {
+    "extracted": 20,
+    "pinned": 0,
+    "quarantined": 20
+  }
+}

@@ -1,0 +1,451 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "02879f86e5975cac5e4f1160309ef54fbedfb233",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_math/conv_math_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:37:44",
+  "hashes": {
+    "pins_jac": "aa1f5e2aa991ee972520f71e8cccc0b366d1cf25d5c6f1639310b3d56f9f1ecd",
+    "conversion_json": "e491ed94d65bab67c2c7f7235d3411e1f4bb8ed77816111245df7c04e601a96f",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "math",
+  "counts": {
+    "converted": 88,
+    "runnable": 19,
+    "green": 18,
+    "quarantined": 69
+  },
+  "pins": [
+    {
+      "id": "MathTests.testCopysign",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testFactorial",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testFactorialNonIntegers",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testFrexp",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.test_math_dist_leak",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testLdexp_denormal",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testLog1p",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testLog2",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testModf",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testTanhSign",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testIsfinite",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testIsnan",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testIsinf",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.test_nan_constant",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.test_inf_constant",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.test_testfile",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'file' is not defined. Did you mean: 'filter'?"
+    },
+    {
+      "id": "MathTests.test_mtestfile",
+      "status": "quarantined",
+      "reason": "harness-error:NameError: name 'file' is not defined. Did you mean: 'filter'?"
+    },
+    {
+      "id": "MathTests.test_input_exceptions",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.test_exception_messages",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: register'>"
+    },
+    {
+      "id": "FMATests.test_fma_overflow",
+      "status": "pass"
+    },
+    {
+      "id": "FMATests.test_fma_single_round",
+      "status": "pass"
+    },
+    {
+      "id": "MathTests.testAtan2",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.testCosh",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.testFactorialHugeInputs",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "MathTests.testFsum",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.testHypotAccuracy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.test_isqrt_huge",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "MathTests.testLog2Exact",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_mac_ver"
+    },
+    {
+      "id": "MathTests.test_log_huge_integer",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "MathTests.test_sumprod_accuracy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.test_sumprod_stress",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "MathTests.test_sumprod_extended_precision_accuracy",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.test_exceptions",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "FMATests.test_fma_zero_result",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "MathTests.testConstants",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAcos",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAcosh",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAsin",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAsinh",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAtan",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testAtanh",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testCbrt",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testCeil",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadDescr"
+    },
+    {
+      "id": "MathTests.testCos",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testDegrees",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testExp",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testExp2",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testFabs",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testFloor",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadDescr"
+    },
+    {
+      "id": "MathTests.testFmod",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testGcd",
+      "status": "quarantined",
+      "reason": "unresolved-name:MyIndexable"
+    },
+    {
+      "id": "MathTests.testHypot",
+      "status": "quarantined",
+      "reason": "unresolved-name:FloatLike"
+    },
+    {
+      "id": "MathTests.testDist",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadDescr"
+    },
+    {
+      "id": "MathTests.testIsqrt",
+      "status": "quarantined",
+      "reason": "uses-self.value"
+    },
+    {
+      "id": "MathTests.test_lcm",
+      "status": "quarantined",
+      "reason": "unresolved-name:MyIndexable"
+    },
+    {
+      "id": "MathTests.testLdexp",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testLog",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testLog10",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testSumProd",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "MathTests.testPow",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testRadians",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testRemainder",
+      "status": "quarantined",
+      "reason": "self.assertIsNaN"
+    },
+    {
+      "id": "MathTests.testSin",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testSinh",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testSqrt",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testTan",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.testTanh",
+      "status": "quarantined",
+      "reason": "self.ftest"
+    },
+    {
+      "id": "MathTests.test_trunc",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadDescr"
+    },
+    {
+      "id": "MathTests.test_prod",
+      "status": "quarantined",
+      "reason": "self.assertIsNaN"
+    },
+    {
+      "id": "MathTests.testPerm",
+      "status": "quarantined",
+      "reason": "unresolved-name:IntSubclass"
+    },
+    {
+      "id": "MathTests.testComb",
+      "status": "quarantined",
+      "reason": "unresolved-name:IntSubclass"
+    },
+    {
+      "id": "MathTests.test_nextafter",
+      "status": "quarantined",
+      "reason": "self.assertEqualSign"
+    },
+    {
+      "id": "MathTests.test_ulp",
+      "status": "quarantined",
+      "reason": "self.assertIsNaN"
+    },
+    {
+      "id": "MathTests.test_issue39871",
+      "status": "quarantined",
+      "reason": "uses-self.converted"
+    },
+    {
+      "id": "IsCloseTests.test_negative_tolerances",
+      "status": "quarantined",
+      "reason": "uses-self.assertIsClose"
+    },
+    {
+      "id": "IsCloseTests.test_identical",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_eight_decimal_places",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_near_zero",
+      "status": "quarantined",
+      "reason": "self.assertAllNotClose"
+    },
+    {
+      "id": "IsCloseTests.test_identical_infinite",
+      "status": "quarantined",
+      "reason": "self.assertIsClose"
+    },
+    {
+      "id": "IsCloseTests.test_inf_ninf_nan",
+      "status": "quarantined",
+      "reason": "self.assertAllNotClose"
+    },
+    {
+      "id": "IsCloseTests.test_zero_tolerance",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_asymmetry",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_integers",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_decimals",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "IsCloseTests.test_fractions",
+      "status": "quarantined",
+      "reason": "self.assertAllClose"
+    },
+    {
+      "id": "FMATests.test_fma_nan_results",
+      "status": "quarantined",
+      "reason": "self.assertIsNaN"
+    },
+    {
+      "id": "FMATests.test_fma_infinities",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "FMATests.test_random",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    }
+  ]
+}
