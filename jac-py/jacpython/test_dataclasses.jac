@@ -352,6 +352,226 @@ test "dataclass: per-field kw_only splits the signature after '*'" {
     assert vm_bool(ns, "positional_c_rejected") == True;
 }
 
+# ---------------- __post_init__ hook ----------------
+
+test "dataclass: __post_init__ runs after field assignment" {
+    ns = dc_exec(
+        "@dataclass\n"
+        "class P:\n"
+        "    a: int = 0\n"
+        "    seen: int = -1\n"
+        "    def __post_init__(self):\n"
+        "        self.seen = self.a * 2\n"
+        "p = P(5)\n"
+        "rv = p.seen\n"
+    );
+    assert vm_int(ns, "rv") == 10;
+}
+
+test "dataclass: __post_init__ can reject bad input via raise" {
+    outcome = vm_try(
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class P:\n"
+        "    a: int\n"
+        "    def __post_init__(self):\n"
+        "        if self.a < 0:\n"
+        "            raise ValueError('negative')\n"
+        "P(-1)\n"
+    );
+    assert err_type(outcome) == "ValueError";
+    assert err_msg(outcome) == "negative";
+}
+
+test "dataclass: inherited __post_init__ resolves through the MRO once" {
+    ns = dc_exec(
+        "from dataclasses import dataclass\n"
+        "calls = []\n"
+        "@dataclass\n"
+        "class Base:\n"
+        "    a: int = 0\n"
+        "    def __post_init__(self):\n"
+        "        calls.append('base')\n"
+        "@dataclass\n"
+        "class Sub(Base):\n"
+        "    b: int = 0\n"
+        "s = Sub(a=1, b=2)\n"
+        "ncalls = len(calls)\n"
+    );
+    assert vm_int(ns, "ncalls") == 1;
+}
+
+# ---------------- __match_args__ ----------------
+
+test "dataclass: __match_args__ lists positional init fields" {
+    ns = dc_exec(
+        "from dataclasses import field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int\n"
+        "    b: str = 'x'\n"
+        "    c: int = field(default=0, kw_only=True)\n"
+        "rv = M.__match_args__\n"
+    );
+    assert vm_str(ns, "rv") == "('a', 'b')";
+}
+
+test "dataclass: match_args=False leaves __match_args__ unset on the class" {
+    ns = dc_exec(
+        "@dataclass(match_args=False)\n"
+        "class M:\n"
+        "    a: int = 0\n"
+        "has_ma = hasattr(M, '__match_args__')\n"
+    );
+    assert vm_bool(ns, "has_ma") == False;
+}
+
+# ---------------- field() metadata / hash params ----------------
+
+test "dataclass: field(metadata=...) round-trips through fields()" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, fields\n"
+        "from dataclasses import field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = field(default=0, metadata={'unit': 'cm'})\n"
+        "f = fields(M)[0]\n"
+        "rv = f.metadata['unit']\n"
+    );
+    assert vm_str(ns, "rv") == "cm";
+}
+
+test "dataclass: default metadata is an empty mapping" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, fields\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = 0\n"
+        "f = fields(M)[0]\n"
+        "rv = len(f.metadata)\n"
+    );
+    assert vm_int(ns, "rv") == 0;
+}
+
+test "dataclass: non-mapping metadata raises TypeError at decoration" {
+    outcome = vm_try(
+        "from dataclasses import dataclass, field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = field(default=0, metadata=42)\n"
+    );
+    assert err_type(outcome) == "TypeError";
+}
+
+test "dataclass: hash follows compare by default and honors explicit hash" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, field\n"
+        "@dataclass(frozen=True)\n"
+        "class A:\n"
+        "    x: int = 0\n"
+        "    ignored: str = field(default='', compare=False)\n"
+        "@dataclass(frozen=True)\n"
+        "class B:\n"
+        "    x: int = 0\n"
+        "    extra: int = field(default=0, compare=False, hash=True)\n"
+        "a1 = A(1, 'p')\n"
+        "a2 = A(1, 'q')\n"
+        "same_hash_ignores_noncompare = hash(a1) == hash(a2)\n"
+        "b1 = B(1, 5)\n"
+        "b2 = B(1, 6)\n"
+        "differs_on_explicit_hash = hash(b1) != hash(b2)\n"
+    );
+    assert vm_bool(ns, "same_hash_ignores_noncompare") == True;
+    assert vm_bool(ns, "differs_on_explicit_hash") == True;
+}
+
+# ---------------- InitVar pseudo-fields ----------------
+
+test "dataclass: InitVar is an init-only param forwarded to __post_init__" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, InitVar, fields\n"
+        "@dataclass\n"
+        "class T:\n"
+        "    a: int\n"
+        "    scale: InitVar[int]\n"
+        "    b: int = 0\n"
+        "    def __post_init__(self, scale):\n"
+        "        self.b = self.b * scale\n"
+        "t = T(1, 4, 3)\n"
+        "rb = t.b\n"
+        "names = [f.name for f in fields(T)]\n"
+    );
+    assert vm_int(ns, "rb") == 12;
+    assert vm_str(ns, "names") == "['a', 'b']";
+}
+
+test "dataclass: non-default InitVar after a default raises at decoration" {
+    outcome = vm_try(
+        "from dataclasses import dataclass, InitVar\n"
+        "@dataclass\n"
+        "class T:\n"
+        "    a: int = 0\n"
+        "    scale: InitVar[int]\n"
+    );
+    assert err_type(outcome) == "TypeError";
+    assert (
+        err_msg(outcome)
+            == "non-default argument 'scale' follows default argument 'a'"
+    );
+}
+
+test "dataclass: InitVar default makes the param optional" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, InitVar\n"
+        "@dataclass\n"
+        "class T:\n"
+        "    a: int = 1\n"
+        "    mult: InitVar[int] = 10\n"
+        "    b: int = 0\n"
+        "    def __post_init__(self, mult):\n"
+        "        self.b = self.a * mult\n"
+        "t1 = T()\n"
+        "r1 = t1.b\n"
+        "t2 = T(2, mult=100)\n"
+        "r2 = t2.b\n"
+    );
+    assert vm_int(ns, "r1") == 10;
+    assert vm_int(ns, "r2") == 200;
+}
+
+test "dataclass: InitVar without __post_init__ still accepts and drops the arg" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, InitVar\n"
+        "@dataclass\n"
+        "class T:\n"
+        "    a: int = 0\n"
+        "    unused: InitVar[int] = 0\n"
+        "t = T(7, 99)\n"
+        "rv = t.a\n"
+        "has_unused = not hasattr(t, 'unused') and T.unused == 0\n"
+    );
+    assert vm_int(ns, "rv") == 7;
+    assert vm_bool(ns, "has_unused") == False;
+}
+
+test "dataclass: asdict/astuple exclude InitVars; _field_type marks them" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, InitVar, fields, asdict\n"
+        "@dataclass\n"
+        "class T:\n"
+        "    a: int = 0\n"
+        "    k: InitVar[int] = 0\n"
+        "t = T(3)\n"
+        "d = asdict(t)\n"
+        "fmap = {f.name: f._field_type for f in fields(T)}\n"
+        "fmap['k'] = T.__dataclass_fields__['k']._field_type\n"
+    );
+    assert vm_str(ns, "d") == "{'a': 3}";
+    assert (
+        vm_str(ns, "fmap") == "{'a': '_FIELD', 'k': '_FIELD_INITVAR'}"
+    );
+}
+
 # ---------------- ClassVar vs fields ----------------
 
 test "dataclass: ClassVar annotations stay class attributes, not fields" {

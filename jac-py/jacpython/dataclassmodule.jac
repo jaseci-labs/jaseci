@@ -25,6 +25,7 @@ import from objects {
     PyStr,
     PyInt,
     PyBool,
+    PyNoneType,
     PyDict,
     PyList,
     PyTuple,
@@ -82,7 +83,8 @@ obj DCParams(PyObj) {
         order: bool = False,
         unsafe_hash: bool = False,
         frozen: bool = False,
-        kw_only: bool = False;
+        kw_only: bool = False,
+        match_args: bool = True;
 }
 
 obj DCField(PyObj) {
@@ -99,7 +101,15 @@ obj DCField(PyObj) {
         frepr: bool = True,
         fcompare: bool = True,
         fkw_only: bool = False,
-        has_kw_only: bool = False;
+        has_kw_only: bool = False,
+        # hash=None in field() means "follow compare" (CPython Field.hash);
+        # has_hash marks the explicit form. fmetadata carries field(metadata=).
+        fhash: bool = False,
+        has_hash: bool = False,
+        fmetadata: any = None,
+        # InitVar pseudo-fields: __init__ params forwarded to __post_init__,
+        # never instance fields (CPython _FIELD_INITVAR).
+        finitvar: bool = False;
 
     def tp_getattro(name: str) -> PyObj {
         if name == "name" {
@@ -137,14 +147,23 @@ obj DCField(PyObj) {
             return PyBool(t="bool", val=self.fkw_only);
         }
         if name == "_field_type" {
-            return PyStr(t="str", val="_FIELD");
+            fv = "_FIELD";
+            if self.finitvar {
+                fv = "_FIELD_INITVAR";
+            }
+            return PyStr(t="str", val=fv);
         }
-        if name == "hash" or name == "metadata" {
-            # None means "follow compare"; metadata stays an empty mapping.
-            if name == "metadata" {
-                return PyDict(t="dict", items={});
+        if name == "hash" {
+            if self.has_hash {
+                return PyBool(t="bool", val=self.fhash);
             }
             return py_none();
+        }
+        if name == "metadata" {
+            if self.fmetadata is not None {
+                return self.fmetadata as PyObj;
+            }
+            return PyDict(t="dict", items={});
         }
         return py_error(
             "AttributeError", "'Field' object has no attribute '" + name + "'"
@@ -157,7 +176,10 @@ obj DCField(PyObj) {
 obj DCSpec(PyObj) {
     has cls: PyClass,
         fields: list[DCField],
-        params: DCParams;
+        params: DCParams,
+        # The class MRO resolves __post_init__: dc_build_init appends the
+        # trailing self.__post_init__() call (CPython _init_fn has_post_init).
+        has_post_init: bool = False;
 }
 
 # ---------------- shared helpers ----------------
@@ -189,10 +211,22 @@ def dc_same_class(a: PyObj, b: PyObj) -> PyClass | None {
 def dc_selected_fields(spec: DCSpec, mode: str) -> list[DCField] {
     out: list[DCField] = [];
     for f in spec.fields {
+        if f.finitvar {
+            continue;
+        }
         if mode == "repr" and not f.frepr {
             continue;
         }
-        if mode != "repr" and not f.fcompare {
+        if mode == "hash" and not f.fhash {
+            # CPython hash inclusion uses the RESOLVED field.hash (which
+            # defaults to following compare), not compare itself.
+            continue;
+        }
+        if mode == "eq" and not f.fcompare {
+            continue;
+        }
+        if (mode != "repr" and mode != "hash" and mode != "eq")
+            and not f.fcompare {
             continue;
         }
         out.append(f);
@@ -333,7 +367,7 @@ obj DCOrderOp(PyObj) {
 obj DCHashOp(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         spec = args[0] as DCSpec;
-        got = dc_read_fields(spec, args[1], "compare");
+        got = dc_read_fields(spec, args[1], "hash");
         if is_error(got) {
             return got;
         }
@@ -433,6 +467,25 @@ obj DCFieldFn(PyObj) {
         if has_factory {
             ffactory = kwargs["default_factory"];
         }
+        fhash = False;
+        if "hash" in kwargs {
+            hv = kwargs["hash"];
+            if isinstance(hv, PyNoneType) {
+                # hash=None is the CPython default: "follow compare".
+            } elif isinstance(hv, PyBool) {
+                fhash = (hv as PyBool).val;
+            } else {
+                return py_error("TypeError", "'hash' must be a bool or None");
+            }
+        }
+        fmetadata: any = None;
+        if "metadata" in kwargs {
+            mv = kwargs["metadata"];
+            if not isinstance(mv, PyDict) {
+                return py_error("TypeError", "metadata must be a mapping");
+            }
+            fmetadata = mv;
+        }
         return DCField(
             t="dc_field",
             fname="",
@@ -445,6 +498,9 @@ obj DCFieldFn(PyObj) {
             fcompare=dc_param_flag(kwargs, "compare", True),
             fkw_only=dc_param_flag(kwargs, "kw_only", False),
             has_kw_only="kw_only" in kwargs,
+            fhash=fhash,
+            has_hash="hash" in kwargs,
+            fmetadata=fmetadata,
         );
     }
 }
@@ -473,6 +529,20 @@ def dc_stored_fields(cls: PyClass) -> PyObj {
     return py_error("TypeError", "malformed __dataclass_fields__");
 }
 
+def dc_public_fields(stored: PyObj) -> PyObj {
+    # fields() / asdict() / astuple() exclude InitVar pseudo-fields
+    # (CPython _FIELD_INITVAR never appears in the public tuple).
+    items: list[PyObj] = [];
+    for hk in (stored as PyDict).items {
+        f = (stored as PyDict).items[hk].value;
+        if isinstance(f, DCField) and (f as DCField).finitvar {
+            continue;
+        }
+        items.append(f);
+    }
+    return PyTuple(t="tuple", items=items);
+}
+
 obj DCFieldsFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         got = dc_dataclass_cls_of(
@@ -485,11 +555,7 @@ obj DCFieldsFn(PyObj) {
         if is_error(stored) {
             return stored;
         }
-        items: list[PyObj] = [];
-        for hk in (stored as PyDict).items {
-            items.append((stored as PyDict).items[hk].value);
-        }
-        return PyTuple(t="tuple", items=items);
+        return dc_public_fields(stored);
     }
 }
 
@@ -532,6 +598,10 @@ def dc_asdict_value(v: PyObj) -> PyObj {
         out = PyDict(t="dict", items={});
         for hk in (stored as PyDict).items {
             ent = (stored as PyDict).items[hk];
+            fv = ent.value;
+            if isinstance(fv, DCField) and (fv as DCField).finitvar {
+                continue;
+            }
             attr = py_attr(v, expect_str(ent.key));
             if is_error(attr) {
                 return attr;
@@ -597,6 +667,10 @@ def dc_astuple_value(v: PyObj) -> PyObj {
         items: list[PyObj] = [];
         for hk in (stored as PyDict).items {
             ent = (stored as PyDict).items[hk];
+            fv = ent.value;
+            if isinstance(fv, DCField) and (fv as DCField).finitvar {
+                continue;
+            }
             attr = py_attr(v, expect_str(ent.key));
             if is_error(attr) {
                 return attr;
@@ -693,7 +767,7 @@ obj DCReplaceFn(PyObj) {
             if isinstance(f, DCField) {
                 fd = f as DCField;
                 known[fd.fname] = fd;
-                if fd.finit {
+                if fd.finit and not fd.finitvar {
                     cur = py_attr(args[0], fd.fname);
                     if is_error(cur) {
                         return cur;
@@ -752,6 +826,7 @@ def dc_parse_params(kwargs: dict[str, PyObj]) -> PyObj {
         unsafe_hash=dc_param_flag(kwargs, "unsafe_hash", False),
         frozen=dc_param_flag(kwargs, "frozen", False),
         kw_only=dc_param_flag(kwargs, "kw_only", False),
+        match_args=dc_param_flag(kwargs, "match_args", True),
     );
 }
 
@@ -848,18 +923,21 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
             if dc_is_classvar(annot) {
                 continue;
             }
-            if dc_is_initvar(annot) {
-                # InitVar pseudo-field support is a tracked gap: excluded from
-                # fields entirely rather than half-implemented.
-                continue;
-            }
+            is_initvar = dc_is_initvar(annot);
             new_default: PyObj = DC_MISSING;
             new_factory: PyObj = py_none();
             new_has_factory = False;
             finit = True;
             frepr = True;
             fcompare = True;
-            fkw_only = False;
+            # Default resolution for kw_only is the decorator's class-level
+            # param (CPython _get_field leaves it missing and _process_class
+            # fills from the class param); an explicit field(kw_only=...)
+            # carried on a DCField attribute overrides below.
+            fkw_only = params.kw_only;
+            new_fhash = False;
+            new_has_hash = False;
+            new_fmetadata: any = None;
             if name in cls.attrs {
                 existing = cls.attrs[name];
                 if isinstance(existing, DCField) {
@@ -874,11 +952,18 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                     }
                     new_has_factory = old.has_factory;
                     new_factory = old.ffactory;
+                    if old.has_hash {
+                        new_fhash = old.fhash;
+                        new_has_hash = True;
+                    }
+                    new_fmetadata = old.fmetadata;
                     if old.fdefault is not DC_MISSING {
                         new_default = old.fdefault;
                     }
                 } else {
                     new_default = existing;
+                    # Plain non-field default: class-param resolution already
+                    # held when fkw_only was initialized.
                 }
             }
             mutable = dc_mutable_type_name(new_default);
@@ -888,6 +973,10 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                     "mutable default " + mutable + " for field " + name
                         + " is not allowed: use default_factory",
                 );
+            }
+            resolved_fhash = new_fhash;
+            if not new_has_hash {
+                resolved_fhash = fcompare;
             }
             field_obj = DCField(
                 t="dc_field",
@@ -901,6 +990,11 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                 fcompare=fcompare,
                 fkw_only=fkw_only,
                 has_kw_only=True,
+                # CPython _get_field: hash missing -> follow compare.
+                fhash=resolved_fhash,
+                has_hash=new_has_hash,
+                fmetadata=new_fmetadata,
+                finitvar=is_initvar,
             );
             if name in index {
                 merged[index[name]] = field_obj;
@@ -942,7 +1036,39 @@ def dc_build_init(spec: DCSpec, ns: dict[str, PyObj]) -> PyObj {
     body = "";
     star_done = False;
     i = 0;
+    post_args = "";
+    j = 1000;
     for f in spec.fields {
+        if f.finitvar {
+            # InitVar pseudo-field: signature param at its declaration
+            # position (CPython preserves source order), never assigned to
+            # the instance, forwarded verbatim to __post_init__.
+            if f.fkw_only and not star_done {
+                sig_parts.append("*");
+                star_done = True;
+            }
+            tok = f.fname;
+            if f.has_factory or f.fdefault is not DC_MISSING {
+                tok += "=_DC_MISSING";
+                body += "    if " + f.fname + " is _DC_MISSING:\n";
+                if f.has_factory {
+                    helper = "_dc_f" + str(j);
+                    ns[helper] = f.ffactory;
+                    body += "        " + f.fname + " = " + helper + "()\n";
+                } else {
+                    helper = "_dc_d" + str(j);
+                    ns[helper] = f.fdefault;
+                    body += "        " + f.fname + " = " + helper + "\n";
+                }
+            }
+            sig_parts.append(tok);
+            if post_args != "" {
+                post_args += ", ";
+            }
+            post_args += f.fname;
+            j += 1;
+            continue;
+        }
         if not f.finit {
             # init=False fields never appear in the signature but ARE assigned
             # unconditionally by the body (default value or factory call).
@@ -987,11 +1113,17 @@ def dc_build_init(spec: DCSpec, ns: dict[str, PyObj]) -> PyObj {
     }
     src = "def __init__(self";
     sig = dc_join(sig_parts, ", ");
-    _LAST_INIT_SRC = PyStr(t="str", val=src + "\n" + body);
+    DC_DEBUG_LAST_SRC = PyStr(t="str", val=src + "\n" + body);
     if sig != "" {
         src += ", " + sig;
     }
     src += "):\n";
+    if spec.has_post_init {
+        # CPython _init_fn: the generated __init__ ends with the __post_init__
+        # call, receiving the InitVar values in field order.
+        call = "self.__post_init__(" + post_args + ")";
+        body += "    " + call + "\n";
+    }
     if body == "" {
         body = "    pass\n";
     }
@@ -1027,8 +1159,9 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
     for item in (collected as PyList).items {
         fields_list.append(item as DCField);
     }
-    # CPython _process_class ordering check over POSITIONAL init params only:
-    # kw_only fields are exempt; defaults and factories both count as defaults.
+    # CPython _process_class ordering check over POSITIONAL init params
+    # INCLUDING InitVar pseudo-fields (all_init_fields); kw_only fields are
+    # exempt; defaults and factories both count as defaults.
     seen_default_name = "";
     for f in fields_list {
         if not f.finit or f.fkw_only {
@@ -1046,7 +1179,11 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
             );
         }
     }
-    spec = DCSpec(t="dc_spec", cls=cls, fields=fields_list, params=params);
+    resolved_post = class_lookup_attr(cls, "__post_init__");
+    spec = DCSpec(
+        t="dc_spec", cls=cls, fields=fields_list, params=params,
+        has_post_init=not is_error(resolved_post),
+    );
     ns: dict[str, PyObj] = {
         "_DC_MISSING": DC_MISSING,
         "_DC_SPEC": spec,
@@ -1060,6 +1197,17 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
             return made;
         }
         cls.attrs["__init__"] = made;
+    }
+    if params.match_args {
+        # CPython _process_class: __match_args__ lists the fields callable can
+        # pass positionally -- init=True, not kw_only.
+        ma: list[PyObj] = [];
+        for f in fields_list {
+            if f.finit and not f.fkw_only and not f.finitvar {
+                ma.append(PyStr(t="str", val=f.fname));
+            }
+        }
+        cls.attrs["__match_args__"] = PyTuple(t="tuple", items=ma);
     }
     if params.frepr {
         ns["_dc_repr_op"] = DC_REPR_OP;
