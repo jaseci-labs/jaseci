@@ -291,10 +291,15 @@ test "the teardown severs every link the profile calls cyclic" {
     body = txt[txt.index("def _mat_drop_tree("):];
     body = body[:body.index("\n}")];
     assert "_pin_loc = nd.loc;" in body;
+    # One shared empty list, not a fresh one per node: the walk touches every
+    # node in the tree, so allocating two throwaway lists apiece would cost more
+    # allocations than the parse makes, and any node outliving the walk strands
+    # both of them.
+    assert "_pin_empty: list[UniNode] = [];" in body;
     for line in [
         "cur.parent = None;",
-        "cur.kid = [];",
-        "cur._in_mod_nodes = [];",
+        "cur.kid = _pin_empty;",
+        "cur._in_mod_nodes = _pin_empty;",
         "cur.loc = _pin_loc;"
     ] {
         assert line in body , (f"teardown must emit `{line}`");

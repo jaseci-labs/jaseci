@@ -528,12 +528,78 @@ obj _MatGen {
     }
 }
 
-"""Stack pushes for every field of `sn` that can hold a node.
+"""Stack pushes reaching every node named by `expr`, of declared type `ann`.
 
-The child list is not the only way a node reaches its children -- a class also
-names them in typed fields, and some nodes (a module's terminals, for one) are
-reachable *only* that way. A teardown that follows the child list alone leaves
-those untouched, so their cycles survive and everything under them stays alive.
+A `postinit` slot reads as None until it is assigned and an optional stays None,
+so every access is guarded rather than inferred from the union arms.
+
+Nodes also hide behind classes that are not nodes themselves: a symbol names the
+identifiers that define and use it, a location record names the tokens bounding
+it. Those are followed one level in, which is as deep as the tree puts them and
+avoids having to reason about recursion between record types.
+"""
+def _pushes_for(g: _MatGen, ann: str, expr: str, ind: str, nest: bool) -> list[str] {
+    arms = [
+        a
+        for a in _split_union(_norm(ann))
+        if a != "None"
+    ];
+    if len(arms) != 1 {
+        return [];
+    }
+    ab = _base_of(arms[0]);
+    if ab == "list" {
+        ib = _base_of(_norm(_inner(arms[0])));
+        if ib in g.ns and g.is_chain(ib) {
+            return [
+                ind
+                    + f"if {expr} is not None {{ for _k in {expr} "
+                    + "{ stack.append(_k); } }"
+            ];
+        }
+        if nest and ib in g.ns {
+            _b = _nested_pushes(g, ib, "_c", ind + "    ");
+            if _b {
+                return [ind + f"if {expr} is not None {{ for _c in {expr} {{"]
+                    + _b
+                    + [ind + "} }"];
+            }
+        }
+        return [];
+    }
+    if ab not in g.ns {
+        return [];
+    }
+    if g.is_chain(ab) {
+        return [ind + f"if {expr} is not None {{ stack.append({expr}); }}"];
+    }
+    if nest {
+        _b = _nested_pushes(g, ab, expr, ind + "    ");
+        if _b {
+            return [ind + f"if {expr} is not None {{"] + _b + [ind + "}"];
+        }
+    }
+    return [];
+}
+
+"""Node pushes for the fields of a non-node record reached through `expr`."""
+def _nested_pushes(g: _MatGen, cname: str, expr: str, ind: str) -> list[str] {
+    out: list[str] = [];
+    for (lf, _dk, ann) in g.class_fields(cname) {
+        if ann is None or g.foreign.get((cname, lf, )) {
+            continue;
+        }
+        out.extend(_pushes_for(g, ann, f"{expr}.{lf}", ind, False));
+    }
+    return out;
+}
+
+"""Stack pushes for every field of `sn` that can lead to a node.
+
+The child list is not the only path to a child. A class names its children twice
+-- once in the list, once in typed fields -- and some are named only in the typed
+half, so a walk that follows the child list alone never reaches them and their
+cycles survive.
 """
 def _node_child_pushes(g: _MatGen, sn: str, ind: str) -> list[str] {
     out: list[str] = [];
@@ -541,29 +607,7 @@ def _node_child_pushes(g: _MatGen, sn: str, ind: str) -> list[str] {
         if ann is None or g.foreign.get((sn, lf, )) {
             continue;
         }
-        arms = [
-            a
-            for a in _split_union(_norm(ann))
-            if a != "None"
-        ];
-        if len(arms) != 1 {
-            continue;
-        }
-        ab = _base_of(arms[0]);
-        if ab in g.ns and g.is_chain(ab) {
-            out.append(ind + f"if nd.{lf} is not None {{ stack.append(nd.{lf}); }}");
-        } elif ab == "list" {
-            ib = _base_of(_norm(_inner(arms[0])));
-            if ib in g.ns and g.is_chain(ib) {
-                # `postinit` slots read as None until they are assigned, and an
-                # optional list stays None, so never iterate one unguarded.
-                out.append(
-                    ind
-                        + f"if nd.{lf} is not None {{ for _k in nd.{lf} "
-                        + "{ stack.append(_k); } }"
-                );
-            }
-        }
+        out.extend(_pushes_for(g, ann, f"nd.{lf}", ind, True));
     }
     return out;
 }
@@ -1116,11 +1160,14 @@ def generate(
     header = header.replace("@CHAIN_KID@", prof.chain_kid_field);
     header = header.replace(
         "@CHAIN_PINS@",
-        nl.join([f"    _pin_{_f} = nd.{_f};" for _f in prof.chain_shared_fields])
+        nl.join(
+            [f"    _pin_empty: list[{prof.chain_base_class}] = [];"]
+                + [f"    _pin_{_f} = nd.{_f};" for _f in prof.chain_shared_fields]
+        )
     );
     _clear_lines = [f"        cur.{_f} = None;" for _f in prof.chain_back_fields]
         + [
-            f"        cur.{_f} = [];"
+            f"        cur.{_f} = _pin_empty;"
             for _f in ([prof.chain_kid_field] + prof.chain_aux_node_fields)
         ]
         + [f"        cur.{_f} = _pin_{_f};" for _f in prof.chain_shared_fields];
