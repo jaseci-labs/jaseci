@@ -32,6 +32,7 @@ import from jaclang.runtimelib.server { JsonValue }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
 import from jaclang.scale.shared.utils { _extract_path_param_names }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }
 import from jaclang.scale.observability.metrics { MetricsCollector }
 import from jaclang.scale.events.broker { EventStreamBroker }
@@ -119,6 +120,63 @@ def _get_network_ips -> list[str];
 
 def _resolve_sso_client_redirect(requested: str | None, configured: str) -> str;
 
+"""State and part surface shared by every JacAPIServer part.
+
+JacAPIServer is assembled from parts that each register one family of
+endpoints, with JacAPIServerCore driving the assembly. Every part reaches the
+server's shared state, and Core calls the other parts' register_* methods, so
+both belong here rather than on the composed class, where no part can see
+them. The register_* declarations are abstract: a part supplies its own, and
+composing them is what makes JacAPIServer concrete.
+"""
+obj JacAPIServerParts(JServer) {
+    # Narrowed from JServer's CoreUserManager: the scale server always builds
+    # a JacScaleUserManager (see JacAPIServerCore._make_user_manager), and the
+    # auth parts reach the identity/SSO methods only it declares.
+    has user_manager: JacScaleUserManager postinit,
+        _hmr_pending: bool = False,
+        _hot_reloader: any | None = None,
+        _api_key_manager: ApiKeyManager | None = None,
+        _metrics: MetricsCollector | None = None,
+        _ws_manager: WebSocketConnectionManager | None = None,
+        _broker: EventStreamBroker | None = None,
+        _emailer: Emailer | None = None;
+
+    def postinit -> None;
+
+    def register_admin_endpoints -> None abst;
+    def register_auth_endpoints -> None abst;
+    def register_client_js_endpoint -> None abst;
+    def register_deploy_health_endpoints -> None abst;
+    def register_functions_endpoints -> None abst;
+    def register_graph_endpoint -> None abst;
+    def register_llm_telemetry_endpoints -> None abst;
+    def register_logs_endpoints -> None abst;
+    def register_network_endpoints -> None abst;
+    def register_ops_endpoints -> None abst;
+    def register_page_endpoint -> None abst;
+    def register_podenv_endpoints -> None abst;
+    def register_root_asset_endpoint -> None abst;
+    def register_scheduler_endpoints -> None abst;
+    def register_static_file_endpoint -> None abst;
+    def register_traces_endpoints -> None abst;
+    def register_walkers_endpoints -> None abst;
+    def register_webhook_endpoints -> None abst;
+    def register_websocket_endpoints -> None abst;
+    def register_workloads_endpoints -> None abst;
+
+    def get_api_key_manager -> ApiKeyManager abst;
+    def get_emailer -> Emailer | None abst;
+    def setup_emailer -> Emailer | None abst;
+    def validate_admin_token(Authorization: str | None) -> (str | None) abst;
+}
+
+
+# NOT a JacAPIServerParts: MicroserviceGateway (scale/runtime/gateway) mixes
+# this part into its own, non-JacAPIServer host, so giving it the JServer base
+# would impose JServer's constructor and postinit on the gateway. The parts are
+# genuinely generic over their host; typing that needs a self-type the checker
+# does not yet offer, so this one keeps its untyped `self` for now.
 obj JacAPIServerAuth {
     def register_auth_endpoints -> None;
     def register_register_endpoint -> None;
@@ -151,14 +209,14 @@ obj JacAPIServerAuth {
     def register_api_key_endpoints -> None;
 }
 
-obj JacAPIServerEmailer {
+obj JacAPIServerEmailer(JacAPIServerParts) {
     def setup_emailer -> Emailer | None;
     def get_emailer -> Emailer | None;
 }
 
-obj JacAPIServerCore {
+obj JacAPIServerCore(JacAPIServerParts) {
     def postinit -> None;
-    def _make_user_manager -> CoreUserManager;
+    def _make_user_manager -> JacScaleUserManager;
     def start(
         dev: bool = False,
         no_client: bool = False,
@@ -180,7 +238,7 @@ obj JacAPIServerCore {
     ) -> Callable[..., any];
 }
 
-obj JacAPIServerEndpoints {
+obj JacAPIServerEndpoints(JacAPIServerParts) {
     def register_walkers_endpoints -> None;
     def create_walker_callback(
         walker_name: str, has_node_param: bool = False
@@ -218,7 +276,7 @@ obj JacAPIServerEndpoints {
     def register_websocket_endpoints -> None;
 }
 
-obj JacAPIServerScheduler {
+obj JacAPIServerScheduler(JacAPIServerParts) {
     def register_scheduler_endpoints -> None;
     def create_job_callback -> Callable[..., TransportResponse];
     def list_jobs_callback -> Callable[..., TransportResponse];
@@ -227,7 +285,7 @@ obj JacAPIServerScheduler {
     def delete_job_callback -> Callable[..., TransportResponse];
 }
 
-obj JacAPIServerStatic {
+obj JacAPIServerStatic(JacAPIServerParts) {
     def serve_static_file(file_path: str) -> Response;
     def register_static_file_endpoint -> None;
     def serve_client_js_callback -> Callable[..., Response];
@@ -243,11 +301,4 @@ obj JacAPIServerStatic {
 }
 
 obj JacAPIServer(JacAPIServerCore, JacAPIServerAuth, JacAPIServerEndpoints, JacAPIServerStatic, JacAPIServerAdmin, JacAPIServerLLMTelemetry, JacAPIServerWorkloads, JacAPIServerLogs, JacAPIServerTraces, JacAPIServerOps, JacAPIServerDeployHealth, JacAPIServerNetwork, JacAPIServerPodEnv, JacAPIServerScheduler, JacAPIServerEmailer, JServer) {
-    has _hmr_pending: bool = False,
-        _hot_reloader: any | None = None,
-        _api_key_manager: ApiKeyManager | None = None,
-        _metrics: MetricsCollector | None = None,
-        _ws_manager: WebSocketConnectionManager | None = None,
-        _broker: EventStreamBroker | None = None,
-        _emailer: Emailer | None = None;
 }
