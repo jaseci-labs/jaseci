@@ -168,7 +168,7 @@ def write_service(tmp: str, name: str, source: str) -> str {
     return path;
 }
 
-def write_sv_project(tmp: str, module_name: str, source: str) -> None {
+def write_sv_project(tmp: str, module_name: str, source: str) {
     import os;
     with open(os.path.join(tmp, f'{module_name}.jac'), 'w') as f {
         f.write(source);
@@ -261,7 +261,7 @@ def post_json(port: int, path: str, body: str) -> tuple[(bool, dict)] {
     return (True, json.loads(call.stdout or '{}'));
 }
 
-def stop_process(proc: any) -> None {
+def stop_process(proc: any) {
     import subprocess;
     proc.terminate();
     try {
@@ -270,6 +270,7 @@ def stop_process(proc: any) -> None {
         proc.kill();
     }
 }
+
 # The native pass fixtures directory: the default corpus for `compile_native`.
 glob NATIVE_FIXTURES: str = str(
          Path(__file__).resolve().parent / "compiler" / "passes" / "native" / "fixtures"

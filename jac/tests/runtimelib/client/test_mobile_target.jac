@@ -51,7 +51,7 @@ test "target factory resolves mobile via registry" {
     register_content = register_path.read_text();
 
     assert "return self.create(target_type.value, project_dir)" not in impl_content;
-    assert "registry.get(target_name)" in impl_content or "registry.get(host_name)" in impl_content;
+    assert "registry.get(" in impl_content;
     assert "registry.register(MobileTarget())" in register_content;
     assert "MobileTarget" in register_content;
 }

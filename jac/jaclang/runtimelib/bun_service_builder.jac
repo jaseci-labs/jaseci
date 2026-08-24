@@ -155,7 +155,26 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
     server_entry = out_dir / 'server.mjs';
     bun_bin = shutil.which('bun');
     if bun_bin {
+        rt_path = out_dir / 'server_runtime.js';
+        rt_original: (str | None) = None;
         try {
+            # EsastGenPass drops the raw-JS import of ./bun_store.js, leaving
+            # its functions as bare global references. The string bundler
+            # flattens every chunk into one scope so that works there, but
+            # Bun.build compiles real modules -- restore the import edge for
+            # the bundle and put the original back if we fall back.
+            rt_text = rt_path.read_text(encoding='utf-8');
+            if '__jacInitBunStore' in rt_text
+                and 'from "./bun_store.js"' not in rt_text {
+                rt_original = rt_text;
+                rt_path.write_text(
+                    'import { __jacCommitGraph, __jacEnsureRoot, __jacInitBunStore, '
+                        + '__jacInstallOspPersistHooks, __jacServerSpawnWalker } '
+                        + 'from "./bun_store.js";\n'
+                        + rt_text,
+                    encoding='utf-8'
+                );
+            }
             result = subprocess.run(
                 [
                     bun_bin,
@@ -184,12 +203,18 @@ def _bundle_bun_artifact(out_dir: Path, module_name: str, artifact: Path) -> Non
                     return;
                 }
             }
+            if rt_original is not None {
+                rt_path.write_text(rt_original, encoding='utf-8');
+            }
             console.print(
                 f"  Bun.build failed for '{module_name}'; using string bundler"
                     + (f": {result.stderr.strip()}" if result.stderr.strip() else ''),
                 style='warning'
             );
         } except Exception as e {
+            if rt_original is not None {
+                rt_path.write_text(rt_original, encoding='utf-8');
+            }
             console.print(f'  Bun.build unavailable ({e}); using string bundler');
         }
     }
@@ -298,7 +323,9 @@ def _dep_export_names(dep_js: str) -> list[str] {
     names: list[str] = [];
     seen: set[str] = set();
     for m in re.finditer(
-        r'^(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)', dep_js, re.MULTILINE
+        r'^(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)',
+        dep_js,
+        re.MULTILINE
     ) {
         name = m.group(1);
         if (name not in seen and not name.startswith('_') and name not in exported) {

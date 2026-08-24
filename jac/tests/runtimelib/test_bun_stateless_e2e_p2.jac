@@ -22,9 +22,7 @@ import from tests.support {
 
 
 glob _STATELESS_SVC: str = (
-         'def:pub greet(name: str) -> str {\n'
-         '    return f"hello {name}";\n'
-         '}\n'
+         'def:pub greet(name: str) -> str {\n' '    return f"hello {name}";\n' '}\n'
      );
 
 

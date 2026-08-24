@@ -64,7 +64,6 @@ test "pub walker serves over HTTP and persists through BunStore" {
         }
         write_sv_project(tmp, 'walksvc', _WALKER_SVC);
         artifact = build_bun_service_artifact('walksvc', tmp);
-
         # The bundle must retain the osp descriptor wiring: without it the
         # walker route can only answer 500 ("No walker runtime available").
         bundle = Path(artifact).read_text(encoding='utf-8');
@@ -73,7 +72,6 @@ test "pub walker serves over HTTP and persists through BunStore" {
             + "bundling; POST /walker/<name> would 500"
         );
         assert '__jacOspRT' in bundle , "artifact lost __jacOspRT";
-
         proc = spawn_bun_artifact(str(artifact), tmp, 9878, info);
         store = None;
         try {

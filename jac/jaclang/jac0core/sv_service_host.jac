@@ -8,8 +8,12 @@ import from jaclang.jac0core.host {
 }
 
 glob _DEFAULT_SV_HOST: str = HOST_CPYTHON,
-     _BUN_ARTIFACT_EXCLUDED_DIRS: tuple = ('.jac', '.git', 'node_modules',
-                                           '__pycache__');
+     _BUN_ARTIFACT_EXCLUDED_DIRS: tuple = (
+         '.jac',
+         '.git',
+         'node_modules',
+         '__pycache__'
+     );
 
 
 def sv_host_env_key(module_name: str) -> str {
@@ -32,9 +36,7 @@ def _resolve_sv_host_override(raw: str) -> (str | None) {
         if alt is not None {
             return alt;
         }
-        valid = ', '.join(
-            sorted(set(list(SV_SERVICE_HOST_KINDS) + list(names)))
-        );
+        valid = ', '.join(sorted(set(list(SV_SERVICE_HOST_KINDS) + list(names))));
         raise ValueError(f"Unknown sv host '{raw}'; valid hosts: {valid}");
     } except ImportError {
         # Registry unavailable: cannot validate extended names.
@@ -101,17 +103,17 @@ def bun_artifact_stamp_path(module_name: str, base_path: str = '.') -> Path {
 
 
 def bun_service_input_paths(base_path: str) -> list[Path] {
-    root = Path(base_path);
+    base = Path(base_path);
     paths: list[Path] = [];
-    toml = root / 'jac.toml';
+    toml = base / 'jac.toml';
     if toml.is_file() {
         paths.append(toml);
     }
-    if not root.is_dir() {
+    if not base.is_dir() {
         return paths;
     }
-    for p in sorted(root.rglob('*.jac')) {
-        rel = p.relative_to(root);
+    for p in sorted(base.rglob('*.jac')) {
+        rel = p.relative_to(base);
         if rel.parts and rel.parts[0] in _BUN_ARTIFACT_EXCLUDED_DIRS {
             continue;
         }
@@ -124,8 +126,8 @@ def bun_service_input_paths(base_path: str) -> list[Path] {
 def bun_service_inputs_digest(module_name: str, base_path: str = '.') -> str {
     import hashlib;
     h = hashlib.sha256();
-    entry = Path(base_path) / f"{module_name}.jac";
-    h.update(str(entry).encode('utf-8'));
+    entry_path = Path(base_path) / f"{module_name}.jac";
+    h.update(str(entry_path).encode('utf-8'));
     h.update(b'\x00');
     for p in bun_service_input_paths(base_path) {
         h.update(str(p).encode('utf-8'));

@@ -608,10 +608,6 @@ def scan_native_blockers(
             }
         }
     }
-    cap_blocker = _module_native_capability_blocker(module);
-    if cap_blocker {
-        return (cap_blocker, deps);
-    }
     for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
         if svr.orig.name == Tok.KW_ROOT {
             return ("root access (persistent graph)", deps);
@@ -635,6 +631,10 @@ def scan_native_blockers(
                 }
             }
         }
+    }
+    cap_blocker = _module_native_capability_blocker(module);
+    if cap_blocker {
+        return (cap_blocker, deps);
     }
     scan_mod_path = module.loc.mod_path or '';
     for stmt in module.body {

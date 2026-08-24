@@ -4,7 +4,6 @@ obj EndpointMeta {
         `pub: bool = False,
         params: list[str] = [];
 
-
     def postinit -> None {
         if not self.name {
             raise ValueError('EndpointMeta requires a name');
@@ -39,7 +38,13 @@ def build_bun_server_entry_script(
 
     lines: list[str] = [
         f'// Auto-generated Bun server entry for {project_name!r}',
-        'import { execWalker, startBunServer } from "./server_runtime.js";'
+        'import { execWalker, startBunServer } from "./server_runtime.js";',
+        # Generated code references the `_jac` runtime as a global; under the
+        # string bundler a preamble defines it inline, but Bun.build resolves
+        # real ESM imports, so materialize it as a module and install it on
+        # globalThis before any handler runs.
+        'import { _jac } from "./jac_runtime.js";',
+        'globalThis._jac = _jac;'
     ];
     for imp in module_imports {
         lines.append(imp);
@@ -63,17 +68,17 @@ def build_bun_server_entry_script(
     for f in functions {
         lines.append(f'    {repr(f.name)}: _F_{f.name},');
     }
-    lines.extend(
-        [
-            '  },',
-            '  restspec: ['
-        ]
-    );
+    lines.extend(['  },', '  restspec: [']);
     rest_triples: list[str] = [];
     for f in functions {
         rest_triples.append(
-            '{ fn: _F_' + f.name + ', handler: _F_' + f.name
-                + ', name: ' + repr(f.name) + ' }'
+            '{ fn: _F_'
+                + f.name
+                + ', handler: _F_'
+                + f.name
+                + ', name: '
+                + repr(f.name)
+                + ' }'
         );
     }
     if rest_triples {

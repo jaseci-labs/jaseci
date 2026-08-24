@@ -67,9 +67,7 @@ test "react native host is DOM-free via capability table" {
 }
 
 test "target factory resolves react-native by canonical name" {
-    import from jaclang.runtimelib.client.targets.registry {
-        get_host_factory
-    }
+    import from jaclang.runtimelib.client.targets.registry { get_host_factory }
     import from jaclang.jac0core.host { HOST_RN, host_kind_for_target }
 
     assert host_kind_for_target("react-native") == HOST_RN;

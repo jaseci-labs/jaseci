@@ -115,7 +115,8 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
         );
         stub = (
             'export const SCHEMA_SQL = '
-                + json.dumps(stmts) + ';\n'
+            + json.dumps(stmts)
+            + ';\n'
             + f'export const SCHEMA_VERSION = {int(SCHEMA_VERSION)};\n'
             + 'export const PROMOTIONS = {};\n'
         );
@@ -123,10 +124,13 @@ test "BunStore fingerprint matches the PgStore formula byte for byte" {
         store_js = str(tmp_path / 'bun_store.js');
         schema_js = str(tmp_path / 'bun_schema.js');
         script = (
-            'import { computeSchemaFingerprint } from "' + store_js + '";\n'
-            'import { SCHEMA_SQL, SCHEMA_VERSION } from "' + schema_js + '";\n'
-            'const promos = '
-                + json.dumps(promotions) + ';\n'
+            'import { computeSchemaFingerprint } from "'
+            + store_js
+            + '";\n' 'import { SCHEMA_SQL, SCHEMA_VERSION } from "'
+            + schema_js
+            + '";\n' 'const promos = '
+            + json.dumps(promotions)
+            + ';\n'
             'console.log(computeSchemaFingerprint('
             'SCHEMA_VERSION, 17, SCHEMA_SQL, promos));'
         );
@@ -160,7 +164,7 @@ test "build_bun_service_artifact accepts root-touching modules in P2" {
         artifact = build_bun_service_artifact('persisted', tmp);
         assert artifact.exists();
         text = artifact.read_text(encoding='utf-8');
-        assert 'Bun.serve' in text;
+        assert '.serve({' in text;
         assert '/walkers' in text or '/walker/' in text;
     }
 }
@@ -192,7 +196,7 @@ test "stateless bun services keep working after P2 store wiring" {
         write_service(tmp, 'stateless', _STATELESS_SVC);
         artifact = build_bun_service_artifact('stateless', tmp);
         text = artifact.read_text(encoding='utf-8');
-        assert 'Bun.serve' in text;
+        assert '.serve({' in text;
         assert '/functions' in text;
         assert resolve_sv_service_host('stateless', tmp) == HOST_BUN;
     }

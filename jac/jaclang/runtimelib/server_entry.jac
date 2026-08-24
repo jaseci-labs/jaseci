@@ -59,7 +59,25 @@ def emit_server_entry(
         console.error('  server: failed to lower server_runtime.jac');
         return 1;
     }
+    # EsastGenPass does not emit export statements; the entry script imports
+    # named symbols (execWalker, startBunServer) from this module, so expose
+    # every top-level binding -- same treatment the string bundler applies
+    # to cl-stdlib dependency artifacts.
+    import from jaclang.runtimelib.bun_service_builder { _dep_export_names }
+    runtime_exports = _dep_export_names(runtime_js);
+    if runtime_exports {
+        runtime_js += f"\nexport {{{', '.join(runtime_exports)}}};\n";
+    }
     (out_dir / 'server_runtime.js').write_text(runtime_js, encoding='utf-8');
+    # The `_jac` runtime bootstrap as its own module; the entry script
+    # imports it and installs it on globalThis (see bun_entry).
+    import from jaclang.compiler.passes.ecmascript.jac_runtime_js {
+        build_jac_runtime_js
+    }
+    (out_dir / 'jac_runtime.js').write_text(
+        f'const _jac = {build_jac_runtime_js()};\nexport {{ _jac }};\n',
+        encoding='utf-8'
+    );
     import jaclang.runtimelib as _rt_pkg;
     bun_store_src = Path(os.path.dirname(_rt_pkg.__file__)) / 'bun_store.js';
     if bun_store_src.exists() {

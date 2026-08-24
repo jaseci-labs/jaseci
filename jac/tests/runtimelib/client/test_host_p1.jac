@@ -48,9 +48,7 @@ test "resolve_sv_service_host selects bun when a fresh artifact exists" {
             "stamp-less artifact must not select the bun host (stale)"
         );
         stamp = bun_artifact_stamp_path('demo', tmp);
-        stamp.write_text(
-            bun_service_inputs_digest('demo', tmp), encoding='utf-8'
-        );
+        stamp.write_text(bun_service_inputs_digest('demo', tmp), encoding='utf-8');
         assert resolve_sv_service_host('demo', tmp) == HOST_BUN;
         assert is_bun_sv_service('demo', tmp);
     }
@@ -63,9 +61,7 @@ test "edited service source invalidates a previously fresh artifact" {
         artifact.parent.mkdir(parents=True, exist_ok=True);
         artifact.write_text('export default {};\n', encoding='utf-8');
         stamp = bun_artifact_stamp_path('demo', tmp);
-        stamp.write_text(
-            bun_service_inputs_digest('demo', tmp), encoding='utf-8'
-        );
+        stamp.write_text(bun_service_inputs_digest('demo', tmp), encoding='utf-8');
         assert resolve_sv_service_host('demo', tmp) == HOST_BUN;
         write_service(tmp, 'demo', 'def:pub ping() -> int {\n    return 7;\n}\n');
         assert resolve_sv_service_host('demo', tmp) == HOST_CPYTHON , (
@@ -80,7 +76,7 @@ test "build_bun_service_artifact emits Bun.serve entry with functions health rou
         artifact = build_bun_service_artifact('stateless', tmp);
         assert artifact.exists();
         text = artifact.read_text(encoding='utf-8');
-        assert 'Bun.serve' in text , "P1 entry must bootstrap with Bun.serve";
+        assert '.serve({' in text , "P1 entry must bootstrap with Bun.serve";
         assert '/functions' in text , "P1 runtime must expose the /functions health route";
     }
 }
@@ -91,7 +87,7 @@ test "build_bun_service_artifact accepts root-touching modules with BunStore (P2
         artifact = build_bun_service_artifact('rooty', tmp);
         assert artifact.exists();
         text = artifact.read_text(encoding='utf-8');
-        assert 'Bun.serve' in text;
+        assert '.serve({' in text;
     }
 }
 
