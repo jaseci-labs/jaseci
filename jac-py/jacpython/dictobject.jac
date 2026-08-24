@@ -28,7 +28,25 @@ def dict_richcompare(op: int, a: PyDict, b: PyDict, compare_fn: any) -> PyObj {
 }
 
 # CPython ``dict_repr_lock_held`` — insertion-order walk with strong refs.
+#
+# Cycle guard (Py_ReprEnter/Py_ReprLeave contract): a dict already mid-repr
+# prints as {...} when re-encountered, so self-referential dicts repr like
+# CPython instead of blowing the stack.
+glob dict_repr_active: list[PyDict] = [];
+
 def dict_repr(d: PyDict, repr_elem: any) -> PyObj {
+    for seen in dict_repr_active {
+        if seen is d {
+            return PyStr(t="str", val="{...}");
+        }
+    }
+    dict_repr_active.append(d);
+    res = _dict_repr_walk(d, repr_elem);
+    dict_repr_active.pop();
+    return res;
+}
+
+def _dict_repr_walk(d: PyDict, repr_elem: any) -> PyObj {
     if len(d.items) == 0 {
         return PyStr(t="str", val="{}");
     }

@@ -4547,6 +4547,13 @@ def py_str(value: PyObj) -> PyObj {
     if isinstance(value, PyMemberDescr) {
         return py_repr(value);
     }
+    # Containers have no tp_str in CPython: str == repr, answered in-VM so
+    # self-referential structures hit the repr cycle guards instead of
+    # recursing unbounded inside to_host conversion.
+    if isinstance(value, PyDict) or isinstance(value, PyList)
+        or isinstance(value, PyTuple) {
+        return py_repr(value);
+    }
     return host_convert(value, 1);
 }
 
