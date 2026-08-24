@@ -208,6 +208,9 @@ def _jac_host_source_marshal(source):
 def _jac_host_type_name(value):
     return type(value).__name__
 
+def _jac_host_id(value):
+    return id(value)
+
 def _jac_host_type(value):
     # type(value) for a host object -- the fallback for py_type_of when the
     # argument has no in-VM class (a proxied host value, or a native scalar whose
@@ -3464,6 +3467,14 @@ def host_result_ok(result: any) -> bool {
     return result[0] == True;
 }
 
+# Cycle guard for from_host container conversion (host marshal/pickle can
+# hand back SELF-REFERENTIAL structures, e.g. marshal.loads(b'[<R>]')). Keyed
+# on host id(); list/dict/set placeholders are registered BEFORE filling so
+# re-entry returns the same guest container (identity preserved); tuples are
+# immutable so a re-entrant reference degrades to a host proxy instead of
+# recursing forever.
+glob _from_host_memo: dict[int, PyObj] = {};
+
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -3524,17 +3535,31 @@ def from_host(raw: any) -> PyObj {
         );
     }
     if isinstance(raw, list) {
-        list_values: list[PyObj] = [];
-        for item in raw {
-            list_values.append(from_host(item));
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            return _from_host_memo[memo_key];
         }
-        return PyList(t="list", items=list_values);
+        placeholder = PyList(t="list", items=[]);
+        _from_host_memo[memo_key] = placeholder;
+        for item in raw {
+            (placeholder as PyList).items.append(from_host(item));
+        }
+        _from_host_memo.pop(memo_key);
+        return placeholder;
     }
     if isinstance(raw, tuple) {
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            # Immutable: a cycle through this tuple cannot be patched up
+            # post-construction; degrade the re-entrant reference to a proxy.
+            return PyHostProxy(t="host", val=raw);
+        }
+        _from_host_memo[memo_key] = PyNoneType(t="none");
         tuple_values: list[PyObj] = [];
         for item in raw {
             tuple_values.append(from_host(item));
         }
+        _from_host_memo.pop(memo_key);
         return PyTuple(t="tuple", items=tuple_values);
     }
     if isinstance(raw, dict) {
@@ -3542,14 +3567,21 @@ def from_host(raw: any) -> PyObj {
         # (int, tuple, float, ...) lands natively. A key whose from_host wrapper
         # is unhashable (e.g. an opaque host object) keeps the whole dict opaque
         # as a PyHostProxy -- it round-trips through to_host unchanged.
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            return _from_host_memo[memo_key];
+        }
         native = PyDict(t="dict", items={});
+        _from_host_memo[memo_key] = native;
         for key in raw {
             keyobj = from_host(key);
             if is_error(keyobj.tp_hashkey()) {
+                _from_host_memo.pop(memo_key);
                 return PyHostProxy(t="host", val=raw);
             }
             native.dict_set(keyobj, from_host(raw[key]));
         }
+        _from_host_memo.pop(memo_key);
         return native;
     }
     if isinstance(raw, frozenset) {
