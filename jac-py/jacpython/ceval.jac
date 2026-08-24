@@ -194,6 +194,17 @@ def _jac_host_code_marshal(co):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_source_marshal(source):
+    # exec(str)/exec(bytes) source compiled on the host into the transport
+    # form (native statement-mode compile is Phase C). Errors -- SyntaxError
+    # above all -- come back through the tuple protocol so the guest raises a
+    # CATCHABLE exception, matching CPython's exec('for = 1') contract.
+    import marshal
+    try:
+        return (True, marshal.dumps(compile(source, "<string>", "exec")))
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_type_name(value):
     return type(value).__name__
 
@@ -1118,7 +1129,7 @@ def _jac_make_guest_async_generator(agen_obj):
 
 
 
-import from marshal_reader { unmarshal, }
+import from marshal_reader { unmarshal, bytes_to_str }
 
 # Bootstrap transport duplicate (pyc_first.jac keeps the canonical copy for re-export).
 def host_compile_marshal(source: str) -> list[int] {
@@ -14784,6 +14795,27 @@ def builtin_exec(
             "TypeError",
             "exec expected at least 1 argument, got " + str(len(args))
         );
+    }
+    # str/bytes source: compile through the same marshal transport the import
+    # machinery uses (native statement-mode compile is Phase C) and normalize
+    # to a PyCode before dispatch. A host SyntaxError surfaces as a catchable
+    # guest exception, matching CPython's exec('for = 1') -> SyntaxError.
+    if isinstance(args[0], PyStr) or isinstance(args[0], PyBytes) {
+        src = "";
+        if isinstance(args[0], PyStr) {
+            src = (args[0] as PyStr).val;
+        } else {
+            src = bytes_to_str((args[0] as PyBytes).val);
+        }
+        packed_src = _jac_host_source_marshal(src);
+        if not host_result_ok(packed_src) {
+            return host_result_error(packed_src);
+        }
+        converted_src = unmarshal(packed_src[1] as list[int]);
+        if not isinstance(converted_src, PyCode) {
+            return py_error("TypeError", "exec() argument 1 must be a code object");
+        }
+        args[0] = converted_src;
     }
     co: PyCode;
     match args[0] {
