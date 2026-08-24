@@ -170,12 +170,12 @@
     {
       "stem": "htmlparser",
       "gate_type": "oracle",
-      "status": "partial",
+      "status": "converted",
       "oracle_tests": [
         "/var/tmp/wp4-mech/out/conv_htmlparser/conv_htmlparser_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "0/0 output-oracle pins pass on jacpython.",
+      "notes": "50/50 output-oracle pins pass on jacpython @ tip (diff_runner); requires fixture-vocab lifting + fake-shim removal + type-dunder fix, all landed.",
       "jacpython_results": {
         "htmlparser": {
           "passed": 0,
