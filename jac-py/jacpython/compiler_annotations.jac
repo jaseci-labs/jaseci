@@ -395,13 +395,18 @@ def ann_collect_stmt(plan: ann_scope_plan, s: stmt, cond_depth: int) {
         return;
     }
     if isinstance(s, Try) {
+        # Finally-only Try arrives with handlers=None from the generated
+        # parser (host CPython AST would carry []); treat it as no handlers,
+        # same tolerance as the visit_try dispatch in compiler_exc.jac.
         t = s as Try;
         ann_collect_stmts(plan, t.body, cond_depth + 1);
-        hi = 0;
-        while hi < len(t.handlers) {
-            h = t.handlers[hi] as ExceptHandler;
-            ann_collect_stmts(plan, h.body, cond_depth + 1);
-            hi = hi + 1;
+        if t.handlers is not None {
+            hi = 0;
+            while hi < len(t.handlers) {
+                h = t.handlers[hi] as ExceptHandler;
+                ann_collect_stmts(plan, h.body, cond_depth + 1);
+                hi = hi + 1;
+            }
         }
         ann_collect_stmts(plan, t.orelse, cond_depth + 1);
         ann_collect_stmts(plan, t.finalbody, cond_depth + 1);
