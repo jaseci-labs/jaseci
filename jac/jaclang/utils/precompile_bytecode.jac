@@ -1021,6 +1021,7 @@ glob _PARITY_CANARY_LINES: tuple[str, ...] = (
          "    else { try { raise ValueError('v'); } except ValueError as e { } }",
          "    return self.x if self.x else -1;",
          "}",
+         "sem Hue.RED = \"the warm end of the corpus\";",
          "enum Mood;",
          "impl Mood {",
          "    UP = 1,",
@@ -1325,6 +1326,9 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
     import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
     import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+    import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+        JsxIntrinsicGuardPass
+    }
 
     nl = chr(10);
     sys.stderr.write(f"    canary: prefix parity in {os.path.basename(lib_path)}\n");
@@ -1363,9 +1367,11 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.prefix_drive {
         PREFIX_NATIVE_FRONTIER as _pfx_frontier
     }
+    import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
+    _pfx_claim = len(_pfx_pin);
     for (canary_src, canary_path, min_rows) in corpora {
         try {
-            r = np.parse_and_run_prefix(canary_src, canary_path, 6, "", 0, 0);
+            r = np.parse_and_run_prefix(canary_src, canary_path, _pfx_claim, "", 0, 0);
         } except Exception as run_exc {
             if env_na_debug() {
                 traceback.print_exc(file=sys.stderr);
@@ -1429,6 +1435,7 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
             SemanticAnalysisPass,
             SemDefMatchPass,
             CFGBuildPass,
+            JsxIntrinsicGuardPass,
 
         );
         for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
@@ -1764,9 +1771,15 @@ def _sym_table_fingerprint(mod: any) -> list[str] {
             reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
             kids = len(nd.kid_scope or []);
             has_parent = "y" if nd.parent_scope is not None else "n";
+            sems = ",".join(
+                f"{nm}={sym.semstr}"
+                for (nm, sym) in sorted((nd.names_in_scope or {}).items())
+                if sym.semstr
+            );
             out.append(
                 f"scope {type(nd).__name__}:{nd.scope_name} names=[{names}] "
-                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent}"
+                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent} "
+                f"sems=[{sems}]"
             );
         }
         if isinstance(nd, uni.NameAtom) {

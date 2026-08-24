@@ -337,7 +337,7 @@ obj TypeEvaluator {
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
         prefetch: PrefetchedTypes postinit,
-        _pass: Transform | None = None,
+        _pass_ref: object | None = None,
         builtins_module: Module | None = None,
         _flow_node_type_cache: dict[tuple[int, int], TypeBase | None] = {},
         _flow_key_type_cache: dict[tuple[int, str], TypeBase | None] = {},
@@ -362,6 +362,8 @@ obj TypeEvaluator {
         dom_types_module: Module postinit,
         na_builtins_module: Module postinit,
         js_globals_module: Module postinit;
+
+    has _pass: (Transform | None) { getter; setter(_pass: (Transform | None)); }
 
     def postinit -> None;
     def _read_dunder_all(path: str) -> (set[str] | None);

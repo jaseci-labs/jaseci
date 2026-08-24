@@ -1,3 +1,17 @@
+impl TypeEvaluator._pass.getter -> (Transform | None) {
+    ref = self._pass_ref;
+    if ref is None {
+        return None;
+    }
+    held = ref();
+    return held if isinstance(held, Transform) else None;
+}
+
+impl TypeEvaluator._pass.setter(_pass: (Transform | None)) {
+    import weakref;
+    self._pass_ref = weakref.ref(_pass) if _pass is not None else None;
+}
+
 impl TypeEvaluator._walk_compr_clauses(comprs: list[InnerCompr]) -> None {
     for compr in comprs {
         self.get_type_of_expression(compr.collection);
