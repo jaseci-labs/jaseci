@@ -7281,22 +7281,49 @@ obj PyNativeNew(PyObj) {
     }
 }
 
-# super().<dunder>(...) inside a builtin-subclass method (dict/list/... subclass)
-# resolves to the boxed base's own slot -- e.g. _EnumDict(dict).__setitem__ calling
-# super().__setitem__(k, v) mutates the underlying dict. Bound to the instance's
-# boxed value at lookup time, so the call site applies only the operands.
+# super().<name> delegation when no python ancestor defines <name>: inside a
+# builtin-subclass method (dict/list/... subclass) the boxed base's own slots
+# answer -- e.g. _EnumDict(dict).__setitem__ calling super().__setitem__(k, v)
+# mutates the underlying dict -- and a BASE-LESS class falls through to the
+# object surface (object.__repr__/__str__/__init__). Bound to the instance at
+# lookup time, so the call site applies only the operands.
 obj PyBuiltinSuperMethod(PyObj) {
+    # The boxed base value, or the PyNoneType sentinel for a base-less class.
     has base: PyObj,
         name: str,
         # The subclass instance this super() binding came from. __getitem__ on
         # a boxed dict base must consult the OWNER's type-level __missing__ on
         # a miss (CPython dict.__getitem__ does), which needs the instance's
-        # class -- not just the boxed storage.
+        # class -- not just the boxed storage; the base-less object surface
+        # builds object.__repr__ from it.
         owner: PyObj = py_none();
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         n = self.name;
         b = self.base;
+        boxed = not isinstance(b, PyNoneType);
+        if not boxed {
+            # object-surface fallback (MRO exhausted above a base-less class).
+            if n == "__repr__" {
+                return PyStr(t="str", val=default_obj_repr_text(self.owner as PyUserObj));
+            }
+            if n == "__str__" {
+                # object.__str__ IS object.__repr__ (the identity form).
+                return PyStr(t="str", val=default_obj_repr_text(self.owner as PyUserObj));
+            }
+            if n == "__init__" {
+                if len(args) == 0 {
+                    return py_none();
+                }
+                return py_error(
+                    "TypeError",
+                    "object.__init__() takes exactly one argument (the instance to initialize)"
+                );
+            }
+            return py_error(
+                "AttributeError", "'super' object has no attribute '" + n + "'"
+            );
+        }
         if n == "__init__" {
             # super().__init__(...) on a boxed builtin base runs the base's OWN
             # initializer over the live boxed storage -- in CPython terms the
@@ -7375,7 +7402,40 @@ obj PyBuiltinSuperMethod(PyObj) {
         if n == "__contains__" {
             return py_contains(b, args[0]);
         }
-        return py_error("AttributeError", n);
+        if n == "__repr__" {
+            # The base type's own repr of the live boxed storage.
+            return py_repr(b);
+        }
+        if n == "__str__" {
+            return py_str(b);
+        }
+        # Everything else resolves onto the boxed base through the standard
+        # attribute surface -- the same per-type dispatch (dict/list/set/str
+        # methods, live view constructors, host fallback for unported names)
+        # any base value presents outside super(). No name table here.
+        res = py_attr(b, n);
+        if is_error(res) {
+            return res;
+        }
+        return res.tp_call(args, kwargs);
+    }
+}
+
+# BaseException.__init__ over a USER exception-subclass instance: records the
+# positional args exactly like BaseException_init, so super().__init__(...)
+# inside a subclass __init__ updates e.args (kwargs rejected byte-exact).
+obj PyExceptionSuperInit(PyObj) {
+    has target: PyUserObj;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(kwargs) > 0 {
+            return py_error(
+                "TypeError",
+                self.target.cls.name + "() takes no keyword arguments"
+            );
+        }
+        self.target.attrs["args"] = PyTuple(t="tuple", items=args);
+        return py_none();
     }
 }
 
@@ -7437,6 +7497,25 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
                 owner=instance
             );
         }
+        # Exception-derived user classes have no boxed builtin layout: the
+        # BaseException surface (args / __init__) answers instead.
+        if class_is_exception(inst.cls) {
+            if name == "args" {
+                stored = inst.attrs.get("args");
+                if isinstance(stored, PyTuple) {
+                    return stored;
+                }
+                return PyTuple(t="tuple", items=[]);
+            }
+            if name == "__init__" {
+                return PyExceptionSuperInit(t="exc_super_init", target=inst);
+            }
+        }
+        # Base-less class: the walk exhausted every python ancestor including
+        # the implicit object root, so the object surface answers.
+        return PyBuiltinSuperMethod(
+            t="builtin_super", base=py_none(), name=name, owner=instance
+        );
     }
     # No python ancestor defines it. super().__new__ resolves to the base
     # constructor: a builtin (int.__new__, str.__new__, ...) when the chain boxes
@@ -7453,7 +7532,9 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
         }
         return PyNativeNew(t="native_new", base_name=base);
     }
-    return py_error("AttributeError", name);
+    return py_error(
+        "AttributeError", "'super' object has no attribute '" + name + "'"
+    );
 }
 
 # Box a builtin subclass instance by running the builtin constructor over the
@@ -12903,7 +12984,10 @@ def run_frame(frame: PyFrame) -> PyObj {
                 }
                 return result;
             }
-            bound = bind_attribute(result, super_self);
+            # CPython super_getattro applies the descriptor protocol to what
+            # the MRO walk found: a property getter fires against the live
+            # instance, a function binds to it, a classmethod binds its class.
+            bound = descriptor_get(result, super_self, super_self);
             if (arg & 1) != 0 {
                 stack.append(bound);
                 stack.append(py_none());
