@@ -1257,7 +1257,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
-import from tracebackmodule { traceback_module_attrs }
+import from tracebackmodule { traceback_module_attrs, format_exception_text }
 import from objects {
     _zero_step_error,
     DictEntry,
@@ -1686,11 +1686,28 @@ def import_native(absname: str) -> PyObj {
         # stdlib and would otherwise be executed in-VM against C internals.
         shim_modules["weakref"] = build_weakref_module();
     }
+    if absname == "sys" and not ("sys" in shim_modules) {
+        # Serve a delegate snapshot with exc_info OVERRIDDEN: the host sys sees
+        # only host exception state, never guest frames. Snapshot failure falls
+        # through to plain delegation (no worse than before).
+        sysmod = delegated_module("sys");
+        if not is_error(sysmod) {
+            (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
+                t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
+            shim_modules["sys"] = sysmod;
+        }
+    }
     if absname == "traceback" and not ("traceback" in shim_modules) {
         # The host traceback module is unreachable: every API takes tb objects
         # and a native PyTraceback has no to_host arm (host TracebackType needs
         # real host frames). Serve the native chain-walking surface instead.
-        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
+        tbmod = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
+        (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_format_exc"
+        );
+        shim_modules["traceback"] = tbmod;
     }
     if absname in sys3_modules {
         return sys3_modules[absname];
@@ -3934,6 +3951,20 @@ obj PyFuncKwDefaults(PyDict) {
 # recursing forever.
 glob _from_host_memo: dict[int, PyObj] = {};
 
+# Process-wide mirror of the per-frame exc_handling stack: the exception
+# currently being handled, for sys.exc_info()/traceback.format_exc(). Pushed at
+# OP_PUSH_EXC_INFO, popped at OP_POP_EXCEPT. Divergence vs CPython: a generator
+# suspended inside an except block keeps its entry visible to unrelated frames
+# until it resumes/pops (single-threaded VM approximation).
+glob _handled_exc_stack: list[PyObj] = [];
+
+def current_handled_exc() -> PyObj {
+    if len(_handled_exc_stack) == 0 {
+        return py_none();
+    }
+    return _handled_exc_stack[len(_handled_exc_stack) - 1];
+}
+
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -4581,10 +4612,25 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         # the real types.py in-VM and overrides just the coroutine attribute.
         shim_modules["types"] = build_types_facade();
     }
+    if name == "sys" and not ("sys" in shim_modules) {
+        # Mirror of the import_native site: exc_info must read GUEST state.
+        sysmod = delegated_module("sys");
+        if not is_error(sysmod) {
+            (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
+                t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
+            shim_modules["sys"] = sysmod;
+        }
+    }
     if name == "traceback" and not ("traceback" in shim_modules) {
         # Same rationale as the import_native site above: host traceback APIs
         # cannot accept native PyTraceback across the bridge.
-        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
+        tbmod = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
+        (tbmod as PyModule).attrs["format_exc"] = PyNativeBuiltin(
+            t="native_builtin", name="tb_format_exc"
+        );
+        shim_modules["traceback"] = tbmod;
     }
     if name in shim_modules {
         return shim_modules[name];
@@ -9811,6 +9857,30 @@ obj PyNativeBuiltin(PyObj) {
     has name: str;
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+
+        if self.name == "exc_info" {
+            # sys.exc_info() over GUEST handled-exception state (host sys cannot
+            # see guest frames). Returns (type, value, traceback); empty stack
+            # yields CPython's (None, None, None).
+            if len(_handled_exc_stack) == 0 {
+                none3: list[PyObj] = [py_none(), py_none(), py_none()];
+                return PyTuple(t="tuple", items=none3);
+            }
+            e = _handled_exc_stack[len(_handled_exc_stack) - 1];
+            tbv = e.tp_getattro("__traceback__");
+            if is_error(tbv) or isinstance(tbv, PyNoneType) {
+                tbv = py_none();
+            }
+            vals: list[PyObj] = [py_type_of(e), e, tbv];
+            return PyTuple(t="tuple", items=vals);
+        }
+        if self.name == "tb_format_exc" {
+            e = current_handled_exc();
+            if isinstance(e, PyNoneType) {
+                return PyStr(t="str", val="NoneType: None\n");
+            }
+            return format_exception_text(e);
+        }
         if self.name == "sorted" or self.name == "max" or self.name == "min" {
             return builtin_sorted_min_max(self.name, args, kwargs);
         }
@@ -14889,6 +14959,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(exception);
                 # Mark this exception as the one being handled (for bare `raise`).
                 exc_handling.append(exception);
+                _handled_exc_stack.append(exception);
             }
             continue;
         }
@@ -14933,6 +15004,9 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             if len(exc_handling) > 0 {
                 exc_handling.pop();
+            }
+            if len(_handled_exc_stack) > 0 {
+                _handled_exc_stack.pop();
             }
             continue;
         }
