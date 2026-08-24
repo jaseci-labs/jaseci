@@ -102,10 +102,11 @@ impl AuthTokenStore._persist(record: dict[str, any]) -> None {
             );
             return;
         } except Exception as e {
-            logger.error(
-                f"database persist failed for auth token, falling back to "
-                f"in-memory (not visible across workers, not durable): {e}"
-            );
+            logger.error(f"database persist failed for auth token: {e}");
+            raise RuntimeError(
+                'auth token could not be persisted; refusing to mint a token '
+                'only one worker could redeem'
+            ) from e;
         }
     }
     self._in_memory[record['token_hash']] = dict(record);
@@ -122,9 +123,8 @@ impl AuthTokenStore._find(token_hash: str, purpose: str) -> (dict[str, any] | No
             doc = json.loads(got);
             return doc if doc.get('purpose') == purpose else None;
         } except Exception as e {
-            logger.warning(
-                f"database find failed for auth token, using in-memory: {e}"
-            );
+            logger.error(f"database find failed for auth token: {e}");
+            return None;
         }
     }
     record = self._in_memory.get(token_hash);
@@ -143,9 +143,8 @@ impl AuthTokenStore._delete(token_hash: str) -> bool {
             );
             return bool(rows);
         } except Exception as e {
-            logger.warning(
-                f"database delete failed for auth token, using in-memory: {e}"
-            );
+            logger.error(f"database delete failed for auth token: {e}");
+            return False;
         }
     }
     return self._in_memory.pop(token_hash, None) is not None;
@@ -166,9 +165,8 @@ impl AuthTokenStore._delete_user(user_id: str, purpose: str) -> int {
             );
             return len(rows);
         } except Exception as e {
-            logger.warning(
-                f"database delete_many failed for auth token, using in-memory: {e}"
-            );
+            logger.error(f"database delete_many failed for auth token: {e}");
+            return 0;
         }
     }
     to_delete = [
