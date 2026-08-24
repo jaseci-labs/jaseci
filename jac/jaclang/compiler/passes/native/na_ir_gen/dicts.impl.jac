@@ -206,6 +206,68 @@ impl NaIRGenDicts._emit_dict_helpers(
     };
 }
 
+impl NaIRGenDicts._jv_runtime_tag_fn -> ir.Function {
+    _cached = self?._jv_tag_of_fn;
+    if _cached is not None {
+        return _cached;
+    }
+    i8 = ir.IntType(8);
+    i8p = i8.as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    fn = self._define_function("__jac_jv_tag_of", ir.FunctionType(i8, [i8p]));
+    fn.linkage = "private";
+    fn.args[0].name = "obj";
+    _entry = fn.append_basic_block("entry");
+    _none_bb = fn.append_basic_block("none");
+    _tagged = fn.append_basic_block("tagged");
+    _obj_bb = fn.append_basic_block("object");
+    _chk_list = fn.append_basic_block("chk.list");
+    _is_list = fn.append_basic_block("is.list");
+    _chk_dict = fn.append_basic_block("chk.dict");
+    _is_dict = fn.append_basic_block("is.dict");
+    _chk_set = fn.append_basic_block("chk.set");
+    _is_set = fn.append_basic_block("is.set");
+    b = ir.IRBuilder(_entry);
+    _saved_builder = self._builder;
+    self._builder = b;
+    _null = b.icmp_unsigned("==", fn.args[0], ir.Constant(i8p, None), name="t.null");
+    b.cbranch(_null, _none_bb, _tagged);
+    b.position_at_end(_none_bb);
+    b.ret(ir.Constant(i8, 8));
+    b.position_at_end(_tagged);
+    _slot = b.gep(fn.args[0], [ir.Constant(i64, HDR_TAG_OFF)], name="t.slot");
+    _slot_p = b.bitcast(_slot, i8p.as_pointer(), name="t.slot.p");
+    _tag = b.load(_slot_p, name="t.tag");
+    _tag_null = b.icmp_unsigned("==", _tag, ir.Constant(i8p, None), name="t.tnull");
+    b.cbranch(_tag_null, _obj_bb, _chk_list);
+    strncmp_fn = self._get_or_declare_extern("strncmp", i32, [i8p, i8p, i64]);
+    _z32 = ir.Constant(i32, 0);
+    b.position_at_end(_chk_list);
+    _lg = self._make_global_string("list_", name_prefix=".jvtag.list");
+    _lc = b.call(strncmp_fn, [_tag, _lg, ir.Constant(i64, 5)], name="t.list");
+    b.cbranch(b.icmp_signed("==", _lc, _z32, name="t.is.list"), _is_list, _chk_dict);
+    b.position_at_end(_is_list);
+    b.ret(ir.Constant(i8, 3));
+    b.position_at_end(_chk_dict);
+    _dg = self._make_global_string("dict_", name_prefix=".jvtag.dict");
+    _dc = b.call(strncmp_fn, [_tag, _dg, ir.Constant(i64, 5)], name="t.dict");
+    b.cbranch(b.icmp_signed("==", _dc, _z32, name="t.is.dict"), _is_dict, _chk_set);
+    b.position_at_end(_is_dict);
+    b.ret(ir.Constant(i8, 4));
+    b.position_at_end(_chk_set);
+    _sg = self._make_global_string("set_", name_prefix=".jvtag.set");
+    _sc = b.call(strncmp_fn, [_tag, _sg, ir.Constant(i64, 4)], name="t.set");
+    b.cbranch(b.icmp_signed("==", _sc, _z32, name="t.is.set"), _is_set, _obj_bb);
+    b.position_at_end(_is_set);
+    b.ret(ir.Constant(i8, 5));
+    b.position_at_end(_obj_bb);
+    b.ret(ir.Constant(i8, 6));
+    self._builder = _saved_builder;
+    self._jv_tag_of_fn = fn;
+    return fn;
+}
+
 impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
     _t = self._tb_solve(ty);
     if self._tb_is_class_ref(_t) {
@@ -338,9 +400,27 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
     _kind = self._tb_kind(_ty);
     _dyn_kind = _kind in ("any", "unknown", "typevar", "never");
     if _dyn_kind and not isinstance(value.type, (ir.IntType, ir.DoubleType)) {
-        raise AssertionError(
-            f"native: boxing `{value.type}` into `any` without a concrete checker type (ty={ty}) at {self._na_loc()}"
+        self.emit(
+            E5092,
+            kind="expression",
+            name=f"`any` box of {value.type}",
+            help_text=f"A value typed `{ty}` lowered as `{value.type}`, so the emitter cannot pick its tagged `any` representation; give the value a concrete type."
         );
+        _jv0 = self._entry_alloca(self.jacval_type, "jacval");
+        _b0 = self.builder;
+        _tp0 = _b0.gep(
+            _jv0,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
+            name="jv.tag.p"
+        );
+        _pp0 = _b0.gep(
+            _jv0,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 1)],
+            name="jv.pl.p"
+        );
+        _b0.store(ir.Constant(ir.IntType(8), 8), _tp0);
+        _b0.store(ir.Constant(ir.IntType(64), 0), _pp0);
+        return _b0.load(_jv0, name="jacval");
     }
     _pty = self._tb_opt_payload(_ty);
     _pty = _pty if _pty is not None else _ty;
@@ -400,6 +480,22 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value, ty: any) -> ir.Value {
     if isinstance(value.type, ir.PointerType) {
         _tag = self._jacval_tag_for_type(_ty);
         if _tag is None {
+            _hk = ("object", "struct", "list", "dict", "set", "tuple");
+            _mem_kinds = {self._tb_kind(_m) for _m in self._tb_non_none(_ty)};
+            if (
+                (_mem_kinds & set(_hk))
+                and _mem_kinds <= (set(_hk) | {"any", "unknown"})
+                and not self._nogc_headerless()
+            ) {
+                _rt_tag = b.call(
+                    self._jv_runtime_tag_fn(),
+                    [b.bitcast(value, ir.IntType(8).as_pointer(), name="jv.t.i8")],
+                    name="jv.rt.tag"
+                );
+                b.store(_rt_tag, tag_ptr);
+                b.store(b.ptrtoint(value, i64, name="jv.p2i"), payload_ptr);
+                return b.load(jv_alloca, name="jacval");
+            }
             raise AssertionError(
                 f"native: no `any` tag for a `{_ty}` value (llvm={value.type})"
             );

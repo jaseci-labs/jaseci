@@ -82,11 +82,11 @@ def native_none_binding_violation(
 ) -> (tuple[(UniNode, str, str, (str | None))] | None);
 
 def native_unpack_target_violation(
-    nd: InForStmt, evaluator: object
+    nd: InForStmt, evaluator: any
 ) -> (tuple[(UniNode, str, str, (str | None))] | None);
 
 def native_capability_violations(
-    mod: Module, evaluator: object = None
+    mod: Module, evaluator: any = None
 ) -> list[tuple[(UniNode, str, str, (str | None))]];
 
 def native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None);

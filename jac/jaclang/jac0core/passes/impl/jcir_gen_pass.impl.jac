@@ -1738,7 +1738,7 @@ impl JcirGenPass.exit_has_var(nd: HasVar) -> None {
         and archpar
         and (archpar.arch_type.name == Tok.KW_CLASS)
     );
-    value = None;
+    value: (CgNode | None) = None;
     if is_in_class {
         value = self.val(nd.value) if nd.value else None;
     } elif is_static_var {

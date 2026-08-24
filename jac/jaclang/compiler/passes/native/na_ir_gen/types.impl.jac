@@ -2112,7 +2112,35 @@ impl NaIRGenTypes._coerce_type_inner(
 
     if isinstance(val.type, ir.LiteralStructType)
         and val.type != target_type
-        and len(val.type.elements) >= 2 {
+        and len(val.type.elements) >= 1 {
+        _tls_spec = self._spec_from_list_slot_type(target_type);
+        _tls_h = self.list_helpers.get(_tls_spec) if _tls_spec is not None else None;
+        if (
+            _tls_h is not None
+            and self.list_types.get(_tls_spec) is not None
+            and self.list_types[_tls_spec].as_pointer() == target_type
+        ) {
+            _tls_out = self.builder.call(_tls_h["new"], [], name="tuple.to.list");
+            _tls_tys = val?.na_tuple_elem_tys;
+            for _ti in range(len(val.type.elements)) {
+                _tf = self.builder.extract_value(val, _ti, name=f"t2l.{_ti}");
+                _tf_ty = (
+                    _tls_tys[_ti]
+                        if _tls_tys is not None and _ti < len(_tls_tys)
+                        else (
+                            self._tb_elem(src_ty, _ti) if src_ty is not None else None
+                        )
+                );
+                _tf = self._coerce_type(_tf, _tls_h["elem_type"], src_ty=_tf_ty);
+                self.builder.call(
+                    _tls_h["append"], [_tls_out, _tf], name=f"t2l.app.{_ti}"
+                );
+            }
+            return self._mark_owned(_tls_out);
+        }
+        if len(val.type.elements) < 2 {
+            return val;
+        }
         _all_prim = True;
         for _el in val.type.elements {
             if not isinstance(

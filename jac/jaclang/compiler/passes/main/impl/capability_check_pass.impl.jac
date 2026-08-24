@@ -475,9 +475,9 @@ impl native_none_binding_violation(
 }
 
 impl native_unpack_target_violation(
-    nd: InForStmt, evaluator: object
+    nd: InForStmt, evaluator: any
 ) -> (tuple[(UniNode, str, str, (str | None))] | None) {
-    import from jaclang.compiler.type_system.types { ClassType, UnknownType }
+    import from jaclang.compiler.type_system.types { ClassType, TypeBase, UnknownType, }
     import from jaclang.compiler.type_system.type_utils { convert_to_instance }
     if evaluator is None or not isinstance(nd.target, (TupleVal, ListVal)) {
         return None;
@@ -500,7 +500,7 @@ impl native_unpack_target_violation(
     ) {
         return None;
     }
-    elem = evaluator._get_iterable_element_type(coll_t, None);
+    elem: (TypeBase | None) = evaluator._get_iterable_element_type(coll_t, None);
     if elem is None {
         return None;
     }
@@ -537,7 +537,7 @@ impl native_unpack_target_violation(
 }
 
 impl native_capability_violations(
-    mod: Module, evaluator: object = None
+    mod: Module, evaluator: any = None
 ) -> list[tuple[(UniNode, str, str, (str | None))]] {
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];

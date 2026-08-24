@@ -1,6 +1,7 @@
 import from jaclang.compiler.passes.native.llvm { ir }
 import from jaclang.compiler.passes.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.jac0core.diagnostics { E5092 }
+import from jaclang.jac0core.codeinfo { HDR_TAG_OFF }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import jaclang.jac0core.unitree as uni;
 import os;
@@ -38,6 +39,7 @@ obj NaIRGenDicts(NaIRGenState) {
     ) -> ir.Block;
 
     def _jacval_tag_for_type(ty: any) -> (int | None);
+    def _jv_runtime_tag_fn -> ir.Function;
     def _enum_value_kind(ty: any) -> str;
     def _jacval_scalar_bits(value: ir.Value, payload_ty: any) -> tuple;
     def _jacval_none -> ir.Value;

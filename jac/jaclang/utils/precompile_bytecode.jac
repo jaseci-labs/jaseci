@@ -427,7 +427,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/unitree.jac::MultiString.lit_value.__get__",
 
      ),
-     _TYPES_SEAM_WAIVERS: tuple[str, ...] = (),
      _TYPE_UTILS_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/type_system/type_utils.jac::class_implements_protocol",
 
@@ -456,7 +455,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
          _UNITREE_SEAM_WAIVERS
-         + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
          + _CODEINFO_SEAM_WAIVERS
@@ -485,13 +483,23 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _JCIR_LOWERING_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._delete_ctx_targets",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_assignment",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_except",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_formatted_value",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_has_var",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_match_as",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_match_mapping",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_param_var",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_type_param",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_visit_stmt",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.gen_llm_body",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.log_info",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.resolve_switch_stmt",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ability",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_enum",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
 
      ),
@@ -501,6 +509,18 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple[str, ...] = (
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._fold_sorted_traversal",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._query_filter_kws_ord",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_arch_has",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_event_signature",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_func_signature",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_global_vars",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_iter_for_stmt",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_lambda_expr",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module_code",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_open_stmt",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_sub_tag",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.resolve_stmt_block",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
 
      ),
@@ -551,15 +571,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "bytes)` of a `str | bytes` value: the two share the string tag, "
              "so no native discriminator exists yet (the old lowering answered "
              "False for every bytes); it clears when bytes gets its own tag."
-         ),
-         (
-             "type system cross-module cascades",
-             _TYPES_SEAM_WAIVERS,
-             "Empty since the version-guard family moved into `type_utils` "
-             "and lowered: `lookup_member_symbol` cascaded on "
-             "`collect_member_syms`, `specialize` on "
-             "`build_type_var_solution`, and `create_callable_type` on the "
-             "`auto()` member fold; each cleared with its callee."
          ),
          (
              "type utils erased operands and unreachable layouts",
