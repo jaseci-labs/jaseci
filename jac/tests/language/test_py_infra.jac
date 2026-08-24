@@ -60,7 +60,7 @@ test "pyfunc 1" {
             ).ir_out
         );
     }
-    assert "def greet2(**kwargs: Any) -> None {" in output;
+    assert "def greet2(**kwargs: any) -> None {" in output;
     assert output.count("with entry {") == 14;
     assert 'assert (x == 5) , "x should be equal to 5";' in output;
     assert "if not (x == y) {" in output;
@@ -358,7 +358,7 @@ test "deep imports interp mode" {
     # Delete JIR cache files to force recompilation
     cache_dir = get_jir_cache_dir() / "modules";
     if cache_dir.exists() {
-        for cache_file in cache_dir.glob("*deep_import*") {
+        for cache_file in cache_dir.`glob("*deep_import*") {
             cache_file.unlink();
         }
     }
@@ -481,7 +481,7 @@ test "walker dynamic update" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        execution.enter(filename=bar_file_path, entrypoint="bar_walk", args=[]);
+        execution.run(filename=bar_file_path, entry_name="bar_walk", args=[]);
     } finally {
         sys.stdout = old_stdout;
     }

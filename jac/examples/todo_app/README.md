@@ -9,7 +9,7 @@ the native desktop host (#6596).
 
 ```bash
 cd jac/examples/todo_app
-jac start --client desktop
+jac run --client desktop
 ```
 
 An editable install of `jaclang` (which now includes the built-in `scale`

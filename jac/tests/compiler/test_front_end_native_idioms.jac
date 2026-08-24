@@ -1,6 +1,6 @@
 """The front end's Python-isms, and the plain-Jac forms that replaced them.
 
-The #8039 census sweep showed the compiler front end's native gaps were not
+The #8039 coverage sweep showed the compiler front end's native gaps were not
 backend omissions but source idioms: constructs the native capability
 authority rejects, reached for where Jac (or plain data) already said the
 same thing. This file pins the replacements behaviorally, and guards the
@@ -34,10 +34,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_idiom_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
-            no_cgen=True,
-            force_codespace="native",
-            force_target_program=True
+            no_cgen=True, force_codespace="native", force_target_program=True
         )
     );
     return prog;
@@ -174,23 +171,22 @@ test "helpers module scope binds os and nothing else" {
 # genuinely cannot lower become seams instead of a whole-module refusal.
 test "helpers.jac lowers when a native unit reaches it" {
     import jaclang;
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     helpers_path = os.path.join(
         os.path.dirname(jaclang.__file__), "jac0core", "helpers.jac"
     );
     prog = JacProgram();
     opts = CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         no_ir_cache=True
     ).clone_for_native_import();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(file_path=helpers_path, options=opts);
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert not prog.errors_had , (
         f"helpers.jac must reach the backend, not refuse on a signature no "
@@ -200,8 +196,8 @@ test "helpers.jac lowers when a native unit reaches it" {
         "no LLVM IR for helpers.jac, so every consumer that links it inherits "
         "a module-level refusal"
     );
-    rec = census.get(os.path.realpath(helpers_path));
-    assert rec is not None , "the census recorded nothing for helpers.jac";
+    rec = coverage.get(os.path.realpath(helpers_path));
+    assert rec is not None , "the coverage recorded nothing for helpers.jac";
     seams = [str(s) for s in (rec["seams"] or [])];
     reader = [
         s
@@ -316,7 +312,7 @@ test "a test block still binds the assert names to symbols" {
         "    assertEqual(1, 1);\n"
         "    assertNotIn(2, [1]);\n"
         "}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     bound = {
         nd.value: (nd.sym is not None)
@@ -462,7 +458,7 @@ test "scan_native_blockers names the offending node from the table" {
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "_idiom_jsx_blocker.jac"),
         use_str="def view -> any {\n    return <div>hi</div>;\n}\n",
-        options=CompileOptions(type_check=False)
+        options=CompileOptions()
     );
     (reason, _deps) = scan_native_blockers(ir, os.path.dirname(FIXTURES));
     assert reason == "contains JsxElement" , f"got reason {reason!r}";

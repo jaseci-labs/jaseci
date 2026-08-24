@@ -27,8 +27,13 @@ glob PREFIX_CLAUSES: tuple[tuple[str, str]] = (
          ),
          (
              "annex-present",
-             "the module has .impl.jac/.test.jac annexes; the weave is not in "
-             "the crossing yet"
+             "the module has .impl.jac/.test.jac annexes and the bound "
+             "artifact predates the multi-source crossing"
+         ),
+         (
+             "codespace-pinned",
+             "the module's codespace is pinned or decided by location, and the "
+             "driver stamps that onto the tree after the crossing would have run"
          ),
          (
              "absorbed-mod-present",
@@ -53,6 +58,7 @@ glob PREFIX_CLAUSES: tuple[tuple[str, str]] = (
          "image-unsealed",
          "prefix-entry-absent",
          "annex-present",
+         "codespace-pinned",
 
      ),
      PREFIX_ENV: str = "JAC_PREFIX",
@@ -87,7 +93,7 @@ glob PREFIX_IR_GEN: tuple[str] = (
 
      );
 
-glob _prefix_census: dict[str, dict[str, any]] = {},
+glob _prefix_outcomes: dict[str, dict[str, any]] = {},
      _prefix_quarantine: dict[str, str] = {},
      _prefix_entry_memo: list[tuple[any]] = [],
      _prefix_entry_override: list[any] = [],
@@ -189,8 +195,15 @@ def prefix_entry -> tuple[any] {
             );
         } else {
             import from jaclang.jac0core.native_brands { native_parser }
-            if native_parser("prefix_flip:predicate") is None {
+            np = native_parser("prefix_flip:predicate");
+            if np is None {
                 found = (None, "image-unsealed", "no native parser artifact bound");
+            } elif not np.serves_prefix() {
+                found = (
+                    None,
+                    "prefix-entry-absent",
+                    "the bound artifact exports no prefix crossing entry"
+                );
             } else {
                 found = (fn, "", "");
             }
@@ -200,6 +213,19 @@ def prefix_entry -> tuple[any] {
     }
     _prefix_entry_memo.append(found);
     return found;
+}
+
+def prefix_serves_annex -> bool {
+    if _prefix_entry_override {
+        return True;
+    }
+    try {
+        import from jaclang.jac0core.native_brands { native_parser }
+        np = native_parser("prefix_flip:serves_annex");
+        return np is not None and np.serves_annex();
+    } except Exception {
+        return False;
+    }
 }
 
 def prefix_facts_for(file_path: str, prog: any) -> PrefixFacts {
@@ -240,8 +266,8 @@ def prefix_facts_for(file_path: str, prog: any) -> PrefixFacts {
     );
 }
 
-def prefix_census_reset {
-    _prefix_census.clear();
+def prefix_outcomes_reset {
+    _prefix_outcomes.clear();
     _prefix_emitted.clear();
 }
 
@@ -254,7 +280,7 @@ def prefix_quarantine_clear {
 }
 
 def _record(outcome: PrefixOutcome) {
-    _prefix_census[os.path.realpath(outcome.mod_path)] = {
+    _prefix_outcomes[os.path.realpath(outcome.mod_path)] = {
         "admitted": outcome.admitted,
         "clause": outcome.clause,
         "detail": outcome.detail,
@@ -264,14 +290,14 @@ def _record(outcome: PrefixOutcome) {
 }
 
 def prefix_snapshot -> dict[str, dict[str, any]] {
-    return dict(_prefix_census);
+    return dict(_prefix_outcomes);
 }
 
 def prefix_admit_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
+            for r in _prefix_outcomes.values()
             if r["admitted"]
         ]
     );
@@ -281,25 +307,33 @@ def prefix_fallback_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
+            for r in _prefix_outcomes.values()
             if not r["admitted"]
         ]
     );
+}
+
+def _is_frontier_stop(rec: dict[str, any]) -> bool {
+    return rec["clause"] == "prefix-declined" and bool(rec["executed"]);
+}
+
+def prefix_quiet_fallback(rec: dict[str, any]) -> bool {
+    return rec["clause"] in _QUIET_CLAUSES or _is_frontier_stop(rec);
 }
 
 def prefix_loud_fallback_count -> int {
     return len(
         [
             r
-            for r in _prefix_census.values()
-            if not r["admitted"] and r["clause"] not in _QUIET_CLAUSES
+            for r in _prefix_outcomes.values()
+            if not r["admitted"] and not prefix_quiet_fallback(r)
         ]
     );
 }
 
 def prefix_native_pass_count -> int {
     total = 0;
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         total += len(r["executed"]);
     }
     return total;
@@ -307,7 +341,7 @@ def prefix_native_pass_count -> int {
 
 def prefix_claimed_pass_count -> int {
     total = 0;
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         total += len(r["claimed"]);
     }
     return total;
@@ -315,7 +349,7 @@ def prefix_claimed_pass_count -> int {
 
 def prefix_fallbacks_by_clause -> dict[str, int] {
     counts: dict[str, int] = {};
-    for r in _prefix_census.values() {
+    for r in _prefix_outcomes.values() {
         if not r["admitted"] {
             counts[r["clause"]] = counts.get(r["clause"], 0) + 1;
         }
@@ -328,7 +362,7 @@ def prefix_summary_line -> str {
     if loud == 0 and not prefix_report_enabled() {
         return "";
     }
-    total = len(_prefix_census);
+    total = len(_prefix_outcomes);
     if total == 0 {
         return "";
     }
@@ -348,8 +382,8 @@ def prefix_summary_line -> str {
 
 def prefix_report_lines -> list[str] {
     lines: list[str] = [];
-    for path in sorted(_prefix_census) {
-        rec = _prefix_census[path];
+    for path in sorted(_prefix_outcomes) {
+        rec = _prefix_outcomes[path];
         if rec["admitted"] {
             lines.append(
                 f"  {path}: prefix ran {len(rec['executed'])} pass(es) "
@@ -384,7 +418,7 @@ def prefix_strict_assert -> None {
 }
 
 def prefix_stats_lines -> list[str] {
-    total_mods = len(_prefix_census);
+    total_mods = len(_prefix_outcomes);
     if total_mods == 0 {
         return ["compile stats: no module reached the prefix router"];
     }
@@ -396,8 +430,8 @@ def prefix_stats_lines -> list[str] {
         f"native prefix; {ran}/{claimed} claimed prefix pass(es) executed "
         f"natively ({pct:.1f}%)"
     ];
-    for path in sorted(_prefix_census) {
-        rec = _prefix_census[path];
+    for path in sorted(_prefix_outcomes) {
+        rec = _prefix_outcomes[path];
         names = ", ".join(rec["executed"]) if rec["executed"] else "-";
         out.append(
             f"  {path}: {len(rec['executed'])}/{len(rec['claimed'])} native "
@@ -493,6 +527,10 @@ def take_prefix_handoff(mod: any) -> tuple[any] {
 
 def _handoff(mod: any, executed: tuple[str], err_start: int = -1, err_end: int = -1) {
     _prefix_handoff.clear();
+    if len(tuple(executed)) == 0 {
+        err_start = -1;
+        err_end = -1;
+    }
     _prefix_handoff.append((id(mod), tuple(executed), err_start, err_end, ));
 }
 
@@ -528,7 +566,13 @@ def prefix_span_errors(span: tuple[any]) -> int {
     return err_end - err_start;
 }
 
-def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[str] {
+def _pre_parse_decline(
+    file_path: str,
+    kind: str,
+    claimed: tuple[str],
+    codespace: str = "",
+    n_annexes: int = 0
+) -> tuple[str] {
     if prefix_disabled() {
         return ("disabled-by-env", f"{PREFIX_ENV}=off");
     }
@@ -545,31 +589,68 @@ def _pre_parse_decline(file_path: str, kind: str, claimed: tuple[str]) -> tuple[
             f"no sealed prefix is claimed for schedule kind {kind or '<none>'}"
         );
     }
-    try {
-        import from jaclang.jac0core.bccache { discover_annex_files }
-        annexes = [
-            *discover_annex_files(file_path, ".impl.jac"),
-            *discover_annex_files(file_path, ".test.jac")
-        ];
-    } except Exception {
-        annexes = [];
-    }
-    if annexes {
+    if codespace in ("client", "native", ) {
         return (
-            "annex-present",
-            f"{len(annexes)} annex source(s) weave into this module"
+            "codespace-pinned",
+            f"the driver decided this module is {codespace}; it stamps "
+            "code_context onto the tree after the crossing would have run"
         );
     }
     (fn, clause, detail) = prefix_entry();
     if fn is None {
         return (clause or "prefix-entry-absent", detail);
     }
+    if n_annexes and not prefix_serves_annex() {
+        return (
+            "annex-present",
+            f"{n_annexes} annex source(s) weave into this module, and the "
+            "bound artifact exports no multi-source crossing"
+        );
+    }
     return ();
 }
 
-def _staged(source_str: str, file_path: str, prog: any) -> tuple[any] {
-    import from jaclang.jac0core.parser { parse as rd_parse }
-    return rd_parse(source_str, file_path, prog=prog);
+def annex_sources(file_path: str) -> list[tuple[str, str]] {
+    if not file_path.endswith(".jac") {
+        return [];
+    }
+    try {
+        import from jaclang.jac0core.bccache {
+            discover_annex_files,
+            discover_base_file
+        }
+        import from jaclang.jac0core.helpers { read_file_with_encoding }
+        if discover_base_file(file_path) is not None {
+            return [];
+        }
+        paths = [
+            *discover_annex_files(file_path, ".impl.jac"),
+            *discover_annex_files(file_path, ".test.jac")
+        ];
+    } except Exception {
+        return [];
+    }
+    out: list[tuple[str, str]] = [];
+    seen: set[str] = set();
+    for pth in paths {
+        if pth in seen {
+            continue;
+        }
+        seen.add(pth);
+        try {
+            out.append((read_file_with_encoding(pth), pth, ));
+        } except Exception {
+            continue;
+        }
+    }
+    return out;
+}
+
+def _staged(
+    source_str: str, file_path: str, prog: any, annexes: list[tuple[str, str]] = []
+) -> tuple[any] {
+    import from jaclang.jac0core.parser.frontend { parse_woven }
+    return parse_woven(source_str, file_path, prog, annexes);
 }
 
 def _fall_back(
@@ -579,9 +660,10 @@ def _fall_back(
     claimed: tuple[str],
     clause: str,
     detail: str,
-    executed: tuple[str] = ()
+    executed: tuple[str] = (),
+    annexes: list[tuple[str, str]] = []
 ) -> tuple[any] {
-    (mod, had_error) = _staged(source_str, file_path, prog);
+    (mod, had_error) = _staged(source_str, file_path, prog, annexes);
     _record(
         PrefixOutcome(
             mod_path=file_path,
@@ -611,23 +693,31 @@ def _assert_no_absorb(mod: any, file_path: str) -> str {
 }
 
 def parse_with_prefix(
-    source_str: str, file_path: str, prog: any, kind: str = "", no_cgen: bool = False
+    source_str: str,
+    file_path: str,
+    prog: any,
+    kind: str = "",
+    no_cgen: bool = False,
+    codespace: str = ""
 ) -> tuple[any] {
+    annexes = annex_sources(file_path);
     if not kind {
         _prefix_handoff.clear();
-        return _staged(source_str, file_path, prog);
+        return _staged(source_str, file_path, prog, annexes);
     }
     claimed = sealed_prefix_names(kind, no_cgen);
-    decline = _pre_parse_decline(file_path, kind, claimed);
+    decline = _pre_parse_decline(file_path, kind, claimed, codespace, len(annexes));
     if decline {
         (clause, detail) = decline;
-        return _fall_back(source_str, file_path, prog, claimed, clause, detail);
+        return _fall_back(
+            source_str, file_path, prog, claimed, clause, detail, (), annexes
+        );
     }
-    (entry, _c, _d) = prefix_entry();
+    (`entry, _c, _d) = prefix_entry();
     facts = prefix_facts_for(file_path, prog);
     err_start = len(prog.errors_had) if prog is not None else 0;
     try {
-        result = entry(source_str, file_path, prog, claimed, facts);
+        result = `entry(source_str, file_path, prog, claimed, facts, annexes);
     } except Exception as exc {
         return _fall_back(
             source_str,
@@ -635,7 +725,9 @@ def parse_with_prefix(
             prog,
             claimed,
             "crossing-error",
-            f"{type(exc).__name__}: {exc}"
+            f"{type(exc).__name__}: {exc}",
+            (),
+            annexes
         );
     }
     (mod, had_error, executed, clause, detail) = result;

@@ -5,7 +5,7 @@ file can deliver. This was `test_jcir_sealed_bytes.jac`, and it claimed
 to compare **sealed-emitter** bytes against **source-lane** bytes. It
 does not, and it cannot yet.
 
-The #8288 M1 crossing census measured why. `pass_serve._bind_one`
+The #8288 M1 crossing coverage measured why. `pass_serve._bind_one`
 resolves the artifact, `dlopen`s it, calls `__jac_shared_init`, checks
 that every advertised export resolves by `dlsym`, and probes
 `jac_str_new` for liveness -- and then retains the engine and **no
@@ -141,13 +141,13 @@ def _built -> tuple {
 
 def _artifact_resolver(tmp: str, arts: dict) -> any {
     def _resolve(fullname: str) -> (tuple | None) {
-        entry = arts.get(fullname);
-        if entry is None {
+        `entry = arts.get(fullname);
+        if `entry is None {
             return None;
         }
-        lib_path = os.path.join(tmp, entry["lib"]);
+        lib_path = os.path.join(tmp, `entry["lib"]);
         layout = json.loads(
-            Path(os.path.join(tmp, entry["layout"])).read_text(encoding="utf-8")
+            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
         );
         return (lib_path, layout, );
     }
@@ -318,7 +318,7 @@ test "the bound emission still runs the Python body, and says so" {
     (tmp, arts) = _built();
     real_for = sealed.native_artifact_for;
     real_names = sealed.native_artifact_names;
-    real_exit = JcirGenPass.exit_module;
+    real_exit: any = JcirGenPass.exit_module;
     seen: list = [];
     def _counting_exit(self: any, nd: any) -> any {
         seen.append(1);

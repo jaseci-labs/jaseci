@@ -110,7 +110,7 @@ base_route_app = "app"
 ### Development Mode (with Hot Reload)
 
 ```bash
-jac start --dev
+jac run --dev
 ```
 
 This starts:
@@ -124,7 +124,7 @@ Open http://localhost:8000/cl/app
 ### Production Mode
 
 ```bash
-jac start
+jac run
 ```
 
 Open http://localhost:8000/cl/app
@@ -138,7 +138,7 @@ The compiler reads the evidence in each declaration -- JSX makes a component cli
 ```jac
 # This is backend code (runs on server)
 walker api_endpoint {
-    can visit with Root entry { report {}; }
+    can `visit with Root entry { report {}; }
 }
 
 # This is frontend code (runs in browser)
@@ -165,7 +165,7 @@ def:pub MyComponent() -> JsxElement {
 # Backend
 node User { has name: str = ""; }
 walker get_user {
-    can visit with Root entry { report {}; }
+    can `visit with Root entry { report {}; }
 }
 
 # Frontend
@@ -202,7 +202,7 @@ myapp/
 import from models { User, Todo }
 
 walker get_user {
-    can visit with Root entry { report {}; }
+    can `visit with Root entry { report {}; }
 }
 ```
 
@@ -246,7 +246,7 @@ axios = "^1.6.0"
 Then use in frontend:
 
 !!! note "npm imports and `jac check`"
-    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac start`.
+    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac run`.
 
 ```jac
 import lodash;
@@ -305,7 +305,7 @@ def:pub app() -> JsxElement {
     }
 ```
 
-Run `jac start --dev` and open http://localhost:8000/cl/app
+Run `jac run --dev` and open http://localhost:8000/cl/app
 
 Click the button - the count should increase!
 

@@ -259,27 +259,30 @@ with entry {
         "rd parse",
         MICRO_JAC_FILES,
         rd_parse_file_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
     parametrize(
-        "rd gap", GAP_FILES, rd_gap_test, id_fn=lambda (f) { f.replace(".jac", ""); }
+        "rd gap",
+        GAP_FILES,
+        rd_gap_test,
+        id_fn=lambda (f: str) { f.replace(".jac", ""); }
     );
     parametrize(
         "rd strict",
         list(MUST_REJECT.items()),
         strictness_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "rd strict validation",
         list(MUST_REJECT_VALIDATION.items()),
         validation_strictness_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
     parametrize(
         "rd clean validation",
         list(MUST_VALIDATE_CLEAN.items()),
         validation_clean_test,
-        id_fn=lambda (x) { x[0]; }
+        id_fn=lambda (x: tuple[str, str]) { x[0]; }
     );
 }

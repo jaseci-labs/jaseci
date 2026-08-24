@@ -87,7 +87,7 @@ test "ar parse + symbol index + selection (synthetic GNU)" {
 """Locate a bundled libexpat.a from any pbs build, or None."""
 def _find_bundled_expat -> (str | None) {
     jac_dir = Path(__file__).resolve().parents[4];
-    hits = list(jac_dir.glob(".pbs-build/*/python/build/lib/libexpat.a"));
+    hits = list(jac_dir.`glob(".pbs-build/*/python/build/lib/libexpat.a"));
     return str(hits[0]) if hits else None;
 }
 
@@ -115,10 +115,15 @@ test "ar transitive member selection over bundled libexpat (skip if absent)" {
     ];
     assert defining == ["xmlparse.o"] , f"XML_ExpatVersion defined in {defining}";
 
-    # Transitive closure must pull the defining member, chase its own undefined
-    # symbols, and still leave at least one unrelated member out (proof it
-    # narrows rather than dragging in the whole archive).
+    # What only a real archive can show: the closure starts at the defining
+    # member and chases its own undefined symbols into the members that satisfy
+    # them (the ELF/Mach-O scan). The narrowing half -- selection is a strict
+    # subset -- is the synthetic case's to pin: libexpat is four members that
+    # all reach each other, so its closure is legitimately the whole archive.
     sel = [m.name for m in select_ar_members(data, [ver])];
     assert "xmlparse.o" in sel , f"selection missing xmlparse.o: {sel}";
-    assert len(sel) < len(members) , f"selection {sel} should be a strict subset";
+    for dep in ["xmltok.o", "xmlrole.o"] {
+        assert dep in sel , f"closure did not chase {dep}: {sel}";
+    }
+    assert set(sel) <= set(names) , f"selection {sel} is not drawn from {names}";
 }

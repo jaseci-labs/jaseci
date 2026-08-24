@@ -25,7 +25,7 @@ def _compile_ir(entry_path: str) -> str {
         ir = prog.compile(
             file_path=entry_path,
             options=CompileOptions(
-                aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
+                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
             )
         );
         assert not prog.errors_had , [str(e) for e in prog.errors_had];

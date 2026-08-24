@@ -82,26 +82,27 @@ test "nav manifest and corpus files agree exactly" {
 
     pages: list[str] = [];
     def walk(items: list[dict]) {
-        for entry in items {
-            assert entry.get("title") , f"nav entry missing a title: {entry}";
-            if "page" in entry {
-                pages.append(str(entry["page"]));
-            } elif "items" in entry {
-                walk(entry["items"]);
+        for `entry in items {
+            assert `entry.get("title") , f"nav entry missing a title: {`entry}";
+            if "page" in `entry {
+                pages.append(str(`entry["page"]));
+            } elif "items" in `entry {
+                walk(`entry["items"]);
             } else {
-                assert "url" in entry , f"nav entry is neither page nor section: {entry}";
+                assert "url" in `entry , f"nav entry is neither page nor section: {`entry}";
             }
         }
     }
     walk(manifest["nav"]);
 
-    on_disk = {
+    on_disk: set[str] = {
         str(f.relative_to(docs_dir())).replace("\\", "/")
         for f in docs_dir().rglob("*.md")
     };
-    assert set(pages) == on_disk , (
-        f"nav/corpus drift -- only in nav: {sorted(set(pages) - on_disk)}; "
-        f"only on disk: {sorted(on_disk - set(pages))}"
+    nav_set: set[str] = set(pages);
+    assert nav_set == on_disk , (
+        f"nav/corpus drift -- only in nav: {sorted(nav_set - on_disk)}; "
+        f"only on disk: {sorted(on_disk - nav_set)}"
     );
     assert len(pages) == len(set(pages)) , "duplicate pages in nav.json";
 }
@@ -196,18 +197,18 @@ test "grep_guides honors per-guide and total caps" {
 
 test "guide --json emits the full skill + doc index" {
     payload = _capture_json(lambda { guide(as_json=True); });
-    kinds = {entry["kind"] for entry in payload};
+    kinds = {`entry["kind"] for `entry in payload};
     assert kinds == {"skill", "doc"} , f"kinds: {kinds}";
     assert len(payload) == len(list_guides()) + len(list_docs());
-    for entry in payload {
-        assert entry["name"] and entry["description"] is not None;
+    for `entry in payload {
+        assert `entry["name"] and `entry["description"] is not None;
     }
 }
 
 
 test "guide <corpus> and guide <doc> JSON surfaces work" {
     listing = _capture_json(lambda { guide(topic="reference", as_json=True); });
-    assert "reference/diagnostics" in {entry["name"] for entry in listing};
+    assert "reference/diagnostics" in {`entry["name"] for `entry in listing};
 
     doc = _capture_json(lambda { guide(topic="reference/diagnostics", as_json=True); });
     assert doc["name"] == "reference/diagnostics";
@@ -220,7 +221,11 @@ test "grep_guides falls back to doc-level matches for sentence queries" {
     hits = grep_guides("filter predicate unknown type W1051 dynamic value");
     assert hits , "sentence-length query should produce doc-level matches";
     assert all([h.line_no == 0 for h in hits]) , "fallback hits are doc-level";
-    top = {h.guide for h in hits[:3]};
+    # The subject here is the doc-level fallback, not an exact ranking: the
+    # score is a function of the whole corpus, so any page that gains matching
+    # prose shifts neighbours by a place or two. Pin that the diagnostics
+    # reference stays findable near the top, not that it holds one slot.
+    top = {h.guide for h in hits[:5]};
     assert "reference/diagnostics" in top , f"top hits: {top}";
     assert "open: jac guide" in hits[0].text;
 }

@@ -84,8 +84,8 @@ def summarize_ingress(ing: dict) -> dict {
     }
     lb: list = [];
     ingress_status = (status.get("load_balancer", {}) or {}).get("ingress", []) or [];
-    for entry in ingress_status {
-        addr = entry.get("hostname") or entry.get("ip");
+    for `entry in ingress_status {
+        addr = `entry.get("hostname") or `entry.get("ip");
         if addr {
             lb.append(str(addr));
         }
@@ -213,7 +213,11 @@ impl JacAPIServerNetwork.register_network_endpoints -> None {
         }
         return JSONResponse(content={"ok": True, "data": data});
     }
-    self.server.add_endpoint(
+    server = self.server;
+    if server is None {
+        return;
+    }
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/ops/network",

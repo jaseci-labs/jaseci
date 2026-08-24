@@ -33,7 +33,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Fix a compiler bug | `jac/jaclang/compiler/passes/main/` (Python target) |
 | Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
 | Fix type checking | `jac/jaclang/compiler/type_system/` + `passes/main/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen_pass.impl/` |
+| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen/` |
 | Work on JS compilation | `jac/jaclang/compiler/passes/ecmascript/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtimelib/` |
@@ -129,7 +129,7 @@ See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entranc
 
 ### `compiler/passes/native/` -- Native Compilation
 
-The native backend generates LLVM IR via `llvmlite`. The main pass (`na_ir_gen_pass.jac`) delegates to implementation files in `na_ir_gen_pass.impl/`, each handling a different part of the language:
+The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
 
 | File | What it covers |
 |------|---------------|
@@ -157,7 +157,7 @@ This is what Jac programs depend on at execution time. The key modules:
 
 - **`builtin.jac`** -- Builtin functions and types available in every Jac program.
 - **`memory.jac`** -- Memory management, including the shelved object store for graph persistence.
-- **`server.jac`** -- FastAPI-based HTTP server used by `jac start` to serve walkers as API endpoints.
+- **`server.jac`** -- FastAPI-based HTTP server used by `jac run` to serve walkers as API endpoints.
 - **`context.jac`** -- Execution context -- tracks the current graph root, walker state, and runtime configuration.
 - **`scheduler.jac`** -- Async task scheduling for concurrent walker execution.
 - **`testing.jac`** -- Test runner integration backing `jac test`.
@@ -180,7 +180,7 @@ Features that once shipped as separate plugin packages now live inside `jaclang`
 | Subsystem | What it adds |
 |--------|-------------|
 | `byllm` (`jac/jaclang/byllm/`) | LLM-powered functions -- annotate a function signature with a docstring and byLLM calls an LLM to implement it at runtime. `litellm` and other model deps are optional, pulled per-project via `[byllm]` config + `jac install`. |
-| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac start` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
+| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac run` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
 | client framework (`jac/jaclang/runtimelib/client/`) | Full-stack web, desktop, and mobile -- compiles `.jac` to JavaScript, bundles with Vite, and hosts desktop webview apps. |
 | MCP server (`jac/jaclang/cli/mcp/`) | `jac mcp` -- exposes the live Jac compiler and project to AI coding assistants. See the [MCP reference](../reference/mcp.md). |
 

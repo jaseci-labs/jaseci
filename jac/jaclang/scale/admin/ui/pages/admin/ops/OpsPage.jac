@@ -118,7 +118,7 @@ def:pub OpsPage -> JsxElement {
             if first {
                 seenFail = True;
             }
-            out.push(
+            out.append(
                 {
                     "name": step["name"],
                     "ok": step["ok"],
@@ -142,7 +142,7 @@ def:pub OpsPage -> JsxElement {
                 continue;
             }
             status = String(sig["status"] or "fail");
-            out.push(
+            out.append(
                 {
                     "name": name,
                     "label": SIGNAL_LABELS[name] or name,
@@ -163,7 +163,7 @@ def:pub OpsPage -> JsxElement {
         onClick={lambda { loadHealth(); }}
         disabled={isLoading}
     >
-        <RefreshCw className={"w-3.5 h-3.5 " + (isLoading and "animate-spin" or "")}/>
+        <RefreshCw className={"w-3.5 h-3.5 " + ("animate-spin" if isLoading else "")}/>
         Refresh
     </button>;
 

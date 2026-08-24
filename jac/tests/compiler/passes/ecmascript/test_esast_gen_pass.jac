@@ -36,6 +36,30 @@ impl _ThunkViewBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
     return es.CallExpression(callee=es.Identifier(name="__view"), arguments=[expr]);
 }
 
+"""The react state lowering as it stood before #8224: the store cell and no
+setter. Standing in for the regression lets the free-identifier audit be tested
+on the exact shape it exists to catch, without reverting the fix."""
+obj _DropSetterBackend(ReactBackend) {
+    def lower_state_field(s: any) -> list[es.Statement];
+}
+
+impl _DropSetterBackend.lower_state_field(s: any) -> list[es.Statement] {
+    return [
+        es.VariableDeclaration(
+            declarations=[
+                es.VariableDeclarator(
+                    id=es.Identifier(name=self._state_cell_name(s.name)),
+                    init=es.CallExpression(
+                        callee=es.Identifier(name="useJacState"),
+                        arguments=[s.init_expr]
+                    )
+                )
+            ],
+            kind="const"
+        )
+    ];
+}
+
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
      );
@@ -67,6 +91,13 @@ def _fatal_errors(prog: JacProgram) -> list {
     ];
 }
 
+"""Body statements of a function declaration, asserting the block exists."""
+def _fn_stmts(fn: es.FunctionDeclaration) -> list[es.Statement] {
+    blk = fn.body;
+    assert blk is not None;
+    return blk.body;
+}
+
 """Compile Jac source to an ESTree program.
 
 type_check=True mirrors the real client codegen path: the backend consumes
@@ -75,7 +106,7 @@ stamps, so the fixture IR must be fact-stamped before EsastGenPass runs.
 """
 def compile_to_esast(filename: str) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
@@ -93,7 +124,7 @@ def compile_to_esast(filename: str) -> es.Program {
 """Compile Jac source to an ESTree program with an explicit FrameworkBackend."""
 def compile_to_esast_with_backend(filename: str, backend: object) -> es.Program {
     prog = JacProgram();
-    ir = prog.compile(file_path=filename, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=filename, no_cgen=True);
 
     _fatal = _fatal_errors(prog);
     assert not _fatal , (
@@ -268,7 +299,7 @@ test "class separate impl file" {
     assert "ScientificCalculator" in class_names;
 
     # Check that methods from impl file are present
-    calculator_class = next(
+    calculator_class: any = next(
         (
             cls
             for cls in class_decls
@@ -449,8 +480,12 @@ test "react read seam lowers a reactive read to a store cell member" {
     assert isinstance(read_node, es.MemberExpression) , (
         "react read seam must return a MemberExpression"
     );
-    assert read_node.object.name == "__jacS_count";
-    assert read_node.property.name == "val";
+    read_obj = read_node.object;
+    assert isinstance(read_obj, es.Identifier);
+    assert read_obj.name == "__jacS_count";
+    read_prop = read_node.property;
+    assert isinstance(read_prop, es.Identifier);
+    assert read_prop.name == "val";
 }
 
 test "react read seam routes every value position through the cell" {
@@ -741,9 +776,7 @@ test "stale has read emits W3041" {
     # Compile with type_check=True so the lint schedule (JacLintCheckPass)
     # runs and W3041 surfaces in prog.warnings_had.
     prog = JacProgram();
-    _ir = prog.compile(
-        file_path=fixture_path("stale_has_read.jac"), no_cgen=True, type_check=True
-    );
+    _ir = prog.compile(file_path=fixture_path("stale_has_read.jac"), no_cgen=True);
     assert not prog.errors_had , (
         "Compilation errors: " + str([str(e) for e in prog.errors_had])
     );
@@ -809,14 +842,14 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(greeting.params[0], es.Identifier);
     assert greeting.params[0].name == "props";
 
-    direct_pos_ret = funcs["direct_pos"].body.body[0];
+    direct_pos_ret = _fn_stmts(funcs["direct_pos"])[0];
     assert isinstance(direct_pos_ret, es.ReturnStatement);
     direct_pos_call = direct_pos_ret.argument;
     assert isinstance(direct_pos_call, es.CallExpression);
     assert len(direct_pos_call.arguments) == 1;
     assert isinstance(direct_pos_call.arguments[0], es.ObjectExpression);
 
-    direct_single_ret = funcs["direct_single_object"].body.body[0];
+    direct_single_ret = _fn_stmts(funcs["direct_single_object"])[0];
     assert isinstance(direct_single_ret, es.ReturnStatement);
     direct_single_call = direct_single_ret.argument;
     assert isinstance(direct_single_call, es.CallExpression);
@@ -827,7 +860,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(direct_single_props[0].key, es.Identifier);
     assert direct_single_props[0].key.name == "payload";
 
-    direct_spread_ret = funcs["direct_spread"].body.body[0];
+    direct_spread_ret = _fn_stmts(funcs["direct_spread"])[0];
     assert isinstance(direct_spread_ret, es.ReturnStatement);
     direct_spread_call = direct_spread_ret.argument;
     assert isinstance(direct_spread_call, es.CallExpression);
@@ -837,7 +870,7 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert len(spread_elems) == 1;
     assert isinstance(spread_elems[0], es.SpreadElement);
 
-    direct_mixed_ret = funcs["direct_mixed_spread"].body.body[0];
+    direct_mixed_ret = _fn_stmts(funcs["direct_mixed_spread"])[0];
     assert isinstance(direct_mixed_ret, es.ReturnStatement);
     direct_mixed_call = direct_mixed_ret.argument;
     assert isinstance(direct_mixed_call, es.CallExpression);
@@ -847,13 +880,13 @@ test "props-destructured component direct calls preserve wrapping and spreads" {
     assert isinstance(mixed_elems[0], es.Literal);
     assert isinstance(mixed_elems[1], es.SpreadElement);
 
-    passthrough_ret = funcs["passthrough_bundle"].body.body[0];
+    passthrough_ret = _fn_stmts(funcs["passthrough_bundle"])[0];
     assert isinstance(passthrough_ret, es.ReturnStatement);
     passthrough_call = passthrough_ret.argument;
     assert isinstance(passthrough_call, es.CallExpression);
     assert isinstance(passthrough_call.arguments[0], es.Identifier);
 
-    plain_spread_ret = funcs["plain_spread"].body.body[0];
+    plain_spread_ret = _fn_stmts(funcs["plain_spread"])[0];
     assert isinstance(plain_spread_ret, es.ReturnStatement);
     plain_spread_call = plain_spread_ret.argument;
     assert isinstance(plain_spread_call, es.CallExpression);
@@ -877,26 +910,26 @@ test "implicit JSX returns lower like explicit returns" {
     assert len(badge.params) == 1;
     assert isinstance(badge.params[0], es.Identifier);
     assert badge.params[0].name == "props";
-    badge_ret = badge.body.body[-1];
+    badge_ret = _fn_stmts(badge)[-1];
     assert isinstance(badge_ret, es.ReturnStatement) , (
         "implicit JSX tail must lower to a ReturnStatement"
     );
 
     # Statements before the tail expression are kept ahead of the return.
     after_stmts = funcs["ImplicitAfterStmts"];
-    after_ret = after_stmts.body.body[-1];
+    after_ret = _fn_stmts(after_stmts)[-1];
     assert isinstance(after_ret, es.ReturnStatement);
-    assert len(after_stmts.body.body) >= 2 , (
+    assert len(_fn_stmts(after_stmts)) >= 2 , (
         "leading statements must be preserved before the implicit return"
     );
 
     # An early explicit return can mix with an implicit tail return.
     guarded = funcs["GuardedImplicit"];
-    guarded_ret = guarded.body.body[-1];
+    guarded_ret = _fn_stmts(guarded)[-1];
     assert isinstance(guarded_ret, es.ReturnStatement);
 
     # Call sites wrap args into a props object, same as explicit-return components.
-    direct_ret = funcs["direct_call_implicit"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_implicit"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -927,7 +960,7 @@ test "conditional JSX returns still trigger props-destructure lowering" {
     assert match_greeting.params[0].name == "props";
 
     # Direct call site must wrap positional args into a props object.
-    direct_ret = funcs["direct_call_conditional"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call_conditional"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -952,7 +985,7 @@ test "union JsxElement return type still triggers props-destructure lowering" {
     assert isinstance(error_banner.params[0], es.Identifier);
     assert error_banner.params[0].name == "props";
 
-    direct_ret = funcs["direct_call"].body.body[0];
+    direct_ret = _fn_stmts(funcs["direct_call"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);
     direct_call = direct_ret.argument;
     assert isinstance(direct_call, es.CallExpression);
@@ -1326,5 +1359,78 @@ test "augmented reactive assignments do not double-apply the lhs" {
     # nested `(__jacS_count.val + (__jacS_count.val` shape.
     assert "(__jacS_count.val + (__jacS_count.val" not in js , (
         "double-application bug detected in:\n" + js
+    );
+}
+
+"""Diagnostic code strings carried by a list of alerts."""
+def _codes_of(alerts: list) -> list[str] {
+    return [
+        a.code.code
+        for a in alerts
+        if a.code is not None
+    ];
+}
+
+"""Compile a fixture the whole way through client codegen, keeping its alerts."""
+def compile_fixture_reporting(filename: str) -> JacProgram {
+    prog = JacProgram();
+    prog.compile(file_path=fixture_path(filename));
+    return prog;
+}
+
+"""Run the ES pass with a backend and hand back the program's alerts."""
+def codegen_alerts(filename: str, backend: object) -> list {
+    prog = JacProgram();
+    ir = prog.compile(file_path=fixture_path(filename), no_cgen=True);
+    run_pass(EsastGenPass, ir, prog, backend=backend);
+    return list(prog.errors_had);
+}
+
+test "an emitted module may not reference a name it never binds" {
+    # The property behind #8072 and #8224, standing in for the lowering bug
+    # rather than describing it: _DropSetterBackend is the pre-fix react
+    # lowering, emitting the state cell and no setter. `setTheme` is a name the
+    # compiler resolved -- the checker registers it for every client `has`
+    # field -- so emitting it unbound is a ReferenceError the audit has to
+    # catch, and this test fails the moment the binding is dropped again.
+    errs = [
+        e
+        for e in codegen_alerts("state_setter_value_ref.jac", _DropSetterBackend())
+        if e.code is not None and e.code.code == "E5101"
+    ];
+    assert len(errs) == 1 , (
+        "dropping the setter binding must be an error, got "
+        f"{_codes_of(
+            codegen_alerts('state_setter_value_ref.jac', _DropSetterBackend())
+        )}"
+    );
+    assert "setTheme" in str(errs[0]) , (
+        f"E5101 must name the unbound identifier; got {errs[0]!s}"
+    );
+    assert "state_setter_value_ref.jac" in str(errs[0]) , (
+        f"E5101 must point at the Jac source that names it; got {errs[0]!s}"
+    );
+}
+
+test "the audit leaves ordinary client modules alone" {
+    # Ambient browser globals, runtime imports and the framework's own required
+    # globals are bindings the module legitimately does not declare.
+    prog = compile_fixture_reporting("state_setter_value_ref.jac");
+    assert "E5101" not in _codes_of(prog.errors_had) , (
+        "the audit must not fire on a module whose names are all bound: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+}
+
+test "a client state setter used as a value is bound by codegen" {
+    # #8224: `has theme` names both `theme` and `setTheme`; handing the setter
+    # to a constructor is the ordinary hook shape and must emit a real binding.
+    es_ast = compile_to_esast(fixture_path("state_setter_value_ref.jac"));
+    js = es_to_js(es_ast);
+    assert "const setTheme = " in js , (
+        f"the emitted module must declare setTheme; got:\n{js}"
+    );
+    assert "setTheme: setTheme" in js , (
+        f"the setter reference must stay an ordinary reference; got:\n{js}"
     );
 }

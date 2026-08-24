@@ -245,12 +245,12 @@ def run_admin_prebuild_tests(runner: IntegrationTestRunner) {
         # Start server in background
         print(f"\n{'=' * 60}");
         print(f"TEST: {desc} - start jac-scale server");
-        print(f"CMD:  jac start main.jac --port {port}");
+        print(f"CMD:  jac run --serve --port {port} main.jac");
         print("-" * 60);
 
         log_fh = open(log_file, "w");
         server_proc = subprocess.Popen(
-            ["jac", "start", "main.jac", "--port", str(port)],
+            ["jac", "run", "--serve", "--port", str(port), "main.jac"],
             cwd=tmpdir,
             stdout=log_fh,
             stderr=subprocess.STDOUT
@@ -355,10 +355,10 @@ def run_admin_prebuild_tests(runner: IntegrationTestRunner) {
         if server_proc is not None and server_proc.poll() is None {
             server_proc.terminate();
             try {
-                server_proc.wait(timeout=5);
+                server_proc.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 server_proc.kill();
-                server_proc.wait();
+                server_proc.`wait();
             }
         }
         # Cleanup temp files
@@ -373,7 +373,7 @@ with entry {
     print("=" * 60);
 
     if not check_environment() {
-        sys.exit(1);
+        sys.`exit(1);
     }
 }
 
@@ -383,5 +383,5 @@ with entry {
     run_pth_tests(runner);
     run_cli_tests(runner);
     run_admin_prebuild_tests(runner);
-    sys.exit(runner.summary());
+    sys.`exit(runner.summary());
 }

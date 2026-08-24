@@ -155,7 +155,7 @@ impl random_value_for_type(tp: any, *, _depth: int = 0, _max_depth: int = 10) ->
         kwargs: dict[str, any] = {};
         for f in dc_fields(tp) {
             if f.init {
-                if f.default is not MISSING or f.default_factory is not MISSING {
+                if f.`default is not MISSING or f.default_factory is not MISSING {
                     if random.random() < 0.35 {
                         continue;
                     }
@@ -229,7 +229,7 @@ impl random_value_for_type(tp: any, *, _depth: int = 0, _max_depth: int = 10) ->
                 ann = param.annotation
                     if param.annotation is not inspect._empty
                     else typing.Any;
-                if param.default is not inspect._empty and random.random() < 0.4 {
+                if param.`default is not inspect._empty and random.random() < 0.4 {
                     continue;
                 }
                 if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD) {
@@ -322,16 +322,16 @@ impl _is_enum(tp: any) -> bool {
 }
 
 impl _is_namedtuple(tp: any) -> bool {
-    return (
+    return bool(
         isinstance(tp, type)
-        and issubclass(tp, tuple)
-        and tp?._fields
-        and tp?.__annotations__
+            and issubclass(tp, tuple)
+            and tp?._fields
+            and tp?.__annotations__
     );
 }
 
 impl _is_typed_dict(tp: any) -> bool {
-    return (isinstance(tp, type) and tp?.__annotations__ and tp?.__required_keys__);
+    return bool(isinstance(tp, type) and tp?.__annotations__ and tp?.__required_keys__);
 }
 
 impl _rand_str(n: int = 12) -> str {

@@ -93,7 +93,9 @@ test "graphquery carries flags and is callable-free" {
     assert not q.from_visit;
     q.`visit();
     assert q.from_visit;
-    assert q.slc.stop == 25;
+    slc = q.slc;
+    assert slc is not None;
+    assert slc.stop == 25;
     assert q.hops[0].`edge is QE;
     assert q.hops[0].preds[0].matches(2);
     assert "0:25" in q.repr();

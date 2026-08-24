@@ -14,6 +14,11 @@ import from jaclang.compiler.passes.ecmascript.scoped_styles {
     load_style_annex
 }
 import from jaclang.compiler.passes.ecmascript.framework_backend { FrameworkBackend }
+import from jaclang.compiler.passes.ecmascript.free_ident_audit {
+    RUNTIME_PRELUDE_GLOBALS,
+    client_ambient_globals,
+    free_identifiers
+}
 import from jaclang.jac0core.modresolver {
     convert_to_js_import_path,
     relative_js_specifier,
@@ -34,7 +39,8 @@ import from jaclang.jac0core.diagnostics {
     E5081,
     E5085,
     E5086,
-    E5099
+    E5099,
+    E5101
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -111,6 +117,50 @@ glob _T = TypeVar('_T', bound=es.Node),
          Tok.GTE: "emit_op_ge",
          Tok.KW_IN: "emit_op_contains",
          Tok.KW_NIN: "emit_op_contains"
+     },
+     FW_JS_PLAIN_OPS: frozenset = frozenset({"&", "|", "^"}),
+     FW_JS_CHECKED_OPS: frozenset = frozenset({"+", "-", "*"}),
+     FW_JS_HELPER_OPS: dict[(str, str)] = {
+         "/": "div",
+         "//": "fdiv",
+         "%": "mod",
+         "**": "pow",
+         "<<": "shl",
+         ">>": "shr"
+     },
+     FW_JS_FLOAT_HELPERS: dict[(str, str)] = {
+         "/": "div",
+         "//": "fdiv",
+         "%": "mod",
+         "**": "pow"
+     },
+     FW_BINARY_OPS: dict[(Tok, str)] = {
+         Tok.PLUS: "+",
+         Tok.MINUS: "-",
+         Tok.STAR_MUL: "*",
+         Tok.DIV: "/",
+         Tok.FLOOR_DIV: "//",
+         Tok.MOD: "%",
+         Tok.STAR_POW: "**",
+         Tok.BW_AND: "&",
+         Tok.BW_OR: "|",
+         Tok.BW_XOR: "^",
+         Tok.LSHIFT: "<<",
+         Tok.RSHIFT: ">>"
+     },
+     AUG_TO_BINARY_TOK: dict[(Tok, Tok)] = {
+         Tok.ADD_EQ: Tok.PLUS,
+         Tok.SUB_EQ: Tok.MINUS,
+         Tok.MUL_EQ: Tok.STAR_MUL,
+         Tok.DIV_EQ: Tok.DIV,
+         Tok.FLOOR_DIV_EQ: Tok.FLOOR_DIV,
+         Tok.MOD_EQ: Tok.MOD,
+         Tok.STAR_POW_EQ: Tok.STAR_POW,
+         Tok.BW_AND_EQ: Tok.BW_AND,
+         Tok.BW_OR_EQ: Tok.BW_OR,
+         Tok.BW_XOR_EQ: Tok.BW_XOR,
+         Tok.LSHIFT_EQ: Tok.LSHIFT,
+         Tok.RSHIFT_EQ: Tok.RSHIFT
      },
      UNARY_EMIT_MAP: dict[(Tok, str)] = {
          Tok.MINUS: "emit_op_neg",
@@ -203,6 +253,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         needs_osp_kernel: bool = False,
         needs_osp_graph: bool = False,
         _unlowered_reported: set = set(),
+        _unbound_reported: set[str] = set(),
         _osp_var_arch_cache: (dict | None) = None,
         _primitive_emitters: (dict[str, object] | None) = None,
         _builtin_emitter: (object | None) = None,
@@ -212,6 +263,20 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def before_pass -> None;
     def enter_node(nd: uni.UniNode) -> None;
     def exit_node(nd: uni.UniNode) -> None;
+    def _fw_call(
+        name: str, args: list[es.Expression], jac_node: uni.UniNode
+    ) -> es.Expression;
+
+    def _apply_fw_coercion(nd: uni.Expr) -> None;
+    def _fw_js_binop(
+        op: str, left: es.Expression, right: es.Expression, jac_node: uni.UniNode
+    ) -> es.Expression;
+
+    def _fw_to_number(expr: es.Expression, jac_node: uni.UniNode) -> es.Expression;
+    def _fw_binary(
+        nd: uni.Expr, op: str, left: es.Expression, right: es.Expression
+    ) -> (es.Expression | None);
+
     def sync_loc(es_node: _T, jac_node: (uni.UniNode | None) = None) -> _T;
     def _template_element(
         text: str, tail: bool, jac_node: uni.UniNode
@@ -320,6 +385,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> es.MemberExpression;
 
     def exit_module(nd: uni.Module) -> None;
+    def _audit_free_identifiers(nd: uni.Module, program: es.Program) -> None;
     def populate_client_manifest(nd: uni.Module) -> None;
     def exit_sub_tag(nd: uni.SubTag[uni.T]) -> None;
     def exit_import(nd: uni.Import) -> None;
@@ -351,6 +417,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_func_signature(nd: uni.FuncSignature) -> None;
     def exit_param_var(nd: uni.ParamVar) -> None;
     def exit_arch_has(nd: uni.ArchHas) -> None;
+    def _setter_name_taken(has_var: uni.HasVar, setter_name: str) -> bool;
     def exit_has_var(nd: uni.HasVar) -> None;
     def _has_import(name: str) -> bool;
     def _inject_runtime_import(name: str, nd: uni.UniNode) -> None;
