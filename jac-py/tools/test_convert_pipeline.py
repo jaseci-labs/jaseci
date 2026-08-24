@@ -266,6 +266,30 @@ class ClassifierTests(unittest.TestCase):
         self.assertIn("MARK ALLDONE", text)
 
 
+class SanitizeReportTextTests(unittest.TestCase):
+    """Generated triage markdown must pass markdownlint/ban-em-dashes hooks."""
+
+    def test_dashes_become_ascii_hyphen(self):
+        text = "cap - end\u2014mid\u2013also\u2212minus"
+        self.assertEqual(dr._sanitize_report_text(text), "cap - end-mid-also-minus")
+
+    def test_curly_quotes_become_straight(self):
+        text = "\u2018single\u2019 and \u201cdouble\u201d"
+        self.assertEqual(dr._sanitize_report_text(text), "'single' and \"double\"")
+
+    def test_emoji_and_symbols_stripped(self):
+        text = "done \u2705 ok \U0001f680 warn \u26a0 end"
+        self.assertEqual(dr._sanitize_report_text(text), "done  ok  warn  end")
+
+    def test_ascii_passes_through_byte_identical(self):
+        text = "| pin | result | got |\n|---|---|---|\n| a | PASS | GOT<x> |"
+        self.assertEqual(dr._sanitize_report_text(text), text)
+        self.assertIs(type(dr._sanitize_report_text(text)), str)
+
+    def test_accented_letters_decompose_to_ascii(self):
+        self.assertEqual(dr._sanitize_report_text("caf\u00e9 na\u00efve"), "cafe naive")
+
+
 class ManifestTests(unittest.TestCase):
     def test_manifest_entry_roundtrip(self, tmp=None):
         import tempfile

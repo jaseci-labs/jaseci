@@ -30,6 +30,7 @@ import json
 import os
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -43,6 +44,38 @@ JAC_TIMEOUT = 60  # seconds, hard limit; one jac process at a time
 from convert_suite import attempt_header, file_sha256  # shared fingerprint block
 
 TOOL_VERSION = "diff_runner-0.2.0"
+
+_DASH_CHARS = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"
+_QUOTE_MAP = {
+    "\u2018": "'", "\u2019": "'", "\u201a": "'",
+    "\u201c": '"', "\u201d": '"', "\u201e": '"',
+}
+
+
+def _sanitize_report_text(text: str) -> str:
+    """Make generated markdown pass the repo's pre-commit hooks.
+
+    The repo bans em-dashes (pygrep ``ban-em-dashes``) and lints markdown via
+    ``markdownlint-cli2``; tool banners and exception text can carry dashes,
+    curly quotes, and emoji. Dashes become '-', curly quotes become their
+    straight equivalents, and any other non-ASCII char is kept only if it
+    decomposes to ASCII under NFKD (e.g. accented letters); otherwise dropped.
+    Applies to report output only -- pinned snippets are stored elsewhere with
+    ``ensure_ascii`` JSON escaping and must stay byte-exact.
+    """
+    out: list[str] = []
+    for ch in text:
+        if ch in _DASH_CHARS:
+            out.append("-")
+        elif ch in _QUOTE_MAP:
+            out.append(_QUOTE_MAP[ch])
+        elif ord(ch) < 128:
+            out.append(ch)
+        else:
+            out.append(
+                unicodedata.normalize("NFKD", ch).encode("ascii", "ignore").decode("ascii")
+            )
+    return "".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = build_report(pins_file, meta, elapsed_note, classifications)
     report_path = Path(args.report) if args.report else pins_file.with_suffix(".triage.md")
-    report_path.write_text(report, encoding="utf-8")
+    report_path.write_text(_sanitize_report_text(report), encoding="utf-8")
 
     conformance_path, result_path = write_conformance_and_result(
         pins_file.parent, meta,
