@@ -204,22 +204,28 @@ def _mark_message_for_caching(msg: dict) {
 }
 
 
+glob _CACHE_TOKEN_DETAIL_FALLBACK: dict[str, str] = {
+         "cache_read_input_tokens": "cached_tokens",
+         "cache_creation_input_tokens": "cache_creation_tokens"
+     };
+
 def _usage_int(usage: any, key: str) -> int {
     if usage is None {
         return 0;
     }
     val = usage.get(key) if isinstance(usage, dict) else getattr(usage, key, None);
-    if val is None and key == "cache_read_input_tokens" {
+    if val is None and key in _CACHE_TOKEN_DETAIL_FALLBACK {
         ptd = (
             usage.get("prompt_tokens_details")
                 if isinstance(usage, dict)
                 else usage?.prompt_tokens_details
         );
         if ptd is not None {
+            detail_key = _CACHE_TOKEN_DETAIL_FALLBACK[key];
             val = (
-                ptd.get("cached_tokens")
+                ptd.get(detail_key)
                     if isinstance(ptd, dict)
-                    else ptd?.cached_tokens
+                    else getattr(ptd, detail_key, None)
             );
         }
     }
@@ -344,6 +350,9 @@ def _record_usage(
     record["call_kind"] = call_kind or mt_run._call_kind;
     if finish_reason {
         record["finish_reason"] = finish_reason;
+    }
+    for key in _CACHE_TOKEN_DETAIL_FALLBACK {
+        record[key] = _usage_int(usage_obj, key);
     }
     mt_run._usage_history.append(record);
 }

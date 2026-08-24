@@ -401,3 +401,71 @@ test "usage StreamEvent always terminates a logging=True stream, even with no us
     assert events[-1].data["by_kind"] == {};
     assert events[-1].data["requests"] == 0;
 }
+
+
+test "cache token fields are normalized onto every recorded call, regardless of provider shape" {
+    mt = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="s"),
+            Message(role=MessageRole.USER, content="u")
+        ],
+        resp_type=str,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None
+    );
+
+    # Anthropic-shaped: cache fields already top-level.
+    _byllm_llm_mod._record_usage(
+        mt,
+        {
+            "prompt_tokens": 100,
+            "completion_tokens": 10,
+            "total_tokens": 110,
+            "cache_read_input_tokens": 40,
+            "cache_creation_input_tokens": 15
+        },
+        "claude-sonnet-4-5"
+    );
+
+    # OpenAI-shaped: cache reads only nested under prompt_tokens_details, no
+    # cache-creation concept at all.
+    _byllm_llm_mod._record_usage(
+        mt,
+        {
+            "prompt_tokens": 200,
+            "completion_tokens": 20,
+            "total_tokens": 220,
+            "prompt_tokens_details": {"cached_tokens": 60}
+        },
+        "gpt-4o-mini"
+    );
+
+    # No cache concept whatsoever.
+    _byllm_llm_mod._record_usage(
+        mt,
+        {"prompt_tokens": 50, "completion_tokens": 5, "total_tokens": 55},
+        "some-model"
+    );
+
+    assert len(mt._usage_history) == 3;
+
+    anthropic_rec = mt._usage_history[0];
+    assert anthropic_rec["cache_read_input_tokens"] == 40;
+    assert anthropic_rec["cache_creation_input_tokens"] == 15;
+
+    openai_rec = mt._usage_history[1];
+    assert openai_rec["cache_read_input_tokens"] == 60 , (
+        "cache_read_input_tokens must be normalized from the nested "
+        "prompt_tokens_details.cached_tokens when no top-level field exists"
+    );
+    assert openai_rec["cache_creation_input_tokens"] == 0 , (
+        "a provider with no cache-creation concept must report 0, not be "
+        "missing the key entirely"
+    );
+
+    bare_rec = mt._usage_history[2];
+    assert bare_rec["cache_read_input_tokens"] == 0;
+    assert bare_rec["cache_creation_input_tokens"] == 0;
+}

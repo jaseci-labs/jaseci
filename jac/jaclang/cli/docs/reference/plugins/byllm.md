@@ -1569,23 +1569,14 @@ with entry {
 
 #### Cache tokens
 
-When [prompt caching](#project-configuration) is active (automatic for Claude models), each `per_call` dict also carries the provider's cache counters. Read them to measure your cache hit rate:
+`cache_read_input_tokens` and `cache_creation_input_tokens` are always present on every `per_call` entry (and summed into `total`/`by_kind`) — `0` when [prompt caching](#project-configuration) isn't active or the provider has no caching concept, the real count otherwise. Providers report caching differently (Anthropic and Gemini set it directly; OpenAI only nests it under `prompt_tokens_details.cached_tokens`), so byLLM normalizes it to these two field names for every call, regardless of provider:
 
 ```jac
 with entry {
     for event in my_agent("...") {
         if event.event_type == "usage" {
             input_tokens = int(event.data["total"].get("prompt_tokens", 0));
-            cached = 0;
-            for call in event.data["per_call"] {
-                # Anthropic reports `cache_read_input_tokens`; OpenAI nests the
-                # count under `prompt_tokens_details.cached_tokens`.
-                cached += int(
-                    call.get("cache_read_input_tokens", 0)
-                    or (call.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
-                    or 0
-                );
-            }
+            cached = int(event.data["total"].get("cache_read_input_tokens", 0));
             if input_tokens > 0 {
                 print(f"Cache hit rate: {round(cached / input_tokens * 100, 1)}%");
             }
