@@ -77,6 +77,9 @@ def loads(sval: any, object_hook: any = None, parse_float: any = None,
     return rval;
 }
 
+import from exceptions_core { register_module_exception }
+
+
 def dumps(obj_val: any, skipkeys: bool = False, ensure_ascii: bool = True,
           check_circular: bool = True, allow_nan: bool = True,
           indent: any = None, separators: any = None, `default: any = None,
@@ -100,8 +103,6 @@ def dumps(obj_val: any, skipkeys: bool = False, ensure_ascii: bool = True,
     enc = make_encoder(markers, dflt, enc_str, ind, key_sep, item_sep,
                        sort_keys, skipkeys, allow_nan);
     return enc(obj_val, None)[0];
-
-import from exceptions_core { register_module_exception }
 }
 
 with entry {
