@@ -25,7 +25,7 @@ glob FIXTURES_DIR: Path = Path(__file__).parent.parent
          / "fixtures"
          / "acl_field_write";
 
-def _cleanup {
+def _cleanup_dbs {
     for pattern in ["*.db", "*.db-wal", "*.db-shm"] {
         for f in `glob.`glob(str(FIXTURES_DIR / pattern)) {
             with contextlib.suppress(Exception) {
@@ -33,11 +33,51 @@ def _cleanup {
             }
         }
     }
-    jac_dir = FIXTURES_DIR / ".jac";
-    if jac_dir.exists() {
-        with contextlib.suppress(Exception) {
-            shutil.rmtree(jac_dir);
+}
+
+def _cleanup {
+    _cleanup_dbs();
+    for sub in [".jac", "dist"] {
+        d = FIXTURES_DIR / sub;
+        if d.exists() {
+            with contextlib.suppress(Exception) {
+                shutil.rmtree(d);
+            }
         }
+    }
+}
+
+"""Boot the app once with a generous window so the one-time compile cost is
+paid outside start_server's health-poll contract."""
+def _prewarm {
+    import from jaclang.scale.runtime.context.util { jac_executable }
+    port = get_free_port();
+    proc = subprocess.Popen(
+        [jac_executable(), "run", "--serve", "--port", str(port), "app.jac"],
+        cwd=str(FIXTURES_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    );
+    try {
+        for _ in range(300) {
+            if proc.poll() is not None {
+                break;
+            }
+            try {
+                r = requests.get(f"http://localhost:{port}/healthz", timeout=1);
+                if r.status_code == 200 {
+                    break;
+                }
+            } except Exception {
+                time.sleep(1);
+            }
+        }
+    } finally {
+        proc.terminate();
+        with contextlib.suppress(Exception) {
+            proc.`wait(timeout=10);
+        }
+        _cleanup_dbs();
     }
 }
 
@@ -79,6 +119,7 @@ test "denied field write is not laundered by a later authorized flush" {
     _cleanup();
     port = get_free_port();
     base = f"http://localhost:{port}";
+    _prewarm();
     server = start_server(FIXTURES_DIR, FIXTURES_DIR / "app.jac", port);
     try {
         run = uuid.uuid4().hex[:8];
@@ -128,6 +169,7 @@ test "owner writes are unaffected by the gate" {
     _cleanup();
     port = get_free_port();
     base = f"http://localhost:{port}";
+    _prewarm();
     server = start_server(FIXTURES_DIR, FIXTURES_DIR / "app.jac", port);
     try {
         run = uuid.uuid4().hex[:8];
