@@ -399,8 +399,16 @@ impl TypeCheckPass.exit_atom_trailer(self: TypeCheckPass, nd: AtomTrailer) -> No
 impl TypeCheckPass._check_immutable_write(self: TypeCheckPass, target: Expr) -> None {
     if isinstance(target, (TupleVal, ListVal)) {
         for v in target.values {
-            self._check_immutable_write(v);
+            if isinstance(v, Expr) {
+                self._check_immutable_write(v);
+            }
         }
+        return;
+    }
+    if isinstance(target, UnaryExpr)
+        and isinstance(target.op, Token)
+        and target.op.name == "STAR_MUL" {
+        self._check_immutable_write(target.operand);
         return;
     }
     if isinstance(target, AtomTrailer)
@@ -410,7 +418,7 @@ impl TypeCheckPass._check_immutable_write(self: TypeCheckPass, target: Expr) -> 
             self.evaluator.get_type_of_expression(target);
         }
         attr_sym = target.right.sym;
-        if attr_sym is None {
+        if attr_sym is None or attr_sym.decl is target.right {
             return;
         }
         self.evaluator.get_type_of_symbol(attr_sym);
@@ -429,13 +437,29 @@ impl TypeCheckPass._check_immutable_write(self: TypeCheckPass, target: Expr) -> 
         return;
     }
     if isinstance(target, Name) and target.sym {
-        sym = target.sym;
-        self.evaluator.get_type_of_symbol(sym);
+        sym = self._immutable_origin(target.sym);
         if sym.immutability != ImmutabilityKind.NONE
             and sym.decl.name_of is not target {
             self._emit_immutable_write(sym, target, target.value);
         }
     }
+}
+
+impl TypeCheckPass._immutable_origin(self: TypeCheckPass, sym: Symbol) -> Symbol {
+    self.evaluator.get_type_of_symbol(sym);
+    if sym.immutability != ImmutabilityKind.NONE {
+        return sym;
+    }
+    decl_node = sym.decl.name_of;
+    if decl_node.find_parent_of_type(Import) is None {
+        return sym;
+    }
+    origin = sym.decl.sym;
+    if origin is None or origin is sym {
+        return sym;
+    }
+    self.evaluator.get_type_of_symbol(origin);
+    return origin;
 }
 
 impl TypeCheckPass._emit_immutable_write(
@@ -469,23 +493,31 @@ impl TypeCheckPass._in_owner_initializer(
     return (owner is not None) and (owner is decl_node.find_parent_of_type(Archetype));
 }
 
-impl TypeCheckPass._check_immutable_loop_target(
-    self: TypeCheckPass, loop: InForStmt, target: Expr
+impl TypeCheckPass._check_immutable_rebind(
+    self: TypeCheckPass, scope_node: UniScopeNode, target: (Expr | None)
 ) -> None {
     if isinstance(target, (TupleVal, ListVal)) {
         for v in target.values {
-            self._check_immutable_loop_target(loop, v);
+            if isinstance(v, Expr) {
+                self._check_immutable_rebind(scope_node, v);
+            }
         }
+        return;
+    }
+    if isinstance(target, UnaryExpr)
+        and isinstance(target.op, Token)
+        and target.op.name == "STAR_MUL" {
+        self._check_immutable_rebind(scope_node, target.operand);
         return;
     }
     if not isinstance(target, Name) {
         return;
     }
-    outer = lookup_enclosing_binding(loop, target.value);
+    outer = lookup_enclosing_binding(scope_node, target.value);
     if outer is None {
         return;
     }
-    self.evaluator.get_type_of_symbol(outer);
+    outer = self._immutable_origin(outer);
     if outer.immutability != ImmutabilityKind.NONE {
         self._emit_immutable_write(outer, target, target.value);
     }
@@ -1465,7 +1497,7 @@ impl TypeCheckPass.exit_in_for_stmt(self: TypeCheckPass, nd: InForStmt) -> None 
     } elif isinstance(nd.target, (TupleVal, ListVal)) {
         self._eval_unpacking_names(nd.target);
     }
-    self._check_immutable_loop_target(nd, nd.target);
+    self._check_immutable_rebind(nd, nd.target);
 
     collection_type = self.evaluator.get_type_of_expression(nd.collection);
 
@@ -1569,6 +1601,7 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
     exit_method = "__aexit__" if nd.is_async else "__exit__";
     for item in nd.exprs {
         ctx_item: ExprAsItem = item;
+        self._check_immutable_rebind(nd, ctx_item.alias);
         expr_type = self.evaluator.get_type_of_expression(ctx_item.expr);
         if not isinstance(expr_type, UnknownType) and not expr_type.is_any_instance() {
             enter_result = self.evaluator.get_type_of_magic_method_call(
@@ -1591,6 +1624,10 @@ impl TypeCheckPass.exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None {
             }
         }
     }
+}
+
+impl TypeCheckPass.exit_except(self: TypeCheckPass, nd: Except) -> None {
+    self._check_immutable_rebind(nd, nd.name);
 }
 
 impl TypeCheckPass.exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None {

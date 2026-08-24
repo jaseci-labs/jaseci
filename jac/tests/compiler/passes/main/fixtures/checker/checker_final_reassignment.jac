@@ -1,5 +1,10 @@
 """Fixture: Final immutability enforcement."""
 import from typing { Final }
+import from checker_final_source { SHARED_RATE }
+
+# An imported name keeps the Final of the binding it came from, so rebinding it
+# in this module is a write. `jac fmt` spells a module-level rebind as `glob`.
+glob SHARED_RATE = 3.0;  # <-- Error (imported Final rebound)
 
 obj Config {
     has name: Final[str] = "a";
@@ -88,6 +93,36 @@ obj Heir(Point) {
     def init {
         super.init(1);
         self.x = 999;  # <-- Error (subclass initializer, not the declaring one)
+    }
+}
+
+# A `self.x: Final[T] = ...` declaration is the declaring assignment, so only a
+# later write to the same attribute is an error.
+obj Cache {
+    has dir: str;
+
+    def postinit {
+        self.base: Final[str] = self.dir + "/base";  # OK: declaring assignment
+    }
+
+    def relocate(d: str) {
+        self.base = d;  # <-- Error (Final attribute written outside its declaration)
+    }
+}
+
+# Every binding form writes the enclosing name, so each one is a write.
+def rebinding_forms(items: list[int], path: str) {
+    tail: Final[list[int]] = [];
+    handle: Final[str] = "h";
+    err: Final[str] = "e";
+    (head, *tail) = items;  # <-- Error (starred unpacking target)
+    with open(path) as handle {  # <-- Error (with-as target)
+        print(head, handle);
+    }
+    try {
+        raise ValueError("x");
+    } except Exception as err {  # <-- Error (except-as target)
+        print(err);
     }
 }
 

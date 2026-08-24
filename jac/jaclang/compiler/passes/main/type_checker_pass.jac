@@ -14,6 +14,7 @@ import from jaclang.jac0core.unitree {
     EdgeRefTrailer,
     Enum,
     EventSignature,
+    Except,
     Expr,
     ExprAsItem,
     FilterCompr,
@@ -47,7 +48,9 @@ import from jaclang.jac0core.unitree {
     Token,
     TupleVal,
     TypeAlias,
+    UnaryExpr,
     UniNode,
+    UniScopeNode,
     VisitStmt,
     IfStmt,
     ElseIf,
@@ -169,6 +172,7 @@ class TypeCheckPass(UniPass) {
     def exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None;
     def enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
     def exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
+    def exit_except(self: TypeCheckPass, nd: Except) -> None;
     def exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None;
     def exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None;
     def exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None;
@@ -195,10 +199,11 @@ class TypeCheckPass(UniPass) {
         self: TypeCheckPass, target: AtomTrailer, decl_node: UniNode
     ) -> bool;
 
-    def _check_immutable_loop_target(
-        self: TypeCheckPass, loop: InForStmt, target: Expr
+    def _check_immutable_rebind(
+        self: TypeCheckPass, scope_node: UniScopeNode, target: (Expr | None)
     ) -> None;
 
+    def _immutable_origin(self: TypeCheckPass, sym: Symbol) -> Symbol;
     def _check_walker_reports_shape(
         self: TypeCheckPass, nd: HasVar, declared_type: object
     ) -> None;
