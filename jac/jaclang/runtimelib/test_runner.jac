@@ -29,7 +29,8 @@ glob _WARNING_IGNORES: list[tuple[str, str, str]] = [
          ("", "DeprecationWarning", "jaclang.vendor.cattrs")
      ];
 
-glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
+glob _WORKER_MEM_BYTES: int = 4 * 1024 * 1024 * 1024,
+     _WORKER_RETIRE_RSS_BYTES: int = 1536 * 1024 * 1024,
      _MEM_HEADROOM: float = 0.6,
      _MAX_AUTO_JOBS: int = 12,
      _PROGRESS_WIDTH: int = 72;
@@ -142,6 +143,10 @@ def run_tests(
 def default_jobs -> int;
 
 def resolve_jobs(requested: (str | int | None) = None) -> int;
+
+def worker_rss_bytes -> int;
+
+def worker_rss_ceiling -> int;
 
 def install_warning_filters -> None;
 

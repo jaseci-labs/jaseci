@@ -344,6 +344,32 @@ impl resolve_jobs(requested: (str | int | None) = None) -> int {
     }
 }
 
+impl worker_rss_bytes -> int {
+    import resource;
+    import sys;
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    if sys.platform == "darwin" {
+        return int(peak);
+    }
+    return int(peak) * 1024;
+}
+
+impl worker_rss_ceiling -> int {
+    raw = os.environ.get("JAC_TEST_WORKER_MAX_RSS_MB", "");
+    if not raw {
+        return _WORKER_RETIRE_RSS_BYTES;
+    }
+    try {
+        mb = int(str(raw).strip());
+    } except ValueError {
+        return _WORKER_RETIRE_RSS_BYTES;
+    }
+    if mb <= 0 {
+        return 0;
+    }
+    return mb * 1024 * 1024;
+}
+
 impl _cleanup_test_bases -> None {
     import shutil;
     while _TEST_BASES {
@@ -921,6 +947,7 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         _recycle = 25;
     }
     _served = 0;
+    _ceiling = worker_rss_ceiling();
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
         line = reader.readline();
@@ -960,6 +987,9 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         }
         _served += 1;
         _retire = _recycle > 0 and _served >= _recycle;
+        if not _retire and (_ceiling > 0) {
+            _retire = worker_rss_bytes() >= _ceiling;
+        }
         payload = json.dumps(
             {
                 "idx": request["idx"],
