@@ -5517,21 +5517,57 @@ def py_delete_subscript(container: PyObj, index: PyObj) -> PyObj {
     return container.mp_del_subscript(index);
 }
 
-# DICT_UPDATE/DICT_MERGE source view: yields the str-keyed pairs to merge into
-# the target dict. Native PyDict is returned directly; a host-backed mapping
-# (PyHostProxy) is converted via from_host, which lands as a PyDict when its
-# keys are strings. Non-mapping / non-str-key sources produce an empty view.
-def dict_merge_pairs(source: PyObj) -> PyDict {
+# DICT_UPDATE/DICT_MERGE source view: validate the merge source against
+# CPython's mapping protocol (ceval.c TARGET(DICT_UPDATE)/TARGET(DICT_MERGE))
+# and yield its pairs. Accepted sources: native PyDict, a host-backed mapping
+# whose from_host conversion lands as PyDict, or a user object exposing both
+# keys() and __getitem__ (drained through the dunder protocol). Anything else
+# is rejected exactly where CPython rejects it:
+#   - DICT_UPDATE ({**x}): TypeError "'<type>' object is not a mapping"
+#   - DICT_MERGE (f(**x)): TypeError "argument after ** must be a mapping,
+#     not <type>" -- host additionally prefixes the caller qualname, which the
+#     VM omits (house style for call-site errors, see fast-bind messages).
+# Returns the pair source as a PyObj holding a PyDict, or an unraised error.
+def dict_mapping_pairs(source: PyObj, kwargs_call: bool) -> PyObj {
     if isinstance(source, PyDict) {
-        return source as PyDict;
+        return source;
     }
     if isinstance(source, PyHostProxy) {
         converted = from_host((source as PyHostProxy).val);
         if isinstance(converted, PyDict) {
-            return converted as PyDict;
+            return converted;
         }
     }
-    return PyDict(t="dict", items={});
+    if isinstance(source, PyUserObj) {
+        u = source as PyUserObj;
+        if user_has_dunder(u, "keys") and user_has_dunder(u, "__getitem__") {
+            keys_res = call_user_dunder(u, "keys", []);
+            if is_error(keys_res) {
+                return keys_res;
+            }
+            key_list = members_of(keys_res);
+            if is_error(key_list) {
+                return key_list;
+            }
+            out = PyDict(t="dict", items={});
+            kitems = (key_list as PyList).items;
+            ki = 0;
+            while ki < len(kitems) {
+                v = call_user_dunder(u, "__getitem__", [kitems[ki]]);
+                if is_error(v) {
+                    return v;
+                }
+                out.dict_set(kitems[ki], v);
+                ki = ki + 1;
+            }
+            return out;
+        }
+    }
+    tname = _compare_type_name(source);
+    if kwargs_call {
+        return py_error("TypeError", "argument after ** must be a mapping, not " + tname);
+    }
+    return py_error("TypeError", "'" + tname + "' object is not a mapping");
 }
 
 # UNARY_NEGATIVE (-x). int/bool negate to int (-True == -1), float to float,
@@ -12752,7 +12788,16 @@ def run_frame(frame: PyFrame) -> PyObj {
             update_source: PyObj = stack.pop();
             target_index = len(stack) - arg;
             update_target = stack[target_index] as PyDict;
-            update_pairs = dict_merge_pairs(update_source);
+            update_view = dict_mapping_pairs(update_source, False);
+            if is_error(update_view) {
+                target = recover_exception(co, update_view, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return update_view;
+            }
+            update_pairs = update_view as PyDict;
             ukeys = update_pairs.dict_keys();
             uvals = update_pairs.dict_values();
             uj = 0;
@@ -12764,40 +12809,56 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_DICT_MERGE {
             # f(**kw): merge source (TOS) into the kwargs dict at STACK[-arg-1].
-            # Unlike DICT_UPDATE, a duplicate key is a TypeError (a keyword passed
-            # more than once). Keyword keys are always strings.
+            # Unlike DICT_UPDATE, a non-str key is a TypeError ("keywords must
+            # be strings") and a duplicate key is a TypeError (a keyword passed
+            # more than once). Both fire at FIRST offending key in iteration
+            # order, matching _PyDict_MergeEx's ordered override=2 walk.
             merge_source: PyObj = stack.pop();
             # Stack effect (CPython): (callable, unused, unused, dict,
             # unused[oparg-1], update). After popping `update`, the target dict
             # sits `oparg` slots below the top.
             target_index = len(stack) - arg;
             merge_target = stack[target_index] as PyDict;
-            merge_pairs = dict_merge_pairs(merge_source);
-            mkeys = merge_pairs.dict_keys();
-            mvals = merge_pairs.dict_values();
-            dup_key = "";
-            has_dup = False;
-            mj = 0;
-            while mj < len(mkeys) {
-                if merge_target.dict_contains(mkeys[mj]) {
-                    dup_key = expect_str(mkeys[mj]);
-                    has_dup = True;
-                } else {
-                    merge_target.dict_set(mkeys[mj], mvals[mj]);
-                }
-                mj = mj + 1;
-            }
-            if has_dup {
-                merge_err = py_error(
-                    "TypeError",
-                    "got multiple values for keyword argument '" + dup_key + "'",
-                );
-                target = recover_exception(co, merge_err, offset, stack);
+            merge_view = dict_mapping_pairs(merge_source, True);
+            if is_error(merge_view) {
+                target = recover_exception(co, merge_view, offset, stack);
                 if target >= 0 {
                     ip = target;
                     continue;
                 }
-                return merge_err;
+                return merge_view;
+            }
+            merge_pairs = merge_view as PyDict;
+            mkeys = merge_pairs.dict_keys();
+            mvals = merge_pairs.dict_values();
+            mj = 0;
+            while mj < len(mkeys) {
+                if not isinstance(mkeys[mj], PyStr) {
+                    merge_err = py_error("TypeError", "keywords must be strings");
+                    target = recover_exception(co, merge_err, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        mj = len(mkeys);
+                        continue;
+                    }
+                    return merge_err;
+                }
+                if merge_target.dict_contains(mkeys[mj]) {
+                    merge_err = py_error(
+                        "TypeError",
+                        "got multiple values for keyword argument '"
+                            + expect_str(mkeys[mj]) + "'",
+                    );
+                    target = recover_exception(co, merge_err, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        mj = len(mkeys);
+                        continue;
+                    }
+                    return merge_err;
+                }
+                merge_target.dict_set(mkeys[mj], mvals[mj]);
+                mj = mj + 1;
             }
             continue;
         }
