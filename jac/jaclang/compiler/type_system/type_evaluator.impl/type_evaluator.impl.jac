@@ -2967,51 +2967,7 @@ impl TypeEvaluator._assign_class(
         }
     }
 
-    is_protocol = False;
-
-    for base_cls in dest_type.shared.base_classes {
-        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
-            continue;
-        }
-
-        if base_cls.shared == self.prefetch.protocol_class.shared {
-            is_protocol = True;
-            break;
-        }
-
-        if base_cls.shared.is_builtin_class
-            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-            is_protocol = True;
-            break;
-        }
-    }
-
-    if not is_protocol {
-        class_name = dest_type.shared.class_name;
-        if (dest_type.shared.is_from_stdlib_stub or dest_type.shared.is_builtin_class)
-            and (
-                class_name.startswith('Supports') or class_name.startswith('_Supports')
-            ) {
-            is_protocol = True;
-        }
-    }
-
-    if not is_protocol {
-        for mro_cls in dest_type.shared.mro {
-            if isinstance(mro_cls, ClassType) {
-                if (
-                    mro_cls.shared.is_builtin_class
-                    or mro_cls.shared.is_from_stdlib_stub
-                )
-                    and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
-                    is_protocol = True;
-                    break;
-                }
-            }
-        }
-    }
-
-    if is_protocol {
+    if self._is_protocol_class(dest_type) {
         if class_implements_protocol(src_type, dest_type, self) {
             return True;
         }
@@ -3026,6 +2982,89 @@ impl TypeEvaluator._assign_class(
     }
     return False;
 }
+
+"""Whether `cls_type` is a structural protocol rather than a nominal class."""
+impl TypeEvaluator._is_protocol_class(cls_type: ClassType) -> bool {
+    for base_cls in cls_type.shared.base_classes {
+        if not isinstance(base_cls, ClassType) or base_cls._shared is None {
+            continue;
+        }
+
+        if base_cls.shared == self.prefetch.protocol_class.shared {
+            return True;
+        }
+
+        if base_cls.shared.is_builtin_class
+            and base_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+            return True;
+        }
+    }
+
+    class_name = cls_type.shared.class_name;
+    if (cls_type.shared.is_from_stdlib_stub or cls_type.shared.is_builtin_class)
+        and (class_name.startswith('Supports') or class_name.startswith('_Supports')) {
+        return True;
+    }
+
+    for mro_cls in cls_type.shared.mro {
+        if isinstance(mro_cls, ClassType) {
+            if (mro_cls.shared.is_builtin_class or mro_cls.shared.is_from_stdlib_stub)
+                and mro_cls.shared.class_name in ('Protocol', '_SpecialForm') {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+
+"""Solve a protocol's own type params structurally against `src_type`.
+
+`src_type` satisfies a protocol by shape, not by inheritance, so the nominal
+MRO walk in `specialize_for_base_class` finds no type arguments to read off
+and every type var in the protocol's signature stays unsolved (issue: `_T`
+leaking out of `next()`, `iter()` and friends). Pair each protocol method with
+the implementing method and unify the two signatures, recording the protocol's
+declared type params in `bindings` keyed by name.
+"""
+impl TypeEvaluator._solve_protocol_type_args(
+    src_type: ClassType, proto_type: ClassType, bindings: dict[str, TypeBase]
+) -> bool {
+    proto_symtab = proto_type.shared.symbol_table;
+    if not isinstance(proto_symtab, UniScopeNode) {
+        return False;
+    }
+
+    solved = False;
+    for (name, sym) in proto_symtab.names_in_scope.items() {
+        if not (sym.decl and isinstance(sym.decl.name_of, Ability)) {
+            continue;
+        }
+
+        member = self._lookup_class_member(src_type, name);
+        if member is None {
+            continue;
+        }
+
+        # The protocol side stays generic so its own vars survive to be bound;
+        # the implementing side is specialized against the argument, which is
+        # what turns Iterator[int].__next__ into `-> int` rather than `-> _T_co`.
+        proto_func = self.get_type_of_ability(sym.decl.name_of);
+        impl_func = self.get_type_of_symbol(member.symbol);
+        if isinstance(impl_func, FunctionType) {
+            impl_func = impl_func.specialize(src_type);
+        }
+
+        if isinstance(proto_func, FunctionType)
+            and isinstance(impl_func, FunctionType) {
+            if self.assign_type_to_type_var(proto_func, impl_func, bindings) {
+                solved = True;
+            }
+        }
+    }
+    return solved;
+}
+
 
 impl TypeEvaluator.is_sub_class(super_cls: ClassType, sub_cls: ClassType) -> bool {
     if not sub_cls.shared.mro {

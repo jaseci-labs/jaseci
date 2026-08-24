@@ -805,6 +805,35 @@ impl TypeEvaluator.assign_type_to_type_var(
         specialized = specialize_for_base_class(arg_type, param_type);
         arg_type_args = specialized.private.type_args if specialized.private else [];
 
+        # A protocol is satisfied by shape, not by inheritance, so the walk
+        # above finds no nominal path to it and hands back the protocol's own
+        # declared parameters. Binding those to themselves is what leaks a bare
+        # "_T" out of next()/iter(). Recover the real arguments by unifying the
+        # protocol's methods against the ones that implement them.
+        _unresolved = (not arg_type_args) or any(
+            isinstance(a, TypeVarType) for a in arg_type_args
+        );
+        if _unresolved and param_type_args and self._is_protocol_class(param_type) {
+            proto_bindings: dict[str, TypeBase] = {};
+            if self._solve_protocol_type_args(arg_type, param_type, proto_bindings) {
+                type_params = param_type.shared.type_params or [];
+                solved_args: list[TypeBase] = [];
+                for i in range(len(param_type_args)) {
+                    solved = proto_bindings.get(type_params[i].name)
+                        if i < len(type_params)
+                        else None;
+                    if solved is None or isinstance(solved, TypeVarType) {
+                        solved_args = [];
+                        break;
+                    }
+                    solved_args.append(solved);
+                }
+                if solved_args {
+                    arg_type_args = solved_args;
+                }
+            }
+        }
+
         for (i, pta) in enumerate(param_type_args) {
             if i < len(arg_type_args) {
                 if not self.assign_type_to_type_var(pta, arg_type_args[i], bindings) {
