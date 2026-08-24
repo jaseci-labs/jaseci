@@ -48,8 +48,8 @@ test "function returning an async iterator streams as SSE (Phase 3)" {
         # the ASGI event loop. Each `__anext__` is stepped inside the captured
         # request context by `context_bound_async_stream`, so `root` resolves in
         # the async body and the writes/reads commit exactly once at drain.
+        # (AsyncIterator is ambient -- no import needed.)
         app.write_text(
-            'import from typing { AsyncIterator }\n'
             'async def:pub astream_numbers -> AsyncIterator[dict] {\n'
             '    for i in range(3) {\n'
             '        _ = root;\n'
