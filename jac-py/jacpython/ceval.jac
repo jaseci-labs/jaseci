@@ -3290,33 +3290,6 @@ def host_result_ok(result: any) -> bool {
     return result[0] == True;
 }
 
-# The host->guest mirror of _jac_reraise_pyerror: turn a FAILED host-bridge
-# result tuple into the PyError it represents WITHOUT synthesizing from the
-# collapsed name/message pair. Slot 3 carries the ORIGINAL host exception
-# object (_jac_host_error); keeping it as the PyException's raw proxy
-# preserves identity, args, chaining, and traceback across the boundary, so a
-# proxied host method that raises propagates that exact exception -- the same
-# fidelity CPython callers observe for guest-raised errors.
-def host_result_error(result: any) -> PyObj {
-    exc = PyException(
-        t="exception", type_name=str(result[1]), message=str(result[2])
-    );
-    if len(result) >= 4 and result[3] is not None {
-        proxy = from_host(result[3]);
-        if isinstance(proxy, PyHostProxy) {
-            exc.raw = proxy;
-            # Mirror BaseException.args so guest inspection (e.args, and
-            # host_exception's conversion at the boundary) sees the original
-            # argument tuple, not an empty one.
-            args_obj = py_attr(proxy, "args");
-            if not is_error(args_obj) and isinstance(args_obj, PyTuple) {
-                exc.args.extend((args_obj as PyTuple).items);
-            }
-        }
-    }
-    return PyError(t="error", exception=exc);
-}
-
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -9950,11 +9923,11 @@ obj PyListMethod(PyObj) {
                 if kw == "key" {
                     key_fn = kwargs[kw];
                 } elif kw == "reverse" {
-                    rev = py_slot_truth(kwargs[kw]);
-                    if is_error(rev) {
-                        return rev;
+                    truth = py_slot_truth(kwargs[kw]);
+                    if is_error(truth) {
+                        return truth;
                     }
-                    do_reverse = (rev as PyBool).val;
+                    do_reverse = (truth as PyBool).val;
                 } else {
                     return py_error("TypeError", "'" + kw + "' is an invalid keyword argument for sort()");
                 }
@@ -10764,7 +10737,8 @@ def normalize_throw_args(args: list[PyObj]) -> PyObj {
             return as_error(typ);
         }
         return PyError(
-            t="error", exception=(typ as PyExceptionType).tp_call([val], {})
+            t="error",
+            exception=(typ as PyExceptionType).tp_call([val], {}) as PyException,
         );
     }
     if isinstance(typ, PyClass) and class_is_exception(typ as PyClass) {
