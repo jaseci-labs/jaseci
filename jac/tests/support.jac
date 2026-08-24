@@ -33,11 +33,11 @@ def graphmend_compile_opts(
     import ast;
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.program { JacProgram }
-    use_opts = CompileOptions(type_check=False) if opts is None else opts;
+    use_opts = CompileOptions() if opts is None else opts;
     use_prog: JacProgram = JacProgram() if prog is None else prog;
     mod = use_prog.compile(file_path=path, options=use_opts);
     pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
     return (ast.unparse(mod_ast), mod.gen.py_bytecode);
 }
 
@@ -45,9 +45,7 @@ def graphmend_compile_opts(
 generated Python source."""
 def graphmend_compile_path(path: str, gm: bool) -> str {
     import from jaclang.jac0core.compile_options { CompileOptions }
-    (src, _bc) = graphmend_compile_opts(
-        path, CompileOptions(graphmend=gm, type_check=False)
-    );
+    (src, _bc) = graphmend_compile_opts(path, CompileOptions(graphmend=gm));
     return src;
 }
 
@@ -64,7 +62,7 @@ def graphmend_break_kinds(name: str) -> list {
     import from jaclang.jac0core.program { JacProgram }
     mod = JacProgram().compile(
         file_path=os.path.join(GRAPHMEND_FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
+        options=CompileOptions(graphmend=True)
     );
     facts = mod.gen.graphmend_facts;
     if facts is None {

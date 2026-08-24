@@ -39,11 +39,10 @@ def _write(tmp: str, name: str, src: str) -> str {
 """Compile `path` in `prog` and return its generated Python source."""
 def _src(prog: JacProgram, path: str) -> str {
     prog.invalidate_module(path);
-    mod = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=True, type_check=False)
-    );
+    mod = prog.compile(file_path=path, options=CompileOptions(graphmend=True));
     pa = mod.gen.py_ast;
-    return ast.unparse(pa[0] if isinstance(pa, list) else pa);
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
+    return ast.unparse(mod_ast);
 }
 
 """The facts carrier recorded on the compiled module for `path` in `prog`."""

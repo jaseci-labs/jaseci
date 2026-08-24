@@ -301,9 +301,7 @@ test "a wrap seen only through facts materialization covers the guard" {
         (entry_path, net_path) = _mk_wrap_project(tmpdir);
         prog = JacProgram();
         assert claim_path(prog, entry_path) , "the wrap entry must claim itself";
-        (net_src, _bc) = _compile_opts(
-            net_path, CompileOptions(graphmend=True, type_check=False), prog
-        );
+        (net_src, _bc) = _compile_opts(net_path, CompileOptions(graphmend=True), prog);
         assert "torch._assert_async(mask.all(), " in net_src , (
             "a wrap visible in the hub must cover the guard without a compile"
         );

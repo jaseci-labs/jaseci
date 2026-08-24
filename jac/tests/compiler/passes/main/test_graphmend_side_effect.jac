@@ -217,9 +217,7 @@ test "an unresolved logger base refuses the module-slot proof" {
         with open(path, "w") as fh {
             fh.write("with entry { x = 1; }\n");
         }
-        mod = prog.compile(
-            file_path=path, options=CompileOptions(graphmend=False, type_check=False)
-        );
+        mod = prog.compile(file_path=path, options=CompileOptions(graphmend=False));
     }
     dp = DeferSideEffectPass(ir_in=mod, prog=prog);
     base = gen_name(mod, "logger", False);
@@ -369,9 +367,7 @@ def _compile_mod(src: str) -> uni.Module {
         with open(path, "w") as fh {
             fh.write(src);
         }
-        return JacProgram().compile(
-            file_path=path, options=CompileOptions(type_check=False)
-        );
+        return JacProgram().compile(file_path=path, options=CompileOptions());
     }
 }
 
@@ -436,13 +432,11 @@ test "serve declines defer only, leaving trap and where to run" {
         assert defer_declines_here() is True , (
             "defer must decline while the buffers are process-global and serving"
         );
-        assert CompileOptions(type_check=False).graphmend is not False , (
+        assert CompileOptions().graphmend is not False , (
             "serve must not disable graphmend wholesale; only defer declines"
         );
-        assert "trap"
-            not in (CompileOptions(type_check=False).graphmend_disable or []) , "trap must still run under serve";
-        assert "where"
-            not in (CompileOptions(type_check=False).graphmend_disable or []) , "where must still run under serve";
+        assert "trap" not in (CompileOptions().graphmend_disable or []) , "trap must still run under serve";
+        assert "where" not in (CompileOptions().graphmend_disable or []) , "where must still run under serve";
     } finally {
         opt_mod._serving_probe.clear();
         opt_mod._serving_probe.update(saved);

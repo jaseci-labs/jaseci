@@ -94,8 +94,7 @@ def _scheduled_passes(name: str, gm: bool) -> list {
     JacCompiler.run_schedule = _spy;
     try {
         JacProgram().compile(
-            file_path=os.path.join(FIXTURES, name),
-            options=CompileOptions(graphmend=gm, type_check=False)
+            file_path=os.path.join(FIXTURES, name), options=CompileOptions(graphmend=gm)
         );
     } finally {
         JacCompiler.run_schedule = orig;

@@ -14,15 +14,15 @@ import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
 compiled module; its facts are read straight off `mod.gen`."""
 def _compile_gm(name: str) -> any {
     return JacProgram().compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
+        file_path=os.path.join(FIXTURES, name), options=CompileOptions(graphmend=True)
     );
 }
 
 """Unparse a compiled module's generated Python source."""
 def _unparse(mod: any) -> str {
     pa = mod.gen.py_ast;
-    return ast.unparse(pa[0] if isinstance(pa, list) else pa);
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
+    return ast.unparse(mod_ast);
 }
 
 """Find the single top-level ability named `f` in a compiled module."""
@@ -64,7 +64,7 @@ test "an interleaved compile does not clobber the in-flight break table" {
     try {
         mod = prog.compile(
             file_path=os.path.join(FIXTURES, "val_guard.jac"),
-            options=CompileOptions(graphmend=True, type_check=False)
+            options=CompileOptions(graphmend=True)
         );
     } finally {
         JacCompiler.run_schedule = orig;
@@ -97,7 +97,7 @@ test "an interleaved compile records its facts on its own module" {
         # the passes entirely and leave nothing to observe on the inner module
         target_program.compile(
             file_path=os.path.join(FIXTURES, "side_effect.jac"),
-            options=CompileOptions(graphmend=True, type_check=False)
+            options=CompileOptions(graphmend=True)
         );
         orig(self, mod, target_program, passes[i + 1:], cancel_token);
     }
@@ -105,7 +105,7 @@ test "an interleaved compile records its facts on its own module" {
     try {
         mod = prog.compile(
             file_path=os.path.join(FIXTURES, "val_guard.jac"),
-            options=CompileOptions(graphmend=True, type_check=False)
+            options=CompileOptions(graphmend=True)
         );
     } finally {
         JacCompiler.run_schedule = orig;
@@ -207,7 +207,7 @@ test "a module outside every compiled region records itself as a noop" {
 
 test "a recompile after invalidation starts from fresh facts" {
     prog = JacProgram();
-    opts = CompileOptions(graphmend=True, type_check=False);
+    opts = CompileOptions(graphmend=True);
     path = os.path.join(FIXTURES, "val_guard.jac");
     mod_1 = prog.compile(file_path=path, options=opts);
     facts_1 = mod_1.gen.graphmend_facts;
@@ -221,9 +221,7 @@ test "a recompile after invalidation starts from fresh facts" {
     }
     assert hub_key is not None;
     prog.invalidate_module(hub_key);
-    mod_2 = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=True, type_check=False)
-    );
+    mod_2 = prog.compile(file_path=path, options=CompileOptions(graphmend=True));
     assert mod_2 is not mod_1 , "the recompile reused the stale module object";
     facts_2 = mod_2.gen.graphmend_facts;
     assert facts_2 is not None;

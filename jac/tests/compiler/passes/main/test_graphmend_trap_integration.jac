@@ -28,10 +28,11 @@ def _exec_gm(fixture: str, graphmend: bool, eager: bool) -> dict {
     prog = JacProgram();
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, fixture),
-        options=CompileOptions(graphmend=graphmend, type_check=False)
+        options=CompileOptions(graphmend=graphmend)
     );
     pa = mod.gen.py_ast;
-    src = ast.unparse(pa[0] if isinstance(pa, list) else pa);
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
+    src = ast.unparse(mod_ast);
     ns: dict = {};
     orig_compile = torch.compile;
     def _shim(*a: any, **k: any) -> any {

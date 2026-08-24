@@ -34,9 +34,7 @@ def _auto_pysrc(name: str) -> str {
 """Compile a fixture in an existing program and return its Python source."""
 def _pysrc_in(prog: JacProgram, name: str) -> str {
     return _compile_opts(
-        os.path.join(FIXTURES, name),
-        CompileOptions(graphmend=True, type_check=False),
-        prog
+        os.path.join(FIXTURES, name), CompileOptions(graphmend=True), prog
     )[0];
 }
 

@@ -116,11 +116,11 @@ test "a claimed guard raises the original exception through the boundary" {
         }
         eprog = JacProgram();
         emod = eprog.compile(
-            file_path=entry_path,
-            options=CompileOptions(graphmend=True, type_check=False)
+            file_path=entry_path, options=CompileOptions(graphmend=True)
         );
         pa = emod.gen.py_ast;
-        entry_src = ast.unparse(pa[0] if isinstance(pa, list) else pa);
+        mod_ast: any = pa[0] if isinstance(pa, list) else pa;
+        entry_src = ast.unparse(mod_ast);
         assert "model = __jac_trap_guard__(model)" in entry_src;
         sys.path.insert(0, tmp);
         ns: dict = {};

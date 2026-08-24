@@ -36,11 +36,9 @@ def _pysrc(gm: bool) -> str {
             fh.write(PY_CALLSITE_SRC);
         }
         prog = JacProgram();
-        mod = prog.compile(
-            file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
-        );
+        mod = prog.compile(file_path=path, options=CompileOptions(graphmend=gm));
         pa = mod.gen.py_ast;
-        mod_ast = pa[0] if isinstance(pa, list) else pa;
+        mod_ast: any = pa[0] if isinstance(pa, list) else pa;
         return ast.unparse(mod_ast);
     }
 }
@@ -49,11 +47,10 @@ def _pysrc(gm: bool) -> str {
 def _fixture_src(name: str) -> str {
     prog = JacProgram();
     mod = prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
+        file_path=os.path.join(FIXTURES, name), options=CompileOptions(graphmend=True)
     );
     pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
     return ast.unparse(mod_ast);
 }
 
@@ -97,11 +94,9 @@ def _py_model_src(py_src: str, name: str) -> str {
             fh.write(py_src);
         }
         prog = JacProgram();
-        mod = prog.compile(
-            file_path=path, options=CompileOptions(graphmend=True, type_check=False)
-        );
+        mod = prog.compile(file_path=path, options=CompileOptions(graphmend=True));
         pa = mod.gen.py_ast;
-        mod_ast = pa[0] if isinstance(pa, list) else pa;
+        mod_ast: any = pa[0] if isinstance(pa, list) else pa;
         return ast.unparse(mod_ast);
     }
 }
@@ -177,11 +172,10 @@ test "the entry wrap gets the trap boundary attach" {
             fh.write(PY_ENTRY_WRAP_SRC);
         }
         prog = JacProgram();
-        mod = prog.compile(
-            file_path=path, options=CompileOptions(graphmend=True, type_check=False)
-        );
+        mod = prog.compile(file_path=path, options=CompileOptions(graphmend=True));
         pa = mod.gen.py_ast;
-        src = ast.unparse(pa[0] if isinstance(pa, list) else pa);
+        mod_ast: any = pa[0] if isinstance(pa, list) else pa;
+        src = ast.unparse(mod_ast);
     }
     assert "model = __jac_trap_guard__(model)" in src;
     # the helper import must be emitted by the preamble
@@ -431,11 +425,9 @@ def _py_entry_src(py_src: str, name: str) -> str {
             fh.write(py_src);
         }
         prog = JacProgram();
-        mod = prog.compile(
-            file_path=path, options=CompileOptions(graphmend=True, type_check=False)
-        );
+        mod = prog.compile(file_path=path, options=CompileOptions(graphmend=True));
         pa = mod.gen.py_ast;
-        mod_ast = pa[0] if isinstance(pa, list) else pa;
+        mod_ast: any = pa[0] if isinstance(pa, list) else pa;
         return ast.unparse(mod_ast);
     }
 }

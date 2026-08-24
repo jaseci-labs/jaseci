@@ -11,7 +11,7 @@ return its generated Python source."""
 def _pysrc(name: str, disable: list) -> str {
     return _compile_opts(
         os.path.join(FIXTURES, name),
-        CompileOptions(graphmend=True, graphmend_disable=disable, type_check=False)
+        CompileOptions(graphmend=True, graphmend_disable=disable)
     )[0];
 }
 

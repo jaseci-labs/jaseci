@@ -18,8 +18,7 @@ Observes detection directly (the facts sit on the compiled module's gen), so a
 guard the trap pass would decline anyway still cannot hide a mis-tag."""
 def _break_count(name: str) -> int {
     mod = JacProgram().compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
+        file_path=os.path.join(FIXTURES, name), options=CompileOptions(graphmend=True)
     );
     facts = mod.gen.graphmend_facts;
     if facts is None {
@@ -150,10 +149,10 @@ test "escaped message literal round-trips through the trap marker" {
     prog = JacProgram();
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, "val_guard_escaped_msg.jac"),
-        options=CompileOptions(graphmend=True, type_check=False)
+        options=CompileOptions(graphmend=True)
     );
     pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
+    mod_ast: any = pa[0] if isinstance(pa, list) else pa;
     marker: (str | None) = None;
     for n in ast.walk(mod_ast) {
         if isinstance(n, ast.Constant)
@@ -269,12 +268,12 @@ test "a reached helper declines when the only boundary is in another module" {
     prog = JacProgram();
     _compile_opts(
         os.path.join(FIXTURES, "guard_xmod_entry.jac"),
-        CompileOptions(graphmend=True, type_check=False),
+        CompileOptions(graphmend=True),
         prog
     );
     src = _compile_opts(
         os.path.join(FIXTURES, "guard_xmod_helper.jac"),
-        CompileOptions(graphmend=True, type_check=False),
+        CompileOptions(graphmend=True),
         prog
     )[0];
     assert "__jac_se_emit__" in src , "the helper must be in the region";
@@ -416,7 +415,7 @@ test "a lowered guard's detection tag stays bound to its own node" {
     # inherits SIDE_EFFECT and gets wrapped in __jac_se_emit__.
     mod = JacProgram().compile(
         file_path=os.path.join(FIXTURES, "val_guard.jac"),
-        options=CompileOptions(graphmend=True, type_check=False)
+        options=CompileOptions(graphmend=True)
     );
     facts = mod.gen.graphmend_facts;
     assert facts is not None;

@@ -90,10 +90,8 @@ test "the graphmend gate is open by default at every layer that carries it" {
 
 test "default compile options transform a torch module" {
     target = os.path.join(FIXTURES, "val_guard_all.jac");
-    (src_default, _bc) = _compile(target, CompileOptions(type_check=False));
-    (src_off, _bc2) = _compile(
-        target, CompileOptions(graphmend=False, type_check=False)
-    );
+    (src_default, _bc) = _compile(target, CompileOptions());
+    (src_off, _bc2) = _compile(target, CompileOptions(graphmend=False));
     assert src_default != src_off;
     assert "torch._assert_async(" in src_default;
     assert "raise ValueError" not in src_default;
@@ -101,10 +99,8 @@ test "default compile options transform a torch module" {
 
 test "default compile options leave a torch-free module identical to off" {
     target = os.path.join(FIXTURES, "no_torch_plain.jac");
-    (src_default, bc_default) = _compile(target, CompileOptions(type_check=False));
-    (src_off, bc_off) = _compile(
-        target, CompileOptions(graphmend=False, type_check=False)
-    );
+    (src_default, bc_default) = _compile(target, CompileOptions());
+    (src_off, bc_off) = _compile(target, CompileOptions(graphmend=False));
     assert src_default == src_off;
     assert bc_default == bc_off;
 }
