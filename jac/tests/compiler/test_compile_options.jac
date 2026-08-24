@@ -212,7 +212,8 @@ test "no compiler pass reads the environment directly" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for pat in patterns {
                         if pat.search(line) {
                             rel = os.path.relpath(fpath, passes_dir);
@@ -237,7 +238,7 @@ test "no positional intrinsic name matching inside _codegen_call" {
         "compiler",
         "passes",
         "native",
-        "na_ir_gen_pass.impl",
+        "na_ir_gen",
         "calls.impl.jac"
     );
     assert os.path.isfile(calls_impl) , f"calls impl missing: {calls_impl}";
@@ -248,7 +249,7 @@ test "no positional intrinsic name matching inside _codegen_call" {
         "the RC intrinsic pre-classification name set must stay deleted; "
         "INTRINSIC_REGISTRY is the sole authority"
     );
-    marker = "impl NaIRGenPass._codegen_call(";
+    marker = "impl NaIRGenCalls._codegen_call(";
     start = source.find(marker);
     assert start >= 0 , "_codegen_call impl not found";
     nxt = source.find("\nimpl ", start + len(marker));
@@ -297,7 +298,8 @@ test "no cycle counter or stack validity channel in the type system" {
                 }
                 fpath = os.path.join(dirpath, fname);
                 with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                    for (lineno, line) in enumerate(f, 1) {
+                    lines: list[str] = f.readlines();
+                    for (lineno, line) in enumerate(lines, 1) {
                         for token in tokens {
                             if token in line {
                                 rel = os.path.relpath(fpath, compiler_dir);
@@ -325,9 +327,27 @@ test "native type identity never reads walk-time registration maps" {
         "native"
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
-    impl_dir = os.path.join(native_dir, "na_ir_gen_pass.impl");
-    dead_tokens = ["_try_resolve_field_type", "struct_field_opaque"];
+    impl_dir = os.path.join(native_dir, "na_ir_gen");
+    dead_tokens = ["_try_resolve_field_type"];
     write_pat = re.compile(r"self\.type_map\s*\[[^\]]*\]\s*=");
+    # `struct_field_opaque` is a live name again, and it means the opposite of
+    # what it meant when this test banned it outright. The old table was a
+    # `set[str]` of fields the constructor, the defaults loop and the arena
+    # skipped without saying so -- the silent i8* rescue #7871 deleted. The
+    # table now maps field -> refusal reason and exists so that
+    # `_refuse_opaque_field` can raise E5092 at every read, write and
+    # constructor keyword that names an erased slot.
+    #
+    # Banning the name would only push the mechanism to a synonym, so what is
+    # pinned instead is the property the ban was protecting: the table stays
+    # confined to the declaration and to the one impl that erases and refuses,
+    # so no third site can quietly consume an erased slot. The behavioural half
+    # -- that a touch really does refuse and demote -- is in
+    # `test_native_walk_order.jac`.
+    opaque_ok = [
+        os.path.join("na_ir_gen", "state.jac"),
+        os.path.join("na_ir_gen", "objects.impl.jac")
+    ];
     offenders: list[str] = [];
     for (dirpath, _dirs, files) in os.walk(native_dir) {
         for fname in files {
@@ -337,15 +357,18 @@ test "native type identity never reads walk-time registration maps" {
             fpath = os.path.join(dirpath, fname);
             rel = os.path.relpath(fpath, native_dir);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in dead_tokens {
                         if token in line {
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");
                         }
                     }
+                    if "struct_field_opaque" in line and rel not in opaque_ok {
+                        offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                    }
                     if write_pat.search(line)
-                        and rel
-                            != os.path.join("na_ir_gen_pass.impl", "core.impl.jac") {
+                        and rel != os.path.join("na_ir_gen", "core.impl.jac") {
                         offenders.append(f"{rel}:{lineno}: {line.strip()}");
                     }
                 }
@@ -355,8 +378,26 @@ test "native type identity never reads walk-time registration maps" {
     assert not offenders , (
         "walk-time type registration found in the native pass (type identity "
         "and layout must resolve through the layout authority; type_map is a "
-        "static primitive table seeded once in postinit):\n"
+        "static primitive table seeded once in postinit; an erased-field table "
+        "is only honest where it is refused):\n"
         + "\n".join(offenders)
+    );
+    objects_impl = os.path.join(impl_dir, "objects.impl.jac");
+    with open(objects_impl, "r", encoding="utf-8") as f {
+        objects_src = f.read();
+    }
+    refuse_marker = "impl NaIRGenObjects._refuse_opaque_field(";
+    r_start = objects_src.find(refuse_marker);
+    assert r_start >= 0 , (
+        "_refuse_opaque_field impl not found; the erased-field table has no "
+        "refusal to pair with and the silent i8* rescue is back"
+    );
+    r_nxt = objects_src.find("\nimpl ", r_start + len(refuse_marker));
+    refuse_block = objects_src[r_start:r_nxt] if r_nxt >= 0 else objects_src[r_start:];
+    assert "E5092" in refuse_block , (
+        "the reader of struct_field_opaque must refuse loudly (E5092); an "
+        "erased slot answered from its own uninitialised bits is the "
+        "miscompile this gate exists to prevent"
     );
     enums_impl = os.path.join(impl_dir, "enums.impl.jac");
     with open(enums_impl, "r", encoding="utf-8") as f {
@@ -370,7 +411,7 @@ test "native type identity never reads walk-time registration maps" {
     with open(types_impl, "r", encoding="utf-8") as f {
         types_src = f.read();
     }
-    marker = "impl NaIRGenPass._lower_class_type(";
+    marker = "impl NaIRGenTypes._lower_class_type(";
     start = types_src.find(marker);
     assert start >= 0 , "_lower_class_type impl not found";
     nxt = types_src.find("\nimpl ", start + len(marker));
@@ -392,7 +433,7 @@ test "container lifecycle emission lives only in the shared emitters" {
         "compiler",
         "passes",
         "native",
-        "na_ir_gen_pass.impl"
+        "na_ir_gen"
     );
     per_container = [
         "dicts.impl.jac",
@@ -416,7 +457,8 @@ test "container lifecycle emission lives only in the shared emitters" {
         fpath = os.path.join(impl_dir, fname);
         assert os.path.isfile(fpath) , f"expected impl file missing: {fpath}";
         with open(fpath, "r", encoding="utf-8") as f {
-            for (lineno, line) in enumerate(f, 1) {
+            lines: list[str] = f.readlines();
+            for (lineno, line) in enumerate(lines, 1) {
                 for token in forbidden {
                     if token in line {
                         offenders.append(f"{fname}:{lineno}: {line.strip()}");
@@ -450,7 +492,8 @@ test "no numeric header offsets outside the HDR_* constants" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     if hdr_pat.search(line) {
                         rel = os.path.relpath(fpath, native_dir);
                         offenders.append(f"{rel}:{lineno}: {line.strip()}");
@@ -483,7 +526,8 @@ test "one static-string constructor" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     if marker in line.replace(" ", "") {
                         rel = os.path.relpath(fpath, native_dir);
                         hits.append(f"{rel}:{lineno}");
@@ -498,9 +542,9 @@ test "one static-string constructor" {
         "(_static_str_struct_const in builtins.impl.jac); found: "
         + ", ".join(hits)
     );
-    assert hits[0].startswith(
-        os.path.join("na_ir_gen_pass.impl", "builtins.impl.jac")
-    ) , f"static-string constructor moved: {hits[0]}";
+    assert hits[0].startswith(os.path.join("na_ir_gen", "builtins.impl.jac")) , f"static-string constructor moved: {hits[
+        0
+    ]}";
 }
 
 test "set shares the dict hash core with no linear-scan sibling" {
@@ -511,7 +555,7 @@ test "set shares the dict hash core with no linear-scan sibling" {
         "passes",
         "native"
     );
-    impl_dir = os.path.join(native_dir, "na_ir_gen_pass.impl");
+    impl_dir = os.path.join(native_dir, "na_ir_gen");
     core_callers: list[str] = [];
     for (dirpath, _dirs, files) in os.walk(native_dir) {
         for fname in files {
@@ -564,14 +608,15 @@ test "hetero container band-aids are deleted; one element-storage authority" {
             }
             fpath = os.path.join(dirpath, fname);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in banned {
                         if token in line {
                             rel = os.path.relpath(fpath, pkg_root);
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");
                         }
                     }
-                    if "impl NaIRGenPass._elem_storage_llvm(" in line {
+                    if "impl NaIRGenTypes._elem_storage_llvm(" in line {
                         authority_defs.append(os.path.relpath(fpath, pkg_root));
                     }
                 }
@@ -585,9 +630,7 @@ test "hetero container band-aids are deleted; one element-storage authority" {
     );
     assert authority_defs
         == [
-            os.path.join(
-                "compiler", "passes", "native", "na_ir_gen_pass.impl", "types.impl.jac"
-            )
+            os.path.join("compiler", "passes", "native", "na_ir_gen", "types.impl.jac")
         ] , (
         "container element storage must be decided by exactly one authority "
         f"(_elem_storage_llvm in types.impl.jac); found: {authority_defs}"
@@ -625,7 +668,8 @@ test "no consumer-site NULL guards on string operands" {
             fpath = os.path.join(dirpath, fname);
             rel = os.path.relpath(fpath, native_dir);
             with open(fpath, "r", encoding="utf-8", errors="replace") as f {
-                for (lineno, line) in enumerate(f, 1) {
+                lines: list[str] = f.readlines();
+                for (lineno, line) in enumerate(lines, 1) {
                     for token in banned {
                         if token in line {
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");
@@ -645,9 +689,7 @@ test "no consumer-site NULL guards on string operands" {
         + "\n".join(offenders)
     );
     assert len(unwrap_sites) == 1
-        and unwrap_sites[0].startswith(
-            os.path.join("na_ir_gen_pass.impl", "types.impl.jac")
-        ) , (
+        and unwrap_sites[0].startswith(os.path.join("na_ir_gen", "types.impl.jac")) , (
         "optional unwrap must be emitted by exactly one site "
         f"(_coerce_type_inner in types.impl.jac); found: {unwrap_sites}"
     );

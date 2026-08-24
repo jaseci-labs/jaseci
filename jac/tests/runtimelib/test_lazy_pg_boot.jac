@@ -19,7 +19,6 @@ import os;
 import re;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from typing { Any }
 import from uuid { UUID }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
@@ -33,20 +32,24 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      DOCKERFILE = REPO_ROOT / "docker" / "jaclang.Dockerfile";
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 obj _BootProbe {
     has calls: list[str] = [],
-        _orig: Any = None;
+        _orig: any = None;
 
     def install {
         self._orig = PgRuntime.ensure;
         calls = self.calls;
         orig = self._orig;
 
-        def _probe(rt: Any) -> Any {
+        def _probe(rt: any) -> any {
             calls.append(str(rt.database));
             return orig(rt);
         }
-        PgRuntime.ensure = _probe;
+        PgRuntime.ensure = _as_any(_probe);
     }
 
     def remove {
@@ -214,7 +217,7 @@ test "first-use schema DDL runs once per database, even from many threads" {
     ready = threading.Barrier(racers);
 
     def race {
-        ready.wait(10);
+        ready.`wait(10);
         store.ensure_schema_once({});
     }
     threads = [
@@ -245,6 +248,9 @@ test "no production module runs first-use schema DDL outside the gate" {
     owner = {"runtimelib/store.jac", "runtimelib/impl/store.impl.jac"};
     offenders: list[str] = [];
     for path in sorted(src.rglob("*.jac")) {
+        if not path.is_file() {
+            continue;
+        }
         rel = path.relative_to(src).as_posix();
         if rel in owner or "tests/" in rel {
             continue;

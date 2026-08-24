@@ -3,8 +3,6 @@ import re;
 import sys;
 import tomllib;
 import from pathlib { Path }
-import from typing { Any }
-
 glob VALID_CLIENT_KINDS: list[str] = ["web", "mobui"];
 
 obj PersonConfig {
@@ -33,7 +31,7 @@ obj ProjectConfig {
         entry_point: str = "main.jac",
         kind: str = "",
         urls: dict[str, str] = {},
-        include: PackageIncludeConfig = PackageIncludeConfig();
+        `include: PackageIncludeConfig = PackageIncludeConfig();
 }
 
 obj RunConfig {
@@ -57,13 +55,12 @@ obj GcEnforceConfig {
 }
 
 obj GcConfig {
-    has default: str = "cycles",
+    has `default: str = "cycles",
         enforce: GcEnforceConfig = GcEnforceConfig();
 }
 
 obj BuildConfig {
-    has typecheck: bool = False,
-        dir: str = ".jac",
+    has dir: str = ".jac",
         default_codespace: str = "native",
         native_closure_cap: int = 256,
         native: NativeBuildConfig = NativeBuildConfig();
@@ -90,10 +87,6 @@ obj ServeConfig {
 
 obj FormatConfig {
     has outfile: str = "";
-}
-
-obj PrecommitConfig {
-    has typecheck: bool = True;
 }
 
 obj LintConfig {
@@ -169,10 +162,9 @@ obj JacConfig {
         run: RunConfig = RunConfig(),
         build: BuildConfig = BuildConfig(),
         gc: GcConfig = GcConfig(),
-        test: TestConfig = TestConfig(),
+        `test: TestConfig = TestConfig(),
         serve: ServeConfig = ServeConfig(),
         format: FormatConfig = FormatConfig(),
-        precommit: PrecommitConfig = PrecommitConfig(),
         check: CheckConfig = CheckConfig(),
         dot: DotConfig = DotConfig(),
         cache: CacheConfig = CacheConfig(),
@@ -207,8 +199,20 @@ obj JacConfig {
     ) -> JacConfig;
 
     def apply_env_interpolation -> None;
-    def _section_map -> dict;
-    def apply_profile(profile_name: str, _visited: set | None = None) -> None;
+    def _section_map -> dict[
+        str,
+        RunConfig
+            | BuildConfig
+            | TestConfig
+            | ServeConfig
+            | FormatConfig
+            | DotConfig
+            | CacheConfig
+            | EnvironmentConfig
+            | ClientConfig
+    ];
+
+    def apply_profile(profile_name: str, _visited: set[str] | None = None) -> None;
     def apply_profile_overlay(profile_name: str | None = None) -> None;
     def get_plugin_deps(dep_type: str) -> dict[str, any];
     def get_plugin_config(plugin_name: str) -> dict[str, any];
@@ -249,14 +253,16 @@ def _interpolate_recursive(`obj: any) -> any;
 
 glob _config: JacConfig | None = None,
      _config_explicit: bool = False,
-     _config_by_root: dict = {};
+     _config_by_root: dict[str, JacConfig | None] = {};
 
 def get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None;
 
-def set_config(config: JacConfig) -> None;
+def set_config(config: JacConfig | None) -> None;
 
 def get_explicit_config -> JacConfig | None;
 
 def get_config_for_path(start_path: Path) -> JacConfig | None;
+
+def get_config_for_dir(start_dir: str) -> JacConfig | None;

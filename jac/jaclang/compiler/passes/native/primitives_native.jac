@@ -1229,7 +1229,7 @@ class NativeSetEmitter(SetEmitter[(ir.Value, NativeEmitCtx)]) {
 class NativeFrozensetEmitter(FrozensetEmitter[(ir.Value, NativeEmitCtx)]) {
     def _get_set_emitter(
         self: NativeFrozensetEmitter, ctx: NativeEmitCtx
-    ) -> (object | None);
+    ) -> (NativeSetEmitter | None);
 
     def emit_union(
         self: NativeFrozensetEmitter,
@@ -1292,7 +1292,7 @@ class NativeFrozensetEmitter(FrozensetEmitter[(ir.Value, NativeEmitCtx)]) {
 class NativeTupleEmitter(TupleEmitter[(ir.Value, NativeEmitCtx)]) {
     def _get_struct_info(
         self: NativeTupleEmitter, ctx: NativeEmitCtx, target: ir.Value
-    ) -> (object | None);
+    ) -> (ir.LiteralStructType | None);
 
     def emit_count(
         self: NativeTupleEmitter,
@@ -1515,11 +1515,22 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         p = ctx.pass_ref;
         b = get_builder(p);
         i64 = ir.IntType(64);
+        if p._opt_ptr_payload_of(arg_val.type) is not None {
+            arg_val = b.extract_value(arg_val, 1, name="id.opt");
+        }
         if isinstance(arg_val.type, ir.PointerType) {
             return b.ptrtoint(arg_val, i64, name="id.ptr");
         }
         if isinstance(arg_val.type, ir.IntType) {
             return p._coerce_type(arg_val, i64);
+        }
+        if isinstance(arg_val.type, ir.DoubleType) {
+            return b.bitcast(arg_val, i64, name="id.f64");
+        }
+        if isinstance(arg_val.type, ir.FloatType) {
+            return b.zext(
+                b.bitcast(arg_val, ir.IntType(32), name="id.f32"), i64, name="id.f32.w"
+            );
         }
         return None;
     }

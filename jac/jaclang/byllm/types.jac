@@ -1,4 +1,5 @@
 import base64;
+import inspect;
 import logging;
 import mimetypes;
 import os;
@@ -7,7 +8,7 @@ import from contextlib { suppress }
 glob logger: logging.Logger = logging.getLogger(__name__);
 import from enum { StrEnum }
 import from io { BytesIO }
-import from typing { Callable, TypeAlias, get_type_hints }
+import from typing { IO, TypeAlias, get_type_hints }
 
 import from jaclang.byllm._optdeps.pillow { PILImageCls, open_image }
 import from jaclang.byllm._optdeps.litellm { LiteLLMMessage }
@@ -47,19 +48,21 @@ obj ToolCallResultMsg(Message) {
 obj Tool {
     has func: Callable,
         description: str = "",
-        params_desc: dict[(str, str)] = None,
-        info: Info = None,
+        params_desc: (dict[str, str] | None) = None,
+        info: (Info | None) = None,
         serialize: bool = False,
         timeout_sec: float | None = None;
 
     def postinit -> None;
-    def __call__(*args: list, **kwargs: dict) -> object;
+    def __call__(*args: any, **kwargs: any) -> any;
     def get_name -> str;
     static def get_func_description(func: Callable) -> str;
     static def make_finish_tool(resp_type: type) -> Tool;
     def is_finish_tool -> bool;
     def get_json_schema -> dict[str, object];
-    def parse_arguments(args_json: dict) -> dict;
+    def parse_arguments(args_json: dict | str) -> dict;
+    def _parse_finish_arguments(args_json: dict, params: dict) -> dict;
+    def _required_params(params: dict) -> list;
 }
 
 obj ToolCall {
@@ -85,7 +88,7 @@ obj MockRawResponse {
 }
 
 obj MockError {
-    has error: object;
+    has error: Exception;
 }
 
 obj CompletionResult {
@@ -126,8 +129,15 @@ obj Text(Media) {
 obj Image(Media) {
     has url:
         (
-            "str | bytes | bytearray | memoryview | BytesIO | IO[bytes] | "
-            "os.PathLike[str] | os.PathLike[bytes] | PILImageCls"
+            str
+            | bytes
+            | bytearray
+            | memoryview
+            | BytesIO
+            | IO[bytes]
+            | os.PathLike[str]
+            | os.PathLike[bytes]
+            | PILImageCls
         ),
         mime_type: str | None = None;
 
@@ -250,7 +260,7 @@ def _is_tool_msg(msg: object) -> bool {
 
 
 def _tool_msg_has_image(msg: object) -> bool {
-    if not _is_tool_msg(msg) {
+    if not (isinstance(msg, dict) and msg.get("role") == "tool") {
         return False;
     }
     content = msg.get("content");
@@ -286,6 +296,7 @@ def _split_tool_msg_images(msg: dict) -> tuple {
     text_only = all(
         isinstance(b, dict) and b.get("type") == "text" for b in text_blocks
     );
+    stripped_content: str | list = "";
     if text_only {
         stripped_content = " ".join(b.get("text", "") for b in text_blocks).strip();
         if not stripped_content {

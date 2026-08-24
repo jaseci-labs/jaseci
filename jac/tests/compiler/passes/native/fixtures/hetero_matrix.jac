@@ -65,7 +65,15 @@ def hl_repr -> str {
 
 def hl_annotated(s: str) -> str {
     l: list[int | str] = [1, s + "?"];
-    return l[1];
+    v = l[1];
+    out = "";
+    if isinstance(v, str) {
+        # Copy the bytes while `l` is still alive: the slot read is a
+        # borrow, and rc-facts releases the list at its last use.
+        out = v + "";
+    }
+    _keep = len(l);
+    return out;
 }
 
 

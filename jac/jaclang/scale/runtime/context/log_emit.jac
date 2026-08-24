@@ -2,8 +2,6 @@ import os;
 import json;
 import logging;
 import from datetime { datetime, timezone }
-import from typing { Any }
-
 glob _SVC_NAME: str = (
          os.getenv("JAC_SV_NAME", "").strip()
          or os.getenv("K8S_APP_NAME", "").strip()
@@ -14,7 +12,7 @@ glob _SVC_NAME: str = (
      _root_logger: logging.Logger = logging.getLogger();
 
 
-def _to_str(value: Any) -> str {
+def _to_str(value: any) -> str {
     return str(value);
 }
 
@@ -26,7 +24,7 @@ class _JacJsonFormatter(logging.Formatter) {
         if ts.endswith("+00:00") {
             ts = ts[:-6] + "Z";
         }
-        out: dict[str, Any] = {
+        out: dict[str, any] = {
             "ts": ts,
             "level": record.levelname,
             "service": _SVC_NAME,
@@ -41,12 +39,12 @@ class _JacJsonFormatter(logging.Formatter) {
             out["exc"] = self.formatException(record.exc_info);
         }
 
-        return json.dumps(out, default=_to_str, ensure_ascii=False);
+        return json.dumps(out, `default=_to_str, ensure_ascii=False);
     }
 }
 
 
-def emit_log_record(level_name: str, msg: str, **extras: Any) {
+def emit_log_record(level_name: str, msg: str, **extras: any) {
     level_int: int = int(getattr(logging, level_name.upper(), logging.INFO));
     record = _root_logger.makeRecord(
         name="jaclang.scale.svlog",
@@ -64,19 +62,19 @@ def emit_log_record(level_name: str, msg: str, **extras: Any) {
 }
 
 
-def info(msg: str, **extras: Any) {
+def info(msg: str, **extras: any) {
     emit_log_record("INFO", msg, **extras);
 }
 
-def warning(msg: str, **extras: Any) {
+def warning(msg: str, **extras: any) {
     emit_log_record("WARNING", msg, **extras);
 }
 
-def error(msg: str, **extras: Any) {
+def error(msg: str, **extras: any) {
     emit_log_record("ERROR", msg, **extras);
 }
 
-def debug(msg: str, **extras: Any) {
+def debug(msg: str, **extras: any) {
     emit_log_record("DEBUG", msg, **extras);
 }
 

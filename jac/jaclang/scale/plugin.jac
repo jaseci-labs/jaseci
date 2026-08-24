@@ -1,26 +1,28 @@
 import os;
 import pathlib;
+import threading;
 import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.runtimelib.server { JacAPIServer as JacServer }
 import from .config.config_loader { get_scale_config }
+import from .config.project_env { load_project_env }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
+import from .observability.factory { UtilityFactory }
+import from .deploy.target.factory { DeploymentTargetFactory }
 
 obj DeployFactories {
-    has utility: type,
-        target: type;
+    has utility: type[UtilityFactory],
+        target: type[DeploymentTargetFactory];
 }
 
 def _load_deploy_factories -> DeployFactories {
-    import from .observability.factory { UtilityFactory }
-    import from .deploy.target.factory { DeploymentTargetFactory }
     return DeployFactories(utility=UtilityFactory, target=DeploymentTargetFactory);
 }
 
@@ -52,15 +54,7 @@ def _scale_runtime_active -> bool {
     );
 }
 
-def scale_start(
-    filename: str,
-    scale: bool,
-    target: str,
-    enable_tls: bool,
-    dry_run: bool,
-    show_yaml: bool,
-    port: int = 8000
-) -> int | None {
+def scale_local_serve(filename: str, port: int = 8000) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
@@ -70,7 +64,7 @@ def scale_start(
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
 
     enabled = ms_config.get("enabled", None);
-    if (not is_sv_sibling) and (not scale) and (enabled is not False) {
+    if (not is_sv_sibling) and (enabled is not False) {
         realizer = None;
         should_serve_ms = False;
         try {
@@ -115,21 +109,25 @@ def scale_start(
         }
     }
 
-    if scale {
+    return None;
+}
+
+def scale_deploy(
+    filename: str, target: str, enable_tls: bool, dry_run: bool, show_yaml: bool
+) -> int {
+    os.environ["JAC_SCALE_RUNTIME"] = "1";
+    ms_config = get_scale_config().get_microservices_config();
+    try {
         import from jaclang.scale.runtime.realizer.kubernetes_realizer {
             KubernetesRealizer
         }
-        try {
-            return KubernetesRealizer(ms_config=ms_config).realize(
-                filename, target, enable_tls, dry_run, show_yaml
-            );
-        } except Exception as e {
-            console.error(f"Deploy failed: {e}", emoji=False);
-            return 1;
-        }
+        return KubernetesRealizer(ms_config=ms_config).realize(
+            filename, target, enable_tls, dry_run, show_yaml
+        );
+    } except Exception as e {
+        console.error(f"Deploy failed: {e}", emoji=False);
+        return 1;
     }
-
-    return None;
 }
 
 def _print_deployment_status(status_data: dict) -> None {
@@ -203,7 +201,36 @@ def _print_deployment_status(status_data: dict) -> None {
     }
 }
 
-glob registry = get_registry();
+glob registry = get_registry(),
+     _sv_sibling_procs: dict[str, any] = {},
+     _sv_spawn_locks: dict[str, threading.Lock] = {},
+     _sv_spawn_guard = threading.Lock();
+
+def _sv_spawn_lock(module_name: str) -> threading.Lock {
+    with _sv_spawn_guard {
+        if module_name not in _sv_spawn_locks {
+            _sv_spawn_locks[module_name] = threading.Lock();
+        }
+        return _sv_spawn_locks[module_name];
+    }
+}
+
+def stop_sv_sibling(module_name: str, timeout: float = 10.0) -> bool {
+    proc = _sv_sibling_procs.pop(module_name, None);
+    if proc is None {
+        return False;
+    }
+    if proc.poll() is None {
+        proc.terminate();
+    }
+    try {
+        proc.`wait(timeout=timeout);
+    } except Exception {
+        proc.kill();
+        proc.`wait(timeout=5);
+    }
+    return True;
+}
 
 def deploy_destroy(
     file_path: str, target: str = "kubernetes", component: str = ""
@@ -231,9 +258,7 @@ def deploy_destroy(
     }
 
     code_folder = os.path.dirname(file_path) or '.';
-    dotenv_path = os.path.join(code_folder, '.env');
-    import from dotenv { load_dotenv }
-    load_dotenv(dotenv_path);
+    load_project_env(code_folder);
 
     scale_config = get_scale_config();
 
@@ -284,9 +309,7 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
         raise FileNotFoundError(f"File not found: '{file_path}'");
     }
     code_folder = os.path.dirname(file_path) or '.';
-    dotenv_path = os.path.join(code_folder, '.env');
-    import from dotenv { load_dotenv }
-    load_dotenv(dotenv_path);
+    load_project_env(code_folder);
 
     scale_config = get_scale_config();
 
@@ -380,40 +403,71 @@ def _scale_split(module_name: str) -> int {
 
 @registry.command(
     name="scale",
-    help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (status/destroy on a .jac app)",
+    help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (deploy/status/destroy on a .jac app)",
     args=[
         Arg.create(
             "action",
             kind=ArgKind.POSITIONAL,
-            help="Action: status, stop, restart, logs, destroy, split"
+            help="Action: deploy, status, stop, restart, logs, destroy, split"
         ),
         Arg.create(
             "service_name",
             kind=ArgKind.POSITIONAL,
-            default="",
-            help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy"
+            `default="",
+            help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform deploy/status/destroy"
         ),
         Arg.create(
             "lines",
             typ=int,
-            default=50,
+            `default=50,
             help="Number of log lines to show (for 'logs' action)"
         ),
         Arg.create(
             "target",
             typ=str,
-            default="kubernetes",
+            `default="kubernetes",
             help="Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)"
         ),
         Arg.create(
             "component",
             typ=str,
-            default="",
+            `default="",
             help="Platform destroy: component to remove (application, database, monitoring; default: entire deployment)"
+        ),
+        Arg.create(
+            "enable-tls",
+            typ=bool,
+            `default=False,
+            help="Platform deploy: enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
+            short=""
+        ),
+        Arg.create(
+            "dry-run",
+            typ=bool,
+            `default=False,
+            help="Platform deploy: print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)",
+            short=""
+        ),
+        Arg.create(
+            "show-yaml",
+            typ=bool,
+            `default=False,
+            help="Platform deploy, with --dry-run: dump the raw YAML stream",
+            short=""
         ),
 
     ],
     examples=[
+        ("jac scale deploy", "Deploy this project's entry-point to the default target"),
+        ("jac scale deploy app.jac", "Deploy a specific app file"),
+        (
+            "jac scale deploy app.jac --target aws",
+            "Deploy the app to a specific platform target"
+        ),
+        (
+            "jac scale deploy app.jac --dry-run --show-yaml",
+            "Print the manifests that would be applied, touching nothing"
+        ),
         ("jac scale status", "Show status of all microservices"),
         (
             "jac scale split orders",
@@ -438,8 +492,33 @@ def scale_cmd(
     service_name: str = "",
     lines: int = 50,
     target: str = "kubernetes",
-    component: str = ""
+    component: str = "",
+    enable_tls: bool = False,
+    dry_run: bool = False,
+    show_yaml: bool = False
 ) -> int {
+    if action == "deploy" {
+        app_file = service_name;
+        if not app_file {
+            import from pathlib { Path }
+            import from jaclang.project.config { get_config }
+            import from jaclang.project.kinds { resolve_entry }
+            cfg = get_config(start_path=Path.cwd(), force_discover=True);
+            app_file = resolve_entry(cfg, str(cfg.project_root))
+                if cfg is not None and cfg.project_root is not None
+                else "";
+        }
+        if not app_file.endswith(".jac") {
+            console.error(
+                "jac scale deploy needs the app's .jac file.\n"
+                "  Usage: jac scale deploy [app.jac] [--target kubernetes]\n"
+                "  With no file, [project] entry-point in jac.toml is deployed.",
+                emoji=False
+            );
+            return 1;
+        }
+        return scale_deploy(app_file, target, enable_tls, dry_run, show_yaml);
+    }
     if action in ("status", "destroy") and service_name.endswith(".jac") {
         if action == "status" {
             return deploy_status(service_name, target);
@@ -483,8 +562,8 @@ def scale_cmd(
         return 1;
     }
 
-    registry: ServiceRegistry = build_registry(ms_config);
-    deployer = LocalDeployer(registry=registry, target="local");
+    svc_registry: ServiceRegistry = build_registry(ms_config);
+    deployer = LocalDeployer(registry=svc_registry, target="local");
 
     if action == "status" {
         svc_status = deployer.status();
@@ -625,7 +704,8 @@ class JacScalePlugin {
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
             jac_executable,
-            wait_for_health
+            wait_for_health,
+            boot_health_timeout
         }
 
         if module_name in sv_client._registry {
@@ -665,47 +745,73 @@ class JacScalePlugin {
             );
         }
 
-        port: int = pick_free_port(module_name);
-        base_url: str = f"http://127.0.0.1:{port}";
-
-        child_env = dict(os.environ);
-        child_env["JAC_SV_SIBLING"] = "1";
-
-        cmd = [jac_executable()]
-            + sv_client.headless_start_args(str(module_file), port);
-
-        log_dir = base_dir / '.jac' / 'logs';
-        log_dir.mkdir(parents=True, exist_ok=True);
-        log_path = log_dir / f"{module_name}.log";
-        log_file = open(log_path, 'ab');
-        try {
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                env=child_env,
-                cwd=str(base_dir)
-            );
-        } finally {
-            log_file.close();
-        }
-
-        if not wait_for_health(base_url, lambda { proc.poll() is None; }) {
-            proc.terminate();
-            raise RuntimeError(
-                f"sv-to-sv service '{module_name}' did not become healthy at "
-                f"{base_url}; see {log_path} for the service's output"
-            );
-        }
-
-        sv_client.register(module_name, base_url);
-
-        def _cleanup {
-            if proc.poll() is None {
-                proc.terminate();
+        with _sv_spawn_lock(module_name) {
+            if module_name in sv_client._registry {
+                return;
             }
+            port: int = pick_free_port(module_name);
+            base_url: str = f"http://127.0.0.1:{port}";
+            child_env = dict(os.environ);
+            child_env["JAC_SV_SIBLING"] = "1";
+            cmd = [jac_executable()]
+                + sv_client.headless_start_args(str(module_file), port);
+            log_dir = base_dir / '.jac' / 'logs';
+            log_dir.mkdir(parents=True, exist_ok=True);
+            log_path = log_dir / f"{module_name}.log";
+            log_file = open(log_path, 'ab');
+            try {
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env=child_env,
+                    cwd=str(base_dir)
+                );
+            } finally {
+                log_file.close();
+            }
+            _sv_sibling_procs[module_name] = proc;
+            def _log_size -> int {
+                try {
+                    return log_path.stat().st_size;
+                } except OSError {
+                    return -1;
+                }
+            }
+            budget: float = boot_health_timeout();
+            healthy = wait_for_health(
+                base_url,
+                lambda { proc.poll() is None; },
+                timeout=budget,
+                progress=_log_size
+            );
+            if not healthy {
+                exit_code = proc.poll();
+                if exit_code is None {
+                    detail = (
+                        f"stopped making progress for {budget:.0f}s while starting up"
+                    );
+                } else {
+                    detail = f"exited with status {exit_code} before serving";
+                }
+                stop_sv_sibling(module_name);
+                raise RuntimeError(
+                    f"sv-to-sv service '{module_name}' {detail}; "
+                    f"expected it at {base_url}. See {log_path} for its output"
+                        + (
+                            ""
+                                if exit_code is not None
+                                else "; raise [scale.microservices] boot_health_timeout "
+                                "if it needs longer"
+                        )
+                );
+            }
+            sv_client.register(module_name, base_url);
+            def _cleanup {
+                stop_sv_sibling(module_name);
+            }
+            atexit.register(_cleanup);
         }
-        atexit.register(_cleanup);
     }
 
     static def get_sv_registry -> dict[str, str] {

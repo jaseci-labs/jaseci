@@ -1,3 +1,21 @@
+def _mod_functions(mod: ModuleRef) -> list[ValueRef] {
+    fns = mod.functions;
+    assert isinstance(fns, Iterator);
+    return list(fns);
+}
+
+def _mod_globals(mod: ModuleRef) -> list[ValueRef] {
+    gvs = mod.global_variables;
+    assert isinstance(gvs, Iterator);
+    return list(gvs);
+}
+
+def _mod_bitcode(mod: ModuleRef) -> bytes {
+    bitcode = mod.as_bitcode();
+    assert isinstance(bitcode, bytes);
+    return bitcode;
+}
+
 impl native_compiler_fingerprint(options: any) -> str {
     import glob as _cgl;
     import hashlib as _cfh_hash;
@@ -6,12 +24,17 @@ impl native_compiler_fingerprint(options: any) -> str {
     _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
     _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
     _comp_h = _cfh_hash.sha256();
+    import from jaclang.jac0core.jir { FORMAT_VERSION }
+    _comp_h.update(str(FORMAT_VERSION).encode());
     for _cp in [
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
-        _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
-
+        _cfp_os.path.join(_nat_dir, "na_ir_gen", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "type_system", "*", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "type_registry.jac"),
+        _cfp_os.path.join(_jl_dir, "jac0core", "scalars.jac")
     ] {
-        for _cf in sorted(_cgl.glob(_cp)) {
+        for _cf in sorted(_cgl.`glob(_cp)) {
             try {
                 with open(_cf, "rb") as _cfh {
                     _comp_h.update(_cfh.read());
@@ -46,8 +69,10 @@ impl DepClibMeta.to_meta -> dict {
         "exported_symbols": self.exported_symbols,
         "imported_symbols": self.imported_symbols,
         "owned_symbols": self.owned_symbols,
+        "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
-        "options_fingerprint": self.options_fingerprint
+        "options_fingerprint": self.options_fingerprint,
+        "unverified_live_calls": self.unverified_live_calls
     };
 }
 
@@ -58,9 +83,203 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         exported_symbols=meta.get("exported_symbols", []),
         imported_symbols=meta.get("imported_symbols", []),
         owned_symbols=meta.get("owned_symbols", []),
+        demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
-        options_fingerprint=meta.get("options_fingerprint", "")
+        options_fingerprint=meta.get("options_fingerprint", ""),
+        unverified_live_calls=meta.get("unverified_live_calls", {})
     );
+}
+
+impl native_verdict_blast_guard(
+    prog: any, composed: int, aot_lane: bool = False
+) -> str {
+    _bg_taint = 0;
+    _bg_mods = 0;
+    _bg_live: dict[str, dict[str, set[str]]] = prog._na_unverified_live or {};
+    for _bg_rec in _bg_live.values() {
+        _bg_mods += 1;
+        for _bg_names in _bg_rec.values() {
+            _bg_taint += len(_bg_names);
+        }
+    }
+    _bg_misses = int(prog._na_verdict_misses or 0);
+    _bg_taint_ok = aot_lane or _bg_taint <= NATIVE_VERDICT_TAINT_BOUND;
+    if (
+        _bg_taint_ok
+        and composed <= NATIVE_LINK_COMPILE_BOUND
+        and _bg_misses <= NATIVE_VERDICT_MISS_BOUND
+    ) {
+        return "";
+    }
+    return (
+        f"{_bg_taint} tainted name(s) across {_bg_mods} module(s), "
+        f"{composed} link-time module compile(s), {_bg_misses} fail-closed "
+        f"verdict miss(es); bounds "
+        f"{NATIVE_VERDICT_TAINT_BOUND}/{NATIVE_LINK_COMPILE_BOUND}/"
+        f"{NATIVE_VERDICT_MISS_BOUND}"
+    );
+}
+
+impl native_ir_live_externs(llvm_ir_text: str) -> set[str] {
+    import re as _dc_re;
+    _dc_decl = _dc_re.compile(
+        r'^declare\b[^@\n]*@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))\s*\(', _dc_re.MULTILINE
+    );
+    declared: set[str] = set();
+    for (_dc_q, _dc_bare) in _dc_decl.findall(llvm_ir_text) {
+        declared.add(_dc_q or _dc_bare);
+    }
+    if not declared {
+        return declared;
+    }
+    _dc_use = _dc_re.compile(r'@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))');
+    counts: dict[str, int] = {};
+    for (_dc_q, _dc_bare) in _dc_use.findall(llvm_ir_text) {
+        _dc_name = _dc_q or _dc_bare;
+        if _dc_name in declared {
+            counts[_dc_name] = counts.get(_dc_name, 0) + 1;
+        }
+    }
+    return {
+        _dc_name
+        for (_dc_name, _dc_n) in counts.items()
+        if _dc_n > 1
+    };
+}
+
+impl native_prune_live_record(
+    pending: dict, declared: set[str]
+) -> dict[str, set[str]] {
+    pruned: dict[str, set[str]] = {};
+    for (_pr_callee, _pr_names) in (pending or {}).items() {
+        _pr_hit = set(_pr_names) & declared;
+        if _pr_hit {
+            pruned[_pr_callee] = _pr_hit;
+        }
+    }
+    return pruned;
+}
+
+impl native_unit_demotions(
+    prog: any, real_path: str, options: any
+) -> (set[str] | None) {
+    import os as _ud_os;
+    `entry: any = prog._na_dep_units.get(real_path);
+    _ud_mid_compile = False;
+    if `entry is None {
+        for _ud_key in (real_path, _ud_os.path.abspath(real_path)) {
+            _ud_mod = prog.mod.hub.get(_ud_key);
+            if _ud_mod is None {
+                continue;
+            }
+            if _ud_mod.gen.llvm_ir is not None {
+                `entry = _ud_mod;
+            } else {
+                _ud_mid_compile = (
+                    real_path in prog._na_dep_inflight
+                    or real_path in prog._na_verdict_resolving
+                    or _ud_key in prog._na_dep_inflight
+                    or _ud_key in prog._na_verdict_resolving
+                );
+            }
+            break;
+        }
+    }
+    if (
+        `entry is None
+        and not _ud_mid_compile
+        and real_path not in prog._na_dep_inflight
+        and real_path not in prog._na_verdict_resolving
+        and _ud_os.path.isfile(real_path)
+    ) {
+        if not getattr(options, "no_ir_cache", False) {
+            try {
+                import json as _ud_json;
+                (_, _ud_meta_path) = native_dep_cache_paths(real_path, options);
+                if _ud_os.path.exists(_ud_meta_path) {
+                    with open(_ud_meta_path, "r") as _ud_mf {
+                        _ud_meta = _ud_json.loads(_ud_mf.read());
+                    }
+                    _ud_cached = _ud_meta.get("demoted_symbols");
+                    if _ud_cached is not None {
+                        return set(_ud_cached);
+                    }
+                }
+            } except Exception { }
+        }
+        prog._na_verdict_resolving.add(real_path);
+        try {
+            `entry = prog.compile(
+                file_path=real_path, options=options.clone_for_native_import()
+            );
+        } except Exception as _ud_exc {
+            `entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
+        } finally {
+            prog._na_verdict_resolving.discard(real_path);
+        }
+        prog._na_dep_units[real_path] = `entry;
+    }
+    if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
+        prog._na_verdict_misses += 1;
+        _ud_tree = `entry
+            if (`entry is not None and not isinstance(`entry, str))
+            else prog.mod.hub.get(real_path);
+        if _ud_tree is None {
+            return None;
+        }
+        _ud_all: set = set();
+        import jaclang.jac0core.unitree as _ud_uni;
+        import from jaclang.jac0core.passes.module_codegen_pass {
+            ModuleCodegenPass as _UdWalk
+        }
+        for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
+            if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
+                _ud_all.add(_ud_stmt.name_ref.sym_name);
+            } elif isinstance(_ud_stmt, _ud_uni.Archetype)
+                and _ud_stmt.body is not None
+                and _ud_stmt.name is not None {
+                for _ud_meth in _ud_stmt.body {
+                    if isinstance(_ud_meth, _ud_uni.Ability) and _ud_meth.name_ref {
+                        _ud_all.add(
+                            f"{_ud_stmt.name.value}.{_ud_meth.name_ref.sym_name}"
+                        );
+                    }
+                }
+            }
+        }
+        return _ud_all;
+    }
+    return set(native_demoted_ir_symbols(str(`entry.gen.llvm_ir)));
+}
+
+impl native_live_call_conflicts(
+    prog: any, pending: dict, options: any
+) -> dict[str, set[str]] {
+    conflicts: dict[str, set[str]] = {};
+    for (_cc_callee, _cc_names) in (pending or {}).items() {
+        _cc_demoted = native_unit_demotions(prog, _cc_callee, options);
+        _cc_hit = (
+            set(_cc_names) if _cc_demoted is None else (set(_cc_names) & _cc_demoted)
+        );
+        if _cc_hit {
+            conflicts[_cc_callee] = _cc_hit;
+        }
+    }
+    return conflicts;
+}
+
+impl native_demoted_ir_symbols(llvm_ir_text: str) -> list[str] {
+    import re as _ds_re;
+    _ds_def = _ds_re.compile(
+        r'^define\b[^@\n]*@(?:"([^"]+\.__jac_demoted)"'
+        r'|([A-Za-z0-9_.$\-]+\.__jac_demoted))\(',
+        _ds_re.MULTILINE
+    );
+    found: set[str] = set();
+    for (_ds_q, _ds_bare) in _ds_def.findall(llvm_ir_text) {
+        found.add((_ds_q or _ds_bare)[:-len(".__jac_demoted")]);
+    }
+    return sorted(found);
 }
 
 impl DepClibMeta.propagate_to(gen: CodeGenTarget) -> None {
@@ -110,7 +329,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         import os;
-        clib_paths = module.gen._clib_paths;
+        clib_paths: (list[str] | None) = module.gen._clib_paths;
         if _compile_opts.aot_mode {
             clib_paths = None;
         }
@@ -136,6 +355,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         } else {
             target = llvm.Target.from_default_triple();
         }
+        assert isinstance(target, llvm.Target);
 
         _native_debug: bool = bool(_compile_opts.native_debug);
         if _native_debug {
@@ -143,6 +363,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         } else {
             target_machine = target.create_target_machine(jit=True);
         }
+        assert isinstance(target_machine, llvm.TargetMachine);
 
         manifest = module.gen.interop_manifest;
         native_imports = manifest.native_imports;
@@ -193,7 +414,9 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         if _opt_level > 0 {
             pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
             pb = llvm.create_pass_builder(target_machine, pto);
+            assert isinstance(pb, llvm.PassBuilder);
             opt_mpm = pb.getModulePassManager();
+            assert isinstance(opt_mpm, llvm.ModulePassManager);
             opt_mpm.run(mod, pb);
         }
 
@@ -204,7 +427,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             }
         }
 
-        module.gen.native_bitcode = mod.as_bitcode();
+        module.gen.native_bitcode = _mod_bitcode(mod);
 
         _debug_obj_path = "";
         _ir_dir = "";
@@ -218,6 +441,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             _os.makedirs(_ir_dir, exist_ok=True);
             try {
                 _obj_bytes = target_machine.emit_object(mod);
+                assert isinstance(_obj_bytes, bytes);
                 _debug_obj_path = _os.path.join(_ir_dir, _stem + ".debug.o");
                 with open(_debug_obj_path, "wb") as _of {
                     _of.write(_obj_bytes);
@@ -226,7 +450,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                 mod = llvm.parse_assembly(str(module.gen.llvm_ir));
                 mod.verify();
 
-                module.gen.native_bitcode = mod.as_bitcode();
+                module.gen.native_bitcode = _mod_bitcode(mod);
             } except Exception as _dbg_err { }
         }
 
@@ -238,11 +462,11 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             return ir_in;
         }
 
-        _all_fn_names: list = [];
+        _all_fn_names: list[str] = [];
         if _native_debug and _debug_obj_path {
             try {
-                for _fn in mod.functions {
-                    _fn_name_str = _fn.name;
+                for _fn in _mod_functions(mod) {
+                    _fn_name_str = str(_fn.name);
 
                     if not _fn.is_declaration {
                         _all_fn_names.append(_fn_name_str);
@@ -252,12 +476,14 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         engine = llvm.create_mcjit_compiler(mod, target_machine);
+        assert isinstance(engine, llvm.ExecutionEngine);
 
         if _native_debug {
             try {
                 engine.enable_jit_events();
             } except Exception { }
         }
+        install_native_static_init(engine, module.gen.interop_manifest);
         module.gen.native_engine = engine;
 
         if _native_debug and _debug_obj_path and _all_fn_names {
@@ -293,7 +519,24 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
 
 impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
     import os;
+    import sys;
     import ctypes.util;
+
+    def is_darwin_abort_stub(cand: str) -> bool {
+        if sys.platform != "darwin" {
+            return False;
+        }
+        cand_base = os.path.basename(cand);
+        if cand_base not in ("libcrypto.dylib", "libssl.dylib") {
+            return False;
+        }
+        if os.path.isabs(cand) {
+            return os.path.dirname(os.path.realpath(cand)) == "/usr/lib";
+        }
+
+        return True;
+    }
+
     probe = lib_path;
     if probe.startswith("$ORIGIN/") {
         probe = probe[8:];
@@ -303,16 +546,18 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
     base = os.path.basename(probe);
 
     for cand in [lib_path, probe, os.path.join(".", base)] {
-        if cand and os.path.exists(cand) {
+        if cand and os.path.exists(cand) and not is_darwin_abort_stub(cand) {
             llvm.load_library_permanently(os.path.abspath(cand));
             return True;
         }
     }
 
-    try {
-        llvm.load_library_permanently(base);
-        return True;
-    } except Exception { }
+    if not is_darwin_abort_stub(base) {
+        try {
+            llvm.load_library_permanently(base);
+            return True;
+        } except Exception { }
+    }
 
     stem = base;
     if stem.startswith("lib") {
@@ -325,7 +570,7 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
         }
     }
     found = ctypes.util.find_library(stem) or ctypes.util.find_library(probe);
-    if found {
+    if found and not is_darwin_abort_stub(found) {
         llvm.load_library_permanently(found);
         return True;
     }
@@ -333,7 +578,10 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
 }
 
 impl NativeCompilePass._compile_and_link_native_imports(
-    module: uni.Module, main_mod: object, imports: list, target_machine: object
+    module: uni.Module,
+    main_mod: ModuleRef,
+    imports: list,
+    target_machine: TargetMachine
 ) -> None {
     import os;
     import hashlib;
@@ -373,25 +621,27 @@ impl NativeCompilePass._compile_and_link_native_imports(
     _PRIVATE_LINKAGE = 9;
     _WEAK_LINKAGE = 5;
     _WEAK_ODR_LINKAGE = 6;
-    for _mfn in main_mod.functions {
-        if _mfn.is_declaration or _mfn.name.startswith("llvm.") {
+    for _mfn in _mod_functions(main_mod) {
+        _mfn_name = str(_mfn.name);
+        if _mfn.is_declaration or _mfn_name.startswith("llvm.") {
             continue;
         }
         if _mfn.linkage == _INTERNAL_LINKAGE or _mfn.linkage == _PRIVATE_LINKAGE {
             continue;
         }
-        symbol_origins[_mfn.name] = _MAIN_ORIGIN;
-        symbol_owned[_mfn.name] = _mfn.name not in _main_imported_names;
+        symbol_origins[_mfn_name] = _MAIN_ORIGIN;
+        symbol_owned[_mfn_name] = _mfn_name not in _main_imported_names;
     }
-    for _mgv in main_mod.global_variables {
+    for _mgv in _mod_globals(main_mod) {
+        _mgv_name = str(_mgv.name);
         if _mgv.is_declaration {
             continue;
         }
         if _mgv.linkage == _INTERNAL_LINKAGE or _mgv.linkage == _PRIVATE_LINKAGE {
             continue;
         }
-        symbol_origins[_mgv.name] = _MAIN_ORIGIN;
-        symbol_owned[_mgv.name] = _mgv.name not in _main_imported_names;
+        symbol_origins[_mgv_name] = _MAIN_ORIGIN;
+        symbol_owned[_mgv_name] = _mgv_name not in _main_imported_names;
     }
 
     class _DepBinding {
@@ -408,12 +658,21 @@ impl NativeCompilePass._compile_and_link_native_imports(
     import from jaclang.jac0core.codeinfo { native_stdlib_root }
     _bundled_stdlib_root = native_stdlib_root();
     queue_idx = 0;
+    _lk_composed = 0;
     while queue_idx < len(work_queue) {
         (binding, cur_base_dir) = work_queue[queue_idx];
         queue_idx += 1;
         source_mod_path = binding.source_module;
         if source_mod_path is None {
             continue;
+        }
+        _bg_aot = bool(
+            self.prog._compile_options and self.prog._compile_options.aot_mode
+        );
+        _bg_msg = native_verdict_blast_guard(self.prog, _lk_composed, _bg_aot);
+        if _bg_msg {
+            self.emit(E5029, path=str(source_mod_path), detail=_bg_msg);
+            break;
         }
 
         if source_mod_path.endswith(".jac") {
@@ -487,25 +746,135 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
 
+        if _cache_hit and meta.unverified_live_calls {
+            _uv_cached_pending = native_prune_live_record(
+                meta.unverified_live_calls,
+                native_ir_live_externs(imported_llvm_str_raw)
+            );
+            _uv_cached_conflicts = native_live_call_conflicts(
+                self.prog, _uv_cached_pending, _link_opts
+            )
+                if _uv_cached_pending
+                else {};
+            if _uv_cached_conflicts {
+                _cache_hit = False;
+                imported_llvm_str_raw = "";
+                meta = DepClibMeta();
+                for _uv_stale in (_cache_ir_path, _cache_meta_path) {
+                    try {
+                        os.remove(_uv_stale);
+                    } except OSError { }
+                }
+            }
+        }
+
         if _cache_hit {
             dep_base = os.path.dirname(full_path);
             for dep_mod_path in meta.transitive_deps {
                 work_queue.append((_DepBinding(dep_mod_path), dep_base));
             }
         } else {
+            imported_ir: (uni.Module | None) = None;
             import_options = _link_opts.clone_for_native_import();
-            try {
-                imported_ir = self.prog.compile(
-                    file_path=full_path, options=import_options
-                );
-            } except Exception as e {
-                self.emit(E5024, path=full_path, error=str(e));
-                continue;
+            _na_units = self.prog._na_dep_units;
+            if real_path in _na_units {
+                _memo_entry = _na_units.pop(real_path);
+                if isinstance(_memo_entry, str) {
+                    self.emit(E5024, path=full_path, error=_memo_entry);
+                    continue;
+                }
+                imported_ir = _memo_entry;
+            } else {
+                try {
+                    _lk_composed += 1;
+                    imported_ir = self.prog.compile(
+                        file_path=full_path, options=import_options
+                    );
+                } except Exception as e {
+                    self.emit(E5024, path=full_path, error=str(e));
+                    continue;
+                }
             }
             if imported_ir is None or imported_ir.gen.llvm_ir is None {
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
             }
+            _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+            _uv_pending = native_prune_live_record(
+                _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+            )
+                if _uv_record
+                else {};
+            _uv_attempts = 0;
+            _uv_failed = "";
+            while _uv_pending and _uv_attempts < 3 {
+                _uv_conflicts = native_live_call_conflicts(
+                    self.prog, _uv_pending, _link_opts
+                );
+                if not _uv_conflicts {
+                    break;
+                }
+                _uv_attempts += 1;
+                import sys as _uv_sys;
+                _uv_what = "; ".join(
+                    f"{os.path.basename(_uv_c)} demotes " + ", ".join(sorted(_uv_n))
+                    for (_uv_c, _uv_n) in sorted(_uv_conflicts.items())
+                );
+                _uv_sys.stderr.write(
+                    f"warning: native seam -- re-emitting "
+                    f"{os.path.basename(real_path)}: it declared callables "
+                    f"live while their module's verdict was pending, and the "
+                    f"landed verdict disagrees ({_uv_what})\n"
+                );
+                self.prog._na_unverified_live.pop(real_path, None);
+                self.prog._na_dep_units.pop(real_path, None);
+                try {
+                    self.prog.invalidate_module(real_path);
+                } except Exception { }
+                try {
+                    _lk_composed += 1;
+                    imported_ir = self.prog.compile(
+                        file_path=full_path, options=import_options
+                    );
+                } except Exception as _uv_exc {
+                    _uv_failed = str(_uv_exc);
+                    break;
+                }
+                if imported_ir is None or imported_ir.gen.llvm_ir is None {
+                    _uv_failed = "No LLVM IR generated on re-emission";
+                    break;
+                }
+                _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+                _uv_pending = native_prune_live_record(
+                    _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+                )
+                    if _uv_record
+                    else {};
+            }
+            if _uv_failed {
+                self.emit(E5024, path=full_path, error=_uv_failed);
+                continue;
+            }
+            if _uv_pending and _uv_attempts >= 3 {
+                _uv_conflicts = native_live_call_conflicts(
+                    self.prog, _uv_pending, _link_opts
+                );
+                if _uv_conflicts {
+                    self.emit(
+                        E5028,
+                        path=full_path,
+                        names=", ".join(
+                            sorted(
+                                _uv_n for _uv_ns in _uv_conflicts.values()
+                                for _uv_n in _uv_ns
+                            )
+                        ),
+                        attempts=_uv_attempts
+                    );
+                    continue;
+                }
+            }
+            assert imported_ir is not None;
             _owned_seen: set[str] = set();
             for _ab in imported_ir.get_all_sub_nodes(uni.Ability) {
                 _ab_name = _ab.name_ref.sym_name if _ab.name_ref else None;
@@ -531,6 +900,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
             meta.owned_symbols = sorted(_owned_seen);
             imported_llvm_str_raw = str(imported_ir.gen.llvm_ir);
+            meta.demoted_symbols = native_demoted_ir_symbols(imported_llvm_str_raw);
             meta.clib_paths = imported_ir.gen._clib_paths or [];
             meta.clib_symbol_lib = imported_ir.gen._clib_symbol_lib or {};
             meta.exported_symbols = imported_ir.gen._exported_symbols or [];
@@ -549,30 +919,46 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
             }
             meta.options_fingerprint = _link_fp;
+            meta.unverified_live_calls = {
+                _uv_c: sorted(_uv_n) for (_uv_c, _uv_n) in _uv_pending.items()
+            };
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);
 
                 import glob as _glob;
-                for stale in _glob.glob(
+                for stale in _glob.`glob(
                     os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_cache")
                 ) {
                     if stale != _cache_ir_path {
                         os.remove(stale);
                     }
                 }
-                for stale in _glob.glob(
+                for stale in _glob.`glob(
                     os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_meta")
                 ) {
                     if stale != _cache_meta_path {
                         os.remove(stale);
                     }
                 }
-                with open(_cache_ir_path, "w") as _wf {
-                    _wf.write(imported_llvm_str_raw);
-                }
+
                 _meta_obj = meta.to_meta();
-                with open(_cache_meta_path, "w") as _wmf {
-                    _wmf.write(json.dumps(_meta_obj));
+                _tmp_ir = f"{_cache_ir_path}.{os.getpid()}.tmp";
+                _tmp_meta = f"{_cache_meta_path}.{os.getpid()}.tmp";
+                try {
+                    with open(_tmp_ir, "w") as _wf {
+                        _wf.write(imported_llvm_str_raw);
+                    }
+                    with open(_tmp_meta, "w") as _wmf {
+                        _wmf.write(json.dumps(_meta_obj));
+                    }
+                    os.replace(_tmp_ir, _cache_ir_path);
+                    os.replace(_tmp_meta, _cache_meta_path);
+                } finally {
+                    for _leftover in (_tmp_ir, _tmp_meta) {
+                        try {
+                            os.remove(_leftover);
+                        } except OSError { }
+                    }
                 }
             } except Exception { }
         }
@@ -588,7 +974,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
         try {
             imported_llvm_str = imported_llvm_str_raw;
 
-            safe_name = native_safe_sym(source_mod_path);
+            import from jaclang.jac0core.codeinfo { native_module_key }
+            safe_name = native_safe_sym(native_module_key(real_path));
             entry_rename = f"__jac_entry_{safe_name}";
             imported_llvm_str = imported_llvm_str.replace(
                 '@"jac_entry"', f'@"{entry_rename}"'
@@ -623,8 +1010,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
             has_real_collision = False;
             _benign_dup_funcs: list = [];
             _benign_dup_gvs: list = [];
-            for func in imported_mod.functions {
-                if func.name.startswith("llvm.") or func.is_declaration {
+            for func in _mod_functions(imported_mod) {
+                _func_name = str(func.name);
+                if _func_name.startswith("llvm.") or func.is_declaration {
                     continue;
                 }
                 if func.linkage == _INTERNAL_LINKAGE
@@ -633,18 +1021,18 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     or func.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
-                exported_funcs.append(func.name);
-                if func.name in symbol_origins {
+                exported_funcs.append(_func_name);
+                if _func_name in symbol_origins {
                     _is_owned = (
-                        func.name in dep_owned_set
+                        _func_name in dep_owned_set
                             if dep_owned_set
-                            else func.name not in dep_imported_set
+                            else _func_name not in dep_imported_set
                     );
-                    if _is_owned and symbol_owned.get(func.name, True) {
+                    if _is_owned and symbol_owned.get(_func_name, True) {
                         self.emit(
                             E5026,
-                            symbol=func.name,
-                            existing_module=symbol_origins[func.name],
+                            symbol=_func_name,
+                            existing_module=symbol_origins[_func_name],
                             new_module=full_path
                         );
                         has_real_collision = True;
@@ -654,7 +1042,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
             }
             exported_globals: list[str] = [];
-            for gv in imported_mod.global_variables {
+            for gv in _mod_globals(imported_mod) {
+                _gv_name = str(gv.name);
                 if gv.is_declaration
                     or gv.linkage == _INTERNAL_LINKAGE
                     or gv.linkage == _PRIVATE_LINKAGE
@@ -662,18 +1051,18 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     or gv.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
-                exported_globals.append(gv.name);
-                if gv.name in symbol_origins {
+                exported_globals.append(_gv_name);
+                if _gv_name in symbol_origins {
                     _is_owned = (
-                        gv.name in dep_owned_set
+                        _gv_name in dep_owned_set
                             if dep_owned_set
-                            else gv.name not in dep_imported_set
+                            else _gv_name not in dep_imported_set
                     );
-                    if _is_owned and symbol_owned.get(gv.name, True) {
+                    if _is_owned and symbol_owned.get(_gv_name, True) {
                         self.emit(
                             E5026,
-                            symbol=gv.name,
-                            existing_module=symbol_origins[gv.name],
+                            symbol=_gv_name,
+                            existing_module=symbol_origins[_gv_name],
                             new_module=full_path
                         );
                         has_real_collision = True;
@@ -755,7 +1144,6 @@ def _compile_osp_kernel_ir(
 
     kernel_opts = _KernelOpts(
         aot_mode=True,
-        type_check=False,
         default_codespace='native',
         na_gc_mode=gc_mode,
         nogc_enforce_all=enforce,
@@ -814,9 +1202,9 @@ def _compile_osp_kernel_ir(
     return ir_str;
 }
 
-impl NativeCompilePass._references_undefined_osp_kernel(main_mod: object) -> bool {
+impl NativeCompilePass._references_undefined_osp_kernel(main_mod: ModuleRef) -> bool {
     try {
-        for _fn in main_mod.functions {
+        for _fn in _mod_functions(main_mod) {
             if _fn.name == "__jac_glob_init_osp_kernel" and _fn.is_declaration {
                 return True;
             }
@@ -827,7 +1215,7 @@ impl NativeCompilePass._references_undefined_osp_kernel(main_mod: object) -> boo
     return False;
 }
 
-impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
+impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
     _gc = str(getattr(self.prog?._compile_options, "na_gc_mode", "cycles") or "cycles");
     _enf = bool(getattr(self.prog?._compile_options, "nogc_enforce_all", False))
         or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
@@ -862,7 +1250,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
     import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
 
     kernel_opts = _KernelOpts(
-        aot_mode=True, type_check=False, default_codespace='native', na_gc_mode='cycles'
+        aot_mode=True, default_codespace='native', na_gc_mode='cycles'
     );
     cache_key = kernel_opts.codegen_fingerprint();
     if cache_key in _FMT_KERNEL_IR_CACHE {
@@ -892,14 +1280,15 @@ def _compile_fmt_kernel_ir -> (str | None) {
     return ir_str;
 }
 
-impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: object) -> bool {
+impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: ModuleRef) -> bool {
     try {
-        for _fn in main_mod.functions {
+        for _fn in _mod_functions(main_mod) {
+            _fn_name = str(_fn.name);
             if _fn.is_declaration
                 and (
-                    _fn.name.startswith("jac_fmt_")
-                    or _fn.name.startswith("_jac_fmt_")
-                    or _fn.name == "__jac_glob_init_fmt_kernel"
+                    _fn_name.startswith("jac_fmt_")
+                    or _fn_name.startswith("_jac_fmt_")
+                    or _fn_name == "__jac_glob_init_fmt_kernel"
                 ) {
                 return True;
             }
@@ -910,7 +1299,7 @@ impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: object) -> boo
     return False;
 }
 
-impl NativeCompilePass._link_fmt_kernel(main_mod: object) -> None {
+impl NativeCompilePass._link_fmt_kernel(main_mod: ModuleRef) -> None {
     ir_str = _compile_fmt_kernel_ir();
     if ir_str is None {
         return;

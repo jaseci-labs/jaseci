@@ -15,6 +15,7 @@ class JacScaleConfig(PluginConfigBase) {
     def get_jwt_config(self: JacScaleConfig) -> dict[str, any];
     def get_sso_config(self: JacScaleConfig) -> dict[str, any];
     def get_database_config(self: JacScaleConfig) -> dict[str, any];
+    def get_deploy_database_config(self: JacScaleConfig) -> dict[str, any];
     def get_kubernetes_config(self: JacScaleConfig) -> dict[str, any];
     def get_server_config(self: JacScaleConfig) -> dict[str, any];
     def get_webhook_config(self: JacScaleConfig) -> dict[str, any];
@@ -37,6 +38,7 @@ def normalize_microservices_config(
 glob _scale_config_instance: JacScaleConfig | None = None,
      _ms_enabled_deprecation_warned: bool = False;
 
+def sanitize_prometheus_namespace(name: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
 def peek_scale_config -> JacScaleConfig | None;

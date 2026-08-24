@@ -120,7 +120,7 @@ def _generate_default_pwa_icons(dest_dir: Path) -> int {
 }
 
 def _copy_icons(src_dir: Path, dest_dir: Path) -> int {
-    icon_files = list(src_dir.glob("*.png"));
+    icon_files = list(src_dir.`glob("*.png"));
     if not icon_files {
         return 0;
     }
@@ -135,7 +135,7 @@ def _copy_pwa_icons_to_dist(dist_dir: Path, project_dir: Path) -> None {
     try {
         user_icons_dir = project_dir / "pwa_icons";
         if user_icons_dir.exists() {
-            user_icons = list(user_icons_dir.glob("*.png"));
+            user_icons = list(user_icons_dir.`glob("*.png"));
             if user_icons {
                 _copy_icons(user_icons_dir, dist_dir);
                 return;
@@ -569,7 +569,7 @@ impl PWATarget.setup(project_dir: Path) -> None {
     _ensure_pwa_config(project_dir);
     console.print("\n✅ PWA setup complete!", style="bold green");
     console.print(
-        "  Run 'jac build --client pwa' or 'jac start --client pwa'", style="muted"
+        "  Run 'jac build --client pwa' or 'jac run --client pwa'", style="muted"
     );
 }
 

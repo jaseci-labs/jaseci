@@ -129,8 +129,11 @@ obj ListNode {
 
 with entry:__main__ {
     head = ListNode.from_list([1, 2, 3, 4, 5]);
+    assert head is not None;
     print(f"E7.1: {head.to_list()}");  # [1, 2, 3, 4, 5]
-    print(f"E7.2: {head.next_node.value}");  # 2
+    second = head.next_node;
+    assert second is not None;
+    print(f"E7.2: {second.value}");  # 2
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

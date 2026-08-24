@@ -1,5 +1,4 @@
 import logging;
-import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
@@ -15,4 +14,10 @@ obj CompiledQuery {
 }
 
 
-def compile_query(q: GraphQuery, upto: int) -> CompiledQuery;
+def compile_query(
+    q: GraphQuery,
+    upto: int,
+    promotions: (dict | None) = None,
+    count_only: bool = False,
+    acl_root: (str | None) = None
+) -> CompiledQuery;

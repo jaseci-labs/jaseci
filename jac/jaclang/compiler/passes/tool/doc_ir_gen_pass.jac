@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.compiler.passes.tool.doc_ir as doc;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok, is_mut_kind }
@@ -52,7 +51,7 @@ obj DocIRGenPass(UniPass) {
     def _assign_compr_doc_ir(nd: uni.UniNode) -> None;
     def _assign_else_doc_ir(nd: uni.UniNode, body: Sequence[uni.UniNode]) -> None;
     def _emit_keyword_block(nd: uni.UniNode, kw: Tok) -> None;
-    def _assign_case_block_doc_ir(nd: uni.UniNode, case_cls: type) -> None;
+    def _assign_case_block_doc_ir(nd: (uni.SwitchStmt | uni.MatchStmt)) -> None;
     def intersperse(
         items: list[doc.DocType], separator: doc.DocType
     ) -> list[doc.DocType];
@@ -88,13 +87,6 @@ obj DocIRGenPass(UniPass) {
     def exit_param_var(nd: uni.ParamVar) -> None;
     def exit_assignment(nd: uni.Assignment) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
-    def exit_ct_if(nd: uni.CtIf) -> None;
-    def exit_ct_else(nd: uni.CtElse) -> None;
-    def exit_ct_for(nd: uni.CtFor) -> None;
-    def exit_ct_block(nd: uni.CtBlock) -> None;
-    def exit_ct_splice(nd: uni.CtSplice) -> None;
-    def exit_ct_name(nd: uni.CtName) -> None;
-    def _ct_block_stmt_doc(nd: uni.UniNode, body: Sequence[uni.UniNode]) -> None;
     def exit_else_if(nd: uni.ElseIf) -> None;
     def exit_else_stmt(nd: uni.ElseStmt) -> None;
     def exit_binary_expr(nd: uni.BinaryExpr) -> None;

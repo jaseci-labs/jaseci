@@ -104,7 +104,7 @@ test "unknown command avoids heavy imports" {
 }
 
 test "hidden commands dispatch via manifest" {
-    for argv in (["gen-jir-registry", "--help"], ["nacompile", "--help"]) {
+    for argv in (["gen-uni-dispatch", "--help"], ["nacompile", "--help"]) {
         (code, err) = _probe(argv, blocked=set());
         assert code == 0 , f"jac {' '.join(argv)} failed: {err}";
     }
@@ -151,7 +151,6 @@ test "feature command help stays within its own family" {
     # a sibling feature family.
     owners: dict[str, str] = {
         "setup": "jaclang.runtimelib.client",
-        "start": "jaclang.runtimelib.client",
         "build": "jaclang.runtimelib.client",
         "scale": "jaclang.scale",
         "model": "jaclang.byllm",

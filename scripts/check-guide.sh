@@ -28,7 +28,11 @@ case "$(echo "$BODY" | sed -e 's/^[[:space:]]*//' | head -c 3)" in
 esac
 
 # --- jac guide --json: a parseable guide list ---
-"$JAC" guide --json | python3 -c '
+# `$JAC -c` runs jac's own bundled CPython. A host `python3` would be some
+# other interpreter entirely -- the whole point of the binary is that there
+# is not one -- and depending on it is what forced a `setup-python` step
+# into the smoke job that runs this script.
+"$JAC" guide --json | "$JAC" -c '
 import json, sys
 guides = json.load(sys.stdin)
 assert isinstance(guides, list), "guide --json must emit a list"

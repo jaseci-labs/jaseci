@@ -108,7 +108,7 @@ test "all ast has normalize" {
     ];
     ordered_classes = sorted(
         uni_node_classes,
-        key=lambda (cls) { source_code.find(f"class {cls.__name__}"); },
+        key=lambda (cls: any) { source_code.find(f"class {cls.__name__}"); },
     );
     for cls in ordered_classes {
         if cls.__name__ not in exclude {
@@ -508,7 +508,7 @@ import from libs.raylib {
         if type(stmt).__name__ == "Import"
     ];
     assert len(imports) == 1;
-    import_stmt = imports[0];
+    import_stmt: any = imports[0];
     assert import_stmt.from_loc.dot_path_str == "libs.raylib";
     assert import_stmt.clib_decls is not None and len(import_stmt.clib_decls) == 1;
     assert len(import_stmt.items) == 0;
@@ -543,6 +543,7 @@ test "decorated test blocks" {
     mod = JacProgram().parse_str(source, "test.jac");
     t = mod.body[0];
     assert isinstance(t, uni.Test);
+    assert t.decorators is not None;
     assert len(t.decorators) == 2;
 
     # No decorator still works
@@ -588,7 +589,7 @@ test "bracket filter trailer produces FilterCompr AST" {
     (mod_new, err) = rd_parse('with entry { x[?:Foo, a==5]; }', "");
     assert not err , "Failed to parse x[?:Foo, a==5]";
     # Find the FilterCompr node in the tree
-    def find_fc(nd: object) -> object {
+    def find_fc(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) {
             return nd;
         }
@@ -686,7 +687,7 @@ test "typed edge ref produces FilterCompr with compares" {
     (mod, err) = rd_parse(src, "");
     assert not err;
 
-    def find_filter_compr_with_compares(nd: object) -> object {
+    def find_filter_compr_with_compares(nd: any) -> any {
         if isinstance(nd, uni.FilterCompr) and nd.compares {
             return nd;
         }
@@ -773,7 +774,10 @@ test "docstring attaches to all member types inside archetype body" {
 
 with entry {
     parametrize(
-        "parser", MICRO_JAC_FILES, parser_file_test, id_fn=lambda (f) { Path(f).stem; }
+        "parser",
+        MICRO_JAC_FILES,
+        parser_file_test,
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }
 
@@ -822,6 +826,59 @@ test "parser module naming and test slugs are python-free" {
     (module2, _) = rd_parse("with entry {}", "other\\win\\mod.custom.ext");
     assert module2.name == "mod.custom";
     (module3, _) = rd_parse('test "Hello, World! 42" {}', "t.jac");
-    tnode = module3.body[0];
+    tnode: any = module3.body[0];
     assert tnode.name.value == "hello_world_42";
+}
+
+glob GEN_TEST_SRC_LINES = [
+         "test box_holds { assert True; }",
+         "test { assert True; }",
+         'test "desc here" { assert True; }',
+         'test "..." { assert True; }'
+     ];
+
+def gen_test_src -> str {
+    return chr(10).join(GEN_TEST_SRC_LINES);
+}
+
+def gen_test_syms(src: str, path: str) -> list[str] {
+    (module, _had_error) = rd_parse(src, path);
+    return [
+        nd.sym_name
+        for nd in module._in_mod_nodes
+        if isinstance(nd, uni.Test)
+    ];
+}
+
+test "generated test symbols are per-module ordinals, not process-global (#8177)" {
+    # A test whose name the parser has to synthesize -- the identifier-named
+    # form and the bare form both -- must number off the per-module parser
+    # counter, so the same source always yields the same symbols no matter
+    # what else this process parsed first.
+    src = gen_test_src();
+    first = gen_test_syms(src, "__gen_test_names__.jac");
+    assert sorted(first)
+        == [
+            "test__jac_gen_1",
+            "test__jac_gen_2",
+            "test__jac_gen_3",
+            "test_desc_here"
+        ] , f"unexpected generated symbols: {sorted(first)}";
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "a second parse of the same source disagreed with the first"
+    );
+    gen_test_syms(src, "__gen_test_names_other__.jac");
+    gen_test_syms("test { assert True; }", "__gen_test_names_third__.jac");
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "unrelated parses shifted the generated symbols"
+    );
+}
+
+test "reparsing a module with generated test names yields an identical tree (#8177)" {
+    src = gen_test_src();
+    (m1, _e1) = rd_parse(src, "__gen_test_tree__.jac");
+    (m2, _e2) = rd_parse(src, "__gen_test_tree__.jac");
+    assert print_ast_tree(m1) == print_ast_tree(m2) , (
+        "two parses of one source produced different trees"
+    );
 }

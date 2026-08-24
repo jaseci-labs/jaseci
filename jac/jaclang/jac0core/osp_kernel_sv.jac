@@ -23,7 +23,7 @@ obj _ContextStack {
     has _var: any postinit;
 
     def postinit {
-        self._var = ContextVar('osp_walk_stack', default=None);
+        self._var = ContextVar('osp_walk_stack', `default=None);
     }
 
     def _list -> list {
@@ -60,7 +60,7 @@ obj _ContextStack {
 }
 
 with entry {
-    _kernel._walk_stack = _ContextStack();
+    _kernel._walk_stack = cast(list[WalkScope], _ContextStack());
 }
 
 def isolate_request_walk_stack {
@@ -120,8 +120,8 @@ def desc_for(cls: any) -> WalkerDesc {
     }
     desc = WalkerDesc(
         type_tag=tag_of_cls(cls),
-        entry=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_entry_funcs_)),
-        exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_))
+        `entry=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_entry_funcs_)),
+        `exit=_slots_from(cast(list[ObjectSpatialFunction], cls._jac_exit_funcs_))
     );
     _desc_of_cls[cls] = desc;
     return desc;
@@ -140,16 +140,22 @@ def _sv_is_a(tag: int, base: int) -> bool {
 def _sv_node_desc(tag: int) -> NodeDesc {
     cls = cls_of_tag(tag);
     if cls is None {
-        return NodeDesc(type_tag=tag, entry=[], exit=[]);
+        return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
     }
     d = desc_for(cls);
-    return NodeDesc(type_tag=d.type_tag, entry=d.entry, exit=d.exit);
+    return NodeDesc(type_tag=d.type_tag, `entry=d.`entry, `exit=d.`exit);
 }
 
 def _sv_on_complete(scope: WalkScope, ok: bool) {
     if isinstance(scope.wlk, WalkerArchetype) {
         anch = scope.wlk.__jac__;
-        anch.path = `list(scope.path);
+        walked: list[(NodeAnchor | EdgeAnchor)] = [];
+        for step in scope.path {
+            if isinstance(step, (NodeAnchor, EdgeAnchor)) {
+                walked.append(step);
+            }
+        }
+        anch.path = walked;
         anch.next = [];
         anch.ignores = [];
     }
@@ -233,15 +239,15 @@ async def _visit_recursive_async(
             scope.path.append(cur);
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
-            await _run_typed_async(rt, wdesc.entry, scope.wlk, cur);
+            await _run_typed_async(rt, wdesc.`entry, scope.wlk, cur);
             if scope.disengaged {
                 return False;
             }
-            await _run_untyped_async(ndesc.entry, cur, scope.wlk);
+            await _run_untyped_async(ndesc.`entry, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            await _run_typed_async(rt, ndesc.entry, cur, scope.wlk);
+            await _run_typed_async(rt, ndesc.`entry, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
@@ -264,15 +270,15 @@ async def _visit_recursive_async(
         } else {
             loc_tag: int = rt.tag_of(cur);
             ndesc = rt.node_desc(loc_tag);
-            await _run_typed_async(rt, ndesc.exit, cur, scope.wlk);
+            await _run_typed_async(rt, ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            await _run_untyped_async(ndesc.exit, cur, scope.wlk);
+            await _run_untyped_async(ndesc.`exit, cur, scope.wlk);
             if scope.disengaged {
                 return False;
             }
-            await _run_typed_async(rt, wdesc.exit, scope.wlk, cur);
+            await _run_typed_async(rt, wdesc.`exit, scope.wlk, cur);
             if scope.disengaged {
                 return False;
             }
@@ -297,7 +303,7 @@ async def osp_spawn_async(
     try {
         if scope.next {
             anchor = scope.next[0];
-            await _run_untyped_async(wdesc.entry, wlk, anchor);
+            await _run_untyped_async(wdesc.`entry, wlk, anchor);
         }
         while scope.next and (not scope.disengaged) {
             nxt = scope.next.pop(0);
@@ -308,7 +314,7 @@ async def osp_spawn_async(
             }
         }
         if scope.path and (not scope.disengaged) {
-            await _run_untyped_async(wdesc.exit, wlk, scope.path[-1]);
+            await _run_untyped_async(wdesc.`exit, wlk, scope.path[-1]);
         }
         ok = True;
     } finally {

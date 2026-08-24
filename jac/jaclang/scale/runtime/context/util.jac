@@ -25,7 +25,8 @@ def jac_executable -> str {
 }
 
 glob _DEFAULT_HTTP_FORWARD_TIMEOUT: float = 30.0,
-     _DEFAULT_ROUTE_REFRESH_SECONDS: float = 30.0;
+     _DEFAULT_ROUTE_REFRESH_SECONDS: float = 30.0,
+     _DEFAULT_BOOT_HEALTH_TIMEOUT: float = 60.0;
 
 glob DEFAULT_GATEWAY_PORT: int = 8000,
      DEFAULT_GATEWAY_HOST: str = "0.0.0.0",
@@ -89,25 +90,55 @@ def route_refresh_seconds -> float {
 }
 
 
+def boot_health_timeout -> float {
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        ms_cfg = get_scale_config().get_microservices_config();
+        if "boot_health_timeout" in ms_cfg {
+            return float(ms_cfg["boot_health_timeout"]);
+        }
+    } except Exception {
+        ;
+    }
+    return _DEFAULT_BOOT_HEALTH_TIMEOUT;
+}
+
+
 def wait_for_health(
-    base_url: str, proc_alive: any, timeout: float = 15.0, poll_interval: float = 0.1
+    base_url: str,
+    proc_alive: any,
+    timeout: float = 15.0,
+    poll_interval: float = 0.1,
+    progress: any = None
 ) -> bool {
     import time;
     import urllib.request;
+    import from http.client { HTTPResponse }
 
+    last_marker: any = progress() if progress is not None else None;
     deadline: float = time.time() + timeout;
     while time.time() < deadline {
         if not proc_alive() {
             return False;
         }
         try {
-            with urllib.request.urlopen(f"{base_url}/healthz", timeout=1) as resp {
+            opened: HTTPResponse = urllib.request.urlopen(
+                f"{base_url}/healthz", timeout=1
+            );
+            with opened as resp {
                 if resp.status < 500 {
                     return True;
                 }
             }
         } except Exception {
             time.sleep(poll_interval);
+        }
+        if progress is not None {
+            marker = progress();
+            if marker != last_marker {
+                last_marker = marker;
+                deadline = time.time() + timeout;
+            }
         }
     }
     return False;

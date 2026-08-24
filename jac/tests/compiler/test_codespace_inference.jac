@@ -12,13 +12,14 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace"
      );
 
 """Compile a codespace fixture; stamps only (no codegen) unless cgen=True."""
-def compile_fixture(name: str, cgen: bool = False) -> object {
+def compile_fixture(name: str, cgen: bool = False) -> any {
     prog = JacProgram();
     mod = prog.compile(os.path.join(FIXTURE_DIR, name), no_cgen=not cgen);
     assert not prog.errors_had , f"{name}: {[str(e) for e in prog.errors_had]}";
@@ -62,7 +63,7 @@ def stamp_of(mod: uni.Module, name: str) -> str {
                 }
             }
         }
-        if found {
+        if found and isinstance(stmt, uni.ContextAwareNode) {
             return str(stmt.code_context);
         }
     }
@@ -183,7 +184,7 @@ test "jac check flags a dead client import without codegen" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "pinned_dead", "infer_import_dead_client.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     dead_errs = [
         e
@@ -265,7 +266,7 @@ test "two colors infer independently and conflicts stay server" {
 
 """Compile a fixture under an explicit default codespace; resets the
 process-wide effective default afterwards so later tests are unaffected."""
-def compile_with_default(name: str, dcs: str, cgen: bool = False) -> object {
+def compile_with_default(name: str, dcs: str, cgen: bool = False) -> any {
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo {
         set_effective_default_codespace,
@@ -276,9 +277,7 @@ def compile_with_default(name: str, dcs: str, cgen: bool = False) -> object {
     try {
         mod = prog.compile(
             os.path.join(FIXTURE_DIR, name),
-            options=CompileOptions(
-                default_codespace=dcs, no_cgen=not cgen, type_check=False
-            )
+            options=CompileOptions(default_codespace=dcs, no_cgen=not cgen)
         );
     } finally {
         set_effective_default_codespace(_prev_dcs);
@@ -441,35 +440,35 @@ test "transitive import chain infers native under native default" {
     assert mod.gen.native_engine is not None;
 }
 
-test "census records demotion with first error code" {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
-    na_census_begin();
+test "coverage records demotion with first error code" {
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    na_coverage_begin();
     try {
         compile_with_default("nadefault_nolower.jac", "native", cgen=True);
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    rec = census.get(
+    rec = coverage.get(
         os.path.realpath(os.path.join(FIXTURE_DIR, "nadefault_nolower.jac"))
     );
-    assert rec is not None , "demoted module missing from census";
+    assert rec is not None , "demoted module missing from coverage";
     assert rec['outcome'] == 'demoted' , f"expected demoted, got {rec}";
     assert rec['code'] == 'E5092' , f"expected first-error code, got {rec}";
 }
 
-test "census records native and server outcomes" {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
-    na_census_begin();
+test "coverage records native and server outcomes" {
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
+    na_coverage_begin();
     try {
         compile_with_default("nadefault_pure.jac", "native", cgen=True);
         compile_with_default("nadefault_root_osp.jac", "native", cgen=True);
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
-    pure = census.get(
+    pure = coverage.get(
         os.path.realpath(os.path.join(FIXTURE_DIR, "nadefault_pure.jac"))
     );
-    blocked = census.get(
+    blocked = coverage.get(
         os.path.realpath(os.path.join(FIXTURE_DIR, "nadefault_root_osp.jac"))
     );
     assert pure is not None and pure['outcome'] == 'native' , f"got {pure}";
@@ -518,7 +517,7 @@ test "bare import of a cl module stays server under native default" {
 }
 
 """Find a module in a program hub by filename suffix."""
-def hub_module(prog: JacProgram, name_suffix: str) -> object {
+def hub_module(prog: JacProgram, name_suffix: str) -> any {
     for (path, m) in prog.mod.hub.items() {
         if path.endswith(name_suffix) {
             return m;
@@ -557,9 +556,8 @@ test "client import pulls a pure markerless module cross-module" {
 }
 
 test "cross-module pulled elements dual-emit for the server side" {
-    import ast as py_ast_mod;
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
-    import from jaclang.jac0core.passes { PyastGenPass }
+    import from jaclang.jac0core.passes { JcirBytecodeGenPass, JcirGenPass }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_xmod_util.jac");
@@ -584,8 +582,9 @@ test "cross-module pulled elements dual-emit for the server side" {
         "pulled glob must be an ES export of the pulled module"
     );
     assert util_js.strip() , "pulled module must produce client JS";
-    PyastGenPass(ir_in=util, prog=prog);
-    py_src = py_ast_mod.unparse(util.gen.py_ast);
+    run_pass(JcirGenPass, util, prog);
+    run_pass(JcirBytecodeGenPass, util, prog);
+    py_src = util.gen.py;
     assert 'def register' in py_src , (
         "pulled element must still exist in the python module (dual emit)"
     );
@@ -621,14 +620,14 @@ test "codespace stamps invalidate stale module codegen" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     util = hub_module(prog, "infer_xmod_util.jac");
     assert util is not None , "imported module missing from hub";
-    EsastGenPass(ir_in=util, prog=prog);
+    run_pass(EsastGenPass, util, prog);
     app = hub_module(prog, "infer_xmod_app.jac");
     assert app is not None;
-    EsastGenPass(ir_in=app, prog=prog);
+    run_pass(EsastGenPass, app, prog);
     _ensure_js_generated(util, prog);
     assert 'register' in util.gen.client_manifest.exports , (
         "pull stamps must invalidate the pre-pull ES cache so the pulled def "
@@ -658,7 +657,7 @@ test "demotion re-lowers importer pages with their injected runtime imports" {
     assert not (app.gen.js or '') , (
         "demoting a dep must invalidate the client importer's module JS"
     );
-    EsastGenPass(ir_in=app, prog=prog);
+    run_pass(EsastGenPass, app, prog);
     js = app.gen.js or '';
     assert 'useJacState(' in js , "re-lowered page must still lower its state";
     hook_imported = any(
@@ -668,6 +667,34 @@ test "demotion re-lowers importer pages with their injected runtime imports" {
     assert hook_imported , (
         "stale node fragments reused after demotion: useJacState referenced "
         + f"but never imported; got:\n{js}"
+    );
+}
+
+test "a client-pulled module that will not lower fails loudly (#8375)" {
+    import from jaclang.runtimelib.client_bundle {
+        ClientBundleError,
+        _ensure_js_generated
+    }
+    prog = JacProgram();
+    prog.compile(os.path.join(FIXTURE_DIR, "infer_unlowerable_app.jac"), no_cgen=False);
+    util = hub_module(prog, "infer_unlowerable_util.jac");
+    assert util is not None , "imported module missing from hub";
+    raised = '';
+    try {
+        _ensure_js_generated(util, prog);
+    } except ClientBundleError as e {
+        raised = str(e);
+    }
+    assert 'E5018' in raised , (
+        "an ES lowering failure in a pulled module must fail the bundle rather "
+        f"than demote it silently; got: {raised}"
+    );
+    assert "own 'case'" in raised , (
+        f"the failure must carry the actionable E5018 help; got: {raised}"
+    );
+    assert stamp_of(util, "scale_by") == 'client' , (
+        "one unlowerable element must not re-place the module's whole pulled "
+        "surface on the server"
     );
 }
 
@@ -686,9 +713,7 @@ test "aot native mandate still fails loudly" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "nadefault_mandate.jac"),
-        options=CompileOptions(
-            type_check=False, aot_mode=True, default_codespace='native'
-        )
+        options=CompileOptions(aot_mode=True, default_codespace='native')
     );
     assert prog.errors_had , "forced-native modules must surface lowering errors";
 }
@@ -704,7 +729,7 @@ test "client value use of a bare python import is E5084" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_client.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -724,7 +749,7 @@ test "annotation-only use of a bare python import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_annotation.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -742,7 +767,7 @@ test "server-side use of a bare python import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_server_use.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e
@@ -760,7 +785,7 @@ test "unresolvable relative bare import stays silent" {
     prog = JacProgram();
     prog.compile(
         os.path.join(FIXTURE_DIR, "infer_import_bare_py_relative_template.jac"),
-        options=CompileOptions(no_cgen=True, type_check=True)
+        options=CompileOptions(no_cgen=True)
     );
     bare_errs = [
         e

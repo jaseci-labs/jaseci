@@ -1,8 +1,8 @@
 import os;
 import pathlib;
-import from dotenv { load_dotenv }
 import from jaclang.cli.console { console }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.config.project_env { load_project_env }
 import from jaclang.scale.observability.factory { UtilityFactory }
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.config.app_config { AppConfig }
@@ -59,8 +59,7 @@ obj KubernetesRealizer {
             raise FileNotFoundError(f"File not found: '{filename}'");
         }
         code_folder = os.path.dirname(filename) or '.';
-        dotenv_path = os.path.join(code_folder, '.env');
-        load_dotenv(dotenv_path);
+        load_project_env(code_folder);
         scale_config = get_scale_config();
         logger = UtilityFactory.create_logger('standard');
 
@@ -72,6 +71,9 @@ obj KubernetesRealizer {
         deployment_target = DeploymentTargetFactory.create(
             target, target_config, logger, dry_run=dry_run
         );
+        import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
+            KubernetesTargetBase
+        }
 
         if enable_tls and dry_run {
             console.warning(
@@ -90,6 +92,11 @@ obj KubernetesRealizer {
                 );
             }
             app_name = target_config.get('app_name', 'jaseci');
+            if not isinstance(deployment_target, KubernetesTargetBase) {
+                raise ValueError(
+                    f"--enable-tls is only supported on kubernetes targets, not '{target}'."
+                );
+            }
             deployment_target.enable_tls(app_name);
             return 0;
         }
@@ -97,7 +104,9 @@ obj KubernetesRealizer {
         code_folder = os.path.relpath(code_folder);
         code_folder = pathlib.Path(code_folder).as_posix();
         base_file_path = os.path.basename(filename);
-        deployment_target.secrets = scale_config.get_secrets_config();
+        if isinstance(deployment_target, KubernetesTargetBase) {
+            deployment_target.secrets = scale_config.get_secrets_config();
+        }
 
         app_config = AppConfig(code_folder=code_folder, file_name=base_file_path);
         console.warning(
@@ -138,6 +147,8 @@ obj KubernetesRealizer {
             console.print(
                 f"Deployment complete! Service available at: {result.service_url}"
             );
+        } elif result.access_hint {
+            console.print(f"Deployment complete! {result.access_hint}");
         }
         return 0;
     }

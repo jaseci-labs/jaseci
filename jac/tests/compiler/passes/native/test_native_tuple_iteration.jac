@@ -57,7 +57,7 @@ glob FIXTURES = os.path.join(
 
 
 """Compile the fixture natively once and return the JIT engine."""
-def _engine -> object {
+def _engine -> any {
     if _MEMO {
         return _MEMO[0];
     }
@@ -75,7 +75,7 @@ def _engine -> object {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(name: str) -> object {
+def _get(name: str) -> any {
     addr = _engine().get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -83,7 +83,7 @@ def _get(name: str) -> object {
 
 
 """Import the same fixture through the sv/bytecode pathway."""
-def _sv_module -> object {
+def _sv_module -> any {
     prev = get_effective_default_codespace_override();
     set_effective_default_codespace("server");
     try {
@@ -147,20 +147,34 @@ test "the mixed list twin still iterates boxed and reads the right member" {
 
 
 test "a tuple of mixed element storage refuses instead of answering wrong" {
+    import contextlib;
+    import io;
+    buf = io.StringIO();
     prog = JacProgram();
-    prog.compile(
-        file_path=str(os.path.join(FIXTURES, MIXED_FIXTURE)),
-        options=native_force_opts()
+    with contextlib.redirect_stderr(buf) {
+        prog.compile(
+            file_path=str(os.path.join(FIXTURES, MIXED_FIXTURE)),
+            options=native_force_opts()
+        );
+    }
+    # The refusal demotes mixed_tuple to a seam whose reason names the
+    # construct, and the module entry that natively calls the demoted
+    # function stays a loud E5092 -- a mixed tuple must never lower
+    # silently: the loop variable is typed from the tuple's first element,
+    # so a boxed iteration answers the body's isinstance against the wrong
+    # member.
+    seam = buf.getvalue();
+    assert "demoting mixed_tuple" in seam , (
+        f"expected the mixed-tuple refusal to demote mixed_tuple, got:\n{seam}"
+    );
+    assert "for-loop iterable" in seam and "mixed element storage" in seam , (
+        f"the demotion reason must name the mixed-tuple refusal, got:\n{seam}"
     );
     errs = [str(e) for e in (prog.errors_had or [])];
-    assert errs , (
-        "a mixed tuple must not lower silently: the loop variable is typed "
-        "from the tuple's first element, so a boxed iteration answers the "
-        "body's isinstance against the wrong member"
-    );
     joined = " ".join(errs);
-    assert "for-loop iterable" in joined and "mixed element storage" in joined , (
-        f"expected the mixed-tuple refusal, got: {errs}"
+    assert "mixed_tuple" in joined , (
+        f"the native entry caller of the demoted function must stay loud, "
+        f"got: {errs}"
     );
 }
 

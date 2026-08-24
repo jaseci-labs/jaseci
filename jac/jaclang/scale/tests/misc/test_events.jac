@@ -11,7 +11,6 @@ import from jaclang.scale.events.broker {
     StreamPosition,
     starts_at_earliest
 }
-import from typing { Callable }
 import from threading { Event as _ThreadStop }
 import from jaclang.scale.events.publisher { publish, set_broker }
 import from jaclang.scale.events.subscriber { subscribe, get_subscriptions }
@@ -184,8 +183,9 @@ test "subscribe decorator preserves group and retry" {
     assert last.topic == "orders.shipped";
     assert last.group == "ops";
     assert last.retry is policy;
-    assert last.retry.max_attempts == 5;
-    assert last.retry.dead_letter_suffix == ".dead";
+    _last_retry: any = last.retry;
+    assert _last_retry.max_attempts == 5;
+    assert _last_retry.dead_letter_suffix == ".dead";
 }
 
 test "subscribe decorator defaults start_from to latest" {
@@ -296,7 +296,7 @@ def _param_view(fn: any) -> list[tuple] {
         if p.name == "self" {
             continue;
         }
-        view.append((p.name, p.kind.name, p.default));
+        view.append((p.name, p.kind.name, p.`default));
     }
     return view;
 }

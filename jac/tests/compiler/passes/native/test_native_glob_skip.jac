@@ -1,7 +1,6 @@
 """A dual-codespace module glob whose layout cannot lower natively and
 that no native code references stays py-side instead of aborting the
-build (the arena's comptime-spliced SPECS table under the seal). A
-native reference keeps the ordinary lowering error."""
+build. A native reference keeps the ordinary lowering error."""
 
 import os;
 import from tests.support { JAC_ROOT }
@@ -19,7 +18,6 @@ def aot_native_errors(name: str) -> list {
         file_path=os.path.join(FIXTURES, name),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace="native",
             force_target_program=True,
             na_gc_mode="cycles",

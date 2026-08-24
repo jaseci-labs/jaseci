@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             5,
+             6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
@@ -66,7 +66,17 @@ glob FORBIDDEN: dict[str, str] = {
              "module is a guaranteed runtime ReferenceError - the "
              "reporter consumes stamped code_context and symbol facts, "
              "shared with StaticAnalysisPass so build-only and "
-             "check-only runs agree"
+             "check-only runs agree. Plus client_value_ref_targets / "
+             "client_bridged_endpoint at exit_module (#8072): the same "
+             "shape one level up - client code naming a module element "
+             "that the bundle never binds is a guaranteed runtime "
+             "ReferenceError, so the backend asks the central resolver "
+             "which references have no client binding and which are "
+             "endpoints it must bind a forwarder for. It consumes "
+             "stamped code_context, resolved `.sym`, and the declared "
+             "access tag; the same resolver drives W6007 in "
+             "StaticAnalysisPass, which is the point - the emit path and "
+             "the check path must not disagree about what is bound"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,
@@ -89,15 +99,8 @@ glob FORBIDDEN: dict[str, str] = {
              "Callable-over-RPC guard on endpoint params - the declared "
              "annotation is the consumed fact, not a resolved type"
          ),
-         ("native/na_ir_gen_pass.impl/stmt.impl.jac", "symbol_utils"): (
-             1,
-             "is_builtin_region_name as the shadowing-aware test for the "
-             "anonymous `in Region() {}` open (#7491) - consuming the "
-             "central classification instead of re-implementing name "
-             "resolution"
-         ),
-         ("native/na_ir_gen_pass.impl/generics.impl.jac", "type_tag.tag"): (
-             3,
+         ("native/na_ir_gen/generics.impl.jac", "type_tag.tag"): (
+             5,
              "generic-template declared-annotation reads where the "
              "declaration IS the fact: (1) the _solve_generic_call fallback "
              "(a bundled/imported template compiled symtab_ir_only has no "
@@ -109,44 +112,66 @@ glob FORBIDDEN: dict[str, str] = {
              "monomorphization solution - the template is uninstantiated, "
              "so the declared annotations are the only TypeVar surface"
          ),
-         ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
+         ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
              2,
-             "is_builtin_region_name as the shadowing-aware test for the "
-             "builtin Region constructor (#7491) - consuming the central "
-             "classification instead of re-implementing name resolution; and "
              "classify_call as the shadowing-aware builtin test for the "
              "`type(None)` isinstance argument form (#6957) - consuming the "
              "central classification instead of re-implementing name "
              "resolution. The former classify_call fallback is deleted "
              "(#7418): call_kind is stamped authoritatively by the required "
-             "inference schedule"
+             "inference schedule. Plus erased_identity_call_arg (#8223) "
+             "and the is_erased_field_marker pair (#8201), declaration-"
+             "surface reads on the same terms: whether `cast` or `field` "
+             "here is the erasable `typing.cast` / `dataclasses.field` is "
+             "answered by the module's own import list and by the call's "
+             "own position in a `has` declaration, facts that are "
+             "themselves the declaration and live on no analysis product. "
+             "The is_builtin_region_name read (#7491) is gone from here and "
+             "from stmt.impl.jac, whose entry left this table entirely: the "
+             "predicate is pure unitree syntax that was marooned in "
+             "symbol_utils, whose own imports reach jac0core/compiler.jac, so "
+             "sealing wave 3 hoisted it to the leaf expr_keys.jac. The "
+             "backend stopped reaching into the analysis module for it rather "
+             "than merely renaming the reach"
          ),
-         ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
+         ("native/na_ir_gen/objects.impl.jac", "symbol_utils"): (
              1,
-             "classify_call fallback for synthesized constructor calls"
+             "collect_method_names as the central ancestor-method walk over "
+             "an already-resolved archetype symbol - a symbol-FACT reader, "
+             "not a re-run of member resolution"
          ),
-         ("native/na_ir_gen_pass.impl/core.impl.jac", "type_tag.tag"): (
+         ("native/na_ir_gen/core.impl.jac", "type_tag.tag"): (
              3,
              "declaration-surface reads at interop layout export, plus the "
              "quiet lowerability probe on imported globs (the py-side "
              "carve-out for dual-codespace modules) which reads the same "
              "declared annotation the adjacent _resolve_jac_type consumes"
          ),
-         ("native/na_ir_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
-             1,
+         ("native/na_ir_gen/calls.impl.jac", "type_tag.tag"): (
+             2,
              "declaration-surface read of foreign extern signatures: the "
              "clib membrane needs the DECLARED str params/returns of a "
              "foreign call to route them through the JacStr wrap/unwrap "
              "shims (#7870 strings step 2) - the C membrane always "
-             "trafficks NUL-terminated char*"
+             "trafficks NUL-terminated char*. Plus the mono isinstance "
+             "substitution: inside a stamped monomorph body a type[X] "
+             "parameter names its concrete mangle through its own declared "
+             "tag - the declaration is the binding surface"
          ),
-         ("native/na_ir_gen_pass.impl/func.impl.jac", "type_tag.tag"): (
+         ("native/na_ir_gen/types.impl.jac", "type_tag.tag"): (
+             2,
+             "declared-annotation resolution for has/param vars: "
+             "_resolve_jac_type maps the declared tag to its IR type - the "
+             "annotation is the input to layout resolution, not a re-run "
+             "of analysis"
+         ),
+         ("native/na_ir_gen/func.impl.jac", "type_tag.tag"): (
              4,
              "scalar LLVM materialization from declared clib annotations "
              "at the declaration site - the backend's lowering role "
              "(sysv sig planning + fixed-param lowering, #6707, #6708)"
          ),
-         ("native/na_ir_gen_pass.impl/objects.impl.jac", "type_tag.tag"): (
+         ("native/na_ir_gen/objects.impl.jac", "type_tag.tag"): (
              1,
              "declaration-surface read during archetype field lowering: "
              "the field's declared annotation node is read once into a "
@@ -155,14 +180,14 @@ glob FORBIDDEN: dict[str, str] = {
              "- consumers of the annotation are added to the local, never "
              "by reaching for type_tag.tag again"
          ),
-         ("native/na_ir_gen_pass.impl/lists.impl.jac", "type_tag.tag"): (
+         ("native/na_ir_gen/lists.impl.jac", "type_tag.tag"): (
              1,
              "declared-vs-inferred bare list is a declaration-surface "
              "distinction central facts do not carry (the checker stamps "
              "unannotated empties as bare list too); the empty-literal "
              "storage-family decision must key on the explicit annotation"
          ),
-         ("native/na_ir_gen_pass.impl/stmt.impl.jac", "type_tag.tag"): (
+         ("native/na_ir_gen/stmt.impl.jac", "type_tag.tag"): (
              7,
              "surface-shape dispatch on declared annotation forms "
              "(assessed train 4: legitimately kept); the "

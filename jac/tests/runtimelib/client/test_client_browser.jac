@@ -9,12 +9,11 @@ core (the deleted `test_e2e.jac` / `test_form.jac`). Drives the unified
 * `/auth` jacSignup / jacLogin in both old (string) and new (credential) forms
 * `/form` JacForm validation errors + submit-enabled / onSubmit wiring
 
-Each test scaffolds the fixture into a temp dir, `jac start`s it, and drives a
+Each test scaffolds the fixture into a temp dir, `jac run --serve`s it, and drives a
 headless Chromium. Skips cleanly when Playwright/Chromium is unavailable.
 """
 
 import time;
-import pytest;
 import from subprocess { Popen }
 import from tempfile { TemporaryDirectory }
 
@@ -30,7 +29,7 @@ def _require_playwright -> any {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
-        pytest.skip("playwright not installed");
+        testskip("playwright not installed");
     }
     return sync_playwright;
 }

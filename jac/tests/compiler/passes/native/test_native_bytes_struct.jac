@@ -7,37 +7,14 @@ These exercise the sv↔na-congruent surface a binary parser needs:
   - `open(path, "rb").read()` returning that length-aware bytes buffer.
 """
 
-import from tests.support { native_force_opts }
+import from tests.support { compile_native, get_func, native_force_opts }
 import ctypes;
 import os;
 import tempfile;
 import from pathlib { Path }
 import from jaclang.jac0core.program { JacProgram }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures");
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 class JacStrABI(ctypes.Structure) {
     # Register view of a by-value JacStr {root, data, len} return. LLVM
@@ -52,7 +29,7 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -62,7 +39,7 @@ def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> 
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -345,14 +322,29 @@ test "struct unpack short buffer raises" {
 }
 
 test "struct pack wrong arg count is a compile error" {
+    import contextlib;
+    import io;
+    buf = io.StringIO();
     prog = JacProgram();
-    prog.compile(
-        file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")),
-        options=native_force_opts()
+    with contextlib.redirect_stderr(buf) {
+        ir = prog.compile(
+            file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")),
+            options=native_force_opts()
+        );
+    }
+    assert not prog.errors_had , (
+        f"the bad struct.pack is owned by bad_pack(), which must demote to "
+        f"a seam, got: {[str(e) for e in prog.errors_had]}"
     );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert prog.errors_had , "expected a compile error for the bad struct.pack";
-    assert any("struct.pack" in e for e in errors) , f"unexpected errors: {errors}";
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "bad_pack" not in ir.gen.native_layout.functions , (
+        "a struct.pack with the wrong argument count must demote its "
+        "function out of the native layout, never pack uninitialized tail "
+        "bytes"
+    );
+    assert "struct.pack" in buf.getvalue() , (
+        f"the demotion reason must name struct.pack, got:\n{buf.getvalue()}"
+    );
 }
 
 # ─── binary file read returns length-aware bytes ───

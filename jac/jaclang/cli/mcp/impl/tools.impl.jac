@@ -459,7 +459,7 @@ impl ToolProvider.call_tool(name: str, arguments: dict[str, any]) -> dict[str, a
 
 impl explain_error(error_message: str) -> dict[str, any] {
     msg_lower = error_message.lower();
-    error_patterns: list[tuple] = [
+    error_patterns: list[tuple[str, str, str, str]] = [
         (
             r"unexpected token|expected.*got|syntax error",
             "Syntax Error",
@@ -482,7 +482,7 @@ impl explain_error(error_message: str) -> dict[str, any] {
             r"cannot find module|no module|module not found|import error",
             "Import Error",
             "Module not found. Use Jac import syntax: 'import from module { name }'.",
-            "import from os { path }\nimport from typing { Any }"
+            "import from os { path }\nimport from typing { Optional }"
         ),
         (
             r"has no attribute|attribute.*not found|no member",

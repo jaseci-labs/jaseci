@@ -1,7 +1,6 @@
 import from ctypes {
     POINTER,
     byref,
-    cast,
     c_char_p,
     c_double,
     c_int,
@@ -9,7 +8,9 @@ import from ctypes {
     c_uint,
     c_uint64,
     c_bool,
-    c_void_p
+    c_void_p,
+    sizeof,
+    string_at
 }
 import enum;
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
@@ -90,7 +91,7 @@ class ValueKind(`enum.IntEnum) {
 """A weak reference to a LLVM value.
     """
 class ValueRef(ffi.ObjectRef) {
-    def init(self: ValueRef, ptr: Any, kind: Any, parents: Any) -> object {
+    def init(self: ValueRef, ptr: any, kind: any, parents: any) -> object {
         self._kind = kind;
         self._parents = parents;
         ffi.ObjectRef.init(self, ptr);
@@ -181,7 +182,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @name.setter
-    def name(self: ValueRef, val: Any) -> object {
+    def name(self: ValueRef, val: any) -> object {
         ffi.lib.LLVMPY_SetValueName(self, _encode_string(val));
     }
 
@@ -191,7 +192,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @linkage.setter
-    def linkage(self: ValueRef, value: Any) -> object {
+    def linkage(self: ValueRef, value: any) -> object {
         if not isinstance(value, Linkage) {
             value = Linkage[value];
         }
@@ -204,7 +205,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @visibility.setter
-    def visibility(self: ValueRef, value: Any) -> object {
+    def visibility(self: ValueRef, value: any) -> object {
         if not isinstance(value, Visibility) {
             value = Visibility[value];
         }
@@ -217,7 +218,7 @@ class ValueRef(ffi.ObjectRef) {
     }
 
     @storage_class.setter
-    def storage_class(self: ValueRef, value: Any) -> object {
+    def storage_class(self: ValueRef, value: any) -> object {
         if not isinstance(value, StorageClass) {
             value = StorageClass[value];
         }
@@ -231,7 +232,7 @@ class ValueRef(ffi.ObjectRef) {
         attr : str
             attribute name
         """
-    def add_function_attribute(self: ValueRef, attr: Any) -> object {
+    def add_function_attribute(self: ValueRef, attr: any) -> object {
         if not self.is_function {
             raise ValueError(('expected function value, got %s' % (self._kind, )));
         }
@@ -399,16 +400,16 @@ class ValueRef(ffi.ObjectRef) {
             By default, raises an exception on accuracy loss
         """
     def get_constant_value(
-        self: ValueRef, signed_int: Any = False, round_fp: Any = False
+        self: ValueRef, signed_int: any = False, round_fp: any = False
     ) -> object {
         if not self.is_constant {
             raise ValueError(('expected constant value, got %s' % (self._kind, )));
         }
         if (self.value_kind == ValueKind.constant_int) {
             little_endian = c_bool(False);
-            words = ffi.lib.LLVMPY_GetConstantIntNumWords(self);
+            words = int(ffi.lib.LLVMPY_GetConstantIntNumWords(self));
             ptr = ffi.lib.LLVMPY_GetConstantIntRawValue(self, byref(little_endian));
-            asbytes = `bytes(cast(ptr, POINTER((c_uint64 * words))).contents);
+            asbytes = string_at(ptr, (words * sizeof(c_uint64)));
             return int.from_bytes(
                 asbytes, 'little' if little_endian.value else 'big', signed=signed_int
             );
@@ -433,7 +434,7 @@ class _ValueIterator(ffi.ObjectRef) {
         kind = None;
     }
 
-    def init(self: _ValueIterator, ptr: Any, parents: Any) -> object {
+    def init(self: _ValueIterator, ptr: any, parents: any) -> object {
         ffi.ObjectRef.init(self, ptr);
         self._parents = parents;
         if (self.kind is None) {
@@ -441,6 +442,10 @@ class _ValueIterator(ffi.ObjectRef) {
                 ('%s must specify kind attribute' % (`type(self).__name__, ))
             );
         }
+    }
+
+    def _next(self: _ValueIterator) -> object {
+        raise NotImplementedError;
     }
 
     def __next__(self: _ValueIterator) -> object {
@@ -462,6 +467,10 @@ class _ValueIterator(ffi.ObjectRef) {
 }
 
 class _AttributeIterator(ffi.ObjectRef) {
+    def _next(self: _AttributeIterator) -> object {
+        raise NotImplementedError;
+    }
+
     def __next__(self: _AttributeIterator) -> object {
         vp = self._next();
         if vp {

@@ -1,4 +1,4 @@
-impl ensure_client_deps(config_loader: object) -> bool {
+impl ensure_client_deps(config_loader: JacClientConfig) -> bool {
     package_config = config_loader.get_package_config();
     dependencies = package_config.get('dependencies', {});
     dev_dependencies = package_config.get('devDependencies', {});
@@ -56,7 +56,7 @@ def _default_client_deps(framework: str) -> tuple[dict[str, str], dict[str, str]
     return (runtime_deps, dev_deps);
 }
 
-def prompt_install_client_deps(config_loader: object) -> bool {
+def prompt_install_client_deps(config_loader: JacClientConfig) -> bool {
     import sys;
     import from jaclang.cli.console { console }
     framework = _resolve_client_framework();

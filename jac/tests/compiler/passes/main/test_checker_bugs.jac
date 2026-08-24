@@ -64,6 +64,26 @@ Bug index:
                 off the statement), so a statement ending a block never reached
                 the statement after the block and its write stayed invisible to
                 the narrowing walk (#8059)
+  #TVARSCOPE-1 - a method's own TypeVar was substituted by the enclosing
+                 class's inherited type-var solution because solutions are
+                 keyed by TypeVar *name*; a generic base specialized anywhere
+                 in the MRO pinned every same-named method TypeVar in the
+                 whole subtree (#8201)
+  #OVLDTVAR-1 - a magic-method overload returned its declared return type
+                without solving the overload's own TypeVars from the
+                arguments, so `list[A] + list[B]` typed as `list[_S | A]`
+                with `_S` free (#8201)
+  #COMPRASSIGN-1 - a comprehension on an assignment RHS was linked into the
+                   CFG from an ancestor of the assignment instead of from the
+                   assignment itself, so the chain back to the preceding
+                   guards was cut and no enclosing narrowing reached the
+                   comprehension body (#8201)
+  #ELIFSC-1 - an elif (or a nested if) whose condition short-circuits got no
+              false target, because the search for the following statement
+              only looked in the immediate parent's body; the edge out of the
+              chain dangled and every narrowing before it was lost. A branch
+              edge that cannot compute a narrowing also collapsed the merge
+              instead of keeping what its predecessors established (#8201)
   #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
                 was inserted into that block's scope while bare assignments
                 hoist to the enclosing function, so one variable became two
@@ -72,6 +92,24 @@ Bug index:
                 declaration now binds the function local, so its annotation
                 also holds after the block and a sibling block redeclaring
                 the name collides with it (#8060)
+  #TYPEIS-1 - a user-defined predicate returning TypeIs[T] or TypeGuard[T]
+              narrowed nothing at its call sites; the checker knew the two
+              names but resolved the annotation to nothing, and the CFG's
+              may-narrow set only recognized the builtin guard calls, so a
+              helper predicate was invisible to flow narrowing (#8201)
+  #ISECT-1 - isinstance narrowing filtered a declared union as a whole, so a
+             member above the filter class was thrown away whenever another
+             member sat below it, and the guard claimed the more specific
+             member for values that are not it (#8201)
+  #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
+              most specific positive conjunct, but `not (A and B)` says
+              nothing about A on its own; the else branch of
+              `if isinstance(x, Foo) and x.bar` wrongly excluded Foo (#8201)
+  #TVARMETH-1 - a generic archetype's type parameters were not in scope over
+                its own methods: an enclosing function short-circuited the
+                scope check, and an impl block was not recognized as a scope
+                at all, so `impl C.m(v: T)` and every class parameter used in
+                a method body reported E1065 (#8230)
 """
 
 import os;
@@ -81,7 +119,13 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.compiler.type_system.type_utils { compute_mro_linearization }
-import from jaclang.compiler.type_system.types { ClassType, TypeFlags, UnknownType }
+import from jaclang.compiler.type_system.types {
+    ClassDetailsShared,
+    ClassType,
+    TypeFlags,
+    UnknownType
+}
+import from jaclang.jac0core.compiler { run_pass }
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
@@ -93,9 +137,8 @@ def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, fixture_name),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
     return program;
 }
 
@@ -149,27 +192,29 @@ test "bug_3_list_element_type_first_only" {
 # Buggy DFS gives: [D, B, A, object, C] (A appears before C)
 # =========================================================================
 test "bug_6_mro_not_c3_diamond" {
-    # Build a diamond hierarchy manually to check MRO order
-    a_shared = ClassType.ClassDetailsShared(
-        class_name="A", symbol_table=None, mro=[], base_classes=[]
+    # Build a diamond hierarchy manually to check MRO order; these hand-built
+    # classes deliberately carry no symbol table.
+    _no_symtab: any = None;
+    a_shared = ClassDetailsShared(
+        class_name="A", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.mro = [a_type];
 
-    b_shared = ClassType.ClassDetailsShared(
-        class_name="B", symbol_table=None, mro=[], base_classes=[a_type]
+    b_shared = ClassDetailsShared(
+        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(b_type);
 
-    c_shared = ClassType.ClassDetailsShared(
-        class_name="C", symbol_table=None, mro=[], base_classes=[a_type]
+    c_shared = ClassDetailsShared(
+        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(c_type);
 
-    d_shared = ClassType.ClassDetailsShared(
-        class_name="D", symbol_table=None, mro=[], base_classes=[b_type, c_type]
+    d_shared = ClassDetailsShared(
+        class_name="D", symbol_table=_no_symtab, mro=[], base_classes=[b_type, c_type]
     );
     d_type = ClassType(_shared=d_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(d_type);
@@ -194,9 +239,11 @@ test "bug_6_mro_not_c3_diamond" {
 # to a best-effort MRO. The fix adds an in-progress guard keyed on the class.
 # =========================================================================
 test "cyclic_heritage_mro_does_not_recurse" {
+    # Hand-built classes deliberately carry no symbol table.
+    _no_symtab: any = None;
     # Self-referential: A lists itself as a base.
-    a_shared = ClassType.ClassDetailsShared(
-        class_name="A", symbol_table=None, mro=[], base_classes=[]
+    a_shared = ClassDetailsShared(
+        class_name="A", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.base_classes = [a_type];
@@ -204,12 +251,12 @@ test "cyclic_heritage_mro_does_not_recurse" {
     assert a_type.shared.mro and a_type.shared.mro[0] is a_type;
 
     # Mutual cycle: B -> C -> B.
-    b_shared = ClassType.ClassDetailsShared(
-        class_name="B", symbol_table=None, mro=[], base_classes=[]
+    b_shared = ClassDetailsShared(
+        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
-    c_shared = ClassType.ClassDetailsShared(
-        class_name="C", symbol_table=None, mro=[], base_classes=[]
+    c_shared = ClassDetailsShared(
+        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     b_type.shared.base_classes = [c_type];
@@ -559,8 +606,8 @@ test "bug_tvar4_generic_base_canonical_typevar_order" {
 test "bug_tvar5_module_typevar_shadowed_by_class_param" {
     program = compile_and_check("checker_bug_typevar_shadow.jac");
 
-    # Expected: 1 error (str -> int on line 29)
-    # Without fix: 2 errors (line 23 would also error because sync returned str)
+    # Expected: 1 error (str -> int on line 28)
+    # Without fix: 2 errors (line 22 would also error because sync returned str)
     assert len(program.errors_had) == 1 , f"Bug #TVAR-5: Expected 1 error but got {len(
         program.errors_had
     )}.";
@@ -570,8 +617,8 @@ test "bug_tvar5_module_typevar_shadowed_by_class_param" {
         for e in program.errors_had
         if e.loc
     ];
-    assert 29 in error_lines , f"Expected error on line 29, got {error_lines}.";
-    assert 23 not in error_lines , f"Line 23 should NOT error, got {error_lines}.";
+    assert 28 in error_lines , f"Expected error on line 28, got {error_lines}.";
+    assert 22 not in error_lines , f"Line 22 should NOT error, got {error_lines}.";
 }
 
 # Bug #TVAR-6: glob-form TypeVar not solved at free-function call sites.
@@ -609,9 +656,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
     );
     program = JacProgram();
-    program.compile(
-        os.path.join(fixture_dir, "impl_has_var_reassign.jac"), type_check=True
-    );
+    program.compile(os.path.join(fixture_dir, "impl_has_var_reassign.jac"));
 
     # Expected after fix: 0 errors. The impl body should type-check cleanly:
     #   - `tasks + [task]` resolves via list[dict].__add__
@@ -1232,9 +1277,8 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
 
     assert program.errors_had == [] , (
         "Bug #CYCLE-TAINT-1: a symbol-resolution cycle whose types settle "
@@ -1283,9 +1327,8 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
 
     oops_errors = [
         e
@@ -1327,7 +1370,7 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     program = JacProgram();
     mod = program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
-        options=CompileOptions(type_check=False, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     evaluator = program.get_type_evaluator();
     config_sym = mod.names_in_scope.get("CONFIG");
@@ -1339,7 +1382,8 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     reg_mod = evaluator._import_module_from_path(reg_path);
     registry_sym = reg_mod.names_in_scope.get("REGISTRY");
     assert registry_sym is not None , "REGISTRY symbol missing from reg module";
-    config_use = registry_sym.decl.name_of.parent.value.condition.expr.left;
+    _reg_assign: any = registry_sym.decl.name_of.parent;
+    config_use: any = _reg_assign.value.condition.expr.left;
     assert config_use.value == "CONFIG" , (
         f"fixture navigation broke: expected the CONFIG use, got {config_use}"
     );
@@ -1549,4 +1593,396 @@ test "bug_loopwiden1_body_reassign_forces_conservative_merge" {
             f"diagnosed type must be the full `Item | None`. Got: {e}"
         );
     }
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1 / #8201: TypeVar solutions are keyed by name, so a
+# method's own TypeVar collided with a same-named class type parameter
+# inherited from a specialized generic base.
+#
+# `Leaf(Mid)` and `Mid(Carrier[Alpha, Beta])` put `T -> Alpha` in the
+# solution built for `Leaf`. `Leaf.pick` declares its own module-level `T`,
+# a different type variable that merely shares the name, and it was
+# rewritten to `Alpha` at every call site. A static member also dropped the
+# receiver class entirely, which turned on the permissive "trust the name"
+# rule in apply_solved_type_vars.
+#
+# The rule is lexical: only the type parameters bound by the class that
+# *declares* the member (or one of its enclosing class scopes) may be
+# substituted, and a function's own type parameters shadow the class's.
+# =========================================================================
+test "bug_tvarscope1_method_typevar_not_bound_by_class_solution" {
+    program = compile_and_check("checker_bug_method_typevar_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARSCOPE-1: a method's own TypeVar must stay free of the "
+        "enclosing class's inherited type-var solution. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1, negative: the lexical restriction must not stop a real
+# class type parameter from being solved through the MRO. `Carrier.move`
+# and `Carrier.build` are declared on the generic class, so `T`/`R` are
+# theirs and `Leaf` must still see them as `Alpha`/`Beta`.
+# =========================================================================
+test "bug_tvarscope1_class_typevar_still_solved_through_mro" {
+    program = compile_and_check("checker_bug_method_typevar_scope_negative.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARSCOPE-1: an inherited class type parameter must still be "
+        "solved from the base specialization, so passing a Beta where Alpha "
+        f"is expected stays an error. Got errors: {error_text}"
+    );
+    assert "Alpha" in error_text , (
+        "Bug #TVARSCOPE-1: the expected parameter type must read Alpha, not "
+        f"the unsolved type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #OVLDTVAR-1 / #8201: get_type_of_magic_method_call returned the
+# matched overload's declared return type verbatim. The overload had been
+# specialized for the receiver class, so `_T` was bound, but the overload's
+# *own* TypeVars were never solved from the arguments.
+#
+# `list[A] + list[B]` picks `__add__(self, value: list[_S]) -> list[_S | _T]`
+# and used to yield `list[_S | A]`, whose element type has no attributes at
+# all, so every member access on the result was a false E1099.
+# =========================================================================
+test "bug_ovldtvar1_magic_overload_solves_own_typevars" {
+    program = compile_and_check("checker_bug_magic_overload_typevar.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #OVLDTVAR-1: a magic-method overload must solve its own "
+        "TypeVars from the argument types before its return type is used. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #COMPRASSIGN-1 / #8201: a comprehension sitting on an assignment RHS
+# was deliberately not linked from the assignment (#6061), to keep
+# `out = [t for t in out]` from resolving `out` through the write that is
+# still in flight. But the walk went to the assignment's *parent* rather
+# than to its predecessors, so the chain back to the preceding guards was
+# cut and the comprehension body saw only declared types.
+#
+# The comprehension now links from the enclosing statement, and the
+# narrowing walk treats an assignment predecessor that encloses the node
+# being evaluated as a pass-through: the RHS runs before the write, so the
+# write is not visible to it. That is both the fix and the original
+# protection, stated where it belongs.
+# =========================================================================
+test "bug_comprassign1_comprehension_on_assignment_rhs_keeps_narrowing" {
+    program = compile_and_check("checker_bug_compr_assign_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #COMPRASSIGN-1: a comprehension on an assignment RHS must see "
+        "the narrowing that holds at the assignment, and must not resolve "
+        "its own target through the in-flight write. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #ELIFSC-1 / #8201: `elif <a> and <b>` produced no false target.
+# `exit_if_stmt` looked for the statement after the branch with
+# `_find_next_cfg_stmt_after(nd.parent, nd)`, but an elif is its parent's
+# `else_body`, not an entry in `parent.body`, so the search found nothing
+# and the edge out of the chain dangled. `_connect_tails` could not repair
+# it either: the short-circuit entry sitting in `bb_out` made the node look
+# like it already had a false branch. Everything after the chain then fell
+# back to declared types.
+#
+# The search now climbs out of the enclosing if/else nesting, and a branch
+# edge whose narrowing cannot be computed keeps what its predecessors
+# established instead of collapsing the merge -- which is what the
+# short-circuit edge case already did.
+# =========================================================================
+test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
+    program = compile_and_check("checker_bug_elif_shortcircuit_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ELIFSC-1: the narrowing established by an if guard must "
+        "survive an elif whose condition short-circuits. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1 / #8201: a user-defined predicate whose return type is
+# `TypeIs[T]` (PEP 742) or `TypeGuard[T]` (PEP 647) narrowed nothing.
+# `TypeIs`/`TypeGuard` were listed among the known special-form names but had
+# no branch in the `_SpecialForm` subscript path, so the annotation resolved
+# to nothing; and `collect_narrowing_symbols`, which runs before types exist,
+# only credited `isinstance`/`callable`/`hasattr` with narrowing anything, so
+# the flow walk skipped the guard's argument outright.
+#
+# A `TypeIs[T]` call narrows both edges -- positive to T, negative by
+# subtracting T -- because PEP 742 requires T to be consistent with the
+# argument's declared type. `TypeGuard[T]` narrows the positive edge only,
+# and replaces the declared type there rather than intersecting with it.
+# =========================================================================
+test "bug_typeis1_type_is_narrows_both_polarities" {
+    program = compile_and_check("checker_bug_typeis_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TYPEIS-1: a `TypeIs[T]` predicate must narrow its argument to "
+        "T on the true edge and subtract T on the false edge, through plain "
+        "functions, static methods and bound methods alike. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1, TypeGuard half: PEP 647 is one-directional. The positive
+# edge takes the guarded type verbatim -- `TypeGuard[list[str]]` on a
+# `list[int] | None` yields `list[str]`, not an intersection -- and the
+# negative edge narrows by nothing at all.
+# =========================================================================
+test "bug_typeis1_type_guard_is_positive_only" {
+    program = compile_and_check("checker_bug_typeguard_narrowing.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #TYPEIS-1: `TypeGuard` narrows the positive edge only, so the "
+        "one diagnosed line must be the negative branch reading `.tag` off a "
+        f"still-optional value. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 44 in error_lines , (
+        "Bug #TYPEIS-1: the negative branch of a TypeGuard keeps the declared "
+        f"type, so line 44 must be the diagnosed one. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ISECT-1 / #8201: `_filter_union_for_isinstance` narrowed a declared
+# union as a whole. It kept the members that derive from the filter class
+# and, if any did, threw the rest away -- so `isinstance(x, Mid)` on an
+# `x: Leaf | Base` answered `Leaf`, claiming a `Base` that passes the guard
+# is a `Leaf`. When no member derived from the filter, the whole declared
+# type was replaced by the filter instead.
+#
+# The narrow is applied per union member now: a member below the filter is
+# kept whole, a member above it takes the filter class carrying its type
+# arguments, and a member unrelated to it drops. Where nothing survives, the
+# result is the bare filter class, which is what the old code produced.
+#
+# A member unrelated to the filter could also hold a value of some class
+# deriving from both, which pyright models as a synthesized
+# `<subclass of Member and Filter>`. That is deliberately not done here: the
+# native lane needs a concrete layout for every type a narrow produces and a
+# synthesized class has none, so the precision would cost every guard over
+# unrelated classes its lowering.
+# =========================================================================
+test "bug_isect1_isinstance_narrows_each_union_member" {
+    program = compile_and_check("checker_bug_isinstance_intersection.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #ISECT-1: `isinstance(x, Mid)` on a `Leaf | Base` must answer "
+        "`Leaf | Mid`, so passing the result where a `Leaf` is wanted is the "
+        f"one error. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 34 in error_lines , (
+        "Bug #ISECT-1: the member above the filter must survive as the "
+        f"filter class, so line 34 is the diagnosed one. Got: {error_lines}"
+    );
+    for e in program.errors_had {
+        assert "Leaf | Mid" in str(e) , (
+            "Bug #ISECT-1: both members must survive the narrow, so the "
+            f"diagnosed type reads `Leaf | Mid`. Got: {e}"
+        );
+    }
+}
+
+# =========================================================================
+# Bug #ISECT-1, negative: per-member narrowing must not lose what the
+# whole-union narrow had. A guard no member survives still falls back to the
+# filter class, the false edge still subtracts it, and a narrowed member
+# exposes exactly its own surface.
+# =========================================================================
+test "bug_isect1_per_member_narrow_keeps_precision" {
+    program = compile_and_check("checker_bug_isinstance_intersection_negative.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 2 , (
+        "Bug #ISECT-1: the fallback to the filter class and the false edge "
+        "must both survive. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 33 in error_lines , (
+        "Bug #ISECT-1: subtracting Mid from `Base | None` leaves the None, "
+        f"so `.label` on line 33 stays an error. Got: {error_lines}"
+    );
+    assert 40 in error_lines , (
+        "Bug #ISECT-1: a narrowed member exposes its own surface and no "
+        f"more, so line 40 stays an error. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1 / #8201: `_find_predicate_for` reduced an and-chain to its
+# most specific positive conjunct and handed that single predicate to both
+# edges. `not (A and B)` says nothing about A on its own, so the else branch
+# of `if isinstance(x, Foo) and x.bar` wrongly excluded Foo -- a value whose
+# `bar` is false takes that branch as a Foo.
+#
+# The predicate now records which edges it licenses. A conjunction narrows
+# the false edge only when every conjunct carries the same predicate, and
+# the mirror rule holds for a disjunction's true edge. Where the edge is not
+# licensed the walk keeps whatever its predecessors established, which is
+# the same fallback an unnarrowable branch edge already used.
+# =========================================================================
+test "bug_andpol1_conjunction_false_edge_narrows_by_nothing" {
+    program = compile_and_check("checker_bug_and_chain_false_edge.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 3 , (
+        "Bug #ANDPOL-1: the false edge of a conjunction and the true edge of "
+        "a disjunction may not narrow by one conjunct alone. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 21 in error_lines , (
+        "Bug #ANDPOL-1: the else branch of `isinstance(x, Foo) and x.bar` "
+        f"still admits Foo. Got: {error_lines}"
+    );
+    assert 30 in error_lines , (
+        "Bug #ANDPOL-1: the fall-through after a conjunction guard still "
+        f"admits Foo. Got: {error_lines}"
+    );
+    assert 37 in error_lines , (
+        "Bug #ANDPOL-1: the true edge of `isinstance(x, Foo) or flag` cannot "
+        f"conclude Foo. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1, negative: only the unlicensed edges lose their narrowing.
+# A lone guard, the true edge of a conjunction, a conjunction whose every
+# conjunct is the same predicate, a negated conjunction (which swaps the
+# edges), and both edges of a fully matched disjunction all still narrow.
+# =========================================================================
+test "bug_andpol1_licensed_edges_still_narrow" {
+    program = compile_and_check("checker_bug_and_chain_false_edge_negative.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ANDPOL-1: edge polarity may only remove the narrowing the "
+        "condition never licensed. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1 / #8230: a generic archetype's type parameters were not in
+# scope over its own methods. `validate_typevar_scope` picked the innermost
+# Ability and the innermost Archetype and then consulted only one of them:
+# an enclosing function short-circuited the whole check, so a class
+# parameter used in a method body reported E1065 and never reached the
+# class that binds it.
+#
+# The walk also did not know `ImplDef`. An `impl C.m(v: T)` block sits at
+# module level with a FuncSignature hanging off an ImplDef rather than an
+# Ability, so neither scope was found at all and every use fell through to
+# the unconditional E1065 at the bottom -- which is what blocked the
+# contextvars shim (#8220).
+#
+# Scope resolution is now one lexical walk outward: each enclosing Ability
+# contributes its own type parameters, each enclosing Archetype contributes
+# the class's, and an ImplDef contributes its own signature and then hands
+# the walk to the declaration it implements, so the walk carries on from
+# inside the declaring class. The walk ends at the first archetype it
+# reaches, which is PEP 484's rule that a nested class does not inherit the
+# outer class's type variables.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
+    program = compile_and_check("checker_bug_class_typevar_method_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a class type parameter must be in scope over its "
+        "methods' signatures and bodies, in the class body and in an impl "
+        f"block alike. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: the walk must still stop where the language
+# stops it. A TypeVar no enclosing scope binds has no meaning, whether it is
+# used in a non-generic archetype's method body, in that archetype's field,
+# or at module level -- and a generic sibling binding the same name
+# elsewhere in the file does not put it in scope here.
+#
+# The walk also ends at the first enclosing archetype rather than climbing
+# into the one around it: PEP 484 states outright that a nested class does
+# not inherit the outer class's type variables, and both of `Nested`'s uses
+# of `Holder`'s `P` are reported for that reason.
+# =========================================================================
+test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
+    program = compile_and_check("checker_bug_class_typevar_method_scope_negative.jac");
+
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 5 , (
+        "Bug #TVARMETH-1: a TypeVar no enclosing scope binds must still be "
+        f"reported. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    for line in [18, 24, 31, 34, 40] {
+        assert line in error_lines , (
+            "Bug #TVARMETH-1: the unbound uses are the reported ones. "
+            f"Got lines: {error_lines}"
+        );
+    }
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: putting the class parameter in scope must not
+# leave it unsolved. `Ctx[Leaf]` still pins `T` to `Leaf` at the call site,
+# so a `str` argument is rejected and the returned element is a `Leaf`.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_still_solves_at_call_site" {
+    program = compile_and_check("checker_bug_class_typevar_still_solved.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARMETH-1: a method's use of the class parameter must still "
+        f"solve from the instantiation. Got errors: {error_text}"
+    );
+    assert "Leaf" in error_text , (
+        "Bug #TVARMETH-1: the solved parameter type must read Leaf, not the "
+        f"free type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: PEP 695 shadowing. A method that declares its
+# own parameter of the same name binds it for itself, so `echo` answers the
+# argument type rather than the class's `Leaf`, and the class parameter is
+# untouched outside it.
+# =========================================================================
+test "bug_tvarmeth1_method_type_param_shadows_class_param" {
+    program = compile_and_check("checker_bug_method_typevar_shadows_class.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a method's own type parameter shadows the class "
+        "parameter of the same name. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
 }

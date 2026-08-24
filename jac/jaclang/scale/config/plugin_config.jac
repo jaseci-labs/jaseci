@@ -121,7 +121,7 @@ class JacScalePluginConfig {
                         "url": {
                             "type": "string",
                             "default": None,
-                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db). Also honored via the JAC_DB_URL env var. When set, in-cluster provisioning is skipped (external mode)."
+                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db) for this process, also honored via the JAC_DB_URL env var, which wins at runtime. Setting it here (not via the env var) also makes a deploy of this app point at that database instead of provisioning one; [scale.kubernetes] database_mode overrides that."
                         },
                         "deploy_mode": {
                             "type": "string",
@@ -160,10 +160,25 @@ class JacScalePluginConfig {
                             "default": 8000,
                             "description": "Container port for the application"
                         },
+                        "database_mode": {
+                            "type": "string",
+                            "default": "auto",
+                            "description": "What database the DEPLOYED app gets: 'provision' (a per-app Postgres owned by jac), 'external' (point it at database_url, or [scale.database] url), 'none' (wire no database at all), or 'auto' (external when a url is configured, otherwise provision). The deploying process's own JAC_DB_URL is never consulted."
+                        },
+                        "database_url": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Connection URL handed to the deployed app in external mode. Highest precedence, above [scale.database] url. A bare Kubernetes service name is namespace-relative: set database_namespace, or write the fully qualified <service>.<namespace>.svc.cluster.local host."
+                        },
+                        "database_namespace": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Namespace that runs the external database service, used to qualify a bare service name in the url when the app deploys into a different namespace. Defaults to the deploying pod's own namespace when it can be detected."
+                        },
                         "postgres_enabled": {
                             "type": "bool",
                             "default": True,
-                            "description": "Provision Postgres in Kubernetes (disable when using an external database url)"
+                            "description": "Deprecated, use database_mode. false maps to database_mode = 'none'; true is ignored because it cannot distinguish provisioning from pointing at an external database."
                         },
                         "autoscaler_engine": {
                             "type": "string",
@@ -179,6 +194,11 @@ class JacScalePluginConfig {
                             "type": "int",
                             "default": 3,
                             "description": "Maximum pod replicas for the autoscaler."
+                        },
+                        "revision_history_limit": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "How many superseded ReplicaSets Kubernetes keeps per Deployment, which is how far back a rollback can reach. 0 keeps no history and makes a rollback impossible."
                         },
                         "cpu_utilization_target": {
                             "type": "int",
@@ -502,17 +522,29 @@ class JacScalePluginConfig {
                         "boot_health_timeout": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds to wait for a service's health endpoint during boot; absent uses the process manager default"
+                            "description": "How long a service process may take to answer /healthz before it is given up on (seconds); absent uses the process manager default (60). Applies both when the orchestrator starts the declared services at boot and when an inter-service import spawns a peer lazily. For the lazy spawn this is a stall budget rather than a wall-clock cap: a child that is still writing to its log keeps the clock resetting, so a slow cold compile is not cut off, while a child that dies is reported immediately. Raise it for services with an expensive import graph."
                         },
                         "boot_max_wait": {
                             "type": "int",
                             "default": 90,
-                            "description": "Maximum seconds to wait for all services to boot"
+                            "description": "Overall window (seconds) the orchestrator waits for the whole service set to report healthy at boot before it proceeds anyway. Distinct from `boot_health_timeout`, which is per service."
                         },
                         "health_monitor_interval": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds between health-monitor polls of running services; absent uses the process manager default"
+                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
+                        },
+                        "identity": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "Who owns user records in a fleet. The gateway serves /user/register and /user/login, so a session token it mints names a user that only the gateway's store knows; a service receiving that token has no local record for the subject.",
+                            "nested": {
+                                "gateway_owned": {
+                                    "type": "bool",
+                                    "default": True,
+                                    "description": "A fleet service that receives a signature-valid, unexpired token for a user it does not know provisions that user's root once, instead of rejecting the request. Set false when a deployment manages identity itself and a service should reject unknown subjects."
+                                }
+                            }
                         },
                         "ingress": {
                             "type": "dict",
@@ -549,7 +581,7 @@ class JacScalePluginConfig {
                         "services": {
                             "type": "dict",
                             "default": {},
-                            "description": "Per-service overrides keyed by module name. Subkeys (all optional): `file` (str, the service's entry file relative to the project root; default `<name>.jac`), `rpc_timeout` (float, default 10s, inter-service RPC calls), `http_forward_timeout` (float, default 30s, gateway-to-service forward), `replicas` (int, default 1, K8s Deployment.spec.replicas), `cpu_request` / `cpu_limit` (str, e.g. \"100m\", K8s container resources), `memory_request` / `memory_limit` (str, e.g. \"128Mi\"), `env` (dict[str,str], extra container env vars merged with auto-set JAC_SV_NAME), and nested `hpa` / `pdb` sub-tables. `hpa` keys: `enabled` (bool, default true), `min` (int, default 1), `max` (int, default 3), `cpu_target` (int percent, default 50), `memory_target` (int percent of memory request, default 80), `behavior` (table, default `{}`): a raw HPA `behavior` fragment (`scaleUp`/`scaleDown`, each with `stabilizationWindowSeconds`/`policies`/`selectPolicy`) deep-merged over the generated scale-rate defaults - same merge semantics as `deployment_overlay` (maps merge recursively, the `policies` list has no `name` key so it replaces wholesale rather than merging by entry); applies to both \"hpa\" and \"keda\" engines since both route through the same `Autoscaler._build_behavior` (for keda it only governs scaling above zero replicas - the drop to zero remains controlled by `autoscaler_cooldown`, the ScaledObject's cooldownPeriod). Use it to slow scale-down for connection-heavy services (e.g. `[services.NAME.hpa.behavior.scaleDown] stabilizationWindowSeconds = 600, selectPolicy = 'Min', policies = [{ type = 'Pods', value = 2, periodSeconds = 300 }]`) without imposing the same rate limit on every service via the app-global `autoscaler_cooldown`. `pdb` keys: `enabled` (bool, default true), `max_unavailable` (int, default 1). `deployment_overlay` (table): a raw Deployment-manifest fragment merged into the generated manifest at build time - maps merge recursively, lists whose members all carry `name` (containers, volumes, env, initContainers, volumeMounts) merge by that name, anything else replaces; identity fields (metadata.name/namespace, selector, the app/managed template labels) are reasserted after the merge. The main container's `name` is the k8s-safe service name (e.g. `builder-sv`; gateway is `gateway`). Use it for nodeSelector, probe tuning, extra volumes/env/init containers - anything the schema has no first-class key for - so pods are right on the FIRST rollout instead of being kubectl-patched into a second one. Overlays add and override only: there is no delete directive (setting a key to null stores null rather than removing the generated field). Gateway uses the `__gateway__` key. `[[services.NAME.triggers]]` array (KEDA only): per-service event-driven triggers; each entry has `type` (str), `metadata` (dict[str,str]), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = \"keda\"` in [scale.kubernetes]. Example: [scale.microservices.services.llm_app] rpc_timeout = 120.0, replicas = 2, cpu_limit = \"2000m\", memory_limit = \"4Gi\", env = { LOG_LEVEL = \"DEBUG\" }, [scale.microservices.services.llm_app.hpa] max = 20, cpu_target = 60",
+                            "description": "Per-service overrides keyed by module name. Subkeys (all optional): `file` (str, the service's entry file relative to the project root; default `<name>.jac`), `rpc_timeout` (float, default 10s, inter-service RPC calls), `http_forward_timeout` (float, default 30s, gateway-to-service forward), `replicas` (int, default 1, K8s Deployment.spec.replicas), `cpu_request` / `cpu_limit` (str, e.g. \"100m\", K8s container resources), `memory_request` / `memory_limit` (str, e.g. \"128Mi\"), `env` (dict[str,str], extra container env vars merged with auto-set JAC_SV_NAME), and nested `hpa` / `pdb` sub-tables. `hpa` keys: `enabled` (bool, default true), `min` (int, default 1), `max` (int, default 3), `cpu_target` (int percent, default 50), `memory_target` (int percent of memory request, default 80), `behavior` (table, default `{}`): a raw HPA `behavior` fragment (`scaleUp`/`scaleDown`, each with `stabilizationWindowSeconds`/`policies`/`selectPolicy`) deep-merged over the generated scale-rate defaults - same merge semantics as `deployment_overlay` (maps merge recursively, the `policies` list has no `name` key so it replaces wholesale rather than merging by entry); applies to both \"hpa\" and \"keda\" engines since both route through the same `Autoscaler._build_behavior` (for keda it only governs scaling above zero replicas - the drop to zero remains controlled by `autoscaler_cooldown`, the ScaledObject's cooldownPeriod). Use it to slow scale-down for connection-heavy services (e.g. `[services.NAME.hpa.behavior.scaleDown] stabilizationWindowSeconds = 600, selectPolicy = 'Min', policies = [{ type = 'Pods', value = 2, periodSeconds = 300 }]`) without imposing the same rate limit on every service via the app-global `autoscaler_cooldown`. `pdb` keys: `enabled` (bool, default true), `max_unavailable` (int, default 1; no PDB is emitted when it is at or above the service's replica floor, since such a budget permits evicting every replica), `min_available` (int, default unset; wins over `max_unavailable` and is the only way to ask for a budget that holds at one replica). `deployment_overlay` (table): a raw Deployment-manifest fragment merged into the generated manifest at build time - maps merge recursively, lists whose members all carry `name` (containers, volumes, env, initContainers, volumeMounts) merge by that name, anything else replaces; identity fields (metadata.name/namespace, selector, the app/managed template labels) are reasserted after the merge. The main container's `name` is the k8s-safe service name (e.g. `builder-sv`; gateway is `gateway`). Use it for nodeSelector, probe tuning, extra volumes/env/init containers - anything the schema has no first-class key for - so pods are right on the FIRST rollout instead of being kubectl-patched into a second one. Overlays add and override only: there is no delete directive (setting a key to null stores null rather than removing the generated field). Gateway uses the `__gateway__` key. `[[services.NAME.triggers]]` array (KEDA only): per-service event-driven triggers; each entry has `type` (str), `metadata` (dict[str,str]), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = \"keda\"` in [scale.kubernetes]. Example: [scale.microservices.services.llm_app] rpc_timeout = 120.0, replicas = 2, cpu_limit = \"2000m\", memory_limit = \"4Gi\", env = { LOG_LEVEL = \"DEBUG\" }, [scale.microservices.services.llm_app.hpa] max = 20, cpu_target = 60",
                             "nested_each": {
                                 "file": {
                                     "type": "string",
@@ -646,7 +678,12 @@ class JacScalePluginConfig {
                                         "max_unavailable": {
                                             "type": "int",
                                             "default": 1,
-                                            "description": "PDB maxUnavailable"
+                                            "description": "PDB maxUnavailable. A budget that permits evicting every replica protects nothing, so no PDB is emitted when this is at or above the service's replica floor (hpa.min, or replicas when the HPA is off)."
+                                        },
+                                        "min_available": {
+                                            "type": "int",
+                                            "default": None,
+                                            "description": "PDB minAvailable. Set it to keep a floor of healthy pods through voluntary disruption; it wins over max_unavailable. min_available = 1 on a single-replica service refuses node drains until the service is scaled up, which is the trade for never going to zero."
                                         }
                                     }
                                 },

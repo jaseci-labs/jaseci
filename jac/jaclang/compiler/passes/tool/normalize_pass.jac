@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { CodeContext, EdgeDir }
@@ -27,16 +26,10 @@ obj NormalizePass(UniPass) {
     def enter_arch_has(nd: uni.ArchHas) -> None;
     def enter_has_var(nd: uni.HasVar) -> None;
     def enter_typed_ctx_block(nd: uni.TypedCtxBlock) -> None;
-    def _normalize_cond_block(nd: uni.UniNode, kw: Tok) -> None;
-    def _normalize_name_list_stmt(nd: uni.UniNode, op: Tok) -> None;
+    def _normalize_cond_block(nd: (uni.IfStmt | uni.WhileStmt), kw: Tok) -> None;
+    def _normalize_name_list_stmt(nd: (uni.SemDef | uni.ImplDef), op: Tok) -> None;
     def enter_open_stmt(nd: uni.OpenStmt) -> None;
     def enter_if_stmt(nd: uni.IfStmt) -> None;
-    def enter_ct_block(nd: uni.CtBlock) -> None;
-    def enter_ct_splice(nd: uni.CtSplice) -> None;
-    def enter_ct_name(nd: uni.CtName) -> None;
-    def enter_ct_if(nd: uni.CtIf) -> None;
-    def enter_ct_else(nd: uni.CtElse) -> None;
-    def enter_ct_for(nd: uni.CtFor) -> None;
     def enter_else_if(nd: uni.ElseIf) -> None;
     def enter_else_stmt(nd: uni.ElseStmt) -> None;
     def enter_expr_stmt(nd: uni.ExprStmt) -> None;

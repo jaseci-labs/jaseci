@@ -1,13 +1,21 @@
-import from jaclang.jac0core.unitree { Module, Ability, Archetype, GlobalVars, UniNode }
+import from jaclang.jac0core.unitree {
+    Module,
+    Ability,
+    Archetype,
+    AstTypedVarNode,
+    FuncSignature,
+    GlobalVars,
+    UniNode
+}
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.publish.jsdoc { jac_type_to_ts }
 
-def _param_type_str(param: any) -> str {
-    tag = param?.type_tag;
+def _param_type_str(param: AstTypedVarNode) -> str {
+    tag = param.type_tag;
     if tag is None {
         return "any";
     }
-    inner = tag?.tag;
+    inner = tag.tag;
     if not isinstance(inner, UniNode) {
         return "any";
     }
@@ -25,20 +33,22 @@ def _fn_decl(ability: Ability) -> str {
     }
     sig = ability?.signature;
     parts: list[str] = [];
-    params = sig?.params if sig else None;
-    if params {
-        for p in params {
-            pname = p?.sym_name;
-            if not pname {
-                continue;
+    if isinstance(sig, FuncSignature) {
+        params = sig.params;
+        if params {
+            for p in params {
+                pname = p.sym_name;
+                if not pname {
+                    continue;
+                }
+                ptype = _param_type_str(p);
+                optional = "?" if p.value is not None else "";
+                parts.append(f"{pname}{optional}: {ptype}");
             }
-            ptype = _param_type_str(p);
-            optional = "?" if p?.value is not None else "";
-            parts.append(f"{pname}{optional}: {ptype}");
         }
     }
     ret = "void";
-    rt = sig?.return_type if sig else None;
+    rt = sig.return_type if isinstance(sig, FuncSignature) else None;
     if isinstance(rt, UniNode) {
         try {
             rt_str = unparse_node(rt);
@@ -99,8 +109,8 @@ def _global_decl(assign: any, wanted: any) -> str {
 
 impl dts_for_module(mod: Module) -> str {
     manifest = mod.gen.client_manifest if (mod and mod.gen) else None;
-    exports: set = set(manifest.exports) if manifest else set();
-    globals_set: set = set(manifest.globals) if manifest else set();
+    exports: set[str] = set(manifest.exports) if manifest else set();
+    globals_set: set[str] = set(manifest.globals) if manifest else set();
     if not exports and not globals_set {
         return "";
     }

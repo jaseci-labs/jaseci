@@ -1,6 +1,4 @@
 import from jaclang.byllm.lib { Model, Image }
-import from jaclang.jac0core.archetype { Root }
-import from typing { List, Dict }
 import os;
 
 def clear_terminal {
@@ -18,9 +16,9 @@ obj Response {
     has follow_up_questions: str,
         summary: str,
         when: str,
-        who: List[str],
+        who: list[str],
         what: str,
-        where: List[str],
+        where: list[str],
         terminate_conversation: bool,
         show_summary: bool;
 }
@@ -41,10 +39,10 @@ def update_memory_details(
     utterance: str = "",
     summary: str = "",
     when: str = "",
-    who: List[str] = [],
-    where: List[str] = [],
+    who: list[str] = [],
+    where: list[str] = [],
     what: str = "",
-    conversation: List[dict] = [],
+    conversation: list[dict] = [],
     show_summary: bool = False,
     terminate_conversation: bool = False
 ) -> Response by llm();
@@ -63,7 +61,9 @@ node session {
 
 walker update_session {
     has image_url: str,
-        utterance: str = "";
+        utterance: str = "",
+        show_summary: bool = False,
+        terminate_conversation: bool = False;
 
     can visit_session with Root entry {
         visit [-->][?:session] else {

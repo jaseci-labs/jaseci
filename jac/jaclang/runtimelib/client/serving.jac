@@ -3,7 +3,6 @@ import html;
 import json;
 import re;
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
@@ -25,7 +24,7 @@ obj HeaderBuilder {
     def build_head -> str;
     def build_scripts -> list[str];
     def _script_tag(spec: dict) -> str;
-    def _get_value(key: str) -> str;
+    def _get_value(key: str) -> (str | None);
     def _og_property(suffix: str) -> str;
     def _build_special_tags -> list[str];
     def _build_meta_tags -> list[str];
@@ -39,7 +38,7 @@ class JacClient {
     static def render_page(
         introspector: ModuleIntrospector,
         function_name: str,
-        args: dict[(str, Any)],
+        args: dict[(str, any)],
         username: str
     ) -> dict[str, any];
 

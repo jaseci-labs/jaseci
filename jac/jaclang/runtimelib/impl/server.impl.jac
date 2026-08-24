@@ -4,6 +4,7 @@ import from jaclang.runtimelib.serializer { Serializer }
 import from jaclang.runtimelib.client_bundle { MissingBunError, _ensure_js_generated }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.runtimelib.auth_models {
+    IdentityInput,
     IdentityType,
     LoginRequest,
     RegisterRequest
@@ -241,9 +242,11 @@ impl UserManager.close -> None {
     }
 }
 
-impl ExecutionManager.report_collector(call_state: CallState) -> dict[str, JsonValue] {
+impl ExecutionManager.report_collector(
+    call_state: CallState
+) -> list[JsonValue] | Generator | AsyncGenerator {
     import from queue { Empty }
-    final_reports = [];
+    final_reports: list[JsonValue] = [];
     while True {
         try {
             report_item = call_state.reports.get_nowait();
@@ -260,7 +263,7 @@ impl ExecutionManager.report_collector(call_state: CallState) -> dict[str, JsonV
     }
 }
 
-async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, Any)] {
+async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, any)] {
     import from jaclang.jac0core.osp_kernel_sv { isolate_request_walk_stack }
     parent = Jac.get_context();
     req_ctx = ExecutionContext(_parent=parent);
@@ -273,17 +276,16 @@ async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, 
 
 async def _abegin_user_request_context(
     user_manager: UserManager, username: str
-) -> tuple[(ExecutionContext, Any, str)] | dict[str, JsonValue] {
+) -> tuple[(ExecutionContext, any, str)] | dict[str, JsonValue] {
     import from jaclang.runtimelib.exceptions { MissingAnchorError }
     root_id = await user_manager.aget_root_id(username);
     if not root_id {
         import os;
-        if (
-            username != Con.GUEST.value
-            and os.environ.get('JAC_SV_SIBLING')
-            and hasattr(user_manager, 'ensure_user_root')
-        ) {
-            root_id = await asyncio.to_thread(user_manager.ensure_user_root, username);
+        if username != Con.GUEST.value and os.environ.get('JAC_SV_SIBLING') {
+            ensure_root = getattr(
+                user_manager, 'ensure_user_root', user_manager.get_root_id
+            );
+            root_id = await asyncio.to_thread(ensure_root, username);
         }
         if not root_id {
             return {'error': 'User not found'};
@@ -315,7 +317,7 @@ async def _abegin_user_request_context(
     }
 }
 
-def _deserialize_wire_args(args: dict[(str, Any)]) {
+def _deserialize_wire_args(args: dict[(str, any)]) {
     for (k, v) in list(args.items()) {
         if isinstance(v, dict) and '__type__' in v {
             deserialized = Serializer.deserialize(v);
@@ -332,7 +334,7 @@ def _deserialize_wire_args(args: dict[(str, Any)]) {
     }
 }
 
-def _occ_policy -> tuple {
+def _occ_policy -> tuple[str, int, int] {
     mode = "retry";
     max_attempts = 5;
     backoff_ms = 0;
@@ -353,6 +355,18 @@ def _occ_policy -> tuple {
     return (mode, max_attempts, backoff_ms);
 }
 
+async def _acall_function(
+    handler: ExecutionHandler, name: str, args: dict[(str, any)], username: str
+) -> TransportResponse {
+    return await handler.call_function(name, args, username);
+}
+
+async def _aspawn_walker(
+    handler: ExecutionHandler, name: str, fields: dict[(str, any)], username: str
+) -> TransportResponse {
+    return await handler.spawn_walker(name, fields, username);
+}
+
 impl ExecutionManager._finalize_call_response(
     call_state: CallState, result: any
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
@@ -366,7 +380,7 @@ impl ExecutionManager._finalize_call_response(
         return reports;
     }
 
-    envelope: dict[str, JsonValue] = {
+    envelope: dict[str, object] = {
         'result': Serializer.serialize(result, api_mode=True),
         'reports': Serializer.serialize(reports, api_mode=True)
     };
@@ -375,12 +389,12 @@ impl ExecutionManager._finalize_call_response(
         envelope['warnings'] = [d.to_dict() for d in ctx.diagnostics];
         ctx.diagnostics.clear();
     }
-    return envelope;
+    return dict[(str, JsonValue)](envelope);
 }
 
 async def _run_function_with_occ(
     mgr: ExecutionManager,
-    args: dict[(str, Any)],
+    args: dict[(str, any)],
     username: str,
     run_attempt: Callable,
     deserialize_args: bool = True,
@@ -392,6 +406,7 @@ async def _run_function_with_occ(
     }
     (ctx, req_token, root_id) = resolved;
     ctx.mem.unit_enter();
+    settled = False;
     try {
         if deserialize_args {
             _deserialize_wire_args(args);
@@ -404,8 +419,13 @@ async def _run_function_with_occ(
             call_token = ctx.call_state.set(CallState());
             call_state = ctx.call_state.get();
             try {
-                return await run_attempt(call_state, ctx);
+                outcome = await run_attempt(call_state, ctx);
+                ctx.mem.unit_exit();
+                settled = True;
+                return outcome;
             } except WriteConflict as wc {
+                settled = False;
+                ctx.mem.unit_enter();
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
                 ctx.read_versions.clear();
@@ -441,16 +461,21 @@ async def _run_function_with_occ(
         };
     } finally {
         try {
-            ctx.mem.unit_exit();
+            if not settled {
+                ctx.mem.unit_exit();
+            }
         } except Exception as ue {
-            logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
+            import logging;
+            logging.getLogger(__name__).warning(
+                f"unit exit failed: {type(ue).__name__}: {ue}"
+            );
         }
         Jac.reset_request_context(req_token);
     }
 }
 
 impl ExecutionManager.execute_function(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import inspect;
 
@@ -461,9 +486,11 @@ impl ExecutionManager.execute_function(
 }
 
 impl ExecutionManager.execute_function_sync(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, _ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         result = await asyncio.to_thread(func, **args);
 
         if iscoroutine(result) {
@@ -475,9 +502,11 @@ impl ExecutionManager.execute_function_sync(
 }
 
 impl ExecutionManager.execute_function_async(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
-    async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, _ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         result = await func(**args);
         return await self._finalize_call_response(call_state, result);
     }
@@ -485,7 +514,7 @@ impl ExecutionManager.execute_function_async(
 }
 
 impl ExecutionManager.spawn_walker(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     if walker_cls.__jac_async__ {
         return await self.spawn_walker_async(walker_cls, fields, username);
@@ -494,13 +523,15 @@ impl ExecutionManager.spawn_walker(
 }
 
 impl ExecutionManager.spawn_walker_sync(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
-    async def run_attempt(call_state: CallState, ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -510,7 +541,7 @@ impl ExecutionManager.spawn_walker_sync(
         } else {
             target_node = ctx.get_root();
         }
-        result = await asyncio.to_thread(Jac.spawn, `walker, target_node);
+        result = await asyncio.to_thread(Jac.`spawn, `walker, target_node);
 
         if iscoroutine(result) {
             result = await result;
@@ -528,13 +559,15 @@ impl ExecutionManager.spawn_walker_sync(
 }
 
 impl ExecutionManager.spawn_walker_async(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
     _deserialize_wire_args(fields);
 
-    async def run_attempt(call_state: CallState, ctx: ExecutionContext) {
+    async def run_attempt(
+        call_state: CallState, ctx: ExecutionContext
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
         `walker = walker_cls(**fields);
         if target_node_id {
             target_node = await Jac.aget_object(target_node_id);
@@ -544,7 +577,7 @@ impl ExecutionManager.spawn_walker_async(
         } else {
             target_node = ctx.get_root();
         }
-        spawn_result = Jac.spawn(`walker, target_node);
+        spawn_result = Jac.`spawn(`walker, target_node);
         if iscoroutine(spawn_result) {
             result = await spawn_result;
         } else {
@@ -596,6 +629,9 @@ impl ModuleIntrospector.load(force_reload: bool = False) -> None {
     }
     module = Jac.loaded_modules.get(self.module_name);
     if (not module or ((self._module is module) and not needs_import)) {
+        if module is not None and self._module is module {
+            self._check_module_freshness();
+        }
         return;
     }
     self._module = module;
@@ -616,7 +652,7 @@ impl ModuleIntrospector._load_manifest -> None {
         return;
     }
     base: dict = {};
-    mod_path = self._module?.__file__;
+    mod_path: str = getattr(self._module, '__file__', '');
     if mod_path {
         import from jaclang.runtimelib.sealed_serve { serve_manifest_for }
         sm = serve_manifest_for(mod_path);
@@ -628,12 +664,12 @@ impl ModuleIntrospector._load_manifest -> None {
         }
     }
     if mod_path {
-        mod = Jac.program.find_module(os.path.abspath(mod_path));
+        mod = Jac.get_program().find_module(os.path.abspath(mod_path));
         if not mod {
-            mod = Jac.program.compile(mod_path);
+            mod = Jac.get_program().compile(mod_path);
         }
         if mod and mod.gen.client_manifest and not mod.gen.client_manifest.exports {
-            _ensure_js_generated(mod, Jac.program);
+            _ensure_js_generated(mod, Jac.get_program());
         }
         if (mod and mod.gen.client_manifest) {
             manifest = mod.gen.client_manifest;
@@ -649,7 +685,7 @@ impl ModuleIntrospector._load_manifest -> None {
 
     aggregated: dict = {};
 
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for hub_mod in hub.values() {
             if hub_mod and hub_mod.gen.interop_manifest {
                 for (ekey, eeff) in hub_mod.gen.interop_manifest.endpoint_effects.items() {
@@ -669,7 +705,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
     import jaclang.jac0core.unitree as uni;
     self._function_access = {};
     self._walker_access = {};
-    mod_path = self._module?.__file__;
+    mod_path: str = getattr(self._module, '__file__', '');
     if mod_path {
         import from jaclang.runtimelib.sealed_serve { serve_manifest_for }
         sm = serve_manifest_for(mod_path);
@@ -679,11 +715,12 @@ impl ModuleIntrospector._extract_access_levels -> None {
             return;
         }
     }
-    main_mod = Jac.program.find_module(os.path.abspath(mod_path)) if mod_path else None;
-
+    main_mod = Jac.get_program().find_module(os.path.abspath(mod_path))
+        if mod_path
+        else None;
     if not main_mod and mod_path {
         try {
-            main_mod = Jac.program.compile(os.path.abspath(mod_path));
+            main_mod = Jac.get_program().compile(os.path.abspath(mod_path));
         } except Exception as e {
             import logging;
             logging.getLogger(__name__).warning(
@@ -710,10 +747,10 @@ impl ModuleIntrospector._extract_access_levels -> None {
             if not (src and src.endswith(('.jac', '.jac'))) {
                 continue;
             }
-            prov = Jac.program.find_module(src);
+            prov = Jac.get_program().find_module(src);
             if not prov {
                 try {
-                    prov = Jac.program.compile(src);
+                    prov = Jac.get_program().compile(src);
                 } except Exception {
                     prov = None;
                 }
@@ -732,7 +769,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
 
         if not (man.walker_access or man.func_access) {
             try {
-                Jac.program.run_schedule(src_mod, get_boundary_analysis_sched());
+                Jac.get_program().run_schedule(src_mod, get_boundary_analysis_sched());
             } except Exception as e {
                 import logging;
                 logging.getLogger(__name__).warning(
@@ -753,6 +790,37 @@ impl ModuleIntrospector._extract_access_levels -> None {
             if name not in self._walker_access {
                 self._walker_access[name] = auth;
             }
+        }
+    }
+
+    import from jaclang.jac0core.archetype { WalkerArchetype as _WalkerArch }
+    _live_missing = False;
+    for _wname in dir(self._module) {
+        _wcls = getattr(self._module, _wname, None);
+        if (
+            isinstance(_wcls, type)
+            and issubclass(_wcls, _WalkerArch)
+            and getattr(_wcls, '__module__', '') == self._module?.__name__
+            and _wname not in self._walker_access
+        ) {
+            _live_missing = True;
+            break;
+        }
+    }
+    if _live_missing and mod_path {
+        try {
+            _fresh_mod = Jac.get_program().compile(os.path.abspath(mod_path));
+            _fman = _fresh_mod.gen.interop_manifest;
+            if _fman is not None {
+                for (name, auth) in _fman.func_access.items() {
+                    self._function_access[name] = auth;
+                }
+                for (name, auth) in _fman.walker_access.items() {
+                    self._walker_access[name] = auth;
+                }
+            }
+        } except Exception {
+            ;
         }
     }
 }
@@ -830,13 +898,13 @@ impl ModuleIntrospector._register_sealed_bindings(
 }
 
 impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
-    if not (self._module and Jac.program and Jac.program.mod) {
+    if not (self._module and Jac.get_program().mod) {
         return;
     }
     import from jaclang.jac0core.constant { Tokens as Tok }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
-    sealed_mod_path = self._module?.__file__;
+    sealed_mod_path: str = getattr(self._module, '__file__', '');
     if sealed_mod_path {
         import from jaclang.runtimelib.sealed_serve {
             serve_manifest_for,
@@ -856,7 +924,7 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
     func_access: dict[str, bool] = {};
     walker_access: dict[str, bool] = {};
 
-    for hub in Jac.program._search_hubs() {
+    for hub in Jac.get_program()._search_hubs() {
         for mod in hub.values() {
             man = mod.gen.interop_manifest if (mod and mod.gen) else None;
             if not man {
@@ -942,7 +1010,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        src_path = ast_node.loc.mod_path if (ast_node and ast_node?.loc) else None;
+        if ast_node is None {
+            continue;
+        }
+        src_path: str = getattr(getattr(ast_node, 'loc', ''), 'mod_path', '');
         if not src_path {
             continue;
         }
@@ -959,7 +1030,10 @@ impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
             continue;
         }
         ast_node = binding?.ast_node;
-        src_path = ast_node.loc.mod_path if (ast_node and ast_node?.loc) else None;
+        if ast_node is None {
+            continue;
+        }
+        src_path: str = getattr(getattr(ast_node, 'loc', ''), 'mod_path', '');
         if not src_path {
             continue;
         }
@@ -994,11 +1068,11 @@ impl ModuleIntrospector._fill_endpoint_effect_defaults -> None {
 }
 
 
-impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., any)]] {
     if not self._module {
         return {};
     }
-    functions: dict[(str, Callable[(..., Any)])] = {};
+    functions: dict[(str, Callable[(..., any)])] = {};
     export_names = set(self._client_manifest.get('exports', []));
     for (name, `obj) in inspect.getmembers(self._module) {
         if (inspect.isfunction(`obj) and not name.startswith('_')) {
@@ -1067,6 +1141,12 @@ impl ModuleIntrospector._check_module_freshness -> None {
             break;
         }
     }
+    if not needs_refresh {
+        _fresh_walkers = self._collect_walkers();
+        if set(_fresh_walkers.keys()) != set(self._walkers.keys()) {
+            needs_refresh = True;
+        }
+    }
     if needs_refresh {
         self._load_manifest();
         self._extract_access_levels();
@@ -1077,7 +1157,7 @@ impl ModuleIntrospector._check_module_freshness -> None {
     }
 }
 
-impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., any)]] {
     if not self._functions {
         self.load();
     } else {
@@ -1086,7 +1166,7 @@ impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]] {
     return {
         k: v
         for (k, v) in self._functions.items()
-        if not v?.schedule_spec
+        if not getattr(v, 'schedule_spec', '')
     };
 }
 
@@ -1103,7 +1183,7 @@ impl ModuleIntrospector.get_walkers -> dict[str, type[WalkerArchetype]] {
     };
 }
 
-impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., any)]] {
     if not self._client_functions {
         self.load();
     }
@@ -1133,7 +1213,7 @@ impl ModuleIntrospector.resolve_root_app(configured: str = "") -> str {
 }
 
 impl ModuleIntrospector.introspect_callable(
-    func: Callable[(..., Any)]
+    func: Callable[(..., any)]
 ) -> dict[str, any] {
     try {
         sig = inspect.signature(func);
@@ -1144,15 +1224,15 @@ impl ModuleIntrospector.introspect_callable(
     params = {
         name: {
             'type': getattr(
-                type_hints.get(name, Any), '__name__', str(type_hints.get(name, Any))
+                type_hints.get(name, any), '__name__', str(type_hints.get(name, any))
             ),
-            'required': (param.default == inspect.Parameter.empty),
+            'required': (param.`default == inspect.Parameter.empty),
             'default': None
-                if (param.default == inspect.Parameter.empty)
-                else str(param.default)
+                if (param.`default == inspect.Parameter.empty)
+                else str(param.`default)
         } for (name, param) in sig.parameters.items()
     };
-    return_type = type_hints.get('return', Any);
+    return_type = type_hints.get('return', any);
     return {
         'parameters': params,
         'return_type': getattr(return_type, '__name__', str(return_type))
@@ -1203,13 +1283,13 @@ impl ModuleIntrospector.introspect_walker(
                 type_name = 'Any';
             }
         }
-        is_required = param.default == inspect.Parameter.empty;
+        is_required = param.`default == inspect.Parameter.empty;
         if is_required {
             default_val = None;
         } elif name in factory_defaults {
             default_val = factory_defaults[name];
         } else {
-            default_val = param.default;
+            default_val = param.`default;
         }
         fields[name] = {
             'type': type_name,
@@ -1266,7 +1346,7 @@ impl ModuleIntrospector.ensure_bundle -> str {
 }
 
 impl ModuleIntrospector.render_page(
-    function_name: str, args: dict[(str, Any)], username: str
+    function_name: str, args: dict[(str, any)], username: str
 ) -> dict[str, any] {
     return Jac.render_page(self, function_name, args, username);
 }
@@ -1333,9 +1413,9 @@ impl ModuleIntrospector._load_spa_routes -> (list[str] | None) {
             return None;
         }
         return [
-            entry.path
-            for entry in scanner.scan()
-            if entry.path not in ('*', '/*')
+            `entry.path
+            for `entry in scanner.scan()
+            if `entry.path not in ('*', '/*')
         ];
     } except Exception {
         return None;
@@ -1581,7 +1661,7 @@ impl IntrospectionHandler.get_walker_info(name: str) -> TransportResponse {
 }
 
 impl ExecutionHandler.call_function(
-    name: str, args: dict[(str, Any)], username: str
+    name: str, args: dict[(str, any)], username: str
 ) -> TransportResponse {
     self.introspector.load();
     functions = self.introspector.get_functions();
@@ -1601,7 +1681,7 @@ impl ExecutionHandler.call_function(
 }
 
 impl ExecutionHandler.spawn_walker(
-    name: str, fields: dict[(str, Any)], username: str
+    name: str, fields: dict[(str, any)], username: str
 ) -> TransportResponse {
     self.introspector.load();
     walkers = self.introspector.get_walkers();
@@ -1979,7 +2059,11 @@ impl JacAPIServer.build_app -> ServingApp {
                 meta=Meta(extra={'http_status': 401})
             );
         }
-        return server.auth_handler.get_user_info(_bearer_token(request));
+        token = _bearer_token(request);
+        if token is None {
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
+        }
+        return server.auth_handler.get_user_info(token);
     }
 
     def _protected(request: Request) -> any {
@@ -2001,7 +2085,7 @@ impl JacAPIServer.build_app -> ServingApp {
         } except ValueError as ve {
             return JSONResponse(content={'error': str(ve)}, status_code=400);
         }
-        username_identity = None;
+        username_identity: (IdentityInput | None) = None;
         for ident in register_req.identities {
             if ident.type == IdentityType.USERNAME.value {
                 username_identity = ident;
@@ -2054,7 +2138,7 @@ impl JacAPIServer.build_app -> ServingApp {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
         return asyncio.run(
-            server.execution_handler.call_function(name, data, username)
+            _acall_function(server.execution_handler, name, data, username)
         );
     }
 
@@ -2074,7 +2158,7 @@ impl JacAPIServer.build_app -> ServingApp {
         }
         fields = data | {'_jac_spawn_node': node_id};
         return asyncio.run(
-            server.execution_handler.spawn_walker(name, fields, username)
+            _aspawn_walker(server.execution_handler, name, fields, username)
         );
     }
 
@@ -2265,7 +2349,7 @@ impl JacAPIServer.build_app -> ServingApp {
                 f"{', '.join(sorted(_spec_carriers))} will serve at the "
                 "default /walker/ and /function/ POST routes only. Custom "
                 "methods, paths, webhooks, and websockets need the scale "
-                "serving stack (`jac start`)."
+                "serving stack (`jac run`)."
             );
         }
     } except Exception {
@@ -2329,7 +2413,7 @@ impl JacAPIServer.module.getter -> object {
     return self.introspector._module;
 }
 
-impl JacAPIServer.get_functions -> dict[str, Callable[(..., Any)]] {
+impl JacAPIServer.get_functions -> dict[str, Callable[(..., any)]] {
     return self.introspector.get_functions();
 }
 
@@ -2383,13 +2467,15 @@ impl JacAPIServer.start(
     self._ensure_sv_siblings();
 
     for (name, walker_cls) in self.introspector._walkers.items() {
-        if walker_cls?.schedule_spec {
-            self.scheduler.register(name, walker_cls, walker_cls.schedule_spec, True);
+        walker_spec = getattr(walker_cls, 'schedule_spec', '');
+        if isinstance(walker_spec, ScheduleSpec) {
+            self.scheduler.register(name, walker_cls, walker_spec, True);
         }
     }
     for (name, func) in self.introspector._functions.items() {
-        if func?.schedule_spec {
-            self.scheduler.register(name, func, func.schedule_spec, False);
+        func_spec = getattr(func, 'schedule_spec', '');
+        if isinstance(func_spec, ScheduleSpec) {
+            self.scheduler.register(name, func, func_spec, False);
         }
     }
     if self.scheduler.has_pending() {
@@ -2410,7 +2496,8 @@ impl JacAPIServer.start(
                     dist_dir = Path(self.base_path) / '.jac' / 'client' / 'dist';
                 }
 
-                bundle_exists = dist_dir.exists() and any(dist_dir.glob('client.*.js'));
+                bundle_exists = dist_dir.exists()
+                    and any(dist_dir.`glob('client.*.js'));
                 if bundle_exists {
                     console.print(
                         "  ✔ Client bundle found (rebuilt on first request if stale)",
@@ -2518,10 +2605,10 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         }
     }
     """Format parameter info.""";
-    def format_param(name: str, info: dict[(str, Any)]) -> str {
+    def format_param(name: str, info: dict[(str, any)]) -> str {
         req = 'required' if info['required'] else 'optional';
         `default = f", default: {info['default']}" if info.get('default') else '';
-        return f"{name}: {info['type']} ({req}{default})";
+        return f"{name}: {info['type']} ({req}{`default})";
     }
     console.print(('\n' + ('=' * 80)));
     console.print(f"JAC API SERVER - {server.module_name}");
@@ -2552,7 +2639,8 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         section('FUNCTIONS', 'Authenticated');
         for (name, func) in functions.items() {
             sig = server.introspector.introspect_callable(func);
-            params = [format_param(n, i) for (n, i) in sig['parameters'].items()];
+            sig_params: dict[str, dict[str, any]] = sig['parameters'];
+            params = [format_param(n, i) for (n, i) in sig_params.items()];
             params_str = ', '.join(params) if params else 'none';
             endpoint('GET', f"/function/{name}", 'Get signature');
             endpoint(
@@ -2567,7 +2655,8 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         section('WALKERS', 'Authenticated');
         for (name, walker_cls) in walkers.items() {
             info = server.introspector.introspect_walker(walker_cls);
-            fields = [format_param(n, i) for (n, i) in info['fields'].items()];
+            info_fields: dict[str, dict[str, any]] = info['fields'];
+            fields = [format_param(n, i) for (n, i) in info_fields.items()];
             fields_str = ', '.join(fields[:3]);
             if (len(fields) > 3) {
                 fields_str += f", ... (+{(len(fields) - 3)} more)";

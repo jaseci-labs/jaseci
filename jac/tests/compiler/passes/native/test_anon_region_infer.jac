@@ -31,7 +31,7 @@ def _compile_mod(fixture: str) -> any {
         prog = JacProgram();
         ir = prog.compile(
             file_path=os.path.join(FIXDIR, fixture),
-            options=CompileOptions(aot_mode=True, type_check=True, na_gc_mode="rc")
+            options=CompileOptions(aot_mode=True, na_gc_mode="rc")
         );
         assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
         return ir;
@@ -46,19 +46,19 @@ def _compile_mod(fixture: str) -> any {
 
 test "unrooted spawn stamps one anonymous-region group" {
     ir = _compile_mod("anon_region_spawn.jac");
-    assert len(ir.gen.anon_region_open) == 1 , ir.gen.anon_region_open;
-    assert len(ir.gen.anon_region_close) == 1 , ir.gen.anon_region_close;
-    assert list(ir.gen.anon_region_locals.values()) == [["a", "b", "c"]] , ir.gen.anon_region_locals;
+    assert len(ir.anon_region_open) == 1 , ir.anon_region_open;
+    assert len(ir.anon_region_close) == 1 , ir.anon_region_close;
+    assert list(ir.anon_region_locals.values()) == [["a", "b", "c"]] , ir.anon_region_locals;
 }
 
 test "root contact declines the inference" {
     ir = _compile_mod("anon_region_rooted.jac");
-    assert not ir.gen.anon_region_open , ir.gen.anon_region_open;
+    assert not ir.anon_region_open , ir.anon_region_open;
 }
 
 test "escaping member declines the inference" {
     ir = _compile_mod("anon_region_escape.jac");
-    assert not ir.gen.anon_region_open , ir.gen.anon_region_open;
+    assert not ir.anon_region_open , ir.anon_region_open;
 }
 
 test "inferred region drops LIFO at close in every gc mode" {

@@ -7,46 +7,39 @@ Jac has first-class syntax for all three method kinds -- `abst`, `class def`,
 
 The native capability authority inspects `nd.decorators`, a list of `Expr`
 nodes. A keyword populates no such list, so the keyword forms cross the
-native boundary while the hand-written decorators are rejected with E5090.
-The compiler's own front-end sources used the decorator spellings in places
-(`passes/transform.jac`, `runtime.jac`, `compiler.jac`); this test pins both
-halves of the contract so that regression is visible.
+native boundary while the hand-written decorators demote their method to a
+Python-only seam (granular demotion, epic #8201) -- the method leaves the
+native layout rather than running undecorated. The compiler's own front-end
+sources used the decorator spellings in places (`passes/transform.jac`,
+`runtime.jac`, `compiler.jac`); this test pins both halves of the contract
+so that regression is visible.
+
+`@abstractmethod` is the one spelling that cannot be written without also
+importing it, and a module-scope Python import has no owning callable to
+absorb it, so that snippet refuses the whole module rather than seaming one
+method. `@classmethod` is a builtin and needs no import, which is where the
+granular half of the decorator contract is pinned.
 
 Tracks the front-end native idiom work in #8039.
 """
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_force_opts
+}
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture natively and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
-}
 
 """Run a snippet through the front-end check schedule with the native
 capability authority on -- the `jac check` path that surfaces E5090."""
@@ -56,23 +49,10 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         file_path=os.path.join(FIXTURES, f"_mkind_{label}.jac"),
         use_str=code,
         options=CompileOptions(
-            type_check=True,
-            no_cgen=True,
-            force_codespace="native",
-            force_target_program=True
+            no_cgen=True, force_codespace="native", force_target_program=True
         )
     );
     return prog;
-}
-
-"""Return True if the program emitted at least one alert with the given code."""
-def has_error_code(prog: JacProgram, code: str) -> bool {
-    for alrt in prog.errors_had {
-        if alrt.code is not None and alrt.code.code == code {
-            return True;
-        }
-    }
-    return False;
 }
 
 """Format errors for assertion messages."""
@@ -120,13 +100,14 @@ test "the keyword fixture compiles with no native diagnostics at all" {
 }
 
 # ─────────────────────────────────────────────────────────────────────
-# The decorator spellings stay rejected -- this is why the sources moved
+# The decorator spellings demote off native -- this is why the sources moved
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: @abstractmethod is rejected where abst is accepted" {
-    dec = check_na_inline(
-        "abstractmethod",
-        "import from abc { abstractmethod }\n"
+test "guardrail: @abstractmethod refuses where abst is accepted" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_abstractmethod.jac"),
+        use_str="import from abc { abstractmethod }\n"
         "obj Base {\n"
         "    @abstractmethod\n"
         "    def go(x: int) -> int;\n"
@@ -134,9 +115,22 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
         "obj Impl(Base) {\n"
         "    def go(x: int) -> int { return x + 1; }\n"
         "}\n"
-        "with entry { print(Impl().go(1)); }\n"
+        "with entry { print(Impl().go(1)); }\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    errs = fmt_errors(prog);
+    assert "decorator 'on go'" in errs , (
+        f"the capability gate must still name the decorator spelling: {errs}"
+    );
+    assert "Python module import 'abc'" in errs , (
+        "the decorator cannot be written without importing it, and a "
+        "module-scope Python import has no owning callable to absorb it as "
+        "a seam. `import abc;` has always refused the whole module here; "
+        f"the `from` spelling is classified on the same terms: {errs}"
+    );
+    assert ir.gen.llvm_ir is None , (
+        "a module-fatal violation must withhold the LLVM IR"
+    );
     kw = check_na_inline(
         "abst",
         "obj Base {\n"
@@ -150,16 +144,24 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
     assert not kw.errors_had , fmt_errors(kw);
 }
 
-test "guardrail: @classmethod is rejected at the capability gate" {
-    dec = check_na_inline(
-        "classmethod",
-        "obj Holder {\n"
+test "guardrail: @classmethod demotes at the capability gate" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_classmethod.jac"),
+        use_str="obj Holder {\n"
         "    @classmethod\n"
         "    def make(cls: any) -> int { return 7; }\n"
-        "}\n"
-        "with entry { print(Holder.make()); }\n"
+        "}\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    assert not has_error_code(prog, "E5090") , (
+        f"a @classmethod method must demote, not fail the module: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Holder.make" not in layout.methods , (
+        "the @classmethod method must be demoted out of the native layout"
+    );
 }
 
 # `class def` sets `is_classmethod` rather than populating `decorators`, so

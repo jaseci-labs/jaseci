@@ -1,7 +1,7 @@
 """Native exponentiation (`**`) parity tests.
 
 Regression coverage for the power-lowering seam in
-`na_ir_gen_pass.impl/math.impl.jac` and the `int ** int` type contract in
+`na_ir_gen/math.impl.jac` and the `int ** int` type contract in
 `compiler/type_system/operations.jac`. Each case compiles a fixture that
 previously lowered to invalid/unsound IR and asserts the JIT result against
 CPython semantics: literal & dynamic exponents, builtin `pow`, `**=`, the
@@ -16,6 +16,7 @@ import from jaclang.jac0core.program { JacProgram }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -61,7 +62,7 @@ def get_func(
 def compile_and_check(fixture_name: str) -> JacProgram {
     program = JacProgram();
     mod = program.compile(os.path.join(CHECKER_FIXTURES, fixture_name));
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 

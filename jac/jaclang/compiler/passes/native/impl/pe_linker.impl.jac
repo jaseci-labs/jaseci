@@ -47,7 +47,7 @@ def _coff_name(raw: bytes, field_off: int, strtab_off: int) -> str {
         end = raw.index(b"\x00", strtab_off + so);
         return raw[strtab_off + so:end].decode();
     }
-    return name8.rstrip(b"\x00").decode("utf-8", "replace");
+    return name8.decode("utf-8", "replace").rstrip("\x00");
 }
 
 
@@ -70,11 +70,11 @@ impl PeLinker.parse_object -> bool {
         off = sec_table_off + i * 40;
         nameb = raw[off:off + 8];
         if nameb[:1] == b"/" {
-            so = int(nameb[1:].rstrip(b"\x00").decode());
+            so = int(nameb[1:].decode().rstrip("\x00"));
             end = raw.index(b"\x00", strtab_off + so);
             name = raw[strtab_off + so:end].decode();
         } else {
-            name = nameb.rstrip(b"\x00").decode("utf-8", "replace");
+            name = nameb.decode("utf-8", "replace").rstrip("\x00");
         }
         (_vsz, _vaddr, rawsz, praw, prel, _plnum, nrel, _nln, chars) = struct.unpack_from(
             "<IIIIIIHHI", raw, off + 8

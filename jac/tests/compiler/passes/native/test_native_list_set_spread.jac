@@ -6,7 +6,7 @@ one cannot be built by appending `values` one for one. Native used to walk
 propagated, but every later element was appended under an `if val is not
 None` with no `else`, so a spread anywhere but the front vanished. The
 container came out short, the program kept running, and nothing was
-written to stderr -- a wrong answer no seam census counting E5092 could
+written to stderr -- a wrong answer no seam coverage counting E5092 could
 see.
 
 So every assertion here reads the container back as a number that encodes
@@ -87,7 +87,7 @@ def _compile -> object {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: object, name: str) -> object {
+def _get(eng: any, name: str) -> object {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -258,11 +258,23 @@ test "a spread that cannot lower refuses loudly instead of dropping" {
             + "    s = {1, *d};\n    return len(s);\n}\n"
     };
     for (label, code) in cases.items() {
-        prog = _compile_inline(label, code);
-        assert _has_code(prog, "E5092") , (
-            f"{label}: a spread native cannot lower must report E5092, not "
-            f"silently build a shorter container (errors: "
-            f"{[str(e) for e in prog.errors_had]})"
+        prog = JacProgram();
+        ir = prog.compile(
+            file_path=os.path.join(FIXTURES, f"_spread_{label}.jac"),
+            use_str=code,
+            options=native_force_opts()
+        );
+        assert not prog.errors_had , (
+            f"{label}: the spread refusal is owned by f(), which must demote "
+            f"to a seam, got: {[str(e) for e in prog.errors_had]}"
+        );
+        assert ir.gen.native_layout is not None , (
+            f"{label}: whole-module native compile aborted"
+        );
+        assert "f" not in ir.gen.native_layout.functions , (
+            f"{label}: a spread native cannot lower must demote its function "
+            f"out of the native layout, never silently build a shorter "
+            f"container"
         );
     }
 }

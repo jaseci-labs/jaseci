@@ -33,7 +33,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Fix a compiler bug | `jac/jaclang/compiler/passes/main/` (Python target) |
 | Add a language feature | `jac/jaclang/jac0core/` (AST) + `compiler/passes/` (all targets) |
 | Fix type checking | `jac/jaclang/compiler/type_system/` + `passes/main/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen_pass.impl/` |
+| Work on native compilation | `jac/jaclang/compiler/passes/native/na_ir_gen/` |
 | Work on JS compilation | `jac/jaclang/compiler/passes/ecmascript/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtimelib/` |
@@ -73,7 +73,7 @@ The most important files to know:
 
 - **`unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
 - **`compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`jir.jac` / `jir_registry.jac`** -- The Jac Intermediate Representation and its node type registry. JIR is the serializable form of compiled modules.
+- **`jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
 - **`diagnostics.jac`** -- Error and warning reporting infrastructure.
 - **`modresolver.jac`** -- Module import and dependency resolution.
 - **`passes/`** -- Front-end passes: parsing (via Lark grammar), AST validation, symbol table construction, and declaration-implementation matching.
@@ -122,15 +122,14 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 2. `EsastGenPass` -- Generate JavaScript AST (for JS target)
 3. `NaIRGenPass` -- Generate LLVM IR (for native target)
 4. `NativeCompilePass` -- JIT-compile LLVM IR to machine code
-5. `PyastGenPass` -- Convert the unitree to a Python AST
-6. `PyJacAstLinkPass` -- Link the generated Python AST back to Jac source nodes
-7. `PyBytecodeGenPass` -- Compile the Python AST to bytecode
+5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container
+6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to bytecode
 
 See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
 ### `compiler/passes/native/` -- Native Compilation
 
-The native backend generates LLVM IR via `llvmlite`. The main pass (`na_ir_gen_pass.jac`) delegates to implementation files in `na_ir_gen_pass.impl/`, each handling a different part of the language:
+The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
 
 | File | What it covers |
 |------|---------------|
@@ -158,7 +157,7 @@ This is what Jac programs depend on at execution time. The key modules:
 
 - **`builtin.jac`** -- Builtin functions and types available in every Jac program.
 - **`memory.jac`** -- Memory management, including the shelved object store for graph persistence.
-- **`server.jac`** -- FastAPI-based HTTP server used by `jac start` to serve walkers as API endpoints.
+- **`server.jac`** -- FastAPI-based HTTP server used by `jac run` to serve walkers as API endpoints.
 - **`context.jac`** -- Execution context -- tracks the current graph root, walker state, and runtime configuration.
 - **`scheduler.jac`** -- Async task scheduling for concurrent walker execution.
 - **`testing.jac`** -- Test runner integration backing `jac test`.
@@ -181,7 +180,7 @@ Features that once shipped as separate plugin packages now live inside `jaclang`
 | Subsystem | What it adds |
 |--------|-------------|
 | `byllm` (`jac/jaclang/byllm/`) | LLM-powered functions -- annotate a function signature with a docstring and byLLM calls an LLM to implement it at runtime. `litellm` and other model deps are optional, pulled per-project via `[byllm]` config + `jac install`. |
-| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac start` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
+| `scale` (`jac/jaclang/scale/`) | Cloud deployment -- wraps `jac run` with FastAPI, adds Kubernetes deployment, Docker builds, MongoDB/Redis storage backends. Its optional deps are pulled per-project via `[scale.*]` config + `jac install`. |
 | client framework (`jac/jaclang/runtimelib/client/`) | Full-stack web, desktop, and mobile -- compiles `.jac` to JavaScript, bundles with Vite, and hosts desktop webview apps. |
 | MCP server (`jac/jaclang/cli/mcp/`) | `jac mcp` -- exposes the live Jac compiler and project to AI coding assistants. See the [MCP reference](../reference/mcp.md). |
 
@@ -206,15 +205,18 @@ tests/
 **Running tests:**
 
 ```bash
-# All tests (parallel)
-pytest jac -n auto
+# All tests (parallel; worker count is sized from available memory)
+jac test jac/tests
 
 # Specific area
-pytest jac/tests/compiler -n auto
-pytest jac/tests/language -n auto
+jac test jac/tests/compiler
+jac test jac/tests/language
 
 # Single test file
-pytest jac/tests/compiler/passes/test_type_checker.py -v
+jac test jac/tests/compiler/test_compilation.jac -v
+
+# Pin the worker count (0 or 1 runs everything in one process)
+JAC_TEST_JOBS=8 jac test jac/tests
 ```
 
 Many language tests use **fixture files** -- small `.jac` programs in `fixtures/` directories that exercise specific features. The `fixtures_list.jac` file registers them. When you add a new language feature or fix a bug, adding a fixture test is usually the right move.
@@ -266,7 +268,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `ci.yml` | All PR/push checks: builds the `jac` binary once, then fans out the full test suite, client/scale jobs, lint + format enforcement, docs validation, contribution checks, and the installer/k8s e2e jobs (path-gated) |
 | `release.yml` | The release lifecycle: version-bump PRs, and on merge the tag + GitHub Release + binary publish (human-approved) |
 | `build-binaries.yml` | Builds the per-platform native `jac` binaries and attaches them to a release |
-| `release-dev.yml` | Rolling `dev` prerelease binaries on every push to main |
+| `release-dev.yml` | Rolling `dev` prerelease binaries, rebuilt nightly from main |
 | `nightly.yml` | Cron canaries: notes-app CEF smoke and the live-release installer check |
 
 Local git hooks come from `jac precommit --install`: a pre-commit hook that formats and lints staged `.jac` files, and a commit-msg hook that blocks AI co-author attribution. Markdown lint and the em-dash ban run on every PR via pre-commit.ci (`.pre-commit-config.yaml`).

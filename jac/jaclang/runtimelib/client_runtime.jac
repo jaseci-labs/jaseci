@@ -132,11 +132,11 @@ glob:pub useState = reactUseState,
      JacSchema = __createJacSchema(z);
 
 def:pub useRouter -> dict;
-def:pub AuthGuard(redirect: str = "/login") -> JsxElement;
+def:pub AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement;
 
-def:pub JacAwaiting(props: dict) -> JsxElement;
+def:pub JacAwaiting(props: dict[str, any]) -> JsxElement;
 def:pub useJacForm(
     form_mode: str = "onTouched", schema: any, onSubmit: any = None
 ) -> any;
 
-def:pub JacForm(props: dict) -> JsxElement;
+def:pub JacForm(props: dict[str, any]) -> JsxElement;

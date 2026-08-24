@@ -111,7 +111,6 @@ enum TokenKind {
     KW_INIT = "init",
     KW_SUPER = "super",
     KW_POST_INIT = "postinit",
-    KW_COMPTIME = "comptime",
     LPAREN = "(",
     RPAREN = ")",
     LBRACE = "{",
@@ -197,7 +196,6 @@ enum TokenKind {
     F_TEXT_TSQ = "F_TEXT_TSQ",
     D_LBRACE = "{{",
     D_RBRACE = "}}",
-    DOLLAR_LBRACE = "${",
     CONV = "CONV",
     JSX_TEXT = "JSX_TEXT",
     JSX_COMMENT = "JSX_COMMENT",
@@ -352,7 +350,6 @@ glob KEYWORDS: dict[str, TokenKind] = {
          "init": TokenKind.KW_INIT,
          "super": TokenKind.KW_SUPER,
          "postinit": TokenKind.KW_POST_INIT,
-         "comptime": TokenKind.KW_COMPTIME,
          "True": TokenKind.BOOL,
          "False": TokenKind.BOOL,
          "None": TokenKind.NULL
@@ -363,4 +360,19 @@ def lookup_keyword(text: str) -> TokenKind | None {
         return KEYWORDS[text];
     }
     return None;
+}
+
+glob SPECIAL_VAR_KINDS: set[TokenKind] = {
+         TokenKind.KW_SELF,
+         TokenKind.KW_SUPER,
+         TokenKind.KW_ROOT,
+         TokenKind.KW_HERE,
+         TokenKind.KW_VISITOR,
+         TokenKind.KW_PROPS,
+         TokenKind.KW_INIT,
+         TokenKind.KW_POST_INIT
+     };
+
+def is_special_var_kind(kind: TokenKind) -> bool {
+    return kind in SPECIAL_VAR_KINDS;
 }

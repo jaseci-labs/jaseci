@@ -12,7 +12,6 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import pytest;
 import from jaclang.runtimelib.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
@@ -28,6 +27,10 @@ import from jaclang.scale.tests.server_support {
     get_free_port,
     _cleanup_db_files,
     _extract_transport_response_data
+}
+
+def _as_any(v: any) -> any {
+    return v;
 }
 
 def register_payload(username: str, password: str) -> dict[str, any] {
@@ -70,10 +73,11 @@ def _start_server(
 ) -> subprocess.Popen {
     cmd = [
         jac_executable(),
-        "start",
-        test_file.name if not extra_args else str(test_file),
+        "run",
+        "--serve",
         "--port",
-        str(port)
+        str(port),
+        test_file.name if not extra_args else str(test_file)
     ];
     if extra_args {
         cmd.extend(extra_args);
@@ -132,10 +136,10 @@ def _stop_server(server_process: subprocess.Popen | None) {
     if server_process {
         server_process.terminate();
         try {
-            server_process.wait(timeout=5);
+            server_process.`wait(timeout=5);
         } except subprocess.TimeoutExpired {
             server_process.kill();
-            server_process.wait();
+            server_process.`wait();
         }
     }
     time.sleep(0.2);
@@ -206,7 +210,9 @@ test "static and schema endpoints" {
         assert "cross-origin-embedder-policy" in response.headers;
         assert response.headers["cross-origin-embedder-policy"] == "require-corp";
 
-        openapi_spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        openapi_spec = srv.server.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;
@@ -1534,13 +1540,14 @@ def setup_dev_mode_server -> subprocess.Popen {
 
     cmd = [
         jac_executable(),
-        "start",
-        str(dm_test_file),
+        "run",
+        "--serve",
         "--port",
         str(dm_vite_port),
-        "--api_port",
+        "--api-port",
         str(dm_api_port),
-        "--dev"
+        "--dev",
+        str(dm_test_file)
     ];
 
     server_process = subprocess.Popen(
@@ -1740,7 +1747,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1768,7 +1775,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1784,10 +1791,11 @@ test "dev mode operations" {
 }
 
 test "dev mode named endpoints and HMR refresh" {
+    greet_walker = '\nwalker:pub Greet {\n    has name: str = "World";\n\n    can greet with Root entry {\n        report {"message": "Hello, " + self.name + "!"};\n    }\n}\n';
     sp = setup_dev_mode_server();
     try {
         response = requests.get(f"{dm_base_url}/openapi.json", timeout=10);
-        assert response.status_code == 200;
+        assert response.status_code == 200 , f"dev mode /openapi.json returned {response.status_code} before any HMR edit: {response.text[:300]!r}";
         paths = response.json().get("paths", {});
 
         assert "/walker/CreateTask" in paths , f"Expected /walker/CreateTask in OpenAPI paths, got: {list(
@@ -1800,7 +1808,6 @@ test "dev mode named endpoints and HMR refresh" {
         assert "/walker/{walker_name}" not in paths , "Generic /walker/{walker_name} should not exist";
         assert "/function/{function_name}" not in paths , "Generic /function/{function_name} should not exist";
 
-        greet_walker = '\nwalker:pub Greet {\n    has name: str = "World";\n\n    can greet with Root entry {\n        report {"message": "Hello, " + self.name + "!"};\n    }\n}\n';
         with open(str(dm_test_file), 'a') as f {
             f.write(greet_walker);
         }
@@ -1811,7 +1818,7 @@ test "dev mode named endpoints and HMR refresh" {
         time.sleep(1);
 
         response = requests.get(f"{dm_base_url}/openapi.json", timeout=10);
-        assert response.status_code == 200;
+        assert response.status_code == 200 , f"dev mode /openapi.json returned {response.status_code} after the HMR edit: {response.text[:300]!r}";
         paths = response.json().get("paths", {});
 
         assert "/walker/Greet" in paths , f"Expected /walker/Greet after HMR, got: {list(
@@ -1821,7 +1828,7 @@ test "dev mode named endpoints and HMR refresh" {
         response = requests.post(
             f"{dm_base_url}/walker/Greet", json={"name": "Jaseci"}, timeout=10
         );
-        assert response.status_code == 200;
+        assert response.status_code == 200 , f"POST /walker/Greet returned {response.status_code} after HMR picked the walker up: {response.text[:300]!r}";
         data = _extract_data_dev(response.json());
         assert data["reports"][0]["message"] == "Hello, Jaseci!";
     } finally {
@@ -1959,7 +1966,14 @@ test "server startup - port fallback integration" {
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
 
-        cmd = [jac_executable(), "start", sv_test_file.name, "--port", str(port1)];
+        cmd = [
+            jac_executable(),
+            "run",
+            "--serve",
+            "--port",
+            str(port1),
+            sv_test_file.name
+        ];
 
         sp2 = subprocess.Popen(
             cmd,
@@ -2005,7 +2019,7 @@ test "server startup - port fallback integration" {
         if sp2 {
             sp2.terminate();
             try {
-                sp2.wait(timeout=5);
+                sp2.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 sp2.kill();
             }
@@ -2163,7 +2177,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "start", "--client", "pwa", "main.jac", "-p", str(port)],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -2191,7 +2214,7 @@ theme_color = "#000000"
         } finally {
             server.terminate();
             try {
-                server.wait(timeout=5);
+                server.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 server.kill();
             }

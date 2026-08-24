@@ -117,6 +117,12 @@ impl __getattr__(name: str) -> object {
             '_jac_region_instrument': 'instrument_drops'
         };
         return getattr(_region_mod, _region_map[name]);
+    } elif name.startswith('wrapping_') or _is_sized_type_name(name) {
+        import jaclang.runtimelib.sized as _sized_mod;
+        if name.startswith('wrapping_') {
+            return getattr(_sized_mod, name);
+        }
+        return _sized_mod.SIZED_TYPES[name];
     }
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}");
 }
@@ -214,11 +220,58 @@ impl managed(x: any) -> any {
     return x;
 }
 
+impl testskip(reason: str = "") -> NoReturn {
+    import from unittest { SkipTest }
+    raise SkipTest(reason or "skipped");
+}
+
+impl testfail(reason: str = "") -> NoReturn {
+    raise AssertionError(reason or "explicit failure");
+}
+
+impl testraises(*excs: type, `match: (str | None) = None) -> RaisesContext {
+    if not excs {
+        raise TypeError("testraises() requires at least one exception type");
+    }
+    for exc in excs {
+        if not (isinstance(exc, type) and issubclass(exc, BaseException)) {
+            raise TypeError(f"testraises() expects exception types, got {exc!r}");
+        }
+    }
+    return RaisesContext(excs=tuple(excs), pattern=`match);
+}
+
+impl RaisesContext.__enter__ -> RaisesContext {
+    return self;
+}
+
+impl RaisesContext.__exit__(exc_type: any, exc: any, tb: any) -> bool {
+    names = ", ".join([e.__name__ for e in self.excs]);
+    if exc_type is None {
+        raise AssertionError(f"DID NOT RAISE {names}");
+    }
+    if not issubclass(exc_type, self.excs) {
+        return False;
+    }
+    self.value = exc;
+    if (self.pattern is not None) and not self.`match(self.pattern) {
+        raise AssertionError(f"pattern {self.pattern!r} does not match {str(exc)!r}");
+    }
+    return True;
+}
+
+impl RaisesContext.`match(regexp: str) -> bool {
+    import re;
+    return re.search(regexp, str(self.value)) is not None;
+}
+
 impl restspec(**specs: any) -> Callable {
     import logging;
     import from jaclang { JacRuntimeInterface as Jac }
     import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
-    SpecsCls = Jac.get_api_server_class().RestSpecs;
+    import type from jaclang.runtimelib.server { JacAPIServer }
+    ServerCls: type[JacAPIServer] = Jac.get_api_server_class();
+    SpecsCls = ServerCls.RestSpecs;
 
     protocol = specs.get('protocol');
     if protocol is not None and not isinstance(protocol, APIProtocol) {
@@ -248,7 +301,7 @@ impl restspec(**specs: any) -> Callable {
     def decorator(cls: type) -> type {
         spec = SpecsCls(**specs);
         _validate_restspec_target(spec, cls);
-        cls.restspec = spec;
+        setattr(cls, "restspec", spec);
         return cls;
     }
     return decorator;
@@ -303,7 +356,7 @@ impl schedule(**kwargs: any) -> Callable {
     }
     spec = ScheduleSpec(trigger=trigger, **kwargs);
     def decorator(target: type) -> type {
-        target.schedule_spec = spec;
+        setattr(target, "schedule_spec", spec);
         return target;
     }
     return decorator;
@@ -355,4 +408,9 @@ impl _jac_chunks(xs: any, n: int) -> list {
         i = j;
     }
     return out;
+}
+
+def _is_sized_type_name(name: str) -> bool {
+    import from jaclang.jac0core.scalars { is_sized }
+    return is_sized(name);
 }

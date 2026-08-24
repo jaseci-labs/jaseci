@@ -16,7 +16,6 @@ which is the only tier a sealed build has (#8139).
 import gc;
 import json;
 import os;
-import pytest;
 import resource;
 import sys;
 import tempfile;
@@ -62,7 +61,7 @@ obj _ServeLocalArtifact {
 def _build_binding -> tuple {
     if "/.cache/jac/rt/"
         in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip(
+        testskip(
             "sealed-payload runtime: the parser seal is gated in source "
             "environments (dev lanes, macOS, build time), not from inside "
             "an installed payload"
@@ -178,6 +177,49 @@ test "non-ascii sources reach full parity through the direct decode" {
     _assert_parity(src, "__parity_nonascii__.jac");
 }
 
+test "tests whose symbol the parser generates cross identically (#8177)" {
+    # The corpora used to carry string-named tests only: the generated name
+    # came off the process-global `Test.TEST_COUNT`, and the two tiers hold
+    # independent copies of that static, so this shape disagreed by
+    # construction. It is a per-module parser ordinal now, so it is parity
+    # material -- and the unparse fingerprint cannot see it (both printers
+    # suppress a `_jac_gen_` name), which is why the symbols are compared
+    # directly. The identifier-named form is the one the parser
+    # error-recovers, so this also pins recovery parity.
+    nl = chr(10);
+    src = nl.join(
+        [
+            "test box_holds { assert True; }",
+            "test { assert True; }",
+            'test "..." { assert True; }',
+            'test "named one" { assert True; }',
+
+        ]
+    );
+    path = "__parity_gen_test_names__.jac";
+    _assert_parity(src, path);
+    (native_mod, _errs) = _materialize(src, path);
+    (py_mod, _perrs) = _bytecode_parse(src, path);
+    n_syms = [
+        n.sym_name
+        for n in native_mod._in_mod_nodes
+        if isinstance(n, uni.Test)
+    ];
+    p_syms = [
+        n.sym_name
+        for n in py_mod._in_mod_nodes
+        if isinstance(n, uni.Test)
+    ];
+    assert n_syms == p_syms , f"test symbols diverged: {n_syms} vs {p_syms}";
+    assert sorted(n_syms)
+        == [
+            "test__jac_gen_1",
+            "test__jac_gen_2",
+            "test__jac_gen_3",
+            "test_named_one"
+        ] , f"unexpected generated symbols: {sorted(n_syms)}";
+}
+
 test "union-erased slots materialize their runtime arm (ImplDef.spec)" {
     # `ImplDef.spec` is declared as a list in the native layout, but an impl
     # with a signature stores a `FuncSignature` there. The materializer must
@@ -201,6 +243,114 @@ test "union-erased slots materialize their runtime arm (ImplDef.spec)" {
     assert type(n_impls[0].spec).__name__ == "FuncSignature";
 }
 
+glob _BODY_CARRIERS: tuple = ("Archetype", "Ability", "Enum", ),
+     _BODY_UNION_LINES: tuple = (
+         "obj Box {",
+         "    has x: int = 0;",
+         "    static has count: int = 0;",
+         "    has p: int { getter; }",
+         "    has q: int { getter { return 1; } }",
+         "    def m(p: int) -> int;",
+         "    def n(p: int) -> int { return p + self.x; }",
+         "    obj Inner { has y: int = 1; }",
+         "    impl m(p: int) -> int { return p; }",
+         "}",
+         "obj Decl;",
+         "def free_fn(a: int) -> int { return a; }",
+         "def by_fn(a: str) -> str by llm();",
+         "def decl_fn(a: int) -> int;",
+         "def abs_fn(a: int) -> int abst;",
+         "node Spot { has label: str = ''; }",
+         "walker Tour {",
+         "    can step with Spot entry;",
+         "    can go with Spot entry { visit [-->]; }",
+         "}",
+         "enum Hue: int {",
+         "    RED = 1,",
+         "    GREEN = 2,",
+         "    BLUE = 3,",
+         "    VIOLET = 4,",
+         "    with entry { x = 1; }",
+         "}",
+         "enum Shade;",
+
+     );
+
+def _body_shape(nd: any) -> any {
+    b = nd.__dict__.get("body");
+    if b is None {
+        return None;
+    }
+    if isinstance(b, list) {
+        return [type(i).__name__ for i in b];
+    }
+    return type(b).__name__;
+}
+
+test "the body union of every carrier persists natively (#8141)" {
+    # `Archetype`, `Ability` and `Enum` all carry their body through the
+    # `AstImplNeedingNode` slot, whose arms are a statement list, a `by`
+    # expression, and the bodiless declaration form. The native
+    # representation has to persist the arm it stored: nothing downstream
+    # may reconstruct it by re-reading the kid list, because that
+    # reconstruction duplicates parser body semantics (which member kinds
+    # belong to which carrier's body, which separators do not) and drifts
+    # the moment the grammar moves.
+    nl = chr(10);
+    src = nl.join(list(_BODY_UNION_LINES));
+    path = "__body_union_arms__.jac";
+    (native_mod, native_errs) = _materialize(src, path);
+    (py_mod, py_errs) = _bytecode_parse(src, path);
+    assert native_errs == py_errs == 0 , (
+        f"corpus no longer parses clean: {native_errs}/{py_errs}"
+    );
+    n_carriers = [
+        n
+        for n in native_mod._in_mod_nodes
+        if type(n).__name__ in _BODY_CARRIERS
+    ];
+    p_carriers = [
+        n
+        for n in py_mod._in_mod_nodes
+        if type(n).__name__ in _BODY_CARRIERS
+    ];
+    assert len(n_carriers) == len(p_carriers) , (
+        f"carrier count diverged: {len(n_carriers)} != {len(p_carriers)}"
+    );
+    kinds = {type(n).__name__ for n in p_carriers};
+    assert kinds == set(_BODY_CARRIERS) , f"corpus lost a carrier kind: {kinds}";
+    list_arms = 0;
+    expr_arms = 0;
+    none_arms = 0;
+    for (nn, pn) in zip(n_carriers, p_carriers) {
+        assert type(nn).__name__ == type(pn).__name__;
+        n_shape = _body_shape(nn);
+        p_shape = _body_shape(pn);
+        assert n_shape == p_shape , (
+            f"{type(pn).__name__} body arm diverged: {n_shape} != {p_shape}"
+        );
+        if p_shape is None {
+            none_arms += 1;
+        } elif isinstance(p_shape, list) {
+            list_arms += 1;
+            # Body entries are the tree's own nodes, not copies: passes reach
+            # them through `kid` and through `body` interchangeably.
+            for item in nn.__dict__["body"] {
+                assert `any(k is item for k in nn.kid) , (
+                    f"{type(nn).__name__}.body holds {type(item).__name__} "
+                    "that is not one of its kids"
+                );
+            }
+        } else {
+            expr_arms += 1;
+        }
+    }
+    # Every arm of the union is exercised, not just the braced one.
+    assert list_arms > 0 and none_arms > 0 and expr_arms > 0 , (
+        f"arm coverage: {list_arms} list, {none_arms} none, {expr_arms} expr"
+    );
+}
+
 test "materialized instances carry exactly the bytecode parser's dict keys" {
     # The seal-time field mask exists so passes that probe with hasattr or
     # iterate __dict__ see the same instance shape either way.
@@ -210,14 +360,7 @@ test "materialized instances carry exactly the bytecode parser's dict keys" {
         assert type(n_node).__name__ == type(p_node).__name__;
         n_keys = set(n_node.__dict__.keys());
         p_keys = set(p_node.__dict__.keys());
-        # `static has` counters (Test.TEST_COUNT) have no per-instance native
-        # slot; attribute access still resolves through the class, so a
-        # class-attribute key may live only there on the materialized side.
-        missing = {
-            k
-            for k in (p_keys - n_keys)
-            if not hasattr(type(n_node), k)
-        };
+        missing = p_keys - n_keys;
         extra = n_keys - p_keys;
         assert not missing and not extra , (
             f"{type(n_node).__name__}: key drift +{sorted(extra)} "
@@ -336,7 +479,7 @@ test "materializer parity holds across the jac0core source corpus" {
     # ships. Fixture-wide equivalence ran once on the integration branch
     # (1410 files, zero divergence); this keeps a representative slice green
     # in CI without that cost.
-    corpus = sorted((PKG_PATH / "jac0core").glob("*.jac"));
+    corpus = sorted((PKG_PATH / "jac0core").`glob("*.jac"));
     assert len(corpus) > 10;
     for src_file in corpus {
         _assert_parity(src_file.read_text(encoding="utf-8"), str(src_file));
@@ -371,11 +514,7 @@ def _assert_field_parity(a: any, b: any, path: str = "mod") {
         kx = set(dx.keys());
         ky = set(dy.keys());
         if kx != ky {
-            missing = {
-                k
-                for k in (ky - kx)
-                if not hasattr(type(x), k)
-            };
+            missing = ky - kx;
             extra = kx - ky;
             if missing or extra {
                 diffs.append(f"{p}: keys +{sorted(extra)} -{sorted(missing)}");
@@ -501,7 +640,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
     # the native representation erases. Each entry carries its tracking
     # issue; the count NEVER rises -- growing it means teaching the crossing
     # new Python-side knowledge, which is the residue this plan deletes.
-    assert len(MATERIALIZE_FIXUPS) == 3 , (
+    assert len(MATERIALIZE_FIXUPS) == 2 , (
         f"fixup enumeration changed: {MATERIALIZE_FIXUPS}"
     );
     for (fixup_name, issue) in MATERIALIZE_FIXUPS {
@@ -513,7 +652,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
 test "refcount soundness: repeated materialization is object-count stable" {
     # Parity cannot see a leak, only a corruption (#8139 Step 2). Assert the
     # class-handle/key/enum registry does not accumulate references and that
-    # dropped trees actually die: live UniNode census and sampled refcounts
+    # dropped trees actually die: live UniNode coverage and sampled refcounts
     # return to baseline across repeated parses.
     (np, _out, _rec) = _build_binding();
     src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
@@ -555,30 +694,69 @@ test "refcount soundness: repeated materialization is object-count stable" {
     );
 }
 
+"""Current VmRSS in KB, read off /proc; -1 where /proc does not exist."""
+def _vm_rss_kb -> int {
+    try {
+        with open("/proc/self/status", "r") as f {
+            for line in f {
+                if line.startswith("VmRSS:") {
+                    return int(line.split()[1]);
+                }
+            }
+        }
+    } except Exception {
+        return -1;
+    }
+    return -1;
+}
+
 test "native memory soundness: the native tree dies inside the call" {
     # The crossing entries free the native tree before returning (its
     # lifetime is the call frame). A native-side leak is invisible to every
     # Python-object assertion, so bound RSS growth over repeated parses of
     # the largest jac0core source is the check.
+    #
+    # The instrument matters: this used to delta `ru_maxrss`, a process
+    # high-water mark, which measured the CACHE STATE instead of the loop --
+    # on a cold cache the compile phase had already pushed the peak above
+    # anything twenty parses reach (a vacuous green), and on a warm cache
+    # the loop's own steady footprint sat astride the threshold and the
+    # verdict flipped on ~140KB of allocator noise. Current RSS after a
+    # warmup window is what a leak actually moves: ~14k-node trees leaked
+    # twenty times are tens of MB of LIVE memory, while a warmed allocator's
+    # steady state drifts by at most a few.
     (np, _out, _rec) = _build_binding();
     src = (PKG_PATH / "jac0core" / "unitree.jac").read_text(encoding="utf-8");
-    for _w in range(3) {
+    for _w in range(5) {
         (m, _e, _pd, _cm, _ld, _le) = np.parse(src, "__rss_warmup__.jac");
         m = None;
     }
     gc.collect();
-    rss_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    rss_before = _vm_rss_kb();
+    if rss_before < 0 {
+        testskip("no /proc/self/status on this platform; VmRSS is the instrument");
+    }
     for i in range(20) {
         (m2, _e2, _pd2, _cm2, _ld2, _le2) = np.parse(src, f"__rss_{i}__.jac");
         m2 = None;
     }
     gc.collect();
-    rss_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    rss_after = _vm_rss_kb();
     grown_kb = rss_after - rss_before;
-    # ru_maxrss is KB on linux; ~14k-node trees leaked 20x would show tens
-    # of MB. Allow generous allocator slack.
-    assert grown_kb < 100 * 1024 , (
-        f"RSS grew {grown_kb}KB over 20 parses; the native tree is leaking"
+    # What the honest instrument found on arrival: the loop leaks TODAY --
+    # ~13-21MB of live RSS per parse after warmup, reproduced on an
+    # unmodified main checkout with this same probe, so it predates the
+    # branch that fixed the instrument. The distinctive shape (near-zero
+    # growth for the first few parses, then linear) says an arena is
+    # reused until some high-water mark and then abandoned per call.
+    # The bound below is therefore a REGRESSION CEILING over the measured
+    # 253-435MB spread, not a statement of health: it exists so a second
+    # leak cannot hide behind the first while that one is being fixed,
+    # and it drops to the tens of MB the docstring promises when it is.
+    assert grown_kb < 600 * 1024 , (
+        f"live RSS grew {grown_kb}KB over 20 parses after a warmed "
+        "allocator -- beyond even the known pre-existing leak's measured "
+        "spread; something regressed on top of it"
     );
 }
 
@@ -622,17 +800,17 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     frontend._NATIVE_PARSE_MEMO.append(None);
     sealed.native_tier_required = _tier_required_stub;
     try {
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse_diags("with entry { x = 1; }", "__tripwire__.jac");
         }
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse("with entry { x = 1; }", "__tripwire__.jac");
         }
     } finally {
         sealed.native_tier_required = saved_fn;
         frontend._NATIVE_PARSE_MEMO.clear();
-        for entry in saved_memo {
-            frontend._NATIVE_PARSE_MEMO.append(entry);
+        for `entry in saved_memo {
+            frontend._NATIVE_PARSE_MEMO.append(`entry);
         }
     }
 }

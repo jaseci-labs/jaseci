@@ -38,7 +38,11 @@ impl AssetProcessor.copy_custom_asset_types(
         }
     }
     config = get_config();
-    assets_config = config.get_plugin_config("client").get("assets", {});
+    assets_config: dict = (
+        config.get_plugin_config("client").get("assets", {})
+            if config is not None
+            else {}
+    );
     custom_asset_extensions = set(assets_config.get("custom_extensions", []));
     if custom_asset_extensions {
         copy_recursive(src_dir, dest_dir);

@@ -159,8 +159,7 @@
             { "title": "Placement", "page": "reference/placement.md" },
             { "title": "Errors & Warnings", "page": "reference/diagnostics.md" },
             { "title": "Code Organization", "page": "reference/code-organization.md" },
-            { "title": "Testing", "page": "reference/testing.md" },
-            { "title": "Jac Ninja Editor", "page": "reference/ninja.md" }
+            { "title": "Testing", "page": "reference/testing.md" }
           ]
         }
       ]
@@ -190,7 +189,8 @@
         { "title": "Import Patterns", "page": "internals/jac_import_patterns.md" },
         { "title": "Compiler Architecture", "page": "internals/compiler_architecture.md" },
         { "title": "Cross-Codespace Interop", "page": "internals/interop.md" },
-        { "title": "Region-Granular Persistence Design", "page": "internals/region-persistence-design.md" }
+        { "title": "Region-Granular Persistence Design", "page": "internals/region-persistence-design.md" },
+        { "title": "Compact Codegen IR", "page": "internals/codegen-ir.md" }
       ]
     },
     { "title": "Ask Jac GPT ✨", "url": "https://jac-gpt.jaseci.org" }

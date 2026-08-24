@@ -9,7 +9,6 @@ in default CI.
 
 import os;
 import from pathlib { Path }
-import pytest;
 
 # Client target modules ship with core under jaclang/runtimelib/client/.
 glob _client_dir = (
@@ -69,7 +68,7 @@ test "target factory resolves react-native by canonical name" {
     target = factory.create("react-native", Path.cwd());
     assert target.name == "react-native";
     assert target.requires_setup == True;
-    assert target.default == False;
+    assert target.`default == False;
     assert target.config_section == "react_native";
     # The documented target surface (D11): lifecycle methods present; RN
     # computes artifact paths per platform, so the static output_dir field
@@ -252,7 +251,8 @@ test "ViteCompiler wires jac_client_compiler on init" {
         "targets can reach the bundler-agnostic compile layer."
     );
     # Both compilers must share one compiled dir (the engine owns it).
-    assert "self.compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "compiled_dir = self.jac_client_compiler.compiled_dir" in impl_content;
+    assert "self.compiled_dir = compiled_dir" in impl_content;
 }
 
 test "react native target addresses the entry by project-relative module path" {
@@ -420,8 +420,8 @@ def _nested_entry_project(proj: Path) -> tuple[any, Path] {
         'def:pub format_date(d: str) -> str {\n    return "on " + d;\n}\n'
     );
     (proj / "apps" / "mobile").mkdir(parents=True, exist_ok=True);
-    entry = proj / "apps" / "mobile" / "main.jac";
-    entry.write_text(
+    `entry = proj / "apps" / "mobile" / "main.jac";
+    `entry.write_text(
         'import from ...shared.utils { format_date }\n\n'
         'def:pub app() -> any {\n'
         '    return <div>{format_date("fri")}</div>;\n'
@@ -431,7 +431,7 @@ def _nested_entry_project(proj: Path) -> tuple[any, Path] {
     compiler = builder._get_compiler().jac_client_compiler;
     compiler.compiled_dir = proj / "out";
     compiler.project_dir = proj;
-    return (compiler, entry);
+    return (compiler, `entry);
 }
 
 test "nested client entry stages deps at project-relative paths, not flat" {
@@ -439,10 +439,10 @@ test "nested client entry stages deps at project-relative paths, not flat" {
 
     with tempfile.TemporaryDirectory() as tmp {
         proj = Path(str(tmp)).resolve();
-        (compiler, entry) = _nested_entry_project(proj);
-        (_, mod, _) = compiler.jac_compiler.compile_module(entry);
+        (compiler, `entry) = _nested_entry_project(proj);
+        (_, mod, _) = compiler.jac_compiler.compile_module(`entry);
         assert mod is not None;
-        compiler.compile(mod, entry, target_name="web");
+        compiler.compile(mod, `entry, target_name="web");
         out = proj / "out";
         assert (out / "apps" / "mobile" / "main.js").exists() , (
             "nested entry must compile to its project-relative path"
@@ -472,8 +472,8 @@ test "entry outside the project dir stages relative to its own folder" {
         (app / "src" / "header.jac").write_text(
             'def:pub Header() -> any {\n    return <div>hi</div>;\n}\n'
         );
-        entry = app / "main.jac";
-        entry.write_text(
+        `entry = app / "main.jac";
+        `entry.write_text(
             'import from .src.header { Header }\n\n'
             'def:pub app() -> any {\n    return <div><Header/></div>;\n}\n'
         );
@@ -482,9 +482,9 @@ test "entry outside the project dir stages relative to its own folder" {
         compiler.compiled_dir = proj / "out";
         # project_dir deliberately does not contain the entry.
         compiler.project_dir = proj / "unrelated";
-        (_, mod, _) = compiler.jac_compiler.compile_module(entry);
+        (_, mod, _) = compiler.jac_compiler.compile_module(`entry);
         assert mod is not None;
-        compiler.compile(mod, entry, target_name="web");
+        compiler.compile(mod, `entry, target_name="web");
         out = proj / "out";
         assert (out / "main.js").exists() , (
             "entry must still stage relative to its own folder"
@@ -704,7 +704,7 @@ test "stage_native_image_assets rewrites relative img src to Metro token map" {
         assert "__jac_rn_asset__:" in rewritten;
         assert "require('./jac-assets/" in registry;
         assert (rn_dir / "jac-assets").exists();
-        staged_assets = list((rn_dir / "jac-assets").glob("*"));
+        staged_assets = list((rn_dir / "jac-assets").`glob("*"));
         assert len(staged_assets) == 1;
     }
 }
@@ -758,7 +758,7 @@ test "stage_native_image_assets leaves canonical compiled dir unchanged" {
 
 
 test "dev helpers exist and are importable" {
-    # The dev module is the entry point for `jac start --client react-native
+    # The dev module is the entry point for `jac run --client react-native
     # --dev`. Importing it must succeed and expose the helper surface the
     # target impl depends on; the impl uses each by name, so a missing
     # export would be a build-time failure for users.
@@ -846,7 +846,7 @@ test "resolve_rn_port_or_next_available skips reserved ports" {
         return;
     }
     s.bind(("127.0.0.1", 0));
-    base_port = s.getsockname()[1];
+    base_port: int = s.getsockname()[1];
     s.close();
 
     chosen = resolve_port_or_next_available(
@@ -872,7 +872,7 @@ test "build_expo_start_argv emits expected metro flags" {
 
     with tempfile.TemporaryDirectory() as tmp {
         rn_dir = Path(tmp);
-        entry = _stub_node_tool(rn_dir, "expo", "expo");
+        `entry = _stub_node_tool(rn_dir, "expo", "expo");
         with unittest.mock.patch(
             "jaclang.runtimelib.client.targets.node_tooling_common.get_bun",
             side_effect=_fake_get_bun
@@ -882,7 +882,7 @@ test "build_expo_start_argv emits expected metro flags" {
         }
         # Expo's own JS entry is the argument bun runs; `bun x expo` would
         # dispatch on the `.bin` shim's node shebang instead.
-        assert argv[:2] == ["/opt/jac/_bun/bun", str(entry.resolve())];
+        assert argv[:2] == ["/opt/jac/_bun/bun", str(`entry.resolve())];
     }
     assert "start" in argv;
     assert "--port" in argv;
@@ -898,7 +898,7 @@ test "inject_dev_api_base_url rewrites app.json and roundtrips" {
     # Verifies the round-trip invariant: inject returns the original raw
     # bytes; restore puts them back verbatim. This is what guarantees the
     # user's pre-dev app.json (often hand-edited extra fields) survives a
-    # `jac start --dev` session unscathed.
+    # `jac run --dev` session unscathed.
     import json;
     import tempfile;
     import from jaclang.runtimelib.client.targets.react_native.dev {
@@ -1073,13 +1073,13 @@ plus the `node_modules/.bin` symlink, which is what carries the
 def _stub_node_tool(project_dir: Path, package: str, tool: str) -> Path {
     bin_dir = project_dir / "node_modules" / package / "bin";
     bin_dir.mkdir(parents=True, exist_ok=True);
-    entry = bin_dir / f"{tool}.js";
-    entry.write_text("#!/usr/bin/env node\n");
-    entry.chmod(0o755);
+    `entry = bin_dir / f"{tool}.js";
+    `entry.write_text("#!/usr/bin/env node\n");
+    `entry.chmod(0o755);
     shim_dir = project_dir / "node_modules" / ".bin";
     shim_dir.mkdir(parents=True, exist_ok=True);
-    (shim_dir / tool).symlink_to(entry);
-    return entry;
+    (shim_dir / tool).symlink_to(`entry);
+    return `entry;
 }
 
 test "node tooling runs installs and tools on the bundled bun only" {
@@ -1108,7 +1108,7 @@ test "node tooling runs installs and tools on the bundled bun only" {
 
     with tempfile.TemporaryDirectory() as tmp {
         project_dir = Path(tmp);
-        entry = _stub_node_tool(project_dir, "expo", "expo");
+        `entry = _stub_node_tool(project_dir, "expo", "expo");
         with unittest.mock.patch("subprocess.run", side_effect=_fake_run) {
             with unittest.mock.patch(
                 "jaclang.runtimelib.client.targets.node_tooling_common.get_bun",
@@ -1120,7 +1120,7 @@ test "node tooling runs installs and tools on the bundled bun only" {
         }
         # The tool's own JS entry is named, never the `.bin` shim and never
         # `bun x`: both of those dispatch on the node shebang.
-        assert runner == ["/opt/jac/_bun/bun", str(entry.resolve())];
+        assert runner == ["/opt/jac/_bun/bun", str(`entry.resolve())];
     }
     # No system tooling is ever probed or used -- bundled bun only.
     assert ["/opt/jac/_bun/bun", "install"] in calls;
@@ -1253,14 +1253,14 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
     }
 
     if os.environ.get("JAC_PHASE3_DUAL_TARGET_GATE", "0") != "1" {
-        pytest.skip(
+        testskip(
             "Set JAC_PHASE3_DUAL_TARGET_GATE=1 to run emulator-grade dual-target gate."
         );
     }
 
     fixture_src = Path(__file__).parent / "fixtures" / "react_native_multiscreen";
     if not fixture_src.exists() {
-        pytest.skip("react_native_multiscreen fixture not found");
+        testskip("react_native_multiscreen fixture not found");
     }
 
     with tempfile.TemporaryDirectory() as tmp {
@@ -1395,7 +1395,7 @@ test "compiler resolves .native.jac when target is react-native" {
         entry_file = project_dir / "main.jac";
         # Compile with target_name="react-native".
         import from jaclang.jac0core.runtime { JacRuntime as Jac }
-        builder = Jac.get_client_bundle_builder();
+        builder: any = Jac.get_client_bundle_builder();
         vite_compiler = builder._get_compiler();
         jac_compiler = vite_compiler.jac_client_compiler;
         compiled_dir = jac_compiler.compiled_dir;
@@ -1733,7 +1733,7 @@ test "e2e: react-native android build produces APK" {
     }
 
     if os.environ.get("JAC_RN_E2E", "0") != "1" {
-        pytest.skip(
+        testskip(
             "Set JAC_RN_E2E=1 to run the full React Native Android build "
             "(requires Android SDK + JDK)."
         );
@@ -1741,7 +1741,7 @@ test "e2e: react-native android build produces APK" {
 
     fixture_src = Path(__file__).parent / "fixtures" / "react_native_multiscreen";
     if not fixture_src.exists() {
-        pytest.skip("react_native_multiscreen fixture not found");
+        testskip("react_native_multiscreen fixture not found");
     }
 
     with tempfile.TemporaryDirectory() as tmp {
@@ -1781,7 +1781,7 @@ test "e2e: react-native android build produces APK" {
             / "apk"
             / "debug";
         assert apk_outputs.exists() , (f"Expected Gradle output dir at {apk_outputs}");
-        apks = list(apk_outputs.glob("*.apk"));
+        apks = list(apk_outputs.`glob("*.apk"));
         assert len(apks) > 0 , (
             "Gradle assembleDebug succeeded but no APK found under "
             f"{apk_outputs}. Full stdout:\n{result.stdout}"

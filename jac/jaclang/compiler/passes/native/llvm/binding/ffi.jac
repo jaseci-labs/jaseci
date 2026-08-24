@@ -1,10 +1,7 @@
 import sys;
 import os;
 import ctypes;
-import from jaclang.compiler.passes.native.llvm.binding.common {
-    _decode_string,
-    _is_shutting_down
-}
+import from jaclang.compiler.passes.native.llvm.binding.common { _is_shutting_down }
 
 
 def _shim_name -> str {
@@ -20,9 +17,9 @@ def _shim_name -> str {
 
 def _find_shim -> str {
     import from jaclang.jac0core.compile_options { env_llvm_shim_override }
-    override = env_llvm_shim_override();
-    if override and os.path.isfile(override) {
-        return override;
+    `override = env_llvm_shim_override();
+    if `override and os.path.isfile(`override) {
+        return `override;
     }
     shim = _shim_name();
 
@@ -49,14 +46,36 @@ def _find_shim -> str {
 }
 
 
-class _LazyLib {
-    def init(self: _LazyLib) {
-        self._handle = None;
+class _MissingShimFunc {
+    """Stands in for a shim function when no shim exists.
+
+    Binding modules configure argtypes/restype at import time; without a
+    shim those assignments land here and vanish, so the modules stay
+    importable (the checker resolving an import must not demand LLVM).
+    Only an actual call raises, with the original locate error."""
+
+    def init(self: _MissingShimFunc, err: OSError) {
+        self._err: OSError = err;
     }
 
-    def __getattr__(self: _LazyLib, name: str) -> Any {
+    def __call__(self: _MissingShimFunc, *args: any, **kwargs: any) -> any {
+        raise self._err;
+    }
+}
+
+
+class _LazyLib {
+    def init(self: _LazyLib) {
+        self._handle: (ctypes.CDLL | None) = None;
+    }
+
+    def __getattr__(self: _LazyLib, name: str) -> any {
         if self._handle is None {
-            self._handle = ctypes.CDLL(_find_shim());
+            try {
+                self._handle = ctypes.CDLL(_find_shim());
+            } except OSError as e {
+                return _MissingShimFunc(e);
+            }
         }
         return getattr(self._handle, name);
     }
@@ -66,7 +85,7 @@ class _LazyLib {
 glob lib = _LazyLib();
 
 
-def _opaque(name: str) -> Any {
+def _opaque(name: str) -> any {
     return ctypes.POINTER(`type(name, (ctypes.Structure, ), {}));
 }
 
@@ -109,11 +128,11 @@ class _DeadPointer {}
 
 class OutputString {
     @classmethod
-    def from_return(cls: Any, ptr: Any) -> Any {
+    def from_return(cls: any, ptr: any) -> any {
         return cls(initval=ctypes.cast(ptr, ctypes.c_char_p));
     }
 
-    def init(self: OutputString, owned: bool = True, initval: Any = None) {
+    def init(self: OutputString, owned: bool = True, initval: any = None) {
         self._ptr = initval if initval is not None else ctypes.c_char_p(None);
         self._as_parameter_ = ctypes.byref(self._ptr);
         self._owned = owned;
@@ -129,11 +148,11 @@ class OutputString {
         }
     }
 
-    def __enter__(self: OutputString) -> Any {
+    def __enter__(self: OutputString) -> any {
         return self;
     }
 
-    def __exit__(self: OutputString, exc_type: Any, exc_val: Any, exc_tb: Any) {
+    def __exit__(self: OutputString, exc_type: any, exc_val: any, exc_tb: any) {
         self.close();
     }
 
@@ -153,14 +172,14 @@ class OutputString {
         }
         s = self._ptr.value;
         assert s is not None;
-        return _decode_string(s);
+        return bytes(s).decode('utf-8');
     }
 
     def __bool__(self: OutputString) -> bool {
         return bool(self._ptr);
     }
 
-    has bytes: Any {
+    has bytes: any {
         getter {
             return self._ptr.value;
         }
@@ -168,7 +187,7 @@ class OutputString {
 }
 
 
-def ret_string(ptr: Any) -> Any {
+def ret_string(ptr: any) -> any {
     if ptr is not None {
         return str(OutputString.from_return(ptr));
     }
@@ -176,7 +195,7 @@ def ret_string(ptr: Any) -> Any {
 }
 
 
-def ret_bytes(ptr: Any) -> Any {
+def ret_bytes(ptr: any) -> any {
     if ptr is not None {
         return OutputString.from_return(ptr).bytes;
     }
@@ -185,7 +204,7 @@ def ret_bytes(ptr: Any) -> Any {
 
 
 class ObjectRef {
-    def init(self: ObjectRef, ptr: Any) {
+    def init(self: ObjectRef, ptr: any) {
         if ptr is None {
             raise ValueError("NULL pointer");
         }
@@ -224,14 +243,14 @@ class ObjectRef {
         }
     }
 
-    def __enter__(self: ObjectRef) -> Any {
+    def __enter__(self: ObjectRef) -> any {
         if self._closed {
             raise RuntimeError(f"{self.__class__} instance already closed");
         }
         return self;
     }
 
-    def __exit__(self: ObjectRef, exc_type: Any, exc_val: Any, exc_tb: Any) {
+    def __exit__(self: ObjectRef, exc_type: any, exc_val: any, exc_tb: any) {
         self.close();
     }
 
@@ -249,7 +268,7 @@ class ObjectRef {
         return bool(self._ptr);
     }
 
-    def __eq__(self: ObjectRef, other: Any) -> bool {
+    def __eq__(self: ObjectRef, other: any) -> bool {
         if not hasattr(other, "_ptr") {
             return False;
         }

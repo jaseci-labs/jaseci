@@ -18,7 +18,7 @@ import from jaclang.compiler.passes.native.llvm.binding.context { get_global_con
 """
     Create Module from a LLVM IR string
     """
-def parse_assembly(llvmir: Any, context: Any = None) -> object {
+def parse_assembly(llvmir: any, context: any = None) -> ModuleRef {
     if (context is None) {
         context = get_global_context();
     }
@@ -37,7 +37,7 @@ def parse_assembly(llvmir: Any, context: Any = None) -> object {
 """
     Create Module from a LLVM *bitcode* (a bytes object).
     """
-def parse_bitcode(bitcode: Any, context: Any = None) -> object {
+def parse_bitcode(bitcode: any, context: any = None) -> object {
     if (context is None) {
         context = get_global_context();
     }
@@ -59,7 +59,7 @@ def parse_bitcode(bitcode: Any, context: Any = None) -> object {
     A reference to a LLVM module.
     """
 class ModuleRef(ffi.ObjectRef) {
-    def init(self: ModuleRef, module_ptr: Any, context: Any) -> object {
+    def init(self: ModuleRef, module_ptr: any, context: any) -> object {
         super.init(module_ptr);
         self._context = context;
     }
@@ -97,7 +97,7 @@ class ModuleRef(ffi.ObjectRef) {
         Get a ValueRef pointing to the function named *name*.
         NameError is raised if the symbol isn't found.
         """
-    def get_function(self: ModuleRef, name: Any) -> object {
+    def get_function(self: ModuleRef, name: any) -> object {
         p = ffi.lib.LLVMPY_GetNamedFunction(self, _encode_string(name));
         if not p {
             raise NameError(name);
@@ -109,7 +109,7 @@ class ModuleRef(ffi.ObjectRef) {
         Get a ValueRef pointing to the global variable named *name*.
         NameError is raised if the symbol isn't found.
         """
-    def get_global_variable(self: ModuleRef, name: Any) -> object {
+    def get_global_variable(self: ModuleRef, name: any) -> object {
         p = ffi.lib.LLVMPY_GetNamedGlobalVariable(self, _encode_string(name));
         if not p {
             raise NameError(name);
@@ -137,7 +137,7 @@ class ModuleRef(ffi.ObjectRef) {
     }
 
     @name.setter
-    def name(self: ModuleRef, value: Any) -> object {
+    def name(self: ModuleRef, value: any) -> object {
         ffi.lib.LLVMPY_SetModuleName(self, _encode_string(value));
     }
 
@@ -161,7 +161,7 @@ class ModuleRef(ffi.ObjectRef) {
     }
 
     @data_layout.setter
-    def data_layout(self: ModuleRef, strrep: Any) -> object {
+    def data_layout(self: ModuleRef, strrep: any) -> object {
         ffi.lib.LLVMPY_SetDataLayout(self, create_string_buffer(strrep.encode('utf8')));
     }
 
@@ -177,7 +177,7 @@ class ModuleRef(ffi.ObjectRef) {
     }
 
     @triple.setter
-    def triple(self: ModuleRef, strrep: Any) -> object {
+    def triple(self: ModuleRef, strrep: any) -> object {
         ffi.lib.LLVMPY_SetTarget(self, create_string_buffer(strrep.encode('utf8')));
     }
 
@@ -185,7 +185,7 @@ class ModuleRef(ffi.ObjectRef) {
         Link the *other* module into this one.  The *other* module will
         be destroyed unless *preserve* is true.
         """
-    def link_in(self: ModuleRef, other: Any, preserve: Any = False) -> object {
+    def link_in(self: ModuleRef, other: any, preserve: any = False) -> object {
         if preserve {
             other = other.clone();
         }
@@ -226,11 +226,13 @@ class _Iterator(ffi.ObjectRef) {
         kind = None;
     }
 
-    def init(self: _Iterator, ptr: Any, parents: Any) -> object {
+    def init(self: _Iterator, ptr: any, parents: any) -> object {
         ffi.ObjectRef.init(self, ptr);
         self._parents = parents;
         assert (self.kind is not None);
     }
+
+    def _next(self: _Iterator) -> object abst;
 
     def __next__(self: _Iterator) -> object {
         vp = self._next();

@@ -1,7 +1,6 @@
 import os;
 import from enum { StrEnum }
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.runtimelib.dbcatalog { DbRecord, MAINTENANCE_DB }
@@ -51,7 +50,7 @@ def _project_database -> str {
     base = str(Path.cwd());
     jacs = sorted(
         p
-        for p in Path.cwd().glob("*.jac")
+        for p in Path.cwd().`glob("*.jac")
         if p.is_file()
     );
     target = str(jacs[0]) if len(jacs) == 1 else None;
@@ -59,7 +58,7 @@ def _project_database -> str {
 }
 
 
-def _runtime_for(data_dir: str, tcp: bool = False, port: int = 5432) -> Any {
+def _runtime_for(data_dir: str, tcp: bool = False, port: int = 5432) -> any {
     import from jaclang.runtimelib.pgembed { PgRuntime }
     return PgRuntime(
         data_dir=data_dir,
@@ -71,13 +70,13 @@ def _runtime_for(data_dir: str, tcp: bool = False, port: int = 5432) -> Any {
 }
 
 
-def _catalog_runtime(data_dir: str) -> Any {
+def _catalog_runtime(data_dir: str) -> any {
     import from jaclang.runtimelib.pgembed { PgRuntime }
     return PgRuntime(data_dir=data_dir, database=MAINTENANCE_DB);
 }
 
 
-def _open_store(rt: Any) -> Any {
+def _open_store(rt: any) -> any {
     import from jaclang.runtimelib.store { PgStore }
     store = PgStore(conninfo=rt.ensure());
     store.ensure_schema_once({});
@@ -223,7 +222,7 @@ def _db_list(data_dir: str) -> int {
 }
 
 
-def _prune_candidates(rt: Any, records: list, empty: bool) -> list[PruneCandidate] {
+def _prune_candidates(rt: any, records: list, empty: bool) -> list[PruneCandidate] {
     import from jaclang.runtimelib.dbcatalog { holds_no_data }
     info = rt.conninfo();
     out: list[PruneCandidate] = [];
@@ -268,7 +267,7 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
         list_databases
     }
     rt = _catalog_runtime(data_dir);
-    conn: Any = connect_admin(rt.ensure());
+    conn: any = connect_admin(rt.ensure());
     try {
         records = list_databases(conn);
         candidates = _prune_candidates(rt, records, empty);

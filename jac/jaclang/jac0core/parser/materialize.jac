@@ -8,7 +8,6 @@ import jaclang.jac0core.srcloc as _mat_srcloc;
 import jaclang.jac0core.unitree as uni;
 
 glob MATERIALIZE_FIXUPS: tuple = (
-         ("body-union-reconstruction", 8141),
          ("symbol-stub-replay", 8142),
          ("name-spec-rebinding", 8143),
 
@@ -24,11 +23,6 @@ glob MATERIALIZE_FIXUPS: tuple = (
      };
 
 def materialize_fixups(module: any) {
-    body_elem: dict[str, tuple] = {
-        "Archetype": (uni.ArchBlockStmt, uni.CodeBlockStmt, ),
-        "Ability": (uni.CodeBlockStmt, ),
-        "Enum": (uni.EnumBlockStmt, uni.CtIf, uni.CtFor, )
-    };
     stack: list = [module];
     visited: set = set();
     nodes: list = [];
@@ -46,33 +40,6 @@ def materialize_fixups(module: any) {
         }
     }
     for nd in nodes {
-        elem = body_elem.get(type(nd).__name__);
-        if elem is not None and nd.__dict__.get("body") is None {
-            lb = -1;
-            for (ki, k) in enumerate(nd.kid) {
-                if getattr(k, "name", "") == "LBRACE" {
-                    lb = ki;
-                    break;
-                }
-            }
-            if lb >= 0 {
-                nd.body = [
-                    k
-                    for k in nd.kid[lb + 1:]
-                    if isinstance(k, elem)
-                ];
-            } elif type(nd).__name__ == "Ability" {
-                for k in nd.kid {
-                    if isinstance(k, uni.Expr)
-                        and (k?.kid or [])
-                        and getattr(k.kid[0], "name", "") == "KW_BY" {
-                        nd.body = k;
-                        break;
-                    }
-                }
-            }
-        }
-
         if isinstance(nd, uni.Name) {
             if nd.__dict__.get("name_spec") is not nd {
                 nd.name_spec = nd;
@@ -175,17 +142,24 @@ obj NativeParser {
         _parse_types: list = [],
         _diags: any = None,
         _diags_types: list = [],
+        _merge: any = None,
+        _merge_types: list = [],
+        _prefix: any = None,
+        _prefix_types: list = [],
+        _annex_reset: any = None,
+        _annex_push: any = None,
+        _annex_push_types: list = [],
         _pydec: any = None,
         _keep: list = [];
 
-    def _call(fn: any, param_types: list, src: str, path: str) -> any {
-        c_args = _native_str_args(self._str_new, param_types, (src, path, ));
+    def _call(fn: any, param_types: list, args: tuple) -> any {
+        c_args = _native_str_args(self._str_new, param_types, args);
         h = fn(*c_args);
         if not h {
             raise _bind_error(
                 self.lib_path,
-                f"the crossing entry returned NULL on {path}; the artifact "
-                "and this runtime disagree"
+                f"the crossing entry returned NULL on {args[-1]}; the "
+                "artifact and this runtime disagree"
             );
         }
         out = ctypes.cast(h, ctypes.py_object).value;
@@ -194,14 +168,56 @@ obj NativeParser {
     }
 
     def parse(src: str, path: str) -> tuple {
-        r = self._call(self._parse, self._parse_types, src, path);
+        r = self._call(self._parse, self._parse_types, (src, path, ));
         materialize_fixups(r[0]);
         return (r[0], r[1], r[2], r[3], r[4], r[5], );
     }
 
     def parse_diags(src: str, path: str) -> tuple {
-        r = self._call(self._diags, self._diags_types, src, path);
+        r = self._call(self._diags, self._diags_types, (src, path, ));
         return (r[0], r[1], r[2], r[3], );
+    }
+
+    def merge_probe(src: str, path: str, annex_src: str, annex_path: str) -> tuple {
+        r = self._call(
+            self._merge, self._merge_types, (src, path, annex_src, annex_path, )
+        );
+        materialize_fixups(r[0]);
+        return (r[0], r[1], r[2], );
+    }
+
+    def serves_prefix -> bool {
+        return self._prefix is not None;
+    }
+
+    def serves_annex -> bool {
+        return self._annex_push is not None;
+    }
+
+    def annex_reset {
+        self._annex_reset();
+    }
+
+    def annex_push(src: str, path: str) -> tuple {
+        r = self._call(self._annex_push, self._annex_push_types, (src, path, ));
+        return (r[0], r[1], r[2], r[3], );
+    }
+
+    def parse_and_run_prefix(
+        src: str,
+        path: str,
+        claimed_n: int,
+        project_root: str,
+        has_project_root: int,
+        access_enforced: int
+    ) -> tuple {
+        r = self._call(
+            self._prefix,
+            self._prefix_types,
+            (src, path, claimed_n, project_root, has_project_root, access_enforced, )
+        );
+        materialize_fixups(r[0]);
+        return (r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], );
     }
 }
 
@@ -227,7 +243,7 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
     );
 
     entries: dict = {};
-    for entry_name in ("mat_parse", "mat_parse_diags") {
+    for entry_name in ("mat_parse", "mat_parse_diags", "mat_merge_probe") {
         fl = layout.functions.get(entry_name);
         if fl is None {
             raise _bind_error(lib_path, f"layout exports no {entry_name}");
@@ -241,6 +257,53 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
             list(fl.param_types),
 
         );
+    }
+    prefix_fn: any = None;
+    prefix_types: list = [];
+    prefix_fl = layout.functions.get("mat_parse_and_run_prefix");
+    if prefix_fl is not None {
+        prefix_addr = eng.get_function_address("mat_parse_and_run_prefix");
+        if not prefix_addr {
+            raise _bind_error(
+                lib_path,
+                "the layout exports mat_parse_and_run_prefix but the "
+                "artifact does not link it"
+            );
+        }
+        prefix_fn = ctypes.PYFUNCTYPE(
+            ctypes.c_uint64, *_entry_argtypes(prefix_fl.param_types)
+        )(
+            prefix_addr
+        );
+        prefix_types = list(prefix_fl.param_types);
+    }
+
+    annex_reset_fn: any = None;
+    annex_push_fn: any = None;
+    annex_push_types: list = [];
+    a_reset_fl = layout.functions.get("mat_annex_reset");
+    a_push_fl = layout.functions.get("mat_annex_push");
+    if a_reset_fl is not None and a_push_fl is not None {
+        a_reset_addr = eng.get_function_address("mat_annex_reset");
+        a_push_addr = eng.get_function_address("mat_annex_push");
+        if not a_reset_addr or not a_push_addr {
+            raise _bind_error(
+                lib_path,
+                "the layout exports the annex crossing but the artifact "
+                "does not link it"
+            );
+        }
+        annex_reset_fn = ctypes.PYFUNCTYPE(
+            ctypes.c_uint64, *_entry_argtypes(a_reset_fl.param_types)
+        )(
+            a_reset_addr
+        );
+        annex_push_fn = ctypes.PYFUNCTYPE(
+            ctypes.c_uint64, *_entry_argtypes(a_push_fl.param_types)
+        )(
+            a_push_addr
+        );
+        annex_push_types = list(a_push_fl.param_types);
     }
 
     cdll = eng._cdll;
@@ -315,6 +378,7 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
 
     (parse_fn, parse_types) = entries["mat_parse"];
     (diags_fn, diags_types) = entries["mat_parse_diags"];
+    (merge_fn, merge_types) = entries["mat_merge_probe"];
     return NativeParser(
         lib_path=lib_path,
         _engine=eng,
@@ -323,6 +387,13 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
         _parse_types=parse_types,
         _diags=diags_fn,
         _diags_types=diags_types,
+        _merge=merge_fn,
+        _merge_types=merge_types,
+        _prefix=prefix_fn,
+        _prefix_types=prefix_types,
+        _annex_reset=annex_reset_fn,
+        _annex_push=annex_push_fn,
+        _annex_push_types=annex_push_types,
         _pydec=pydec,
         _keep=keep
     );

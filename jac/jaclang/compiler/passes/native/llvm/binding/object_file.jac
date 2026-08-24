@@ -9,7 +9,7 @@ class SectionIteratorRef(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_IsSectionText(self);
     }
 
-    def size(self: SectionIteratorRef) -> object {
+    def size(self: SectionIteratorRef) -> int {
         return ffi.lib.LLVMPY_GetSectionSize(self);
     }
 
@@ -21,7 +21,7 @@ class SectionIteratorRef(ffi.ObjectRef) {
         return string_at(ffi.lib.LLVMPY_GetSectionContents(self), self.size());
     }
 
-    def is_end(self: SectionIteratorRef, object_file: Any) -> object {
+    def is_end(self: SectionIteratorRef, object_file: any) -> object {
         return ffi.lib.LLVMPY_IsSectionIteratorAtEnd(object_file, self);
     }
 
@@ -36,12 +36,12 @@ class SectionIteratorRef(ffi.ObjectRef) {
 
 class ObjectFileRef(ffi.ObjectRef) {
     @classmethod
-    def from_data(cls: Any, data: Any) -> object {
+    def from_data(cls: any, data: any) -> object {
         return cls(ffi.lib.LLVMPY_CreateObjectFile(data, len(data)));
     }
 
     @classmethod
-    def from_path(cls: Any, path: Any) -> object {
+    def from_path(cls: any, path: any) -> object {
         with open(path, 'rb') as f {
             data = f.read();
         }

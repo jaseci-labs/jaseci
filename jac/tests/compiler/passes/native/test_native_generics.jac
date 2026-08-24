@@ -8,36 +8,20 @@ same body lowers to different operations per instantiation.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_force_opts
+}
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 class JacStrABI(ctypes.Structure) {
     # Register view of a by-value JacStr {root, data, len} return. LLVM
@@ -53,7 +37,7 @@ class JacStrABI(ctypes.Structure) {
 }
 
 """Get a descriptor-ABI ctypes callable: c_char_p spellings mean Jac str."""
-def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
+def get_sfunc(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI variant of get_func: a c_char_p spelling here means a
     # Jac `str` (the by-value {root, data, len} descriptor at the native
     # ABI). LLVM decomposes a by-value descriptor param into three scalar
@@ -63,7 +47,7 @@ def get_sfunc(eng: object, name: str, restype: type | None, *argtypes: type) -> 
     # comparisons keep working.
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -126,16 +110,6 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     prog = JacProgram();
     prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
-}
-
-"""Return True if the program emitted at least one alert with the given code."""
-def has_error_code(prog: JacProgram, code: str) -> bool {
-    for alrt in prog.errors_had {
-        if alrt.code is not None and alrt.code.code == code {
-            return True;
-        }
-    }
-    return False;
 }
 
 test "mono: identity specializes at int, float, and str" {
@@ -230,18 +204,26 @@ test "mono as-value: concrete Callable annotation stamps the template (#7626 A5)
 }
 
 test "mono guardrail: a generic function used as a value stays rejected" {
-    prog = compile_na_inline(
-        "generic_as_value",
-        "def pick[T](x: T) -> T {\n"
+    path = os.path.join(FIXTURES, "_generics_generic_as_value.jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=path,
+        use_str="def pick[T](x: T) -> T {\n"
         "    return x;\n"
         "}\n"
         "def use_it(v: int) -> int {\n"
         "    f = pick;\n"
         "    return f(v);\n"
-        "}\n"
+        "}\n",
+        options=native_force_opts()
     );
-    assert has_error_code(prog, "E5092") , (
-        f"expected E5092 for a generic fn used as a value, got: "
-        f"{[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        f"the generic-as-value refusal is owned by use_it(), which must "
+        f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "use_it" not in ir.gen.native_layout.functions , (
+        "a generic fn used as a value must demote its function out of the "
+        "native layout, never lower wrongly"
     );
 }

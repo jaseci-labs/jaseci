@@ -35,6 +35,10 @@ kind/capabilities/entry/payloads -- both remain loadable)::
       "python_tag": "cpython-314",
       "jir_format_version": 13,
       "jaclang_version": "0.8.7",
+      "compiler_digest": "409:9f2c...",  # optional: the compiler that built
+                                         # this image (jir.compiler_source_digest;
+                                         # informational -- the seal already
+                                         # verified every JIR against it, see #8178)
       "modules": {                      # key: source path relative to pkg dir
         "compiler/program.jac": {
           "module": "jaclang.compiler.program",
@@ -98,7 +102,7 @@ MANIFEST_FORMATS_ACCEPTED = (2, 3, 4, 5, MANIFEST_FORMAT)
 # pure-Python section reader below, so they need none of the .jac machinery
 # (jir.jac's reader is itself a jac0core module).
 PRECOMPILE_SENTINEL = "__PKG_ROOT__"
-JIR_FORMAT_VERSION = 19
+JIR_FORMAT_VERSION = 23
 _HEADER_SIZE = 32
 _SECTIONS_MAGIC = b"JIRX"
 _SEC_BYTECODE = 0x02
@@ -590,6 +594,22 @@ def native_artifact_for(fullname: str) -> tuple[str, dict] | None:
         if found is not None:
             return found
     return None
+
+
+def native_artifact_names() -> list[str]:
+    """Every module fullname any loaded image carries a native artifact for.
+
+    The pass-serving binder enumerates these at first pass construction to
+    bind each sealed pass artifact; resolution and integrity stay with
+    ``native_artifact_for``.
+    """
+    _jaclang_image()
+    names: list[str] = []
+    for img in _images:
+        for fullname in img.native_artifacts:
+            if fullname not in names:
+                names.append(fullname)
+    return names
 
 
 def image_for_bundle_dir(bundle_dir: str | Path) -> SealedImage | None:
