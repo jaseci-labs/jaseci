@@ -4360,6 +4360,13 @@ def user_repr_slot(u: PyUserObj) -> PyObj {
                 + "')",
         );
     }
+    # A builtin-exception ancestor contributes ITS repr slot even though
+    # Exception is not a boxed-layout native base (native_base stays ""), so
+    # route through the same view the raise path wraps raised instances in.
+    # CPython heap subclasses of Exception inherit BaseException's tp_repr.
+    if class_is_exception(u.cls) {
+        return baseexception_repr(user_exception_view(u), py_repr);
+    }
     if u._has_base() {
         return py_repr(u._base_obj());
     }
@@ -4389,6 +4396,11 @@ def user_str_slot(u: PyUserObj) -> PyObj {
     if u._has_base() {
         return py_str(u._base_obj());
     }
+    # Same inherited-slot rule for str: BaseException_str (+ the per-type forms
+    # like KeyError repr-of-payload) applies pre-raise too.
+    if class_is_exception(u.cls) {
+        return baseexception_str(user_exception_view(u), py_repr, py_str);
+    }
     return user_repr_slot(u);
 }
 
@@ -4404,7 +4416,14 @@ def py_str(value: PyObj) -> PyObj {
         if isinstance(exc.raw, PyHostProxy) {
             return host_convert(exc.raw as PyObj, 1);
         }
-        return baseexception_str(exc, py_repr);
+        # A raised guest user exception keeps its live instance in `raw`; an
+        # explicit __str__ on the class overrides the inherited BaseException
+        # slots (CPython MRO lookup), so dispatch through the user slot.
+        if isinstance(exc.raw, PyUserObj)
+            and user_has_dunder(exc.raw as PyUserObj, "__str__") {
+            return user_str_slot(exc.raw as PyUserObj);
+        }
+        return baseexception_str(exc, py_repr, py_str);
     }
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
@@ -4449,6 +4468,13 @@ def py_type_same(a: PyObj, b: PyObj) -> bool {
 
 def py_repr(value: PyObj) -> PyObj {
     if isinstance(value, PyException) {
+        exc = value as PyException;
+        # Same override rule as py_str: an explicit __repr__ on a raised guest
+        # user exception's class beats the inherited BaseException repr slot.
+        if isinstance(exc.raw, PyUserObj)
+            and user_has_dunder(exc.raw as PyUserObj, "__repr__") {
+            return user_repr_slot(exc.raw as PyUserObj);
+        }
         return baseexception_repr(value as PyException, py_repr);
     }
     if isinstance(value, PyRange) {
@@ -7452,6 +7478,40 @@ def py_dir(arg: PyObj) -> PyObj {
 # arg is the class to instantiate; the rest box the builtin base. Returns a
 # PyUserObj tagged with that class so the subclass's identity and attributes
 # (a .name set right after) survive -- exactly the value/ref line Track B draws.
+# super().__init__/__str__/__repr__ inside a user exception subclass's method.
+# Exception is not a boxed-layout native base (native_base stays ""), so there
+# is no boxed value to delegate to -- these run BaseException's own slot
+# semantics directly over the live instance, exactly like CPython's inherited
+# BaseException slots.
+obj PyExcSuperSlot(PyObj) {
+    has target: PyObj,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        u = self.target as PyUserObj;
+        if self.name == "__init__" {
+            # CPython BaseException_init: replaces args wholesale.
+            if len(kwargs) > 0 {
+                return py_error(
+                    "TypeError", "__init__() takes no keyword arguments"
+                );
+            }
+            stored: list[PyObj] = [];
+            stored.extend(args);
+            u.attrs["args"] = PyTuple(t="tuple", items=stored);
+            return py_none();
+        }
+        view = user_exception_view(u);
+        if self.name == "__str__" {
+            return baseexception_str(view, py_repr, py_str);
+        }
+        if self.name == "__repr__" {
+            return baseexception_repr(view, py_repr);
+        }
+        return py_error("AttributeError", self.name);
+    }
+}
+
 obj PyNativeNew(PyObj) {
     has base_name: str;
 
@@ -7670,24 +7730,6 @@ obj PyBuiltinSuperMethod(PyObj) {
     }
 }
 
-# BaseException.__init__ over a USER exception-subclass instance: records the
-# positional args exactly like BaseException_init, so super().__init__(...)
-# inside a subclass __init__ updates e.args (kwargs rejected byte-exact).
-obj PyExceptionSuperInit(PyObj) {
-    has target: PyUserObj;
-
-    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
-        if len(kwargs) > 0 {
-            return py_error(
-                "TypeError",
-                self.target.cls.name + "() takes no keyword arguments"
-            );
-        }
-        self.target.attrs["args"] = PyTuple(t="tuple", items=args);
-        return py_none();
-    }
-}
-
 # True iff `inst` is an instance of `cls` (walks the instance class's MRO).
 def instance_of_class(inst: PyUserObj, cls: PyClass) -> bool {
     for klass in class_mro(inst.cls) {
@@ -7747,7 +7789,9 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
             );
         }
         # Exception-derived user classes have no boxed builtin layout: the
-        # BaseException surface (args / __init__) answers instead.
+        # BaseException surface answers instead. CPython gives them
+        # BaseException.__init__/__str__/__repr__ via slot inheritance -- serve
+        # those over the live instance.
         if class_is_exception(inst.cls) {
             if name == "args" {
                 stored = inst.attrs.get("args");
@@ -7756,8 +7800,10 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
                 }
                 return PyTuple(t="tuple", items=[]);
             }
-            if name == "__init__" {
-                return PyExceptionSuperInit(t="exc_super_init", target=inst);
+            if name == "__init__" or name == "__str__" or name == "__repr__" {
+                return PyExcSuperSlot(
+                    t="exc_super_slot", target=inst as PyObj, name=name
+                );
             }
         }
         # Base-less class: the walk exhausted every python ancestor including
@@ -12473,7 +12519,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                         # overrides (OSError smart forms, KeyError repr-form,
                         # SyntaxError suffixes) apply to natively constructed
                         # instances instead of a lossy host reconstruction.
-                        result = baseexception_str(exc, py_repr);
+                        result = baseexception_str(exc, py_repr, py_str);
                     }
                 }
             } else {
@@ -14133,7 +14179,7 @@ def exec_code(co: PyObj, args: list[PyObj], globals: dict[str, PyObj]) -> PyObj 
             if is_error(outcome) and _tb_exec_depth == 0 {
                 # Final-error surfacing: render the guest traceback chain to
                 # stderr shaped exactly like CPython's uncaught-exception path.
-                tb_display_error(outcome);
+                tb_display_error(outcome, py_str);
             }
             return outcome;
     }
