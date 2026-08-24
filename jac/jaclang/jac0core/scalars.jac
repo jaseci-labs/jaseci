@@ -101,7 +101,10 @@ def shape_float_max(shape: ScalarShape) -> float {
     if not shape.is_float {
         raise ValueError(f"{shape.name} is not a float type");
     }
-    return F32_MAX if shape.width == 32 else F64_MAX;
+    if shape.width == 32 {
+        return F32_MAX;
+    }
+    return F64_MAX;
 }
 
 def float_max(name: str) -> float {
@@ -120,11 +123,16 @@ def shape_literal_fits(shape: ScalarShape, value: int | float) -> bool {
         if not isinstance(value, (int, float)) {
             return False;
         }
-        mag = -value if value < 0 else value;
         if shape.width == 32 {
-            return mag < F32_OVERFLOW;
+            if value < 0 {
+                return -F32_OVERFLOW < value;
+            }
+            return value < F32_OVERFLOW;
         }
-        return mag <= F64_MAX;
+        if value < 0 {
+            return -F64_MAX <= value;
+        }
+        return value <= F64_MAX;
     }
     if isinstance(value, float) {
         return False;
