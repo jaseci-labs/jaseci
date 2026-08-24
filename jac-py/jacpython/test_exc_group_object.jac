@@ -8,6 +8,14 @@
 # Scope note: split()/subgroup()/derive() are P3 (recursive kernel + metadata
 # propagation); this file pins construction validation, auto-selection,
 # members, str/repr forms, and plain raise/catch of group instances.
+#
+# KNOWN FLAKES (2 asserts, lines below): under `jac test`, repr() of
+# BaseExceptionGroup-named constructions occasionally returns a double-repr'd
+# string ("\"ExceptionGroup('', ...)\"") depending on preceding exec_code calls
+# in the same process; identical expressions return byte-correct values via
+# isolated runs and short probe sequences. Root cause is upstream of this
+# object (ceval repr bridging state across exec_code invocations); investigate
+# in the P3/P4 lane before trusting these two goldens as regressions.
 
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code, to_host }
