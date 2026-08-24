@@ -2070,6 +2070,7 @@ glob EXC_PARENT: dict[str, str] = {
     "SyntaxError": "Exception",
     "IndentationError": "SyntaxError",
     "TabError": "IndentationError",
+    "_IncompleteInputError": "SyntaxError",
     "SystemError": "Exception",
     "TypeError": "Exception",
     "ValueError": "Exception",
@@ -2140,25 +2141,28 @@ def _exc_has_value(fields: dict[str, PyObj], key: str) -> bool {
     return key in fields and not isinstance(fields[key], PyNoneType);
 }
 
-# CPython ``oserror_init`` (posix branch): parse the 2/3/5-argument forms into
+# CPython ``oserror_init`` (posix branch): parse every argument arity into
 # errno/strerror/filename/filename2, trimming the stored args tuple to
-# ``(errno, strerror)`` -- filename data lives on attributes only. Returns None
-# when the arguments don't fit an OSError-specific form (caller falls back to
-# the generic BaseException constructor).
-def _oserror_parse(args: list[PyObj]) -> dict[str, PyObj] | None {
+# ``(errno, strerror)`` -- filename data lives on attributes only.
+def _oserror_parse(args: list[PyObj]) -> dict[str, PyObj] {
+    # Every arity fills all four members: CPython's oserror_init runs for every
+    # construction form (including the plain-message one-arg form), and its
+    # getsets read unset members as None instead of raising AttributeError.
+    fields: dict[str, PyObj] = {};
+    fields["errno"] = py_none();
+    fields["strerror"] = py_none();
+    fields["filename"] = py_none();
+    fields["filename2"] = py_none();
     n = len(args);
     if n == 0 {
-        return {};
+        return fields;
     }
-    fields: dict[str, PyObj] = {};
     if n == 1 {
         # OSError(5): errno-only form; OSError('plain'): generic message.
         if isinstance(args[0], PyInt) {
             fields["errno"] = args[0];
-            fields["strerror"] = py_none();
-            return fields;
         }
-        return None;
+        return fields;
     }
     fields["errno"] = args[0];
     fields["strerror"] = args[1];
@@ -2168,11 +2172,10 @@ def _oserror_parse(args: list[PyObj]) -> dict[str, PyObj] | None {
     return fields;
 }
 
-def _construct_oserror(name: str, args: list[PyObj]) -> PyException | None {
+# Trimming of ``.args`` mirrors CPython oserror_init; every construction form
+# succeeds because all OSError arities map to typed fields.
+def _construct_oserror(name: str, args: list[PyObj]) -> PyException {
     parsed = _oserror_parse(args);
-    if parsed is None {
-        return None;
-    }
     # CPython keeps only (errno, strerror) in .args once filename parsing ran.
     exc_args: list[PyObj] = [];
     if len(args) <= 1 {
@@ -2306,10 +2309,7 @@ obj PyExceptionType(PyObj) {
         # into typed fields before falling through to the generic form.
         if self.name != "Exception" and self.name != "BaseException"
             and exc_is_subclass_of(self.name, "OSError") {
-            constructed = _construct_oserror(self.name, args);
-            if constructed is not None {
-                return constructed;
-            }
+            return _construct_oserror(self.name, args);
         }
         if self.name == "ImportError" or self.name == "ModuleNotFoundError" {
             return _construct_import_error(self.name, args, kwargs);
@@ -2430,6 +2430,17 @@ obj PyException(PyObj) {
         # zero-initialized slots.
         if name in self.type_fields {
             return self.type_fields[name];
+        }
+        # CPython OSError_getset: errno/strerror/filename/filename2 read as
+        # None when unset, regardless of which constructor form ran -- covers
+        # instances that bypassed the typed OSError constructor. (Note:
+        # characters_written is NOT defaulted -- CPython raises AttributeError
+        # for it until an IO write sets it.)
+        if name == "errno" or name == "strerror"
+            or name == "filename" or name == "filename2" {
+            if self.family == "OSError" or exc_is_subclass_of(self.type_name, "OSError") {
+                return py_none();
+            }
         }
         return py_error("AttributeError", name);
     }

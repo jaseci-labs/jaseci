@@ -67,6 +67,7 @@ glob _EXC_PARENT: dict[str, str] = {
          "SyntaxError": "Exception",
          "IndentationError": "SyntaxError",
          "TabError": "IndentationError",
+         "_IncompleteInputError": "SyntaxError",
          "SystemError": "Exception",
          "TypeError": "Exception",
          "ValueError": "Exception",
