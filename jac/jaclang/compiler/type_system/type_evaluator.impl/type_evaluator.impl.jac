@@ -4789,10 +4789,6 @@ impl TypeEvaluator._literal_type_of(expr: Expr) -> TypeBase | None {
     if isinstance(operand, Float) {
         return self.get_type_of_expression(expr);
     }
-    expr_type = self.get_type_of_expression(expr);
-    if isinstance(expr_type, ClassType) and expr_type.is_literal_type() {
-        return expr_type;
-    }
     return None;
 }
 
@@ -5523,7 +5519,8 @@ impl TypeEvaluator.exclude_type_from_union(
 
     if isinstance(original, ClassType)
         and isinstance(to_exclude, ClassType)
-        and original.shared.same_class(to_exclude.shared) {
+        and original.shared.same_class(to_exclude.shared)
+        and self._excluded_by(original, to_exclude) {
         return NeverType();
     }
 
