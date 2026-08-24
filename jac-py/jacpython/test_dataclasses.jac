@@ -426,6 +426,65 @@ test "dataclass: match_args=False leaves __match_args__ unset on the class" {
     assert vm_bool(ns, "has_ma") == False;
 }
 
+# ---------------- field() metadata / hash params ----------------
+
+test "dataclass: field(metadata=...) round-trips through fields()" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, fields\n"
+        "from dataclasses import field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = field(default=0, metadata={'unit': 'cm'})\n"
+        "f = fields(M)[0]\n"
+        "rv = f.metadata['unit']\n"
+    );
+    assert vm_str(ns, "rv") == "cm";
+}
+
+test "dataclass: default metadata is an empty mapping" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, fields\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = 0\n"
+        "f = fields(M)[0]\n"
+        "rv = len(f.metadata)\n"
+    );
+    assert vm_int(ns, "rv") == 0;
+}
+
+test "dataclass: non-mapping metadata raises TypeError at decoration" {
+    outcome = vm_try(
+        "from dataclasses import dataclass, field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int = field(default=0, metadata=42)\n"
+    );
+    assert err_type(outcome) == "TypeError";
+}
+
+test "dataclass: hash follows compare by default and honors explicit hash" {
+    ns = dc_exec(
+        "from dataclasses import dataclass, field\n"
+        "@dataclass(frozen=True)\n"
+        "class A:\n"
+        "    x: int = 0\n"
+        "    ignored: str = field(default='', compare=False)\n"
+        "@dataclass(frozen=True)\n"
+        "class B:\n"
+        "    x: int = 0\n"
+        "    extra: int = field(default=0, compare=False, hash=True)\n"
+        "a1 = A(1, 'p')\n"
+        "a2 = A(1, 'q')\n"
+        "same_hash_ignores_noncompare = hash(a1) == hash(a2)\n"
+        "b1 = B(1, 5)\n"
+        "b2 = B(1, 6)\n"
+        "differs_on_explicit_hash = hash(b1) != hash(b2)\n"
+    );
+    assert vm_bool(ns, "same_hash_ignores_noncompare") == True;
+    assert vm_bool(ns, "differs_on_explicit_hash") == True;
+}
+
 # ---------------- ClassVar vs fields ----------------
 
 test "dataclass: ClassVar annotations stay class attributes, not fields" {

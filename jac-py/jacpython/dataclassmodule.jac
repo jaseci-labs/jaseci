@@ -25,6 +25,7 @@ import from objects {
     PyStr,
     PyInt,
     PyBool,
+    PyNoneType,
     PyDict,
     PyList,
     PyTuple,
@@ -100,7 +101,12 @@ obj DCField(PyObj) {
         frepr: bool = True,
         fcompare: bool = True,
         fkw_only: bool = False,
-        has_kw_only: bool = False;
+        has_kw_only: bool = False,
+        # hash=None in field() means "follow compare" (CPython Field.hash);
+        # has_hash marks the explicit form. fmetadata carries field(metadata=).
+        fhash: bool = False,
+        has_hash: bool = False,
+        fmetadata: any = None;
 
     def tp_getattro(name: str) -> PyObj {
         if name == "name" {
@@ -140,12 +146,17 @@ obj DCField(PyObj) {
         if name == "_field_type" {
             return PyStr(t="str", val="_FIELD");
         }
-        if name == "hash" or name == "metadata" {
-            # None means "follow compare"; metadata stays an empty mapping.
-            if name == "metadata" {
-                return PyDict(t="dict", items={});
+        if name == "hash" {
+            if self.has_hash {
+                return PyBool(t="bool", val=self.fhash);
             }
             return py_none();
+        }
+        if name == "metadata" {
+            if self.fmetadata is not None {
+                return self.fmetadata as PyObj;
+            }
+            return PyDict(t="dict", items={});
         }
         return py_error(
             "AttributeError", "'Field' object has no attribute '" + name + "'"
@@ -196,7 +207,16 @@ def dc_selected_fields(spec: DCSpec, mode: str) -> list[DCField] {
         if mode == "repr" and not f.frepr {
             continue;
         }
-        if mode != "repr" and not f.fcompare {
+        if mode == "hash" and not f.fhash {
+            # CPython hash inclusion uses the RESOLVED field.hash (which
+            # defaults to following compare), not compare itself.
+            continue;
+        }
+        if mode == "eq" and not f.fcompare {
+            continue;
+        }
+        if (mode != "repr" and mode != "hash" and mode != "eq")
+            and not f.fcompare {
             continue;
         }
         out.append(f);
@@ -337,7 +357,7 @@ obj DCOrderOp(PyObj) {
 obj DCHashOp(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         spec = args[0] as DCSpec;
-        got = dc_read_fields(spec, args[1], "compare");
+        got = dc_read_fields(spec, args[1], "hash");
         if is_error(got) {
             return got;
         }
@@ -437,6 +457,25 @@ obj DCFieldFn(PyObj) {
         if has_factory {
             ffactory = kwargs["default_factory"];
         }
+        fhash = False;
+        if "hash" in kwargs {
+            hv = kwargs["hash"];
+            if isinstance(hv, PyNoneType) {
+                # hash=None is the CPython default: "follow compare".
+            } elif isinstance(hv, PyBool) {
+                fhash = (hv as PyBool).val;
+            } else {
+                return py_error("TypeError", "'hash' must be a bool or None");
+            }
+        }
+        fmetadata: any = None;
+        if "metadata" in kwargs {
+            mv = kwargs["metadata"];
+            if not isinstance(mv, PyDict) {
+                return py_error("TypeError", "metadata must be a mapping");
+            }
+            fmetadata = mv;
+        }
         return DCField(
             t="dc_field",
             fname="",
@@ -449,6 +488,9 @@ obj DCFieldFn(PyObj) {
             fcompare=dc_param_flag(kwargs, "compare", True),
             fkw_only=dc_param_flag(kwargs, "kw_only", False),
             has_kw_only="kw_only" in kwargs,
+            fhash=fhash,
+            has_hash="hash" in kwargs,
+            fmetadata=fmetadata,
         );
     }
 }
@@ -869,6 +911,9 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
             # fills from the class param); an explicit field(kw_only=...)
             # carried on a DCField attribute overrides below.
             fkw_only = params.kw_only;
+            new_fhash = False;
+            new_has_hash = False;
+            new_fmetadata: any = None;
             if name in cls.attrs {
                 existing = cls.attrs[name];
                 if isinstance(existing, DCField) {
@@ -883,6 +928,11 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                     }
                     new_has_factory = old.has_factory;
                     new_factory = old.ffactory;
+                    if old.has_hash {
+                        new_fhash = old.fhash;
+                        new_has_hash = True;
+                    }
+                    new_fmetadata = old.fmetadata;
                     if old.fdefault is not DC_MISSING {
                         new_default = old.fdefault;
                     }
@@ -900,6 +950,10 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                         + " is not allowed: use default_factory",
                 );
             }
+            resolved_fhash = new_fhash;
+            if not new_has_hash {
+                resolved_fhash = fcompare;
+            }
             field_obj = DCField(
                 t="dc_field",
                 fname=name,
@@ -912,6 +966,10 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                 fcompare=fcompare,
                 fkw_only=fkw_only,
                 has_kw_only=True,
+                # CPython _get_field: hash missing -> follow compare.
+                fhash=resolved_fhash,
+                has_hash=new_has_hash,
+                fmetadata=new_fmetadata,
             );
             if name in index {
                 merged[index[name]] = field_obj;
