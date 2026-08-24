@@ -399,7 +399,7 @@ impl NaIRGenSized._emit_shr(
 }
 
 impl NaIRGenSized._emit_int_divmod(
-    left: ir.Value, right: ir.Value, unsigned: bool
+    left: ir.Value, right: ir.Value, unsigned: bool, trap_min: bool = True
 ) -> tuple[(ir.Value, ir.Value)] {
     int_ty = left.type;
     if unsigned {
@@ -414,6 +414,10 @@ impl NaIRGenSized._emit_int_divmod(
         "==", right, ir.Constant(int_ty, -1), name="div.m1"
     );
     bad = self.builder.and_(is_min, is_m1, name="div.ovf");
-    self._emit_runtime_raise(bad, "OverflowError", OVERFLOW_MSG);
-    return self._codegen_int_floor_divmod(left, right);
+    if trap_min {
+        self._emit_runtime_raise(bad, "OverflowError", OVERFLOW_MSG);
+        return self._codegen_int_floor_divmod(left, right);
+    }
+    safe = self.builder.select(bad, ir.Constant(int_ty, 1), right, name="mod.safe");
+    return self._codegen_int_floor_divmod(left, safe);
 }

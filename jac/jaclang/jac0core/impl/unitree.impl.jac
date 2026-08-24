@@ -762,6 +762,7 @@ impl Expr.postinit -> None {
     self.type = None;
     self.narrowed_type = None;
     self.coerce_to = None;
+    self.fw = None;
     self.attached_tokens = None;
 }
 
@@ -870,7 +871,6 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
-    self.annex_mods = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;

@@ -137,6 +137,7 @@ class TypeCheckPass(UniPass) {
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
+    def _stamp_fixed_width(self: TypeCheckPass) -> None;
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
     def _install_client_state_setters(self: TypeCheckPass) -> None;
     def _client_state_field_owner(self: TypeCheckPass, nd: HasVar) -> (Ability | None);

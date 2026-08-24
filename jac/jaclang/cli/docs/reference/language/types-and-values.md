@@ -76,7 +76,11 @@ with entry {
 }
 ```
 
-On the server lane each sized type is a real class (`type(x) is i8`, `isinstance(x, int)`), so hints resolve and serializers see ordinary numbers. On the client lane 8-, 16- and 32-bit values and `f32` are JS numbers, while `i64` and `u64` are `BigInt`; a 64-bit value serializes as a JSON number when it fits in 2^53 and as a string otherwise.
+The sized types are compile-time types with no runtime wrapper: every lane stores the value in the machine's own representation and the compiler emits the range check where the contract needs one. On the server lane a sized value is a plain `int` or `float` (`type(x) is int`), so `isinstance(x, i8)` and `type(x) is i8` are not available -- the width lives in the annotation, not in the value. On the client lane 8-, 16- and 32-bit values and `f32` are JS numbers, while `i64` and `u64` are `BigInt`. The native lane lowers each type to its own machine width.
+
+**On the wire.** Both lanes encode 64-bit sized values the same way: a JSON number when the value fits in 2^53, and a JSON string otherwise (an ECMAScript reader cannot hold a larger integer as a number). Both decoders accept either form, so `i64`/`u64` fields round-trip between the server and the client without losing precision. Narrower widths and the float kinds are always JSON numbers.
+
+**Cost.** The only overhead a sized type carries is the range check on the operations that can leave the range: `+ - * // ** << >>`, unary minus, `abs` and the cast `T(x)`. `& | ^ %`, every comparison, every `f64` operation and implicit widening are plain machine operations. A tight sized-integer loop runs around 3x a plain `int` loop on the server lane and around 1.6x on the client; the native lane pays nothing, because the hardware already computes the overflow flag.
 
 ## 2 Type Annotations
 

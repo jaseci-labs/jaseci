@@ -38,7 +38,9 @@ glob logger = logging.getLogger(__name__),
      _MAX_IMPORT_FAILURES: int = 1024,
      _IMPORT_RETRY_SECONDS: float = 30.0,
      _IMPORT_RETRY_CEILING_SECONDS: float = 900.0,
-     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8;
+     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8,
+     _PLAIN_WIRE_SCALARS: frozenset = frozenset({str, int, float, bool}),
+     _SIZED_FIELD_CACHE: dict = {};
 
 obj ImportFailure {
     has attempts: int = 0,
@@ -73,9 +75,11 @@ obj Serializer {
         include_type: bool,
         api_mode: bool = False,
         ref_mode: bool = False,
-        _seen: (tuple[set, set] | None) = None
+        _seen: (tuple[set, set] | None) = None,
+        declared: object = None
     ) -> object;
 
+    static def _declared_of(owner: object, attr: str) -> object;
     static def _type_info(`obj: object, `include: bool) -> dict[str, object];
     static def _serialize_attrs(
         `obj: object,

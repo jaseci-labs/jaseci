@@ -118,6 +118,8 @@ Real types with one contract on every lane (server, native, client). Widening is
 
 `T op int` yields `int` (so `w: i32 = w + n` with `n: int` is E1127); `/` yields `float`; shifts keep the left operand's type with the count range-checked at run time.
 
+The width is a compile-time fact, not a runtime wrapper: a sized value is a plain `int`/`float` on the server lane, a JS number (or `BigInt` at 64 bits) on the client, and its own machine width natively. `type(x)` reports `int` or `float` and `isinstance(x, i8)` is not available -- read the width off the annotation. The only cost is the range check on the operations that can overflow (`+ - * // ** << >>`, unary minus, `abs`, `T(x)`); bitwise ops, comparisons, `f64` arithmetic and implicit widening are plain machine operations. On the wire, both lanes encode a 64-bit sized value as a JSON number when it fits in 2^53 and as a JSON string otherwise, and both decoders accept either form.
+
 ## Pitfalls
 
 - **Do NOT fall back to `any` to silence a type error.** It defers the error to the next typed boundary: `len(any)` → E1053, `any + any` → E1055, assigning/returning into a concrete type → E1001/E1002. Fix the actual type (typed field, `T | None` + `is None` guard, or `as` cast at the boundary).

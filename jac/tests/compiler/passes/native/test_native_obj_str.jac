@@ -22,6 +22,10 @@ straight to the C runtime, so we redirect the OS-level file descriptor and
 flush libc's stdio buffer before restoring it."""
 def capture_stdout(fn: object) -> bytes {
     libc = ctypes.CDLL(None);
+    # Drain anything (e.g. the launcher's first-run banner) still sitting in
+    # libc's stdout buffer, or the JIT's own fflush dumps it into the capture.
+    # Same guard `test_native_repr.jac` carries for the same reason.
+    libc.fflush(None);
     (r, w) = os.pipe();
     saved = os.dup(1);
     os.dup2(w, 1);
@@ -94,5 +98,6 @@ test "str(obj) on a null (None) struct pointer renders \"None\", not a crash" {
 test "print(obj) writes __str__ to stdout" {
     (eng, _) = compile_native("obj_str.jac");
     `entry = get_func(eng, "jac_entry", None);
-    assert capture_stdout(`entry) == b"printed\n";
+    got = capture_stdout(`entry);
+    assert got == b"printed\n" , got;
 }

@@ -73,10 +73,11 @@ def _start_server(
 ) -> subprocess.Popen {
     cmd = [
         jac_executable(),
-        "start",
-        test_file.name if not extra_args else str(test_file),
+        "run",
+        "--serve",
         "--port",
-        str(port)
+        str(port),
+        test_file.name if not extra_args else str(test_file)
     ];
     if extra_args {
         cmd.extend(extra_args);
@@ -1539,13 +1540,14 @@ def setup_dev_mode_server -> subprocess.Popen {
 
     cmd = [
         jac_executable(),
-        "start",
-        str(dm_test_file),
+        "run",
+        "--serve",
         "--port",
         str(dm_vite_port),
-        "--api_port",
+        "--api-port",
         str(dm_api_port),
-        "--dev"
+        "--dev",
+        str(dm_test_file)
     ];
 
     server_process = subprocess.Popen(
@@ -1964,7 +1966,14 @@ test "server startup - port fallback integration" {
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
 
-        cmd = [jac_executable(), "start", sv_test_file.name, "--port", str(port1)];
+        cmd = [
+            jac_executable(),
+            "run",
+            "--serve",
+            "--port",
+            str(port1),
+            sv_test_file.name
+        ];
 
         sp2 = subprocess.Popen(
             cmd,
@@ -2168,7 +2177,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "start", "--client", "pwa", "main.jac", "-p", str(port)],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

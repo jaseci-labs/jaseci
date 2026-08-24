@@ -4030,9 +4030,9 @@ test "native osp node constructed in a non-OSP module carries its dispatch tag (
 test "native osp construct living only in an impl annex materializes imported archetypes" {
     # A builder module IMPORTS OSP archetypes (`Hub`/`Area`) from another native
     # module and wires them (`++>`) from an IMPL ANNEX (`.impl.jac`), not its
-    # head file. The annex body is spliced into the head module's tree by
-    # JacAnnexPass while keeping its own `loc.mod_path`, so the OSP construct
-    # lives off the head but originates in the annex file.
+    # head file. The annex body is woven into the head module's tree as the
+    # module is produced, while keeping its own `loc.mod_path`, so the OSP
+    # construct lives off the head but originates in the annex file.
     # The OSP construct scan (now `OspAnalysis._uses_construct`) historically
     # swept just the head file's own statements, classified the builder as a
     # non-OSP user, and never gave the imported archetypes their stable type-tag

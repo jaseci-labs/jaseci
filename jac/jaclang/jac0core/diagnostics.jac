@@ -1630,6 +1630,21 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5041 = _err("E5041", Category.CODEGEN, "Length mismatch in import names"),
      E5042 = _err("E5042", Category.CODEGEN, "Length mismatch in async for body"),
      E5043 = _err("E5043", Category.CODEGEN, "Bytecode compilation failed: {error}"),
+     W5096 = _warn(
+         "W5096",
+         Category.CODEGEN,
+         "Graph traversal materialized in object space: {reason}",
+         help="This traversal loads every match before the operation runs, so "
+         "its cost is O(degree) in the node's edge count. Shapes that resolve "
+         "in the query instead: a predicate or an ordering term inside "
+         "[?...], a range slice, len(), and a truthiness test. sorted() folds "
+         "when its key is `lambda (x: T) { x.field; }`, its negation, or a "
+         "tuple of those. An in-place .sort() cannot fold because it mutates a "
+         "binding -- use sorted(), or write the ordering into the reference. A "
+         "field named in a sort key or a range predicate needs promoting "
+         "through [scale.database] indexes to reach an index rather than a "
+         "sort."
+     ),
      W5050 = _warn(
          "W5050",
          Category.CODEGEN,
@@ -1699,11 +1714,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5094",
          Category.CODEGEN,
          "Graph query filter outside the closed sublanguage: {reason}",
-         help="Predicates inside [?...] on a graph reference must be "
-         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
-         "where the value is a scalar expression evaluated once at query "
-         "construction. Move anything else to a list comprehension over "
-         "the query result, where its object-space cost is visible.",
+         help="A term inside [?...] on a graph reference, or between the "
+         "colons of a typed hop, is one of three shapes. A predicate is "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, where "
+         "the value is a scalar expression evaluated once at query "
+         "construction. A composite key compares a tuple of field names "
+         "against a tuple value of the same arity, for keyset paging. An "
+         "ordering term is a bare field name (ascending) or its negation "
+         "(descending), written after every predicate on that hop, and only "
+         "on the final hop of a chain. Move anything else to a list "
+         "comprehension over the query result, where its object-space cost "
+         "is visible.",
          blocks_codegen=True
      ),
      E5095 = _err(
