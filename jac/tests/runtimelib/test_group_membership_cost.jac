@@ -58,7 +58,7 @@ def _link(ctx: ExecutionContext, src: any, dst: any, kind: any) {
 def _fingerprints(ctx: ExecutionContext, ids: list) -> dict {
     out: dict = {};
     for i in ids {
-        anchor = ctx.mem.get(i);
+        anchor: any = ctx.mem.get(i);
         props = Serializer.serialize(anchor, include_type=True);
         out[str(i)] = sha256(
             dumps(props, `default=str, sort_keys=True).encode()
@@ -97,7 +97,7 @@ test "a group join and leave rewrite no content rows, and visibility flips" {
             # Sharing is recorded once per object, keyed by the group.
             before = _fingerprints(ctx, ids);
             for i in ids {
-                anchor = ctx.mem.get(i);
+                anchor: any = ctx.mem.get(i);
                 assert not anchor.access.roots.anchors , (
                     "group sharing must not write a per-root entry"
                 );
@@ -128,7 +128,7 @@ test "a group join and leave rewrite no content rows, and visibility flips" {
 
             # Leave: drop the edge. Again no content row may change.
             ctx.set_user_root(str(owner.id));
-            member_anchor = ctx.mem.get(member.id);
+            member_anchor: any = ctx.mem.get(member.id);
             for e in list(member_anchor.edges) {
                 if isinstance(e.archetype, MemberOf) {
                     e.detach();
