@@ -102,9 +102,66 @@ test "user exception subclass records constructor args at new time" {
         "e = MyErr(1, 2)\n"
         "a = e.args\n"
         "s = str(e)\n"
+        "r = repr(e)\n"
     );
     assert vm_str(ns, "a") == "(1, 2)";
     assert vm_str(ns, "s") == "(1, 2)";
+    assert vm_str(ns, "r") == "MyErr(1, 2)";
+}
+
+test "user exception subclass str/repr survive a raise round-trip" {
+    # The inherited BaseException slots must hold both pre-raise (unraised
+    # PyUserObj) and post-raise (wrapped view) -- the raise path used to be
+    # the only wiring for the str/repr machinery.
+    ns = vm_exec(
+        "class MyErr(Exception):\n"
+        "    def __init__(self, a=None, b=None):\n"
+        "        pass\n"
+        "pre_s = str(MyErr(1, 2))\n"
+        "try:\n"
+        "    raise MyErr(3, 4)\n"
+        "except MyErr as e:\n"
+        "    post_s = str(e)\n"
+        "    post_r = repr(e)\n"
+    );
+    assert vm_str(ns, "pre_s") == "(1, 2)";
+    assert vm_str(ns, "post_s") == "(3, 4)";
+    assert vm_str(ns, "post_r") == "MyErr(3, 4)";
+}
+
+test "user KeyError subclass inherits the repr-of-payload str form" {
+    ns = vm_exec(
+        "class MyKeyErr(KeyError):\n"
+        "    pass\n"
+        "e = MyKeyErr('k')\n"
+        "pre_s = str(e)\n"
+        "pre_r = repr(e)\n"
+        "try:\n"
+        "    raise MyKeyErr('j')\n"
+        "except KeyError as exc:\n"
+        "    post_s = str(exc)\n"
+    );
+    assert vm_str(ns, "pre_s") == "'k'";
+    assert vm_str(ns, "pre_r") == "MyKeyErr('k')";
+    assert vm_str(ns, "post_s") == "'j'";
+}
+
+test "user exception subclass explicit __str__ override wins over base slot" {
+    ns = vm_exec(
+        "class MyErr(Exception):\n"
+        "    def __str__(self):\n"
+        "        return 'custom'\n"
+        "e = MyErr(1, 2)\n"
+        "pre_s = str(e)\n"
+        "r = repr(e)\n"
+        "try:\n"
+        "    raise MyErr(5, 6)\n"
+        "except MyErr as exc:\n"
+        "    post_s = str(exc)\n"
+    );
+    assert vm_str(ns, "pre_s") == "custom";
+    assert vm_str(ns, "r") == "MyErr(1, 2)";
+    assert vm_str(ns, "post_s") == "custom";
 }
 
 test "caught user exception exposes args and class name" {

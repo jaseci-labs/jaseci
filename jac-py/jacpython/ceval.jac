@@ -4347,6 +4347,13 @@ def user_repr_slot(u: PyUserObj) -> PyObj {
                 + "')",
         );
     }
+    # A builtin-exception ancestor contributes ITS repr slot even though
+    # Exception is not a boxed-layout native base (native_base stays ""), so
+    # route through the same view the raise path wraps raised instances in.
+    # CPython heap subclasses of Exception inherit BaseException's tp_repr.
+    if class_is_exception(u.cls) {
+        return baseexception_repr(user_exception_view(u), py_repr);
+    }
     if u._has_base() {
         return py_repr(u._base_obj());
     }
@@ -4376,6 +4383,11 @@ def user_str_slot(u: PyUserObj) -> PyObj {
     if u._has_base() {
         return py_str(u._base_obj());
     }
+    # Same inherited-slot rule for str: BaseException_str (+ the per-type forms
+    # like KeyError repr-of-payload) applies pre-raise too.
+    if class_is_exception(u.cls) {
+        return baseexception_str(user_exception_view(u), py_repr);
+    }
     return user_repr_slot(u);
 }
 
@@ -4390,6 +4402,13 @@ def py_str(value: PyObj) -> PyObj {
         # the native dispatch below.
         if isinstance(exc.raw, PyHostProxy) {
             return host_convert(exc.raw as PyObj, 1);
+        }
+        # A raised guest user exception keeps its live instance in `raw`; an
+        # explicit __str__ on the class overrides the inherited BaseException
+        # slots (CPython MRO lookup), so dispatch through the user slot.
+        if isinstance(exc.raw, PyUserObj)
+            and user_has_dunder(exc.raw as PyUserObj, "__str__") {
+            return user_str_slot(exc.raw as PyUserObj);
         }
         return baseexception_str(exc, py_repr);
     }
@@ -4436,6 +4455,13 @@ def py_type_same(a: PyObj, b: PyObj) -> bool {
 
 def py_repr(value: PyObj) -> PyObj {
     if isinstance(value, PyException) {
+        exc = value as PyException;
+        # Same override rule as py_str: an explicit __repr__ on a raised guest
+        # user exception's class beats the inherited BaseException repr slot.
+        if isinstance(exc.raw, PyUserObj)
+            and user_has_dunder(exc.raw as PyUserObj, "__repr__") {
+            return user_repr_slot(exc.raw as PyUserObj);
+        }
         return baseexception_repr(value as PyException, py_repr);
     }
     if isinstance(value, PyRange) {
