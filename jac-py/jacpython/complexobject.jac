@@ -3,7 +3,7 @@
 # Lift: Objects/_lifted/complexobject_core.jac. Pure-arithmetic pieces live in
 # objects.jac next to the PyComplex slots; this module adds what needs float
 # formatting / text scanning, mirroring CPython 3.14 byte-for-byte.
-import from objects { PyComplex, PyInt, _signed_hash, }
+import from objects { PyComplex, PyInt, PyObj, _signed_hash, }
 import from pyhash { float_hash_value, _U64, }
 
 glob _PyHASH_IMAG: int = 1000003;
@@ -125,25 +125,23 @@ def _cpx_float_text(d: float) -> str {
             pad = "0";
         }
         out = out + "e" + esign + pad + str(e);
-    } else {
-        if decpt <= 0 {
-            out = "0.";
-            zeros = 0 - decpt;
-            while zeros > 0 {
-                out = out + "0";
-                zeros = zeros - 1;
-            }
-            out = out + mant;
-        } elif decpt >= len(mant) {
-            out = mant;
-            zeros = decpt - len(mant);
-            while zeros > 0 {
-                out = out + "0";
-                zeros = zeros - 1;
-            }
-        } else {
-            out = mant[0:decpt] + "." + mant[decpt:len(mant)];
+    } elif decpt <= 0 {
+        out = "0.";
+        zeros = 0 - decpt;
+        while zeros > 0 {
+            out = out + "0";
+            zeros = zeros - 1;
         }
+        out = out + mant;
+    } elif decpt >= len(mant) {
+        out = mant;
+        zeros = decpt - len(mant);
+        while zeros > 0 {
+            out = out + "0";
+            zeros = zeros - 1;
+        }
+    } else {
+        out = mant[0:decpt] + "." + mant[decpt:len(mant)];
     }
     if neg {
         return "-" + out;
