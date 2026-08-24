@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_robotparser/conv_robotparser_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:04:33",
+  "generated_at": "2026-08-24T14:26:48",
   "hashes": {
     "pins_jac": "9613498aec7c2a85b79ea4a9107063120a073547007bc3393add214205110334",
-    "conversion_json": "21a32c147b150b3da181ecf60be471afb2ec4781d27817be99ba93de3d29247c",
+    "conversion_json": "e48a8b054709edb7ef845fc58d6494d8eea16d71fe8649c10bc22924092a5bfe",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "robotparser",

@@ -1,6 +1,6 @@
 # Triage report: `conv_array_pins.jac`
 
-- source: reference/cpython/Lib/test/test_array.py
+- source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_array.py
 - guest leg: 0/5 marks
 - pins: **2 passed** / 5 run (+93 quarantined of 98 extracted)
 

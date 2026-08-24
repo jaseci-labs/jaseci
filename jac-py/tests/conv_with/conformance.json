@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "7463dec2cb62b466595d495d2dab9f96b38465be",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/sp3-out/test_with/conv_with_pins.jac"
+    "jac-py/tests/conv_with/conv_with_pins.jac"
   ],
-  "generated_at": "2026-08-24T13:40:20",
+  "generated_at": "2026-08-24T14:26:40",
   "hashes": {
-    "pins_jac": "5a110d3f9dd21305da9dfc021a1042e2207e949fc22075f36bade1c785e59bfe",
-    "conversion_json": "c5da81575de6f645d434e71e52f194ab99ccf3c00d84a2b79688815b3b2f1f4d",
+    "pins_jac": "279cfcbef72e44d4f22d0ba137003eb77a1de07135211a3277b430d3217c189f",
+    "conversion_json": "da685987ee9eb1a4d0901299b9caf9b21081ce63401ac73c208cc771cf40febd",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "with",
   "counts": {
     "converted": 54,
-    "runnable": 11,
-    "green": 7,
-    "quarantined": 43
+    "runnable": 18,
+    "green": 12,
+    "quarantined": 36
   },
   "pins": [
     {
@@ -55,7 +55,99 @@
       "status": "pass"
     },
     {
+      "id": "FailureTestCase.testEnterThrows",
+      "status": "pass"
+    },
+    {
       "id": "FailureTestCase.testExitThrows",
+      "status": "pass"
+    },
+    {
+      "id": "NonexceptionalTestCase.testInlineGeneratorSyntax",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testUnboundGenerator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testInlineGeneratorBoundSyntax",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testInlineGeneratorBoundToExistingVariable",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testInlineGeneratorBoundToDottedVariable",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testBoundGenerator",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "NonexceptionalTestCase.testNestedSingleStatements",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testSingleResource",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testExceptionNormalized",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testNestedSingleStatements",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testNestedExceptionBeforeInnerStatement",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testNestedExceptionAfterInnerStatement",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "id": "ExceptionalTestCase.testRaisedStopIteration1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC RuntimeError 'generator raised StopIteration'\">"
+    },
+    {
+      "id": "ExceptionalTestCase.testRaisedStopIteration2",
+      "status": "pass"
+    },
+    {
+      "id": "ExceptionalTestCase.testRaisedStopIteration3",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC RuntimeError 'generator raised StopIteration'\">"
+    },
+    {
+      "id": "ExceptionalTestCase.testRaisedGeneratorExit1",
+      "status": "pass"
+    },
+    {
+      "id": "ExceptionalTestCase.testRaisedGeneratorExit2",
+      "status": "pass"
+    },
+    {
+      "id": "ExceptionalTestCase.testErrorsInBool",
       "status": "pass"
     },
     {
@@ -122,139 +214,44 @@
       "reason": "unresolved-name:do_async_with"
     },
     {
-      "id": "FailureTestCase.testEnterThrows",
-      "status": "quarantined",
-      "reason": "uses-self.foo"
-    },
-    {
-      "id": "NonexceptionalTestCase.testInlineGeneratorSyntax",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testUnboundGenerator",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testInlineGeneratorBoundSyntax",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testInlineGeneratorBoundToExistingVariable",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testInlineGeneratorBoundToDottedVariable",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testBoundGenerator",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "NonexceptionalTestCase.testNestedSingleStatements",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
       "id": "NestedNonexceptionalTestCase.testSingleArgInlineGeneratorSyntax",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:Nested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testSingleArgBoundToNonTuple",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:Nested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testSingleArgBoundToSingleElementParenthesizedList",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:Nested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testSingleArgBoundToMultipleElementTupleError",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:Nested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testSingleArgUnbound",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:MockNested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testMultipleArgUnbound",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:MockNested"
     },
     {
       "id": "NestedNonexceptionalTestCase.testMultipleArgBound",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testSingleResource",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testExceptionNormalized",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testNestedSingleStatements",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:MockNested"
     },
     {
       "id": "ExceptionalTestCase.testMultipleResourcesInSingleStatement",
       "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testNestedExceptionBeforeInnerStatement",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testNestedExceptionAfterInnerStatement",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testRaisedStopIteration1",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testRaisedStopIteration2",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testRaisedStopIteration3",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testRaisedGeneratorExit1",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testRaisedGeneratorExit2",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
-    },
-    {
-      "id": "ExceptionalTestCase.testErrorsInBool",
-      "status": "quarantined",
-      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+      "reason": "unresolved-name:MockNested"
     },
     {
       "id": "AssignmentTargetTestCase.testSingleComplexTarget",
@@ -289,7 +286,7 @@
     {
       "id": "NestedWith.testExceptionLocation",
       "status": "quarantined",
-      "reason": "uses-self.subTest"
+      "reason": "uses-self.Dummy"
     }
   ]
 }

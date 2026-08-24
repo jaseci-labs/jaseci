@@ -1,113 +1,159 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "unknown"
   },
   "command": [
     "convert_suite.py",
-    "reference/cpython/Lib/test/test_string_literals.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_string_literals.py",
     "-o",
-    "/var/tmp/laneb-out/test_string_literals",
+    "/var/tmp/lane8/jac-py/tests/conv_string_literals",
     "--name",
     "conv_string_literals"
   ],
-  "generated_at": "2026-08-24T13:38:28",
+  "generated_at": "2026-08-24T14:26:18",
   "hashes": {
-    "pins_jac": "a61664bdbc91b3fef500f608b85d6b8db061280c40ef92dcb90a9189fc66e5d8"
+    "pins_jac": "174e4303ed9fa700ca5902e4d3606409c0e8576e0c47d50fd7640bd81af5d6c4"
   },
-  "source_file": "reference/cpython/Lib/test/test_string_literals.py",
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_string_literals.py",
   "generator": "jac-py/tools/convert_suite.py",
   "module_stem": "string_literals",
   "pins_file": "conv_string_literals_pins.jac",
-  "pins": [],
-  "quarantined": [
+  "pins": [
     {
       "ident": "TestLiterals.test_template",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\nTEMPLATE = \"# coding: %s\\na = 'x'\\nassert ord(a) == 120\\nb = '\\\\x01'\\nassert ord(b) == 1\\nc = r'\\\\x01'\\nassert list(map(ord, c)) == [92, 120, 48, 49]\\nd = '\\\\x81'\\nassert ord(d) == 0x81\\ne = r'\\\\x81'\\nassert list(map(ord, e)) == [92, 120, 56, 49]\\nf = '\\\\u1881'\\nassert ord(f) == 0x1881\\ng = r'\\\\u1881'\\nassert list(map(ord, g)) == [92, 117, 49, 56, 56, 49]\\nh = '\\\\U0001d120'\\nassert ord(h) == 0x1d120\\ni = r'\\\\U0001d120'\\nassert list(map(ord, i)) == [92, 85, 48, 48, 48, 49, 100, 49, 50, 48]\\n\"\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    for c in TEMPLATE:\n        assert c == '\\n' or ' ' <= c <= '~', repr(c)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_str_normal",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" 'x' \") == 'x', ('assertEqual', eval(\" 'x' \"), 'x')\n    assert eval(\" '\\\\x01' \") == chr(1), ('assertEqual', eval(\" '\\\\x01' \"), chr(1))\n    assert eval(\" '\\x01' \") == chr(1), ('assertEqual', eval(\" '\\x01' \"), chr(1))\n    assert eval(\" '\\\\x81' \") == chr(129), ('assertEqual', eval(\" '\\\\x81' \"), chr(129))\n    assert eval(\" '\\x81' \") == chr(129), ('assertEqual', eval(\" '\\x81' \"), chr(129))\n    assert eval(\" '\\\\u1881' \") == chr(6273), ('assertEqual', eval(\" '\\\\u1881' \"), chr(6273))\n    assert eval(\" '\u1881' \") == chr(6273), ('assertEqual', eval(\" '\u1881' \"), chr(6273))\n    assert eval(\" '\\\\U0001d120' \") == chr(119072), ('assertEqual', eval(\" '\\\\U0001d120' \"), chr(119072))\n    assert eval(\" '\ud834\udd20' \") == chr(119072), ('assertEqual', eval(\" '\ud834\udd20' \"), chr(119072))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_str_incomplete",
-      "reason": "helper:setUp(uses-self.save_path)"
-    },
-    {
-      "ident": "TestLiterals.test_eval_str_invalid_escape",
-      "reason": "helper:setUp(uses-self.save_path)"
-    },
-    {
-      "ident": "TestLiterals.test_eval_str_invalid_octal_escape",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    try:\n        eval(*(\" '\\\\x' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\x0' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\u' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\u0' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\u00' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\u000' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U0' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U00' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U000' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U0000' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U00000' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U000000' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" '\\\\U0000000' \",))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_invalid_escape_locations_with_offset",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\nimport warnings\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always', category=SyntaxWarning)\n        eval('\"\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'\\'invalid\\\\ Escape\"')\n    assert len(w) == 1, ('assertEqual', len(w), 1)\n    assert str(w[0].message) == '\"\\\\ \" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\\\\\ \"? A raw string is also an option.', ('assertEqual', str(w[0].message), '\"\\\\ \" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\\\\\ \"? A raw string is also an option.')\n    assert w[0].filename == '<string>', ('assertEqual', w[0].filename, '<string>')\n    assert w[0].lineno == 1, ('assertEqual', w[0].lineno, 1)\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always', category=SyntaxWarning)\n        eval('\"\\'\\'Incorrect \\\\ logic?\"')\n    assert len(w) == 1, ('assertEqual', len(w), 1)\n    assert str(w[0].message) == '\"\\\\ \" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\\\\\ \"? A raw string is also an option.', ('assertEqual', str(w[0].message), '\"\\\\ \" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\\\\\ \"? A raw string is also an option.')\n    assert w[0].filename == '<string>', ('assertEqual', w[0].filename, '<string>')\n    assert w[0].lineno == 1, ('assertEqual', w[0].lineno, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_str_raw",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" r'x' \") == 'x', ('assertEqual', eval(\" r'x' \"), 'x')\n    assert eval(\" r'\\\\x01' \") == '\\\\' + 'x01', ('assertEqual', eval(\" r'\\\\x01' \"), '\\\\' + 'x01')\n    assert eval(\" r'\\x01' \") == chr(1), ('assertEqual', eval(\" r'\\x01' \"), chr(1))\n    assert eval(\" r'\\\\x81' \") == '\\\\' + 'x81', ('assertEqual', eval(\" r'\\\\x81' \"), '\\\\' + 'x81')\n    assert eval(\" r'\\x81' \") == chr(129), ('assertEqual', eval(\" r'\\x81' \"), chr(129))\n    assert eval(\" r'\\\\u1881' \") == '\\\\' + 'u1881', ('assertEqual', eval(\" r'\\\\u1881' \"), '\\\\' + 'u1881')\n    assert eval(\" r'\u1881' \") == chr(6273), ('assertEqual', eval(\" r'\u1881' \"), chr(6273))\n    assert eval(\" r'\\\\U0001d120' \") == '\\\\' + 'U0001d120', ('assertEqual', eval(\" r'\\\\U0001d120' \"), '\\\\' + 'U0001d120')\n    assert eval(\" r'\ud834\udd20' \") == chr(119072), ('assertEqual', eval(\" r'\ud834\udd20' \"), chr(119072))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_bytes_normal",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef byte(i):\n    return bytes([i])\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" b'x' \") == b'x', ('assertEqual', eval(\" b'x' \"), b'x')\n    assert eval(\" b'\\\\x01' \") == byte(1), ('assertEqual', eval(\" b'\\\\x01' \"), byte(1))\n    assert eval(\" b'\\x01' \") == byte(1), ('assertEqual', eval(\" b'\\x01' \"), byte(1))\n    assert eval(\" b'\\\\x81' \") == byte(129), ('assertEqual', eval(\" b'\\\\x81' \"), byte(129))\n    try:\n        eval(*(\" b'\\x81' \",))\n    except SyntaxError:\n        pass\n    assert eval(\" br'\\\\u1881' \") == b'\\\\' + b'u1881', ('assertEqual', eval(\" br'\\\\u1881' \"), b'\\\\' + b'u1881')\n    try:\n        eval(*(\" b'\u1881' \",))\n    except SyntaxError:\n        pass\n    assert eval(\" br'\\\\U0001d120' \") == b'\\\\' + b'U0001d120', ('assertEqual', eval(\" br'\\\\U0001d120' \"), b'\\\\' + b'U0001d120')\n    try:\n        eval(*(\" b'\ud834\udd20' \",))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_bytes_incomplete",
-      "reason": "helper:setUp(uses-self.save_path)"
-    },
-    {
-      "ident": "TestLiterals.test_eval_bytes_invalid_escape",
-      "reason": "helper:setUp(uses-self.save_path)"
-    },
-    {
-      "ident": "TestLiterals.test_eval_bytes_invalid_octal_escape",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    try:\n        eval(*(\" b'\\\\x' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" b'\\\\x0' \",))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_bytes_raw",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef byte(i):\n    return bytes([i])\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" br'x' \") == b'x', ('assertEqual', eval(\" br'x' \"), b'x')\n    assert eval(\" rb'x' \") == b'x', ('assertEqual', eval(\" rb'x' \"), b'x')\n    assert eval(\" br'\\\\x01' \") == b'\\\\' + b'x01', ('assertEqual', eval(\" br'\\\\x01' \"), b'\\\\' + b'x01')\n    assert eval(\" rb'\\\\x01' \") == b'\\\\' + b'x01', ('assertEqual', eval(\" rb'\\\\x01' \"), b'\\\\' + b'x01')\n    assert eval(\" br'\\x01' \") == byte(1), ('assertEqual', eval(\" br'\\x01' \"), byte(1))\n    assert eval(\" rb'\\x01' \") == byte(1), ('assertEqual', eval(\" rb'\\x01' \"), byte(1))\n    assert eval(\" br'\\\\x81' \") == b'\\\\' + b'x81', ('assertEqual', eval(\" br'\\\\x81' \"), b'\\\\' + b'x81')\n    assert eval(\" rb'\\\\x81' \") == b'\\\\' + b'x81', ('assertEqual', eval(\" rb'\\\\x81' \"), b'\\\\' + b'x81')\n    try:\n        eval(*(\" br'\\x81' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rb'\\x81' \",))\n    except SyntaxError:\n        pass\n    assert eval(\" br'\\\\u1881' \") == b'\\\\' + b'u1881', ('assertEqual', eval(\" br'\\\\u1881' \"), b'\\\\' + b'u1881')\n    assert eval(\" rb'\\\\u1881' \") == b'\\\\' + b'u1881', ('assertEqual', eval(\" rb'\\\\u1881' \"), b'\\\\' + b'u1881')\n    try:\n        eval(*(\" br'\u1881' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rb'\u1881' \",))\n    except SyntaxError:\n        pass\n    assert eval(\" br'\\\\U0001d120' \") == b'\\\\' + b'U0001d120', ('assertEqual', eval(\" br'\\\\U0001d120' \"), b'\\\\' + b'U0001d120')\n    assert eval(\" rb'\\\\U0001d120' \") == b'\\\\' + b'U0001d120', ('assertEqual', eval(\" rb'\\\\U0001d120' \"), b'\\\\' + b'U0001d120')\n    try:\n        eval(*(\" br'\ud834\udd20' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rb'\ud834\udd20' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" bb'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rr'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" brr'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" bbr'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rrb'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" rbb'' \",))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_eval_str_u",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" u'x' \") == 'x', ('assertEqual', eval(\" u'x' \"), 'x')\n    assert eval(\" U'\u00e4' \") == '\u00e4', ('assertEqual', eval(\" U'\u00e4' \"), '\u00e4')\n    assert eval(\" u'\u00e4' \") == '\u00e4', ('assertEqual', eval(\" u'\u00e4' \"), '\u00e4')\n    try:\n        eval(*(\" ur'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" ru'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" bu'' \",))\n    except SyntaxError:\n        pass\n    try:\n        eval(*(\" ub'' \",))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_uppercase_prefixes",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport tempfile\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.save_path = sys.path[:]\n    self.tmpdir = tempfile.mkdtemp()\n    sys.path.insert(0, self.tmpdir)\n    assert eval(\" B'x' \") == b'x', ('assertEqual', eval(\" B'x' \"), b'x')\n    assert eval(\" R'\\\\x01' \") == '\\\\x01', ('assertEqual', eval(\" R'\\\\x01' \"), '\\\\x01')\n    assert eval(\" BR'\\\\x01' \") == b'\\\\x01', ('assertEqual', eval(\" BR'\\\\x01' \"), b'\\\\x01')\n    assert eval(\" F'{1+1}' \") == f'{1 + 1}', ('assertEqual', eval(\" F'{1+1}' \"), f'{1 + 1}')\n    assert eval(\" U'\\\\U0001d120' \") == u'\ud834\udd20', ('assertEqual', eval(\" U'\\\\U0001d120' \"), u'\ud834\udd20')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "TestLiterals.test_file_utf_8",
-      "reason": "helper:setUp(uses-self.save_path)"
-    },
-    {
-      "ident": "TestLiterals.test_file_utf_8_error",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "TestLiterals.test_file_utf8",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "TestLiterals.test_file_iso_8859_1",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "TestLiterals.test_file_latin_1",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
     },
     {
       "ident": "TestLiterals.test_file_latin9",
-      "reason": "helper:setUp(uses-self.save_path)"
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestLiterals.test_eval_str_invalid_escape",
+      "reason": "self.assertRegex"
+    },
+    {
+      "ident": "TestLiterals.test_eval_str_invalid_octal_escape",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_invalid_escape",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "TestLiterals.test_eval_bytes_invalid_octal_escape",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "TestLiterals.test_file_utf_8_error",
+      "reason": "uses-self.check_encoding"
     }
   ],
   "counts": {
     "extracted": 20,
-    "pinned": 0,
-    "quarantined": 20
+    "pinned": 10,
+    "quarantined": 10
   }
 }

@@ -1,8 +1,8 @@
 # Triage report: `conv_calendar_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_calendar.py
-- guest leg: 0/45 marks
-- pins: **0 passed** / 45 run (+34 quarantined of 79 extracted)
+- guest leg: 0/52 marks
+- pins: **0 passed** / 52 run (+27 quarantined of 79 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -51,6 +51,13 @@
 | LeapdaysTestCase.test_no_leapdays_upper_boundary | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | LeapdaysTestCase.test_one_leapday_lower_boundary | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | LeapdaysTestCase.test_several_leapyears_in_range | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_formatmonthname | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_formatmonth | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_formatmonth_with_invalid_month | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_formatweek | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_formatweek_head | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_format_year | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestSubClassingCase.test_format_year_head | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 
 ## Quarantined at conversion
 
@@ -59,36 +66,29 @@
 | CommandLineTestCase.test_help | decorator:support.force_not_colorized |
 | OutputTestCase.test_illegal_month_error_bases | self.assertIsSubclass |
 | CalendarTestCase.test_deprecation_warning | uses-self.assertWarnsRegex |
-| MondayTestCase.test_february | helper:setUp(uses-self.oldfirstweekday) |
-| MondayTestCase.test_april | helper:setUp(uses-self.oldfirstweekday) |
-| MondayTestCase.test_december | helper:setUp(uses-self.oldfirstweekday) |
-| SundayTestCase.test_february | helper:setUp(uses-self.oldfirstweekday) |
-| SundayTestCase.test_april | helper:setUp(uses-self.oldfirstweekday) |
-| SundayTestCase.test_december | helper:setUp(uses-self.oldfirstweekday) |
-| TimegmTestCase.test_timegm | uses-self.TIMESTAMPS |
-| CommandLineTestCase.test_illegal_arguments | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_output_current_year | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_output_year | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_output_month | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_encoding | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_locale | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_width | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_lines | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_spacing | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_months | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_option_type | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_html_output_current_year | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_html_output_year_encoding | helper:setUp(uses-self.runners) |
-| CommandLineTestCase.test_html_output_year_css | helper:setUp(uses-self.runners) |
-| TestSubClassingCase.test_formatmonthname | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_formatmonth | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_formatmonth_with_invalid_month | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_formatweek | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_formatweek_head | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_format_year | helper:setUp(uses-self.cal) |
-| TestSubClassingCase.test_format_year_head | helper:setUp(uses-self.cal) |
+| CommandLineTestCase.test_illegal_arguments | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_encoding | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_locale | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_width | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_lines | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_spacing | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_months | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_option_type | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
+| CommandLineTestCase.test_html_output_year_css | helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper))) |
 | CalendarTestCase.test_locale_calendar_formatweekday | host-raised:SkipTest: cannot set the en_US locale |
 | CalendarTestCase.test_locale_calendar_formatmonthname | host-raised:SkipTest: cannot set the en_US locale |
+| MondayTestCase.test_february | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| MondayTestCase.test_april | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| MondayTestCase.test_december | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| SundayTestCase.test_february | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| SundayTestCase.test_april | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| SundayTestCase.test_december | host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday' |
+| TimegmTestCase.test_timegm | host-raised:AttributeError: '_SelfNS' object has no attribute 'TIMESTAMPS' |
+| CommandLineTestCase.test_output_current_year | host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok' |
+| CommandLineTestCase.test_output_year | host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok' |
+| CommandLineTestCase.test_output_month | host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok' |
+| CommandLineTestCase.test_html_output_current_year | host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok' |
+| CommandLineTestCase.test_html_output_year_encoding | host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok' |
 | MiscTestCase.test__all__ | host-raised:NameError: name 'self' is not defined |
 
 ## Expected vs got
@@ -314,6 +314,41 @@
 - got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
 
 ### OutputTestCase.test_yeardayscalendar (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_format_year (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_format_year_head (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_formatmonth (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_formatmonth_with_invalid_month (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_formatmonthname (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_formatweek (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### TestSubClassingCase.test_formatweek_head (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
 - got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">

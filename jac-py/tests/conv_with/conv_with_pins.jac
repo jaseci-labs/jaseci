@@ -43,8 +43,50 @@ test "FailureTestCase.testAssignmentToTupleContainingNoneError" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "FailureTestCase.testEnterThrows" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class EnterThrows(object):\n\n        def __enter__(self):\n            raise RuntimeError('Enter threw')\n\n        def __exit__(self, *args):\n            pass\n\n    def shouldThrow():\n        ct = EnterThrows()\n        self.foo = None\n        with ct as self.foo:\n            pass\n    try:\n        shouldThrow()\n    except RuntimeError:\n        pass\n    assert self.foo == None, ('assertEqual', self.foo, None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "FailureTestCase.testExitThrows" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class ExitThrows(object):\n\n        def __enter__(self):\n            return\n\n        def __exit__(self, *args):\n            raise RuntimeError(42)\n\n    def shouldThrow():\n        with ExitThrows():\n            pass\n    try:\n        shouldThrow()\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testRaisedStopIteration1" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nfrom contextlib import _GeneratorContextManager, contextmanager, nullcontext\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    @contextmanager\n    def cm():\n        yield\n\n    def shouldThrow():\n        with cm():\n            raise StopIteration('from with')\n    try:\n        shouldThrow()\n    except StopIteration as _exc:\n        assert _re.search('from with', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testRaisedStopIteration2" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    class cm(object):\n\n        def __enter__(self):\n            pass\n\n        def __exit__(self, type, value, traceback):\n            pass\n\n    def shouldThrow():\n        with cm():\n            raise StopIteration('from with')\n    try:\n        shouldThrow()\n    except StopIteration as _exc:\n        assert _re.search('from with', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testRaisedStopIteration3" {
+    (ok, detail) = p2_libtest_run_snippet("from contextlib import _GeneratorContextManager, contextmanager, nullcontext\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    @contextmanager\n    def cm():\n        yield\n\n    def shouldThrow():\n        with cm():\n            raise next(iter([]))\n    try:\n        shouldThrow()\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testRaisedGeneratorExit1" {
+    (ok, detail) = p2_libtest_run_snippet("from contextlib import _GeneratorContextManager, contextmanager, nullcontext\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    @contextmanager\n    def cm():\n        yield\n\n    def shouldThrow():\n        with cm():\n            raise GeneratorExit('from with')\n    try:\n        shouldThrow()\n    except GeneratorExit:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testRaisedGeneratorExit2" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    class cm(object):\n\n        def __enter__(self):\n            pass\n\n        def __exit__(self, type, value, traceback):\n            pass\n\n    def shouldThrow():\n        with cm():\n            raise GeneratorExit('from with')\n    try:\n        shouldThrow()\n    except GeneratorExit:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "ExceptionalTestCase.testErrorsInBool" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.TEST_EXCEPTION = RuntimeError('test exception')\n\n    class cm(object):\n\n        def __init__(self, bool_conversion):\n\n            class Bool:\n\n                def __bool__(self):\n                    return bool_conversion()\n            self.exit_result = Bool()\n\n        def __enter__(self):\n            return 3\n\n        def __exit__(self, a, b, c):\n            return self.exit_result\n\n    def trueAsBool():\n        with cm(lambda: True):\n            raise AssertionError('Should NOT see this')\n    trueAsBool()\n\n    def falseAsBool():\n        with cm(lambda: False):\n            raise AssertionError('Should raise')\n    try:\n        falseAsBool()\n    except AssertionError:\n        pass\n\n    def failAsBool():\n        with cm(lambda: 1 // 0):\n            raise AssertionError('Should NOT see this')\n    try:\n        failAsBool()\n    except ZeroDivisionError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

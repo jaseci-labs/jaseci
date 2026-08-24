@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_calendar"
   ],
-  "generated_at": "2026-08-24T14:03:39",
+  "generated_at": "2026-08-24T14:26:24",
   "hashes": {
-    "pins_jac": "356e81121235f88dc9a548e93474895fc5988e84adfcc73a9d9417f121d267dc"
+    "pins_jac": "3803808da77491a2ac0c9dcdd6ec9c9e7348dfe73d8c129983409cb25e6e5782"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_calendar.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -298,6 +298,41 @@
       "snippet": "import calendar\n\ndef _t():\n    week0 = list(range(7))\n    for firstweekday in range(7):\n        cal = calendar.Calendar(firstweekday)\n        week = list(cal.iterweekdays())\n        expected = week0[firstweekday:] + week0[:firstweekday]\n        assert week == expected, ('assertEqual', week, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "MondayTestCase.test_february",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "MondayTestCase.test_april",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "MondayTestCase.test_december",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "SundayTestCase.test_february",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "SundayTestCase.test_april",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "SundayTestCase.test_december",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'firstweekday'"
+    },
+    {
+      "ident": "TimegmTestCase.test_timegm",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'TIMESTAMPS'"
+    },
+    {
       "ident": "MonthRangeTestCase.test_january",
       "status": "pinned",
       "oracle": {
@@ -394,9 +429,90 @@
       "snippet": "import calendar\n\ndef _t():\n    assert calendar.leapdays(1997, 2020) == 5, ('assertEqual', calendar.leapdays(1997, 2020), 5)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "CommandLineTestCase.test_output_current_year",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok'"
+    },
+    {
+      "ident": "CommandLineTestCase.test_output_year",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok'"
+    },
+    {
+      "ident": "CommandLineTestCase.test_output_month",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok'"
+    },
+    {
+      "ident": "CommandLineTestCase.test_html_output_current_year",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok'"
+    },
+    {
+      "ident": "CommandLineTestCase.test_html_output_year_encoding",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'run_cli_ok'"
+    },
+    {
       "ident": "MiscTestCase.test__all__",
       "status": "quarantined",
       "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "ident": "TestSubClassingCase.test_formatmonthname",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    assert 'class=\"text-center month-head\"' in self.cal.formatmonthname(2017, 5), ('assertIn', 'class=\"text-center month-head\"', self.cal.formatmonthname(2017, 5))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_formatmonth",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    assert 'class=\"text-center month\"' in self.cal.formatmonth(2017, 5), ('assertIn', 'class=\"text-center month\"', self.cal.formatmonth(2017, 5))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_formatmonth_with_invalid_month",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    try:\n        self.cal.formatmonth(2017, 13)\n    except calendar.IllegalMonthError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        self.cal.formatmonth(2017, -1)\n    except calendar.IllegalMonthError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_formatweek",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    weeks = self.cal.monthdays2calendar(2017, 5)\n    assert 'class=\"wed text-nowrap\"' in self.cal.formatweek(weeks[0]), ('assertIn', 'class=\"wed text-nowrap\"', self.cal.formatweek(weeks[0]))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_formatweek_head",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    header = self.cal.formatweekheader()\n    for color in self.cal.cssclasses_weekday_head:\n        assert '<th class=\"%s\">' % color in header, ('assertIn', '<th class=\"%s\">' % color, header)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_format_year",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    assert '<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" class=\"%s\">' % self.cal.cssclass_year in self.cal.formatyear(2017), ('assertIn', '<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" class=\"%s\">' % self.cal.cssclass_year, self.cal.formatyear(2017))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestSubClassingCase.test_format_year_head",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import calendar\n\ndef setUp():\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class CustomHTMLCal(calendar.HTMLCalendar):\n        cssclasses = [style + ' text-nowrap' for style in calendar.HTMLCalendar.cssclasses]\n        cssclasses_weekday_head = ['red', 'blue', 'green', 'lilac', 'yellow', 'orange', 'pink']\n        cssclass_month_head = 'text-center month-head'\n        cssclass_month = 'text-center month'\n        cssclass_year = 'text-italic '\n        cssclass_year_head = 'lead '\n    self.cal = CustomHTMLCal()\n    assert '<tr><th colspan=\"%d\" class=\"%s\">%s</th></tr>' % (3, self.cal.cssclass_year_head, 2017) in self.cal.formatyear(2017), ('assertIn', '<tr><th colspan=\"%d\" class=\"%s\">%s</th></tr>' % (3, self.cal.cssclass_year_head, 2017), self.cal.formatyear(2017))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
   "quarantined": [
@@ -413,121 +529,45 @@
       "reason": "uses-self.assertWarnsRegex"
     },
     {
-      "ident": "MondayTestCase.test_february",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "MondayTestCase.test_april",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "MondayTestCase.test_december",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "SundayTestCase.test_february",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "SundayTestCase.test_april",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "SundayTestCase.test_december",
-      "reason": "helper:setUp(uses-self.oldfirstweekday)"
-    },
-    {
-      "ident": "TimegmTestCase.test_timegm",
-      "reason": "uses-self.TIMESTAMPS"
-    },
-    {
       "ident": "CommandLineTestCase.test_illegal_arguments",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "CommandLineTestCase.test_output_current_year",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "CommandLineTestCase.test_output_year",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "CommandLineTestCase.test_output_month",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_encoding",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_locale",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_width",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_lines",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_spacing",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_months",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_option_type",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "CommandLineTestCase.test_html_output_current_year",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "CommandLineTestCase.test_html_output_year_encoding",
-      "reason": "helper:setUp(uses-self.runners)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     },
     {
       "ident": "CommandLineTestCase.test_html_output_year_css",
-      "reason": "helper:setUp(uses-self.runners)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_formatmonthname",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_formatmonth",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_formatmonth_with_invalid_month",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_formatweek",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_formatweek_head",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_format_year",
-      "reason": "helper:setUp(uses-self.cal)"
-    },
-    {
-      "ident": "TestSubClassingCase.test_format_year_head",
-      "reason": "helper:setUp(uses-self.cal)"
+      "reason": "helper:assertFailure(helper:assertCLIFails(helper:captured_stderr_with_buffer(decorated-helper)))"
     }
   ],
   "counts": {
     "extracted": 79,
-    "pinned": 45,
-    "quarantined": 34
+    "pinned": 52,
+    "quarantined": 27
   }
 }

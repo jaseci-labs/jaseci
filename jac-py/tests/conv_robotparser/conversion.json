@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,7 +14,7 @@
     "--name",
     "conv_robotparser"
   ],
-  "generated_at": "2026-08-24T14:04:27",
+  "generated_at": "2026-08-24T14:26:20",
   "hashes": {
     "pins_jac": "9613498aec7c2a85b79ea4a9107063120a073547007bc3393add214205110334"
   },
@@ -23,6 +23,16 @@
   "module_stem": "robotparser",
   "pins_file": "conv_robotparser_pins.jac",
   "pins": [
+    {
+      "ident": "BaseRobotTest.test_site_maps",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
+    },
+    {
+      "ident": "BaseRobotTest.test_string_formatting",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
+    },
     {
       "ident": "ConstructedStringFormattingTest.test_empty",
       "status": "pinned",
@@ -46,6 +56,36 @@
         "status": "ok"
       },
       "snippet": "import urllib.robotparser\n\ndef _t():\n    parser = urllib.robotparser.RobotFileParser()\n    entry = urllib.robotparser.Entry()\n    entry.rulelines = [urllib.robotparser.RuleLine('/ham', False)]\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.useragents = ['spambot']\n    entry.rulelines = [urllib.robotparser.RuleLine('/spam', False)]\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.rulelines = [urllib.robotparser.RuleLine('/eggs', False)]\n    parser._add_entry(entry)\n    assert str(parser) == 'User-agent: spambot\\nDisallow: /spam', ('assertEqual', str(parser), 'User-agent: spambot\\nDisallow: /spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LocalNetworkTestCase.testRead",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testUnauthorized",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testForbidden",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testNotFound",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testTeapot",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testServiceUnavailable",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'server'"
     }
   ],
   "quarantined": [
@@ -63,47 +103,15 @@
     },
     {
       "ident": "BaseRobotTest.test_good_urls",
-      "reason": "helper:setUp(uses-self.parser)"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "BaseRobotTest.test_bad_urls",
-      "reason": "helper:setUp(uses-self.parser)"
-    },
-    {
-      "ident": "BaseRobotTest.test_site_maps",
-      "reason": "helper:setUp(uses-self.parser)"
-    },
-    {
-      "ident": "BaseRobotTest.test_string_formatting",
-      "reason": "helper:setUp(uses-self.parser)"
+      "reason": "uses-self.subTest"
     },
     {
       "ident": "BaseRequestRateTest.test_request_rate",
-      "reason": "helper:setUp(uses-self.parser)"
-    },
-    {
-      "ident": "LocalNetworkTestCase.testRead",
-      "reason": "uses-self.server"
-    },
-    {
-      "ident": "HttpErrorsTestCase.testUnauthorized",
-      "reason": "helper:setUp(uses-self.server)"
-    },
-    {
-      "ident": "HttpErrorsTestCase.testForbidden",
-      "reason": "helper:setUp(uses-self.server)"
-    },
-    {
-      "ident": "HttpErrorsTestCase.testNotFound",
-      "reason": "helper:setUp(uses-self.server)"
-    },
-    {
-      "ident": "HttpErrorsTestCase.testTeapot",
-      "reason": "helper:setUp(uses-self.server)"
-    },
-    {
-      "ident": "HttpErrorsTestCase.testServiceUnavailable",
-      "reason": "helper:setUp(uses-self.server)"
+      "reason": "uses-self.subTest"
     }
   ],
   "counts": {

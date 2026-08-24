@@ -17,17 +17,17 @@
 | NetworkTestCase.test_basic | decorator:support.requires_working_socket |
 | NetworkTestCase.test_can_fetch | decorator:support.requires_working_socket |
 | NetworkTestCase.test_read_404 | decorator:support.requires_working_socket |
-| BaseRobotTest.test_good_urls | helper:setUp(uses-self.parser) |
-| BaseRobotTest.test_bad_urls | helper:setUp(uses-self.parser) |
-| BaseRobotTest.test_site_maps | helper:setUp(uses-self.parser) |
-| BaseRobotTest.test_string_formatting | helper:setUp(uses-self.parser) |
-| BaseRequestRateTest.test_request_rate | helper:setUp(uses-self.parser) |
-| LocalNetworkTestCase.testRead | uses-self.server |
-| HttpErrorsTestCase.testUnauthorized | helper:setUp(uses-self.server) |
-| HttpErrorsTestCase.testForbidden | helper:setUp(uses-self.server) |
-| HttpErrorsTestCase.testNotFound | helper:setUp(uses-self.server) |
-| HttpErrorsTestCase.testTeapot | helper:setUp(uses-self.server) |
-| HttpErrorsTestCase.testServiceUnavailable | helper:setUp(uses-self.server) |
+| BaseRobotTest.test_good_urls | uses-self.subTest |
+| BaseRobotTest.test_bad_urls | uses-self.subTest |
+| BaseRequestRateTest.test_request_rate | uses-self.subTest |
+| BaseRobotTest.test_site_maps | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
+| BaseRobotTest.test_string_formatting | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
+| LocalNetworkTestCase.testRead | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
+| HttpErrorsTestCase.testUnauthorized | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
+| HttpErrorsTestCase.testForbidden | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
+| HttpErrorsTestCase.testNotFound | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
+| HttpErrorsTestCase.testTeapot | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
+| HttpErrorsTestCase.testServiceUnavailable | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
 
 ## Expected vs got
 
