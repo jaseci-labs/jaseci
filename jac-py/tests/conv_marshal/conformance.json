@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "3b6cb3b10fde34d0c285e2b7ceed8f59d4d8313f",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp3-out/test_marshal/conv_marshal_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:44:50",
+  "hashes": {
+    "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341",
+    "conversion_json": "97c5389310691d8e0d6d7e19bb3090a8f869b5883913f35d2a354865679d37a0",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "marshal",
+  "counts": {
+    "converted": 75,
+    "runnable": 36,
+    "green": 16,
+    "quarantined": 39
+  },
+  "pins": [
+    {
+      "id": "IntTestCase.test_ints",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "IntTestCase.test_int64",
+      "status": "pass"
+    },
+    {
+      "id": "IntTestCase.test_bool",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "FloatTestCase.test_floats",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "StringTestCase.test_unicode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "StringTestCase.test_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "StringTestCase.test_bytes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "ExceptionTestCase.test_exceptions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'exception_type\\' has policy BridgePolicy.FAIL but no to_host conversion arm\"'>"
+    },
+    {
+      "id": "CodeTestCase.test_different_filenames",
+      "status": "pass"
+    },
+    {
+      "id": "BufferTestCase.test_bytearray",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "BufferTestCase.test_memoryview",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "BufferTestCase.test_array",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_bug_5888452",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_patch_873224",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_version_argument",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_fuzz",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_loads_recursion",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_recursion_limit",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_reference_loop_list",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "BugsTestCase.test_reference_loop_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "BugsTestCase.test_reference_loop_tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "BugsTestCase.test_reference_loop_slice",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "BugsTestCase.test_loads_reference_loop_list",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_loads_reference_loop_dict",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_exact_type_match",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_large_marshal",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_invalid_longs",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_multiple_dumps_and_loads",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "BugsTestCase.test_loads_reject_unicode_strings",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_bad_reader",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC EOFError 'EOF read where object expected'\">"
+    },
+    {
+      "id": "BugsTestCase.test_eof",
+      "status": "pass"
+    },
+    {
+      "id": "InstancingTestCase.testInt",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "InstancingTestCase.testFloat",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "InstancingTestCase.testStr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "InstancingTestCase.testBytes",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'BufferedWriter.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "InstancingTestCase.testRecursion",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'maximum recursion depth exceeded'\">"
+    },
+    {
+      "id": "CodeTestCase.test_same_filename_used",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "LargeValuesTestCase.test_bytes",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_str",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_tuple",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_list",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_set",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_frozenset",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LargeValuesTestCase.test_bytearray",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "CAPI_TestCase.test_write_long_to_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CAPI_TestCase.test_write_object_to_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CAPI_TestCase.test_read_short_from_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CAPI_TestCase.test_read_long_from_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CAPI_TestCase.test_read_last_object_from_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CAPI_TestCase.test_read_object_from_file",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodeTestCase.test_code",
+      "status": "quarantined",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "id": "CodeTestCase.test_many_codeobjects",
+      "status": "quarantined",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "id": "CodeTestCase.test_no_allow_code",
+      "status": "quarantined",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "id": "CodeTestCase.test_minimal_linetable_with_no_debug_ranges",
+      "status": "quarantined",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "id": "ContainerTestCase.test_dict",
+      "status": "quarantined",
+      "reason": "uses-self.d"
+    },
+    {
+      "id": "ContainerTestCase.test_list",
+      "status": "quarantined",
+      "reason": "uses-self.d"
+    },
+    {
+      "id": "ContainerTestCase.test_tuple",
+      "status": "quarantined",
+      "reason": "uses-self.d"
+    },
+    {
+      "id": "ContainerTestCase.test_sets",
+      "status": "quarantined",
+      "reason": "uses-self.d"
+    },
+    {
+      "id": "BugsTestCase.test_reference_loop_code",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "BugsTestCase.test_loads_abnormal_reference_loops",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "BugsTestCase.test_deterministic_sets",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "BugsTestCase.test_unmarshallable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "InstancingTestCase.testList",
+      "status": "quarantined",
+      "reason": "uses-self.keys"
+    },
+    {
+      "id": "InstancingTestCase.testTuple",
+      "status": "quarantined",
+      "reason": "uses-self.keys"
+    },
+    {
+      "id": "InstancingTestCase.testSet",
+      "status": "quarantined",
+      "reason": "uses-self.keys"
+    },
+    {
+      "id": "InstancingTestCase.testFrozenSet",
+      "status": "quarantined",
+      "reason": "uses-self.keys"
+    },
+    {
+      "id": "InstancingTestCase.testDict",
+      "status": "quarantined",
+      "reason": "uses-self.keys"
+    },
+    {
+      "id": "InstancingTestCase.testModule",
+      "status": "quarantined",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "id": "CompatibilityTestCase.test0To3",
+      "status": "quarantined",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "id": "CompatibilityTestCase.test1To3",
+      "status": "quarantined",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "id": "CompatibilityTestCase.test2To3",
+      "status": "quarantined",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "id": "CompatibilityTestCase.test3To3",
+      "status": "quarantined",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "id": "InterningTestCase.testIntern",
+      "status": "quarantined",
+      "reason": "uses-self.strobj"
+    },
+    {
+      "id": "InterningTestCase.testNoIntern",
+      "status": "quarantined",
+      "reason": "uses-self.strobj"
+    },
+    {
+      "id": "SliceTestCase.test_slice",
+      "status": "quarantined",
+      "reason": "uses-self.helper"
+    }
+  ]
+}

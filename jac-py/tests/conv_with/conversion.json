@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "51c50b53f314dd1313d2a0894ead79a61f9ceb77",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_with.py",
+    "-o",
+    "/var/tmp/sp3-out/test_with",
+    "--name",
+    "conv_with"
+  ],
+  "generated_at": "2026-08-24T13:45:45",
+  "hashes": {
+    "pins_jac": "5a110d3f9dd21305da9dfc021a1042e2207e949fc22075f36bade1c785e59bfe"
+  },
+  "source_file": "reference/cpython/Lib/test/test_with.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "with",
+  "pins_file": "conv_with_pins.jac",
+  "pins": [
+    {
+      "ident": "FailureTestCase.testEnterAttributeError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport re\n\ndef do_with(obj):\n    with obj:\n        pass\n\ndef _t():\n\n    class LacksEnter:\n\n        def __exit__(self, type, value, traceback):\n            ...\n    try:\n        do_with(LacksEnter())\n    except TypeError as _exc:\n        assert _re.search(re.escape('object does not support the context manager protocol (missed __enter__ method)'), str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testExitAttributeError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport re\n\ndef do_with(obj):\n    with obj:\n        pass\n\ndef _t():\n\n    class LacksExit:\n\n        def __enter__(self):\n            ...\n    msg = re.escape('object does not support the context manager protocol (missed __exit__ method)')\n    try:\n        do_with(object())\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        do_with(LacksExit())\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testWithForAsyncManager",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport re\n\ndef do_with(obj):\n    with obj:\n        pass\n\ndef _t():\n\n    class AsyncManager:\n\n        async def __aenter__(self):\n            ...\n\n        async def __aexit__(self, type, value, traceback):\n            ...\n    try:\n        do_with(AsyncManager())\n    except TypeError as _exc:\n        assert _re.search(re.escape(\"object does not support the context manager protocol (missed __exit__ method) but it supports the asynchronous context manager protocol. Did you mean to use 'async with'?\"), str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testAssignmentToNoneError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def assertRaisesSyntaxError(codestr):\n\n    def shouldRaiseSyntaxError(s):\n        compile(s, '', 'single')\n    try:\n        shouldRaiseSyntaxError(*(codestr,))\n    except SyntaxError:\n        pass\n\ndef _t():\n    assertRaisesSyntaxError('with mock as None:\\n  pass')\n    assertRaisesSyntaxError('with mock as (None):\\n  pass')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testAssignmentToTupleOnlyContainingNoneError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def assertRaisesSyntaxError(codestr):\n\n    def shouldRaiseSyntaxError(s):\n        compile(s, '', 'single')\n    try:\n        shouldRaiseSyntaxError(*(codestr,))\n    except SyntaxError:\n        pass\n\ndef _t():\n    assertRaisesSyntaxError('with mock as None,:\\n  pass')\n    assertRaisesSyntaxError('with mock as (None,):\\n  pass')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testAssignmentToTupleContainingNoneError",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def assertRaisesSyntaxError(codestr):\n\n    def shouldRaiseSyntaxError(s):\n        compile(s, '', 'single')\n    try:\n        shouldRaiseSyntaxError(*(codestr,))\n    except SyntaxError:\n        pass\n\ndef _t():\n    assertRaisesSyntaxError('with mock as (foo, None, bar):\\n  pass')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FailureTestCase.testExitThrows",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class ExitThrows(object):\n\n        def __enter__(self):\n            return\n\n        def __exit__(self, *args):\n            raise RuntimeError(42)\n\n    def shouldThrow():\n        with ExitThrows():\n            pass\n    try:\n        shouldThrow()\n    except RuntimeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "NonLocalFlowControlTestCase.testWithBreak",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "ident": "NonLocalFlowControlTestCase.testWithContinue",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "ident": "NonLocalFlowControlTestCase.testWithReturn",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "ident": "NonLocalFlowControlTestCase.testWithYield",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "ident": "NonLocalFlowControlTestCase.testWithRaise",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'MockContextManager' is not defined"
+    },
+    {
+      "ident": "AssignmentTargetTestCase.testMultipleComplexTargets",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C:\n\n        def __enter__(self):\n            return (1, 2, 3)\n\n        def __exit__(self, t, v, tb):\n            pass\n    targets = {1: [0, 1, 2]}\n    with C() as (targets[1][0], targets[1][1], targets[1][2]):\n        assert targets == {1: [1, 2, 3]}, ('assertEqual', targets, {1: [1, 2, 3]})\n    with C() as (list(targets.values())[0][2], list(targets.values())[0][1], list(targets.values())[0][0]):\n        assert targets == {1: [3, 2, 1]}, ('assertEqual', targets, {1: [3, 2, 1]})\n    with C() as (targets[1], targets[2], targets[3]):\n        assert targets == {1: 1, 2: 2, 3: 3}, ('assertEqual', targets, {1: 1, 2: 2, 3: 3})\n\n    class B:\n        pass\n    blah = B()\n    with C() as (blah.one, blah.two, blah.three):\n        assert blah.one == 1, ('assertEqual', blah.one, 1)\n        assert blah.two == 2, ('assertEqual', blah.two, 2)\n        assert blah.three == 3, ('assertEqual', blah.three, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AssignmentTargetTestCase.testWithExtendedTargets",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from contextlib import _GeneratorContextManager, contextmanager, nullcontext\n\ndef _t():\n    with nullcontext(range(1, 5)) as (a, *b, c):\n        assert a == 1, ('assertEqual', a, 1)\n        assert b == [2, 3], ('assertEqual', b, [2, 3])\n        assert c == 4, ('assertEqual', c, 4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ExitSwallowsExceptionTestCase.testExitTrueSwallowsException",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class AfricanSwallow:\n\n        def __enter__(self):\n            pass\n\n        def __exit__(self, t, v, tb):\n            return True\n    try:\n        with AfricanSwallow():\n            1 / 0\n    except ZeroDivisionError:\n        raise AssertionError('ZeroDivisionError should have been swallowed')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ExitSwallowsExceptionTestCase.testExitFalseDoesntSwallowException",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class EuropeanSwallow:\n\n        def __enter__(self):\n            pass\n\n        def __exit__(self, t, v, tb):\n            return False\n    try:\n        with EuropeanSwallow():\n            1 / 0\n    except ZeroDivisionError:\n        pass\n    else:\n        raise AssertionError('ZeroDivisionError should have been raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "FailureTestCase.testNameError",
+      "reason": "unresolved-name:foo"
+    },
+    {
+      "ident": "FailureTestCase.testAsyncEnterAttributeError",
+      "reason": "unresolved-name:do_async_with"
+    },
+    {
+      "ident": "FailureTestCase.testAsyncExitAttributeError",
+      "reason": "unresolved-name:do_async_with"
+    },
+    {
+      "ident": "FailureTestCase.testAsyncWithForSyncManager",
+      "reason": "unresolved-name:do_async_with"
+    },
+    {
+      "ident": "FailureTestCase.testEnterThrows",
+      "reason": "uses-self.foo"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testInlineGeneratorSyntax",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testUnboundGenerator",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testInlineGeneratorBoundSyntax",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testInlineGeneratorBoundToExistingVariable",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testInlineGeneratorBoundToDottedVariable",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testBoundGenerator",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NonexceptionalTestCase.testNestedSingleStatements",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testSingleArgInlineGeneratorSyntax",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testSingleArgBoundToNonTuple",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testSingleArgBoundToSingleElementParenthesizedList",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testSingleArgBoundToMultipleElementTupleError",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testSingleArgUnbound",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testMultipleArgUnbound",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "NestedNonexceptionalTestCase.testMultipleArgBound",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testSingleResource",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testExceptionNormalized",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testNestedSingleStatements",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testMultipleResourcesInSingleStatement",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testNestedExceptionBeforeInnerStatement",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testNestedExceptionAfterInnerStatement",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testRaisedStopIteration1",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testRaisedStopIteration2",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testRaisedStopIteration3",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testRaisedGeneratorExit1",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testRaisedGeneratorExit2",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "ExceptionalTestCase.testErrorsInBool",
+      "reason": "helper:setUp(uses-self.TEST_EXCEPTION)"
+    },
+    {
+      "ident": "AssignmentTargetTestCase.testSingleComplexTarget",
+      "reason": "self.assertHasAttr"
+    },
+    {
+      "ident": "NestedWith.testNoExceptions",
+      "reason": "uses-self.Dummy"
+    },
+    {
+      "ident": "NestedWith.testExceptionInExprList",
+      "reason": "uses-self.Dummy"
+    },
+    {
+      "ident": "NestedWith.testExceptionInEnter",
+      "reason": "uses-self.Dummy"
+    },
+    {
+      "ident": "NestedWith.testExceptionInExit",
+      "reason": "uses-self.Dummy"
+    },
+    {
+      "ident": "NestedWith.testEnterReturnsTuple",
+      "reason": "uses-self.Dummy"
+    },
+    {
+      "ident": "NestedWith.testExceptionLocation",
+      "reason": "uses-self.subTest"
+    }
+  ],
+  "counts": {
+    "extracted": 54,
+    "pinned": 11,
+    "quarantined": 43
+  }
+}

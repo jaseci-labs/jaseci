@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "51c50b53f314dd1313d2a0894ead79a61f9ceb77",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_marshal.py",
+    "-o",
+    "/var/tmp/sp3-out/test_marshal",
+    "--name",
+    "conv_marshal"
+  ],
+  "generated_at": "2026-08-24T13:45:36",
+  "hashes": {
+    "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341"
+  },
+  "source_file": "reference/cpython/Lib/test/test_marshal.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "marshal",
+  "pins_file": "conv_marshal_pins.jac",
+  "pins": [
+    {
+      "ident": "IntTestCase.test_ints",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\nimport sys\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    n = sys.maxsize ** 2\n    while n:\n        for expected in (-n, n):\n            helper(expected)\n        n = n >> 1\n    n = 1 << 100\n    while n:\n        for expected in (-n, -n + 1, n - 1, n):\n            helper(expected)\n        n = n >> 1\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCase.test_int64",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    maxint64 = (1 << 63) - 1\n    minint64 = -maxint64 - 1\n    for base in (maxint64, minint64, -maxint64, -(minint64 >> 1)):\n        while base:\n            s = b'I' + int.to_bytes(base, 8, 'little', signed=True)\n            got = marshal.loads(s)\n            assert base == got, ('assertEqual', base, got)\n            if base == -1:\n                base = 0\n            else:\n                base >>= 1\n    got = marshal.loads(b'I\\xfe\\xdc\\xba\\x98vT2\\x10')\n    assert got == 1167088121787636990, ('assertEqual', got, 1167088121787636990)\n    got = marshal.loads(b'I\\x01#Eg\\x89\\xab\\xcd\\xef')\n    assert got == -1167088121787636991, ('assertEqual', got, -1167088121787636991)\n    got = marshal.loads(b'I\\x08\\x19*;L]n\\x7f')\n    assert got == 9182379272246532360, ('assertEqual', got, 9182379272246532360)\n    got = marshal.loads(b'I\\xf7\\xe6\\xd5\\xc4\\xb3\\xa2\\x91\\x80')\n    assert got == -9182379272246532361, ('assertEqual', got, -9182379272246532361)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "IntTestCase.test_bool",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    for b in (True, False):\n        helper(b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FloatTestCase.test_floats",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\nimport sys\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    small = 1e-25\n    n = sys.maxsize * 3.7e+250\n    while n > small:\n        for expected in (-n, n):\n            helper(float(expected))\n        n /= 123.4567\n    f = 0.0\n    s = marshal.dumps(f, 2)\n    got = marshal.loads(s)\n    assert f == got, ('assertEqual', f, got)\n    s = marshal.dumps(f, 1)\n    got = marshal.loads(s)\n    assert f == got, ('assertEqual', f, got)\n    n = sys.maxsize * 3.7e-250\n    while n < small:\n        for expected in (-n, n):\n            f = float(expected)\n            helper(f)\n            helper(f, 1)\n        n *= 123.4567\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StringTestCase.test_unicode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    for s in ['', 'Andr\u00e8 Previn', 'abc', ' ' * 10000]:\n        helper(marshal.loads(marshal.dumps(s)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StringTestCase.test_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    for s in ['', 'Andr\u00e8 Previn', 'abc', ' ' * 10000]:\n        helper(s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "StringTestCase.test_bytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    for s in [b'', b'Andr\\xe8 Previn', b'abc', b' ' * 10000]:\n        helper(s)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ExceptionTestCase.test_exceptions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    new = marshal.loads(marshal.dumps(StopIteration))\n    assert StopIteration == new, ('assertEqual', StopIteration, new)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "CodeTestCase.test_different_filenames",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    co1 = compile('x', 'f1', 'exec')\n    co2 = compile('y', 'f2', 'exec')\n    co1, co2 = marshal.loads(marshal.dumps((co1, co2)))\n    assert co1.co_filename == 'f1', ('assertEqual', co1.co_filename, 'f1')\n    assert co2.co_filename == 'f2', ('assertEqual', co2.co_filename, 'f2')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BufferTestCase.test_bytearray",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    b = bytearray(b'abc')\n    helper(b)\n    new = marshal.loads(marshal.dumps(b))\n    assert type(new) == bytes, ('assertEqual', type(new), bytes)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BufferTestCase.test_memoryview",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef _t():\n    b = memoryview(b'abc')\n    helper(b)\n    new = marshal.loads(marshal.dumps(b))\n    assert type(new) == bytes, ('assertEqual', type(new), bytes)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BufferTestCase.test_array",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\nimport marshal\n\ndef _t():\n    a = array.array('B', b'abc')\n    new = marshal.loads(marshal.dumps(a))\n    assert new == b'abc', ('assertEqual', new, b'abc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_bug_5888452",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    marshal.dumps([128] * 1000)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_patch_873224",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    try:\n        marshal.loads(*(b'0',))\n    except Exception:\n        pass\n    try:\n        marshal.loads(*(b'f',))\n    except Exception:\n        pass\n    try:\n        marshal.loads(*(omit_last_byte(marshal.dumps(2 ** 65)),))\n    except Exception:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_version_argument",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    assert marshal.loads(marshal.dumps(5, 0)) == 5, ('assertEqual', marshal.loads(marshal.dumps(5, 0)), 5)\n    assert marshal.loads(marshal.dumps(5, 1)) == 5, ('assertEqual', marshal.loads(marshal.dumps(5, 1)), 5)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_fuzz",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    for i in range(256):\n        c = bytes([i])\n        try:\n            marshal.loads(c)\n        except Exception:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_loads_recursion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n\n    def run_tests(N, check):\n        check(b')\\x01' * N + b'N')\n        check(b'(\\x01\\x00\\x00\\x00' * N + b'N')\n        check(b'[\\x01\\x00\\x00\\x00' * N + b'N')\n        check(b'{N' * N + b'N' + b'0' * N)\n        check(b'>\\x01\\x00\\x00\\x00' * N + b'N')\n    run_tests(100, marshal.loads)\n\n    def check(s):\n        try:\n            marshal.loads(*(s,))\n        except ValueError:\n            pass\n    run_tests(2 ** 20, check)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_recursion_limit",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\nimport sys\nimport os\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    head = last = []\n    if os.name == 'nt':\n        MAX_MARSHAL_STACK_DEPTH = 1000\n    elif sys.platform == 'wasi' or is_emscripten or is_apple_mobile:\n        MAX_MARSHAL_STACK_DEPTH = 1500\n    else:\n        MAX_MARSHAL_STACK_DEPTH = 2000\n    for i in range(MAX_MARSHAL_STACK_DEPTH - 2):\n        last.append([0])\n        last = last[-1]\n    data = marshal.dumps(head)\n    new_head = marshal.loads(data)\n    assert len(new_head) == len(head), ('assertEqual', len(new_head), len(head))\n    assert len(new_head[0]) == len(head[0]), ('assertEqual', len(new_head[0]), len(head[0]))\n    assert len(new_head[-1]) == len(head[-1]), ('assertEqual', len(new_head[-1]), len(head[-1]))\n    last.append([0])\n    try:\n        marshal.dumps(*(head,))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_reference_loop_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef _t():\n    a = []\n    a.append(a)\n    for v in range(3):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\n    for v in range(3, marshal.version + 1):\n        d = marshal.dumps(a, v)\n        b = marshal.loads(d)\n        assert isinstance(b, list), ('assertIsInstance', b, list)\n        assert b[0] is b, ('assertIs', b[0], b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_reference_loop_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef _t():\n    a = {}\n    a[None] = a\n    for v in range(3):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\n    for v in range(3, marshal.version + 1):\n        d = marshal.dumps(a, v)\n        b = marshal.loads(d)\n        assert isinstance(b, dict), ('assertIsInstance', b, dict)\n        assert b[None] is b, ('assertIs', b[None], b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_reference_loop_tuple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef _t():\n    a = ([],)\n    a[0].append(a)\n    for v in range(3):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\n    for v in range(3, marshal.version + 1):\n        d = marshal.dumps(a, v)\n        b = marshal.loads(d)\n        assert isinstance(b, tuple), ('assertIsInstance', b, tuple)\n        assert isinstance(b[0], list), ('assertIsInstance', b[0], list)\n        assert b[0][0] is b, ('assertIs', b[0][0], b)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_reference_loop_slice",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef _t():\n    a = slice([], None)\n    a.start.append(a)\n    for v in range(marshal.version + 1):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\n    a = slice(None, [])\n    a.stop.append(a)\n    for v in range(marshal.version + 1):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\n    a = slice(None, None, [])\n    a.step.append(a)\n    for v in range(marshal.version + 1):\n        try:\n            marshal.dumps(*(a, v))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_loads_reference_loop_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = b'\\xdb\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n    a = marshal.loads(data)\n    assert isinstance(a, list), ('assertIsInstance', a, list)\n    assert a[0] is a, ('assertIs', a[0], a)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_loads_reference_loop_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = b'\\xfbNr\\x00\\x00\\x00\\x000'\n    a = marshal.loads(data)\n    assert isinstance(a, dict), ('assertIsInstance', a, dict)\n    assert a[None] is a, ('assertIs', a[None], a)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_exact_type_match",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    for typ in (int, float, complex, tuple, list, dict, set, frozenset):\n        subtyp = type('subtyp', (typ,), {})\n        try:\n            marshal.dumps(*(subtyp(),))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_large_marshal",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    size = int(1000000.0)\n    testString = 'abc' * size\n    marshal.dumps(testString)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_invalid_longs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    invalid_string = b'l\\x02\\x00\\x00\\x00\\x00\\x00\\x00\\x00'\n    try:\n        marshal.loads(*(invalid_string,))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_multiple_dumps_and_loads",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = (1, 'abc', b'def', 1.0, (2, 'a', ['b', b'c']))\n    for interleaved in (b'', b'0123'):\n        ilen = len(interleaved)\n        positions = []\n        try:\n            with open(os_helper.TESTFN, 'wb') as f:\n                for d in data:\n                    marshal.dump(d, f)\n                    if ilen:\n                        f.write(interleaved)\n                    positions.append(f.tell())\n            with open(os_helper.TESTFN, 'rb') as f:\n                for i, d in enumerate(data):\n                    assert d == marshal.load(f), ('assertEqual', d, marshal.load(f))\n                    if ilen:\n                        f.read(ilen)\n                    assert positions[i] == f.tell(), ('assertEqual', positions[i], f.tell())\n        finally:\n            os_helper.unlink(os_helper.TESTFN)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_loads_reject_unicode_strings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef _t():\n    unicode_string = 'T'\n    try:\n        marshal.loads(*(unicode_string,))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_bad_reader",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import io\nimport marshal\n\ndef _t():\n\n    class BadReader(io.BytesIO):\n\n        def readinto(self, buf):\n            n = super().readinto(buf)\n            if n is not None and n > 4:\n                n += 10 ** 6\n            return n\n    for value in (1.0, 1j, b'0123456789', '0123456789'):\n        try:\n            marshal.load(*(BadReader(marshal.dumps(value)),))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_eof",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = marshal.dumps(('hello', 'dolly', None))\n    for i in range(len(data)):\n        try:\n            marshal.loads(*(data[0:i],))\n        except EOFError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancingTestCase.testInt",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    intobj = 123321\n    helper(intobj)\n    helper3(intobj, simple=True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancingTestCase.testFloat",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    floatobj = 1.2345\n    helper(floatobj)\n    helper3(floatobj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancingTestCase.testStr",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    strobj = 'abcde' * 3\n    helper(strobj)\n    helper3(strobj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancingTestCase.testBytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import is_apple_mobile, os_helper, requires_debug_ranges, is_emscripten\nimport marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper(sample, *extra):\n    new = marshal.loads(marshal.dumps(sample, *extra))\n    assert sample == new, ('assertEqual', sample, new)\n    try:\n        with open(os_helper.TESTFN, 'wb') as f:\n            marshal.dump(sample, f, *extra)\n        with open(os_helper.TESTFN, 'rb') as f:\n            new = marshal.load(f)\n        assert sample == new, ('assertEqual', sample, new)\n    finally:\n        os_helper.unlink(os_helper.TESTFN)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    bytesobj = b'abcde' * 3\n    helper(bytesobj)\n    helper3(bytesobj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InstancingTestCase.testRecursion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef CollectObjectIDs(ids, obj):\n    \"\"\"Collect object ids seen in a structure\"\"\"\n    if id(obj) in ids:\n        return\n    ids.add(id(obj))\n    if isinstance(obj, (list, tuple, set, frozenset)):\n        for e in obj:\n            CollectObjectIDs(ids, e)\n    elif isinstance(obj, dict):\n        for k, v in obj.items():\n            CollectObjectIDs(ids, k)\n            CollectObjectIDs(ids, v)\n    return len(ids)\n\ndef helper3(rsample, recursive=False, simple=False):\n    sample = (rsample, rsample)\n    n0 = CollectObjectIDs(set(), sample)\n    for v in range(3, marshal.version + 1):\n        s3 = marshal.dumps(sample, v)\n        n3 = CollectObjectIDs(set(), marshal.loads(s3))\n        assert n3 == n0, ('assertEqual', n3, n0)\n    if not recursive:\n        s2 = marshal.dumps(sample, 2)\n        n2 = CollectObjectIDs(set(), marshal.loads(s2))\n        assert n2 > n0, ('assertGreater', n2, n0)\n        if not simple:\n            assert len(s2) > len(s3), ('assertGreater', len(s2), len(s3))\n        else:\n            assert len(s2) >= len(s3), ('assertGreaterEqual', len(s2), len(s3))\n\ndef _t():\n    obj = 1.2345\n    d = {'hello': obj, 'goodbye': obj, obj: 'hello'}\n    d['self'] = d\n    helper3(d, recursive=True)\n    l = [obj, obj]\n    l.append(l)\n    helper3(l, recursive=True)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "CodeTestCase.test_same_filename_used",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_bytes",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_str",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_tuple",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_list",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_set",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_frozenset",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "LargeValuesTestCase.test_bytearray",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "CAPI_TestCase.test_write_long_to_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CAPI_TestCase.test_write_object_to_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CAPI_TestCase.test_read_short_from_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CAPI_TestCase.test_read_long_from_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CAPI_TestCase.test_read_last_object_from_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CAPI_TestCase.test_read_object_from_file",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "CodeTestCase.test_code",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "ident": "CodeTestCase.test_many_codeobjects",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "ident": "CodeTestCase.test_no_allow_code",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "ident": "CodeTestCase.test_minimal_linetable_with_no_debug_ranges",
+      "reason": "unresolved-name:ExceptionTestCase"
+    },
+    {
+      "ident": "ContainerTestCase.test_dict",
+      "reason": "uses-self.d"
+    },
+    {
+      "ident": "ContainerTestCase.test_list",
+      "reason": "uses-self.d"
+    },
+    {
+      "ident": "ContainerTestCase.test_tuple",
+      "reason": "uses-self.d"
+    },
+    {
+      "ident": "ContainerTestCase.test_sets",
+      "reason": "uses-self.d"
+    },
+    {
+      "ident": "BugsTestCase.test_reference_loop_code",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "BugsTestCase.test_loads_abnormal_reference_loops",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "BugsTestCase.test_deterministic_sets",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "BugsTestCase.test_unmarshallable",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "InstancingTestCase.testList",
+      "reason": "uses-self.keys"
+    },
+    {
+      "ident": "InstancingTestCase.testTuple",
+      "reason": "uses-self.keys"
+    },
+    {
+      "ident": "InstancingTestCase.testSet",
+      "reason": "uses-self.keys"
+    },
+    {
+      "ident": "InstancingTestCase.testFrozenSet",
+      "reason": "uses-self.keys"
+    },
+    {
+      "ident": "InstancingTestCase.testDict",
+      "reason": "uses-self.keys"
+    },
+    {
+      "ident": "InstancingTestCase.testModule",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "ident": "CompatibilityTestCase.test0To3",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "ident": "CompatibilityTestCase.test1To3",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "ident": "CompatibilityTestCase.test2To3",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "ident": "CompatibilityTestCase.test3To3",
+      "reason": "helper:_test(unresolved-name:__file__)"
+    },
+    {
+      "ident": "InterningTestCase.testIntern",
+      "reason": "uses-self.strobj"
+    },
+    {
+      "ident": "InterningTestCase.testNoIntern",
+      "reason": "uses-self.strobj"
+    },
+    {
+      "ident": "SliceTestCase.test_slice",
+      "reason": "uses-self.helper"
+    }
+  ],
+  "counts": {
+    "extracted": 75,
+    "pinned": 36,
+    "quarantined": 39
+  }
+}
