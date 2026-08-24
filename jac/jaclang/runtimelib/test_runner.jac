@@ -37,7 +37,8 @@ glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
 glob _CRASH_LOG: list[str] = [""],
      _TEST_BASES: list[str] = [],
      _TEST_PACKAGES: dict[(str, str)] = {},
-     _TEST_PKG_COUNTER: list[int] = [0];
+     _TEST_PKG_COUNTER: list[int] = [0],
+     _CONFIG_PIN_BASELINE: list[any] = [];
 
 obj TestOutcome {
     has file: str,
