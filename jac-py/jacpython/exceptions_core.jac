@@ -17,6 +17,7 @@ import from objects {
     exc_is_subclass_of,
     is_error,
     py_error,
+    py_none,
 }
 
 # Direct parent links from CPython ``Lib/test/exception_hierarchy.txt``.
