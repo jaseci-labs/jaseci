@@ -252,6 +252,10 @@ def _jac_wrap_staticmethod(host_fn):
 def _jac_wrap_property(fget, fset, fdel):
     return property(fget, fset, fdel)
 
+def _jac_wrap_mappingproxy(d):
+    import types
+    return types.MappingProxyType(d)
+
 # Track B (builtin subclassing) host helpers.
 _JAC_BUILTIN_BASES = (
     "int", "str", "float", "bool", "list", "dict",
@@ -2969,6 +2973,47 @@ def user_instance_dict(u: PyUserObj) -> PyObj {
     return d as PyObj;
 }
 
+# CPython mappingproxy: a read-only view over a dict (class __dict__,
+# ``Field.metadata``, module surfaces). Reads and iteration delegate to the
+# wrapped dict; every mutation entry raises the host's two-clause TypeError.
+obj PyMappingProxy(PyObj) {
+    has target: PyDict;
+
+    def mp_subscript(index: PyObj) -> PyObj {
+        return self.target.mp_subscript(index);
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        return py_error(
+            "TypeError", "'mappingproxy' object does not support item assignment"
+        );
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        return py_error(
+            "TypeError", "'mappingproxy' object does not support item deletion"
+        );
+    }
+
+    def tp_getattro(name: str) -> PyObj {
+        # Read-only method surface: mapping-style accessors delegate to the
+        # wrapped dict's native methods; keys/values/items construct live
+        # set-like views exactly as a plain dict does.
+        if name == "keys" or name == "values" or name == "items" {
+            return PyDictViewCtor(
+                t="view_ctor", d=self.target, mode=name
+            );
+        }
+        if name == "get" or name == "copy" or name == "__contains__"
+            or name == "__getitem__" {
+            return PyDictMethod(
+                t="dict_method", target=self.target, name=name
+            );
+        }
+        return py_error("AttributeError", name);
+    }
+}
+
 # type.mro() as a bound method on a class: the C3 linearization with the
 # terminal object appended -- the same list __mro__ displays. A class-dict
 # `mro` entry shadows this via the attrs-first lookup in tp_getattro, matching
@@ -3947,6 +3992,9 @@ def to_host_policy(tag: str) -> BridgePolicy {
     if tag == "list" or tag == "dict" or tag == "set" {
         return BridgePolicy.MUTABLE_COPY;
     }
+    if tag == "mappingproxy" {
+        return BridgePolicy.DEEP_COPY;
+    }
     if tag == "dictview_obj" {
         return BridgePolicy.VIEW_COPY;
     }
@@ -4096,6 +4144,11 @@ def to_host(value: PyObj) -> any {
             fset = to_host(value.fset as PyObj) if value.fset is not None else None;
             fdel = to_host(value.fdel as PyObj) if value.fdel is not None else None;
             return _jac_wrap_property(fget, fset, fdel);
+
+        case PyMappingProxy():
+            # Host mappingproxy over a converted copy of the wrapped dict:
+            # read-only view semantics survive the boundary.
+            return _jac_wrap_mappingproxy(to_host(value.target));
 
         case PyIter():
             # LAZY_ITER: a lazy host iterator sharing position with the guest
@@ -4597,6 +4650,14 @@ def py_slot_truth(value: PyObj) -> PyObj {
         }
         return PyBool(t="bool", val=True);
     }
+    # A read-only mapping view is truthy iff its dict is (len-based).
+    if isinstance(value, PyMappingProxy) {
+        ln = py_len((value as PyMappingProxy).target as PyObj);
+        if is_error(ln) {
+            return ln;
+        }
+        return PyBool(t="bool", val=(ln as PyInt).val != 0);
+    }
     return PyBool(t="bool", val=value.tp_bool());
 }
 
@@ -4999,7 +5060,7 @@ def py_str(value: PyObj) -> PyObj {
     # self-referential structures hit the repr cycle guards instead of
     # recursing unbounded inside to_host conversion.
     if isinstance(value, PyDict) or isinstance(value, PyList)
-        or isinstance(value, PyTuple) {
+        or isinstance(value, PyTuple) or isinstance(value, PyMappingProxy) {
         return py_repr(value);
     }
     return host_convert(value, 1);
@@ -5099,6 +5160,10 @@ def py_repr(value: PyObj) -> PyObj {
     if isinstance(value, PyDict) {
         return dict_repr(value as PyDict, py_repr);
     }
+    if isinstance(value, PyMappingProxy) {
+        inner = dict_repr((value as PyMappingProxy).target, py_repr);
+        return PyStr(t="str", val="mappingproxy(" + str_value(inner) + ")");
+    }
     if isinstance(value, PyClass) {
         c = value as PyClass;
         mod = "";
@@ -5178,6 +5243,12 @@ def py_compare(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
     # __eq__: {1:1}.keys() == {1}, and d1.items() == d2.items() propagating a raise.
     if isinstance(lhs, PyDictView) or isinstance(rhs, PyDictView) {
         return dictview_richcompare(kind, lhs, rhs);
+    }
+    if isinstance(lhs, PyMappingProxy) {
+        lhs = (lhs as PyMappingProxy).target;
+    }
+    if isinstance(rhs, PyMappingProxy) {
+        rhs = (rhs as PyMappingProxy).target;
     }
     if isinstance(lhs, PyDict) and isinstance(rhs, PyDict) {
         return dict_richcompare(kind, lhs as PyDict, rhs as PyDict, py_compare);
@@ -6401,6 +6472,10 @@ def py_iter(value: PyObj) -> PyObj {
     if isinstance(value, PyCallableIter) {
         return value;
     }
+    # A read-only mapping view iterates exactly like its dict.
+    if isinstance(value, PyMappingProxy) {
+        return py_iter((value as PyMappingProxy).target as PyObj);
+    }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;
         if user_has_dunder(u, "__iter__") {
@@ -6622,6 +6697,9 @@ def py_len(value: PyObj) -> PyObj {
     }
     if isinstance(value, PyDictView) {
         return PyInt(t="int", val=len((value as PyDictView).d.items));
+    }
+    if isinstance(value, PyMappingProxy) {
+        return py_len((value as PyMappingProxy).target as PyObj);
     }
     if isinstance(value, PyUserObj) {
         u = value as PyUserObj;

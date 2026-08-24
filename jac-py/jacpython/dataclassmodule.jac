@@ -41,6 +41,7 @@ import from ceval {
     PyClass,
     PyUserObj,
     PyModule,
+    PyMappingProxy,
     class_lookup_attr,
     class_mro,
     host_builtin,
@@ -170,10 +171,9 @@ obj DCField(PyObj) {
             return py_none();
         }
         if name == "metadata" {
-            if self.fmetadata is not None {
-                return self.fmetadata as PyObj;
-            }
-            return PyDict(t="dict", items={});
+            # Always a mappingproxy (wrapped once at field construction), so
+            # per-access identity is stable and writes raise like CPython.
+            return self.fmetadata as PyObj;
         }
         return py_error(
             "AttributeError", "'Field' object has no attribute '" + name + "'"
@@ -494,7 +494,9 @@ obj DCFieldFn(PyObj) {
             if not isinstance(mv, PyDict) {
                 return py_error("TypeError", "metadata must be a mapping");
             }
-            fmetadata = mv;
+            fmetadata = PyMappingProxy(t="mappingproxy", target=mv as PyDict);
+        } else {
+            fmetadata = PyMappingProxy(t="mappingproxy", target=PyDict(t="dict", items={}));
         }
         return DCField(
             t="dc_field",
@@ -960,7 +962,11 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
             fkw_only = params.kw_only or kw_split;
             new_fhash = False;
             new_has_hash = False;
-            new_fmetadata: any = None;
+            # Absent field() metadata still gets the shared empty read-only
+            # view (CPython: an empty mappingproxy per Field).
+            new_fmetadata: any = PyMappingProxy(
+                t="mappingproxy", target=PyDict(t="dict", items={})
+            );
             if name in cls.attrs {
                 existing = cls.attrs[name];
                 if isinstance(existing, DCField) {
