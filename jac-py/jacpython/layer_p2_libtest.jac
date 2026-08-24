@@ -226,6 +226,74 @@ obj P2LibtestJsonLoadsFn(PyObj) {
     }
 }
 
+obj P2LibtestCollectionsCtor(PyObj) {
+    # Builds a native collections object and hands the VM a proxy around it;
+    # every subsequent method/subscript/repr routes back through the facade.
+    has kind: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if self.kind == "deque" {
+            iterable: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                iterable = to_host(args[0]);
+            }
+            maxlen: any = None;
+            if "maxlen" in kwargs and kwargs["maxlen"].t != "none" {
+                maxlen = to_host(kwargs["maxlen"]);
+            }
+            return from_host(_p2_deque(iterable, maxlen));
+        }
+        if self.kind == "defaultdict" {
+            factory: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                factory = to_host(args[0]);
+            }
+            initial: any = None;
+            if len(args) > 1 {
+                initial = to_host(args[1]);
+            }
+            return from_host(_p2_defaultdict(factory, initial));
+        }
+        if self.kind == "Counter" or self.kind == "OrderedDict" {
+            initial: any = None;
+            if len(args) > 0 and args[0].t != "none" {
+                initial = to_host(args[0]);
+            }
+            # Keyword counts/entries share the mapping-update path.
+            kw: dict[str, any] = {};
+            for k in kwargs.keys() {
+                kw[k] = to_host(kwargs[k]);
+            }
+            if self.kind == "Counter" {
+                built: any = _p2_counter(initial);
+                if len(kw) > 0 {
+                    built.update(kw);
+                }
+            } else {
+                built = _p2_ordereddict(initial);
+                if len(kw) > 0 {
+                    built.update(kw);
+                }
+            }
+            return from_host(built);
+        }
+        # namedtuple(typename, field_names, rename=..., defaults=...)
+        typename = to_host(args[0]);
+        field_names = to_host(args[1]);
+        rename: bool = False;
+        defaults: any = None;
+        if "rename" in kwargs and kwargs["rename"].t == "bool" {
+            rename = (kwargs["rename"] as PyBool).val;
+        }
+        if "defaults" in kwargs and kwargs["defaults"].t != "none" {
+            defaults = to_host(kwargs["defaults"]);
+        }
+        return from_host(
+            _p2_namedtuple(typename, field_names, rename, defaults));
+    }
+}
+
+
 obj P2LibtestBisectRightFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 2 {
