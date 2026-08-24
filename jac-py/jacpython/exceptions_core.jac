@@ -11,10 +11,12 @@ import from objects {
     PyBool,
     PyNoneType,
     PyBytes,
+    PyList,
     PyTuple,
     expect_str,
     exc_is_subclass_of,
     is_error,
+    py_error,
 }
 
 # Direct parent links from CPython ``Lib/test/exception_hierarchy.txt``.
@@ -512,4 +514,50 @@ def unicode_translate_error_str(exc: PyException) -> str {
     }
     return "can't translate character " + esc + _hex_padded(cp, width)
         + " in position " + str(start) + ": " + reason;
+}
+
+# BaseExceptionGroup instance check -- seam for the group-object lane. The
+# native group object (PyExcGroup) is not built yet, so no value can be a
+# group today and this answers false. PrepReraiseStar's partition path
+# hangs off this predicate; when the group object lands (P2), only this
+# function changes.
+def is_exception_group_obj(o: PyObj) -> bool {
+    return False;
+}
+
+# CALL_INTRINSIC_2 oparg 1 -- INTRINSIC_PREP_RERAISE_STAR: compute the
+# exception to reraise at the tail of a lowered try/except* block. Port of
+# _PyExc_PrepReraiseStar (Objects/exceptions.c): excs holds one entry per
+# handler -- either the running `rest` remainder or an exception raised
+# inside the handler body; entries may be None. Pure computation: pop
+# (orig, excs), push one result; never unwinds except through the returned
+# PyError. The empty and naked-orig paths below are exact ports; the group
+# partition path needs the native ExceptionGroup object plus its split
+# kernel, so it reports an internal error until those lanes land --
+# unreachable today because no group instance can exist.
+def prep_reraise_star(orig: PyObj, excs: PyObj) -> PyObj {
+    if not isinstance(excs, PyList) {
+        return py_error(
+            "SystemError", "malformed CALL_INTRINSIC_2 PREP_RERAISE_STAR operand"
+        );
+    }
+    items = (excs as PyList).items;
+    # No handler left anything to raise -> swallow everything.
+    if len(items) == 0 {
+        return py_none();
+    }
+    if not is_exception_group_obj(orig) {
+        # Naked orig was caught and wrapped: only one except* clause could
+        # have executed, so at most one entry survives (CPython asserts
+        # size 1, or 2 with a trailing None). An all-None list means every
+        # handler matched fully -- returning None sends rr_match down the
+        # normal path; a bare `rest` that matched nothing comes back here
+        # verbatim and gets re-raised.
+        return items[0];
+    }
+    return py_error(
+        "SystemError",
+        "PREP_RERAISE_STAR group path needs the ExceptionGroup runtime"
+        " (pending lane)",
+    );
 }
