@@ -854,11 +854,12 @@ impl MicroserviceGateway.start(on_ready: any = None) -> None {
     );
     install_signal_drain(serving, timeout_s=drain_timeout);
     import from functools { partial }
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_gateway_ready, self.host);
+    }
     serving.run(
-        on_ready=on_ready
-            if on_ready is not None
-            else partial(_log_gateway_ready, self.host),
-        port_retries=0 if self.port_pinned else PORT_RETRY_LIMIT
+        on_ready=ready, port_retries=0 if self.port_pinned else PORT_RETRY_LIMIT
     );
 }
 

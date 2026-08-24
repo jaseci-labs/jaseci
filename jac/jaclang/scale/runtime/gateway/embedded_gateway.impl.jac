@@ -151,10 +151,9 @@ impl EmbeddedGateway.serve(on_ready: any = None) -> None {
         get_scale_config().get_microservices_config().get("gateway_port_pinned", False)
     );
     serving = ServingServer(app=self.app, host=self.host, port=self.port);
-    serving.run(
-        on_ready=on_ready
-            if on_ready is not None
-            else partial(_log_embedded_ready, self.host),
-        port_retries=0 if pinned else PORT_RETRY_LIMIT
-    );
+    ready: any = on_ready;
+    if ready is None {
+        ready = partial(_log_embedded_ready, self.host);
+    }
+    serving.run(on_ready=ready, port_retries=0 if pinned else PORT_RETRY_LIMIT);
 }
