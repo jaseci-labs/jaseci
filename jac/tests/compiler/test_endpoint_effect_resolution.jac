@@ -93,9 +93,9 @@ test "endpoint calling a writer method keeps the unresolved method verdict" {
         }
     );
     assert effects.get("func:save_via_method")
-        == {"is_writer": False, "touches": ["*"]} , (
-        f"the AtomTrailer branch does not currently see the method body, so"
-        f" the verdict stays reader; got {effects.get('func:save_via_method')}"
+        == {"is_writer": True, "touches": ["Note"]} , (
+        f"the AtomTrailer branch follows the method body, so the write is seen"
+        f" and Note is named; got {effects.get('func:save_via_method')}"
     );
 }
 
@@ -119,9 +119,10 @@ test "endpoint calling a cross-module writer helper keeps the import-binding ver
             )
         }
     );
-    assert effects.get("func:save_remote") == {"is_writer": False, "touches": ["*"]} , (
-        f"cross-module callees resolve to the import binding and their body is"
-        f" not followed today; got {effects.get('func:save_remote')}"
+    assert effects.get("func:save_remote")
+        == {"is_writer": True, "touches": ["Note"]} , (
+        f"a cross-module callee is followed through its import binding, so the"
+        f" write is seen and Note is named; got {effects.get('func:save_remote')}"
     );
 }
 
