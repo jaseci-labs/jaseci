@@ -1569,7 +1569,7 @@ with entry {
 
 #### Cache tokens
 
-`cache_read_input_tokens` and `cache_creation_input_tokens` are always present on every `per_call` entry (and summed into `total`/`by_kind`) — `0` when [prompt caching](#project-configuration) isn't active or the provider has no caching concept, the real count otherwise. Providers report caching differently (Anthropic and Gemini set it directly; OpenAI only nests it under `prompt_tokens_details.cached_tokens`), so byLLM normalizes it to these two field names for every call, regardless of provider:
+`cache_read_input_tokens` and `cache_creation_input_tokens` are always present on every `per_call` entry (and summed into `total`/`by_kind`) - `0` when [prompt caching](#project-configuration) isn't active or the provider has no caching concept, the real count otherwise. Providers report caching differently (Anthropic and Gemini set it directly; OpenAI only nests it under `prompt_tokens_details.cached_tokens`), so byLLM normalizes it to these two field names for every call, regardless of provider:
 
 ```jac
 with entry {
