@@ -2051,6 +2051,10 @@ glob EXC_PARENT: dict[str, str] = {
     "BufferError": "Exception",
     "EOFError": "Exception",
     "ExceptionGroup": "Exception",
+    # dataclasses.FrozenInstanceError: CPython defines it under AttributeError
+    # (Lib/dataclasses.py), so guest `except AttributeError` catches frozen
+    # assignment errors through the name-level hierarchy walk.
+    "FrozenInstanceError": "AttributeError",
     "ImportError": "Exception",
     "ModuleNotFoundError": "ImportError",
     "LookupError": "Exception",

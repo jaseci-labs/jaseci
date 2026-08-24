@@ -310,6 +310,10 @@ test "dataclass: field() rejects default together with default_factory" {
 # ---------------- keyword-only fields ----------------
 
 test "dataclass: kw_only=True forces every field onto keywords" {
+    # TODO(vm): currently fails because the ceval call binder does not reject
+    # positional args past a bare `*` in guest-compiled signatures (pre-existing
+    # on origin/jac-python: `def f(a, *, b=1)` accepts f(3)). The synthesized
+    # __init__ source itself is correct -- see dc_build_init's star marker.
     ns = dc_exec(
         "from dataclasses import field\n"
         "@dataclass(kw_only=True)\n"
@@ -470,13 +474,14 @@ test "dataclass: frozen deletion raises cannot-delete" {
     assert err_msg(outcome) == "cannot delete field 'x'";
 }
 
-test "dataclass: FrozenInstanceError catches as itself and as ValueError" {
+test "dataclass: FrozenInstanceError catches as itself and as AttributeError" {
     ns = dc_exec(
         "import dataclasses\n"
         "@dataclass(frozen=True)\n"
         "class F:\n"
         "    x: int\n"
         "caught_exact = False\n"
+        "caught_attr = False\n"
         "caught_value = False\n"
         "try:\n"
         "    F(1).x = 2\n"
@@ -484,11 +489,21 @@ test "dataclass: FrozenInstanceError catches as itself and as ValueError" {
         "    caught_exact = True\n"
         "try:\n"
         "    F(1).x = 2\n"
+        "except AttributeError:\n"
+        "    caught_attr = True\n"
+        "try:\n"
+        "    F(1).x = 2\n"
         "except ValueError:\n"
         "    caught_value = True\n"
+        "except Exception:\n"
+        "    pass\n"
     );
     assert vm_bool(ns, "caught_exact") == True;
-    assert vm_bool(ns, "caught_value") == True;
+    assert vm_bool(ns, "caught_attr") == True;
+    # Host python3 oracle: FrozenInstanceError subclasses AttributeError, NOT
+    # ValueError -- the original stranded commit pinned the ValueError catch,
+    # which real CPython does not satisfy.
+    assert vm_bool(ns, "caught_value") == False;
 }
 
 # ---------------- module-level API ----------------
