@@ -528,6 +528,46 @@ obj _MatGen {
     }
 }
 
+"""Stack pushes for every field of `sn` that can hold a node.
+
+The child list is not the only way a node reaches its children -- a class also
+names them in typed fields, and some nodes (a module's terminals, for one) are
+reachable *only* that way. A teardown that follows the child list alone leaves
+those untouched, so their cycles survive and everything under them stays alive.
+"""
+def _node_child_pushes(g: _MatGen, sn: str, ind: str) -> list[str] {
+    out: list[str] = [];
+    for (lf, _dk, ann) in g.class_fields(sn) {
+        if ann is None or g.foreign.get((sn, lf, )) {
+            continue;
+        }
+        arms = [
+            a
+            for a in _split_union(_norm(ann))
+            if a != "None"
+        ];
+        if len(arms) != 1 {
+            continue;
+        }
+        ab = _base_of(arms[0]);
+        if ab in g.ns and g.is_chain(ab) {
+            out.append(ind + f"if nd.{lf} is not None {{ stack.append(nd.{lf}); }}");
+        } elif ab == "list" {
+            ib = _base_of(_norm(_inner(arms[0])));
+            if ib in g.ns and g.is_chain(ib) {
+                # `postinit` slots read as None until they are assigned, and an
+                # optional list stays None, so never iterate one unguarded.
+                out.append(
+                    ind
+                        + f"if nd.{lf} is not None {{ for _k in nd.{lf} "
+                        + "{ stack.append(_k); } }"
+                );
+            }
+        }
+    }
+    return out;
+}
+
 glob _HEADER_LINES: tuple[str, ...] = (
          '\'\'\'GENERATED at seal time by jaclang/utils/gen_native_materialize.jac.',
          '',
@@ -652,9 +692,13 @@ glob _HEADER_LINES: tuple[str, ...] = (
          'def _mat_drop_tree(nd: @CHAIN_BASE@) -> None {',
          '@CHAIN_PINS@',
          '    stack: list[@CHAIN_BASE@] = [nd];',
+         '    seen: dict[int, bool] = {};',
          '    while stack {',
          '        cur = stack.pop();',
-         '        for k in cur.@CHAIN_KID@ { stack.append(k); }',
+         '        cid = id(cur);',
+         '        if cid in seen { continue; }',
+         '        seen[cid] = True;',
+         '        _mat_push_kids(cur, stack);',
          '@CHAIN_CLEARS@',
          '    }',
          '}',
@@ -943,6 +987,29 @@ def generate(
     }
     chain.append("    }");
     chain.append("    return _py_none();");
+    chain.append("}");
+
+    for sn in chain_classes {
+        chain.append("");
+        chain.append(
+            f"def _mat_kids_{sn}(nd: {sn}, stack: list[{prof.chain_base_class}]) -> None {{"
+        );
+        _pushes = _node_child_pushes(g, sn, "    ");
+        chain.extend(_pushes if _pushes else ["    return;"]);
+        chain.append("}");
+    }
+    chain.append("");
+    chain.append(
+        f"def _mat_push_kids(nd: {prof.chain_base_class}, "
+            + f"stack: list[{prof.chain_base_class}]) -> None {{"
+    );
+    _pk_first = True;
+    for sn in chain_classes {
+        chain.append(f"    {'if' if _pk_first else '} elif'} isinstance(nd, {sn}) {{");
+        chain.append(f"        _mat_kids_{sn}(nd, stack);");
+        _pk_first = False;
+    }
+    chain.append("    }");
     chain.append("}");
 
     enum_fns: list[str] = [];

@@ -300,3 +300,29 @@ test "the teardown severs every link the profile calls cyclic" {
         assert line in body , (f"teardown must emit `{line}`");
     }
 }
+
+test "the teardown reaches nodes named only by a typed field" {
+    # A class names its children twice: once in the child list and once in typed
+    # fields. A module's terminals live only in the typed half, so a walk that
+    # follows the child list alone never reaches them and their cycles survive.
+    (txt, _m) = _gen(
+        {
+            "Module": ["kid", "parent", "_in_mod_nodes", "loc", "body", "terminals"],
+            "UniNode": ["kid", "parent", "_in_mod_nodes", "loc"]
+        }
+    );
+    body = txt[txt.index("def _mat_kids_Module("):];
+    body = body[:body.index("\n}")];
+    for fld in ["body", "terminals", "kid"] {
+        assert f"for _k in nd.{fld}" in body , (
+            f"the teardown must follow Module.{fld}"
+        );
+    }
+    # A postinit slot reads as None until it is assigned and an optional list
+    # stays None, so an unguarded iteration aborts the process mid-parse.
+    assert "if nd.terminals is not None { for _k in nd.terminals" in body;
+    # Several paths reach the same node once every field is followed.
+    walk = txt[txt.index("def _mat_drop_tree("):];
+    walk = walk[:walk.index("\n}")];
+    assert "seen" in walk , "the walk must not revisit a node";
+}
