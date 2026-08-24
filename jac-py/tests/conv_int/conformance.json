@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_int/conv_int_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:33:38",
+  "generated_at": "2026-08-24T15:03:15",
   "hashes": {
-    "pins_jac": "36e93cc4f4e2378aeb3bfb02d35bf063c4240fcd6080d2b393db34cf65799067",
-    "conversion_json": "8fdcaeaa4c0fb3ac2bb5477656cb9829408339b509ea5bd056ec4edf340dc4d4",
+    "pins_jac": "e44d5cce84856af713d7e442b9b6b6ed269c894be34947395b270d88672c6b6b",
+    "conversion_json": "e116da704789d844170942c4605483328884635701554284aa97fe1f370027e8",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "int",
   "counts": {
     "converted": 42,
-    "runnable": 15,
+    "runnable": 16,
     "green": 13,
-    "quarantined": 27
+    "quarantined": 26
   },
   "pins": [
     {
@@ -65,6 +65,12 @@
       "detail": "GOT<'ORACLE_EXC TypeError \"\\'MyIndexable\\' object cannot be interpreted as an integer\"'>"
     },
     {
+      "id": "IntTestCases.test_non_numeric_input_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"int() argument must be a string, a bytes-like object or a real number, not \\'CustomByteArray\\'\"'>"
+    },
+    {
       "id": "IntTestCases.test_int_memoryview",
       "status": "pass"
     },
@@ -95,6 +101,11 @@
     },
     {
       "id": "IntStrDigitLimitsTests.test_sign_not_counted",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "id": "IntStrDigitLimitsTests.test_int_from_other_bases",
       "status": "quarantined",
       "reason": "host-raised:RuntimeError: super(): no arguments"
     },
@@ -169,11 +180,6 @@
       "reason": "decorator:unittest.skipUnless"
     },
     {
-      "id": "IntTestCases.test_non_numeric_input_types",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
       "id": "IntTestCases.test_int_returns_int_subclass",
       "status": "quarantined",
       "reason": "uses-self.assertWarns"
@@ -212,11 +218,6 @@
       "id": "IntStrDigitLimitsTests.test_underscores_ignored",
       "status": "quarantined",
       "reason": "helper:check(uses-self.int_class)"
-    },
-    {
-      "id": "IntStrDigitLimitsTests.test_int_from_other_bases",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "PyLongModuleTests.test_pylong_roundtrip",

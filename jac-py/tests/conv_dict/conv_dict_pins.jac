@@ -109,6 +109,12 @@ test "DictTest.test_copy" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "DictTest.test_copy_fuzz" {
+    (ok, detail) = p2_libtest_run_snippet("import random\n\ndef _t():\n    for dict_size in [10, 100, 1000, 10000, 100000]:\n        dict_size = random.randrange(dict_size // 2, dict_size + dict_size // 2)\n        d = {}\n        for i in range(dict_size):\n            d[i] = i\n        d2 = d.copy()\n        assert d2 is not d, ('assertIsNot', d2, d)\n        assert d == d2, ('assertEqual', d, d2)\n        d2['key'] = 'value'\n        assert d != d2, ('assertNotEqual', d, d2)\n        assert len(d2) == len(d) + 1, ('assertEqual', len(d2), len(d) + 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "DictTest.test_copy_maintains_tracking" {
     (ok, detail) = p2_libtest_run_snippet("import gc\n\ndef _t():\n\n    class A:\n        pass\n    key = A()\n    for d in ({}, {'a': 1}, {key: 'val'}):\n        d2 = d.copy()\n        assert gc.is_tracked(d) == gc.is_tracked(d2), ('assertEqual', gc.is_tracked(d), gc.is_tracked(d2))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -219,6 +225,12 @@ test "DictTest.test_dictview_set_operations_on_keys" {
 
 test "DictTest.test_dictview_set_operations_on_items" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    k1 = {1: 1, 2: 2}.items()\n    k2 = {1: 1, 2: 2, 3: 3}.items()\n    k3 = {4: 4}.items()\n    assert k1 - k2 == set(), ('assertEqual', k1 - k2, set())\n    assert k1 - k3 == {(1, 1), (2, 2)}, ('assertEqual', k1 - k3, {(1, 1), (2, 2)})\n    assert k2 - k1 == {(3, 3)}, ('assertEqual', k2 - k1, {(3, 3)})\n    assert k3 - k1 == {(4, 4)}, ('assertEqual', k3 - k1, {(4, 4)})\n    assert k1 & k2 == {(1, 1), (2, 2)}, ('assertEqual', k1 & k2, {(1, 1), (2, 2)})\n    assert k1 & k3 == set(), ('assertEqual', k1 & k3, set())\n    assert k1 | k2 == {(1, 1), (2, 2), (3, 3)}, ('assertEqual', k1 | k2, {(1, 1), (2, 2), (3, 3)})\n    assert k1 ^ k2 == {(3, 3)}, ('assertEqual', k1 ^ k2, {(3, 3)})\n    assert k1 ^ k3 == {(1, 1), (2, 2), (4, 4)}, ('assertEqual', k1 ^ k3, {(1, 1), (2, 2), (4, 4)})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_items_symmetric_difference" {
+    (ok, detail) = p2_libtest_run_snippet("import random\n\ndef _t():\n    rr = random.randrange\n    for _ in range(100):\n        left = {x: rr(3) for x in range(20) if rr(2)}\n        right = {x: rr(3) for x in range(20) if rr(2)}\n        expected = set(left.items()) ^ set(right.items())\n        actual = left.items() ^ right.items()\n        assert actual == expected, ('assertEqual', actual, expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -387,6 +399,12 @@ test "DictTest.test_dict_copy_order" {
 
 test "DictTest.test_store_evilattr" {
     (ok, detail) = p2_libtest_run_snippet("import gc\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class EvilAttr:\n\n        def __init__(self, d):\n            self.d = d\n\n        def __del__(self):\n            if 'attr' in self.d:\n                del self.d['attr']\n            gc.collect()\n\n    class Obj:\n        pass\n    obj = Obj()\n    obj.__dict__ = {}\n    for _ in range(10):\n        obj.attr = EvilAttr(obj.__dict__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "DictTest.test_str_nonstr" {
+    (ok, detail) = p2_libtest_run_snippet("from test import support\n\ndef _t():\n\n    class StrSub(str):\n        pass\n    eq_count = 0\n\n    class Key3:\n\n        def __hash__(self):\n            return hash('key3')\n\n        def __eq__(self, other):\n            nonlocal eq_count\n            if isinstance(other, Key3) or (isinstance(other, str) and other == 'key3'):\n                eq_count += 1\n                return True\n            return False\n    key3_1 = StrSub('key3')\n    key3_2 = Key3()\n    key3_3 = Key3()\n    dicts = []\n    for key3 in (key3_1, key3_2):\n        dicts.append({'key1': 42, 'key2': 43, key3: 44})\n        d = {'key1': 42, 'key2': 43}\n        d[key3] = 44\n        dicts.append(d)\n        d = {'key1': 42, 'key2': 43}\n        assert d.setdefault(key3, 44) == 44, ('assertEqual', d.setdefault(key3, 44), 44)\n        dicts.append(d)\n        d = {'key1': 42, 'key2': 43}\n        d.update({key3: 44})\n        dicts.append(d)\n        d = {'key1': 42, 'key2': 43}\n        d |= {key3: 44}\n        dicts.append(d)\n\n        def make_pairs():\n            yield ('key1', 42)\n            yield ('key2', 43)\n            yield (key3, 44)\n        d = dict(make_pairs())\n        dicts.append(d)\n        d = d.copy()\n        dicts.append(d)\n        d = {key: 42 + i for i, key in enumerate(['key1', 'key2', key3])}\n        dicts.append(d)\n    for d in dicts:\n        assert d.get('key1') == 42, ('assertEqual', d.get('key1'), 42)\n        noninterned_key1 = 'ke'\n        noninterned_key1 += 'y1'\n        if support.check_impl_detail(cpython=True):\n            interned_key1 = 'key1'\n            assert not noninterned_key1 is interned_key1, ('assertFalse', noninterned_key1 is interned_key1)\n        assert d.get(noninterned_key1) == 42, ('assertEqual', d.get(noninterned_key1), 42)\n        assert d.get('key3') == 44, ('assertEqual', d.get('key3'), 44)\n        assert d.get(key3_1) == 44, ('assertEqual', d.get(key3_1), 44)\n        assert d.get(key3_2) == 44, ('assertEqual', d.get(key3_2), 44)\n        eq_count = 0\n        assert d.get(key3_3) == 44, ('assertEqual', d.get(key3_3), 44)\n        assert eq_count >= 1, ('assertGreaterEqual', eq_count, 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

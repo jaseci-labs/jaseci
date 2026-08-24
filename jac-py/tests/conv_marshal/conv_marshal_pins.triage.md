@@ -1,8 +1,8 @@
 # Triage report: `conv_marshal_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_marshal.py
-- guest leg: 0/36 marks
-- pins: **16 passed** / 36 run (+39 quarantined of 75 extracted)
+- guest leg: 0/39 marks
+- pins: **17 passed** / 39 run (+36 quarantined of 75 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -30,6 +30,7 @@
 | BugsTestCase.test_reference_loop_slice | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'maximum recursion depth exceeded'"> |
 | BugsTestCase.test_loads_reference_loop_list | PASS | |
 | BugsTestCase.test_loads_reference_loop_dict | PASS | |
+| BugsTestCase.test_loads_abnormal_reference_loops | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', ([(...)],), ([([(...)],)],))"'> |
 | BugsTestCase.test_exact_type_match | PASS | |
 | BugsTestCase.test_large_marshal | PASS | |
 | BugsTestCase.test_invalid_longs | PASS | |
@@ -37,6 +38,8 @@
 | BugsTestCase.test_loads_reject_unicode_strings | PASS | |
 | BugsTestCase.test_bad_reader | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC EOFError 'EOF read where object expected'"> |
 | BugsTestCase.test_eof | PASS | |
+| BugsTestCase.test_deterministic_sets | GUEST-WRONG-OUTPUT | RUN<"ModuleNotFoundError: No module named 'test.support.script_helper'"> |
+| BugsTestCase.test_unmarshallable | PASS | |
 | InstancingTestCase.testInt | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'BufferedWriter.**enter**() takes no arguments (1 given)'"> |
 | InstancingTestCase.testFloat | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'BufferedWriter.**enter**() takes no arguments (1 given)'"> |
 | InstancingTestCase.testStr | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'BufferedWriter.**enter**() takes no arguments (1 given)'"> |
@@ -66,15 +69,11 @@
 | CodeTestCase.test_no_allow_code | unresolved-name:ExceptionTestCase |
 | CodeTestCase.test_minimal_linetable_with_no_debug_ranges | unresolved-name:ExceptionTestCase |
 | BugsTestCase.test_reference_loop_code | self.addCleanup |
-| BugsTestCase.test_loads_abnormal_reference_loops | uses-self.subTest |
-| BugsTestCase.test_deterministic_sets | uses-self.subTest |
-| BugsTestCase.test_unmarshallable | uses-self.subTest |
 | InstancingTestCase.testModule | unresolved-name:**file** |
 | CompatibilityTestCase.test0To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test1To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test2To3 | helper:_test(unresolved-name:**file**) |
 | CompatibilityTestCase.test3To3 | helper:_test(unresolved-name:**file**) |
-| SliceTestCase.test_slice | uses-self.subTest |
 | ContainerTestCase.test_dict | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
 | ContainerTestCase.test_list | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
 | ContainerTestCase.test_tuple | host-raised:AttributeError: '_SelfNS' object has no attribute 'd' |
@@ -86,6 +85,7 @@
 | InstancingTestCase.testDict | host-raised:AttributeError: '_SelfNS' object has no attribute 'keys' |
 | InterningTestCase.testIntern | host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj' |
 | InterningTestCase.testNoIntern | host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj' |
+| SliceTestCase.test_slice | host-raised:AttributeError: '_SelfNS' object has no attribute 'helper' |
 
 ## Expected vs got
 
@@ -103,6 +103,16 @@
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC EOFError 'EOF read where object expected'">
+
+### BugsTestCase.test_deterministic_sets (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"ModuleNotFoundError: No module named 'test.support.script_helper'">
+
+### BugsTestCase.test_loads_abnormal_reference_loops (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', ([(...)],), ([([(...)],)],))"'>
 
 ### BugsTestCase.test_multiple_dumps_and_loads (GUEST-WRONG-OUTPUT)
 

@@ -1,8 +1,8 @@
 # Triage report: `conv_format_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_format.py
-- guest leg: 0/14 marks
-- pins: **9 passed** / 14 run (+8 quarantined of 22 extracted)
+- guest leg: 0/15 marks
+- pins: **9 passed** / 15 run (+7 quarantined of 22 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -17,6 +17,7 @@
 | FormatTest.test_with_two_underscore_in_format_specifier | PASS | |
 | FormatTest.test_with_a_commas_and_an_underscore_in_format_specifier | PASS | |
 | FormatTest.test_with_an_underscore_and_a_comma_in_format_specifier | PASS | |
+| FormatTest.test_better_error_message_format | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC NameError "name \'value\' is not defined"'> |
 | FormatTest.test_unicode_in_error_message | PASS | |
 | FormatTest.test_negative_zero | PASS | |
 | FormatTest.test_specifier_z_error | PASS | |
@@ -28,13 +29,17 @@
 | FormatTest.test_optimisations | decorator:support.cpython_only |
 | FormatTest.test_precision_c_limits | decorator:support.cpython_only |
 | FormatTest.test_locale | self.skipTest |
-| FormatTest.test_better_error_message_format | uses-self.subTest |
 | testformat | host-raised:NameError: name 'output' is not defined |
 | testcommon | host-raised:NameError: name 'formatstr' is not defined |
 | test_exc | host-raised:NameError: name 'exception' is not defined |
 | test_exc_common | host-raised:NameError: name 'formatstr' is not defined |
 
 ## Expected vs got
+
+### FormatTest.test_better_error_message_format (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC NameError "name \'value\' is not defined"'>
 
 ### FormatTest.test_bytes_and_bytearray_format (GUEST-WRONG-OUTPUT)
 

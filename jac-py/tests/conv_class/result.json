@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_class/conv_class_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:30:39",
+  "generated_at": "2026-08-24T15:03:25",
   "hashes": {
     "pins_jac": "6655067b29338d2b9fa3a33f8433f1d14510e4db6cc082a3e4c865f0dc5f5d55",
-    "conversion_json": "f06b9eeadf530255652ba3e047834a46372d65349e6ff8f65d0830c09535c2df",
+    "conversion_json": "dad1639502bf1b4ee3a16d34c2a2b3c38afa6450192711a83962d0f8c99f55cb",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "class",

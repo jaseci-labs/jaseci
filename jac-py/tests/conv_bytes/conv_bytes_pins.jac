@@ -199,6 +199,12 @@ test "ByteArrayTest.test_repeat_after_setslice" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class Evil:\n\n        def __init__(self, ba):\n            self.ba = ba\n\n        def __buffer__(self, flags):\n            self.ba.clear()\n            return memoryview(self.ba)\n\n        def __release_buffer__(self, view: memoryview) -> None:\n            view.release()\n\n        def __index__(self):\n            self.ba.clear()\n            return ord('A')\n\n    def make_case():\n        ba = bytearray(b'A')\n        return (ba, Evil(ba))\n    for name in ('find', 'count', 'index', 'rindex', 'rfind'):\n        ba, evil = make_case()\n        try:\n            getattr(ba, name)(evil)\n        except BufferError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    ba, evil = make_case()\n    try:\n        evil in ba\n    except BufferError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        ba.split(evil)\n    except BufferError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        ba.rsplit(evil)\n    except BufferError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ByteArrayTest.test_extend_empty_buffer_overflow" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n\n    class EvilIter:\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            return next(source)\n\n        def __length_hint__(self):\n            return 0\n    source = iter(b'42')\n    ba = bytearray()\n    ba.extend(EvilIter())\n    try:\n        float(*(bytearray(),))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

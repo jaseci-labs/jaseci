@@ -1,8 +1,8 @@
 # Triage report: `conv_math_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_math.py
-- guest leg: 0/46 marks
-- pins: **44 passed** / 46 run (+42 quarantined of 88 extracted)
+- guest leg: 0/53 marks
+- pins: **48 passed** / 53 run (+35 quarantined of 88 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -25,15 +25,18 @@
 | MathTests.testFmod | PASS | |
 | MathTests.testFrexp | PASS | |
 | MathTests.test_math_dist_leak | PASS | |
+| MathTests.testIsqrt | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'IntegerLike\' object cannot be interpreted as an integer"'> |
 | MathTests.testLdexp | PASS | |
 | MathTests.testLdexp_denormal | PASS | |
 | MathTests.testLog | PASS | |
 | MathTests.testLog1p | PASS | |
 | MathTests.testLog2 | PASS | |
 | MathTests.testLog10 | PASS | |
+| MathTests.testSumProd | GUEST-WRONG-OUTPUT | RUN<'AttributeError: register'> |
 | MathTests.testModf | PASS | |
 | MathTests.testPow | PASS | |
 | MathTests.testRadians | PASS | |
+| MathTests.testRemainder | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'register'"> |
 | MathTests.testSin | PASS | |
 | MathTests.testSinh | PASS | |
 | MathTests.testSqrt | PASS | |
@@ -47,11 +50,15 @@
 | MathTests.test_inf_constant | PASS | |
 | MathTests.test_prod | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'register'"> |
 | MathTests.test_nextafter | PASS | |
+| MathTests.test_ulp | PASS | |
 | MathTests.test_issue39871 | PASS | |
 | MathTests.test_input_exceptions | PASS | |
 | MathTests.test_exception_messages | GUEST-WRONG-OUTPUT | RUN<'AttributeError: register'> |
+| FMATests.test_fma_nan_results | PASS | |
+| FMATests.test_fma_infinities | PASS | |
 | FMATests.test_fma_overflow | PASS | |
 | FMATests.test_fma_single_round | PASS | |
+| FMATests.test_random | PASS | |
 
 ## Quarantined at conversion
 
@@ -75,14 +82,10 @@
 | MathTests.testGcd | unresolved-name:MyIndexable |
 | MathTests.testHypot | unresolved-name:FloatLike |
 | MathTests.testDist | unresolved-name:BadDescr |
-| MathTests.testIsqrt | uses-self.subTest |
 | MathTests.test_lcm | unresolved-name:MyIndexable |
-| MathTests.testSumProd | uses-self.subTest |
-| MathTests.testRemainder | uses-self.subTest |
 | MathTests.test_trunc | unresolved-name:BadDescr |
 | MathTests.testPerm | unresolved-name:IntSubclass |
 | MathTests.testComb | unresolved-name:IntSubclass |
-| MathTests.test_ulp | uses-self.subTest |
 | IsCloseTests.test_negative_tolerances | helper:assertIsClose(uses-self.isclose) |
 | IsCloseTests.test_identical | helper:assertAllClose(helper:assertIsClose(uses-self.isclose)) |
 | IsCloseTests.test_eight_decimal_places | helper:assertAllClose(helper:assertIsClose(uses-self.isclose)) |
@@ -94,13 +97,25 @@
 | IsCloseTests.test_integers | helper:assertAllClose(helper:assertIsClose(uses-self.isclose)) |
 | IsCloseTests.test_decimals | helper:assertAllClose(helper:assertIsClose(uses-self.isclose)) |
 | IsCloseTests.test_fractions | helper:assertAllClose(helper:assertIsClose(uses-self.isclose)) |
-| FMATests.test_fma_nan_results | uses-self.subTest |
-| FMATests.test_fma_infinities | uses-self.subTest |
-| FMATests.test_random | uses-self.subTest |
 | MathTests.test_testfile | harness-error:NameError: name 'file' is not defined. Did you mean: 'filter'? |
 | MathTests.test_mtestfile | harness-error:NameError: name 'file' is not defined. Did you mean: 'filter'? |
 
 ## Expected vs got
+
+### MathTests.testIsqrt (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "\'IntegerLike\' object cannot be interpreted as an integer"'>
+
+### MathTests.testRemainder (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'register'">
+
+### MathTests.testSumProd (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<'AttributeError: register'>
 
 ### MathTests.test_exception_messages (GUEST-WRONG-OUTPUT)
 

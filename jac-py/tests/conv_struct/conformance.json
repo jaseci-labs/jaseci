@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_struct/conv_struct_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:41:33",
+  "generated_at": "2026-08-24T15:03:45",
   "hashes": {
-    "pins_jac": "c8cd1df8fbbd3ef9134d5d6af70d5bb0a65cfdba0771283e1c8fcdcfc36a4079",
-    "conversion_json": "3a334ebbac3887d35912278429b82721e2d1056aff9947d11a6841d2d8a1b5f4",
+    "pins_jac": "0f20d62577e90c6ec9e12e5af7cc91bef02b34a146983e7d18156c8fbbb86747",
+    "conversion_json": "b99113411ec4e3c2f7d384a0c63802d28dfbb5f79d9595c6955ee88a4ab2eb12",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "struct",
   "counts": {
     "converted": 43,
-    "runnable": 33,
-    "green": 28,
-    "quarantined": 10
+    "runnable": 34,
+    "green": 29,
+    "quarantined": 9
   },
   "pins": [
     {
@@ -143,6 +143,10 @@
       "status": "pass"
     },
     {
+      "id": "StructTest.test_float_round_trip",
+      "status": "pass"
+    },
+    {
       "id": "UnpackIteratorTest.test_construct",
       "status": "pass"
     },
@@ -210,11 +214,6 @@
       "id": "StructTest.test_c_complex_round_trip",
       "status": "quarantined",
       "reason": "self.assertComplexesAreIdentical"
-    },
-    {
-      "id": "StructTest.test_float_round_trip",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     }
   ]
 }

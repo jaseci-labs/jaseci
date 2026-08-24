@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_dict/conv_dict_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:31:41",
+  "generated_at": "2026-08-24T15:02:40",
   "hashes": {
-    "pins_jac": "f6c063b414af9990915af4c8fee184acfb9f3fdf457d2e2ab0901486916987f8",
-    "conversion_json": "d50339c58b6eabce250e5e08616ad81ac81a6c7b32a691a46edcb7ca6777e25b",
+    "pins_jac": "7e229ac5d9502f4ccffc58f847dfb9a4784b48448011a0ab46ef5e783a6432d9",
+    "conversion_json": "980309ade31089680b7613b0921066873ed862b1fa05cad039693a00549bd399",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "dict",
   "counts": {
     "converted": 92,
-    "runnable": 72,
+    "runnable": 75,
     "green": 49,
-    "quarantined": 20
+    "quarantined": 17
   },
   "pins": [
     {
@@ -107,6 +107,12 @@
       "status": "pass"
     },
     {
+      "id": "DictTest.test_copy_fuzz",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
       "id": "DictTest.test_copy_maintains_tracking",
       "status": "pass"
     },
@@ -166,7 +172,7 @@
       "id": "DictTest.test_mutating_lookup",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {<__main__.NastyKey object at 0x7f2c2f5bbad0>: 2})\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {<__main__.NastyKey object at 0x7fd5cb7478d0>: 2})\"'>"
     },
     {
       "id": "DictTest.test_repr",
@@ -191,6 +197,12 @@
     {
       "id": "DictTest.test_dictview_set_operations_on_items",
       "status": "pass"
+    },
+    {
+      "id": "DictTest.test_items_symmetric_difference",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
     },
     {
       "id": "DictTest.test_dictview_mixed_set_operations",
@@ -218,25 +230,25 @@
       "id": "DictTest.test_container_iterator",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7f2c2f5bbdd0>, None)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', <__main__.C object at 0x7fd5cb7a4150>, None)\"'>"
     },
     {
       "id": "DictTest.test_iterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b2afb0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>\"'>"
     },
     {
       "id": "DictTest.test_itemiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b375e0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>\"'>"
     },
     {
       "id": "DictTest.test_valuesiterator_pickling",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f2c30b36a30>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>\"'>"
     },
     {
       "id": "DictTest.test_reverseiterator_pickling",
@@ -326,6 +338,12 @@
     {
       "id": "DictTest.test_store_evilattr",
       "status": "pass"
+    },
+    {
+      "id": "DictTest.test_str_nonstr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'check_impl_detail'\">"
     },
     {
       "id": "DictTest.test_overwrite_managed_dict",
@@ -424,16 +442,6 @@
       "reason": "unresolved-name:cm"
     },
     {
-      "id": "DictTest.test_copy_fuzz",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "DictTest.test_items_symmetric_difference",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
       "id": "DictTest.test_missing",
       "status": "quarantined",
       "reason": "self.assertNotHasAttr"
@@ -442,11 +450,6 @@
       "id": "DictTest.test_tuple_keyerror",
       "status": "quarantined",
       "reason": "unresolved-name:c"
-    },
-    {
-      "id": "DictTest.test_str_nonstr",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "DictTest.test_unhashable_key",

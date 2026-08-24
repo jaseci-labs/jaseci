@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_csv/conv_csv_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:31:18",
+  "generated_at": "2026-08-24T15:02:14",
   "hashes": {
-    "pins_jac": "da76047301e72409293b3a0421697c9ad57648d7a25008720d5b6250e6604a6b",
-    "conversion_json": "c370cf5b20345ad114955f54ff5f487ca2d38c0819f03bb4a614fb90c0122606",
+    "pins_jac": "2486c72a21b2581fd24bec7143b39a2580457828212739bf6fe3f2e432606581",
+    "conversion_json": "06a8c3d46cc321f28a694c504e669192cdcff5295840736c9a9bd77aadda45a2",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "csv",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 128,
-    "runnable": 61,
-    "green": 30,
-    "quarantined": 67,
-    "failed": 31,
+    "runnable": 66,
+    "green": 32,
+    "quarantined": 62,
+    "failed": 34,
     "infra_failed": 0
   },
   "failures": [
@@ -65,6 +65,12 @@
       "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
+      "id": "Test_Csv.test_write_lineterminator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'StringIO.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
       "id": "Test_Csv.test_write_iterable",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -90,6 +96,18 @@
     },
     {
       "id": "Test_Csv.test_write_empty_fields_space_delimiter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_quoteed_newlines",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_escaped_unquoted_newlines",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"

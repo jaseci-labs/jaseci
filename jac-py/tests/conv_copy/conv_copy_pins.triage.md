@@ -1,8 +1,8 @@
 # Triage report: `conv_copy_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_copy.py
-- guest leg: 0/72 marks
-- pins: **33 passed** / 72 run (+9 quarantined of 81 extracted)
+- guest leg: 0/73 marks
+- pins: **33 passed** / 73 run (+8 quarantined of 81 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -77,6 +77,7 @@
 | TestCopy.test_deepcopy_bound_method | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC Error 'un(deep)copyable object of type <object>'"> |
 | TestReplace.test_unsupported | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError '**class**'"> |
 | TestReplace.test_replace_method | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AttributeError "\'A\' object has no attribute \'x\'"'> |
+| TestReplace.test_namedtuple | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'cache'"> |
 | TestReplace.test_dataclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "<enum \'IntFlag\'> cannot extend <class \'ceval.Flag\'>"'> |
 
 ## Quarantined at conversion
@@ -90,7 +91,6 @@
 | TestCopy.test_copy_reduce_ex | uses-self.fail |
 | TestCopy.test_deepcopy_reduce_ex | uses-self.fail |
 | TestCopy.test_reduce_5tuple | uses-self.items |
-| TestReplace.test_namedtuple | uses-self.subTest |
 | MiscTestCase.test__all__ | host-raised:NameError: name 'self' is not defined |
 
 ## Expected vs got
@@ -279,6 +279,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC TypeError "<enum \'IntFlag\'> cannot extend <class \'ceval.Flag\'>"'>
+
+### TestReplace.test_namedtuple (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'cache'">
 
 ### TestReplace.test_replace_method (GUEST-WRONG-OUTPUT)
 

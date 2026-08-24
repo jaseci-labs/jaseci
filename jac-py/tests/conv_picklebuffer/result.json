@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_picklebuffer/conv_picklebuffer_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:04:52",
+  "generated_at": "2026-08-24T15:03:40",
   "hashes": {
-    "pins_jac": "32907f8986777f1bf4c9684bbf0e50082067fb8dd9cefbb6d2d7753052a7ed3a",
-    "conversion_json": "b9183cd26e9423a6197ff9e5b605241d93ebf9fb4a750ab03f75ef3f7630c00a",
+    "pins_jac": "c14692de5786f0f6c6eb86c2d4834c40a5df3dce2191ac4f37970f2a9f207666",
+    "conversion_json": "5dcdb45a5abd1430015993f96bfead364a7ce5c85ca7d8bd96f6fb70211f6a99",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "picklebuffer",
@@ -21,15 +21,21 @@
   "timed_out": false,
   "counts": {
     "converted": 9,
-    "runnable": 3,
+    "runnable": 4,
     "green": 2,
-    "quarantined": 6,
-    "failed": 1,
+    "quarantined": 5,
+    "failed": 2,
     "infra_failed": 0
   },
   "failures": [
     {
       "id": "PickleBufferTest.test_basics",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'memoryview.__enter__() takes no arguments (1 given)'\">"
+    },
+    {
+      "id": "PickleBufferTest.test_raw",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'memoryview.__enter__() takes no arguments (1 given)'\">"

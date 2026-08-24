@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_marshal"
   ],
-  "generated_at": "2026-08-24T14:33:53",
+  "generated_at": "2026-08-24T15:02:14",
   "hashes": {
-    "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341"
+    "pins_jac": "ed1ed89ebf8ff7c603ca812ac18609c8c9d2fe6bb9f1d56733fbdf5ee0ceba26"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_marshal.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -236,6 +236,14 @@
       "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = b'\\xfbNr\\x00\\x00\\x00\\x000'\n    a = marshal.loads(data)\n    assert isinstance(a, dict), ('assertIsInstance', a, dict)\n    assert a[None] is a, ('assertIs', a[None], a)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "BugsTestCase.test_loads_abnormal_reference_loops",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = b'\\xa8\\x01\\x00\\x00\\x00[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n    a = marshal.loads(data)\n    assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n    assert isinstance(a[0], list), ('assertIsInstance', a[0], list)\n    assert a[0][0] is a, ('assertIs', a[0][0], a)\n    data = b'\\xa8\\x01\\x00\\x00\\x00{Nr\\x00\\x00\\x00\\x000'\n    a = marshal.loads(data)\n    assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n    assert isinstance(a[0], dict), ('assertIsInstance', a[0], dict)\n    assert a[0][None] is a, ('assertIs', a[0][None], a)\n    if False:\n        data = b'\\xa8\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n        a = marshal.loads(data)\n        assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n        assert a[0] is a, ('assertIs', a[0], a)\n    data = b'\\xfbr\\x00\\x00\\x00\\x00N0'\n    try:\n        marshal.loads(*(data,))\n    except TypeError:\n        pass\n    data = b'\\xbc\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n    try:\n        marshal.loads(*(data,))\n    except TypeError:\n        pass\n    for data in [b'\\xba[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00NN', b'\\xbaN[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00N', b'\\xbaNN[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00', b'\\xba{Nr\\x00\\x00\\x00\\x000NN', b'\\xbaN{Nr\\x00\\x00\\x00\\x000N', b'\\xbaNN{Nr\\x00\\x00\\x00\\x000', b'\\xbe\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00', b'\\xbar\\x00\\x00\\x00\\x00NN', b'\\xbaNr\\x00\\x00\\x00\\x00N', b'\\xbaNNr\\x00\\x00\\x00\\x00']:\n        try:\n            marshal.loads(*(data,))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "BugsTestCase.test_exact_type_match",
       "status": "pinned",
       "oracle": {
@@ -290,6 +298,22 @@
         "status": "ok"
       },
       "snippet": "import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = marshal.dumps(('hello', 'dolly', None))\n    for i in range(len(data)):\n        try:\n            marshal.loads(*(data[0:i],))\n        except EOFError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_deterministic_sets",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.script_helper import assert_python_ok\nimport sys\n\ndef _t():\n    for kind in ('set', 'frozenset'):\n        for elements in (\"float('nan'), b'a', b'b', b'c', 'x', 'y', 'z'\", \"('Spam', 0), ('Spam', 1), ('Spam', 2), ('Spam', 3), ('Spam', 4), ('Spam', 5)\"):\n            s = f'{kind}([{elements}])'\n            if sys.hash_info.algorithm in {'fnv', 'siphash24'}:\n                args = ['-c', f'print({s})']\n                _, repr_0, _ = assert_python_ok(*args, PYTHONHASHSEED='0')\n                _, repr_1, _ = assert_python_ok(*args, PYTHONHASHSEED='1')\n                assert repr_0 != repr_1, ('assertNotEqual', repr_0, repr_1)\n            args = ['-c', f'import marshal; print(marshal.dumps({s}))']\n            _, dump_0, _ = assert_python_ok(*args, PYTHONHASHSEED='0')\n            _, dump_1, _ = assert_python_ok(*args, PYTHONHASHSEED='1')\n            assert dump_0 == dump_1, ('assertEqual', dump_0, dump_1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "BugsTestCase.test_unmarshallable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport marshal\n\ndef _t():\n    fset = frozenset([int])\n    code = compile('a = 1', '<string>', 'exec')\n    code = code.replace(co_consts=(1, fset, None))\n    cases = (('tuple', (fset,)), ('list', [fset]), ('set', fset), ('dict key', {fset: 'x'}), ('dict value', {'x': fset}), ('dict key & value', {fset: fset}), ('slice', slice(fset, fset)), ('code', code))\n    for name, arg in cases:\n        try:\n            marshal.dumps((arg, memoryview(b'')))\n        except ValueError as _exc:\n            assert _re.search('unmarshallable object', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "InstancingTestCase.testInt",
@@ -365,6 +389,11 @@
       "ident": "InterningTestCase.testNoIntern",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
+    },
+    {
+      "ident": "SliceTestCase.test_slice",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'helper'"
     }
   ],
   "quarantined": [
@@ -445,18 +474,6 @@
       "reason": "self.addCleanup"
     },
     {
-      "ident": "BugsTestCase.test_loads_abnormal_reference_loops",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "BugsTestCase.test_deterministic_sets",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "ident": "BugsTestCase.test_unmarshallable",
-      "reason": "uses-self.subTest"
-    },
-    {
       "ident": "InstancingTestCase.testModule",
       "reason": "unresolved-name:__file__"
     },
@@ -475,15 +492,11 @@
     {
       "ident": "CompatibilityTestCase.test3To3",
       "reason": "helper:_test(unresolved-name:__file__)"
-    },
-    {
-      "ident": "SliceTestCase.test_slice",
-      "reason": "uses-self.subTest"
     }
   ],
   "counts": {
     "extracted": 75,
-    "pinned": 36,
-    "quarantined": 39
+    "pinned": 39,
+    "quarantined": 36
   }
 }

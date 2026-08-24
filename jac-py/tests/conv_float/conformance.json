@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_float/conv_float_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:32:49",
+  "generated_at": "2026-08-24T15:03:33",
   "hashes": {
-    "pins_jac": "6ca0420e2907cb548f4caed1e308704f64fe1e2d59ac55fb4ae6b81498003e0a",
-    "conversion_json": "9f6e93fca180aaf6632ed34e969be581d19391745fc1bd029739168493f5684c",
+    "pins_jac": "cc65349f0a4a7ca83f4d4862ae5e02a065cc81342dd8aa8afb2c1c0763ebbbae",
+    "conversion_json": "7232b5d79b1fdaf8611e524889236064409c1eca250d44d275bc9423e4289d0e",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "float",
   "counts": {
     "converted": 54,
-    "runnable": 24,
+    "runnable": 25,
     "green": 19,
-    "quarantined": 30
+    "quarantined": 29
   },
   "pins": [
     {
@@ -33,6 +33,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC TypeError \"argument of type \\'bool\\' is not a container or iterable\"'>"
+    },
+    {
+      "id": "GeneralFloatCases.test_non_numeric_input_types",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"float() argument must be a string or a real number, not \\'CustomByteArray\\'\"'>"
     },
     {
       "id": "GeneralFloatCases.test_float_memoryview",
@@ -78,7 +84,7 @@
       "id": "GeneralFloatCases.test_hash_nan",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8748298040793, 8748298116451)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 8738756776595, 8738756789801)\"'>"
     },
     {
       "id": "GeneralFloatCases.test_issue_gh143006",
@@ -229,11 +235,6 @@
       "id": "GeneralFloatCases.test_float",
       "status": "quarantined",
       "reason": "assertRaisesRegex call form"
-    },
-    {
-      "id": "GeneralFloatCases.test_non_numeric_input_types",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "GeneralFloatCases.test_error_message",

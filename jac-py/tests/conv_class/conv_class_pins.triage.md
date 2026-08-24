@@ -38,7 +38,7 @@
 | ClassTests.testMetaclassCallOptimization | decorator:support.thread_unsafe |
 | ClassTests.test_specialization_class_call_doesnt_crash | decorator:support.thread_unsafe |
 | TestInlineValues.test_no_flags_for_slots_class | unresolved-name:NoManagedDict |
-| TestInlineValues.test_both_flags_for_regular_class | uses-self.subTest |
+| TestInlineValues.test_both_flags_for_regular_class | unresolved-name:Plain |
 | TestInlineValues.test_managed_dict_only_for_varsized_subclass | unresolved-name:VarSizedSubclass |
 | TestInlineValues.test_has_inline_values | unresolved-name:Plain |
 | TestInlineValues.test_instances | unresolved-name:Plain |

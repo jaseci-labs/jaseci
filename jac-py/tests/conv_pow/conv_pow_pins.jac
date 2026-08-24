@@ -24,3 +24,9 @@ test "PowTest.test_bug643260" {
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
+
+test "PowTest.test_negative_exponent" {
+    (ok, detail) = p2_libtest_run_snippet("import math\n\ndef _t():\n    for a in range(-50, 50):\n        for m in range(-50, 50):\n            if m != 0 and math.gcd(a, m) == 1:\n                inv = pow(a, -1, m)\n                assert inv == inv % m, ('assertEqual', inv, inv % m)\n                assert (inv * a - 1) % m == 0, ('assertEqual', (inv * a - 1) % m, 0)\n                assert pow(a, -2, m) == pow(inv, 2, m), ('assertEqual', pow(a, -2, m), pow(inv, 2, m))\n                assert pow(a, -3, m) == pow(inv, 3, m), ('assertEqual', pow(a, -3, m), pow(inv, 3, m))\n                assert pow(a, -1001, m) == pow(inv, 1001, m), ('assertEqual', pow(a, -1001, m), pow(inv, 1001, m))\n            else:\n                try:\n                    pow(a, -1, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\n                try:\n                    pow(a, -2, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\n                try:\n                    pow(a, -1001, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}

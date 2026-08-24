@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_codecs/conv_codecs_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:30:52",
+  "generated_at": "2026-08-24T15:01:07",
   "hashes": {
-    "pins_jac": "9ed0a8473c476ccdbf0480392c80b78deaece01bc50c4366c22280f8448b6f73",
-    "conversion_json": "3dc908d98958854fae320c71c09cdb1c383ec31300f277bba740184c008c9241",
+    "pins_jac": "c5672972148eeeb6012a755982a323343e3d07f564c4c51e6c8e9f8ccfdd6989",
+    "conversion_json": "d2ebedb15d9879f3c65cd495ba2a4344af77f8c92cc2d642d8f70d6100245c80",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "codecs",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 207,
-    "runnable": 90,
-    "green": 57,
-    "quarantined": 117,
-    "failed": 33,
+    "runnable": 105,
+    "green": 69,
+    "quarantined": 102,
+    "failed": 36,
     "infra_failed": 0
   },
   "failures": [
@@ -155,6 +155,12 @@
       "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\\\\\\\x00\\', 1), (b\\'\\\\\\\\x00\\', 1))\"'>"
     },
     {
+      "id": "EscapeEncodeTest.test_escape_encode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
       "id": "SurrogateEscapeTest.test_utf8",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -185,7 +191,19 @@
       "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
     },
     {
+      "id": "ASCIITest.test_encode_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
       "id": "ASCIITest.test_encode_surrogateescape_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "Latin1Test.test_encode_errors",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"

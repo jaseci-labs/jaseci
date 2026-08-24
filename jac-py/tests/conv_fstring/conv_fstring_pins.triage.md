@@ -73,34 +73,34 @@
 |---|---|
 | TestCase.test_mismatched_parens | decorator:unittest.skipIf |
 | TestCase.test_fstring_nested_too_deeply | decorator:unittest.skipIf |
-| TestCase.test_compile_time_concat_errors | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_unterminated_string | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_syntax_error_in_nested_fstring | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_double_braces | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_compile_time_concat | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_comments | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_format_specifier_expressions | helper:assertAllRaise(uses-self.subTest) |
 | TestCase.test_custom_format_specifier | uses-self.assertWarns |
-| TestCase.test_missing_expression | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_parens_in_expressions | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_newlines_before_syntax_error | helper:assertAllRaise(uses-self.subTest) |
 | TestCase.test_backslashes_in_string_part | uses-self.assertWarns |
-| TestCase.test_misformed_unicode_character_name | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_backslashes_in_expression_part | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_invalid_backslashes_inside_fstring_context | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_lambda | helper:assertAllRaise(uses-self.subTest) |
 | TestCase.test_fstring_backslash_before_double_bracket | uses-self.assertWarns |
 | TestCase.test_fstring_backslash_before_double_bracket_warns_once | uses-self.assertWarns |
 | TestCase.test_missing_variable | unresolved-name:value |
-| TestCase.test_invalid_string_prefixes | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_conversions | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_assignment | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_del | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_mismatched_braces | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_errors | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_not_closing_quotes | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_syntax_error_after_debug | helper:assertAllRaise(uses-self.subTest) |
-| TestCase.test_newlines_in_format_specifiers | helper:assertAllRaise(uses-self.subTest) |
+| TestCase.test_compile_time_concat_errors | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_unterminated_string | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_syntax_error_in_nested_fstring | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_double_braces | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_compile_time_concat | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_comments | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_format_specifier_expressions | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_missing_expression | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_parens_in_expressions | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_newlines_before_syntax_error | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_misformed_unicode_character_name | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_backslashes_in_expression_part | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_invalid_backslashes_inside_fstring_context | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_lambda | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_invalid_string_prefixes | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_conversions | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_assignment | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_del | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_mismatched_braces | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_errors | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_not_closing_quotes | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_syntax_error_after_debug | host-raised:TypeError: 'str' object is not callable |
+| TestCase.test_newlines_in_format_specifiers | host-raised:TypeError: 'str' object is not callable |
 
 ## Expected vs got
 

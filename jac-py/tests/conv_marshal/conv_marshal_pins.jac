@@ -151,6 +151,12 @@ test "BugsTestCase.test_loads_reference_loop_dict" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "BugsTestCase.test_loads_abnormal_reference_loops" {
+    (ok, detail) = p2_libtest_run_snippet("import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = b'\\xa8\\x01\\x00\\x00\\x00[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n    a = marshal.loads(data)\n    assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n    assert isinstance(a[0], list), ('assertIsInstance', a[0], list)\n    assert a[0][0] is a, ('assertIs', a[0][0], a)\n    data = b'\\xa8\\x01\\x00\\x00\\x00{Nr\\x00\\x00\\x00\\x000'\n    a = marshal.loads(data)\n    assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n    assert isinstance(a[0], dict), ('assertIsInstance', a[0], dict)\n    assert a[0][None] is a, ('assertIs', a[0][None], a)\n    if False:\n        data = b'\\xa8\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n        a = marshal.loads(data)\n        assert isinstance(a, tuple), ('assertIsInstance', a, tuple)\n        assert a[0] is a, ('assertIs', a[0], a)\n    data = b'\\xfbr\\x00\\x00\\x00\\x00N0'\n    try:\n        marshal.loads(*(data,))\n    except TypeError:\n        pass\n    data = b'\\xbc\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00'\n    try:\n        marshal.loads(*(data,))\n    except TypeError:\n        pass\n    for data in [b'\\xba[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00NN', b'\\xbaN[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00N', b'\\xbaNN[\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00', b'\\xba{Nr\\x00\\x00\\x00\\x000NN', b'\\xbaN{Nr\\x00\\x00\\x00\\x000N', b'\\xbaNN{Nr\\x00\\x00\\x00\\x000', b'\\xbe\\x01\\x00\\x00\\x00r\\x00\\x00\\x00\\x00', b'\\xbar\\x00\\x00\\x00\\x00NN', b'\\xbaNr\\x00\\x00\\x00\\x00N', b'\\xbaNNr\\x00\\x00\\x00\\x00']:\n        try:\n            marshal.loads(*(data,))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "BugsTestCase.test_exact_type_match" {
     (ok, detail) = p2_libtest_run_snippet("import marshal\n\ndef _t():\n    for typ in (int, float, complex, tuple, list, dict, set, frozenset):\n        subtyp = type('subtyp', (typ,), {})\n        try:\n            marshal.dumps(*(subtyp(),))\n        except ValueError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -189,6 +195,18 @@ test "BugsTestCase.test_bad_reader" {
 
 test "BugsTestCase.test_eof" {
     (ok, detail) = p2_libtest_run_snippet("import marshal\n\ndef omit_last_byte(data):\n    \"\"\"return data[:-1]\"\"\"\n    return data[slice(0, -1)]\n\ndef _t():\n    data = marshal.dumps(('hello', 'dolly', None))\n    for i in range(len(data)):\n        try:\n            marshal.loads(*(data[0:i],))\n        except EOFError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "BugsTestCase.test_deterministic_sets" {
+    (ok, detail) = p2_libtest_run_snippet("from test.support.script_helper import assert_python_ok\nimport sys\n\ndef _t():\n    for kind in ('set', 'frozenset'):\n        for elements in (\"float('nan'), b'a', b'b', b'c', 'x', 'y', 'z'\", \"('Spam', 0), ('Spam', 1), ('Spam', 2), ('Spam', 3), ('Spam', 4), ('Spam', 5)\"):\n            s = f'{kind}([{elements}])'\n            if sys.hash_info.algorithm in {'fnv', 'siphash24'}:\n                args = ['-c', f'print({s})']\n                _, repr_0, _ = assert_python_ok(*args, PYTHONHASHSEED='0')\n                _, repr_1, _ = assert_python_ok(*args, PYTHONHASHSEED='1')\n                assert repr_0 != repr_1, ('assertNotEqual', repr_0, repr_1)\n            args = ['-c', f'import marshal; print(marshal.dumps({s}))']\n            _, dump_0, _ = assert_python_ok(*args, PYTHONHASHSEED='0')\n            _, dump_1, _ = assert_python_ok(*args, PYTHONHASHSEED='1')\n            assert dump_0 == dump_1, ('assertEqual', dump_0, dump_1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "BugsTestCase.test_unmarshallable" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport marshal\n\ndef _t():\n    fset = frozenset([int])\n    code = compile('a = 1', '<string>', 'exec')\n    code = code.replace(co_consts=(1, fset, None))\n    cases = (('tuple', (fset,)), ('list', [fset]), ('set', fset), ('dict key', {fset: 'x'}), ('dict value', {'x': fset}), ('dict key & value', {fset: fset}), ('slice', slice(fset, fset)), ('code', code))\n    for name, arg in cases:\n        try:\n            marshal.dumps((arg, memoryview(b'')))\n        except ValueError as _exc:\n            assert _re.search('unmarshallable object', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

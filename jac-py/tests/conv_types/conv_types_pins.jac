@@ -133,6 +133,12 @@ test "TypesTests.test_method_descriptor_types" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TypesTests.test_method_descriptor_crash" {
+    (ok, detail) = p2_libtest_run_snippet("import types\n\ndef _t():\n    import _io\n    import io\n    import _queue\n    to_check = [(_io._TextIOBase.read, io.StringIO()), (_queue.SimpleQueue.put, _queue.SimpleQueue()), (str.capitalize, 'nobody expects the spanish inquisition')]\n    for method, instance in to_check:\n        bound = method.__get__(instance)\n        assert isinstance(bound, types.BuiltinMethodType), ('assertIsInstance', bound, types.BuiltinMethodType)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TypesTests.test_ellipsis_type" {
     (ok, detail) = p2_libtest_run_snippet("import types\n\ndef _t():\n    assert isinstance(Ellipsis, types.EllipsisType), ('assertIsInstance', Ellipsis, types.EllipsisType)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -195,6 +201,12 @@ test "UnionTests.test_bad_instancecheck" {
 
 test "UnionTests.test_or_type_operator_with_TypeVar" {
     (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    TV = typing.TypeVar('T')\n    assert TV | str == typing.Union[TV, str], ('assertEqual', TV | str, typing.Union[TV, str])\n    assert str | TV == typing.Union[str, TV], ('assertEqual', str | TV, typing.Union[str, TV])\n    assert (int | TV)[int] is int, ('assertIs', (int | TV)[int], int)\n    assert (TV | int)[int] is int, ('assertIs', (TV | int)[int], int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UnionTests.test_union_args" {
+    (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef clear_typing_caches():\n    for f in typing._cleanups:\n        f()\n\ndef _t():\n\n    def check(arg, expected):\n        clear_typing_caches()\n        assert arg.__args__ == expected, ('assertEqual', arg.__args__, expected)\n    check(int | str, (int, str))\n    check(int | str | list, (int, str, list))\n    check(int | (str | list), (int, str, list))\n    check(int | str | int, (int, str))\n    check(int | (str | int), (int, str))\n    check(int | str | (str | int), (int, str))\n    check(typing.Union[int, str] | list, (int, str, list))\n    check(int | typing.Union[str, list], (int, str, list))\n    check(int | str | (list | int), (int, str, list))\n    check(int | str | typing.Union[list, int], (int, str, list))\n    check(typing.Union[int, str] | (list | int), (int, str, list))\n    check(str | int | (int | list), (str, int, list))\n    check(str | int | typing.Union[int, list], (str, int, list))\n    check(typing.Union[str, int] | (int | list), (str, int, list))\n    check(int | type(None), (int, type(None)))\n    check(type(None) | int, (type(None), int))\n    args = (int, list[int], typing.List[int], typing.Tuple[int, int], typing.Callable[[int], int], typing.Hashable, typing.TypeVar('T'))\n    for x in args:\n        check(x | None, (x, type(None)))\n        check(None | x, (type(None), x))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -279,6 +291,12 @@ test "UnionTests.test_or_type_operator_with_Literal" {
 
 test "UnionTests.test_or_type_repr" {
     (ok, detail) = p2_libtest_run_snippet("import typing\n\ndef _t():\n    assert repr(int | str) == 'int | str', ('assertEqual', repr(int | str), 'int | str')\n    assert repr(int | str | list) == 'int | str | list', ('assertEqual', repr(int | str | list), 'int | str | list')\n    assert repr(int | (str | list)) == 'int | str | list', ('assertEqual', repr(int | (str | list)), 'int | str | list')\n    assert repr(int | None) == 'int | None', ('assertEqual', repr(int | None), 'int | None')\n    assert repr(int | type(None)) == 'int | None', ('assertEqual', repr(int | type(None)), 'int | None')\n    assert repr(int | typing.GenericAlias(list, int)) == 'int | list[int]', ('assertEqual', repr(int | typing.GenericAlias(list, int)), 'int | list[int]')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UnionTests.test_or_type_operator_with_genericalias" {
+    (ok, detail) = p2_libtest_run_snippet("import collections.abc\nimport types\nimport typing\n\ndef _t():\n    a = list[int]\n    b = list[str]\n    c = dict[float, str]\n\n    class SubClass(types.GenericAlias):\n        ...\n    d = SubClass(list, float)\n    assert a | b | c | d == typing.Union[a, b, c, d], ('assertEqual', a | b | c | d, typing.Union[a, b, c, d])\n    assert a | c | b | b | a | c | d | d == a | b | c | d, ('assertEqual', a | c | b | b | a | c | d | d, a | b | c | d)\n    assert a | b | d == b | a | d, ('assertEqual', a | b | d, b | a | d)\n    assert repr(a | b | c | d) == 'list[int] | list[str] | dict[float, str] | list[float]', ('assertEqual', repr(a | b | c | d), 'list[int] | list[str] | dict[float, str] | list[float]')\n\n    class BadType(type):\n\n        def __eq__(self, other):\n            return 1 / 0\n    bt = BadType('bt', (), {})\n    bt2 = BadType('bt2', (), {})\n    union1 = int | bt\n    union2 = int | bt2\n    try:\n        union1 == union2\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        bt | bt2\n    except ZeroDivisionError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    union_ga = (list[str] | int, collections.abc.Callable[..., str] | int, d | int)\n    for type_ in union_ga:\n        try:\n            isinstance(1, type_)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            issubclass(int, type_)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

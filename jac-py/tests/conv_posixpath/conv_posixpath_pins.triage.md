@@ -1,8 +1,8 @@
 # Triage report: `conv_posixpath_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_posixpath.py
-- guest leg: 0/23 marks
-- pins: **16 passed** / 23 run (+41 quarantined of 64 extracted)
+- guest leg: 0/24 marks
+- pins: **16 passed** / 24 run (+40 quarantined of 64 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -20,6 +20,7 @@
 | PosixPathTest.test_ismount_symlinks | PASS | |
 | PosixPathTest.test_isjunction | PASS | |
 | PosixPathTest.test_expanduser | PASS | |
+| PosixPathTest.test_expanduser_home_envvar | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'EnvironmentVarGuard'"> |
 | PosixPathTest.test_realpath_strict | PASS | |
 | PosixPathTest.test_realpath_invalid_paths | PASS | |
 | PosixPathTest.test_realpath_symlink_loops | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'change_cwd'"> |
@@ -42,8 +43,6 @@
 | PosixPathTest.test_realpath_unreadable_symlink | decorator:unittest.skipIf |
 | PosixPathTest.test_realpath_unreadable_symlink_strict | decorator:unittest.skipIf |
 | PosixPathTest.test_islink | self.addCleanup |
-| PosixPathTest.test_expanduser_home_envvar | uses-self.subTest |
-| PosixPathTest.test_normpath | uses-self.subTest |
 | PosixPathTest.test_realpath_curdir | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_pardir | unresolved-name:kwargs |
 | PosixPathTest.test_realpath_basic | unresolved-name:kwargs |
@@ -75,8 +74,14 @@
 | PathLikeTests.test_path_realpath | helper:setUp(self.addCleanup) |
 | PathLikeTests.test_path_relpath | helper:setUp(self.addCleanup) |
 | PathLikeTests.test_path_commonpath | helper:setUp(self.addCleanup) |
+| PosixPathTest.test_normpath | host-raised:AttributeError: '_SelfNS' object has no attribute 'NORMPATH_CASES' |
 
 ## Expected vs got
+
+### PosixPathTest.test_expanduser_home_envvar (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'EnvironmentVarGuard'">
 
 ### PosixPathTest.test_realpath_nonterminal_file (GUEST-WRONG-OUTPUT)
 

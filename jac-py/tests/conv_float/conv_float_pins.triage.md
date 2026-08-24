@@ -1,13 +1,14 @@
 # Triage report: `conv_float_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py
-- guest leg: 0/24 marks
-- pins: **19 passed** / 24 run (+30 quarantined of 54 extracted)
+- guest leg: 0/25 marks
+- pins: **19 passed** / 25 run (+29 quarantined of 54 extracted)
 
 | pin | result | got |
 |---|---|---|
 | GeneralFloatCases.test_noargs | PASS | |
 | GeneralFloatCases.test_underscores | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "argument of type \'bool\' is not a container or iterable"'> |
+| GeneralFloatCases.test_non_numeric_input_types | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "float() argument must be a string or a real number, not \'CustomByteArray\'"'> |
 | GeneralFloatCases.test_float_memoryview | PASS | |
 | GeneralFloatCases.test_keyword_args | PASS | |
 | GeneralFloatCases.test_keywords_in_subclass | PASS | |
@@ -17,7 +18,7 @@
 | GeneralFloatCases.test_float_floor | PASS | |
 | GeneralFloatCases.test_float_ceil | PASS | |
 | GeneralFloatCases.test_hash | PASS | |
-| GeneralFloatCases.test_hash_nan | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8748298040793, 8748298116451)"'> |
+| GeneralFloatCases.test_hash_nan | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8738756776595, 8738756789801)"'> |
 | GeneralFloatCases.test_issue_gh143006 | PASS | |
 | FormatTestCase.test_format | PASS | |
 | FormatTestCase.test_issue5864 | PASS | |
@@ -55,7 +56,6 @@
 | RoundTestCase.test_None_ndigits | decorator:support.requires_IEEE_754 |
 | RoundTestCase.test_round_with_none_arg_direct_call | decorator:support.requires_IEEE_754 |
 | GeneralFloatCases.test_float | assertRaisesRegex call form |
-| GeneralFloatCases.test_non_numeric_input_types | uses-self.subTest |
 | GeneralFloatCases.test_error_message | unresolved-name:cm |
 | GeneralFloatCases.test_floatconversion | uses-self.assertWarns |
 | GeneralFloatCases.test_from_number | unresolved-name:FloatLike |
@@ -81,7 +81,12 @@
 ### GeneralFloatCases.test_hash_nan (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8748298040793, 8748298116451)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 8738756776595, 8738756789801)"'>
+
+### GeneralFloatCases.test_non_numeric_input_types (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "float() argument must be a string or a real number, not \'CustomByteArray\'"'>
 
 ### GeneralFloatCases.test_underscores (GUEST-WRONG-OUTPUT)
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_bytes/conv_bytes_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:30:37",
+  "generated_at": "2026-08-24T15:01:26",
   "hashes": {
-    "pins_jac": "92b579c0950342e484e4c79e4915f3954f1d47c55dc7c6f183e77d1ff4f351a5",
-    "conversion_json": "6caa1514089055db1b6bce8aed5409d693757b2ac95cd12998f928a827a446df",
+    "pins_jac": "9c1c4350a3043f817ea935880ba6f29389e7470f4de29c5d52a91b84f0c677ba",
+    "conversion_json": "9ff26e8182db9ae21778c6d09e02c15c4b2205a42fd6c4f7cdedccd3d9f37e69",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "bytes",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 143,
-    "runnable": 43,
+    "runnable": 44,
     "green": 18,
-    "quarantined": 100,
-    "failed": 25,
+    "quarantined": 99,
+    "failed": 26,
     "infra_failed": 0
   },
   "failures": [
@@ -44,7 +44,7 @@
       "id": "BytesTest.test_repeat_id_preserving",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139790988259504, 139790988258640)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 139664801626352, 139664801625488)\"'>"
     },
     {
       "id": "ByteArrayTest.test_setitem_error",
@@ -134,7 +134,7 @@
       "id": "ByteArrayTest.test_iterator_pickling2",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f23a02df1c0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f063efe7c10>\"'>"
     },
     {
       "id": "ByteArrayTest.test_iterator_length_hint",
@@ -147,6 +147,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "ByteArrayTest.test_search_methods_reentrancy_raises_buffererror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"argument should be integer or bytes-like object, not \\'Evil\\'\"'>"
     },
     {
       "id": "ByteArrayTest.test_extend_empty_buffer_overflow",
@@ -176,7 +182,7 @@
       "id": "ByteArraySubclassTest.test_init_override",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f23a03c1050>, b\\'abcd\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', <__main__.subclass object at 0x7f063ee0b6d0>, b\\'abcd\\')\"'>"
     }
   ]
 }

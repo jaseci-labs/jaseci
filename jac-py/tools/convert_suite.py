@@ -461,6 +461,13 @@ def rewrite_block(stmts: list[ast.stmt]) -> tuple[list[ast.stmt], bool]:
                         needs_re = needs_re or _with_needs_re(stmt.items[0])
                         new.append(out_stmt)
                         handled = True
+                    elif isinstance(call, ast.Call) and _call_name(call.func) == "subTest":
+                        # unittest subTest scopes failure labels without stopping
+                        # the test; any failing subtest makes the host oracle
+                        # non-"ok", so such cases never become pins. Inlining the
+                        # body plainly is therefore oracle-safe.
+                        new.extend(rec(stmt.body))
+                        handled = True
                 if not handled:
                     stmt.body = rec(stmt.body)
                     new.append(stmt)

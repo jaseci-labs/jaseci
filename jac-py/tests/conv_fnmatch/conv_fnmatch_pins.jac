@@ -25,6 +25,18 @@ test "TranslateTestCase.test_translate" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TranslateTestCase.test_translate_wildcards" {
+    (ok, detail) = p2_libtest_run_snippet("from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    for pattern, expect in [('ab*', '(?s:ab.*)\\\\z'), ('ab*cd', '(?s:ab.*cd)\\\\z'), ('ab*cd*', '(?s:ab(?>.*?cd).*)\\\\z'), ('ab*cd*12', '(?s:ab(?>.*?cd).*12)\\\\z'), ('ab*cd*12*', '(?s:ab(?>.*?cd)(?>.*?12).*)\\\\z'), ('ab*cd*12*34', '(?s:ab(?>.*?cd)(?>.*?12).*34)\\\\z'), ('ab*cd*12*34*', '(?s:ab(?>.*?cd)(?>.*?12)(?>.*?34).*)\\\\z')]:\n        translated = translate(pattern)\n        assert translated == expect, ('assertEqual', translated, expect)\n    for pattern, expect in [('*ab', '(?s:.*ab)\\\\z'), ('*ab*', '(?s:(?>.*?ab).*)\\\\z'), ('*ab*cd', '(?s:(?>.*?ab).*cd)\\\\z'), ('*ab*cd*', '(?s:(?>.*?ab)(?>.*?cd).*)\\\\z'), ('*ab*cd*12', '(?s:(?>.*?ab)(?>.*?cd).*12)\\\\z'), ('*ab*cd*12*', '(?s:(?>.*?ab)(?>.*?cd)(?>.*?12).*)\\\\z'), ('*ab*cd*12*34', '(?s:(?>.*?ab)(?>.*?cd)(?>.*?12).*34)\\\\z'), ('*ab*cd*12*34*', '(?s:(?>.*?ab)(?>.*?cd)(?>.*?12)(?>.*?34).*)\\\\z')]:\n        translated = translate(pattern)\n        assert translated == expect, ('assertEqual', translated, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TranslateTestCase.test_translate_expressions" {
+    (ok, detail) = p2_libtest_run_snippet("from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    for pattern, expect in [('[', '(?s:\\\\[)\\\\z'), ('[!', '(?s:\\\\[!)\\\\z'), ('[]', '(?s:\\\\[\\\\])\\\\z'), ('[abc', '(?s:\\\\[abc)\\\\z'), ('[!abc', '(?s:\\\\[!abc)\\\\z'), ('[abc]', '(?s:[abc])\\\\z'), ('[!abc]', '(?s:[^abc])\\\\z'), ('[!abc][!def]', '(?s:[^abc][^def])\\\\z'), ('[[', '(?s:\\\\[\\\\[)\\\\z'), ('[[a', '(?s:\\\\[\\\\[a)\\\\z'), ('[[]', '(?s:[\\\\[])\\\\z'), ('[[]a', '(?s:[\\\\[]a)\\\\z'), ('[[]]', '(?s:[\\\\[]\\\\])\\\\z'), ('[[]a]', '(?s:[\\\\[]a\\\\])\\\\z'), ('[[a]', '(?s:[\\\\[a])\\\\z'), ('[[a]]', '(?s:[\\\\[a]\\\\])\\\\z'), ('[[a]b', '(?s:[\\\\[a]b)\\\\z'), ('[\\\\', '(?s:\\\\[\\\\\\\\)\\\\z'), ('[\\\\]', '(?s:[\\\\\\\\])\\\\z'), ('[\\\\\\\\]', '(?s:[\\\\\\\\\\\\\\\\])\\\\z')]:\n        translated = translate(pattern)\n        assert translated == expect, ('assertEqual', translated, expect)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TranslateTestCase.test_star_indices_locations" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    from fnmatch import _translate\n    blocks = ['a^b', '***', '?', '?', '[a-z]', '[1-9]', '*', '++', '[[a']\n    parts, star_indices = _translate(''.join(blocks), '*', '.')\n    expect_parts = ['a', '\\\\^', 'b', '*', '.', '.', '[a-z]', '[1-9]', '*', '\\\\+', '\\\\+', '\\\\[', '\\\\[', 'a']\n    assert parts == expect_parts, ('assertListEqual', parts, expect_parts)\n    assert star_indices == [3, 8], ('assertListEqual', star_indices, [3, 8])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

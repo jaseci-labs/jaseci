@@ -1,8 +1,8 @@
 # Triage report: `conv_types_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_types.py
-- guest leg: 0/95 marks
-- pins: **48 passed** / 95 run (+34 quarantined of 129 extracted)
+- guest leg: 0/98 marks
+- pins: **49 passed** / 98 run (+31 quarantined of 129 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -27,6 +27,7 @@
 | TypesTests.test_slot_wrapper_types | PASS | |
 | TypesTests.test_method_wrapper_types | PASS | |
 | TypesTests.test_method_descriptor_types | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <built-in method join of str object>, <class \'builtin_function_or_method\'>)"'> |
+| TypesTests.test_method_descriptor_crash | PASS | |
 | TypesTests.test_ellipsis_type | PASS | |
 | TypesTests.test_notimplemented_type | PASS | |
 | TypesTests.test_none_type | PASS | |
@@ -38,6 +39,7 @@
 | UnionTests.test_unhashable_becomes_hashable | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "unsupported operand type(s) for \|: \'UnhashableMeta\' and \'UnhashableMeta\'"'> |
 | UnionTests.test_bad_instancecheck | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "unsupported operand type(s) for \|: \'host\' and \'BadMeta\'"'> |
 | UnionTests.test_or_type_operator_with_TypeVar | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
+| UnionTests.test_union_args | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_parameter_chaining | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_parameter_substitution | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_union_pickle | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
@@ -52,6 +54,7 @@
 | UnionTests.test_or_type_operator_with_SpecialForm | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_or_type_operator_with_Literal | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_or_type_repr | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
+| UnionTests.test_or_type_operator_with_genericalias | GUEST-WRONG-OUTPUT | RUN<'AttributeError: cache'> |
 | UnionTests.test_or_type_operator_with_bad_module | PASS | |
 | ClassCreationTests.test_new_class_basics | PASS | |
 | ClassCreationTests.test_new_class_metaclass_keywords | PASS | |
@@ -95,10 +98,10 @@
 | CoroutineTests.test_duck_coro | PASS | |
 | CoroutineTests.test_duck_corogen | PASS | |
 | CoroutineTests.test_duck_gen | GUEST-WRONG-OUTPUT | RUN<'AttributeError: **repr**'> |
-| CoroutineTests.test_gen | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fd3716c47c0>, <class \'**main**._GeneratorWrapper\'>)"'> |
+| CoroutineTests.test_gen | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7f69008ccd90>, <class \'**main**._GeneratorWrapper\'>)"'> |
 | CoroutineTests.test_returning_itercoro | PASS | |
 | CoroutineTests.test_genfunc | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
-| CoroutineTests.test_wrapper_object | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fd3713f2950>\')"'> |
+| CoroutineTests.test_wrapper_object | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7f69009868f0>\')"'> |
 | FunctionTests.test_function_type_defaults | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "bridge-table: type \'code\' has policy BridgePolicy.FAIL but no to_host conversion arm"'> |
 | FunctionTests.test_function_type_wrong_defaults | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
 
@@ -107,14 +110,11 @@
 | test | reason |
 |---|---|
 | TypesTests.test_dunder_get_signature | decorator:unittest.skipIf |
-| TypesTests.test_method_descriptor_crash | uses-self.subTest |
 | UnionTests.test_or_types_operator | unresolved-name:Example |
 | UnionTests.test_instancecheck_and_subclasscheck | self.assertNotIsInstance |
 | UnionTests.test_instancecheck_and_subclasscheck_order | self.assertIsSubclass |
 | UnionTests.test_bad_subclasscheck | self.assertIsSubclass |
-| UnionTests.test_union_args | uses-self.subTest |
 | UnionTests.test_or_type_operator_with_forward | unresolved-name:Forward |
-| UnionTests.test_or_type_operator_with_genericalias | uses-self.subTest |
 | UnionTests.test_or_type_operator_reference_cycle | self.skipTest |
 | MappingProxyTests.test_constructor | uses-self.mappingproxy |
 | MappingProxyTests.test_methods | uses-self.mappingproxy |
@@ -201,7 +201,7 @@
 ### CoroutineTests.test_gen (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7fd3716c47c0>, <class \'**main**._GeneratorWrapper\'>)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', <callable_iterator object at 0x7f69008ccd90>, <class \'**main**._GeneratorWrapper\'>)"'>
 
 ### CoroutineTests.test_genfunc (GUEST-WRONG-OUTPUT)
 
@@ -211,7 +211,7 @@
 ### CoroutineTests.test_wrapper_object (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7fd3713f2950>\')"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIn\', \'GeneratorWrapper\', \'<callable_iterator object at 0x7f69009868f0>\')"'>
 
 ### CoroutineTests.test_wrong_args (GUEST-WRONG-OUTPUT)
 
@@ -338,6 +338,11 @@
 - expected: host oracle = `ok`
 - got: RUN<'AttributeError: cache'>
 
+### UnionTests.test_or_type_operator_with_genericalias (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<'AttributeError: cache'>
+
 ### UnionTests.test_or_type_repr (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -347,6 +352,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC TypeError "unsupported operand type(s) for |: \'UnhashableMeta\' and \'UnhashableMeta\'"'>
+
+### UnionTests.test_union_args (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<'AttributeError: cache'>
 
 ### UnionTests.test_union_copy (GUEST-WRONG-OUTPUT)
 

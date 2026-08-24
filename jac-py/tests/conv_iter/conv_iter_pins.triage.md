@@ -6,7 +6,7 @@
 
 | pin | result | got |
 |---|---|---|
-| TestCase.test_iter_basic | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ce59c70>"'> |
+| TestCase.test_iter_basic | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dc70>"'> |
 | TestCase.test_iter_idempotency | PASS | |
 | TestCase.test_iter_for_loop | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
 | TestCase.test_iter_independence | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
@@ -18,11 +18,11 @@
 | TestCase.test_iter_function_concealing_reentrant_exhaustion | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaises: did not raise'"> |
 | TestCase.test_exception_function | PASS | |
 | TestCase.test_iter_big_range | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
-| TestCase.test_iter_empty | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ce59bc0>"'> |
-| TestCase.test_iter_tuple | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa4b0>"'> |
+| TestCase.test_iter_empty | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dbc0>"'> |
+| TestCase.test_iter_tuple | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b64b0>"'> |
 | TestCase.test_iter_range | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object is not iterable'"> |
-| TestCase.test_iter_string | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceab110>"'> |
-| TestCase.test_iter_dict | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa560>"'> |
+| TestCase.test_iter_string | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b7110>"'> |
+| TestCase.test_iter_dict | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b6560>"'> |
 | TestCase.test_iter_file | PASS | |
 | TestCase.test_unicode_join_endcase | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'can only join an iterable'"> |
 | TestCase.test_countOf | PASS | |
@@ -67,7 +67,7 @@
 | TestCase.test_iter_neg_setstate | unresolved-name:UnlimitedSequenceClass |
 | TestCase.test_free_after_iterating | unresolved-name:SequenceClass |
 | TestCase.test_error_iter | unresolved-name:BadIterableClass |
-| TestCase.test_exception_locations | uses-self.subTest |
+| TestCase.test_exception_locations | host-raised:AssertionError: ('assertEqual', ' in BrokenIter(init_raises=T', 'BrokenIter(init_raises=True)') |
 
 ## Expected vs got
 
@@ -96,7 +96,7 @@
 ### TestCase.test_iter_basic (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ce59c70>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dc70>"'>
 
 ### TestCase.test_iter_big_range (GUEST-WRONG-OUTPUT)
 
@@ -106,12 +106,12 @@
 ### TestCase.test_iter_dict (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa560>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b6560>"'>
 
 ### TestCase.test_iter_empty (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ce59bc0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f676425dbc0>"'>
 
 ### TestCase.test_iter_for_loop (GUEST-WRONG-OUTPUT)
 
@@ -136,12 +136,12 @@
 ### TestCase.test_iter_string (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceab110>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b7110>"'>
 
 ### TestCase.test_iter_tuple (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa4b0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f67642b64b0>"'>
 
 ### TestCase.test_nested_comprehensions_iter (GUEST-WRONG-OUTPUT)
 

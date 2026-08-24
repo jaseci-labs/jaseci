@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_picklebuffer"
   ],
-  "generated_at": "2026-08-24T14:04:46",
+  "generated_at": "2026-08-24T15:03:37",
   "hashes": {
-    "pins_jac": "32907f8986777f1bf4c9684bbf0e50082067fb8dd9cefbb6d2d7753052a7ed3a"
+    "pins_jac": "c14692de5786f0f6c6eb86c2d4834c40a5df3dce2191ac4f37970f2a9f207666"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_picklebuffer.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -45,6 +45,14 @@
       "reason": "host-raised:SkipTest: No module named '_testbuffer'"
     },
     {
+      "ident": "PickleBufferTest.test_raw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from pickle import PickleBuffer\n\ndef check_memoryview(pb, equiv):\n    with memoryview(pb) as m:\n        with memoryview(equiv) as expected:\n            assert m.nbytes == expected.nbytes, ('assertEqual', m.nbytes, expected.nbytes)\n            assert m.readonly == expected.readonly, ('assertEqual', m.readonly, expected.readonly)\n            assert m.itemsize == expected.itemsize, ('assertEqual', m.itemsize, expected.itemsize)\n            assert m.shape == expected.shape, ('assertEqual', m.shape, expected.shape)\n            assert m.strides == expected.strides, ('assertEqual', m.strides, expected.strides)\n            assert m.c_contiguous == expected.c_contiguous, ('assertEqual', m.c_contiguous, expected.c_contiguous)\n            assert m.f_contiguous == expected.f_contiguous, ('assertEqual', m.f_contiguous, expected.f_contiguous)\n            assert m.format == expected.format, ('assertEqual', m.format, expected.format)\n            assert m.tobytes() == expected.tobytes(), ('assertEqual', m.tobytes(), expected.tobytes())\n\ndef check_raw(obj, equiv):\n    pb = PickleBuffer(obj)\n    with pb.raw() as m:\n        assert isinstance(m, memoryview), ('assertIsInstance', m, memoryview)\n        check_memoryview(m, equiv)\n\ndef _t():\n    for obj in (b'foo', bytearray(b'foo')):\n        check_raw(obj, obj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "PickleBufferTest.test_raw_ndarray",
       "status": "quarantined",
       "reason": "host-raised:SkipTest: No module named '_testbuffer'"
@@ -71,15 +79,11 @@
     {
       "ident": "PickleBufferTest.test_cycle",
       "reason": "unresolved-name:B"
-    },
-    {
-      "ident": "PickleBufferTest.test_raw",
-      "reason": "uses-self.subTest"
     }
   ],
   "counts": {
     "extracted": 9,
-    "pinned": 3,
-    "quarantined": 6
+    "pinned": 4,
+    "quarantined": 5
   }
 }

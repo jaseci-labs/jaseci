@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_fstring/conv_fstring_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:33:05",
+  "generated_at": "2026-08-24T15:01:16",
   "hashes": {
     "pins_jac": "dac10f3fb4b78ebbcfb6879cad3f3db48e1ff14cf48743bd6118ac731f4cec27",
-    "conversion_json": "aa30fd795b0af2e43d9f7a7a14d204e07a102e431cdc509a78732774e9bfa305",
+    "conversion_json": "5f167480d4e9b51d48583196d60d283bce08d721d2d8d547ebe72455e235618b",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "fstring",
@@ -87,8 +87,38 @@
       "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
     },
     {
+      "id": "TestCase.test_compile_time_concat_errors",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_literal",
       "status": "pass"
+    },
+    {
+      "id": "TestCase.test_unterminated_string",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_syntax_error_in_nested_fstring",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_double_braces",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_compile_time_concat",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_comments",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "id": "TestCase.test_many_expressions",
@@ -97,8 +127,43 @@
       "detail": "GOT<'ORACLE_EXC NameError \"name \\'x\\' is not defined\"'>"
     },
     {
+      "id": "TestCase.test_format_specifier_expressions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_side_effect_order",
       "status": "pass"
+    },
+    {
+      "id": "TestCase.test_missing_expression",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_parens_in_expressions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_newlines_before_syntax_error",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_misformed_unicode_character_name",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_backslashes_in_expression_part",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_invalid_backslashes_inside_fstring_context",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "id": "TestCase.test_no_escapes_for_braces",
@@ -107,6 +172,11 @@
     {
       "id": "TestCase.test_newlines_in_expressions",
       "status": "pass"
+    },
+    {
+      "id": "TestCase.test_lambda",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "id": "TestCase.test_valid_prefixes",
@@ -175,6 +245,11 @@
       "status": "pass"
     },
     {
+      "id": "TestCase.test_invalid_string_prefixes",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_leading_trailing_spaces",
       "status": "pass"
     },
@@ -187,6 +262,26 @@
       "status": "pass"
     },
     {
+      "id": "TestCase.test_conversions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_assignment",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_del",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_mismatched_braces",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_if_conditional",
       "status": "pass"
     },
@@ -197,6 +292,11 @@
     {
       "id": "TestCase.test_str_format_differences",
       "status": "pass"
+    },
+    {
+      "id": "TestCase.test_errors",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "id": "TestCase.test_filename_in_syntaxerror",
@@ -253,6 +353,16 @@
       "status": "pass"
     },
     {
+      "id": "TestCase.test_not_closing_quotes",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "id": "TestCase.test_syntax_error_after_debug",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_debug_in_file",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
@@ -275,6 +385,11 @@
       "status": "pass"
     },
     {
+      "id": "TestCase.test_newlines_in_format_specifiers",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "id": "TestCase.test_raw_fstring_format_spec",
       "status": "pass"
     },
@@ -295,84 +410,14 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "id": "TestCase.test_compile_time_concat_errors",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_unterminated_string",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_syntax_error_in_nested_fstring",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_double_braces",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_compile_time_concat",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_comments",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_format_specifier_expressions",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
       "id": "TestCase.test_custom_format_specifier",
       "status": "quarantined",
       "reason": "uses-self.assertWarns"
     },
     {
-      "id": "TestCase.test_missing_expression",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_parens_in_expressions",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_newlines_before_syntax_error",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
       "id": "TestCase.test_backslashes_in_string_part",
       "status": "quarantined",
       "reason": "uses-self.assertWarns"
-    },
-    {
-      "id": "TestCase.test_misformed_unicode_character_name",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_backslashes_in_expression_part",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_invalid_backslashes_inside_fstring_context",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_lambda",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "id": "TestCase.test_fstring_backslash_before_double_bracket",
@@ -388,51 +433,6 @@
       "id": "TestCase.test_missing_variable",
       "status": "quarantined",
       "reason": "unresolved-name:value"
-    },
-    {
-      "id": "TestCase.test_invalid_string_prefixes",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_conversions",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_assignment",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_del",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_mismatched_braces",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_errors",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_not_closing_quotes",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_syntax_error_after_debug",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "id": "TestCase.test_newlines_in_format_specifiers",
-      "status": "quarantined",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
     }
   ]
 }

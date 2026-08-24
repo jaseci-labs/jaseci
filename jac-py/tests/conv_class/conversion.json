@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,7 +14,7 @@
     "--name",
     "conv_class"
   ],
-  "generated_at": "2026-08-24T14:30:37",
+  "generated_at": "2026-08-24T15:03:23",
   "hashes": {
     "pins_jac": "6655067b29338d2b9fa3a33f8433f1d14510e4db6cc082a3e4c865f0dc5f5d55"
   },
@@ -152,7 +152,7 @@
     },
     {
       "ident": "TestInlineValues.test_both_flags_for_regular_class",
-      "reason": "uses-self.subTest"
+      "reason": "unresolved-name:Plain"
     },
     {
       "ident": "TestInlineValues.test_managed_dict_only_for_varsized_subclass",

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_copy/conv_copy_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:31:00",
+  "generated_at": "2026-08-24T15:03:51",
   "hashes": {
-    "pins_jac": "61a7d67ceac0c81957aa848350ff839846edb19ba411d0429ae5507742a70a39",
-    "conversion_json": "fe182eb7caf74186af2209db3dfb2302329a5e8f9ae56d5742dcf4ceb7195d6a",
+    "pins_jac": "c8f2ea4263761b4bfe7f18439b922e89ea8a9cac816105ce63bd6121822b370f",
+    "conversion_json": "fe8ffce549e6f1dd90ec9992e4fb986ce4befb4d8b4d9f36c68900e84aa9ae94",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "copy",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 81,
-    "runnable": 72,
+    "runnable": 73,
     "green": 33,
-    "quarantined": 9,
-    "failed": 39,
+    "quarantined": 8,
+    "failed": 40,
     "infra_failed": 0
   },
   "failures": [
@@ -255,6 +255,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "GOT<'ORACLE_EXC AttributeError \"\\'A\\' object has no attribute \\'x\\'\"'>"
+    },
+    {
+      "id": "TestReplace.test_namedtuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'cache'\">"
     },
     {
       "id": "TestReplace.test_dataclass",

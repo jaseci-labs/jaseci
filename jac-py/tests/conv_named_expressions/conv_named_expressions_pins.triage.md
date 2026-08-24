@@ -1,8 +1,8 @@
 # Triage report: `conv_named_expressions_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_named_expressions.py
-- guest leg: 0/61 marks
-- pins: **61 passed** / 61 run (+13 quarantined of 74 extracted)
+- guest leg: 0/73 marks
+- pins: **73 passed** / 73 run (+1 quarantined of 74 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -23,6 +23,17 @@
 | NamedExpressionInvalidTest.test_named_expression_invalid_16 | PASS | |
 | NamedExpressionInvalidTest.test_named_expression_invalid_17 | PASS | |
 | NamedExpressionInvalidTest.test_named_expression_invalid_in_class_body | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_valid_rebinding_iteration_variable | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_iteration_variable | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_iteration_variable | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_inner_loop | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_iteration_variable | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_inner_loop | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_set_comprehension_iterable_expression | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop | PASS | |
+| NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression | PASS | |
 | NamedExpressionInvalidTest.test_named_expression_invalid_mangled_class_variables | PASS | |
 | NamedExpressionAssignmentTest.test_named_expression_assignment_01 | PASS | |
 | NamedExpressionAssignmentTest.test_named_expression_assignment_02 | PASS | |
@@ -62,6 +73,7 @@
 | NamedExpressionScopeTest.test_named_expression_scope_23 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_24 | PASS | |
 | NamedExpressionScopeTest.test_named_expression_scope_25 | PASS | |
+| NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions | PASS | |
 | NamedExpressionScopeTest.test_named_expression_global_scope | PASS | |
 | NamedExpressionScopeTest.test_named_expression_global_scope_no_global_keyword | PASS | |
 | NamedExpressionScopeTest.test_named_expression_nonlocal_scope | PASS | |
@@ -72,16 +84,4 @@
 
 | test | reason |
 |---|---|
-| NamedExpressionInvalidTest.test_named_expression_valid_rebinding_iteration_variable | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_iteration_variable | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_iteration_variable | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_inner_loop | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_iteration_variable | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_inner_loop | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_set_comprehension_iterable_expression | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop | uses-self.subTest |
-| NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression | uses-self.subTest |
-| NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions | uses-self.subTest |
 | NamedExpressionScopeTest.test_named_expression_scope_mangled_names | uses-self.assertEqual |

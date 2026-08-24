@@ -19,6 +19,12 @@ test "GeneralFloatCases.test_underscores" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "GeneralFloatCases.test_non_numeric_input_types" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n\n    class CustomStr(str):\n        pass\n\n    class CustomBytes(bytes):\n        pass\n\n    class CustomByteArray(bytearray):\n        pass\n    factories = [bytes, bytearray, lambda b: CustomStr(b.decode()), CustomBytes, CustomByteArray, memoryview]\n    try:\n        from array import array\n    except ImportError:\n        pass\n    else:\n        factories.append(lambda b: array('B', b))\n    for f in factories:\n        x = f(b' 3.14  ')\n        assert float(x) == 3.14, ('assertEqual', float(x), 3.14)\n        try:\n            float(f(b'A' * 16))\n        except ValueError as _exc:\n            assert _re.search('could not convert', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "GeneralFloatCases.test_float_memoryview" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert float(memoryview(b'12.3')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3')[1:4]), 2.3)\n    assert float(memoryview(b'12.3\\x00')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3\\x00')[1:4]), 2.3)\n    assert float(memoryview(b'12.3 ')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3 ')[1:4]), 2.3)\n    assert float(memoryview(b'12.3A')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3A')[1:4]), 2.3)\n    assert float(memoryview(b'12.34')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.34')[1:4]), 2.3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

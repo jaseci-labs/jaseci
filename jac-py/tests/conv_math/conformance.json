@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_math/conv_math_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:34:34",
+  "generated_at": "2026-08-24T15:01:58",
   "hashes": {
-    "pins_jac": "83ee4e39d57e230493aed34143f977a96730e13053138c4d05e5838629506653",
-    "conversion_json": "bdfcf8c44756a2d9264f175ec803bba7c9ca26e8052b822577375947032bd6a7",
+    "pins_jac": "e1e656e406da7b47ed1c26327db894fed97367bb8baedc8672b2464fd8404744",
+    "conversion_json": "bad6ad3dd12dadb9ad4ab63187c5ecc8f7943d52ea35bec92f638d72baeebc64",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "math",
   "counts": {
     "converted": 88,
-    "runnable": 46,
-    "green": 44,
-    "quarantined": 42
+    "runnable": 53,
+    "green": 48,
+    "quarantined": 35
   },
   "pins": [
     {
@@ -101,6 +101,12 @@
       "status": "pass"
     },
     {
+      "id": "MathTests.testIsqrt",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'IntegerLike\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
       "id": "MathTests.testLdexp",
       "status": "pass"
     },
@@ -125,6 +131,12 @@
       "status": "pass"
     },
     {
+      "id": "MathTests.testSumProd",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: register'>"
+    },
+    {
       "id": "MathTests.testModf",
       "status": "pass"
     },
@@ -135,6 +147,12 @@
     {
       "id": "MathTests.testRadians",
       "status": "pass"
+    },
+    {
+      "id": "MathTests.testRemainder",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'register'\">"
     },
     {
       "id": "MathTests.testSin",
@@ -201,6 +219,10 @@
       "status": "pass"
     },
     {
+      "id": "MathTests.test_ulp",
+      "status": "pass"
+    },
+    {
       "id": "MathTests.test_issue39871",
       "status": "pass"
     },
@@ -215,11 +237,23 @@
       "detail": "RUN<'AttributeError: register'>"
     },
     {
+      "id": "FMATests.test_fma_nan_results",
+      "status": "pass"
+    },
+    {
+      "id": "FMATests.test_fma_infinities",
+      "status": "pass"
+    },
+    {
       "id": "FMATests.test_fma_overflow",
       "status": "pass"
     },
     {
       "id": "FMATests.test_fma_single_round",
+      "status": "pass"
+    },
+    {
+      "id": "FMATests.test_random",
       "status": "pass"
     },
     {
@@ -313,24 +347,9 @@
       "reason": "unresolved-name:BadDescr"
     },
     {
-      "id": "MathTests.testIsqrt",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
       "id": "MathTests.test_lcm",
       "status": "quarantined",
       "reason": "unresolved-name:MyIndexable"
-    },
-    {
-      "id": "MathTests.testSumProd",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "MathTests.testRemainder",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "MathTests.test_trunc",
@@ -346,11 +365,6 @@
       "id": "MathTests.testComb",
       "status": "quarantined",
       "reason": "unresolved-name:IntSubclass"
-    },
-    {
-      "id": "MathTests.test_ulp",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "IsCloseTests.test_negative_tolerances",
@@ -406,21 +420,6 @@
       "id": "IsCloseTests.test_fractions",
       "status": "quarantined",
       "reason": "helper:assertAllClose(helper:assertIsClose(uses-self.isclose))"
-    },
-    {
-      "id": "FMATests.test_fma_nan_results",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "FMATests.test_fma_infinities",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "FMATests.test_random",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     }
   ]
 }

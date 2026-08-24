@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_int"
   ],
-  "generated_at": "2026-08-24T14:33:35",
+  "generated_at": "2026-08-24T15:03:12",
   "hashes": {
-    "pins_jac": "36e93cc4f4e2378aeb3bfb02d35bf063c4240fcd6080d2b393db34cf65799067"
+    "pins_jac": "e44d5cce84856af713d7e442b9b6b6ed269c894be34947395b270d88672c6b6b"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_int.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -96,6 +96,14 @@
       "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class MyIndexable(object):\n\n        def __init__(self, value):\n            self.value = value\n\n        def __index__(self):\n            return self.value\n    for base in (2 ** 100, -2 ** 100, 1, 37):\n        try:\n            int('43', base)\n        except ValueError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    assert int('101', base=MyIndexable(2)) == 5, ('assertEqual', int('101', base=MyIndexable(2)), 5)\n    assert int('101', base=MyIndexable(10)) == 101, ('assertEqual', int('101', base=MyIndexable(10)), 101)\n    assert int('101', base=MyIndexable(36)) == 1 + 36 ** 2, ('assertEqual', int('101', base=MyIndexable(36)), 1 + 36 ** 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "IntTestCases.test_non_numeric_input_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    class CustomStr(str):\n        pass\n\n    class CustomBytes(bytes):\n        pass\n\n    class CustomByteArray(bytearray):\n        pass\n    factories = [bytes, bytearray, lambda b: CustomStr(b.decode()), CustomBytes, CustomByteArray, memoryview]\n    try:\n        from array import array\n    except ImportError:\n        pass\n    else:\n        factories.append(lambda b: array('B', b))\n    for f in factories:\n        x = f(b'100')\n        assert int(x) == 100, ('assertEqual', int(x), 100)\n        if isinstance(x, (str, bytes, bytearray)):\n            assert int(x, 2) == 4, ('assertEqual', int(x, 2), 4)\n        else:\n            msg = \"can't convert non-string\"\n            try:\n                int(x, 2)\n            except TypeError as _exc:\n                assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n            else:\n                raise AssertionError('assertRaises: did not raise')\n        try:\n            int(f(b'A' * 16))\n        except ValueError as _exc:\n            assert _re.search('invalid literal', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "IntTestCases.test_int_memoryview",
       "status": "pinned",
       "oracle": {
@@ -150,6 +158,11 @@
     },
     {
       "ident": "IntStrDigitLimitsTests.test_sign_not_counted",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "IntStrDigitLimitsTests.test_int_from_other_bases",
       "status": "quarantined",
       "reason": "host-raised:RuntimeError: super(): no arguments"
     },
@@ -216,10 +229,6 @@
       "reason": "decorator:unittest.skipUnless"
     },
     {
-      "ident": "IntTestCases.test_non_numeric_input_types",
-      "reason": "uses-self.subTest"
-    },
-    {
       "ident": "IntTestCases.test_int_returns_int_subclass",
       "reason": "uses-self.assertWarns"
     },
@@ -252,17 +261,13 @@
       "reason": "helper:check(uses-self.int_class)"
     },
     {
-      "ident": "IntStrDigitLimitsTests.test_int_from_other_bases",
-      "reason": "uses-self.subTest"
-    },
-    {
       "ident": "PyLongModuleTests.test_pylong_roundtrip",
       "reason": "self.assertNotStartsWith"
     }
   ],
   "counts": {
     "extracted": 42,
-    "pinned": 15,
-    "quarantined": 27
+    "pinned": 16,
+    "quarantined": 26
   }
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_pow"
   ],
-  "generated_at": "2026-08-24T14:34:48",
+  "generated_at": "2026-08-24T15:03:18",
   "hashes": {
-    "pins_jac": "01deb2e00d12e130bb3988016c15fb1ee818ab4136da61be533446c021fd1b18"
+    "pins_jac": "94ffe8927c5aeb681bf78a417878d86edc717268f9e633b925ffed3a87e92eb6"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_pow.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -61,17 +61,20 @@
       "ident": "PowTest.test_bug705231",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'assertEqual'"
-    }
-  ],
-  "quarantined": [
+    },
     {
       "ident": "PowTest.test_negative_exponent",
-      "reason": "uses-self.subTest"
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\n\ndef _t():\n    for a in range(-50, 50):\n        for m in range(-50, 50):\n            if m != 0 and math.gcd(a, m) == 1:\n                inv = pow(a, -1, m)\n                assert inv == inv % m, ('assertEqual', inv, inv % m)\n                assert (inv * a - 1) % m == 0, ('assertEqual', (inv * a - 1) % m, 0)\n                assert pow(a, -2, m) == pow(inv, 2, m), ('assertEqual', pow(a, -2, m), pow(inv, 2, m))\n                assert pow(a, -3, m) == pow(inv, 3, m), ('assertEqual', pow(a, -3, m), pow(inv, 3, m))\n                assert pow(a, -1001, m) == pow(inv, 1001, m), ('assertEqual', pow(a, -1001, m), pow(inv, 1001, m))\n            else:\n                try:\n                    pow(a, -1, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\n                try:\n                    pow(a, -2, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\n                try:\n                    pow(a, -1001, m)\n                except ValueError as _exc:\n                    pass\n                else:\n                    raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     }
   ],
+  "quarantined": [],
   "counts": {
     "extracted": 7,
-    "pinned": 3,
-    "quarantined": 4
+    "pinned": 4,
+    "quarantined": 3
   }
 }
