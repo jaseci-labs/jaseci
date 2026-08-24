@@ -4,7 +4,7 @@ import logging;
 glob _agent_callbacks: list = [],
      logger = logging.getLogger(__name__),
      _current_invocation_id: ContextVar = ContextVar(
-         'byllm_invocation_id', default=None
+         'byllm_invocation_id', `default=None
      );
 
 def:pub register_agent_callback(callback: Callable) -> None;

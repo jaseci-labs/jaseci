@@ -5,6 +5,7 @@ import os;
 import sys;
 import threading;
 import logging;
+import from typing { IO }
 
 def _extract_error_info(alert: object) -> dict[str, any] {
     return {
@@ -51,7 +52,7 @@ impl run_with_timeout(func: object, timeout: int = 10) -> tuple {
     return (True, result_holder[0]);
 }
 
-def _cap_read(stream: object, holder: list, cap: int) {
+def _cap_read(stream: IO[bytes], holder: list, cap: int) {
     try {
         chunks: list = [];
         total: int = 0;
@@ -288,7 +289,7 @@ impl CompilerBridge.get_ast_snippet(code: str, fmt: str = "tree") -> dict[str, a
         }
 
         if fmt == "json" {
-            ast_output = json.dumps(node_to_dict(ir), default=str);
+            ast_output = json.dumps(node_to_dict(ir), `default=str);
         } else {
             ast_output = print_ast_tree(ir);
         }
@@ -496,7 +497,7 @@ impl CompilerBridge.run_snippet(
 
         try {
             try {
-                proc.wait(timeout=timeout);
+                proc.`wait(timeout=timeout);
                 _join_reader(t_out, "stdout");
                 _join_reader(t_err, "stderr");
             } except subprocess.TimeoutExpired {
@@ -508,10 +509,10 @@ impl CompilerBridge.run_snippet(
                             stderr=subprocess.DEVNULL,
                         );
                     } else {
-                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL);
+                        os.killpg(os.getpgid(proc.pid), signal.Signals.SIGKILL);
                     }
                 } except Exception { }
-                proc.wait();
+                proc.`wait();
                 _join_reader(t_out, "stdout");
                 _join_reader(t_err, "stderr");
                 return {
@@ -539,12 +540,12 @@ impl CompilerBridge.run_snippet(
             }
             return result;
         } finally {
-            if not t_out.is_alive() {
+            if not t_out.is_alive() and proc.stdout is not None {
                 try {
                     proc.stdout.close();
                 } except Exception { }
             }
-            if not t_err.is_alive() {
+            if not t_err.is_alive() and proc.stderr is not None {
                 try {
                     proc.stderr.close();
                 } except Exception { }

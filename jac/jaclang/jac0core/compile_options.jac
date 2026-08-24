@@ -18,10 +18,9 @@ def _project_config -> any {
 }
 
 obj CompileOptions {
-    has type_check: bool = True,
-        emit_diagnostics: bool = True,
-        symtab_ir_only: bool = False,
+    has symtab_ir_only: bool = False,
         no_cgen: bool = False,
+        native_parity: bool = False,
         skip_native_engine: bool = False,
         no_ir_cache: bool = False,
         resolve_annex_parent: bool = False,
@@ -55,7 +54,7 @@ obj CompileOptions {
         gc_cfg = cfg.gc if cfg is not None else None;
         native_cfg = cfg.build.native if cfg is not None else None;
         if self.na_gc_mode is None {
-            self.na_gc_mode = gc_cfg.default if gc_cfg else "cycles";
+            self.na_gc_mode = gc_cfg.`default if gc_cfg else "cycles";
         }
         if self.nogc_enforce_modules is None {
             self.nogc_enforce_modules = list(gc_cfg.enforce.modules) if gc_cfg else [];
@@ -126,7 +125,6 @@ obj CompileOptions {
     def clone_for_native_import -> CompileOptions {
         return CompileOptions(
             skip_native_engine=True,
-            type_check=False,
             aot_mode=True,
             default_codespace='native',
             force_target_program=True,

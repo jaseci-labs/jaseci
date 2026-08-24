@@ -63,31 +63,30 @@ impl Image.postinit -> None {
     }
 
     if value?.read and callable(value?.read) {
-        stream: IO[bytes] = value;
         pos = None;
         try {
-            pos = stream.tell();
+            pos = value?.tell();
         } except Exception {
             pos = None;
         }
         try {
-            if stream?.getvalue and callable(stream?.getvalue) {
-                raw = stream.getvalue();
+            if value?.getvalue and callable(value?.getvalue) {
+                stream_bytes = bytes(value?.getvalue());
             } else {
-                if stream?.seek {
+                if value?.seek {
                     with suppress(Exception) {
-                        stream.seek(0);
+                        value?.seek(0);
                     }
                 }
-                raw = stream.read();
+                stream_bytes = bytes(value?.read());
             }
-            img = open_image(BytesIO(raw));
+            img = open_image(BytesIO(stream_bytes));
             fmt = img.format or "PNG";
-            self.url = self._data_url_from_bytes(raw, fmt);
+            self.url = self._data_url_from_bytes(stream_bytes, fmt);
         } finally {
-            if pos is not None and stream?.seek {
+            if pos is not None and value?.seek {
                 with suppress(Exception) {
-                    stream.seek(pos);
+                    value?.seek(pos);
                 }
             }
         }
@@ -161,7 +160,7 @@ impl Video.load_frames -> None {
             raise ValueError("Failed to read video frame.");
         }
         (_, buffer) = cv2.imencode(".jpg", frame);
-        self._base64frames.append(base64.b64encode(buffer).decode("utf-8"));
+        self._base64frames.append(base64.b64encode(bytes(buffer)).decode("utf-8"));
         curr_frame += frames_to_skip;
     }
 }

@@ -17,22 +17,22 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
     }
 
     if kind == ArgKind.POSITIONAL {
-        if arg.default is not None {
+        if arg.`default is not None {
             kwargs["nargs"] = "?";
-            kwargs["default"] = arg.default;
+            kwargs["default"] = arg.`default;
         }
         parser.add_argument(arg.name, **kwargs);
     } elif kind == ArgKind.MULTI_POSITIONAL {
         kwargs["nargs"] = "+";
-        if arg.default is not None {
-            kwargs["default"] = arg.default;
+        if arg.`default is not None {
+            kwargs["default"] = arg.`default;
             kwargs["nargs"] = "*";
         }
         parser.add_argument(arg.name, **kwargs);
     } elif kind == ArgKind.MULTI_OPTION {
         kwargs["nargs"] = "*";
-        if arg.default is not None {
-            kwargs["default"] = arg.default;
+        if arg.`default is not None {
+            kwargs["default"] = arg.`default;
         }
         if arg.short {
             parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
@@ -57,7 +57,7 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
                 if arg.name.startswith("no-")
                 else argparse.BooleanOptionalAction
         );
-        kwargs["default"] = arg.default;
+        kwargs["default"] = arg.`default;
         if arg.short {
             parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
         } else {
@@ -65,7 +65,7 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
         }
     } else {
         kwargs["type"] = typ;
-        kwargs["default"] = arg.default;
+        kwargs["default"] = arg.`default;
         if arg.required {
             kwargs["required"] = True;
         }

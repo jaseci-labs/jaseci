@@ -17,9 +17,9 @@ glob logger = logging.getLogger(__name__);
 
 
 def resolve_peer_url(svc_name: str, namespace: str, port: int) -> str {
-    override: str = sv_client.peer_url_from_env(svc_name);
-    if override {
-        return override;
+    `override: str = sv_client.peer_url_from_env(svc_name);
+    if `override {
+        return `override;
     }
     key: str = sv_client.peer_url_env_key(svc_name);
     if key in os.environ {
@@ -44,7 +44,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
     def deploy_service(name: str) -> bool {
         logger.warning(
             f"K8sRuntimeServiceResolver.deploy_service({name}): admin op "
-            "not yet wired. Use `jac start --scale` for deployment."
+            "not yet wired. Use `jac scale deploy <file.jac>` for deployment."
         );
         return False;
     }
@@ -89,7 +89,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
 
     def deploy_all -> bool {
         logger.warning(
-            "K8sRuntimeServiceResolver.deploy_all: use `jac start --scale` instead."
+            "K8sRuntimeServiceResolver.deploy_all: use `jac scale deploy <file.jac>` instead."
         );
         return False;
     }

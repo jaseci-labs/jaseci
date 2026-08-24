@@ -58,7 +58,7 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.prefix_flip {
     clear_prefix_entry,
-    prefix_census_reset,
+    prefix_outcomes_reset,
     prefix_quarantine_clear,
     prefix_snapshot,
     set_prefix_entry
@@ -74,6 +74,7 @@ glob PARITY_CORPUS: list[str] = [
          "jaclang/jac0core/srcloc.jac",
          "jaclang/jac0core/expr_keys.jac",
          "jaclang/compiler/expr_keys.jac",
+         "tests/compiler/passes/ecmascript/fixtures/advanced_language_features.jac",
 
      ],
      _SKIP_FIELDS: tuple[str] = ("rc_last_use", "_deferred_type_diags", "_gen", ),
@@ -109,7 +110,7 @@ def _corpus_paths -> list[str] {
 
 def _reset {
     clear_prefix_entry();
-    prefix_census_reset();
+    prefix_outcomes_reset();
     prefix_quarantine_clear();
 }
 
@@ -130,7 +131,7 @@ and the second finds the path already marked and skips the native attempt
 entirely. The routes then differ in `decided_codespace`, `parent`, and
 everything the second pass recomputed -- by compile ORDER, not by route.
 
-`na_census_begin` is called for its side effect rather than its census: it
+`na_coverage_begin` is called for its side effect rather than its coverage: it
 clears that demotion memo and the native scan memo, so neither route inherits
 the other's verdicts even for modules the pin does not cover.
 
@@ -139,9 +140,9 @@ Both are the same class of correction as the dependency warnings scoped out of
 the fields it corrupts. Every comparator, code objects included, still runs
 over the full schedule."""
 def _compile_route(path: str, route: any) -> tuple[any] {
-    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
     _reset();
-    na_census_begin();
+    na_coverage_begin();
     if route is not None {
         set_prefix_entry(route);
     }
@@ -150,22 +151,19 @@ def _compile_route(path: str, route: any) -> tuple[any] {
         mod = prog.compile(
             file_path=path,
             options=CompileOptions(
-                type_check=False,
-                no_cgen=False,
-                force_target_program=True,
-                default_codespace="server"
+                no_cgen=False, force_target_program=True, default_codespace="server"
             )
         );
         snap = prefix_snapshot();
     } finally {
         clear_prefix_entry();
-        na_census_end();
+        na_coverage_end();
     }
     return (prog, mod, snap);
 }
 
 def _bytecode_of(mod: any) -> any {
-    raw = mod.gen?.py_bytecode;
+    raw: any = mod.gen?.py_bytecode;
     if not raw {
         return None;
     }
@@ -428,9 +426,12 @@ test "the comparators are not vacuous" {
 }
 
 test "injected divergence: the harness fails when the routes disagree" {
-    path = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures", "fam.jac");
+    # hello_world.jac, not fam.jac: the code comparator can only fire on a
+    # module whose staged compile reaches codegen, and fam.jac is a parser
+    # stress fixture that the critical-path checker (correctly) refuses.
+    path = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures", "hello_world.jac");
     if not os.path.exists(path) {
-        testskip("fam.jac fixture is absent");
+        testskip("hello_world.jac fixture is absent");
     }
     try {
         diffs = parity_diffs(path, diverging_prefix_entry);
@@ -448,7 +449,7 @@ test "injected divergence: the harness fails when the routes disagree" {
         f"reporting noise instead of the perturbation: {joined[:600]}"
     );
     kinds = {
-        "field": any(d.startswith("fam") for d in diffs),
+        "field": any(d.startswith("hello_world") for d in diffs),
         "code": any(".co_" in d for d in diffs),
         "unparse": any("unparse diverged" in d for d in diffs)
     };

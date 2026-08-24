@@ -7,7 +7,9 @@ impl WebhookUtils.verify_signature(
 ) -> bool {
     expected_signature = WebhookUtils.generate_signature(payload, secret);
 
-    return hmac.compare_digest(signature.lower(), expected_signature.lower());
+    provided = signature.lower().encode('utf-8');
+    expected = expected_signature.lower().encode('utf-8');
+    return hmac.compare_digest(provided, expected);
 }
 
 impl WebhookUtils.generate_api_key -> str {
@@ -89,7 +91,11 @@ impl ApiKeyManager.postinit -> None {
 }
 
 impl ApiKeyManager._ensure_indexes -> None {
-    self._db.rows(
+    db = self._db;
+    if db is None {
+        return;
+    }
+    db.rows(
         'CREATE INDEX IF NOT EXISTS jac_docs_user_id_idx ON jac_docs '
         "(collection, (doc->>'user_id'))",
         {}
@@ -255,14 +261,14 @@ impl ApiKeyManager.check_rate_limit(api_key_id: str, limit_per_minute: int) -> b
         return True;
     }
     window_id = int(datetime.now(UTC).timestamp() // 60);
-    entry = self._rate_window.get(api_key_id);
-    if not entry or entry[0] != window_id {
+    `entry = self._rate_window.get(api_key_id);
+    if not `entry or `entry[0] != window_id {
         self._rate_window[api_key_id] = [window_id, 1];
         return True;
     }
-    if entry[1] >= limit_per_minute {
+    if `entry[1] >= limit_per_minute {
         return False;
     }
-    entry[1] += 1;
+    `entry[1] += 1;
     return True;
 }

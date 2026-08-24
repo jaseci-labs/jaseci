@@ -276,18 +276,8 @@ impl BoundaryAnalysisPass._register_sv_import(
     self: BoundaryAnalysisPass, nd: Import, module_name: str, caller_ctx: InteropContext
 ) -> None {
     facts = nd.boundary_facts;
-    source_mod = facts.sv_source_mod if facts else None;
-
-    source_abilities: dict[(str, Ability)] = {};
-    source_walkers: dict[(str, Archetype)] = {};
-    if source_mod {
-        try {
-            self._collect_abilities(source_mod, source_abilities);
-        } except Exception { }
-        try {
-            self._collect_pub_walkers(source_mod, source_walkers);
-        } except Exception { }
-    }
+    source_abilities: dict[(str, Ability)] = facts.sv_abilities if facts else {};
+    source_walkers: dict[(str, Archetype)] = facts.sv_walkers if facts else {};
     manifest = self.ir_in.gen.interop_manifest;
     for item in nd.items {
         if not isinstance(item, ModuleItem) {
@@ -333,7 +323,7 @@ impl BoundaryAnalysisPass._register_na_client_import(
     self: BoundaryAnalysisPass, nd: Import
 ) -> None {
     import from jaclang.jac0core.codeinfo { native_wasm_stem }
-    import from jaclang.jac0core.diagnostics { E5083 }
+    import from jaclang.jac0core.diagnostics { E5083, E5100 }
     if not nd.from_loc or not nd.items {
         return;
     }
@@ -360,6 +350,15 @@ impl BoundaryAnalysisPass._register_na_client_import(
         sym_name = item.name.value;
         local_name = item.alias.sym_name if item.alias else sym_name;
         decl = self._resolved_native_decl(item.name);
+        if decl is None {
+            target = facts.na_target_decls.get(sym_name) if facts else None;
+            if target is not None {
+                decl = target;
+            } elif facts and sym_name in facts.na_unmappable_targets {
+                self.emit(E5100, node_override=item, name=sym_name, module=stem);
+                continue;
+            }
+        }
         (ret_type, param_types, param_names) = self._signature_of_decl(decl);
         manifest.bindings[local_name] = InteropBinding(
             name=sym_name,
@@ -405,32 +404,6 @@ impl BoundaryAnalysisPass._register_client_bridged_import(
             source_module=module_name,
             kind='function'
         );
-    }
-}
-
-impl BoundaryAnalysisPass._collect_abilities(
-    self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Ability)]
-) -> None {
-    if isinstance(nd, Ability) and nd.sym_name {
-        out[nd.sym_name] = nd;
-    }
-    for k in nd.kid {
-        self._collect_abilities(k, out);
-    }
-}
-
-impl BoundaryAnalysisPass._collect_pub_walkers(
-    self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Archetype)]
-) -> None {
-    if isinstance(nd, Archetype) and nd.sym_name {
-        is_walker = nd.arch_kind == "walker";
-        is_pub = bool(nd.public_access);
-        if is_walker and is_pub {
-            out[nd.sym_name] = nd;
-        }
-    }
-    for k in nd.kid {
-        self._collect_pub_walkers(k, out);
     }
 }
 
@@ -788,7 +761,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     for mod in search_mods {
         sym = mod.sym_tab.lookup(type_name, deep=True) if mod.sym_tab else None;
         if sym and sym.defn {
-            candidate = sym.defn[0];
+            candidate: (UniNode | None) = sym.defn[0];
             if isinstance(candidate, NameAtom) and candidate.parent {
                 candidate = candidate.parent;
             }
@@ -995,22 +968,10 @@ impl BoundaryAnalysisPass._literal_default(
 
 impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     import from jaclang.jac0core.diagnostics { E5093 }
+    import from jaclang.jac0core.scalars { sized_scalar_names }
     manifest = self.ir_in.gen.interop_manifest;
 
-    ctypes_wire: set = {
-        'int',
-        'float',
-        'bool',
-        'str',
-        'i8',
-        'i16',
-        'i32',
-        'i64',
-        'u8',
-        'u16',
-        'u32',
-        'u64'
-    };
+    ctypes_wire: set = {'int', 'float', 'bool', 'str'} | set(sized_scalar_names());
     for binding in manifest.bindings.values() {
         crosses_ctypes = (
             binding.source_context == InteropContext.SERVER

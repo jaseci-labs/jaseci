@@ -20,21 +20,21 @@ impl Creator.create{
         end ++> (end := node_a(value=i + 1));
         if i == 2 {
             for j = 0 while j < 3 with j += 1 {
-                end +>: MyEdge : val=random.randint(1, 15),val2=random.randint(1, 5) :+> node_a(
+                end +>:MyEdge:val=random.randint(1,15), val2=random.randint(1,5):+> node_a(
                     value=j + 10
                 );
             }
             print(
                 [
                     (arch.val, arch.val2)
-                    for i in end.__jac__.edges
-                    if isinstance(arch := i.archetype, MyEdge)
+                    for ed in end.__jac__.edges
+                    if isinstance(arch := ed.archetype, MyEdge)
                 ]
             );
         }
     }
     for i = 0 while i < 3 with i += 1 {
-        end +>: MyEdge : val=random.randint(1, 20) :+> node_a(value=i + 5);
+        end +>:MyEdge:val=random.randint(1,20):+> node_a(value=i + 5);
     }
 }
 

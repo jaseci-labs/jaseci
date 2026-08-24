@@ -47,7 +47,8 @@ obj Access {
 
 obj Permission {
     has all: AccessLevel = AccessLevel.NO_ACCESS,
-        roots: Access = field(default_factory=Access);
+        roots: Access = field(default_factory=Access),
+        groups: Access = field(default_factory=Access);
 }
 
 @dataclass
@@ -72,7 +73,7 @@ obj AnchorReport {
 obj Anchor {
     has archetype: Archetype,
         id: UUID = field(default_factory=uuid4),
-        root: (UUID | None) = None,
+        `root: (UUID | None) = None,
         access: Permission = field(default_factory=Permission),
         persistent: bool = False,
         hash: int = 0;

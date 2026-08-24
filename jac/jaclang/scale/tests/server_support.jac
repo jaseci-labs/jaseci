@@ -4,7 +4,7 @@ Canonical, copy-paste-free versions of small utilities that several server,
 quarantine, and data tests need: allocating a free TCP port for a subprocess
 server, scrubbing leftover SQLite/shelf files between runs, unwrapping the
 TransportResponse envelope returned by the API, registering/logging in a test
-user, invoking walkers over HTTP, and starting a `jac start` subprocess.
+user, invoking walkers over HTTP, and starting a `jac run --serve` subprocess.
 
 Example:
     import from jaclang.scale.tests.server_support { get_free_port }
@@ -42,7 +42,7 @@ def _cleanup_db_files(fixtures_dir: Path) {
         "anchor_store.db.bak",
         "anchor_store.db.dir"
     ] {
-        for db_file in glob.glob(pattern) {
+        for db_file in `glob.`glob(pattern) {
             with contextlib.suppress(Exception) {
                 Path(db_file).unlink();
             }
@@ -50,7 +50,7 @@ def _cleanup_db_files(fixtures_dir: Path) {
     }
 
     for pattern in ["*.db", "*.db-wal", "*.db-shm"] {
-        for db_file in glob.glob(str(fixtures_dir / pattern)) {
+        for db_file in `glob.`glob(str(fixtures_dir / pattern)) {
             with contextlib.suppress(Exception) {
                 Path(db_file).unlink();
             }
@@ -145,10 +145,10 @@ def call_walker(
     return res.json();
 }
 
-"""Start `jac start` in fixtures_dir and block until /healthz responds."""
+"""Start `jac run --serve` in fixtures_dir and block until /healthz responds."""
 def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Popen {
     import from jaclang.scale.runtime.context.util { jac_executable }
-    cmd = [jac_executable(), "start", str(jac_file.name), "--port", str(port)];
+    cmd = [jac_executable(), "run", "--serve", "--port", str(port), str(jac_file.name)];
     env = os.environ.copy();
     server = subprocess.Popen(
         cmd,

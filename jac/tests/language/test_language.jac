@@ -1014,16 +1014,21 @@ test "bidirectional edge traversal" {
     assert "Backward from e:\nDone." in output;
 }
 
-test "root keyword trigger raises TypeError at runtime" {
-    output = run_jac(os.path.join(FIXTURES, "root_keyword_trigger.jac"));
-    assert "GoodWalker: ok" in output , "GoodWalker with Root entry should run fine";
-    assert "BadWalker:" in output , "bare `root` keyword must raise TypeError";
-    assert "instance of `Root`" in output , "error must identify Root as the instance type";
-    assert "with Root entry" in output , "error must hint the correct fix for root";
-    assert "BadNodeInstance:" in output , "node instance as trigger must also raise TypeError";
-    assert "instance of `MyNode`" in output , "error must identify MyNode as the instance type";
-    assert "with MyNode entry" in output , "error must hint the correct fix for MyNode";
-    assert "should not reach here" not in output , "no bad walker body should execute";
+test "root keyword trigger is rejected at compile time" {
+    # Checking is on the critical path of every compilation, so the bare
+    # `root` (and node-instance) triggers that used to raise TypeError at
+    # runtime are now refused before the module ever runs (E1116).
+    err_text = "";
+    try {
+        run_jac(os.path.join(FIXTURES, "root_keyword_trigger_err.jac"));
+        assert False , "bare `root` trigger must be rejected at compile time";
+    } except AssertionError {
+        raise;
+    } except Exception as e {
+        err_text = str(e);
+    }
+    assert "E1116" in err_text , "the rejection must be E1116";
+    assert "root" in err_text , "the diagnostic must name the offending trigger";
 }
 
 test "native property getter/setter/deleter with impl separation" {

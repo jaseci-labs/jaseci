@@ -1,7 +1,7 @@
 """A deployed fleet stamps JAC_SV_SIBLING/JAC_SV_ROUTES into its pods; the
 gateway pod must boot from that env even when the app's jac.toml carries the
 (deprecated) [scale.microservices] enabled = false. The opt-out governs
-whether THIS process realizes a fleet - a local `jac start`/`jac scale` still
+whether THIS process realizes a fleet - a local `jac run --serve`/`jac scale` still
 honors it, and apps that declare routes but opt out keep serving
 single-process - never whether a member of an already-realized fleet may
 serve. These tests drive the real CLI the way a pod command does and pin that
@@ -68,10 +68,10 @@ def _stop(proc: subprocess.Popen) {
     if proc.poll() is None {
         proc.terminate();
         try {
-            proc.wait(timeout=10);
+            proc.`wait(timeout=10);
         } except subprocess.TimeoutExpired {
             proc.kill();
-            proc.wait(timeout=10);
+            proc.`wait(timeout=10);
         }
     }
 }

@@ -163,7 +163,7 @@ def kitchen_sink(
     return "ok";
 }
 
-# Public function (becomes API endpoint with `jac start`)
+# Public function (becomes API endpoint with `jac run`)
 def:pub get_items() -> list {
     return [];
 }
@@ -427,7 +427,7 @@ obj:pub Profile {
     has:priv ssn: str;          # member: this class only
 }
 
-# Public walker becomes REST endpoint with `jac start`
+# Public walker becomes REST endpoint with `jac run`
 walker:pub GetUsers {
     can get with Root entry {
         report [-->];
@@ -874,6 +874,19 @@ with entry {
     # Combined: type + attribute
     print([root -->][?:Person, age > 25]);
 
+    # Order by a node field: bare name ascending, negated descending
+    print([root -->[?:Person, -age]]);       # oldest first
+    print([root -->[?:Person, age > 25, -age]]);  # predicates first, then ordering
+
+    # Order by the carrying edge's field (the hop slot names the edge)
+    print([root ->:Friendship:-since:-> [?:Person]]);
+
+    # Order plus bound resolve in one query
+    print([root -->[?:Person, -age]][:10]);
+
+    # Composite key for keyset paging -- a tiebreak when a field repeats
+    print([root -->[?:Person, (age, name) < (30, "m")]]);
+
     # Get edge objects themselves (not target nodes)
     print([edge root -->]);                  # All edge objects
     print([edge root ->:Friendship:->]);     # Friendship edge objects
@@ -1065,7 +1078,7 @@ with entry {
 # ============================================================
 # Walkers as REST APIs
 # ============================================================
-# Public walkers become HTTP endpoints with `jac start`
+# Public walkers become HTTP endpoints with `jac run`
 
 walker:pub add_todo {
     has title: str;          # Becomes request body field

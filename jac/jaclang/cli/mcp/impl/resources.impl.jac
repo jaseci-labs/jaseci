@@ -1,5 +1,6 @@
 import from pathlib { Path }
 import json;
+import from http.client { HTTPResponse }
 import from urllib.request { urlopen, Request }
 import from urllib.error { URLError }
 import from functools { lru_cache }
@@ -249,7 +250,8 @@ def _github_api_get(url: str) -> any {
                 "User-Agent": "jac-mcp"
             }
         );
-        with urlopen(req, timeout=10) as resp {
+        opened: HTTPResponse = urlopen(req, timeout=10);
+        with opened as resp {
             return json.loads(resp.read().decode());
         }
     } except (URLError, json.JSONDecodeError, OSError) {
@@ -263,20 +265,20 @@ impl ResourceProvider._index_examples_local(examples_dir: Path) -> None {
         "littleX": "Full-stack social app (Twitter-like), OSP graph with user profiles and NLP-based search (sklearn/TF-IDF). Real-world object-spatial design."
     };
     categories: list[str] = [];
-    for entry in sorted(examples_dir.iterdir()) {
-        if entry.is_dir()
-            and not entry.name.startswith(".")
-            and not entry.name.startswith("_") {
-            categories.append(entry.name);
+    for `entry in sorted(examples_dir.iterdir()) {
+        if `entry.is_dir()
+            and not `entry.name.startswith(".")
+            and not `entry.name.startswith("_") {
+            categories.append(`entry.name);
             desc = EXAMPLE_DESCRIPTIONS.get(
-                entry.name, f"Example Jac code for {entry.name}"
+                `entry.name, f"Example Jac code for {`entry.name}"
             );
-            self._resources[f"jac://examples/{entry.name}"] = {
-                "uri": f"jac://examples/{entry.name}",
-                "name": f"Example: {entry.name}",
+            self._resources[f"jac://examples/{`entry.name}"] = {
+                "uri": f"jac://examples/{`entry.name}",
+                "name": f"Example: {`entry.name}",
                 "description": desc,
                 "mimeType": "text/plain",
-                "path": str(entry),
+                "path": str(`entry),
                 "_is_dir": True
             };
         }
@@ -317,7 +319,8 @@ def _fetch_example_github(github_path: str) -> str {
     for (rel_path, download_url) in sorted(jac_files) {
         try {
             req = Request(download_url, headers={"User-Agent": "jac-mcp"});
-            with urlopen(req, timeout=10) as resp {
+            opened: HTTPResponse = urlopen(req, timeout=10);
+            with opened as resp {
                 content = resp.read().decode();
             }
             result_parts.append(f"--- {rel_path} ---\n{content}");

@@ -3,9 +3,13 @@ import os;
 import re;
 import time;
 import from pathlib { Path }
-import from collections { namedtuple }
+import from typing { NamedTuple }
 
-glob SourceLocation = namedtuple("SourceLocation", ["file", "line", "column"]);
+class SourceLocation(NamedTuple) {
+    has file: str,
+        line: int,
+        column: int;
+}
 
 glob _B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
      _B64_DECODE = {c: i for (i, c) in enumerate(_B64)};
@@ -60,7 +64,7 @@ def generate_source_map_json(
     mappings_lines: list[str] = [];
     prev_src_line = 0;
     prev_src_col = 0;
-    max_out_line = max(entry[0] for entry in line_map);
+    max_out_line = max(`entry[0] for `entry in line_map);
 
     line_to_src: dict[int, tuple[int, int]] = {};
     for (out_line, src_line, src_col) in line_map {
@@ -154,7 +158,7 @@ def _scan_source_comments(compiled_dir: Path) -> dict[str, str] {
             with open(js_file, encoding="utf-8") as f {
                 first_line = f.readline().strip();
             }
-            m = re.match(r"/\* Source: (.+?) \*/", first_line);
+            m = re.`match(r"/\* Source: (.+?) \*/", first_line);
             if m {
                 jac_path = m.group(1);
                 rel = str(js_file.relative_to(compiled_dir));
@@ -363,7 +367,7 @@ obj SourceMapper {
 
         source_map: SourceMap | None = None;
         if dist_dir.is_dir() {
-            for map_file in dist_dir.glob("*.js.map") {
+            for map_file in dist_dir.`glob("*.js.map") {
                 try {
                     with open(map_file, encoding="utf-8") as f {
                         raw: dict = dict(json.load(f));

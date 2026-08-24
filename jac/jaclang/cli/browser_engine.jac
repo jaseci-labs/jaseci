@@ -131,7 +131,7 @@ def _page_ws(port: int) -> str;
 
 def load_state(session: str) -> (dict | None);
 
-def _parse_viewport(spec: str) -> tuple;
+def _parse_viewport(spec: str) -> tuple[int, int];
 
 def _chrome_args(chrome: str, profile: Path, viewport: str) -> list;
 
@@ -196,5 +196,5 @@ def cmd_close(session: str) -> str;
 def main(argv: list) -> int;
 
 with entry:__main__ {
-    sys.exit(main(sys.argv[1:]));
+    sys.`exit(main(sys.argv[1:]));
 }

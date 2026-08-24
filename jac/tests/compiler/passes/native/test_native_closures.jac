@@ -15,36 +15,21 @@ silently mis-bound value.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts, native_str_func }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_force_opts,
+    native_str_func
+}
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 """Compile a snippet through the native pipeline and return the program."""
 def compile_na_inline(label: str, code: str) -> JacProgram {
@@ -61,16 +46,6 @@ def compile_na_inline_ir(label: str, code: str) -> tuple {
     prog = JacProgram();
     ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return (prog, ir, );
-}
-
-"""Return True if the program emitted at least one alert with the given code."""
-def has_error_code(prog: JacProgram, code: str) -> bool {
-    for alrt in prog.errors_had {
-        if alrt.code is not None and alrt.code.code == code {
-            return True;
-        }
-    }
-    return False;
 }
 
 test "closure: nested def reads an enclosing param" {

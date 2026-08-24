@@ -12,6 +12,7 @@ glob _SCHEMA_SQL = [
         undirected     boolean NOT NULL DEFAULT false,
         props          jsonb NOT NULL DEFAULT '{}'::jsonb,
         format_version integer NOT NULL DEFAULT 1,
+        version        bigint NOT NULL DEFAULT 0,
         updated_at     timestamptz NOT NULL DEFAULT now(),
         seq            bigserial
     )
@@ -189,6 +190,10 @@ impl PgStore._ensure_ready -> None {
                 self.ensure_schema_once(self.promotions);
             }
             self._ready = True;
+            if self.pending_reset {
+                self.pending_reset = False;
+                self.reset_data();
+            }
         } finally {
             self._readying = None;
         }
@@ -245,6 +250,20 @@ def _app_identity -> str {
         cmd = 'unknown';
     }
     return f"jac:{os.getpid()}:{cmd}"[:63];
+}
+
+
+glob _SCHEMA_LOCK_TAG = 'jac:ensure_schema',
+     _SCHEMA_LOCK_WAIT_SECONDS = 30.0,
+     _SCHEMA_LOCK_POLL_SECONDS = 0.05,
+     _SCHEMA_LOCK_POLL_MAX_SECONDS = 0.5,
+     _CONCURRENT_CREATE_STATES = ('23505', '42P07', '42710');
+
+
+def _schema_lock_key -> int {
+    import hashlib;
+    digest = hashlib.sha256(_SCHEMA_LOCK_TAG.encode('utf-8')).digest()[:8];
+    return int.from_bytes(digest, 'big', signed=True);
 }
 
 
@@ -407,30 +426,41 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
             self._load_known_types();
             return;
         }
+        held = self._acquire_schema_lock(fp);
         try {
-            self._apply_schema_ddl();
-        } except PgWireError as e {
-            if _sqlstate(e) != '55P03' {
-                raise;
-            }
-            if self._reap_dead_sessions() == 0 {
-                raise SessionConflictError(
-                    database=self.conninfo.database, blockers=self._live_blockers()
-                ) from e;
+            if self._schema_stamp() == fp {
+                self._load_known_types();
+                return;
             }
             try {
-                self._apply_schema_ddl();
-            } except PgWireError as e2 {
-                if _sqlstate(e2) != '55P03' {
+                self._apply_schema_ddl_resilient();
+            } except PgWireError as e {
+                if _sqlstate(e) != '55P03' {
                     raise;
                 }
-                raise SessionConflictError(
-                    database=self.conninfo.database, blockers=self._live_blockers()
-                ) from e2;
+                if self._reap_dead_sessions() == 0 {
+                    raise SessionConflictError(
+                        database=self.conninfo.database, blockers=self._live_blockers()
+                    ) from e;
+                }
+                try {
+                    self._apply_schema_ddl_resilient();
+                } except PgWireError as e2 {
+                    if _sqlstate(e2) != '55P03' {
+                        raise;
+                    }
+                    raise SessionConflictError(
+                        database=self.conninfo.database, blockers=self._live_blockers()
+                    ) from e2;
+                }
+            }
+            self.kv_put(SCHEMA_STAMP_KEY, fp);
+            self._load_known_types();
+        } finally {
+            if held {
+                self._release_schema_lock();
             }
         }
-        self.kv_put(SCHEMA_STAMP_KEY, fp);
-        self._load_known_types();
     }
 }
 
@@ -473,6 +503,69 @@ impl PgStore.reset_data -> None {
 }
 
 
+impl PgStore._acquire_schema_lock(fingerprint: str) -> bool {
+    import time;
+    deadline = time.monotonic() + _SCHEMA_LOCK_WAIT_SECONDS;
+    delay = _SCHEMA_LOCK_POLL_SECONDS;
+    while True {
+        try {
+            got = self._run(
+                'SELECT pg_try_advisory_lock(:k)', {'k': _schema_lock_key()}
+            );
+            if got and bool(got[0][0]) {
+                return True;
+            }
+        } except PgWireError as e {
+            logger.debug(f"schema election unavailable ({_sqlstate(e)}): {e}");
+            return False;
+        }
+        if self._schema_stamp() == fingerprint {
+            return False;
+        }
+        if time.monotonic() >= deadline {
+            logger.warning(
+                f"waited {_SCHEMA_LOCK_WAIT_SECONDS:.0f}s for the schema"
+                f" election on '{self.conninfo.database}'; applying schema"
+                ' DDL without it'
+            );
+            return False;
+        }
+        time.sleep(delay);
+        delay = min(delay * 2, _SCHEMA_LOCK_POLL_MAX_SECONDS);
+    }
+}
+
+
+impl PgStore._release_schema_lock -> None {
+    try {
+        self._run('SELECT pg_advisory_unlock(:k)', {'k': _schema_lock_key()});
+    } except Exception as e {
+        logger.debug(f"schema election release failed: {e}");
+    }
+}
+
+
+impl PgStore._apply_schema_ddl_resilient -> None {
+    try {
+        self._apply_schema_ddl();
+    } except PgWireError as e {
+        state = _sqlstate(e);
+        if state not in _CONCURRENT_CREATE_STATES {
+            raise;
+        }
+        logger.info(
+            f"schema DDL lost a catalog race ({state}); a concurrent creator"
+            ' won, re-checking'
+        );
+        if self._schema_stamp() == self._schema_fingerprint() {
+            return;
+        }
+
+        self._apply_schema_ddl();
+    }
+}
+
+
 impl PgStore._apply_schema_ddl -> None {
     self._run("SET lock_timeout = '5s'", {});
     try {
@@ -490,6 +583,13 @@ impl PgStore._apply_schema_ddl -> None {
         );
         if not has_seq {
             self._run('ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {});
+        }
+        if self._promoted_column_type('version') is None {
+            self._run(
+                'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS version bigint '
+                'NOT NULL DEFAULT 0',
+                {}
+            );
         }
         self._apply_promotions();
         self._property_graph_ddl();
@@ -682,7 +782,7 @@ impl PgStore.load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] {
     rows = self._run(
         """
         SELECT a.id, a.kind, a.arch_type, a.arch_module, a.fingerprint,
-               a.root_id, a.src, a.dst, a.undirected, a.props, a.xmin::text,
+               a.root_id, a.src, a.dst, a.undirected, a.props, a.version,
                CASE WHEN a.kind = 'NodeAnchor' THEN
                    (SELECT string_agg(e.id::text, ',' ORDER BY e.seq, e.id)
                       FROM anchors e WHERE e.src = a.id OR e.dst = a.id)
@@ -735,6 +835,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
     }
     by_id: dict[UUID, AnchorRow] = {row.id: row for row in rows_in};
     rows = list(by_id.values());
+    stale: list[AnchorRow] = [];
     chunk = 200;
     for start in range(0, len(rows), chunk) {
         batch = rows[start:start + chunk];
@@ -745,7 +846,7 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
                 f"(CAST(:id{i} AS uuid), :kind{i}, :arch_type{i}, "
                 f":arch_module{i}, :fp{i}, CAST(:root_id{i} AS uuid), "
                 f"CAST(:src{i} AS uuid), CAST(:dst{i} AS uuid), "
-                f":undirected{i}, CAST(:props{i} AS jsonb), :fv{i}, now())"
+                f":undirected{i}, CAST(:props{i} AS jsonb), :fv{i}, :ver{i}, now())"
             );
             params[f"id{i}"] = str(row.id);
             params[f"kind{i}"] = row.kind;
@@ -756,14 +857,15 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
             params[f"src{i}"] = str(row.src) if row.src else None;
             params[f"dst{i}"] = str(row.dst) if row.dst else None;
             params[f"undirected{i}"] = row.undirected;
-            params[f"props{i}"] = json.dumps(row.props, default=_jsonable);
+            params[f"props{i}"] = json.dumps(row.props, `default=_jsonable);
             params[f"fv{i}"] = SCHEMA_VERSION;
+            params[f"ver{i}"] = int(row.version);
         }
-        self._run(
+        written = self._run(
             """
             INSERT INTO anchors
                 (id, kind, arch_type, arch_module, fingerprint, root_id,
-                 src, dst, undirected, props, format_version, updated_at)
+                 src, dst, undirected, props, format_version, version, updated_at)
             VALUES
             """
                 + ',\n'.join(values)
@@ -779,9 +881,33 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
                 undirected = EXCLUDED.undirected,
                 props = EXCLUDED.props,
                 format_version = EXCLUDED.format_version,
+                version = EXCLUDED.version + 1,
                 updated_at = now()
+            WHERE anchors.version = EXCLUDED.version
+            RETURNING id, version
             """,
             params
+        );
+        landed: dict[str, int] = {str(r[0]): int(r[1]) for r in written};
+        for row in batch {
+            got = landed.get(str(row.id));
+            if got is None {
+                stale.append(row);
+            } else {
+                row.version = got;
+            }
+        }
+    }
+    if stale {
+        first = stale[0];
+        found = self._run(
+            'SELECT version FROM anchors WHERE id = CAST(:i AS uuid)',
+            {'i': str(first.id)}
+        );
+        raise WriteConflict(
+            anchor_id=first.id,
+            expected_version=int(first.version),
+            actual_version=int(found[0][0]) if found else -1
         );
     }
     pairs: list[tuple[str, str]] = [];
@@ -1048,7 +1174,7 @@ impl PgStore._listen_loop -> None {
             }
             if not pending {
                 if sock is None {
-                    stop.wait(_LISTEN_POLL_SECONDS);
+                    stop.`wait(_LISTEN_POLL_SECONDS);
                     continue;
                 }
                 readable = select.select([sock], [], [], _LISTEN_POLL_SECONDS)[0];
@@ -1073,7 +1199,7 @@ impl PgStore._listen_loop -> None {
             }
         } except Exception as e {
             logger.debug(f"listen loop hiccup: {e}");
-            stop.wait(_LISTEN_POLL_SECONDS);
+            stop.`wait(_LISTEN_POLL_SECONDS);
         }
     }
 }
@@ -1124,23 +1250,35 @@ impl PgStore._promotion_columns -> list[tuple[str, str, str]] {
 }
 
 
+impl PgStore._promoted_column_type(col: str) -> (str | None) {
+    rows = self._run(
+        'SELECT data_type FROM information_schema.columns '
+        'WHERE table_name = :t AND column_name = :c',
+        {'t': 'anchors', 'c': col.lower()}
+    );
+    return str(rows[0][0]) if rows else None;
+}
+
+
 impl PgStore._apply_promotions -> None {
     for (arch, fld, col) in self._promotion_columns() {
         try {
+            have = self._promoted_column_type(col);
+            if have is not None and have != 'jsonb' {
+                logger.info(
+                    f"promotion {arch}.{fld}: rebuilding {col} from {have} to jsonb"
+                );
+                self._run(f'DROP INDEX IF EXISTS idx_{col}', {});
+                self._run(f'ALTER TABLE anchors DROP COLUMN IF EXISTS {col}', {});
+            }
             self._run(
                 f"""
-                ALTER TABLE anchors ADD COLUMN IF NOT EXISTS {col} text
-                GENERATED ALWAYS AS (props->'archetype'->>'{fld}') STORED
+                ALTER TABLE anchors ADD COLUMN IF NOT EXISTS {col} jsonb
+                GENERATED ALWAYS AS (props->'archetype'->'{fld}') STORED
                 """,
                 {}
             );
-            self._run(
-                f"""
-                CREATE INDEX IF NOT EXISTS idx_{col} ON anchors ({col})
-                WHERE arch_type = '{arch}'
-                """,
-                {}
-            );
+            self._run(f'CREATE INDEX IF NOT EXISTS idx_{col} ON anchors ({col})', {});
         } except Exception as e {
             logger.warning(f"promotion {arch}.{fld} failed: {e}");
         }

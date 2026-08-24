@@ -31,6 +31,10 @@ import from jaclang.runtimelib.exceptions { WriteConflict }
 import from jaclang.project.config { JacConfig, set_config }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 node Profile {
     has uid: str = "";
 }
@@ -70,7 +74,7 @@ walker ReadProfiles {
     can go with entry {
         existing = [-->[?:Profile]];
         rv = JacRuntime.get_context().read_versions;
-        assert here.__jac__.id in rv , "planner fast path must record the origin version for OCC";
+        assert _as_any(here).__jac__.id in rv , "planner fast path must record the origin version for OCC";
     }
 }
 
@@ -81,7 +85,7 @@ walker ReadEdges {
     can go with entry {
         owned = [edge -->];
         rv = JacRuntime.get_context().read_versions;
-        assert here.__jac__.id in rv , "edge-only read must record the origin version for OCC";
+        assert _as_any(here).__jac__.id in rv , "edge-only read must record the origin version for OCC";
     }
 }
 
@@ -146,7 +150,7 @@ test "OCC read capture: a second commit does not self-conflict" {
         ctx: any = _persistent_ctx(tmpdir);
         root spawn Seed();
         ctx.read_versions.clear();
-        w: any = TwiceCommit();
+        w = TwiceCommit();
         root spawn w;
         assert not w.conflicted , "a request must not conflict with its own prior commit";
         ctx.close();

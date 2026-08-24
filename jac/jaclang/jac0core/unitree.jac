@@ -262,6 +262,8 @@ obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
         narrowed_type: (TypeBase | None) postinit,
+        coerce_to: (str | None) postinit,
+        fw: (str | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
@@ -369,8 +371,7 @@ obj Module(AstDocNode, UniScopeNode) {
         rc_move_in: set[int] postinit,
         anon_region_open: dict[int, int] postinit,
         anon_region_close: dict[int, int] postinit,
-        anon_region_locals: dict[int, list[str]] postinit,
-        annex_mods: list[Module] postinit;
+        anon_region_locals: dict[int, list[str]] postinit;
 
     def postinit -> None;
 
@@ -470,7 +471,10 @@ obj ImportBoundaryFacts {
         is_service: bool = False,
         pinned_server: bool = False,
         client_native_edge: bool = False,
-        sv_source_mod: (Module | None) = None,
+        sv_abilities: dict[(str, Ability)] = {},
+        sv_walkers: dict[(str, Archetype)] = {},
+        na_target_decls: dict[(str, Ability)] = {},
+        na_unmappable_targets: list[str] = [],
         native_absorb_path: (str | None) = None,
         native_item_paths: dict[(str, str)] = {},
         bridged_decls: dict[(str, Ability)] = {};

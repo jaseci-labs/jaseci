@@ -75,6 +75,7 @@ Emitted by the parser and lexer during source code parsing.
 | `E0010` | '{keyword}' is not supported in Jac |
 | `E0012` | Use the `new(target, ...args)` ambient builtin to create new instances |
 | `E0013` | '{keyword}' is a keyword and cannot be used as a {context} name |
+| `E0014` | '{name}' is not a keyword -- remove the backtick |
 
 ### Operator / Expression Errors
 
@@ -181,6 +182,13 @@ Emitted by the type checker and type evaluator.
 | `E1010` | Operator "{op}" not supported for type "{type}" |
 | `E1011` | Unsupported operand types for {op}: {left} and {right} |
 | `E1110` | Operator "{op}" not supported between types "{left}" and "{right}" (comparison operators) |
+| `E1126` | Integer literal {value} does not fit in {type} (range {min}..{max}) |
+| `E1127` | Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving |
+| `E1128` | Operands of '{op}' have no common fixed-width type ({left} and {right}) |
+| `E1129` | Unary minus on unsigned type {type} |
+
+!!! tip "Fixing `E1126`-`E1129` (fixed-width numerics)"
+    The ten sized types (`i8`..`u64`, `f32`, `f64`) convert implicitly only along the value-preserving lattice (widening, unsigned into a strictly wider signed type, exactly-representable ints into floats, `f32 -> f64 -> float`). `E1126`: the literal is out of range -- use a wider type or spell the modular result with `T.wrap(x)`. `E1127`: cast at the boundary with the checked `T(x)` (raises `OverflowError` out of range) or widen the destination; extern `i32`/`u64` parameters need the cast from a plain `int`. `E1128`: neither operand widens into the other -- cast one side so the operation's width and sign are explicit. `E1129`: negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)`. See `jac guide jac-types` and [Fixed-width semantics](language/types-and-values.md#fixed-width-semantics).
 
 ### Iterability / Callable
 
@@ -424,7 +432,6 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 | `W3003` | `combine-glob` | Consecutive 'glob' declarations can be combined | default |
 | `W3004` | `init-to-can` | '{name}' should use Jac keyword | default |
 | `W3005` | `remove-empty-parens` | Empty parentheses can be removed | default |
-| `W3006` | `remove-kwesc` | Unnecessary keyword escape on '{name}' | default |
 | `W3007` | `hasattr-to-null-ok` | hasattr() should use null-safe access | default |
 | `W3008` | `simplify-ternary` | Ternary can be simplified | default |
 | `W3009` | `remove-future-annotations` | 'from \_\_future\_\_ import annotations' is unnecessary | default |
@@ -525,12 +532,15 @@ Emitted during code generation, formatting, and native compilation.
 | `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 | `E5086` | Client code emits '{name}', which has no binding in the client bundle |
 | `E5087` | Project kind '{kind}' has no server, but '{name}' needs one ({reason}) |
+| `E5101` | Client codegen emitted '{name}', which the module never binds |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
 
 `E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
 
 `E5086` covers the same failure for a *module's own* declarations rather than its imports. The bundle carries what is placed in the client codespace, plus `def:pub` endpoints, which are bound to a generated client-side forwarder that calls them over RPC. Anything else named by client code -- a function pinned `"server"` via `[placement.pins]`, a glob kept server-side -- would emit as a bare identifier that resolves to nothing. That is a guaranteed `ReferenceError` at module load, so it fails the build at the seam that produces the artifact. Give the element client presence (drop the pin, or make it `def:pub`), or keep the use out of client code.
+
+`E5101` is the backstop under all of the above, and it checks the finished artifact rather than the reasoning that produced it. After the client module is emitted, every identifier it references is matched against the module's own declarations, its imports, its parameters, and the ambient surface a browser provides (the same `js_globals` / `dom_types` stubs `jac check` resolves client-tier names against). What is left over is then narrowed to names the compiler itself resolved in Jac: a name with a symbol, emitted with nothing to bind it, is a `ReferenceError` on first use with `jac check` green and the build exiting 0. Give the name client presence (declare it, import it, or make it a `def:pub` endpoint so it bridges); reach a host global the compiler does not know about through `globalThis` so the intent is explicit; and if neither applies, a lowering dropped a binding it owed, which is a compiler bug worth reporting with the source line. Declarations count wherever they appear in the module rather than per scope, so the check never fires on a name that is bound somewhere. A name that resolves to nothing in Jac either is still presumed to be an undeclared ambient global and is not reported here -- requiring those to be declared is tracked separately.
 
 `E5087` fires when a project kind with no server contains code that needs one: root access, an FFI extern, an inline `::py::` block, or a Python import whose bindings are used at value level. A `js-package` ships as an npm tarball with nothing serving `/function/<name>`, so server placement there could only fail at runtime inside a `fetch` that has no route to reach. Annotation-only and `import type` uses stay silent, on the same criterion `E5084` uses.
 

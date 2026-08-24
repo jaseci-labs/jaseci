@@ -75,6 +75,9 @@ test "NodeAnchor.edges has no unsanctioned readers" {
     for sub in SCAN_ROOTS {
         for pat in ["*.jac", "*.py"] {
             for p in sorted((base / sub).rglob(pat)) {
+                if not p.is_file() {
+                    continue;
+                }
                 rel = str(p.relative_to(base)).replace("\\", "/");
                 if "/tests/" in f"/{rel}" or "/fixtures/" in f"/{rel}" {
                     continue;

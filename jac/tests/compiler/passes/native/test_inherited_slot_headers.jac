@@ -28,7 +28,7 @@ identifies the header decision rather than the override as the cause.
 import os;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+import from jaclang.jac0core.compiler { na_coverage_begin, na_coverage_end }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -38,15 +38,14 @@ glob FIXTURES = os.path.join(
      NOVT = "inherited_slot_novt.jac";
 
 
-"""Compile a fixture natively under the census; return (module, census)."""
+"""Compile a fixture natively under the coverage; return (module, coverage)."""
 def _compile(fixture: str) -> tuple {
     prog = JacProgram();
-    na_census_begin();
+    na_coverage_begin();
     try {
         ir = prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
             options=CompileOptions(
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 no_ir_cache=True,
@@ -54,17 +53,17 @@ def _compile(fixture: str) -> tuple {
             )
         );
     } finally {
-        census = na_census_end();
+        coverage = na_coverage_end();
     }
     assert not prog.errors_had , (f"{fixture}: {[str(e) for e in prog.errors_had]}");
-    return (ir, census);
+    return (ir, coverage);
 }
 
 
-"""The census seams recorded across every module of the compile."""
-def _all_seams(census: dict) -> list[str] {
+"""The coverage seams recorded across every module of the compile."""
+def _all_seams(coverage: dict) -> list[str] {
     out: list[str] = [];
-    for (_, rec) in census.items() {
+    for (_, rec) in coverage.items() {
         for s in (rec.get("seams") or []) {
             out.append(str(s));
         }
@@ -74,7 +73,7 @@ def _all_seams(census: dict) -> list[str] {
 
 
 test "a child of a flat imported base carries the same header its base does" {
-    (ir, _census) = _compile(CHILD);
+    (ir, _coverage) = _compile(CHILD);
     reg = ir.gen.layout_registry;
     assert reg is not None , "no layout registry was built";
     base = reg.layouts.get("SlotBase");
@@ -95,7 +94,7 @@ test "a child of a flat imported base carries the same header its base does" {
 
 
 test "the child adopts the base's slot assignment verbatim" {
-    (ir, _census) = _compile(CHILD);
+    (ir, _coverage) = _compile(CHILD);
     reg = ir.gen.layout_registry;
     base = reg.layouts.get("SlotBase");
     child = reg.layouts.get("SlotChild");
@@ -119,8 +118,8 @@ test "the child adopts the base's slot assignment verbatim" {
 
 
 test "the methods that touch an inherited slot lower instead of demoting" {
-    (_ir, census) = _compile(CHILD);
-    seams = _all_seams(census);
+    (_ir, coverage) = _compile(CHILD);
+    seams = _all_seams(coverage);
     for fn in [
         "SlotChild.store_inherited",
         "SlotChild.read_inherited",
@@ -143,14 +142,14 @@ test "the no-override control lowers too, which places the fault on the header" 
     # This fixture overrides nothing. It refused for the same reason the
     # overriding one did, so the override was never what forced the vtable --
     # the header decision was.
-    (ir, census) = _compile(NOVT);
+    (ir, coverage) = _compile(NOVT);
     reg = ir.gen.layout_registry;
     base = reg.layouts.get("SlotBase");
     child = reg.layouts.get("SlotChildFlat");
     assert base.vtable_ptr_slot == child.vtable_ptr_slot , (
         f"base {base.vtable_ptr_slot} != child {child.vtable_ptr_slot}"
     );
-    seams = _all_seams(census);
+    seams = _all_seams(coverage);
     for fn in ["SlotChildFlat.store_inherited", "SlotChildFlat.read_inherited"] {
         hits = [
             s

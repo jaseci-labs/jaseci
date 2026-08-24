@@ -192,7 +192,7 @@ deduped, *writer* endpoints fetch then invalidate overlapping readers
 
 The HTTP server is **not** in the compiler -- it is the built-in `scale` subsystem
 (`jac/jaclang/scale/jserver/`, a FastAPI/uvicorn binding written in Jac).
-`jac start` brings it up. For every public walker it registers two routes
+`jac run` brings it up. For every public walker it registers two routes
 (`register_walkers_endpoints`):
 
 ```text
@@ -358,7 +358,7 @@ parameter lowers to `i8*`. A clib declaration with a *body* is an error
 |-------|------|----------------|
 | **Declaration model** | `compiler/targets/foreign.jac` | What the user declared: scalar sizes (`FOREIGN_SCALARS`), C struct layout (`foreign_struct_layout` -- byte offsets, alignment, tail padding, nested-by-value flattening) |
 | **psABI classifier** | `compiler/targets/abi.jac` | Pure calling-convention logic: `classify_struct` dispatches on the triple -- `aarch64`/`arm64` → AAPCS, else System V AMD64 |
-| **Backend marshaller** | `na_ir_gen_pass.impl/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
+| **Backend marshaller** | `na_ir_gen/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
 
 ### How structs cross
 
@@ -643,8 +643,8 @@ height = 700
 
 ```bash
 jac build --client desktop   # -> .jac/client/desktop/<app> (binary + dist/ + libwebview.so)
-jac start --client desktop   # build if needed, then launch the native window
-jac start --client desktop --dev   # HMR: Vite on 127.0.0.1 + recompile on .jac saves
+jac run --client desktop     # build if needed, then launch the native window
+jac run --client desktop --dev     # HMR: Vite on 127.0.0.1 + recompile on .jac saves
 (cd .jac/client/desktop && ./my-app)   # or run the binary directly
 ```
 
@@ -716,7 +716,7 @@ RPC to the backend). It is the matrix in miniature.
 | `cl → sv` | `compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `runtimelib/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
 | `sv → cl` | `runtimelib/client/impl/{compiler,vite_bundler}.impl.jac`; `runtimelib/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
 | `sv ↔ na` | `jac0core/interop_bridge.jac`; `jac0core/parser/materialize.jac` + `utils/gen_native_materialize.jac` (sealed parse-tree crossing); `passes/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `passes/native/impl/na_compile_pass.impl.jac` |
-| `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen_pass.impl/{clib_abi,clib_vtable}.impl.jac` |
+| `na ↔ C` | `compiler/targets/{foreign,abi}.jac`; `passes/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `passes/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `passes/native/{wasm_build,wasm_linker}.jac`; `runtimelib/client/impl/compiler.impl.jac` |
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `passes/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |

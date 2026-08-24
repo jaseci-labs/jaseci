@@ -777,7 +777,7 @@ test "provider registry always carries the python provider" {
     reset_provider_registry();
     try {
         registry = get_provider_registry();
-        assert registry.has("python");
+        assert registry.`has("python");
         assert get_python_provider() is not None;
         assert registry.get_by_flag("--nope") is None;
     } finally {
@@ -988,7 +988,10 @@ test "add_venv_to_path adds bin to PATH env" {
 
         add_venv_to_path(config);
 
-        assert bin_str in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);
@@ -1014,7 +1017,10 @@ test "remove_venv_from_path removes bin from PATH env" {
 
         remove_venv_from_path(config);
 
-        assert bin_str not in os.environ.get("PATH", "").split(os.pathsep);
+        path_entries = [
+            os.path.realpath(p) for p in os.environ.get("PATH", "").split(os.pathsep)
+        ];
+        assert os.path.realpath(bin_str) not in path_entries;
     } finally {
         sys.path.clear();
         sys.path.extend(saved_path);

@@ -30,6 +30,10 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                     if not path.exists() {
                         continue;
                     }
+
+                    if path.name not in {e.name for e in path.parent.iterdir()} {
+                        continue;
+                    }
                     path_str = str(path);
 
                     if (not path_str.endswith((".jac", ".py", ".pyi")))
@@ -118,9 +122,12 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                 self._emit_untyped_external(binding, item_name, from_mod_name);
                 return binding.type;
             }
-            if sym
-                := lookup_symtab(
-                    from_mod_type.symbol_table, item_name, self.builtins_module
+            if from_mod_type.symbol_table is not None
+                and (
+                    sym
+                    := lookup_symtab(
+                        from_mod_type.symbol_table, item_name, self.builtins_module
+                    )
                 ) {
                 return self._set_module_item_symbol_and_type(node_, sym);
             }
@@ -140,6 +147,12 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
 
     if isinstance(from_mod_type, UnknownType) and from_mod_type.is_diagnosed {
         binding.type = UnknownType(is_diagnosed=True);
+        return binding.type;
+    }
+
+    if item_name == "*" {
+        binding.type = AnyType(is_foreign=True);
+        binding._sym_category = SymbolType.VAR;
         return binding.type;
     }
     return UnknownType();
@@ -244,6 +257,25 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
 
             if Path(mod_path).is_dir() {
                 npath._sym_category = SymbolType.MODULE;
+                pkg_dir = Path(mod_path);
+                pkg_sym_tab: (Module | None) = None;
+                for ext in (".jac", ".py", ".pyi") {
+                    init_file = pkg_dir / f"__init__{ext}";
+                    if init_file.exists() {
+                        pkg_sym_tab = self._import_module_from_path(
+                            str(init_file),
+                            importer_path=self._resolve_importer_path(node_)
+                        );
+                        break;
+                    }
+                }
+                pkg_type = ModuleType(
+                    mod_name=npath.value,
+                    file_uri=pkg_dir.resolve(),
+                    symbol_table=pkg_sym_tab,
+                );
+                npath.type = pkg_type;
+                self._module_type_cache[mod_path] = pkg_type;
                 continue;
             }
 
@@ -303,6 +335,10 @@ impl TypeEvaluator._resolve_submodule_attr(
         ];
         for path in candidates {
             if not path.exists() {
+                continue;
+            }
+
+            if path.name not in {e.name for e in path.parent.iterdir()} {
                 continue;
             }
             path_str = str(path);

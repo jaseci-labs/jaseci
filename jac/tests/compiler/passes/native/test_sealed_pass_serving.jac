@@ -1,21 +1,21 @@
 """The pass-serving binder: sealed means served, proven end to end.
 
 These tests build REAL artifacts (unitree, the materializer with its
-`mat_merge_probe` crossing, and the annex pass) with the real seal, then
+`mat_merge_probe` crossing, and a sealed pass) with the real seal, then
 present them to the runtime exactly the way a sealed image does, by
 patching `native_artifact_for` / `native_artifact_names`, the seams the
 binder reads in production.
 
-Four claims, each the runtime half of a manifest claim:
+Three claims, each the runtime half of a manifest claim:
 
   1. **Binding serves.** First construction of a sealed pass binds every
      sealed pass artifact (dlopen, `__jac_shared_init`, full advertised
-     method surface, live `jac_str_new`), runs the annex native-execution
-     canary, registers `_NATIVE_SERVED_PASSES`, and construction
+     method surface, live `jac_str_new`), registers
+     `_NATIVE_SERVED_PASSES`, and construction
      proceeds; a real compile through the pipeline then works.
   2. **The native-execution proof.** `mat_merge_probe` parses a main and
      an annex source natively and runs the compiled
-     `JacAnnexPass._merge_annex` over the native trees inside the
+     `merge_annex_into` over the native trees inside the
      artifact; the materialized module carries the annex's statements
      (their `loc.mod_path` is the annex path), and the bytecode lane,
      computed independently, unparses identically. The bytecode merge
@@ -40,7 +40,8 @@ import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
 import from jaclang.jac0core.parser.lexer { tokenize_full }
 import from jaclang.jac0core.parser.parser { Parser }
-import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+import from jaclang.jac0core.passes.annex_weave { merge_annex_into }
+import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
 import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
@@ -51,12 +52,12 @@ import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     ANNEX_MODULE: str = "jaclang.jac0core.passes.annex_pass",
+     TIER_MODULE: str = "jaclang.jac0core.passes.ast_validation_pass",
      MAT_MODULE: str = "jaclang.compiler.native_materialize",
      SEAL_MODULES: tuple = (
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
-         "jac0core/passes/annex_pass.jac"
+         "jac0core/passes/ast_validation_pass.jac"
      ),
      _BUILD_MEMO: list = [];
 
@@ -80,18 +81,18 @@ def _built -> tuple {
 }
 
 def native_true_image -> bool {
-    return sealed.native_artifact_for(ANNEX_MODULE) is not None;
+    return sealed.native_artifact_for(TIER_MODULE) is not None;
 }
 
 def _artifact_resolver(tmp: str, arts: dict) -> any {
     def _resolve(fullname: str) -> (tuple | None) {
-        entry = arts.get(fullname);
-        if entry is None {
+        `entry = arts.get(fullname);
+        if `entry is None {
             return None;
         }
-        lib_path = os.path.join(tmp, entry["lib"]);
+        lib_path = os.path.join(tmp, `entry["lib"]);
         layout = json.loads(
-            Path(os.path.join(tmp, entry["layout"])).read_text(encoding="utf-8")
+            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
         );
         return (lib_path, layout, );
     }
@@ -105,8 +106,8 @@ def _reset_serving_state {
     frontend._NATIVE_PARSE_MEMO.clear();
 }
 
-def _run_annex -> object {
-    return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+def _run_tier_pass -> any {
+    return ASTValidationPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 
 
@@ -118,9 +119,9 @@ test "binding serves a sealed pass and a real compile runs" {
     sealed.native_artifact_for = _artifact_resolver(tmp, arts);
     sealed.native_artifact_names = lambda { list(arts.keys()); };
     try {
-        inst = _run_annex();
-        assert isinstance(inst.ir_out, uni.Module) , "annex pass did not run";
-        assert ANNEX_MODULE in _NATIVE_SERVED_PASSES , (
+        inst = _run_tier_pass();
+        assert isinstance(inst.ir_out, uni.Module) , "the tier vehicle pass did not run";
+        assert TIER_MODULE in _NATIVE_SERVED_PASSES , (
             "construction succeeded without the binder registering the module"
         );
         prog = JacProgram();
@@ -177,7 +178,7 @@ test "the merge probe proves the annex method body executed natively" {
         ];
         assert woven , (
             "no statement in the woven module comes from the annex source; "
-            "the native JacAnnexPass._merge_annex did not execute"
+            "the native merge_annex_into did not execute"
         );
         (mt, _mc, _mld, _mle) = tokenize_full(main_src, main_path);
         py_main = Parser(tokens=mt, file_path=main_path, source_code=main_src).parse();
@@ -185,7 +186,7 @@ test "the merge probe proves the annex method body executed natively" {
         py_annex = Parser(
             tokens=at, file_path=annex_path, source_code=annex_src
         ).parse();
-        JacAnnexPass._merge_annex(py_main, py_annex);
+        merge_annex_into(py_main, py_annex);
         assert unparse_node(merged) == unparse_node(py_main) , (
             "the natively woven module and the bytecode-lane merge diverged"
         );
@@ -207,39 +208,18 @@ test "a sealed pass whose artifact cannot bind refuses construction" {
     real_names = sealed.native_artifact_names;
     _reset_serving_state();
     broken = dict(arts);
-    entry = dict(broken[ANNEX_MODULE]);
-    entry["lib"] = "native/definitely/not/there.so";
-    broken[ANNEX_MODULE] = entry;
+    `entry = dict(broken[TIER_MODULE]);
+    `entry["lib"] = "native/definitely/not/there.so";
+    broken[TIER_MODULE] = `entry;
     sealed.native_artifact_for = _artifact_resolver(tmp, broken);
     sealed.native_artifact_names = lambda { list(broken.keys()); };
     try {
-        with testraises(RuntimeError, `match=ANNEX_MODULE) {
-            _run_annex();
+        with testraises(RuntimeError, `match=TIER_MODULE) {
+            _run_tier_pass();
         }
-        assert ANNEX_MODULE not in _NATIVE_SERVED_PASSES , (
+        assert TIER_MODULE not in _NATIVE_SERVED_PASSES , (
             "a failed bind still registered the module as served"
         );
-    } finally {
-        sealed.native_artifact_for = real_for;
-        sealed.native_artifact_names = real_names;
-        _reset_serving_state();
-    }
-}
-
-
-test "the merge canary refuses a merge that did not weave" {
-    (tmp, arts) = _built();
-    real_for = sealed.native_artifact_for;
-    real_names = sealed.native_artifact_names;
-    _reset_serving_state();
-    only_annex = {ANNEX_MODULE: arts[ANNEX_MODULE]};
-    sealed.native_artifact_for = _artifact_resolver(tmp, only_annex);
-    sealed.native_artifact_names = lambda { list(only_annex.keys()); };
-    try {
-        with testraises(RuntimeError, `match="no native parser") {
-            _run_annex();
-        }
-        assert ANNEX_MODULE not in _NATIVE_SERVED_PASSES;
     } finally {
         sealed.native_artifact_for = real_for;
         sealed.native_artifact_names = real_names;

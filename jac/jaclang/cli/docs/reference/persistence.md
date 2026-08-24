@@ -24,7 +24,7 @@ walker create {
 
 **The store is Postgres, always.** There is exactly one persistence stack:
 
-- **Local development**: the runtime provisions an **embedded Postgres server** automatically. It is one cluster for the whole machine (`~/.cache/jac/pg/main`) holding one database per project, keyed to the project's absolute path. No installation, no configuration, no daemon to manage -- `jac run` and `jac start` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down. Because the key is the path, a project that moves or is deleted leaves its database behind: `jac db list` shows what the cluster holds and who owns it, and `jac db prune` reclaims the ones whose project is gone (see [Database Operations](cli/index.md#database-operations)).,
+- **Local development**: the runtime provisions an **embedded Postgres server** automatically. It is one cluster for the whole machine (`~/.cache/jac/pg/main`) holding one database per project, keyed to the project's absolute path. No installation, no configuration, no daemon to manage -- `jac run` and `jac run` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down. Because the key is the path, a project that moves or is deleted leaves its database behind: `jac db list` shows what the cluster holds and who owns it, and `jac db prune` reclaims the ones whose project is gone (see [Database Operations](cli/index.md#database-operations)).,
 - **Only when the graph is touched**: the embedded server boots on the first operation that actually reads or writes persistent state. A program that never dereferences `root` (a script that just prints, an HTTP proxy, a fixture server) starts no Postgres and runs no `initdb`, so it needs no database at all -- there is nothing to opt out of.
 - **External server**: set the `JAC_DB_URL` environment variable (or `[scale.database] url` in `jac.toml`) to a `postgresql://user:pass@host:port/db` URL and the runtime connects there instead. Kubernetes deploys provision a Postgres StatefulSet and inject `JAC_DB_URL` into every pod.
 
@@ -311,7 +311,7 @@ Repaired-away values are never deleted. Removed fields (declared via `schema_dro
   "__jac_attic__": { "legacy_bio": { "value": "...", "reason": "dropped" } } }
 ```
 
-The attic round-trips through loads and saves -- including under `JAC_SCHEMA_REPAIR=off`, so an emergency rollback can never destroy previously preserved data. It persists until you explicitly clean it up (a future census-gated *contract* phase will automate this).
+The attic round-trips through loads and saves -- including under `JAC_SCHEMA_REPAIR=off`, so an emergency rollback can never destroy previously preserved data. It persists until you explicitly clean it up (a future *contract* phase, gated on no old-version reader remaining, will automate this).
 
 ### Rolling deploys: dual-write
 
@@ -468,7 +468,7 @@ The official `jaseci/jaclang` image already carries everything the embedded engi
 
 Currently out of scope (planned follow-on work):
 
-- **Contract phase** -- attic data and dual-written shadow fields persist indefinitely; the census-gated cleanup that strips them once no old-version reader remains is future work. Until then they cost a little storage but are harmless.
+- **Contract phase** -- attic data and dual-written shadow fields persist indefinitely; the version-gated cleanup that strips them once no old-version reader remains is future work. Until then they cost a little storage but are harmless.
 - **Rename auto-inference** -- the runtime won't guess that a removed field and an added field of the same type are a rename; you declare it with `schema_alias`. (A schema registry that proposes such inferences is future work.)
 - **Background sweep** -- repair is lazy (on read); cold rows that are never read stay at their old shape until touched. They repair correctly whenever that happens.
 - **Compiler enforcement** -- there's no build-time lint yet that detects an undeclared breaking change against a schema lockfile.

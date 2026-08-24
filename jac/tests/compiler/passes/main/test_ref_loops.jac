@@ -5,6 +5,10 @@ iterates exclusive ones -- lowered as index loops with no reified iterator
 object, so the loop is the borrow's extent. Element mutation through the
 `&mut` form must be visible after the loop, byte-identically under every
 gc mode including enforced headerless builds.
+
+The fixture-plus-expected-codes cases for this rule live in the shared
+`test_ownership_codes.jac` table; what stays here asserts something that
+table cannot express.
 """
 
 import os;
@@ -49,26 +53,4 @@ test "ref-loop mutation is visible and mode-identical" {
         assert outs["none"] == outs["rc"] , f"none diverged:\n{outs['none']}";
         assert outs["cycles"] == outs["rc"] , f"cycles diverged:\n{outs['cycles']}";
     }
-}
-
-import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
-
-test "ref-loop reads and post-loop owner reuse are clean" {
-    prog = compile_fixture("ref_loop_clean.jac");
-    expect_ownership_codes(prog, []);
-}
-
-test "storing a ref-loop variable into a field is E1306" {
-    prog = compile_fixture("ref_loop_owner_write.jac");
-    expect_ownership_codes(prog, ["E1306"]);
-}
-
-test "growing the iterated container inside the loop is E1303" {
-    prog = compile_fixture("ref_loop_grow_conflict.jac");
-    expect_ownership_codes(prog, ["E1303"]);
-}
-
-test "growing the container after the loop is clean" {
-    prog = compile_fixture("ref_loop_grow_after_ok.jac");
-    expect_ownership_codes(prog, []);
 }

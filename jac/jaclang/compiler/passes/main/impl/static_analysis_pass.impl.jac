@@ -6,6 +6,10 @@ impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     _fresh: set[int] = set();
     self._checked_scopes = _fresh;
 
+    if self.ir_in.is_raised_from_py {
+        return ir_in;
+    }
+
     self._check_unused_symbols(self.ir_in);
     self._check_undefined_names(self.ir_in);
     self._check_unreachable_code(self.ir_in);
@@ -76,6 +80,10 @@ impl StaticAnalysisPass._check_unused_symbols(scope: UniScopeNode) -> None {
             if scope.needs_impl or scope.is_genai_ability {
                 continue;
             }
+        }
+
+        if sym.sym_type == SymbolType.VAR and isinstance(scope, Archetype) {
+            continue;
         }
 
         if len(sym.uses) == 0 {
@@ -182,7 +190,7 @@ impl StaticAnalysisPass._literal_case_suggestion(name: str) -> (str | None) {
 
 
 impl StaticAnalysisPass._osp_shape_position(name_nd: Name) -> (str | None) {
-    cur = name_nd;
+    cur: UniNode = name_nd;
     parent = cur.parent;
 
     for _ in range(8) {
@@ -242,7 +250,7 @@ impl StaticAnalysisPass._native_type_position(name_nd: Name) -> (str | None) {
 }
 
 impl StaticAnalysisPass._check_unreachable_code(mod: Module) -> None {
-    container_types = [
+    container_types: list[type[UniNode]] = [
         Ability,
         ImplDef,
         IfStmt,
@@ -253,7 +261,7 @@ impl StaticAnalysisPass._check_unreachable_code(mod: Module) -> None {
         InForStmt,
         IterForStmt
     ];
-    containers: list = [];
+    containers: list[UniNode] = [];
     for typ in container_types {
         containers.extend(mod.get_all_sub_nodes(typ=typ));
     }
@@ -343,7 +351,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
                         expr_primitive_name
                     }
                     left = nd.left if i == 0 else nd.rights[i - 1];
-                    if expr_primitive_name(self.prog, left) == "bool" {
+                    if expr_primitive_name(left) == "bool" {
                         self.emit(W2075, node_override=nd);
                     }
                 }
@@ -363,9 +371,29 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
         in_walker = False;
         parent = nd.parent;
         while parent is not None {
+            if isinstance(parent, Ability)
+                and isinstance(parent.signature, EventSignature) {
+                in_walker = True;
+                break;
+            }
             if isinstance(parent, Archetype) {
                 if parent.arch_kind == "walker" {
                     in_walker = True;
+                }
+                break;
+            }
+            if isinstance(parent, ImplDef) {
+                _dl = parent.decl_link;
+                if isinstance(_dl, Ability) {
+                    if isinstance(_dl.signature, EventSignature) {
+                        in_walker = True;
+                    } else {
+                        _owner = _dl.method_owner;
+                        if isinstance(_owner, Archetype)
+                            and _owner.arch_kind == "walker" {
+                            in_walker = True;
+                        }
+                    }
                 }
                 break;
             }
@@ -468,6 +496,9 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
         }
         pinned_server = import_target_pinned_server(nd);
         for item in nd.items {
+            if not isinstance(item, ModuleItem) {
+                continue;
+            }
             verdict = classify_client_import_item(source_mod, item);
             if verdict == ClientImportVerdict.DEAD
                 and not (pinned_server and decl_has_access(source_mod, item)) {
@@ -479,6 +510,9 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
 
 impl StaticAnalysisPass._check_typing_import_refusals(mod: Module) -> None {
     for nd in mod.get_all_sub_nodes(typ=Import) {
+        if (nd.loc.mod_path or "").endswith(".pyi") {
+            continue;
+        }
         if nd.from_loc is None or nd.from_loc.dot_path_str != "typing" {
             continue;
         }
@@ -518,6 +552,9 @@ impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
     advisory_only = is_bootstrap_compiled_module(mod_path)
         or is_ambient_provider_module(mod_path);
     for nd in mod.get_all_sub_nodes(typ=Import) {
+        if (nd.loc.mod_path or "").endswith(".pyi") {
+            continue;
+        }
         if nd.from_loc is None {
             continue;
         }
