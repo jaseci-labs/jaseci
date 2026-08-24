@@ -1874,6 +1874,32 @@ impl JacPersistence.set_persistent_memory_provider(provider: Callable | None) ->
     _persistent_memory_provider[0] = provider;
 }
 
+impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> None {
+    import sys;
+    import from concurrent.futures { ThreadPoolExecutor }
+    if cls.exec_ctx is not None {
+        cls.exec_ctx.mem.close();
+    }
+    cls.exec_ctx = None;
+    if clear_modules {
+        for mod in list(cls.loaded_modules.values()) {
+            if (
+                not mod.__name__.startswith("jaclang.") and (mod.__name__ != "__main__")
+            ) {
+                sys.modules.pop(mod.__name__, None);
+            }
+        }
+        cls.loaded_modules.clear();
+    }
+    stale = cls.pool;
+    cls.pool = ThreadPoolExecutor();
+    if stale is not None {
+        stale.shutdown(`wait=False);
+    }
+    cls.program = None;
+    cls.compiler = None;
+}
+
 impl JacRuntime.get_compiler(cls: any) -> JacCompiler {
     if (cls.compiler is None) {
         import from jaclang.jac0core.compiler { JacCompiler }

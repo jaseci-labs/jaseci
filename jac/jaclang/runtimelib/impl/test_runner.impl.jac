@@ -360,33 +360,34 @@ impl _cleanup_test_bases -> None {
     }
 }
 
-impl _fresh_jac_state(clear_modules: bool = True) -> None {
+impl _worker_rss_mb -> int {
+    import resource;
     import sys;
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    return int(peak // (1024 * 1024))
+        if sys.platform == "darwin"
+        else int(peak // 1024);
+}
+
+impl _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool {
+    if recycle > 0 and served >= recycle {
+        return True;
+    }
+    return rss_cap > 0 and rss_mb >= rss_cap;
+}
+
+impl _fresh_jac_state(clear_modules: bool = True) -> None {
     import tempfile;
-    import from concurrent.futures { ThreadPoolExecutor }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime, JacRuntimeInterface }
     import from jaclang.runtimelib.session { mark_scratch_base }
-    if JacRuntime.exec_ctx is not None {
-        JacRuntime.exec_ctx.mem.close();
-    }
-    if clear_modules {
-        for mod in list(JacRuntime.loaded_modules.values()) {
-            if (
-                not mod.__name__.startswith("jaclang.") and (mod.__name__ != "__main__")
-            ) {
-                sys.modules.pop(mod.__name__, None);
-            }
-        }
-        JacRuntime.loaded_modules.clear();
-    }
+    JacRuntime.reset_process_state(clear_modules=clear_modules);
     fresh_base = tempfile.mkdtemp(prefix="jac-test-base-");
     _TEST_BASES.append(fresh_base);
     mark_scratch_base(fresh_base);
     JacRuntime.set_base_path(fresh_base);
     JacRuntime.set_full_target_path(None);
     JacRuntime.program = JacProgram();
-    JacRuntime.pool = ThreadPoolExecutor();
     JacRuntime.exec_ctx = JacRuntimeInterface.create_j_context(
         user_root=None, base_path_dir=fresh_base, full_target_path=None
     );
@@ -920,6 +921,12 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     } except ValueError {
         _recycle = 25;
     }
+    _rss_cap = 2048;
+    try {
+        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "2048") or "2048");
+    } except ValueError {
+        _rss_cap = 2048;
+    }
     _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
     while True {
@@ -959,7 +966,7 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
             ];
         }
         _served += 1;
-        _retire = _recycle > 0 and _served >= _recycle;
+        _retire = _should_retire(_served, _recycle, _worker_rss_mb(), _rss_cap);
         payload = json.dumps(
             {
                 "idx": request["idx"],
