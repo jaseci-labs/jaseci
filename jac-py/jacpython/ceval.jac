@@ -4384,7 +4384,14 @@ def user_str_slot(u: PyUserObj) -> PyObj {
 # bytes stay exact CPython.
 def py_str(value: PyObj) -> PyObj {
     if isinstance(value, PyException) {
-        return baseexception_str(value as PyException, py_repr);
+        exc = value as PyException;
+        # Host-raised instance (raw is a PyHostProxy): byte-exact str straight
+        # from the live object. A PyUserObj raw (guest user exception) keeps
+        # the native dispatch below.
+        if isinstance(exc.raw, PyHostProxy) {
+            return host_convert(exc.raw as PyObj, 1);
+        }
+        return baseexception_str(exc, py_repr);
     }
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
@@ -12037,13 +12044,31 @@ def run_frame(frame: PyFrame) -> PyObj {
                 if arg == 2 {
                     result = baseexception_repr(exc, py_repr);
                 } elif arg == 3 {
-                    # str-form conversion stays native so the per-type __str__
-                    # overrides (OSError smart forms, KeyError repr-form,
-                    # SyntaxError suffixes) apply to natively constructed
-                    # instances instead of a lossy host reconstruction.
-                    result = baseexception_str(exc, py_repr);
+                    # CONVERT_VALUE oparg 3 is ascii() (1=str, 2=repr, 3=ascii
+                    # in CPython 3.14 bytecode). The non-ASCII escaping half
+                    # of ascii() stays host-only, so delegate -- the caught
+                    # exception marshals to a REAL host instance
+                    # (to_host -> host_exception), keeping repr content and
+                    # byte-exact escaping. Treating 3 as a str form here made
+                    # f"{e!a}" print the plain message (5967ea874 regression).
+                    result = host_convert(value, 3);
                 } else {
-                    result = baseexception_str(exc, py_repr);
+                    # Host-RAISED exceptions carry their live HOST instance in
+                    # `raw` (a PyHostProxy): its host str is byte-exact by
+                    # construction and beats any native reconstruction from
+                    # (possibly lossy) args. Guest user-exception instances
+                    # also keep their instance in `raw` (a PyUserObj) but the
+                    # native per-type dispatch is authoritative there -- the
+                    # host-side mirror class has no builtin __str__ ancestry.
+                    if exc.raw is not None and isinstance(exc.raw, PyHostProxy) {
+                        result = host_convert(exc.raw as PyObj, 1);
+                    } else {
+                        # str-form conversion stays native so the per-type __str__
+                        # overrides (OSError smart forms, KeyError repr-form,
+                        # SyntaxError suffixes) apply to natively constructed
+                        # instances instead of a lossy host reconstruction.
+                        result = baseexception_str(exc, py_repr);
+                    }
                 }
             } else {
                 result = host_convert(value, arg);
