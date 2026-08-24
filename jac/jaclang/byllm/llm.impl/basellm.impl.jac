@@ -288,6 +288,22 @@ def _existing_cost(usage_obj: object) -> object {
 }
 
 
+def _rebuild_stream_chunks(chunks: list, logging_obj: object) -> dict {
+    import inspect;
+    accepts_logging_obj = False;
+    builder: any = litellm.stream_chunk_builder;
+    try {
+        accepts_logging_obj = "logging_obj" in inspect.signature(builder).parameters;
+    } except Exception {
+        ;
+    }
+    if accepts_logging_obj {
+        return litellm.stream_chunk_builder(chunks, logging_obj=logging_obj);
+    }
+    return litellm.stream_chunk_builder(chunks);
+}
+
+
 def _attach_call_cost(
     usage_obj: object, model_name: str, response: object = None
 ) -> None {
@@ -349,14 +365,7 @@ def _record_usage(
     model_name: str,
     call_kind: str | None = None,
     finish_reason: str | None = None
-) -> None {
-    if not (
-        _usage_int(usage_obj, "prompt_tokens")
-        or _usage_int(usage_obj, "completion_tokens")
-        or _usage_int(usage_obj, "total_tokens")
-    ) {
-        return;
-    }
+) {
     record = _usage_to_dict(usage_obj);
     record["model"] = model_name;
     record["call_kind"] = call_kind or mt_run._call_kind;
@@ -1545,8 +1554,9 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
             for chunk in response {
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
-                    _attach_call_cost(chunk_usage, self.model_name);
-                    _record_usage(mt_run, chunk_usage, self.model_name);
+                    chunk_model: str = chunk?.model or self.model_name;
+                    _attach_call_cost(chunk_usage, chunk_model);
+                    _record_usage(mt_run, chunk_usage, chunk_model);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta = chunk?.choices?[0]?.delta;
@@ -1646,14 +1656,14 @@ impl BaseLLM.dispatch_streaming_with_tools(
 
     message: (LiteLLMMessage | dict | None) = None;
     usage_data: dict = {};
+    actual_model = self.model_name;
     try {
-        rebuilt = litellm.stream_chunk_builder(
-            chunks, logging_obj=_stream_resp?.logging_obj
-        );
+        rebuilt = _rebuild_stream_chunks(chunks, _stream_resp?.logging_obj);
         if rebuilt {
             message = rebuilt.get("choices", [])[0].get("message");
             usage_data = rebuilt.get("usage", {}) or {};
-            _attach_call_cost(usage_data, self.model_name, rebuilt);
+            actual_model = rebuilt.get("model", self.model_name);
+            _attach_call_cost(usage_data, actual_model, rebuilt);
             finish_reason = str(
                 rebuilt.get("choices", [])[0].get("finish_reason") or ""
             );
@@ -1686,7 +1696,7 @@ impl BaseLLM.dispatch_streaming_with_tools(
     output_value = mt_run.parse_response(output_content)
         if not tool_calls_list
         else output_content;
-    _record_usage(mt_run, usage_data, self.model_name, finish_reason=finish_reason);
+    _record_usage(mt_run, usage_data, actual_model, finish_reason=finish_reason);
     out.append(
         CompletionResult(output=output_value, tool_calls=tool_calls, usage=usage_data)
     );
@@ -1762,8 +1772,9 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
             async for chunk in response {
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
-                    _attach_call_cost(chunk_usage, self.model_name);
-                    _record_usage(mt_run, chunk_usage, self.model_name);
+                    chunk_model: str = chunk?.model or self.model_name;
+                    _attach_call_cost(chunk_usage, chunk_model);
+                    _record_usage(mt_run, chunk_usage, chunk_model);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta = chunk.choices[0].delta;
@@ -2272,7 +2283,6 @@ impl BaseLLM._invoke_streaming(
     }
 
     yield StreamEvent(event_type="usage", data=_aggregate_usage(mt_run._usage_history));
-    mt_run._usage_history = [];
 
     mt_run.write_back_conversation();
 }

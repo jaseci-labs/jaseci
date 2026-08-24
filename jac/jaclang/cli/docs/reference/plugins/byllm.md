@@ -1565,7 +1565,7 @@ with entry {
 }
 ```
 
-Only fires for tool-calling invocations; a single-call invocation has nothing to distinguish a per-call step from the final `usage` event. See also `IterationContext.total_cost` (in [Interrupting the ReAct Loop](#interrupting-the-react-loop)) to gate the *next* call instead of reacting to a stream event.
+Only fires for tool-calling invocations. A single-call invocation still emits one `usage_step` carrying the same numbers as the final `usage` event - don't sum both. See also `IterationContext.total_cost` (in [Interrupting the ReAct Loop](#interrupting-the-react-loop)) to gate the *next* call instead of reacting to a stream event.
 
 #### Cache tokens
 

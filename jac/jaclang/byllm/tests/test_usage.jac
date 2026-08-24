@@ -328,6 +328,131 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
 }
 
 
+test "_rebuild_stream_chunks only forwards logging_obj when the installed litellm accepts it" {
+    # litellm < 1.75.2's real stream_chunk_builder has no logging_obj parameter
+    # at all; passing it unconditionally raises TypeError there.
+    fake_logging_obj = object();
+
+    def _old_style(chunks: list) -> dict {
+        return {"marker": "old", "n": len(chunks)};
+    }
+    def _new_style(chunks: list, logging_obj: object = None) -> dict {
+        return {"marker": "new", "logging_obj": logging_obj};
+    }
+
+    with unittest.mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _old_style
+    ) {
+        result = _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
+        assert result == {"marker": "old", "n": 2} , (
+            f"an old-signature stream_chunk_builder must be called without "
+            f"logging_obj rather than raising, got {result}"
+        );
+    }
+    with unittest.mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _new_style
+    ) {
+        result = _byllm_llm_mod._rebuild_stream_chunks([1, 2], fake_logging_obj);
+        assert result == {"marker": "new", "logging_obj": fake_logging_obj} , (
+            "a new-signature stream_chunk_builder should still receive logging_obj"
+        );
+    }
+}
+
+
+test "a streaming, tool-calling by llm() call surfaces tokens via register_agent_callback too" {
+    llm = Model(
+        model_name="mockllm",
+        config={
+            "outputs": [
+                (
+                    MockToolCall(tool=finish_tool, args={"final_output": "ok"}),
+                    {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110}
+                ),
+                # A str-returning finish_tool call always triggers a
+                # final_answer_restream, consuming a second mock output.
+                "ok"
+            ]
+        }
+    );
+
+    def my_task(q: str) -> str by llm(tools=[finish_tool], stream=True, logging=True);
+
+    captured: list = [];
+    def cb(record: dict) {
+        captured.append(record);
+    }
+    _with_callback(cb, lambda { return list(my_task("test")); });
+
+    assert len(captured) == 1 , f"expected exactly one telemetry record, got {captured}";
+    tokens = captured[0]["tokens"];
+    assert tokens["requests"] == 2 , (
+        f"a streaming, tool-calling invocation must surface its usage via "
+        f"tokens too, not just the usage StreamEvent; got {tokens}"
+    );
+    assert tokens["total"]["total_tokens"] == 110;
+}
+
+
+test "a call reporting no measurable usage is still counted, not dropped" {
+    mt = _mt();
+    _byllm_llm_mod._record_usage(mt, {}, MODEL);
+    _byllm_llm_mod._record_usage(mt, None, MODEL);
+
+    assert len(mt._usage_history) == 2 , (
+        "a call whose provider returned no usable payload still happened - it "
+        "must not vanish from requests entirely"
+    );
+    assert _byllm_llm_mod._aggregate_usage(mt._usage_history)["requests"] == 2;
+}
+
+
+test "streaming paths attribute usage to the model that actually served the call" {
+    llm = Model(model_name="requested-model");
+    mt = _mt(stream=True);
+
+    fake_chunk = types.SimpleNamespace(
+        model="actual-served-model", usage=litellm.Usage(**TOKENS), choices=[]
+    );
+    with unittest.mock.patch.object(
+        llm, "model_call_with_stream", lambda (params: dict) { return [fake_chunk]; }
+    ) {
+        list(llm.dispatch_streaming(mt));
+    }
+
+    assert mt._usage_history[-1]["model"] == "actual-served-model" , (
+        "a router/pool fallback to a different model must be attributed to the "
+        "model that actually served it, not the one configured on the client"
+    );
+}
+
+
+test "dispatch_streaming_with_tools attributes usage to the model stream_chunk_builder reports" {
+    llm = Model(model_name="requested-model");
+    mt = _mt(stream=True, tools=[Tool.make_finish_tool(str)]);
+
+    fake_chunk = types.SimpleNamespace(
+        usage=None,
+        choices=[types.SimpleNamespace(delta=types.SimpleNamespace(content="hi"))]
+    );
+    stream_resp = _FakeStreamResp(chunks=[fake_chunk], logging_obj=object());
+    out: list = [];
+
+    def _rebuild_as(seen: list, logging_obj: object = None) -> dict {
+        return _response(model="actual-served-model");
+    }
+    with unittest.mock.patch.object(
+        llm, "model_call_with_stream", lambda (params: dict) { return stream_resp; }
+    ), unittest.mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild_as
+    ) {
+        list(llm.dispatch_streaming_with_tools(mt, out));
+    }
+
+    assert mt._usage_history[-1]["model"] == "actual-served-model";
+}
+
+
 # =============================================================================
 # Usage capture and call_kind tagging
 # =============================================================================
@@ -547,10 +672,12 @@ test "usage StreamEvent always terminates a logging=True stream, even with no us
         f"usage must be the last event even with no measurable tokens, got "
         f"{events[-1].event_type}"
     );
-    assert events[-1].data["total"] == {};
-    assert events[-1].data["per_call"] == [];
-    assert events[-1].data["by_kind"] == {};
-    assert events[-1].data["requests"] == 0;
+    assert events[-1].data["requests"] == 1 , (
+        "the call still happened even though it reported no usage - it must "
+        "be counted, not silently dropped"
+    );
+    assert len(events[-1].data["per_call"]) == 1;
+    assert events[-1].data["total"].get("total_tokens", 0) == 0;
 }
 
 
@@ -650,8 +777,11 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
         }
     }
 
-    assert len(usage_steps) == 2 , (
-        f"expected one usage_step per react-loop call, got {len(usage_steps)}"
+    # A str-returning finish_tool call is always followed by a
+    # final_answer_restream call, so this is 3 underlying calls: step_a,
+    # finish_tool, and the restream (which reports no usage of its own here).
+    assert len(usage_steps) == 3 , (
+        f"expected one usage_step per underlying call, got {len(usage_steps)}"
     );
     assert usage_steps[0]["total"]["total_tokens"] == 110;
     assert usage_steps[0]["per_call"][0]["call_kind"] == "react_iteration";
@@ -659,10 +789,19 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
         "each usage_step must carry only its own call's usage, not a running "
         "cumulative sum"
     );
+    assert usage_steps[2]["per_call"][0]["call_kind"] == "final_answer_restream" , (
+        "the restream is its own call and gets its own usage_step, even when "
+        "it reports no measurable usage"
+    );
     assert final_usage is not None;
     assert set(usage_steps[0].keys()) == set(final_usage.keys()) , (
         "usage_step must reuse the exact usage event shape so both can be "
         "parsed with the same code"
+    );
+    summed_tokens = sum(step["total"].get("total_tokens", 0) for step in usage_steps);
+    assert summed_tokens == final_usage["total"]["total_tokens"] , (
+        "summing every usage_step must equal the final usage total, or a "
+        "caller tracking spend via usage_step alone would drift from it"
     );
 }
 

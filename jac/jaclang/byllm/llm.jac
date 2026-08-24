@@ -77,8 +77,7 @@ obj BaseLLM {
         api_base: str = "",
         call_params: dict[(str, object)] = {},
         ctx_window: int = 0,
-        supports_native_tools: bool = True,
-        _usage_history: list = [];
+        supports_native_tools: bool = True;
 
     def __call__(**kwargs: object) -> BaseLLM;
     def invoke(mt_run: MTRuntime) -> any;

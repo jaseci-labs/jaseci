@@ -149,29 +149,35 @@ impl Model.ainvoke(mt_run: MTRuntime) -> object {
 }
 
 async def _astream_with_telemetry(
-    agen: object, mt: object, model_name: str, start: float
-) -> object {
+    agen: AsyncGenerator[object, None], mt: object, model_name: str, start: float
+) -> AsyncGenerator[object, None] {
+    import asyncio;
+    import contextvars;
     import time;
 
     invocation_id = mt?._invocation_id;
-    _token = (
-        _current_invocation_id.set(invocation_id) if invocation_id is not None else None
-    );
+    ctx = contextvars.copy_context();
+    if invocation_id is not None {
+        ctx.run(_current_invocation_id.set, invocation_id);
+    }
+
     _completed = False;
     try {
-        async for item in agen {
+        while True {
+            try {
+                item = await asyncio.Task(agen.__anext__(), context=ctx);
+            } except StopAsyncIteration {
+                _completed = True;
+                break;
+            }
             yield item;
         }
-        _completed = True;
     } except Exception as inner_e {
         _emit_agent_telemetry(
             mt, None, model_name, (time.time() - start) * 1000, "error", inner_e
         );
         raise;
     } finally {
-        if _token is not None {
-            _current_invocation_id.reset(_token);
-        }
         if _completed {
             _emit_agent_telemetry(
                 mt,
