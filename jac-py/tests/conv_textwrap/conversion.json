@@ -1,0 +1,334 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "unknown",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_textwrap.py",
+    "-o",
+    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_textwrap",
+    "--name",
+    "conv_textwrap"
+  ],
+  "generated_at": "2026-08-24T09:44:12",
+  "hashes": {
+    "pins_jac": "6eab51a8d33063529c618c095bc1725f9cc3951bc1a84ad7c8832d2aeac8fe04"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_textwrap.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "textwrap",
+  "pins_file": "conv_textwrap_pins.jac",
+  "pins": [
+    {
+      "ident": "WrapTestCase.test_bad_width",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = \"Whatever, it doesn't matter.\"\n    try:\n        wrap(*(text, 0))\n    except ValueError:\n        pass\n    try:\n        wrap(*(text, -1))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_type_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nfrom textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    try:\n        dedent(0)\n    except TypeError as _exc:\n        assert _re.search('expected str object, not', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        dedent(b'')\n    except TypeError as _exc:\n        assert _re.search('expected str object, not', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_even",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = '  Hello there.\\n  How are ya?\\n  Oh good.'\n    expect = 'Hello there.\\nHow are ya?\\nOh good.'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  Hello there.\\n\\n  How are ya?\\n  Oh good.\\n'\n    expect = 'Hello there.\\n\\nHow are ya?\\nOh good.\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  Hello there.\\n  \\n  How are ya?\\n  Oh good.\\n'\n    expect = 'Hello there.\\n\\nHow are ya?\\nOh good.\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_uneven",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = '        def foo():\\n            while 1:\\n                return foo\\n        '\n    expect = 'def foo():\\n    while 1:\\n        return foo\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  Foo\\n    Bar\\n\\n   Baz\\n'\n    expect = 'Foo\\n  Bar\\n\\n Baz\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '  Foo\\n    Bar\\n \\n   Baz\\n'\n    expect = 'Foo\\n  Bar\\n\\n Baz\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_declining",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = '     Foo\\n    Bar\\n'\n    expect = ' Foo\\nBar\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '     Foo\\n\\n    Bar\\n'\n    expect = ' Foo\\n\\nBar\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    text = '     Foo\\n    \\n    Bar\\n'\n    expect = ' Foo\\n\\nBar\\n'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_preserve_internal_tabs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    text = '  hello\\tthere\\n  how are\\tyou?'\n    expect = 'hello\\tthere\\nhow are\\tyou?'\n    assert expect == dedent(text), ('assertEqual', expect, dedent(text))\n    assert expect == dedent(expect), ('assertEqual', expect, dedent(expect))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ShortenTestCase.test_width_too_small_for_placeholder",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from textwrap import TextWrapper, wrap, fill, dedent, indent, shorten\n\ndef _t():\n    shorten('x' * 20, width=8, placeholder='(......)')\n    try:\n        shorten('x' * 20, width=8, placeholder='(.......)')\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "WrapTestCase.test_simple",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_empty_string",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_empty_string_with_initial_indent",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_whitespace",
+      "reason": "self.check"
+    },
+    {
+      "ident": "WrapTestCase.test_fix_sentence_endings",
+      "reason": "self.check"
+    },
+    {
+      "ident": "WrapTestCase.test_wrap_short",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_wrap_short_1line",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_hyphenated",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_hyphenated_numbers",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_em_dash",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_unix_options",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_funky_hyphens",
+      "reason": "self.check_split"
+    },
+    {
+      "ident": "WrapTestCase.test_punct_hyphens",
+      "reason": "self.check_split"
+    },
+    {
+      "ident": "WrapTestCase.test_funky_parens",
+      "reason": "self.check_split"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_false_whitespace_only_with_indent",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_leading_whitespace",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_line",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_only_with_indent",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_drop_whitespace_whitespace_indent",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_split",
+      "reason": "self.check"
+    },
+    {
+      "ident": "WrapTestCase.test_break_on_hyphens",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_no_split_at_umlaut",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_umlaut_followed_by_dash",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_non_breaking_space",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "WrapTestCase.test_narrow_non_breaking_space",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_simple",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_spaces",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_placeholder",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "MaxLinesTestCase.test_placeholder_backtrack",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordTestCase.test_break_long",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordTestCase.test_nobreak_long",
+      "reason": "self.check"
+    },
+    {
+      "ident": "LongWordTestCase.test_max_lines_long",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_long_words_on_hyphen",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_long_words_not_on_hyphen",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_break_on_hyphen_but_not_long_words",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "LongWordWithHyphensTestCase.test_do_not_break_long_words_or_on_hyphens",
+      "reason": "self.check_wrap"
+    },
+    {
+      "ident": "IndentTestCases.test_fill",
+      "reason": "self.check"
+    },
+    {
+      "ident": "IndentTestCases.test_initial_indent",
+      "reason": "self.check"
+    },
+    {
+      "ident": "IndentTestCases.test_subsequent_indent",
+      "reason": "self.check"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_whitespace",
+      "reason": "self.assertUnchanged"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_nomargin",
+      "reason": "self.assertUnchanged"
+    },
+    {
+      "ident": "DedentTestCase.test_dedent_preserve_margin_tabs",
+      "reason": "self.assertUnchanged"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_default",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_explicit_default",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_nomargin_all_lines",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_no_lines",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_spaces",
+      "reason": "uses-self.ROUNDTRIP_CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_tabs",
+      "reason": "uses-self.ROUNDTRIP_CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_roundtrip_mixed",
+      "reason": "uses-self.ROUNDTRIP_CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_default",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_explicit_default",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_all_lines",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "IndentTestCase.test_indent_empty_lines",
+      "reason": "uses-self.CASES"
+    },
+    {
+      "ident": "ShortenTestCase.test_simple",
+      "reason": "self.check_shorten"
+    },
+    {
+      "ident": "ShortenTestCase.test_placeholder",
+      "reason": "self.check_shorten"
+    },
+    {
+      "ident": "ShortenTestCase.test_empty_string",
+      "reason": "self.check_shorten"
+    },
+    {
+      "ident": "ShortenTestCase.test_whitespace",
+      "reason": "self.check_shorten"
+    },
+    {
+      "ident": "ShortenTestCase.test_first_word_too_long_but_placeholder_fits",
+      "reason": "self.check_shorten"
+    }
+  ],
+  "counts": {
+    "extracted": 68,
+    "pinned": 7,
+    "quarantined": 61
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_keyword/conv_keyword_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:02:28",
+  "hashes": {
+    "pins_jac": "1faa66b4c4cf1a319a690f87c1b12152b4950a1f9083a93f8090ce6a7b7fe152",
+    "conversion_json": "bbcbede53b65cd0964544bb36ebc72b604c8d9a0d4474d569a46549c413c630b",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "keyword",
+  "counts": {
+    "converted": 11,
+    "runnable": 9,
+    "green": 9,
+    "quarantined": 2
+  },
+  "pins": [
+    {
+      "id": "Test_iskeyword.test_true_is_a_keyword",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_uppercase_true_is_not_a_keyword",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_none_value_is_not_a_keyword",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_all_keywords_fail_to_be_used_as_names",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_all_soft_keywords_can_be_used_as_names",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_async_and_await_are_keywords",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_soft_keywords",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_keywords_are_sorted",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_softkeywords_are_sorted",
+      "status": "pass"
+    },
+    {
+      "id": "Test_iskeyword.test_changing_the_kwlist_does_not_affect_iskeyword",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "Test_iskeyword.test_changing_the_softkwlist_does_not_affect_issoftkeyword",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    }
+  ]
+}

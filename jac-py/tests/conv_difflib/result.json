@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_difflib/conv_difflib_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:09:37",
+  "hashes": {
+    "pins_jac": "bb315fe00a390882fd3a293913570d430e40c119477eb8d5c32f1b7039897059",
+    "conversion_json": "96dd5a2d5d071932f237598ca613244d9eb9ae138db17bc028103c9dd92129f5",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "difflib",
+  "status": "failed",
+  "timed_out": true,
+  "counts": {
+    "converted": 38,
+    "runnable": 30,
+    "green": 0,
+    "quarantined": 8,
+    "failed": 30,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestWithAscii.test_one_insert",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestWithAscii.test_one_delete",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestWithAscii.test_opcode_caching",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestWithAscii.test_bjunk",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestAutojunk.test_one_insert_homogenous_sequence",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_ratio_for_null_seqn",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_comparing_empty_lists",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_matching_blocks_cache",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_added_tab_hint",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_hint_indented_properly_with_tabs",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFbugs.test_mdiff_catch_stop_iteration",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFpatches.test_html_diff",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFpatches.test_recursion_limit",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFpatches.test_make_file_default_charset",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFpatches.test_make_file_iso88591_charset",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestSFpatches.test_make_file_usascii_charset_with_nonascii_input",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestDiffer.test_close_matches_aligned",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestDiffer.test_one_insert",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestDiffer.test_one_delete",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestOutputFormat.test_tab_delimiter",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestOutputFormat.test_no_trailing_tab_on_empty_filedate",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestOutputFormat.test_range_format_unified",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestOutputFormat.test_range_format_context",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestJunkAPIs.test_is_line_junk_true",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestJunkAPIs.test_is_line_junk_false",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestJunkAPIs.test_is_line_junk_REDOS",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestJunkAPIs.test_is_character_junk_true",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestJunkAPIs.test_is_character_junk_false",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestCloseMatches.test_invalid_inputs",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    },
+    {
+      "id": "TestRestore.test_invalid_input",
+      "status": "fail",
+      "classification": "TIMEOUT",
+      "detail": "jac run hit 60s cap"
+    }
+  ]
+}
