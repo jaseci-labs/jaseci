@@ -642,6 +642,9 @@ jobs:
       - name: Converted class CPython differential tests
         run: jac test jac-py/jacpython/test_conv_classes.jac
 
+      - name: Directory enumeration tests
+        run: jac test jac-py/jacpython/test_dir_enumeration.jac
+
   # Compiler suite, one chunk per runner. Chunking is load-bearing: the
   # materializer crossing leaks its native parse tree per compile, so one long
   # run OOMs; fresh runners bound the accumulation and parallelize the suite.
