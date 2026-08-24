@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "de33fb83433a75770f65c1e9bdec2c4922a3a09b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp5-out/complex/conv_complex_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:53:02",
+  "hashes": {
+    "pins_jac": "ee50531dd5c6025d0605d079a7449638854c05fcee716b938076be5a07a7c7bb",
+    "conversion_json": "34807da08a06f894d13fe264b490c9570ce087cac98ea4e406423efe004927e0",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "complex",
+  "counts": {
+    "converted": 37,
+    "runnable": 17,
+    "green": 14,
+    "quarantined": 20
+  },
+  "pins": [
+    {
+      "id": "ComplexTest.test_truediv_zero_division",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_floordiv",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_floordiv_zero_division",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_richcompare",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_richcompare_boundaries",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_mod",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_mod_zero_division",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_divmod",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_divmod_zero_division",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_boolcontext",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"AttributeError: 'super' object has no attribute 'seed'\">"
+    },
+    {
+      "id": "ComplexTest.test_conjugate",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_constructor_negative_nans_from_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', 1.0, -1.0)\"'>"
+    },
+    {
+      "id": "ComplexTest.test_underscores",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"argument of type \\'bool\\' is not a container or iterable\"'>"
+    },
+    {
+      "id": "ComplexTest.test_hash",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_abs",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "ComplexTest.test_neg",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_getnewargs",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_format",
+      "status": "pass"
+    },
+    {
+      "id": "ComplexTest.test_constructor_special_numbers",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_negative_zero_repr_str",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_plus_minus_0j",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_negated_imaginary_literal",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_overflow",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_repr_roundtrip",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "id": "ComplexTest.test_truediv",
+      "status": "quarantined",
+      "reason": "self.assertComplexesAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test_add",
+      "status": "quarantined",
+      "reason": "self.assertComplexesAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test_sub",
+      "status": "quarantined",
+      "reason": "self.assertComplexesAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test_mul",
+      "status": "quarantined",
+      "reason": "self.assertComplexesAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test_pow",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ComplexTest.test_pow_with_small_integer_exponents",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ComplexTest.test_constructor",
+      "status": "quarantined",
+      "reason": "self.assertFloatsAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test___complex__",
+      "status": "quarantined",
+      "reason": "unresolved-name:ComplexSubclass"
+    },
+    {
+      "id": "ComplexTest.test_constructor_from_string",
+      "status": "quarantined",
+      "reason": "self.assertFloatsAreIdentical"
+    },
+    {
+      "id": "ComplexTest.test_from_number",
+      "status": "quarantined",
+      "reason": "unresolved-name:MyInt"
+    },
+    {
+      "id": "ComplexTest.test_from_number_subclass",
+      "status": "quarantined",
+      "reason": "self.test_from_number"
+    },
+    {
+      "id": "ComplexTest.test_repr_str",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "id": "ComplexTest.test_pos",
+      "status": "quarantined",
+      "reason": "unresolved-name:ComplexSubclass"
+    }
+  ]
+}

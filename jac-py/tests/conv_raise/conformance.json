@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "de33fb83433a75770f65c1e9bdec2c4922a3a09b",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp5-out/raise/conv_raise_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:53:00",
+  "hashes": {
+    "pins_jac": "3fd3fa2718e688329b5ca1bb89a1e83c76a89c1592c711b18bdec94f1192bbd7",
+    "conversion_json": "bc5d2498237019301c402cd4f84c7c3912d3b301a3eac5f91a4c68e6bdb304ea",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "raise",
+  "counts": {
+    "converted": 37,
+    "runnable": 32,
+    "green": 23,
+    "quarantined": 5
+  },
+  "pins": [
+    {
+      "id": "TestRaise.test_invalid_reraise",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_reraise",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_except_reraise",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_finally_reraise",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_nested_reraise",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC RuntimeError 'No active exception to re-raise'\">"
+    },
+    {
+      "id": "TestRaise.test_raise_from_None",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_yield_reraise",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_erroneous_exception",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_new_returns_invalid_instance",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_assert_with_tuple_arg",
+      "status": "pass"
+    },
+    {
+      "id": "TestCause.testCauseSyntax",
+      "status": "pass"
+    },
+    {
+      "id": "TestCause.test_invalid_cause",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError ''\">"
+    },
+    {
+      "id": "TestCause.test_class_cause",
+      "status": "pass"
+    },
+    {
+      "id": "TestCause.test_class_cause_nonexception_result",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError ''\">"
+    },
+    {
+      "id": "TestCause.test_instance_cause",
+      "status": "pass"
+    },
+    {
+      "id": "TestCause.test_erroneous_cause",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError ''\">"
+    },
+    {
+      "id": "TestTraceback.test_sets_traceback",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC object ''\">"
+    },
+    {
+      "id": "TestTraceback.test_accepts_traceback",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'with_traceback'\">"
+    },
+    {
+      "id": "TestTracebackType.test_attrs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC object ''\">"
+    },
+    {
+      "id": "TestTracebackType.test_constructor",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"bridge-table: type \\'traceback\\' has policy BridgePolicy.FAIL but no to_host conversion arm\"'>"
+    },
+    {
+      "id": "TestContext.test_instance_context_instance_raise",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_class_context_instance_raise",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_class_context_class_raise",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_c_exception_context",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_noraise_finally",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_raise_finally",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_cycle_broken",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_not_last",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_3118",
+      "status": "pass"
+    },
+    {
+      "id": "TestContext.test_3611",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'catch_unraisable_exception'\">"
+    },
+    {
+      "id": "TestRemovedFunctionality.test_tuples",
+      "status": "pass"
+    },
+    {
+      "id": "TestRemovedFunctionality.test_strings",
+      "status": "pass"
+    },
+    {
+      "id": "TestRaise.test_with_reraise1",
+      "status": "quarantined",
+      "reason": "unresolved-name:Context"
+    },
+    {
+      "id": "TestRaise.test_with_reraise2",
+      "status": "quarantined",
+      "reason": "unresolved-name:Context"
+    },
+    {
+      "id": "TestContext.test_c_exception_raise",
+      "status": "quarantined",
+      "reason": "unresolved-name:xyzzy"
+    },
+    {
+      "id": "TestContext.test_context_manager",
+      "status": "quarantined",
+      "reason": "unresolved-name:xyzzy"
+    },
+    {
+      "id": "TestContext.test_reraise_cycle_broken",
+      "status": "quarantined",
+      "reason": "unresolved-name:xyzzy"
+    }
+  ]
+}

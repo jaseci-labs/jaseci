@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "4b284430547e4829aa532e30bd16fefc5af3eec2",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "4b284430547e4829aa532e30bd16fefc5af3eec2"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_raise.py",
+    "-o",
+    "/var/tmp/sp5-out/raise",
+    "--name",
+    "conv_raise"
+  ],
+  "generated_at": "2026-08-24T13:50:27",
+  "hashes": {
+    "pins_jac": "3fd3fa2718e688329b5ca1bb89a1e83c76a89c1592c711b18bdec94f1192bbd7"
+  },
+  "source_file": "reference/cpython/Lib/test/test_raise.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "raise",
+  "pins_file": "conv_raise_pins.jac",
+  "pins": [
+    {
+      "ident": "TestRaise.test_invalid_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        raise\n    except RuntimeError as e:\n        assert 'No active exception' in str(e), ('assertIn', 'No active exception', str(e))\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            raise IndexError()\n        except IndexError as e:\n            exc1 = e\n            raise\n    except IndexError as exc2:\n        assert exc1 is exc2, ('assertIs', exc1, exc2)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_except_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def reraise():\n        try:\n            raise TypeError('foo')\n        except TypeError:\n            try:\n                raise KeyError('caught')\n            except KeyError:\n                pass\n            raise\n    try:\n        reraise()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_finally_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def reraise():\n        try:\n            raise TypeError('foo')\n        except TypeError:\n            try:\n                raise KeyError('caught')\n            finally:\n                raise\n    try:\n        reraise()\n    except KeyError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_nested_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def nested_reraise():\n        raise\n\n    def reraise():\n        try:\n            raise TypeError('foo')\n        except TypeError:\n            nested_reraise()\n    try:\n        reraise()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_raise_from_None",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            raise TypeError('foo')\n        except TypeError:\n            raise ValueError() from None\n    except ValueError as e:\n        assert isinstance(e.__context__, TypeError), ('assertIsInstance', e.__context__, TypeError)\n        assert e.__cause__ is None, ('assertIsNone', e.__cause__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_yield_reraise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def reraise():\n        try:\n            raise TypeError('foo')\n        except TypeError:\n            yield 1\n            raise\n    g = reraise()\n    next(g)\n    try:\n        (lambda: next(g))()\n    except TypeError:\n        pass\n    try:\n        (lambda: next(g))()\n    except StopIteration:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_erroneous_exception",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyException(Exception):\n\n        def __init__(self):\n            raise RuntimeError()\n    try:\n        raise MyException\n    except RuntimeError:\n        pass\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_new_returns_invalid_instance",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyException(Exception):\n\n        def __new__(cls, *args):\n            return object()\n    try:\n        raise MyException\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRaise.test_assert_with_tuple_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        assert False, (3,)\n    except AssertionError as e:\n        assert str(e) == '(3,)', ('assertEqual', str(e), '(3,)')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.testCauseSyntax",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            try:\n                raise TypeError\n            except Exception:\n                raise ValueError from None\n        except ValueError as exc:\n            assert exc.__cause__ is None, ('assertIsNone', exc.__cause__)\n            assert exc.__suppress_context__, ('assertTrue', exc.__suppress_context__)\n            exc.__suppress_context__ = False\n            raise exc\n    except ValueError as exc:\n        e = exc\n    assert e.__cause__ is None, ('assertIsNone', e.__cause__)\n    assert not e.__suppress_context__, ('assertFalse', e.__suppress_context__)\n    assert isinstance(e.__context__, TypeError), ('assertIsInstance', e.__context__, TypeError)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.test_invalid_cause",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        raise IndexError from 5\n    except TypeError as e:\n        assert 'exception cause' in str(e), ('assertIn', 'exception cause', str(e))\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.test_class_cause",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        raise IndexError from KeyError\n    except IndexError as e:\n        assert isinstance(e.__cause__, KeyError), ('assertIsInstance', e.__cause__, KeyError)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.test_class_cause_nonexception_result",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    class ConstructMortal(BaseException):\n\n        def __new__(*args, **kwargs):\n            return ['mortal value']\n    msg = '.*should have returned an instance of BaseException.*'\n    try:\n        raise IndexError from ConstructMortal\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.test_instance_cause",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    cause = KeyError()\n    try:\n        raise IndexError from cause\n    except IndexError as e:\n        assert e.__cause__ is cause, ('assertIs', e.__cause__, cause)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCause.test_erroneous_cause",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyException(Exception):\n\n        def __init__(self):\n            raise RuntimeError()\n    try:\n        raise IndexError from MyException\n    except RuntimeError:\n        pass\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTraceback.test_sets_traceback",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import types\n\ndef get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        raise IndexError()\n    except IndexError as e:\n        assert isinstance(e.__traceback__, types.TracebackType), ('assertIsInstance', e.__traceback__, types.TracebackType)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTraceback.test_accepts_traceback",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    tb = get_tb()\n    try:\n        raise IndexError().with_traceback(tb)\n    except IndexError as e:\n        assert e.__traceback__ != tb, ('assertNotEqual', e.__traceback__, tb)\n        assert e.__traceback__.tb_next == tb, ('assertEqual', e.__traceback__.tb_next, tb)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTracebackType.test_attrs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport types\n\ndef get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef raiser():\n    raise ValueError\n\ndef _t():\n    try:\n        raiser()\n    except Exception as exc:\n        tb = exc.__traceback__\n    assert isinstance(tb.tb_next, types.TracebackType), ('assertIsInstance', tb.tb_next, types.TracebackType)\n    assert tb.tb_frame is sys._getframe(), ('assertIs', tb.tb_frame, sys._getframe())\n    assert isinstance(tb.tb_lasti, int), ('assertIsInstance', tb.tb_lasti, int)\n    assert isinstance(tb.tb_lineno, int), ('assertIsInstance', tb.tb_lineno, int)\n    assert tb.tb_next.tb_next is None, ('assertIs', tb.tb_next.tb_next, None)\n    try:\n        del tb.tb_next\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        tb.tb_next = 'asdf'\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        tb.tb_next = tb\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        tb.tb_next.tb_next = tb\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    tb.tb_next = None\n    assert tb.tb_next is None, ('assertIs', tb.tb_next, None)\n    new_tb = get_tb()\n    tb.tb_next = new_tb\n    assert tb.tb_next is new_tb, ('assertIs', tb.tb_next, new_tb)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestTracebackType.test_constructor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\nimport types\n\ndef get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    other_tb = get_tb()\n    frame = sys._getframe()\n    tb = types.TracebackType(other_tb, frame, 1, 2)\n    assert tb.tb_next == other_tb, ('assertEqual', tb.tb_next, other_tb)\n    assert tb.tb_frame == frame, ('assertEqual', tb.tb_frame, frame)\n    assert tb.tb_lasti == 1, ('assertEqual', tb.tb_lasti, 1)\n    assert tb.tb_lineno == 2, ('assertEqual', tb.tb_lineno, 2)\n    tb = types.TracebackType(None, frame, 1, 2)\n    assert tb.tb_next == None, ('assertEqual', tb.tb_next, None)\n    try:\n        types.TracebackType('no', frame, 1, 2)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        types.TracebackType(other_tb, 'no', 1, 2)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        types.TracebackType(other_tb, frame, 'no', 2)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        types.TracebackType(other_tb, frame, 1, 'nuh-uh')\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_instance_context_instance_raise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    context = IndexError()\n    try:\n        try:\n            raise context\n        except IndexError:\n            raise OSError()\n    except OSError as e:\n        assert e.__context__ is context, ('assertIs', e.__context__, context)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_class_context_instance_raise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    context = IndexError\n    try:\n        try:\n            raise context\n        except IndexError:\n            raise OSError()\n    except OSError as e:\n        assert e.__context__ is not context, ('assertIsNot', e.__context__, context)\n        assert isinstance(e.__context__, context), ('assertIsInstance', e.__context__, context)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_class_context_class_raise",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    context = IndexError\n    try:\n        try:\n            raise context\n        except IndexError:\n            raise OSError\n    except OSError as e:\n        assert e.__context__ is not context, ('assertIsNot', e.__context__, context)\n        assert isinstance(e.__context__, context), ('assertIsInstance', e.__context__, context)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_c_exception_context",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            1 / 0\n        except ZeroDivisionError:\n            raise OSError\n    except OSError as e:\n        assert isinstance(e.__context__, ZeroDivisionError), ('assertIsInstance', e.__context__, ZeroDivisionError)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_noraise_finally",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            pass\n        finally:\n            raise OSError\n    except OSError as e:\n        assert e.__context__ is None, ('assertIsNone', e.__context__)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_raise_finally",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            1 / 0\n        finally:\n            raise OSError\n    except OSError as e:\n        assert isinstance(e.__context__, ZeroDivisionError), ('assertIsInstance', e.__context__, ZeroDivisionError)\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_cycle_broken",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    try:\n        try:\n            1 / 0\n        except ZeroDivisionError as e:\n            raise e\n    except ZeroDivisionError as e:\n        assert e.__context__ is None, ('assertIsNone', e.__context__)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_not_last",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    context = Exception('context')\n    try:\n        raise context\n    except Exception:\n        try:\n            raise Exception('caught')\n        except Exception:\n            pass\n        try:\n            raise Exception('new')\n        except Exception as exc:\n            raised = exc\n    assert raised.__context__ is context, ('assertIs', raised.__context__, context)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_3118",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n\n    def gen():\n        try:\n            yield 1\n        finally:\n            pass\n\n    def f():\n        g = gen()\n        next(g)\n        try:\n            try:\n                raise ValueError\n            except ValueError:\n                del g\n                raise KeyError\n        except Exception as e:\n            assert isinstance(e.__context__, ValueError), ('assertIsInstance', e.__context__, ValueError)\n    f()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContext.test_3611",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support\n\ndef get_tb():\n    try:\n        raise OSError()\n    except OSError as e:\n        return e.__traceback__\n\ndef _t():\n    import gc\n\n    class C:\n\n        def __del__(self):\n            try:\n                1 / 0\n            except ZeroDivisionError:\n                raise\n\n    def f():\n        x = C()\n        try:\n            try:\n                f.x\n            except AttributeError:\n                del x\n                gc.collect()\n                raise TypeError\n        except Exception as e:\n            assert e.__context__ != None, ('assertNotEqual', e.__context__, None)\n            assert isinstance(e.__context__, AttributeError), ('assertIsInstance', e.__context__, AttributeError)\n    with support.catch_unraisable_exception() as cm:\n        f()\n        assert ZeroDivisionError == cm.unraisable.exc_type, ('assertEqual', ZeroDivisionError, cm.unraisable.exc_type)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRemovedFunctionality.test_tuples",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        raise (IndexError, KeyError)\n    except TypeError:\n        pass\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestRemovedFunctionality.test_strings",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        raise 'foo'\n    except TypeError:\n        pass\n    else:\n        raise AssertionError('No exception raised')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestRaise.test_with_reraise1",
+      "reason": "unresolved-name:Context"
+    },
+    {
+      "ident": "TestRaise.test_with_reraise2",
+      "reason": "unresolved-name:Context"
+    },
+    {
+      "ident": "TestContext.test_c_exception_raise",
+      "reason": "unresolved-name:xyzzy"
+    },
+    {
+      "ident": "TestContext.test_context_manager",
+      "reason": "unresolved-name:xyzzy"
+    },
+    {
+      "ident": "TestContext.test_reraise_cycle_broken",
+      "reason": "unresolved-name:xyzzy"
+    }
+  ],
+  "counts": {
+    "extracted": 37,
+    "pinned": 32,
+    "quarantined": 5
+  }
+}
