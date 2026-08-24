@@ -104,6 +104,11 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(site, "jaclang"),
             skip_jaclang
         );
+
+        copy_file(
+            os.path.join(repo_root, "bootstrap", "pins.json"),
+            os.path.join(site, "jaclang", "payload", "pins.json")
+        );
     } else {
         log(
             f"==> linked-source mode: NOT bundling jaclang (compiler served from {opts.link_source})"
