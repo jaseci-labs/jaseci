@@ -508,7 +508,7 @@ def solve_module_placement(
     }
 
     def _invalidate_stale_codegen {
-        if stamp_count[0] and (module.gen.js or module.gen.es_ast is not None) {
+        if stamp_count[0] {
             _invalidate_module_es(module);
         }
     }

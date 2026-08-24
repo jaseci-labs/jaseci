@@ -526,6 +526,20 @@ def hub_module(prog: JacProgram, name_suffix: str) -> any {
     return None;
 }
 
+"""True if the ES output imports `hook` from the client runtime."""
+def runtime_hook_imported(js: str, hook: str) -> bool {
+    for stmt in js.split(';') {
+        if (
+            stmt.lstrip().startswith('import ')
+            and '@jac/runtime' in stmt
+            and hook in stmt
+        ) {
+            return True;
+        }
+    }
+    return False;
+}
+
 test "client import pulls a pure markerless module cross-module" {
     prog = JacProgram();
     mod = prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
@@ -660,12 +674,42 @@ test "demotion re-lowers importer pages with their injected runtime imports" {
     run_pass(EsastGenPass, app, prog);
     js = app.gen.js or '';
     assert 'useJacState(' in js , "re-lowered page must still lower its state";
-    hook_imported = any(
-        ln.strip().startswith('import ') and 'useJacState' in ln
-        for ln in js.splitlines()
-    );
-    assert hook_imported , (
+    assert runtime_hook_imported(js, 'useJacState') , (
         "stale node fragments reused after demotion: useJacState referenced "
+        + f"but never imported; got:\n{js}"
+    );
+}
+
+test "stamp re-pull invalidates node caches left by a dead lowering" {
+    import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+    import from jaclang.jac0core.placement_solver { solve_module_placement }
+    import from jaclang.jac0core.compiler { _stamp_context_element }
+    import from jaclang.jac0core.constant { CodeContext }
+    prog = JacProgram();
+    app = prog.compile(
+        os.path.join(FIXTURE_DIR, "demote_cache_app.jac"), no_cgen=False
+    );
+    assert 'useJacState' in (app.gen.js or '') , (
+        "page `has` state must lower through useJacState"
+    );
+    app.gen.js = '';
+    app.gen.es_ast = None;
+    imp: any = None;
+    for stmt in app.body {
+        if isinstance(stmt, uni.Import) {
+            imp = stmt;
+        }
+    }
+    assert imp is not None , "fixture import missing";
+    _stamp_context_element(imp, CodeContext.SERVER);
+    assert solve_module_placement(app, prog) > 0 , (
+        "re-solve must re-pull the client import"
+    );
+    run_pass(EsastGenPass, app, prog);
+    js = app.gen.js or '';
+    assert 'useJacState(' in js , "re-lowered page must still lower its state";
+    assert runtime_hook_imported(js, 'useJacState') , (
+        "stale node fragments survived the stamp path: useJacState referenced "
         + f"but never imported; got:\n{js}"
     );
 }
