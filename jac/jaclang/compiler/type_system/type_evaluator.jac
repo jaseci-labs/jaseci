@@ -436,6 +436,15 @@ obj TypeEvaluator {
     ) -> Symbol | None;
 
     def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
+    def _lookup_metaclass_member(
+        cls_type: ClassType, member: str
+    ) -> ClassMember | None;
+
+    def _is_metaclass_declared(member: ClassMember) -> bool;
+    def _bind_receiver_type_vars(
+        method: FunctionType, receiver_type: TypeBase, bindings: dict[str, TypeBase]
+    ) -> None;
+
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
     def _is_class_scoped_type_param(node_: TypeParam) -> bool;
     def _collect_typevars_from_base(
@@ -592,6 +601,7 @@ obj TypeEvaluator {
     def _bind_filter_member(target: Name, filter_type: ClassType) -> None;
     def _filter_order_name(expr: Expr) -> (Name | None);
     def _is_type_subscript(class_type: ClassType) -> bool;
+    def _subscript_index_expr(right: Expr) -> Expr;
     def _get_type_for_member_lookup(object_type: ClassType) -> ClassType;
     def _get_getattr_return_type(base_type: ClassType) -> TypeBase | None;
     def _resolve_enum_value_type(enum_type: ClassType) -> TypeBase | None;

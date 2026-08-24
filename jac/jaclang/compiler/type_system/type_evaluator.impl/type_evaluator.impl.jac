@@ -1534,6 +1534,20 @@ impl TypeEvaluator._get_type_of_expression_core(
                 }
                 if isinstance(base_type, ClassType)
                     and base_type.is_instantiable_class() {
+                    meta_item = self._lookup_metaclass_member(base_type, "__getitem__");
+                    if meta_item is not None
+                        and self._is_metaclass_declared(meta_item) {
+                        item_ty = self.get_type_of_magic_method_call(
+                            base_type,
+                            "__getitem__",
+                            [self._subscript_index_expr(expr.right)],
+                            expr
+                        );
+                        if item_ty is not None
+                            and not isinstance(item_ty, UnknownType) {
+                            return item_ty;
+                        }
+                    }
                     type_args: list[TypeBase] = [];
                     if isinstance(expr.right, IndexSlice) and expr.right.slices {
                         type_args_vals = expr.right.slices[0].start;
@@ -1591,14 +1605,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                     self.emit_diag(E1040, expr, type=base_type.name);
                     return UnknownType();
                 }
-                subscript_arg: Expr = expr.right;
-                if (
-                    isinstance(expr.right, IndexSlice)
-                    and not expr.right.is_range
-                    and expr.right.slices
-                ) {
-                    subscript_arg = expr.right.slices[0].start;
-                }
+                subscript_arg: Expr = self._subscript_index_expr(expr.right);
                 if isinstance(base_type, AnyType) {
                     return AnyType(is_foreign=base_type.is_foreign);
                 }
@@ -3064,21 +3071,14 @@ impl TypeEvaluator.get_type_of_magic_method_call(
     }
     if obj_type.category == TypeCategory.Class {
         assert isinstance(obj_type, ClassType);
-        owner_type = obj_type;
-        if obj_type.is_instantiable_class() {
-            meta_owner = self._metaclass_of(obj_type);
-            if meta_owner is not None {
-                meta_member = self._lookup_class_member(meta_owner, method_name);
-                if (
-                    meta_member is not None
-                    and meta_member.class_type.shared.class_name
-                        not in ("type", "object")
-                ) {
-                    owner_type = meta_owner;
-                }
-            }
+        via_metaclass = False;
+        member = self._lookup_metaclass_member(obj_type, method_name);
+        if member is not None and self._is_metaclass_declared(member) {
+            via_metaclass = True;
+        } else {
+            member = self._lookup_class_member(obj_type, method_name);
         }
-        if member := self._lookup_class_member(owner_type, method_name) {
+        if member is not None {
             member_ty = self.get_type_of_symbol(member.symbol);
 
             overloaded_fns: list[FunctionType] = [];
@@ -3100,6 +3100,9 @@ impl TypeEvaluator.get_type_of_magic_method_call(
                     );
                     if not arg_param_match.argument_errors {
                         solved: dict[str, TypeBase] = {};
+                        if via_metaclass {
+                            self._bind_receiver_type_vars(fn, obj_type, solved);
+                        }
                         if self.validate_arg_types(
                             arg_param_match,
                             checking_overload=True,
