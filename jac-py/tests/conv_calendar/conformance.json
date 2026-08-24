@@ -1,0 +1,468 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_calendar/conv_calendar_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:03:57",
+  "hashes": {
+    "pins_jac": "356e81121235f88dc9a548e93474895fc5988e84adfcc73a9d9417f121d267dc",
+    "conversion_json": "79a01ec6020256bcd928f4b32fc085a962cecb5b1e880e7467992db9850b1c69",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "calendar",
+  "counts": {
+    "converted": 79,
+    "runnable": 45,
+    "green": 0,
+    "quarantined": 34
+  },
+  "pins": [
+    {
+      "id": "OutputTestCase.test_output",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_output_textcalendar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_output_htmlcalendar_encoding_ascii",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_output_htmlcalendar_encoding_utf8",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_output_htmlcalendar_encoding_default",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_yeardatescalendar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_yeardayscalendar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatweekheader_short",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatweekheader_long",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatmonth",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatmonth_with_invalid_month",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatmonthname_with_year",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_formatmonthname_without_year",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_prweek",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_prmonth",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_pryear",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "OutputTestCase.test_format",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_isleap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_setfirstweekday",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_illegal_weekday_reported",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_enumerate_weekdays",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_days",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_months",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_text_calendar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_html_calendar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_calendars_reset_locale_properly",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_calendar_formatweekday",
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: cannot set the en_US locale"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_calendar_formatmonthname",
+      "status": "quarantined",
+      "reason": "host-raised:SkipTest: cannot set the en_US locale"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_html_calendar_custom_css_class_month_name",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_locale_html_calendar_custom_css_class_weekday",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_itermonthdays3",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_itermonthdays4",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_itermonthdays",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_itermonthdays2",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "CalendarTestCase.test_iterweekdays",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_january",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_february_leap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_february_nonleap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_december",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_zeroth_month",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_thirteenth_month",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MonthRangeTestCase.test_illegal_month_reported",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LeapdaysTestCase.test_no_range",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LeapdaysTestCase.test_no_leapdays",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LeapdaysTestCase.test_no_leapdays_upper_boundary",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LeapdaysTestCase.test_one_leapday_lower_boundary",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "LeapdaysTestCase.test_several_leapyears_in_range",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "MiscTestCase.test__all__",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "CommandLineTestCase.test_help",
+      "status": "quarantined",
+      "reason": "decorator:support.force_not_colorized"
+    },
+    {
+      "id": "OutputTestCase.test_illegal_month_error_bases",
+      "status": "quarantined",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "id": "CalendarTestCase.test_deprecation_warning",
+      "status": "quarantined",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "id": "MondayTestCase.test_february",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "MondayTestCase.test_april",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "MondayTestCase.test_december",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "SundayTestCase.test_february",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "SundayTestCase.test_april",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "SundayTestCase.test_december",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.oldfirstweekday)"
+    },
+    {
+      "id": "TimegmTestCase.test_timegm",
+      "status": "quarantined",
+      "reason": "uses-self.TIMESTAMPS"
+    },
+    {
+      "id": "CommandLineTestCase.test_illegal_arguments",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_output_current_year",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_output_year",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_output_month",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_encoding",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_locale",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_width",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_lines",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_spacing",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_months",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_option_type",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_html_output_current_year",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_html_output_year_encoding",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "CommandLineTestCase.test_html_output_year_css",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.runners)"
+    },
+    {
+      "id": "TestSubClassingCase.test_formatmonthname",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_formatmonth",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_formatmonth_with_invalid_month",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_formatweek",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_formatweek_head",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_format_year",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    },
+    {
+      "id": "TestSubClassingCase.test_format_year_head",
+      "status": "quarantined",
+      "reason": "helper:setUp(uses-self.cal)"
+    }
+  ]
+}

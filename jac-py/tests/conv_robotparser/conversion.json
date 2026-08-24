@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_robotparser.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_robotparser",
+    "--name",
+    "conv_robotparser"
+  ],
+  "generated_at": "2026-08-24T14:04:27",
+  "hashes": {
+    "pins_jac": "9613498aec7c2a85b79ea4a9107063120a073547007bc3393add214205110334"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_robotparser.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "robotparser",
+  "pins_file": "conv_robotparser_pins.jac",
+  "pins": [
+    {
+      "ident": "ConstructedStringFormattingTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import urllib.robotparser\n\ndef _t():\n    parser = urllib.robotparser.RobotFileParser()\n    assert str(parser) == '', ('assertEqual', str(parser), '')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ConstructedStringFormattingTest.test_group_without_rules",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import urllib.robotparser\n\ndef _t():\n    parser = urllib.robotparser.RobotFileParser()\n    entry = urllib.robotparser.Entry()\n    entry.useragents = ['spambot']\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.useragents = ['hambot']\n    entry.rulelines = [urllib.robotparser.RuleLine('/ham', False)]\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.useragents = ['eggsbot']\n    parser._add_entry(entry)\n    assert str(parser) == 'User-agent: spambot\\nAllow:\\n\\nUser-agent: hambot\\nDisallow: /ham\\n\\nUser-agent: eggsbot\\nAllow:', ('assertEqual', str(parser), 'User-agent: spambot\\nAllow:\\n\\nUser-agent: hambot\\nDisallow: /ham\\n\\nUser-agent: eggsbot\\nAllow:')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ConstructedStringFormattingTest.test_group_without_user_agent",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import urllib.robotparser\n\ndef _t():\n    parser = urllib.robotparser.RobotFileParser()\n    entry = urllib.robotparser.Entry()\n    entry.rulelines = [urllib.robotparser.RuleLine('/ham', False)]\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.useragents = ['spambot']\n    entry.rulelines = [urllib.robotparser.RuleLine('/spam', False)]\n    parser._add_entry(entry)\n    entry = urllib.robotparser.Entry()\n    entry.rulelines = [urllib.robotparser.RuleLine('/eggs', False)]\n    parser._add_entry(entry)\n    assert str(parser) == 'User-agent: spambot\\nDisallow: /spam', ('assertEqual', str(parser), 'User-agent: spambot\\nDisallow: /spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "NetworkTestCase.test_basic",
+      "reason": "decorator:support.requires_working_socket"
+    },
+    {
+      "ident": "NetworkTestCase.test_can_fetch",
+      "reason": "decorator:support.requires_working_socket"
+    },
+    {
+      "ident": "NetworkTestCase.test_read_404",
+      "reason": "decorator:support.requires_working_socket"
+    },
+    {
+      "ident": "BaseRobotTest.test_good_urls",
+      "reason": "helper:setUp(uses-self.parser)"
+    },
+    {
+      "ident": "BaseRobotTest.test_bad_urls",
+      "reason": "helper:setUp(uses-self.parser)"
+    },
+    {
+      "ident": "BaseRobotTest.test_site_maps",
+      "reason": "helper:setUp(uses-self.parser)"
+    },
+    {
+      "ident": "BaseRobotTest.test_string_formatting",
+      "reason": "helper:setUp(uses-self.parser)"
+    },
+    {
+      "ident": "BaseRequestRateTest.test_request_rate",
+      "reason": "helper:setUp(uses-self.parser)"
+    },
+    {
+      "ident": "LocalNetworkTestCase.testRead",
+      "reason": "uses-self.server"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testUnauthorized",
+      "reason": "helper:setUp(uses-self.server)"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testForbidden",
+      "reason": "helper:setUp(uses-self.server)"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testNotFound",
+      "reason": "helper:setUp(uses-self.server)"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testTeapot",
+      "reason": "helper:setUp(uses-self.server)"
+    },
+    {
+      "ident": "HttpErrorsTestCase.testServiceUnavailable",
+      "reason": "helper:setUp(uses-self.server)"
+    }
+  ],
+  "counts": {
+    "extracted": 17,
+    "pinned": 3,
+    "quarantined": 14
+  }
+}

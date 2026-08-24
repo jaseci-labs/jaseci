@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_descrtut/conv_descrtut_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:07:36",
+  "hashes": {
+    "pins_jac": "776f1e5e8c450554100821dd7478bbdd07d73a0db6122bd8028297aa64b6a770",
+    "conversion_json": "cb9cc4fc3c17b621f55ea734a1e901c5ade3df974bde160126eb2da3b8a3ef41",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "descrtut",
+  "counts": {
+    "converted": 8,
+    "runnable": 7,
+    "green": 4,
+    "quarantined": 1
+  },
+  "pins": [
+    {
+      "id": "descrtut.doctests:tut1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AssertionError: '>"
+    },
+    {
+      "id": "descrtut.doctests:tut2",
+      "status": "pass"
+    },
+    {
+      "id": "descrtut.doctests:tut3",
+      "status": "quarantined",
+      "reason": "harness-error:AssertionError: ('doctest', 7, '', \"['__add__',\\n '__class__',\\n '__class_getitem__',\\n '__contains__',\\n '__delattr__',"
+    },
+    {
+      "id": "descrtut.doctests:tut4",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AssertionError: '>"
+    },
+    {
+      "id": "descrtut.doctests:tut5",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AssertionError: '>"
+    },
+    {
+      "id": "descrtut.doctests:tut6",
+      "status": "pass"
+    },
+    {
+      "id": "descrtut.doctests:tut7",
+      "status": "pass"
+    },
+    {
+      "id": "descrtut.doctests:tut8",
+      "status": "pass"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_colorsys/conv_colorsys_pins.jac"
+  ],
+  "generated_at": "2026-08-24T14:10:23",
+  "hashes": {
+    "pins_jac": "6a4738482e15aefd7487b796411184ed71a853a7bc72fe7422f96209caede0f1",
+    "conversion_json": "4384d4b31b0366fee21c6e8085758183220ec3d169a800e32fa27aaf0de8bf47",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "colorsys",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 7,
+    "runnable": 7,
+    "green": 7,
+    "quarantined": 0,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}

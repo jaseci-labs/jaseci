@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "f3db9fa7903fddf8f5d9a538402a7c734a573823",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unpack_ex.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_unpack_ex",
+    "--name",
+    "conv_unpack_ex"
+  ],
+  "generated_at": "2026-08-24T14:07:19",
+  "hashes": {
+    "pins_jac": "59ffa41d352ef7dce260bd34e5719852ab60eb6b000dece45960dc347a18f7bf"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_unpack_ex.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "unpack_ex",
+  "pins_file": "conv_unpack_ex_pins.jac",
+  "pins": [
+    {
+      "ident": "unpack_ex.doctests:doctests",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "_d_buf = []\n\ndef _d_print(*args, sep=' '):\n    _d_buf.append(sep.join((str(a) for a in args)))\n\ndef _d_clear():\n    _d_buf.clear()\n\ndef _d_ell_match(want, got):\n    parts = want.split('...')\n    if len(parts) == 1:\n        return want == got\n    if not got.startswith(parts[0]) or not got.endswith(parts[-1]):\n        return False\n    pos = len(parts[0])\n    end = len(got) - len(parts[-1])\n    for seg in parts[1:-1]:\n        idx = got.find(seg, pos)\n        if idx < 0 or idx > end:\n            return False\n        pos = idx + len(seg)\n    return True\n\ndef _d_check(idx, want, ell=False):\n    got = chr(10).join(_d_buf)\n    ok = _d_ell_match(want, got) if ell else got == want\n    if not ok and want in ('0', '1'):\n        ok = got == ('False' if want == '0' else 'True')\n    assert ok, ('doctest', idx, got, want)\n_d_clear()\nt = (1, 2, 3)\n_d_clear()\na, *b, c = t\n_d_clear()\n_d_r = a == 1 and b == [2] and (c == 3)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(2, 'True')\n_d_clear()\nl = [4, 5, 6]\n_d_clear()\na, *b = l\n_d_clear()\n_d_r = a == 4 and b == [5, 6]\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(5, 'True')\n_d_clear()\n*a, = (7, 8, 9)\n_d_clear()\n_d_r = a == [7, 8, 9]\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(7, 'True')\n_d_clear()\n[*[*a]] = [[7, 8, 9]]\n_d_clear()\n_d_r = a == [[7, 8, 9]]\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(9, 'True')\n_d_clear()\na, *b = 'one'\n_d_clear()\n_d_r = a == 'o' and b == ['n', 'e']\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(11, 'True')\n_d_clear()\na, b, c, *d, e, f, g = range(10)\n_d_clear()\n_d_r = (a, b, c, d, e, f, g) == (0, 1, 2, [3, 4, 5, 6], 7, 8, 9)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(13, 'True')\n_d_clear()\na, *b, c = (1, 2)\n_d_clear()\n_d_r = a == 1 and c == 2 and (b == [])\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(15, 'True')\n_d_clear()\n\nclass Seq:\n\n    def __getitem__(self, i):\n        if i >= 0 and i < 3:\n            return i\n        raise IndexError\n_d_clear()\na, *b = Seq()\n_d_clear()\n_d_r = a == 0 and b == [1, 2]\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(18, 'True')\n_d_clear()\nfor a, *b, c in [(1, 2, 3), (4, 5, 6, 7)]:\n    _d_print(a, b, c)\n_d_check(19, '1 [2] 3\\n4 [5, 6] 7')\n_d_clear()\n[a, *b, c] = range(5)\n_d_clear()\n_d_r = a == 0 and b == [1, 2, 3] and (c == 4)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(21, 'True')\n_d_clear()\na, *b, c = *d, e = range(5)\n_d_clear()\n_d_r = a == 0 and b == [1, 2, 3] and (c == 4) and (d == [0, 1, 2, 3]) and (e == 4)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(23, 'True')\n_d_clear()\na, b, *c = range(5)\n_d_clear()\n_d_r = (a, b, c)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(25, '(0, 1, [2, 3, 4])')\n_d_clear()\n*a, b, c = (a, b, *c)\n_d_clear()\n_d_r = (a, b, c)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(27, '([0, 1, 2], 3, 4)')\n_d_clear()\na = [1, 2, 3]\n_d_clear()\n_d_r = sorted({1, *a, 0, 4})\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(29, '[0, 1, 2, 3, 4]')\ntry:\n    _d_clear()\n    {1, *1, 0, 4}\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == \"TypeError: 'int' object is not iterable\", ('doctest-exc30', _d_e)\nelse:\n    raise AssertionError('ex30: expected TypeError')\n_d_clear()\nkwds = {'z': 0, 'w': 12}\n_d_clear()\n_d_r = sorted({'x': 1, 'y': 2, **kwds}.items())\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(32, \"[('w', 12), ('x', 1), ('y', 2), ('z', 0)]\")\n_d_clear()\n_d_r = sorted({**{'x': 1}, 'y': 2, **{'z': 3}}.items())\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(33, \"[('x', 1), ('y', 2), ('z', 3)]\")\n_d_clear()\n_d_r = sorted({**{'x': 1}, 'y': 2, **{'x': 3}}.items())\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(34, \"[('x', 3), ('y', 2)]\")\n_d_clear()\n_d_r = sorted({**{'x': 1}, **{'x': 3}, 'x': 4}.items())\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(35, \"[('x', 4)]\")\n_d_clear()\n_d_r = {**{}}\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(36, '{}')\n_d_clear()\na = {}\n_d_clear()\n{**a}[0] = 1\n_d_clear()\n_d_r = a\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(39, '{}')\ntry:\n    _d_clear()\n    {**1}\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == \"TypeError: 'int' object is not a mapping\", ('doctest-exc40', _d_e)\nelse:\n    raise AssertionError('ex40: expected TypeError')\ntry:\n    _d_clear()\n    {**[]}\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == \"TypeError: 'list' object is not a mapping\", ('doctest-exc41', _d_e)\nelse:\n    raise AssertionError('ex41: expected TypeError')\n_d_clear()\n_d_r = len(eval('{' + ', '.join(('**{{{}: {}}}'.format(i, i) for i in range(1000))) + '}'))\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(42, '1000')\n_d_clear()\n_d_r = {0: 1, **{0: 2}, 0: 3, 0: 4}\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(43, '{0: 4}')\n_d_clear()\na, b, c = ([0, 1, 2], 3, 4)\n_d_clear()\n_d_r = [*a, b, c]\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(45, '[0, 1, 2, 3, 4]')\n_d_clear()\nl = [a, (3, 4), {5}, {6: None}, (i for i in range(7, 10))]\ntry:\n    exec('[*item for item in l]\\n')\n    raise AssertionError('ex47: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('[*[0, 1] for i in range(10)]\\n')\n    raise AssertionError('ex48: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec(\"[*'a' for i in range(10)]\\n\")\n    raise AssertionError('ex49: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('[*[] for i in range(10)]\\n')\n    raise AssertionError('ex50: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('{**{} for a in [1]}\\n')\n    raise AssertionError('ex51: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('dict(**x for x in [{1:2}])\\n')\n    raise AssertionError('ex52: expected SyntaxError')\nexcept SyntaxError:\n    pass\n_d_clear()\n_d_r = _d_print(*[1], *[2], 3)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(53, '1 2 3')\n_d_clear()\n\ndef f(x, y):\n    _d_print(x, y)\n_d_clear()\noriginal_dict = {'x': 1}\n_d_clear()\n_d_r = f(**original_dict, y=2)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(56, '1 2')\n_d_clear()\n_d_r = original_dict\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(57, \"{'x': 1}\")\n_d_clear()\nfrom collections.abc import MutableMapping\n_d_clear()\n\nclass CrazyDict(MutableMapping):\n\n    def __init__(self):\n        self.d = {}\n\n    def __iter__(self):\n        for x in self.d.__iter__():\n            if x == 'c':\n                self.d['z'] = 10\n            yield x\n\n    def __getitem__(self, k):\n        return self.d[k]\n\n    def __len__(self):\n        return len(self.d)\n\n    def __setitem__(self, k, v):\n        self.d[k] = v\n\n    def __delitem__(self, k):\n        del self.d[k]\n_d_clear()\nd = CrazyDict()\n_d_clear()\nd.d = {chr(ord('a') + x): x for x in range(5)}\ntry:\n    _d_clear()\n    e = {**d}\nexcept RuntimeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'RuntimeError: dictionary changed size during iteration', ('doctest-exc62', _d_e)\nelse:\n    raise AssertionError('ex62: expected RuntimeError')\n_d_clear()\nd.d = {chr(ord('a') + x): x for x in range(5)}\n_d_clear()\n\ndef f(**kwargs):\n    _d_print(kwargs)\ntry:\n    _d_clear()\n    f(**d)\nexcept RuntimeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'RuntimeError: dictionary changed size during iteration', ('doctest-exc65', _d_e)\nelse:\n    raise AssertionError('ex65: expected RuntimeError')\ntry:\n    _d_clear()\n    a, *b = 7\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'TypeError: cannot unpack non-iterable int object', ('doctest-exc71', _d_e)\nelse:\n    raise AssertionError('ex71: expected TypeError')\ntry:\n    _d_clear()\n    a, *b, c, d, e = Seq()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: not enough values to unpack (expected at least 4, got 3)', ('doctest-exc72', _d_e)\nelse:\n    raise AssertionError('ex72: expected ValueError')\ntry:\n    _d_clear()\n    a, b, c, d, *e = Seq()\nexcept ValueError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'ValueError: not enough values to unpack (expected at least 4, got 3)', ('doctest-exc73', _d_e)\nelse:\n    raise AssertionError('ex73: expected ValueError')\n_d_clear()\n\nclass BozoError(Exception):\n    pass\n_d_clear()\n\nclass BadSeq:\n\n    def __getitem__(self, i):\n        if i >= 0 and i < 3:\n            return i\n        elif i == 3:\n            raise BozoError\n        else:\n            raise IndexError\ntry:\n    exec('a, *b, c, *d, e = range(10) # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex77: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('[*b, *c] = range(10) # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex78: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('a,*b,*c,*d = range(4) # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex79: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('*a = range(10) # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex80: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('*1 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex82: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('(*x),y = 1, 2 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex84: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('(((*x))),y = 1, 2 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex85: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('z,(*x),y = 1, 2, 4 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex86: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('z,(*x) = 1, 2 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex87: expected SyntaxError')\nexcept SyntaxError:\n    pass\ntry:\n    exec('((*x),y) = 1, 2 # doctest:+ELLIPSIS\\n')\n    raise AssertionError('ex88: expected SyntaxError')\nexcept SyntaxError:\n    pass\n_d_clear()\ns = ', '.join(('a%d' % i for i in range(1 << 8))) + ', *rest = range((1<<8) + 1)'\ntry:\n    _d_clear()\n    compile(s, 'test', 'exec')\nexcept SyntaxError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'SyntaxError: too many expressions in star-unpacking assignment', ('doctest-exc90', _d_e)\nelse:\n    raise AssertionError('ex90: expected SyntaxError')\n_d_clear()\ns = ', '.join(('a%d' % i for i in range((1 << 8) + 1))) + ', *rest = range((1<<8) + 2)'\ntry:\n    _d_clear()\n    compile(s, 'test', 'exec')\nexcept SyntaxError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == 'SyntaxError: too many expressions in star-unpacking assignment', ('doctest-exc92', _d_e)\nelse:\n    raise AssertionError('ex92: expected SyntaxError')\nprint('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "unpack_ex.doctests:doctests.ex66",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex67",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex68",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex69",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex70",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex76",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex81",
+      "reason": "doctest-depends-on-dropped:['a']"
+    },
+    {
+      "ident": "unpack_ex.doctests:doctests.ex83",
+      "reason": "doctest-depends-on-dropped:['a']"
+    }
+  ],
+  "counts": {
+    "extracted": 9,
+    "pinned": 1,
+    "quarantined": 8
+  }
+}
