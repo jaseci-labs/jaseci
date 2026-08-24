@@ -107,7 +107,8 @@ obj Symbol {
         param_rebound: bool = False,
         na_escapes: bool = False,
         na_region_handle: bool = False,
-        na_stack_ok: bool = False;
+        na_stack_ok: bool = False,
+        _in_stub_scope: (bool | None) = None;
 
     def init(
         defn: NameAtom,
@@ -125,6 +126,7 @@ obj Symbol {
 
     def add_defn(nd: NameAtom) -> None;
     def add_use(nd: NameAtom) -> None;
+    def in_stub_scope -> bool;
     def __repr__ -> str;
 }
 
