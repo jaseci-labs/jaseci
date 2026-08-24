@@ -137,7 +137,10 @@ obj BaseLLM {
     def _force_final_answer(mt_run: MTRuntime) -> object;
     def _attempt_recovery(mt_run: MTRuntime) -> CompletionResult | None;
     def _yield_recovery_result(
-        recovery_resp: CompletionResult, iter_count: int, mt_run: MTRuntime
+        recovery_resp: CompletionResult,
+        iter_count: int,
+        mt_run: MTRuntime,
+        usage_base: int
     ) -> Generator[StreamEvent, None, None];
 
     def _invoke_streaming(mt_run: MTRuntime) -> Generator[StreamEvent, None, None];

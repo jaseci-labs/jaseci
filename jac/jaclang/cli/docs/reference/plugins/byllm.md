@@ -1021,6 +1021,10 @@ def my_hook(ctx: IterationContext) -> IterationAction {
     if ctx.total_tokens > 10000 {
         return IterationAction.ABORT_WITH_SUMMARY;
     }
+    # Or gate on real cost directly, e.g. against a per-user credit balance
+    if ctx.total_cost > 0.50 {
+        return IterationAction.ABORT_WITH_SUMMARY;
+    }
     return IterationAction.CONTINUE;
 }
 
@@ -1038,6 +1042,7 @@ def agent_task(question: str) -> str by llm(
 | `last_tool` | str | Name of the last tool executed |
 | `last_result` | str | Truncated result of last tool (500 chars) |
 | `total_tokens` | int | Cumulative token usage across all iterations |
+| `total_cost` | float | Cumulative real cost (USD) across all iterations, summed from the same per-call cost `usage`/`usage_step` report |
 | `messages` | list | Full message history |
 
 **`IterationAction`** values:
@@ -1488,6 +1493,7 @@ delta from a stream that replaced an abandoned one.
 | `thought` | LLM produced reasoning text before a tool call | `content` (str), `iteration` (int) |
 | `steps_done` | ReAct loop finished, final answer next | `iterations` (int), `reason` (str): `"max_iterations"`, `"aborted"`, or `"aborted_with_summary"` |
 | `chunk` | One token of the final streamed answer | `content` (str) |
+| `usage_step` | A single LLM call finished (tool-calling invocations only; see [Per-Call Usage](#per-call-usage)) | Same shape as `usage`, scoped to that one call |
 | `usage` | All LLM calls complete (always the last event) | `total` (dict), `by_kind` (dict), `per_call` (list[dict]), `requests` (int) |
 
 **Importing `StreamEvent`:**
@@ -1540,6 +1546,26 @@ with entry {
     }
 }
 ```
+
+### Per-Call Usage
+
+`usage` only fires once, after every call in the invocation has finished - useful for a final total, not for tracking spend while a multi-call tool-using turn is still running. For that, `usage_step` fires once per individual LLM call (main ReAct iterations, the final-answer restream, and recovery calls), each event scoped to just that call's usage - same shape as `usage`, so the same parsing code handles both:
+
+```jac
+with entry {
+    running_total = 0;
+    for event in my_agent("...") {
+        if event.event_type == "usage_step" {
+            running_total += event.data["total"].get("total_tokens", 0);
+            if running_total > budget {
+                break;  # stop consuming further events once over budget
+            }
+        }
+    }
+}
+```
+
+`usage_step` only fires for invocations that make more than one LLM call (tools present); a single-call invocation has nothing to distinguish a per-call step from the final `usage` event, so only `usage` fires there. `on_iteration`'s `IterationContext` (see [Interrupting the ReAct Loop](#interrupting-the-react-loop)) gives the same real, cumulative cost between calls via `total_cost`, if you'd rather gate the *next* call than react to a stream event.
 
 #### Cache tokens
 

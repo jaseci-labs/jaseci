@@ -349,6 +349,25 @@ def _record_usage(
 }
 
 
+def _usage_step_events(
+    mt_run: MTRuntime, usage_base: int
+) -> Generator[StreamEvent, None, None] {
+    if len(mt_run._usage_history) > usage_base {
+        yield StreamEvent(
+            event_type="usage_step",
+            data=_aggregate_usage(mt_run._usage_history[usage_base:])
+        );
+    }
+}
+
+
+def _usage_history_total_cost(mt_run: MTRuntime) -> float {
+    return sum(
+        float(record.get("cost", 0.0) or 0.0) for record in mt_run._usage_history
+    );
+}
+
+
 def _copy_for_compaction(model: BaseLLM) -> BaseLLM {
     import copy;
     m = copy.copy(model);
@@ -1001,7 +1020,8 @@ impl BaseLLM._invoke_react_loop(mt_run: MTRuntime) -> object {
                 messages=mt_run.messages,
                 last_tool=last_tool,
                 last_result=last_result,
-                total_tokens=total_tokens
+                total_tokens=total_tokens,
+                total_cost=_usage_history_total_cost(mt_run)
             );
             action = on_iteration(ctx);
             if action == IterationAction.ABORT {
@@ -1869,7 +1889,7 @@ impl BaseLLM._attempt_recovery(mt_run: MTRuntime) -> CompletionResult | None {
 }
 
 impl BaseLLM._yield_recovery_result(
-    recovery_resp: CompletionResult, iter_count: int, mt_run: MTRuntime
+    recovery_resp: CompletionResult, iter_count: int, mt_run: MTRuntime, usage_base: int
 ) -> Generator[StreamEvent, None, None] {
     finish_found = False;
     if recovery_resp.tool_calls {
@@ -1893,6 +1913,7 @@ impl BaseLLM._yield_recovery_result(
             event_type="chunk", data={"content": str(recovery_resp.output)}
         );
     }
+    yield from _usage_step_events(mt_run, usage_base);
 }
 
 impl BaseLLM._invoke_streaming(
@@ -1928,6 +1949,7 @@ impl BaseLLM._invoke_streaming(
         just_compacted = False;
         while True {
             iter_count += 1;
+            _usage_base = len(mt_run._usage_history);
 
             if on_iteration and iter_count > 1 {
                 ctx = IterationContext(
@@ -1935,7 +1957,8 @@ impl BaseLLM._invoke_streaming(
                     messages=mt_run.messages,
                     last_tool=last_tool,
                     last_result=last_result,
-                    total_tokens=total_tokens
+                    total_tokens=total_tokens,
+                    total_cost=_usage_history_total_cost(mt_run)
                 );
                 action = on_iteration(ctx);
                 if action == IterationAction.ABORT {
@@ -1965,6 +1988,7 @@ impl BaseLLM._invoke_streaming(
                             );
                         }
                     }
+                    yield from _usage_step_events(mt_run, _usage_base);
                     break;
                 }
             }
@@ -1979,6 +2003,7 @@ impl BaseLLM._invoke_streaming(
                         yield StreamEvent(event_type="chunk", data={"content": token});
                     }
                 }
+                yield from _usage_step_events(mt_run, _usage_base);
                 break;
             }
 
@@ -2071,7 +2096,7 @@ impl BaseLLM._invoke_streaming(
                     raise;
                 }
                 yield from self._yield_recovery_result(
-                    recovery_resp, iter_count, mt_run
+                    recovery_resp, iter_count, mt_run, _usage_base
                 );
                 break;
             }
@@ -2106,6 +2131,8 @@ impl BaseLLM._invoke_streaming(
                     )
                 }
             );
+            yield from _usage_step_events(mt_run, _usage_base);
+            _usage_base = len(mt_run._usage_history);
 
             if resp.tool_calls {
                 non_finish_calls: list = [];
@@ -2210,6 +2237,7 @@ impl BaseLLM._invoke_streaming(
                                 );
                             }
                         }
+                        yield from _usage_step_events(mt_run, _usage_base);
                     }
                     break;
                 }
@@ -2228,7 +2256,7 @@ impl BaseLLM._invoke_streaming(
                     break;
                 }
                 yield from self._yield_recovery_result(
-                    recovery_resp, iter_count, mt_run
+                    recovery_resp, iter_count, mt_run, _usage_base
                 );
                 break;
             }
