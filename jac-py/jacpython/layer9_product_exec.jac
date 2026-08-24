@@ -299,11 +299,12 @@ test "layer9: band-11 bare annotation registers without inline store" {
     assert isinstance(ns["ann"], PyDict);
 }
 
-# Class-scope annotations execute under ceval up to the stored function: the
-# class body runs, __annotate_func__ lands in the class dict and is callable.
-# CALLING it needs OP_LOAD_FROM_DICT_OR_GLOBALS in ceval (not yet dispatched),
-# and C.__annotate__/C.__annotations__ need the type-machinery mapping of
-# __annotate_func__ -- both are runtime gaps tracked for the ceval slice.
+# Class-scope annotations execute under ceval through the stored function:
+# the class body runs, __annotate_func__ lands in the class dict and is
+# callable (the OP_LOAD_FROM_DICT_OR_GLOBALS arm it dispatches through landed
+# with the LOAD_FROM_DICT_OR_DEREF family). C.__annotate__/C.__annotations__
+# still need the type-machinery mapping of __annotate_func__ -- a runtime gap
+# tracked for the ceval slice; call D.__annotate_func__(1) directly to drive it.
 test "layer9: band-11 class stores __annotate_func__ in class dict" {
     co = product_exec("class C:\n    y: str = 'a'\n    z: dict\nr = '__annotate_func__' in C.__dict__\nc = callable(C.__annotate_func__)\n");
     ns: dict[str, PyObj] = {};
