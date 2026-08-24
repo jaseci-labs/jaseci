@@ -4,13 +4,14 @@
 # dict/set key protocol only. ``hash()`` and container hashes (tuple/set lanes)
 # must route through CPython algorithms (``long_hash``, native str/float hash,
 # ``bytes_hash``, etc.).
-import from objects { PyObj, PyInt, PyStr, PyFloat, PyBool, PyBytes, PySlice, PyNoneType, is_error, hashkey_str, _signed_hash, }
+import from objects { PyObj, PyInt, PyStr, PyFloat, PyBool, PyBytes, PySlice, PyNoneType, PyComplex, is_error, hashkey_str, _signed_hash, }
 import from abstract_protocol { PyObject_HashNotImplemented, _hashkey_digest, }
 import from pyhash { xx_hash_mix, _PyHASH_XXPRIME_5, _U64, }
 import from longobject { long_hash_obj, long_hash, }
 import from bytesobject { bytes_hash_obj, }
 import from strobject { str_hash_obj, }
 import from floatobject { float_hash_obj, }
+import from complexobject { complex_hash_obj, }
 
 # CPython 3.12+ gives None a deterministic pointer-derived hash (constant
 # across builds), so slices with None bounds hash identically to the host.
@@ -55,6 +56,11 @@ def hash_element(v: PyObj) -> PyObj {
     }
     if isinstance(v, PyFloat) {
         return float_hash_obj(v as PyFloat);
+    }
+    if isinstance(v, PyComplex) {
+        # CPython complex_hash: hash(real) + _PyHASH_IMAG * hash(imag),
+        # folded/masked in the complexobject lane.
+        return complex_hash_obj(v as PyComplex);
     }
     if isinstance(v, PyBytes) {
         return bytes_hash_obj(v as PyBytes);
