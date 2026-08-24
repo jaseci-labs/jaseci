@@ -2250,11 +2250,24 @@ obj PyClass(PyObj) {
     }
 
     def mp_subscript(index: PyObj) -> PyObj {
+        # A custom metaclass __getitem__ outranks __class_getitem__: CPython
+        # installs slot_tp_subscript on the metaclass, which intercepts before
+        # type_subscript ever consults the class MRO.
         gi = self._meta_dunder("__getitem__");
-        if is_error(gi) {
-            return py_error("TypeError", "object is not subscriptable");
+        if not is_error(gi) {
+            return gi.tp_call([index], {});
         }
-        return gi.tp_call([index], {});
+        # type_subscript fallback: resolve __class_getitem__ on this class's own
+        # MRO (an explicit def or one inherited from Generic / an ABC base) and
+        # bind it to the class -- Cls[...] is sugar for
+        # Cls.__class_getitem__(index).
+        cgi = class_lookup_attr(self, "__class_getitem__");
+        if not is_error(cgi) {
+            return bind_attribute(cgi, self).tp_call([index], {});
+        }
+        return py_error(
+            "TypeError", "type '" + self.name + "' is not subscriptable"
+        );
     }
 
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
