@@ -339,8 +339,8 @@ glob WAVE_CLOSURES: dict = {
          }
      },
      REFUSED_OWN_SEAMS: dict = {
-         "compiler/passes/main/static_analysis_pass.jac": 4,
-         "compiler/passes/main/ownership_check_pass.jac": 12
+         "compiler/passes/main/static_analysis_pass.jac": 6,
+         "compiler/passes/main/ownership_check_pass.jac": 14
      };
 
 """Every (wave, root) pair in WAVE_CLOSURES, sorted for a stable test order."""

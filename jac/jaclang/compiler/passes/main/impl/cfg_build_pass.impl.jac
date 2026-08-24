@@ -243,7 +243,9 @@ impl CoalesceBBPass.get_bb(nd: UniCFGNode) -> list[UniCFGNode] {
                 cur_node = cur_node.bb_out[0];
             }
         }
-        bb_list.append(tail) if (tail not in bb_list) else None;
+        if tail not in bb_list {
+            bb_list.append(tail);
+        }
     }
     return bb_list;
 }

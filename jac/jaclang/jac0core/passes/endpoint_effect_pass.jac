@@ -174,7 +174,7 @@ class EndpointEffectPass(UniPass) {
             return [];
         }
         defn_node = sym.defn[0];
-        ability = None;
+        ability: (Ability | None) = None;
         if isinstance(defn_node, Ability) {
             ability = defn_node;
         } elif defn_node.parent and isinstance(defn_node.parent, Ability) {

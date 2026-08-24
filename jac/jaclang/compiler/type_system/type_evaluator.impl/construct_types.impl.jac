@@ -44,8 +44,6 @@ impl TypeEvaluator._get_type_of_super(node_: SpecialVarRef) -> TypeBase {
 }
 
 impl TypeEvaluator._get_type_of_lhs_assignment(expr: Name) -> TypeBase | None {
-    import from jaclang.compiler.symbol_utils { find_destructure_index_path }
-
     if expr.sym is not None and expr.sym.decl is expr {
         return None;
     }

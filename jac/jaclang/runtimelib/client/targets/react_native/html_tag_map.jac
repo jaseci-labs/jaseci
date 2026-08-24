@@ -28,7 +28,7 @@ glob RN_HTML_VIEW_TAGS = [
      ],
      RN_HTML_SPECIAL_TAGS = ["button", "input", "textarea", "img", "a"];
 
-def supported_rn_html_tags -> frozenset {
+def supported_rn_html_tags -> frozenset[str] {
     tags: set[str] = set();
     for tag in RN_HTML_VIEW_TAGS {
         tags.add(tag);

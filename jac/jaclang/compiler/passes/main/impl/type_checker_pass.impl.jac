@@ -326,10 +326,12 @@ impl TypeCheckPass.exit_compare_expr(self: TypeCheckPass, nd: CompareExpr) -> No
     operands: list = [nd.left];
     operands.extend(nd.rights);
     for (i, op) in enumerate(nd.ops) {
-        _opname = op.name if isinstance(op, Token) else str(op);
+        if not isinstance(op, Token) {
+            continue;
+        }
+        _opname = op.name;
         if _opname in _mem_ops {
-            _optext = op.value if isinstance(op, Token) else str(op);
-            self._diag_erased_membership(nd, operands[i + 1], _optext);
+            self._diag_erased_membership(nd, operands[i + 1], op.value);
             continue;
         }
         if _opname not in _ord_ops {
@@ -1569,7 +1571,7 @@ impl TypeCheckPass.exit_index_slice(self: TypeCheckPass, nd: IndexSlice) -> None
         return;
     }
     for _sl in (nd.slices or []) {
-        for _part in (_sl.start, _sl.stop, _sl.step) {
+        for _part in [_sl.start, _sl.stop, _sl.step] {
             if _part is not None and _part.type is None {
                 self.evaluator.get_type_of_expression(_part);
             }

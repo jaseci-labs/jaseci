@@ -226,6 +226,7 @@ impl NaIRGenDicts._jacval_tag_for_type(ty: any) -> (int | None) {
         "set": 5,
         "struct": 6,
         "object": 6,
+        "class": 6,
         "tuple": 6,
         "bool": 7,
         "none": 8,

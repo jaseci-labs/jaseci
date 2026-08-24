@@ -93,7 +93,9 @@ impl DeclImplMatchPass._connect_one_impl(
     decl_node: (NameAtom | None) = self.defn_lookup(lookup)
         if ((len(arch_refs) == 1) and lookup)
         else self._find_archetype_defn(lookup) if lookup else None;
-    name_of_links.append(decl_node) if decl_node else None;
+    if decl_node {
+        name_of_links.append(decl_node);
+    }
     for name in arch_refs[1:] {
         if decl_node {
             if (
@@ -111,14 +113,18 @@ impl DeclImplMatchPass._connect_one_impl(
                 }
                 acc_name = acc_match.name_ref if acc_match else None;
                 decl_node = acc_name if isinstance(acc_name, NameAtom) else None;
-                name_of_links.append(decl_node) if decl_node else None;
+                if decl_node {
+                    name_of_links.append(decl_node);
+                }
                 continue;
             }
             lookup = decl_node.name_of.sym_tab.lookup(name, deep=False)
                 if decl_node.name_of.sym_tab
                 else None;
             decl_node = lookup.defn[-1] if lookup else None;
-            name_of_links.append(decl_node) if decl_node else None;
+            if decl_node {
+                name_of_links.append(decl_node);
+            }
         } else {
             break;
         }

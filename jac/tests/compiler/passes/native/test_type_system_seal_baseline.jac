@@ -148,6 +148,7 @@ glob TYPES_CLOSURE: tuple = (
          "diagnostic_utils.jac",
          "diagnostics.jac",
          "enum_utils.jac",
+         "expr_keys.jac",
          "fixed_width.jac",
          "fnmatch.jac",
          "hashlib.jac",
@@ -159,6 +160,7 @@ glob TYPES_CLOSURE: tuple = (
          "properties.jac",
          "scalars.jac",
          "srcloc.jac",
+         "struct_format.jac",
          "transform.jac",
          "ts_decl_parser.jac",
          "type_evaluator.jac",
@@ -220,32 +222,27 @@ An eighth left when `type_utils` joined the closure.
 `FunctionType.specialize_func_type_vars` was waived as calling a function
 "outside this closure", and it is inside now, so it lowers.
 
-One arrived in its place, a cross-module cascade #8272 made measurable:
-`ClassType.lookup_member_symbol` calls a `type_utils` function that demotes.
-Before that protocol the importer emitted its call site before the
-dependency's verdicts existed, so the caller lowered and the artifact linked
-against a name the demotion had renamed away. (`FunctionType.specialize` sat
-beside it until `build_type_var_solution`'s dedupe loop lowered.) Every seam
-this table holds is identical to the one the unitree coverage records for
-`types.jac` from the other root, which is the point: the seal reads the
-closure, not the entry it was reached from.
+The table is empty now. `ClassType.lookup_member_symbol` and
+`FunctionType.specialize` sat here as the cross-module cascades #8272 made
+measurable -- each called a `type_utils` function that demoted -- and both
+cleared with their callees: the version-guard family moved into
+`type_utils` where `unitree` imports at module scope, and
+`build_type_var_solution`'s dedupe loop lowered. What the table pins is
+unchanged: every seam it would hold must be identical to what the unitree
+coverage records for `types.jac` from the other root, because the seal
+reads the closure, not the entry it was reached from.
 """
-glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
-         "types.jac::ClassType.lookup_member_symbol": (
-             "Cascade: calls `type_utils.collect_member_syms`, which demotes "
-             "on `helpers.evaluate_version_condition` and is waived in the "
-             "unitree coverage."
-         ),
-
-     },
+glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {},
      DECL_PARSER_SEAM_WAIVERS: dict[(str, str)] = {};
 
 """Every module the native compile of `type_evaluator.jac` puts in its closure.
 
-Eight more than the keystone's, and every one of them arrives through a
+Nine more than the keystone's, and every one of them arrives through a
 module-level import in the evaluator itself: `enum_utils`, `operations`,
-`properties`, `ts_decl_parser` and `diagnostics` directly, `const_fold`,
-`client_kind` and `client_kind_paths` behind them -- plus the pass spine
+`properties`, `ts_decl_parser`, `struct_format` (the `struct.unpack`
+literal-format typing shares its parser with the native struct emitter) and
+`diagnostics` directly, `const_fold`, `client_kind` and `client_kind_paths`
+behind them -- plus the pass spine
 the keystone now carries everywhere since B4 (#8323) emptied
 `PLACEMENT_INFERENCE_HELD`: `codeinfo`, `transform`, `uni_pass`,
 `module_codegen_pass`, `diagnostic_utils`, `contextvars` and `logging`.
@@ -273,6 +270,7 @@ glob EVALUATOR_CLOSURE: tuple = (
          "diagnostic_utils.jac",
          "diagnostics.jac",
          "enum_utils.jac",
+         "expr_keys.jac",
          "fixed_width.jac",
          "fnmatch.jac",
          "hashlib.jac",
@@ -284,6 +282,7 @@ glob EVALUATOR_CLOSURE: tuple = (
          "properties.jac",
          "scalars.jac",
          "srcloc.jac",
+         "struct_format.jac",
          "transform.jac",
          "ts_decl_parser.jac",
          "type_evaluator.jac",
@@ -385,31 +384,47 @@ nothing smaller will do it: the annotation reaches the backend through an
 the erasure is what keeps it out now that the annotation is unquoted.
 """
 glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
-         "method 'TypeEvaluator.assign_type'": (
-             "TypeEvaluator._assign_callable",
-             "TypeEvaluator._assign_class",
-             "TypeEvaluator._get_type_of_expression_core",
-             "TypeEvaluator._validate_component_jsx_props",
-             "TypeEvaluator._validate_intrinsic_jsx_props",
-             "TypeEvaluator.assign_expr",
-             "TypeEvaluator.assign_type_to_type_var"
+         "constructor argument 'FunctionType(func_name=...)'": (
+             "TypeEvaluator._synthesize_typeddict_method",
+
          ),
-         "method 'TypeEvaluator.assign_expr'": ("TypeEvaluator.validate_arg_types", ),
+         "method 'any.AnyType'": ("TypeEvaluator._synthesize_enum_metaclass_attr", ),
+         "expression 'set comprehension element type'": (
+             "TypeEvaluator._resolve_submodule_attr",
+
+         ),
+         "method 'TypeEvaluator._import_module_from_path'": (
+             "TypeEvaluator._resolve_star_import_symbol",
+
+         ),
+         "method (native emitter error in) 'TypeEvaluator._load_ts_declarations'": (
+             "TypeEvaluator._load_ts_declarations",
+
+         ),
+         "function 'is_client_boundary_import'": ("TypeEvaluator._is_sv_async_call", ),
+         "attribute access '_compile_options'": ("TypeEvaluator._is_mobui_module", ),
+         "signature type 'set'": ("TypeEvaluator._if_exit_type", ),
+         "builtin call 'isinstance'": ("TypeEvaluator._get_type_of_expression_core", ),
+         "method 'TypeEvaluator._extract_tuple_element_type_path'": (
+             "TypeEvaluator._get_type_from_flow_node",
+
+         ),
+         "method (native emitter error in) 'TypeEvaluator._find_predicate_for'": (
+             "TypeEvaluator._find_predicate_for",
+
+         ),
+         "attribute access 'mod'": ("TypeEvaluator._client_entry_mod_path", ),
+         "method 'UniScopeNode.get_has_vars'": (
+             "TypeEvaluator._extract_tuple_element_type",
+             "TypeEvaluator._build_typeddict_fields",
+             "TypeEvaluator._build_field_params",
+
+         ),
+         "function 'class_implements_protocol'": ("TypeEvaluator._assign_class", ),
          "expression 'FuncCall'": (
              "TypeEvaluator.__post_init__",
-             "TypeEvaluator._extract_tuple_element_type",
              "TypeEvaluator._get_signature_type_params",
-             "TypeEvaluator._is_sv_async_call",
-             "TypeEvaluator._map_ts_type",
-             "TypeEvaluator._resolve_star_import_symbol"
-         ),
-         "method 'TypeEvaluator.create_key_for_reference'": (
-             "TypeEvaluator._extract_callable_info",
-             "TypeEvaluator._extract_hasattr_info",
-             "TypeEvaluator._extract_isinstance_info",
-             "TypeEvaluator._extract_type_guard_info",
-             "TypeEvaluator.classify_condition",
-             "TypeEvaluator.get_narrowed_type_for_expr"
+
          ),
          "method 'TypeEvaluator.get_type_of_class'": (
              "TypeEvaluator._get_outer_scope_type_params",
@@ -420,30 +435,14 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator.validate_typevar_variance"
          ),
          "erased field 'TypeEvaluator.program'": (
-             "TypeEvaluator._client_entry_mod_path",
              "TypeEvaluator._import_module_from_path",
-             "TypeEvaluator._is_mobui_module",
              "TypeEvaluator._load_stub_module"
-         ),
-         "method 'TypeEvaluator.is_sub_class'": (
-             "TypeEvaluator._find_predicate_for",
-             "TypeEvaluator._narrow_member_to",
-             "TypeEvaluator._specialize_narrow_from_base",
-             "TypeEvaluator._type_matches_isinstance"
          ),
          "unsupported Python module import 'ast'": (
              "TypeEvaluator._read_ambient_imports_by_module",
              "TypeEvaluator._read_dunder_all",
              "TypeEvaluator._resolve_py_ast_type_node",
              "TypeEvaluator._resolve_string_type_expr"
-         ),
-         "for-loop iterable 'FuncCall'": (
-             "TypeEvaluator._build_field_params",
-             "TypeEvaluator._build_typeddict_fields"
-         ),
-         "function 'collect_assignment_target_keys'": (
-             "TypeEvaluator._loop_body_writes_target",
-
          ),
          "function 'get_special_enum_value_type_from_bases'": (
              "TypeEvaluator.get_type_of_class",
@@ -457,21 +456,11 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._extract_tuple_element_type_path",
              "TypeEvaluator._tuple_literal_index_type"
          ),
-         "method (native emitter error in) 'TypeEvaluator.assign_type'": (
-             "TypeEvaluator.assign_type",
-
-         ),
          "method 'TypeEvaluator.get_type_of_enum'": (
              "TypeEvaluator._get_enum_member_type_for_decl",
              "TypeEvaluator._get_type_of_symbol_decl"
          ),
-         "function 'collect_member_syms'": ("TypeEvaluator._super_owner_for", ),
-         "expression 'AtomUnit'": ("TypeEvaluator._synthesize_enum_metaclass_attr", ),
-         "function 'resolve_expr_symbol'": ("TypeEvaluator.flow_pred_never_returns", ),
-         "method 'TypeEvaluator.flow_pred_never_returns'": (
-             "TypeEvaluator._get_type_from_flow_node",
-
-         ),
+         "expression 'AtomUnit'": ("TypeEvaluator._collect_type_var_bindings", ),
          "method 'TypeEvaluator.get_type_of_module'": (
              "TypeEvaluator.get_type_of_module_item",
              "TypeEvaluator.resolve_imported_symbols"
@@ -484,36 +473,11 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          # isinstance both cleared once checker stamps reach every tree a
          # native unit consumes -- the joint-seal design's end state.
          "attribute access 'errors_had'": ("TypeEvaluator._resolve_type_alias_rhs", ),
-         "builtin call 'isinstance'": ("TypeEvaluator._union_narrowed_types", ),
-         "expression 'CompareExpr'": ("TypeEvaluator._synthesize_typeddict_method", ),
-         "expression 'comprehension over an element-erased collection'": (
-             "TypeEvaluator._ts_synth_class_types",
-
-         ),
-         "function 'build_type_var_solution'": (
-             "TypeEvaluator.get_type_of_member",
-             "TypeEvaluator.specialize_member_type",
-
-         ),
-         "function 'compute_mro_linearization'": ("TypeEvaluator.is_sub_class", ),
-         "function 'find_destructure_index_path'": (
-             "TypeEvaluator._get_type_of_lhs_assignment",
-
-         ),
          "function 'find_jac_project_root'": (
              "TypeEvaluator._untyped_external_is_error",
 
          ),
          "function 'has_client_npm_package'": ("TypeEvaluator._client_npm_base", ),
-         "function 'int_subscript_suffix'": (
-             "TypeEvaluator.create_key_for_reference",
-
-         ),
-         "function 'is_untyped_third_party_module'": (
-             "TypeEvaluator._resolve_submodule_attr",
-
-         ),
-         "function 'open'": ("TypeEvaluator._load_ts_declarations", ),
          "function 'resolve_client_npm_package'": (
              "TypeEvaluator._resolve_client_npm_module",
 
@@ -534,23 +498,12 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._get_function_type_params",
 
          ),
-         "method 'TypeEvaluator._get_type_from_flow_node'": (
-             "TypeEvaluator._if_exit_type",
-
-         ),
-         "method 'TypeEvaluator.validate_arg_types'": (
-             "TypeEvaluator._validate_constructor_method",
-
-         ),
          "type 'JacProgram'": ("TypeEvaluator.program", ),
          "unsupported attribute access '_sym_category'": (
              "TypeEvaluator.get_type_of_module",
 
          ),
-         "unsupported attribute access 'name'": (
-             "TypeEvaluator._collect_type_var_bindings",
 
-         )
      };
 
 """Every module the native compile of `type_checker_pass.jac` puts in its closure.
@@ -576,6 +529,7 @@ glob CHECKER_CLOSURE: tuple = (
          "diagnostic_utils.jac",
          "diagnostics.jac",
          "enum_utils.jac",
+         "expr_keys.jac",
          "fixed_width.jac",
          "fnmatch.jac",
          "hashlib.jac",
@@ -588,6 +542,7 @@ glob CHECKER_CLOSURE: tuple = (
          "properties.jac",
          "scalars.jac",
          "srcloc.jac",
+         "struct_format.jac",
          "transform.jac",
          "ts_decl_parser.jac",
          "type_checker_pass.jac",
@@ -739,12 +694,11 @@ IR). What remains of the joint seal is roots in `NATIVE_SEAL_ROOTS` and the
 pooled seal's verdict; nothing in the pair needs a lowering change.
 """
 glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
-         "expression 'FuncCall'": ("TypeCheckPass.before_pass", ),
+         "method 'JacProgram.get_type_evaluator'": ("TypeCheckPass.before_pass", ),
          "expression 'BoolExpr'": ("TypeCheckPass.after_pass", ),
-         "type 'JacProgram'": ("TypeEvaluator.program", ),
          "function 'get_pow_result_type'": ("TypeCheckPass.exit_assignment", ),
          "function 'classify_call'": ("TypeCheckPass.exit_func_call", ),
-         "for-loop iterable 'tuple with mixed element storage'": (
+         "for-loop iterable 'tuple of type tuple[Expr | NoneType, Expr | NoneType]'": (
              "TypeCheckPass._client_state_field_owner",
 
          ),
@@ -778,18 +732,18 @@ evaluator's own table carries as `type 'JacProgram'`.
 """
 glob SIGNATURE_SEAM_WAIVERS: dict[(str, dict)] = {
          "enum_utils.jac": {
-             "enum_utils.jac::TypeEvaluator.program": "type 'JacProgram'",
              "enum_utils.jac::create_enum_member_info": "function 'fold_const'",
-             "enum_utils.jac::build_enum_members": "attribute access 'decl'",
+             "enum_utils.jac::build_enum_members": (
+                 "function 'create_enum_member_info'"
+             ),
              "enum_utils.jac::get_special_enum_value_type_from_bases": (
-                 "expression 'set add'"
+                 "builtin call 'set[Any]()'"
              )
          },
          "operations.jac": {
-             "operations.jac::TypeEvaluator.program": "type 'JacProgram'",
              "operations.jac::get_pow_result_type": "function 'fold_const'",
              "operations.jac::get_type_of_binary_operation": (
-                 "expression 'keyword argument 'op''"
+                 "subscript/index access 'tuple[str, str]'"
              )
          }
      };

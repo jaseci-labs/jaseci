@@ -8,6 +8,7 @@ import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
     AssertStmt,
+    AstSymbolNode,
     AssignCompr,
     Assignment,
     AtomTrailer,
@@ -111,6 +112,12 @@ import from jaclang.jac0core.constant {
     EdgeDir,
     SymbolAccess,
     OwnershipKind,
+}
+import from jaclang.compiler.expr_keys {
+    collect_assignment_target_keys,
+    find_destructure_index_path,
+    int_subscript_suffix,
+    reference_key_deps
 }
 import from jaclang.compiler.type_system.types {
     AnyType,
@@ -756,7 +763,7 @@ obj TypeEvaluator {
     ) -> TypeBase | None;
 
     def _get_type_from_flow_node(
-        target: NarrowingTarget, flow_node: UniCFGNode, visited: set
+        target: NarrowingTarget, flow_node: UniCFGNode, visited: set[int]
     ) -> TypeBase | None;
 
     def _node_encloses(outer: UniNode, inner: UniNode) -> bool;

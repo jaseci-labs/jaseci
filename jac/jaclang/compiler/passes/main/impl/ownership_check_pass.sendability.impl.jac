@@ -110,7 +110,7 @@ impl OwnershipCheckPass._collect_flow_reductions(lp: InForStmt) -> dict[SymId, s
             or tgt.sym.decl.find_parent_of_type(ModuleCode) is not _lp_mc {
             continue;
         }
-        if not self._type_is_class_named(tgt.type, ("int", )) {
+        if not self._type_is_class_named(tgt.type, ["int"]) {
             continue;
         }
         if sid in _cands and _cands[sid] == "" {
@@ -382,7 +382,7 @@ impl OwnershipCheckPass._flow_lend_joined(
     }
     handle_sid = self._name_sym_id(asgn.target[0]);
     container = asgn.parent;
-    _cbody = container?.body;
+    _cbody: (object | None) = container?.body;
     if not isinstance(_cbody, (list, tuple)) or asgn not in _cbody {
         return False;
     }
@@ -438,7 +438,7 @@ impl OwnershipCheckPass._flow_lend_joined(
 }
 
 impl OwnershipCheckPass._is_deep_immutable_scalar(nm: Name) -> bool {
-    return self._type_is_class_named(nm.type, ("int", "float", "bool", "str", "bytes"));
+    return self._type_is_class_named(nm.type, ["int", "float", "bool", "str", "bytes"]);
 }
 
 impl OwnershipCheckPass._chunks_shape_of(expr: Expr | None) -> (tuple | None) {
@@ -455,7 +455,7 @@ impl OwnershipCheckPass._chunks_shape_of(expr: Expr | None) -> (tuple | None) {
     ) {
         return None;
     }
-    if not self._type_is_class_named(_t.target.type, ("list", )) {
+    if not self._type_is_class_named(_t.target.type, ["list"]) {
         return None;
     }
     _params = [(p.value if isinstance(p, KWPair) else p) for p in (_fcx.params or [])];

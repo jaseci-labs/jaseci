@@ -42,7 +42,7 @@ impl RcFactsPass._use_ok_for_stack(nm: NameAtom) -> bool {
         return True;
     }
     if isinstance(p, Assignment) {
-        targets = p.target if isinstance(p.target, (list, tuple)) else [(p.target)];
+        targets = list(p.target);
         for t in targets {
             if t is nm {
                 return True;
@@ -396,7 +396,7 @@ impl RcFactsPass._connect_chain_leaves(expr: UniNode) -> (list[Name] | None) {
 impl RcFactsPass._blessed_arch_call(fc: FuncCall, member_sids: set[int]) -> bool {
     par = fc.parent;
     if isinstance(par, Assignment) and par.value is fc {
-        tgts = par.target if isinstance(par.target, (list, tuple)) else [(par.target)];
+        tgts = list(par.target);
         if len(tgts) == 1
             and isinstance(tgts[0], Name)
             and tgts[0].sym is not None
@@ -460,7 +460,7 @@ impl RcFactsPass._scan_anon_region_block(
         if not isinstance(s, Assignment) {
             continue;
         }
-        tgts = s.target if isinstance(s.target, (list, tuple)) else [(s.target)];
+        tgts = list(s.target);
         if len(tgts) != 1 or not isinstance(tgts[0], Name) {
             continue;
         }
@@ -638,9 +638,7 @@ impl RcFactsPass._param_plainly_rebound(sym: Symbol) -> bool {
         if asg is None or asg.aug_op is not None {
             continue;
         }
-        targets = asg.target
-            if isinstance(asg.target, (list, tuple))
-            else [(asg.target)];
+        targets = list(asg.target);
         if d in targets {
             return True;
         }

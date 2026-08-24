@@ -3966,8 +3966,12 @@ impl NaIRGenStmt._codegen_for_indexed(
                 self._emit_rc_release_simple(_old_v, op="for_items_val", loc=_rc_loc);
                 self._emit_rc_retain(val_val, op="for_items_val", loc=_rc_loc);
             }
-            self.builder.store(key_val, allocas[0]);
-            self.builder.store(val_val, allocas[1]);
+            self.builder.store(
+                self._coerce_type(key_val, allocas[0].type.pointee), allocas[0]
+            );
+            self.builder.store(
+                self._coerce_type(val_val, allocas[1].type.pointee), allocas[1]
+            );
         } elif kind == "str" {
             char_str = self._codegen_string_index(collection_val, body_idx);
             if char_str is not None {

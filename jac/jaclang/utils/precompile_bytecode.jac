@@ -470,7 +470,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
-         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
 
      ),

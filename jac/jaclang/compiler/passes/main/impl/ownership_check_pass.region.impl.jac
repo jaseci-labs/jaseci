@@ -52,7 +52,7 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
             continue;
         }
         _psr_recv = _tr.target;
-        if not self._type_is_class_named(_psr_recv.type, ("Region", )) {
+        if not self._type_is_class_named(_psr_recv.type, ["Region"]) {
             continue;
         }
         reason = self._partition_sugar_reason(call);
@@ -467,7 +467,7 @@ impl OwnershipCheckPass._region_expr_is_scalar(expr: Expr | None) -> bool {
         if isinstance(_op, Expr) and _op.type is not None {
             if self._nogc_shape_of(_op.type) == "scalar"
                 or self._type_is_class_named(
-                    _op.type, ("str", "LiteralString", "bytes")
+                    _op.type, ["str", "LiteralString", "bytes"]
                 ) {
                 return True;
             }

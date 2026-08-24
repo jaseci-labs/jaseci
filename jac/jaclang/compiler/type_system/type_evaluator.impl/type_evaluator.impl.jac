@@ -3614,12 +3614,12 @@ impl TypeEvaluator.assign_type(
         }
     }
 
-    _rt_base_kinds = {
-        'Archetype': ('node', 'edge', 'walker', 'object'),
-        'NodeArchetype': ('node', ),
-        'EdgeArchetype': ('edge', ),
-        'WalkerArchetype': ('walker', ),
-        'ObjectArchetype': ('object', )
+    _rt_base_kinds: dict[str, list[str]] = {
+        'Archetype': ['node', 'edge', 'walker', 'object'],
+        'NodeArchetype': ['node'],
+        'EdgeArchetype': ['edge'],
+        'WalkerArchetype': ['walker'],
+        'ObjectArchetype': ['object']
     };
     _rt_dest_tab = (
         dest_type.shared.symbol_table if isinstance(dest_type, ClassType) else None
@@ -4516,8 +4516,14 @@ impl TypeEvaluator.flow_pred_never_returns(pred: UniCFGNode) -> bool {
     if not isinstance(call, FuncCall) {
         return False;
     }
-    import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
-    sym = resolve_expr_symbol(call.target);
+    _callee = call.target;
+    sym = _callee.sym if isinstance(_callee, AstSymbolNode) else None;
+    if sym is None and isinstance(_callee, AtomTrailer) {
+        _attrs = _callee.as_attr_list;
+        if _attrs and isinstance(_attrs[-1], AstSymbolNode) {
+            sym = _attrs[-1].sym;
+        }
+    }
     if sym is None {
         return False;
     }
@@ -4563,7 +4569,6 @@ impl TypeEvaluator.get_narrowed_type_for_expr(
     expr: Expr, declared_type: TypeBase, at_node: UniNode
 ) -> TypeBase | None {
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
-    import from jaclang.compiler.symbol_utils { reference_key_deps }
     if not isinstance(declared_type, (UnionType, ClassType)) {
         return None;
     }
@@ -4603,7 +4608,7 @@ impl TypeEvaluator._node_encloses(outer: UniNode, inner: UniNode) -> bool {
 }
 
 impl TypeEvaluator._get_type_from_flow_node(
-    target: NarrowingTarget, flow_node: UniCFGNode, visited: set
+    target: NarrowingTarget, flow_node: UniCFGNode, visited: set[int]
 ) -> TypeBase | None {
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
     key = target.key;
@@ -4758,10 +4763,6 @@ impl TypeEvaluator._get_type_from_flow_node(
         if isinstance(pred, Assignment)
             and pred.value
             and not self._node_encloses(pred, flow_node) {
-            import from jaclang.compiler.symbol_utils {
-                collect_assignment_target_keys,
-                find_destructure_index_path,
-            }
             target_key_matched = False;
             flat_target_matched = False;
             destructure_path: list[int] | None = None;
@@ -4979,7 +4980,6 @@ impl TypeEvaluator._if_exit_type(
 impl TypeEvaluator._loop_body_writes_target(
     loop_node: UniCFGNode, target: NarrowingTarget
 ) -> bool {
-    import from jaclang.compiler.symbol_utils { collect_assignment_target_keys }
     cache_key = id(loop_node);
     written = self._loop_written_keys_cache.get(cache_key);
     if written is None {
@@ -5068,7 +5068,6 @@ impl TypeEvaluator.create_key_for_reference(expr: Expr) -> str | None {
         }
     }
     if isinstance(expr, AtomTrailer) and not expr.is_attr {
-        import from jaclang.compiler.symbol_utils { int_subscript_suffix }
         base_key = self.create_key_for_reference(expr.target);
         if base_key and isinstance(expr.right, IndexSlice) {
             suffix = int_subscript_suffix(expr.right);

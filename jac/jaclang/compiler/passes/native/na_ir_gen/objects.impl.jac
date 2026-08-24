@@ -2276,6 +2276,18 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
     if method_name is None {
         return None;
     }
+    _recv_nd = trailer.target;
+    if isinstance(_recv_nd, uni.AtomTrailer) and _recv_nd.is_attr {
+        _recv_owner = self._struct_name_of(_recv_nd.target);
+        _recv_fname = self._get_name(_recv_nd.right);
+        if (
+            _recv_owner is not None
+            and _recv_fname is not None
+            and self._refuse_opaque_field(_recv_nd, _recv_owner, _recv_fname)
+        ) {
+            return None;
+        }
+    }
     _wrap_owner = self._tb_solve(trailer.target.type);
     if (
         method_name == "wrap"

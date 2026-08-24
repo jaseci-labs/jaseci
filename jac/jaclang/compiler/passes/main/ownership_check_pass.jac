@@ -134,7 +134,7 @@ obj OwnershipCheckPass(Transform) {
     def _nogc_str_elem_ok(expr: Expr | None, idx_ctx: bool = False) -> bool;
     def _nogc_shape_of(t: TypeBase | None) -> str;
     def _nogc_type_is_str(t: TypeBase | None) -> bool;
-    def _type_is_class_named(t: TypeBase | None, names: tuple) -> bool;
+    def _type_is_class_named(t: TypeBase | None, names: list[str]) -> bool;
     def _nogc_tag_shape(tag: SubTag | None) -> str;
     def _nogc_local_shape(nm: Name) -> str;
     def _nogc_local_shape_expr_heap(expr: Expr | None) -> bool;

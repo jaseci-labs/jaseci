@@ -201,10 +201,12 @@ impl OwnershipCheckPass._nogc_str_slice_value(expr: Expr | None) -> bool {
 }
 
 impl OwnershipCheckPass._nogc_type_is_str(t: TypeBase | None) -> bool {
-    return self._type_is_class_named(t, ("str", ));
+    return self._type_is_class_named(t, ["str"]);
 }
 
-impl OwnershipCheckPass._type_is_class_named(t: TypeBase | None, names: tuple) -> bool {
+impl OwnershipCheckPass._type_is_class_named(
+    t: TypeBase | None, names: list[str]
+) -> bool {
     return isinstance(t, ClassType)
         and t._shared is not None
         and t.shared.class_name in names;

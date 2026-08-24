@@ -1757,18 +1757,13 @@ impl NaIRGenTypes._coerce_type_inner(
                 isinstance(val.type, ir.PointerType)
                 and not _tgt_is_ptr
                 and self._opt_payload_of(val.type) is None
+                and _src_kind in ("any", "union", "optional", "unknown", None)
             );
         if _none_shaped and _src_kind is None {
             raise AssertionError(
                 f"native codegen: coercing a None-shaped value ({val.type}) into "
                 f"the optional {target_type} needs the checker type of the source "
                 f"at {self._na_loc()}"
-            );
-        }
-        if _none_shaped and _src_kind not in ("any", "union", "optional", "unknown") {
-            raise AssertionError(
-                f"native codegen: a {_src_kind}-typed value lowered to {val.type} "
-                f"cannot fill the optional {target_type} at {self._na_loc()}"
             );
         }
         if self?.jacval_type

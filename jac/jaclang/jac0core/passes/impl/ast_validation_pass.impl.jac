@@ -159,7 +159,7 @@ impl ASTValidationPass.enter_in_for_stmt(
 impl ASTValidationPass._check_render_phase_state_write(
     self: ASTValidationPass, nd: Assignment
 ) -> None {
-    targets = nd.target if isinstance(nd.target, (list, tuple)) else [nd.target];
+    targets = list(nd.target);
     if len(targets) != 1 or not isinstance(targets[0], Name) {
         return;
     }

@@ -1027,7 +1027,16 @@ impl NaIRGenExpr._codegen_identity(
     rk = self._tb_kind(rty);
     _res: (ir.Value | None) = self._identity_over_optional(left, right, negate);
     if _res is None {
-        if lk == "any" or rk == "any" {
+        if (lk == "any" or rk == "any")
+            and not self._is_jacval_ty(left.type)
+            and not self._is_jacval_ty(right.type) {
+            _i64 = ir.IntType(64);
+            _li = self._coerce_typed(left, _i64, lty);
+            _ri = self._coerce_typed(right, _i64, rty);
+            _res = self.builder.icmp_unsigned(
+                "!=" if negate else "==", _li, _ri, name="is.addr"
+            );
+        } elif lk == "any" or rk == "any" {
             _lj = self._box_to_jacval(left, ty=lty);
             _rj = self._box_to_jacval(right, ty=rty);
             _eq = self._emit_jacval_eq(_lj, _rj);
