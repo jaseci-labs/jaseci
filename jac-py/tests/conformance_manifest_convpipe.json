@@ -520,7 +520,7 @@
         "jac-py/tests/conv_difflib/conv_difflib_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "0/30 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "notes": "PERF DISPOSITION: 0/30 output-oracle pins TIMEOUT at the 60s diff_runner cap -- SequenceMatcher autojunk is O(n^2) and the guest VM runs it too slow; not a correctness gap (heapq nlargest ImportError was fixed on this branch). Un-quarantine path = guest perf work on SequenceMatcher, then rerun diff_runner.",
       "conversion_meta": "jac-py/tests/conv_difflib/difflib.conv.json",
       "jacpython_results": {
         "difflib": {
