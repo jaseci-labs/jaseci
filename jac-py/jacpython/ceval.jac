@@ -4386,7 +4386,7 @@ def user_str_slot(u: PyUserObj) -> PyObj {
     # Same inherited-slot rule for str: BaseException_str (+ the per-type forms
     # like KeyError repr-of-payload) applies pre-raise too.
     if class_is_exception(u.cls) {
-        return baseexception_str(user_exception_view(u), py_repr);
+        return baseexception_str(user_exception_view(u), py_repr, py_str);
     }
     return user_repr_slot(u);
 }
@@ -4410,7 +4410,7 @@ def py_str(value: PyObj) -> PyObj {
             and user_has_dunder(exc.raw as PyUserObj, "__str__") {
             return user_str_slot(exc.raw as PyUserObj);
         }
-        return baseexception_str(exc, py_repr);
+        return baseexception_str(exc, py_repr, py_str);
     }
     if isinstance(value, PyUserObj) {
         return user_str_slot(value as PyUserObj);
@@ -12093,7 +12093,7 @@ def run_frame(frame: PyFrame) -> PyObj {
                         # overrides (OSError smart forms, KeyError repr-form,
                         # SyntaxError suffixes) apply to natively constructed
                         # instances instead of a lossy host reconstruction.
-                        result = baseexception_str(exc, py_repr);
+                        result = baseexception_str(exc, py_repr, py_str);
                     }
                 }
             } else {
@@ -13691,7 +13691,7 @@ def exec_code(co: PyObj, args: list[PyObj], globals: dict[str, PyObj]) -> PyObj 
             if is_error(outcome) and _tb_exec_depth == 0 {
                 # Final-error surfacing: render the guest traceback chain to
                 # stderr shaped exactly like CPython's uncaught-exception path.
-                tb_display_error(outcome);
+                tb_display_error(outcome, py_str);
             }
             return outcome;
     }

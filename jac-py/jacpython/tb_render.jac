@@ -140,10 +140,11 @@ def tb_format_stack(tb: any) -> str {
 # _format_final_exc_line: an empty str() collapses to just the type name.
 # KeyError overrides __str__ to repr() its single argument (exceptions.c
 # KeyError_str); mirror that with the leaf repr helpers for scalars.
-def tb_exception_only(exc: PyException) -> str {
-    valuestr = baseexception_str(exc).val;
+def tb_exception_only(exc: PyException, repr_fn: any = None,
+    str_fn: any = None) -> str {
+    valuestr = baseexception_str(exc, repr_fn, str_fn).val;
     if exc.type_name == "KeyError" and len(exc.args) == 1 {
-        valuestr = _tb_keyerror_arg_repr(exc.args[0]);
+        valuestr = _tb_keyerror_arg_repr(exc.args[0], str_fn);
     }
     if valuestr == "" {
         return exc.type_name + "\n";
@@ -151,7 +152,7 @@ def tb_exception_only(exc: PyException) -> str {
     return exc.type_name + ": " + valuestr + "\n";
 }
 
-def _tb_keyerror_arg_repr(arg: PyObj) -> str {
+def _tb_keyerror_arg_repr(arg: PyObj, str_fn: any = None) -> str {
     if isinstance(arg, PyStr) {
         return (str_repr(arg as PyStr)).val;
     }
@@ -176,7 +177,7 @@ def _tb_keyerror_arg_repr(arg: PyObj) -> str {
     # Non-scalar keys fall back to the default BaseException str; container
     # and object key reprs route through the ceval repr dispatch once the
     # display path consumes it directly.
-    return _obj_to_str(arg);
+    return _obj_to_str(arg, str_fn);
 }
 
 def _tb_suppress_context(exc: PyException) -> bool {
@@ -210,7 +211,7 @@ def _tb_seen_has(seen: list[PyException], target: PyException) -> bool {
 # cause-then-context (honoring __suppress_context__), drop any chained
 # exception already visited, emit blocks oldest-first separated by the
 # chaining messages.
-def tb_format(exc: PyException) -> str {
+def tb_format(exc: PyException, str_fn: any = None) -> str {
     msgs: list[str] = [];
     excs: list[PyException] = [];
     seen: list[PyException] = [];
@@ -248,16 +249,16 @@ def tb_format(exc: PyException) -> str {
         if stack_text != "" {
             out += "Traceback (most recent call last):\n" + stack_text;
         }
-        out += tb_exception_only(e);
+        out += tb_exception_only(e, None, str_fn);
     }
     return out;
 }
 
 # Final-surface entry: render an escaping PyError to host stderr exactly as
 # the interpreter would display it uncaught.
-def tb_display_error(outcome: PyObj) -> None {
+def tb_display_error(outcome: PyObj, str_fn: any = None) -> None {
     if not isinstance(outcome, PyError) {
         return;
     }
-    _tb_stderr_write(tb_format((outcome as PyError).exception));
+    _tb_stderr_write(tb_format((outcome as PyError).exception, str_fn));
 }

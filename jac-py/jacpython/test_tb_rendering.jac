@@ -18,6 +18,7 @@ import from objects { PyObj, PyError, PyException, PyStr, PyCode, is_error }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code, exec_code_frame }
 import from tb_render { tb_format, tb_display_error }
+import from ceval { py_str }
 
 ::py::
 _TB_TEST_OLD_STDERR = None
@@ -283,5 +284,21 @@ test "tb: exec_code surfaces the rendered traceback on stderr" {
             "  File \"<tb>\", line 4, in outer\n"
             "  File \"<tb>\", line 2, in inner\n"
             "ValueError: boom\n"
+        );
+}
+
+test "tb: assert payload renders through the full str dispatch" {
+    # CPython BaseException_str does str(args[i]); a tuple assert message used
+    # to collapse to "" and render as bare AssertionError. The display path
+    # passes ceval's py_str so non-scalar args survive.
+    text = tb_format(
+        vm_exc("msg = 'boom'\nassert 0, ('tuple', msg)\n"),
+        py_str
+    );
+    assert text
+        == (
+            "Traceback (most recent call last):\n"
+            "  File \"<tb>\", line 2, in <module>\n"
+            "AssertionError: ('tuple', 'boom')\n"
         );
 }

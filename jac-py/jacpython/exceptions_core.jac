@@ -193,7 +193,7 @@ def exc_name_matches(err_name: str, target_name: str) -> bool {
     return err_name == target_name;
 }
 
-def _obj_to_str(value: PyObj) -> str {
+def _obj_to_str(value: PyObj, str_fn: any = None) -> str {
     if isinstance(value, PyStr) {
         return (value as PyStr).val;
     }
@@ -205,6 +205,12 @@ def _obj_to_str(value: PyObj) -> str {
             return "True";
         }
         return "False";
+    }
+    # Non-scalar args (tuples, lists, user objects) need the full str()
+    # dispatch -- only available from callers that can supply it (ceval's
+    # py_str). Without it the arg collapses to "".
+    if str_fn is not None {
+        return expect_str(str_fn(value));
     }
     return expect_str(value);
 }
@@ -221,7 +227,11 @@ def _repr_obj(value: PyObj, repr_fn: any) -> str {
 # ``repr_fn`` (py_repr) enables CPython ``KeyError_str``: a single-arg
 # KeyError strs as REPR of its payload (str(KeyError('k')) == "'k'") --
 # callers without a repr fn fall back to plain BaseException_str.
-def baseexception_str(exc: PyException, repr_fn: any = None) -> PyStr {
+# ``str_fn`` (py_str) lets non-scalar args render through the full str()
+# dispatch (CPython BaseException_str does str(args[i])); without it only
+# scalar args survive.
+def baseexception_str(exc: PyException, repr_fn: any = None,
+    str_fn: any = None) -> PyStr {
     # Per-type __str__ slots (CPython ``OSError_str``, ``SyntaxError_str``,
     # ``Unicode*Error_str``, ``KeyError_str``) take precedence over generic
     # ``BaseException_str`` exactly as the C slots do. "" means no override
@@ -240,11 +250,11 @@ def baseexception_str(exc: PyException, repr_fn: any = None) -> PyStr {
         return PyStr(t="str", val="");
     }
     if len(exc.args) == 1 {
-        return PyStr(t="str", val=_obj_to_str(exc.args[0]));
+        return PyStr(t="str", val=_obj_to_str(exc.args[0], str_fn));
     }
     parts: list[str] = [];
     for item in exc.args {
-        parts.append(_obj_to_str(item));
+        parts.append(_obj_to_str(item, str_fn));
     }
     inner = ", ".join(parts);
     return PyStr(t="str", val="(" + inner + ")");
