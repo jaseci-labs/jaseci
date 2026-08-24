@@ -2,7 +2,23 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.15 (Latest Release)
+## jaclang 0.34.16 (Latest Release)
+
+### New Features
+
+- **Feature: byLLM usage payload carries call cost**: the `usage` event now includes a `cost` figure (per-call and aggregate), computed via litellm's own pricing table. A pricing-table miss leaves `cost` unset rather than failing the call.
+
+### Bug Fixes
+
+- **byLLM: finish_tool argument robustness**: a misnamed or flattened `finish_tool` argument  is now healed instead of crashing with a raw `TypeError`, and unusable arguments become a recoverable tool error the model can retry.
+- **byLLM: JSON word in schema hints**: `response_format` requests now say "Respond with a single JSON object", so backends that downgrade `json_schema` to `json_object` stop rejecting every zero-tool typed `by llm()` call.
+- **byLLM: finish_tool-related calls no longer break the Anthropic prompt cache**: `_stream_final_answer`, `_force_final_answer`, and `_attempt_recovery` shrank the tools array to `[finish_tool]` before their follow-up call; since Anthropic's cache breakpoint sits on `tools[-1]` and tools serialize ahead of the messages, that broke the cached prefix for the whole conversation and rebilled it at the cache-write rate. All three now leave the tools array untouched, using `tool_choice` instead to constrain the call: `"none"` for the narration call, and forcing `finish_tool` specifically for the other two.
+
+### Documentation
+
+- **Docs: fixed `jac-cl-components` skill using capital `Any` instead of `any`**: `Any` isn't a real Jac type and errors on attribute access; example now uses `any`.
+
+## jaclang 0.34.15
 
 ### Bug Fixes
 
