@@ -32,3 +32,19 @@ test "explicitly defined dunder still wins over inherited wrapper" {
     assert ok , "RUN<" + detail + ">";
     assert detail == "True D!" , "GOT<" + detail + ">";
 }
+
+test "globals() crosses to host-delegated format_map live" {
+    # Regression pin: PyGlobalsProxy had FAIL policy at the bridge, so any
+    # host-delegated consumer of globals() died with 'policy FAIL but no
+    # to_host conversion arm' (getopt test_issue4629 family). The view must be
+    # LIVE: entries defined after the crossing stay visible.
+    (ok, detail) = p2_libtest_run_snippet("g = globals()\ny = 7\nprint('Y={y}'.format_map(g))");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "Y=7" , "GOT<" + detail + ">";
+}
+
+test "crossed globals view raises KeyError like CPython dict" {
+    (ok, detail) = p2_libtest_run_snippet("g = globals()\ntry:\n    '{nope}'.format_map(g)\n    print('NOFAIL')\nexcept KeyError:\n    print('KeyError')");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "KeyError" , "GOT<" + detail + ">";
+}

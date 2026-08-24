@@ -698,6 +698,35 @@ def _jac_dir_names(value):
     except BaseException as exc:
         return (False, type(exc).__name__, str(exc))
 
+def _jac_make_live_ns_view(proxy):
+    # Live host view over a guest namespace (PyGlobalsProxy crossing to
+    # host-delegated code): CPython hands the LIVE module dict, so reads route
+    # through mp_subscript (KeyError-faithful) and writes through
+    # mp_ass_subscript -- host-side mutations land in the guest ns and guest
+    # writes stay visible to the host. A Mapping (not a dict subclass)
+    # because the storage is the Jac name->PyObj table, not a host dict;
+    # documented deltas: no del support (the proxy has no delete protocol)
+    # and isinstance(x, dict) is False.
+    import collections.abc
+    class _LiveNsView(collections.abc.Mapping):
+        def __getitem__(self, k):
+            r = proxy.mp_subscript(PyStr(t="str", val=k))
+            if isinstance(r, PyError):
+                raise KeyError(k)
+            return to_host(r)
+        def __setitem__(self, k, v):
+            proxy.mp_ass_subscript(PyStr(t="str", val=k), from_host(v))
+        def __contains__(self, k):
+            return isinstance(k, str) and k in proxy.ns
+        def __iter__(self):
+            return iter(list(proxy.ns.keys()))
+        def __len__(self):
+            return len(proxy.ns)
+        def __repr__(self):
+            return repr(dict(self))
+        get = collections.abc.Mapping.get
+    return _LiveNsView()
+
 def _jac_make_host_trampoline(native_fn):
     # Native-callable -> host round-trip. When a native PyFunction crosses the
     # host boundary (to_host), it can't become None -- host machinery that wraps
@@ -3661,7 +3690,7 @@ def to_host_policy(tag: str) -> BridgePolicy {
     if tag == "list" or tag == "dict" or tag == "set" {
         return BridgePolicy.MUTABLE_COPY;
     }
-    if tag == "dictview_obj" {
+    if tag == "dictview_obj" or tag == "globals" {
         return BridgePolicy.VIEW_COPY;
     }
     if tag == "function"
@@ -3866,6 +3895,12 @@ def to_host(value: PyObj) -> any {
             # consumption position (islice-then-next keeps working).
             return _jac_make_host_iterator(value);
 
+
+        case PyGlobalsProxy():
+            # globals() crossing to host-delegated code stays LIVE: a snapshot
+            # would silently drop host-side writes and guest-side visibility
+            # (CPython passes the real module dict). See _jac_make_live_ns_view.
+            return _jac_make_live_ns_view(value);
 
         case PyDictView():
             # Rebuild a real host dict and hand back the matching live view, so
