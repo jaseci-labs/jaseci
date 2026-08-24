@@ -17,85 +17,15 @@ import from objects {
     is_error,
 }
 
-# Direct parent links from CPython ``Lib/test/exception_hierarchy.txt``.
-glob _EXC_PARENT: dict[str, str] = {
-         "BaseExceptionGroup": "BaseException",
-         "GeneratorExit": "BaseException",
-         "KeyboardInterrupt": "BaseException",
-         "SystemExit": "BaseException",
-         "Exception": "BaseException",
-         "ArithmeticError": "Exception",
-         "FloatingPointError": "ArithmeticError",
-         "OverflowError": "ArithmeticError",
-         "ZeroDivisionError": "ArithmeticError",
-         "AssertionError": "Exception",
-         "AttributeError": "Exception",
-         "BufferError": "Exception",
-         "EOFError": "Exception",
-         "ExceptionGroup": "Exception",
-         "ImportError": "Exception",
-         "ModuleNotFoundError": "ImportError",
-         "LookupError": "Exception",
-         "IndexError": "LookupError",
-         "KeyError": "LookupError",
-         "MemoryError": "Exception",
-         "NameError": "Exception",
-         "UnboundLocalError": "NameError",
-         "OSError": "Exception",
-         "BlockingIOError": "OSError",
-         "ChildProcessError": "OSError",
-         "ConnectionError": "OSError",
-         "BrokenPipeError": "ConnectionError",
-         "ConnectionAbortedError": "ConnectionError",
-         "ConnectionRefusedError": "ConnectionError",
-         "ConnectionResetError": "ConnectionError",
-         "FileExistsError": "OSError",
-         "FileNotFoundError": "OSError",
-         "InterruptedError": "OSError",
-         "IsADirectoryError": "OSError",
-         "NotADirectoryError": "OSError",
-         "PermissionError": "OSError",
-         "ProcessLookupError": "OSError",
-         "TimeoutError": "OSError",
-         "ReferenceError": "Exception",
-         "RuntimeError": "Exception",
-         "NotImplementedError": "RuntimeError",
-         "PythonFinalizationError": "RuntimeError",
-         "RecursionError": "RuntimeError",
-         "StopAsyncIteration": "Exception",
-         "StopIteration": "Exception",
-         "SyntaxError": "Exception",
-         "IndentationError": "SyntaxError",
-         "TabError": "IndentationError",
-         "SystemError": "Exception",
-         "TypeError": "Exception",
-         "ValueError": "Exception",
-         "UnicodeError": "ValueError",
-         "UnicodeDecodeError": "UnicodeError",
-         "UnicodeEncodeError": "UnicodeError",
-         "UnicodeTranslateError": "UnicodeError",
-         "Warning": "Exception",
-         "BytesWarning": "Warning",
-         "DeprecationWarning": "Warning",
-         "EncodingWarning": "Warning",
-         "FutureWarning": "Warning",
-         "ImportWarning": "Warning",
-         "PendingDeprecationWarning": "Warning",
-         "ResourceWarning": "Warning",
-         "RuntimeWarning": "Warning",
-         "SyntaxWarning": "Warning",
-         "UnicodeWarning": "Warning",
-         "UserWarning": "Warning",
-
-     };
-
+# The builtin hierarchy table (EXC_PARENT) lives canonically in objects.jac;
+# this module reads it via the import above instead of keeping its own copy.
 
 def _exc_parent_of(name: str) -> str {
     # Parent lookup across the builtin hierarchy AND the module-exception
     # registry; a dotted name falls back to its short form so a qualified
     # registry entry ("json.JSONDecodeError") chains like its builtin parent.
-    if name in _EXC_PARENT {
-        return _EXC_PARENT[name];
+    if name in EXC_PARENT {
+        return EXC_PARENT[name];
     }
     if name in _MODULE_EXC_BASE {
         return _MODULE_EXC_BASE[name];
@@ -103,8 +33,8 @@ def _exc_parent_of(name: str) -> str {
     if "." in name {
         parts = name.split(".");
         short = parts[len(parts) - 1];
-        if short in _EXC_PARENT {
-            return _EXC_PARENT[short];
+        if short in EXC_PARENT {
+            return EXC_PARENT[short];
         }
         if short in _MODULE_EXC_BASE {
             return _MODULE_EXC_BASE[short];
@@ -156,7 +86,7 @@ def register_module_exception(qualified: str, base: str) {
     # the same hierarchy.
     short = _exc_short_name(qualified);
     if short != qualified
-        and not (short in _EXC_PARENT)
+        and not (short in EXC_PARENT)
         and not (short in _MODULE_EXC_BASE) {
         _MODULE_EXC_BASE[short] = base;
     }
