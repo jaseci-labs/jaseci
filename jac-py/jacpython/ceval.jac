@@ -593,7 +593,18 @@ def _jac_module_info(absname):
     import _imp
     import importlib.machinery as machinery
     parts = absname.split(".")
-    if _imp.is_builtin(parts[0]) or _imp.is_frozen(parts[0]):
+    if _imp.is_builtin(parts[0]):
+        return ("native", "", False, "", "")
+    # Frozen-but-with-source modules (abc, _collections_abc are frozen into the
+    # 3.10+ bootstrap): CPython prefers the frozen copy for STARTUP, but our
+    # guest must boot the REAL Lib source -- a host-proxied frozen module hands
+    # back host class objects (ABCMeta as PyHostProxy), which class_mro then
+    # excludes (non-PyClass bases are not MRO nodes), collapsing every
+    # metaclass chain built on them: `class P(metaclass=_PM(ABCMeta))` lost its
+    # entire ancestry and `import typing` died in _ProtocolMeta.__init__.
+    # Unfreeze-by-name so the sys.path walk below finds Lib/abc.py and boots it
+    # in-VM. Extend the set only with a fresh conv-pipe diff pass.
+    if _imp.is_frozen(parts[0]) and parts[0] != "abc":
         return ("native", "", False, "", "")
 
     def locate(base_dir, part):
