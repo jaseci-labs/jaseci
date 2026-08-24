@@ -1186,6 +1186,8 @@ import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
 import from objects {
     _zero_step_error,
+    DictEntry,
+    _unhashable_error,
     slice_indices,
     PyObj,
     PyInt,
@@ -2514,7 +2516,13 @@ obj PyClass(PyObj) {
 obj PyUserObj(PyObj) {
     has cls: PyClass,
         attrs: dict[str, PyObj],
-        base: any = None;
+        base: any = None,
+        # Live instance-``__dict__`` view (PyInstanceDict) minted on first
+        # access and kept identity-stable -- CPython returns the SAME dict
+        # object every time. attrs_version mirrors attribute mutations into
+        # the view so reads through it stay current.
+        dict_cache: any = None,
+        attrs_version: int = 0;
 
     # The boxed builtin value (int/str/...) for a builtin subclass, or a
     # PyNoneType sentinel for a plain user class. _has_base tells them apart.
@@ -2754,22 +2762,7 @@ def default_user_getattro(u: PyUserObj, name: str) -> PyObj {
     # AttributeError 'C' object has no attribute '__dict__'). Checked BEFORE
     # the boxed-base fallthrough so the error names the subclass, not the base.
     if name == "__dict__" {
-        if not u.cls.instance_has_dict {
-            return py_error(
-                "AttributeError",
-                "'" + u.cls.name + "' object has no attribute '__dict__'",
-            );
-        }
-        # Slot storage shares the instance attribute map; the dict VIEW must
-        # exclude member names (CPython keeps d.a out of d.__dict__ even when
-        # __slots__ = ('a', '__dict__')).
-        view: dict[str, PyObj] = {};
-        for k in u.attrs {
-            if type_slots_in_dict_view(k, u.cls.slot_members) {
-                view[k] = u.attrs[k];
-            }
-        }
-        return dict_from_str_map(view);
+        return user_instance_dict(u);
     }
     # Fall through to the boxed builtin value's own attributes/methods
     # (str.upper on a str subclass, etc.).
@@ -2823,6 +2816,12 @@ def default_user_setattro(u: PyUserObj, name: str, value: PyObj) -> PyObj {
         );
     }
     u.attrs[name] = value;
+    # Keep the live __dict__ view current (identity-stable mirror).
+    if u.dict_cache is not None
+        and type_slots_in_dict_view(name, u.cls.slot_members) {
+        d = u.dict_cache as PyDict;
+        (d as PyInstanceDict).view_set(name, value);
+    }
     return py_none();
 }
 
@@ -2859,9 +2858,115 @@ def default_user_delattro(u: PyUserObj, name: str) -> PyObj {
     }
     if name in u.attrs {
         del u.attrs[name];
+        if u.dict_cache is not None
+            and type_slots_in_dict_view(name, u.cls.slot_members) {
+            (u.dict_cache as PyInstanceDict).view_del(name);
+        }
         return py_none();
     }
     return py_error("AttributeError", name);
+}
+
+# The live instance ``__dict__``: a real dict (subclass of PyDict) whose items
+# mirror the owner's attribute map, so CPython's identity/write-through/
+# reflection triangle holds -- ``o.__dict__ is o.__dict__``, writes through a
+# fetched reference are visible as attributes and vice versa. Slot member
+# names stay OUT of the view (CPython keeps d.a out of d.__dict__ even with
+# __slots__ = ('a', '__dict__')); writes of those names land in an overlay so
+# they iterate in the view while attribute reads still hit the member
+# descriptor first.
+obj PyInstanceDict(PyDict) {
+    # ``owner`` is typed ``any`` because a non-default field cannot follow the
+    # inherited defaulted ``version`` field.
+    has owner: any = None,
+        overlay: dict[str, PyObj] = {};
+
+    # Single mutation entry for mirrored attribute writes. Items live under
+    # the SAME hash-key namespace as every other PyDict ("s:"-prefixed for
+    # str keys), so inherited lookups/iteration see them.
+    def view_set(name: str, value: PyObj) {
+        hk = hashkey_str((PyStr(t="str", val=name)).tp_hashkey());
+        self.items[hk] = DictEntry(key=PyStr(t="str", val=name), value=value);
+        self.version = self.version + 1;
+    }
+
+    # Single removal entry for mirrored attribute deletes.
+    def view_del(name: str) {
+        del self.items[hashkey_str((PyStr(t="str", val=name)).tp_hashkey())];
+        self.version = self.version + 1;
+    }
+
+    def mp_ass_subscript(index: PyObj, value: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_u = self.owner as PyUserObj;
+            if name in owner_u.cls.slot_members {
+                self.overlay[name] = value;
+            } else {
+                owner_u.attrs[name] = value;
+            }
+            self.view_set(name, value);
+            return py_none();
+        }
+        # Non-string key: a pure dict entry, invisible to the attribute
+        # protocol (CPython stores it in the instance dict the same way).
+        self.items[hashkey_str(hkr)] = DictEntry(key=index, value=value);
+        self.version = self.version + 1;
+        return py_none();
+    }
+
+    def mp_del_subscript(index: PyObj) -> PyObj {
+        hkr = index.tp_hashkey();
+        if is_error(hkr) {
+            return _unhashable_error("a dict key", index);
+        }
+        if isinstance(index, PyStr) {
+            name = (index as PyStr).val;
+            owner_u = self.owner as PyUserObj;
+            if name in self.overlay {
+                del self.overlay[name];
+                self.view_del(name);
+                return py_none();
+            }
+            if name in owner_u.attrs {
+                del owner_u.attrs[name];
+                self.view_del(name);
+                return py_none();
+            }
+            return py_error("KeyError", dict_key_repr(index));
+        }
+        hk = hashkey_str(hkr);
+        if hk in self.items {
+            del self.items[hk];
+            self.version = self.version + 1;
+            return py_none();
+        }
+        return py_error("KeyError", dict_key_repr(index));
+    }
+}
+
+def user_instance_dict(u: PyUserObj) -> PyObj {
+    if not u.cls.instance_has_dict {
+        return py_error(
+            "AttributeError",
+            "'" + u.cls.name + "' object has no attribute '__dict__'",
+        );
+    }
+    if u.dict_cache is not None {
+        return u.dict_cache as PyObj;
+    }
+    d = PyInstanceDict(t="dict", owner=u, items={});
+    for k in u.attrs {
+        if type_slots_in_dict_view(k, u.cls.slot_members) {
+            (d as PyInstanceDict).view_set(k, u.attrs[k]);
+        }
+    }
+    u.dict_cache = d;
+    return d as PyObj;
 }
 
 # type.mro() as a bound method on a class: the C3 linearization with the
@@ -3944,7 +4049,8 @@ def host_builtin(name: str) -> PyObj {
         or name == "sorted"
         or name == "max"
         or name == "min"
-        or name == "dir" {
+        or name == "dir"
+        or name == "vars" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -9319,6 +9425,37 @@ obj PyNativeBuiltin(PyObj) {
                 );
             }
             return py_dir(args[0]);
+        }
+        if self.name == "vars" {
+            if len(kwargs) > 0 {
+                return py_error("TypeError", "vars() takes no keyword arguments");
+            }
+            if len(args) == 0 {
+                # No-arg vars() is locals(); like dir(), only the ceval CALL
+                # site sees that frame -- an indirect call answers an empty
+                # dict instead of leaking a foreign frame.
+                return PyDict(t="dict", items={});
+            }
+            if len(args) > 1 {
+                return py_error(
+                    "TypeError", "vars expected at most 1 argument, got " + str(len(args))
+                );
+            }
+            # A user instance answers with its LIVE __dict__ (identity-stable
+            # view); routing through the host crossed as a stand-in and lost
+            # every guest attribute behind the _jac_guest_ marker.
+            o = args[0];
+            if isinstance(o, PyUserObj) {
+                return user_instance_dict(o as PyUserObj);
+            }
+            d = py_attr(o, "__dict__");
+            if is_error(d)
+                and (d as PyError).exception.type_name == "AttributeError" {
+                return py_error(
+                    "TypeError", "vars() argument must have __dict__ attribute"
+                );
+            }
+            return d;
         }
         if self.name == "iter" {
             if len(args) == 0 {
