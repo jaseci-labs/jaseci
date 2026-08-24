@@ -5276,6 +5276,15 @@ def py_convert_float(x: PyObj) -> PyObj {
                 + u.cls.name + "'",
         );
     }
+    # Plain int: guard the host conversion so oversized ints raise the
+    # guest-exact OverflowError instead of an escaping host error.
+    if isinstance(x, PyInt) {
+        try {
+            return PyFloat(t="float", val=float((x as PyInt).val));
+        } except OverflowError {
+            return py_error("OverflowError", "int too large to convert to float");
+        }
+    }
     return py_host_convert("float", x);
 }
 
