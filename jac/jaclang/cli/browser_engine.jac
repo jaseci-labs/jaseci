@@ -131,7 +131,7 @@ def _page_ws(port: int) -> str;
 
 def load_state(session: str) -> (dict | None);
 
-def _parse_viewport(spec: str) -> tuple;
+def _parse_viewport(spec: str) -> tuple[int, int];
 
 def _chrome_args(chrome: str, profile: Path, viewport: str) -> list;
 

@@ -65,7 +65,7 @@ def measured -> tuple {
 }
 
 """Call a no-argument fixture function through the JIT."""
-def answer(eng: object, name: str) -> int {
+def answer(eng: any, name: str) -> int {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"function '{name}' is not in the JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64)(addr)();

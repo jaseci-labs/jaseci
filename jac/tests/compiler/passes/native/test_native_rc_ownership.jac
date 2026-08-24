@@ -21,43 +21,17 @@ what freed memory happens to contain.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, get_func }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.program { JacProgram }
+
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture and return the JIT engine."""
-def compile_native(
-    fixture: str, gc_mode: str | None = None
-) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    opts = CompileOptions(
-        type_check=False,
-        force_codespace='native',
-        force_target_program=True,
-        na_gc_mode=(gc_mode if gc_mode is not None else "cycles")
-    );
-    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
 
 """Slice one function's textual IR out of the module dump."""
 def fn_ir(ir: uni.Module, name: str) -> str {
@@ -79,6 +53,24 @@ def fn_ir(ir: uni.Module, name: str) -> str {
 }
 
 # --- Returning module globs must hand the caller a +1 reference (1d/1e) ---
+"""Compile a .jac fixture and return the JIT engine."""
+def compile_native(
+    fixture: str, gc_mode: str | None = None
+) -> tuple[ExecutionEngine, uni.Module] {
+    prog = JacProgram();
+    opts = CompileOptions(
+        force_codespace='native',
+        force_target_program=True,
+        na_gc_mode=(gc_mode if gc_mode is not None else "cycles")
+    );
+    ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);
+    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
+    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
+    eng = ir.gen.native_engine;
+    assert eng is not None , f"No native engine produced for {fixture}";
+    return (eng, ir);
+}
+
 test "glob return: list cache survives a for-loop over the accessor call" {
     # `for c in cmd_defs()` releases the loop collection it owns; the callee
     # must have retained the glob list or the cache dies after one scan.
@@ -203,7 +195,7 @@ test "drop hook fires under the default cycles collector" {
 
 # --- Tuple unpack across an optional store (PR #7982) ---
 """Call one fixture fn and return (result, drops it caused)."""
-def call_counting_drops(eng: object, name: str, a: int, b: int) -> tuple[int, int] {
+def call_counting_drops(eng: any, name: str, a: int, b: int) -> tuple[int, int] {
     fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     drops = get_func(eng, "drop_count", ctypes.c_int64);
     before = drops();
@@ -255,7 +247,7 @@ test "tuple unpack from an optional element costs no more than the plain one" {
 
 # --- Comprehension elements are owned by their container (issue #8088) ---
 """Call one fixture builder+reader and return the i64 it encodes."""
-def call_elem_fn(eng: object, name: str, n: int) -> int {
+def call_elem_fn(eng: any, name: str, n: int) -> int {
     fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64);
     return fn(n);
 }

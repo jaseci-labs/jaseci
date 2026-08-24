@@ -103,7 +103,6 @@ def _compile_native(rel: str, no_ir_cache: bool) -> tuple[str, int] {
             file_path=str(FIXTURES / rel),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

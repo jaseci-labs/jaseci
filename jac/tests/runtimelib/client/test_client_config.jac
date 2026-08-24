@@ -2,7 +2,7 @@
 
 Recovers config-matrix coverage dropped when PR #6840 merged jac-client into
 core (the deleted `test_it.jac`). Each test copies a fixture into a temp dir,
-mutates its config where needed, `jac start`s it, and asserts over the served
+mutates its config where needed, `jac run --serve`s it, and asserts over the served
 HTTP surface: the API base URL + Vite defines/env reach the bundle, profiles
 swap served settings, walker reader/writer effects are classified, form
 validation rules are bundled, multi-segment routes resolve assets, and a
@@ -248,11 +248,11 @@ test "syntax error surfaces a console diagnostic" {
         port = get_free_port();
         jac_cmd = get_jac_command();
         env = get_env_with_bun();
-        # The broken build aborts `jac start`, so capture its console output.
+        # The broken build aborts `jac run --serve`, so capture its console output.
         captured = "";
         try {
             result = run(
-                [*jac_cmd, "start", "main.jac", "-p", str(port)],
+                [*jac_cmd, "run", "--serve", "-p", str(port), "main.jac"],
                 cwd=project_path,
                 env=env,
                 capture_output=True,

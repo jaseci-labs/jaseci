@@ -18,7 +18,7 @@ def check_errors(src: str) -> list[str] {
     prog.compile(
         file_path="subscript_test_src.jac",
         use_str=src,
-        options=CompileOptions(type_check=True, default_codespace='server')
+        options=CompileOptions(default_codespace='server')
     );
     return [str(e) for e in prog.errors_had];
 }

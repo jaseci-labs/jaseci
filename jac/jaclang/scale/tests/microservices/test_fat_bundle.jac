@@ -40,7 +40,9 @@ def _names(raw: bytes) -> list[str] {
 
 def _member(raw: bytes, name: str) -> bytes {
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
-        return tar.extractfile(name).read();
+        member = tar.extractfile(name);
+        assert member is not None , f"member {name} not extractable";
+        return member.read();
     }
 }
 

@@ -1,3 +1,4 @@
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 import from jaclang.jac0core.diagnostics {
     E1315,
     E1401,
@@ -8,23 +9,9 @@ import from jaclang.jac0core.diagnostics {
     E1406
 }
 
-glob _NOGC_SCALARS: tuple = (
-         "int",
-         "float",
-         "bool",
-         "None",
-         "NoneType",
-         "type",
-         "i8",
-         "i16",
-         "i32",
-         "i64",
-         "u8",
-         "u16",
-         "u32",
-         "u64",
-         "f32",
-         "f64"
+glob _NOGC_SCALARS: frozenset[str] = frozenset(
+         ["int", "float", "bool", "None", "NoneType", "type"]
+             + JAC_TYPE_REGISTRY.sized_scalar_names()
      );
 
 def _nogc_name_candidates(mod_name: str) -> list[str] {
@@ -163,6 +150,7 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
         result_ownership,
         Ownership
     }
+    import from jaclang.compiler.type_system.types { AnyType }
     for nd in self.idx_assignments {
         if len(nd.target) != 1 {
             continue;
@@ -178,6 +166,12 @@ impl OwnershipCheckPass._nogc_infer_locals -> None {
             continue;
         }
         if self._nogc_local_shape(_tgt) in ("osp", "scalar") {
+            continue;
+        }
+
+        if nd.value is not None
+            and isinstance(nd.value.type, AnyType)
+            and nd.value.type.is_foreign {
             continue;
         }
         _sid = self._name_sym_id(_tgt);

@@ -7,6 +7,10 @@ import from jaclang.runtimelib.storage { LocalStorage, Storage }
 import from jaclang.runtimelib.builtin { store }
 import from jaclang.project.config { JacConfig, StorageConfig }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # --- LocalStorage tests ---
 test "import storage" {
     assert Storage is not None;
@@ -182,7 +186,7 @@ test "store default" {
 test "store with config" {
     tmp = mkdtemp();
     try {
-        strg = store(base_path=tmp);
+        strg = _as_any(store(base_path=tmp));
         assert strg.base_path == tmp;
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);

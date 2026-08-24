@@ -1,6 +1,6 @@
 """The JCIR emitter joins the native seal, measured the way the sealer measures.
 
-Same discipline as `test_pass_seal_wave1_baseline.jac` and its wave-2
+Same discipline as `test_pass_seal_baselines.jac` and its wave-2
 sibling: the root is compiled exactly as `seal_native_artifacts` compiles
 it, and three things are pinned -- exact closure membership, native IR
 production, and the seam set two-way against
@@ -94,6 +94,7 @@ glob JCIR_CLOSURE: tuple = (
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
          "jac0core/codegen_ir.jac",
+         "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
          "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
@@ -103,9 +104,11 @@ glob JCIR_CLOSURE: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
+         "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/logging.jac",
@@ -154,7 +157,6 @@ def _root_coverage(rel: str) -> tuple {
             file_path=str(PKG_PATH / rel),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',
