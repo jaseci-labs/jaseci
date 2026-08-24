@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "jac_sha": "cb5b4522f4158a4c7b8b4741a87e67538c71d9ae",
   "cpython": {
     "version": "3.14.6",
-    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+    "sha": "cb5b4522f4158a4c7b8b4741a87e67538c71d9ae"
   },
   "command": [
     "diff_runner.py",
-    "/var/tmp/wp4-mech/out/conv_htmlparser/conv_htmlparser_pins.jac"
+    "/var/tmp/laneb-out/htmlparser-dunder/conv_htmlparser_pins.jac"
   ],
-  "generated_at": "2026-08-24T00:42:52",
+  "generated_at": "2026-08-24T13:09:32",
   "hashes": {
-    "pins_jac": "b9a895e2ee2195500faf1ad9034537fc77a86a291e3ba5c40fec878e79ad40d3",
-    "conversion_json": "9ecdbe63e5c64f1207fb1fbb79f4495a3e1dcfa6d285d3fede7de9e23acf2ddb",
+    "pins_jac": "ba081137d37d28c0221fbf1795fd5f792d054f8a32b7c5524da402f1d0db02e5",
+    "conversion_json": "f1965a004417a423fcf08158ea384bd895db12d14b7d00d6710bf72195e2e86e",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "htmlparser",
@@ -21,9 +21,9 @@
   "timed_out": false,
   "counts": {
     "converted": 67,
-    "runnable": 0,
-    "green": 0,
-    "quarantined": 67,
+    "runnable": 50,
+    "green": 50,
+    "quarantined": 17,
     "failed": 0,
     "infra_failed": 0
   },
