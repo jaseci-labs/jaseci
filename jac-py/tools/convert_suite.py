@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import doctest
 import json
 import os
 import subprocess
@@ -43,7 +44,7 @@ _DEFAULT_LIB = _REPO / "reference" / "cpython" / "Lib"
 _TESTS_DIR = _REPO / "jac-py" / "tests"
 _MANIFEST = _TESTS_DIR / "conformance_manifest_convpipe.json"
 
-TOOL_VERSION = "conv_suite-0.2.0"
+TOOL_VERSION = "conv_suite-0.3.0"
 CPYTHON_VERSION = "3.14.6"
 
 
@@ -563,15 +564,33 @@ def _src(node: ast.AST, source: str) -> str:
     return seg or ast.unparse(node)
 
 
-def collect_prelude(tree: ast.Module, source: str) -> tuple[list[ast.stmt], set[str]]:
-    """Module-level imports/assigns/function defs usable as snippet prelude."""
+def collect_prelude(tree: ast.Module, source: str, include_classes: bool = False) -> tuple[list[ast.stmt], set[str]]:
+    """Module-level imports/assigns/function defs usable as snippet prelude.
+
+    Classes are included only when requested (doctest path): referencing a
+    class from a unittest method snippet would drag its whole source text
+    (incl. skip machinery) into every pin.
+    """
     stmts: list[ast.stmt] = []
     names: set[str] = set()
     for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign, ast.FunctionDef)):
+        if isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign,
+                             ast.FunctionDef)):
             stmts.append(node)
             names |= _bound_names(node)
+        elif include_classes and isinstance(node, ast.ClassDef):
+            stmts.append(node)
+            names.add(node.name)
     return stmts, names
+
+
+def _prelude_bindings(item: ast.stmt) -> set[str]:
+    """Names a prelude item binds; classes bind exactly their own name
+    (_bound_names would also pull in method/arg names, wrongly matching
+    unrelated bodies during pruning)."""
+    if isinstance(item, ast.ClassDef):
+        return {item.name}
+    return _bound_names(item)
 
 
 def _prune_prelude(
@@ -587,7 +606,7 @@ def _prune_prelude(
         for idx, item in enumerate(prelude):
             if idx in kept:
                 continue
-            binds = _bound_names(item)
+            binds = _prelude_bindings(item)
             if binds & used:
                 kept[idx] = item
                 new_used = _loaded_names(item)
@@ -658,6 +677,372 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
 
 
 # ---------------------------------------------------------------------------
+# Module-level doctest extraction (test_genexps-style files)
+
+
+def _eval_str_value(value: ast.expr, modname: str) -> str | None:
+    """Statically evaluate a module-level string expression.
+
+    Handles plain constants and the ``"..." % {'modname': __name__}``
+    interpolation idiom (test_descrtut). ``__name__`` is substituted with
+    *modname*, which must equal the ``__name__`` both the host oracle and
+    the guest harness exec snippets under ("__main__").
+    """
+    try:
+        val = ast.literal_eval(value)
+    except (ValueError, SyntaxError, TypeError, MemoryError):
+        if (
+            isinstance(value, ast.BinOp)
+            and isinstance(value.op, ast.Mod)
+            and isinstance(value.left, ast.Constant)
+            and isinstance(value.left.value, str)
+        ):
+            right: dict[str, object] = {}
+            dict_node = value.right
+            if not isinstance(dict_node, ast.Dict):
+                return None
+            ok = True
+            for k, v in zip(dict_node.keys, dict_node.values):
+                if k is None or not isinstance(k, ast.Constant):
+                    ok = False
+                    break
+                if isinstance(v, ast.Name) and v.id == "__name__":
+                    right[k.value] = modname
+                    continue
+                try:
+                    right[k.value] = ast.literal_eval(v)
+                except (ValueError, SyntaxError, TypeError, MemoryError):
+                    ok = False
+                    break
+            if not ok:
+                return None
+            try:
+                val = value.left.value % right
+            except (TypeError, ValueError, KeyError):
+                return None
+        else:
+            return None
+    return val if isinstance(val, str) else None
+
+
+def collect_doctest_sources(tree: ast.Module, modname: str) -> list[tuple[str, str]]:
+    """Find module-level doctest texts: ``doctests = "..."`` registered via
+    ``__test__`` (dict of label -> string/name), falling back to any
+    module-level string constant named ``doctests`` containing examples."""
+    strings: dict[str, str] = {}
+    test_map: dict | None = None
+    for node in tree.body:
+        target_name = None
+        value = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name, value = node.targets[0].id, node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
+            target_name, value = node.target.id, node.value
+        if target_name is None:
+            continue
+        if target_name == "__test__":
+            if isinstance(value, ast.Dict):
+                test_map = {
+                    k.value: v
+                    for k, v in zip(value.keys, value.values)
+                    if isinstance(k, ast.Constant)
+                }
+            continue
+        text = _eval_str_value(value, modname)
+        if text is not None and ">>>" in text:
+            strings[target_name] = text
+
+    sources: list[tuple[str, str]] = []
+    if test_map is not None:
+        for label, ref in test_map.items():
+            if isinstance(ref, ast.Constant) and isinstance(ref.value, str):
+                if ">>>" in ref.value:
+                    sources.append((str(label), ref.value))
+            elif isinstance(ref, ast.Name) and ref.id in strings:
+                sources.append((str(label), strings[ref.id]))
+    if not sources and "doctests" in strings:
+        sources.append(("doctests", strings["doctests"]))
+    return sources
+
+
+class _PrintRenamer(ast.NodeTransformer):
+    """Route print output into the snippet-local capture buffer.
+
+    Renames ``print(...)`` calls AND bare ``print`` loads (e.g. the
+    ``a['print'] = print`` idiom before ``exec(..., a)``) to ``_d_print``,
+    since the ambient print is overridden by the guest harness with its own
+    capture and would otherwise bypass the buffer on one side only.
+    """
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        self.generic_visit(node)
+        if isinstance(node.func, ast.Name) and node.func.id == "print":
+            node.func = ast.Name(id="_d_print", ctx=ast.Load())
+        return node
+
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        if node.id == "print" and isinstance(node.ctx, ast.Load):
+            return ast.Name(id="_d_print", ctx=ast.Load())
+        return node
+
+
+def _norm_want(want: str) -> str:
+    lines = [ln.rstrip() for ln in want.splitlines()]
+    while lines and not lines[-1]:
+        lines.pop()
+    while lines and not lines[0]:
+        lines.pop(0)
+    lines = ["" if ln.strip() == "<BLANKLINE>" else ln for ln in lines]
+    return "\n".join(lines)
+
+
+_DOCTEST_HELPERS = """\
+_d_buf = []
+def _d_print(*args, sep=' '):
+    _d_buf.append(sep.join(str(a) for a in args))
+def _d_clear():
+    _d_buf.clear()
+def _d_ell_match(want, got):
+    parts = want.split('...')
+    if len(parts) == 1:
+        return want == got
+    if not got.startswith(parts[0]) or not got.endswith(parts[-1]):
+        return False
+    pos = len(parts[0])
+    end = len(got) - len(parts[-1])
+    for seg in parts[1:-1]:
+        idx = got.find(seg, pos)
+        if idx < 0 or idx > end:
+            return False
+        pos = idx + len(seg)
+    return True
+def _d_check(idx, want, ell=False):
+    got = chr(10).join(_d_buf)
+    ok = _d_ell_match(want, got) if ell else got == want
+    if not ok and want in ('0', '1'):
+        # doctest OutputChecker accepts False for 0 and True for 1.
+        ok = got == ('False' if want == '0' else 'True')
+    assert ok, ('doctest', idx, got, want)
+"""
+
+
+def _exc_ident(exc_msg: str) -> str | None:
+    head = exc_msg.partition(":")[0].strip()
+    parts = head.split(".")
+    if parts and all(p.isidentifier() for p in parts):
+        return head
+    return None
+
+
+def _example_stmts(idx: int, example: doctest.Example, stem: str) -> tuple[list[ast.stmt], str | None]:
+    """Render one doctest example as snippet statements.
+
+    Returns (statements, quarantine_reason). quarantine_reason is None when
+    the example translated cleanly.
+    """
+    # Expected outputs hardcoding the real module path (e.g. "TypeError:
+    # test.test_unpack_ex.f() ..." or reprs like <class 'test.metaclass.B'>)
+    # can never match a standalone snippet; quarantine rather than pin a
+    # false failure.
+    for probe in (example.want, example.exc_msg or ""):
+        if f"test_{stem}" in probe or f"test.{stem}" in probe:
+            return [], "doctest-module-qualified-expected"
+    opts = set(example.options)
+    if opts - {doctest.ELLIPSIS} or (opts and example.options.get(doctest.ELLIPSIS) is not True):
+        return [], f"doctest-options:{sorted(example.options)}"
+    use_ell = doctest.ELLIPSIS in opts
+    try:
+        # compile() is authoritative: ast.parse accepts constructs real
+        # compilation rejects (multiple starred targets, repeated kwargs).
+        compile(example.source, "<doctest>", "exec")
+    except SyntaxError:
+        # Compile-time-invalid source (e.g. pep646 syntax errors): run it
+        # through exec() and assert the SyntaxError surfaces.
+        src_lit = ast.Constant(value=example.source)
+        return [
+            ast.Try(
+                body=[ast.Expr(value=ast.Call(func=ast.Name(id="exec", ctx=ast.Load()), args=[src_lit], keywords=[])),
+                      ast.Raise(exc=ast.Call(func=ast.Name(id="AssertionError", ctx=ast.Load()),
+                                             args=[ast.Constant(value=f"ex{idx}: expected SyntaxError")], keywords=[]), cause=None)],
+                handlers=[ast.ExceptHandler(type=ast.Name(id="SyntaxError", ctx=ast.Load()), name=None, body=[ast.Pass()])],
+                orelse=[], finalbody=[],
+            )
+        ], None
+
+    parsed = ast.parse(example.source)
+
+    if example.exc_msg is not None:
+        exc_name = _exc_ident(example.exc_msg)
+        if exc_name is None:
+            return [], f"doctest-exc-msg:{example.exc_msg[:60]}"
+        expected = _norm_want(example.exc_msg)
+        renamer = _PrintRenamer()
+        body = [renamer.visit(stmt) for stmt in parsed.body]
+        msg_expr: ast.expr = ast.Call(func=ast.Name(id="str", ctx=ast.Load()), args=[ast.Name(id="_d_e", ctx=ast.Load())], keywords=[])
+        # str(SyntaxError) appends file/line info that doctest's
+        # format_exception_only strips; e.msg is the bare message.
+        msg_expr = ast.IfExp(
+            test=ast.Call(
+                func=ast.Name(id="isinstance", ctx=ast.Load()),
+                args=[ast.Name(id="_d_e", ctx=ast.Load()), ast.Name(id="SyntaxError", ctx=ast.Load())],
+                keywords=[],
+            ),
+            body=ast.Attribute(value=ast.Name(id="_d_e", ctx=ast.Load()), attr="msg", ctx=ast.Load()),
+            orelse=msg_expr,
+        )
+        got_exc = ast.BinOp(
+            left=ast.Attribute(
+                value=ast.Call(func=ast.Name(id="type", ctx=ast.Load()), args=[ast.Name(id="_d_e", ctx=ast.Load())], keywords=[]),
+                attr="__name__", ctx=ast.Load(),
+            ),
+            op=ast.Add(),
+            right=ast.IfExp(
+                test=ast.Compare(
+                    left=msg_expr,
+                    ops=[ast.NotEq()],
+                    comparators=[ast.Constant(value="")],
+                ),
+                body=ast.BinOp(left=ast.Constant(value=": "), op=ast.Add(), right=msg_expr),
+                orelse=ast.Constant(value=""),
+            ),
+        )
+        if "..." in expected:
+            check_test: ast.expr = ast.Call(
+                func=ast.Name(id="_d_ell_match", ctx=ast.Load()),
+                args=[ast.Constant(value=expected), got_exc], keywords=[],
+            )
+        else:
+            check_test = ast.Compare(left=got_exc, ops=[ast.Eq()], comparators=[ast.Constant(value=expected)])
+        return [
+            ast.Try(
+                body=[ast.Expr(value=ast.Call(func=ast.Name(id="_d_clear", ctx=ast.Load()), args=[], keywords=[])), *list(body)],
+                handlers=[ast.ExceptHandler(type=_name_or_attr(exc_name), name="_d_e", body=[ast.Assert(test=check_test, msg=ast.Tuple(elts=[ast.Constant(value=f"doctest-exc{idx}"), ast.Name(id="_d_e", ctx=ast.Load())], ctx=ast.Load()))])],
+                orelse=[ast.Raise(exc=ast.Call(func=ast.Name(id="AssertionError", ctx=ast.Load()),
+                                               args=[ast.Constant(value=f"ex{idx}: expected {exc_name}")], keywords=[]), cause=None)],
+                finalbody=[],
+            )
+        ], None
+
+    # Output example: reset buffer. Every top-level expression statement
+    # appends repr(result), mirroring compile(..., "single") displayhook
+    # semantics for multi-statement sources like ``A[*b] = 1; A``.
+    renamer = _PrintRenamer()
+    want = _norm_want(example.want)
+    clear = ast.Expr(value=ast.Call(func=ast.Name(id="_d_clear", ctx=ast.Load()), args=[], keywords=[]))
+    out: list[ast.stmt] = [clear]
+    if is_expr := (len(parsed.body) == 1 and isinstance(parsed.body[0], ast.Expr)):
+        out.append(ast.Assign(
+            targets=[ast.Name(id="_d_r", ctx=ast.Store())],
+            value=renamer.visit(parsed.body[0].value),
+        ))
+    else:
+        for stmt in parsed.body:
+            if isinstance(stmt, ast.Expr):
+                out.append(ast.Assign(
+                    targets=[ast.Name(id="_d_r", ctx=ast.Store())],
+                    value=renamer.visit(stmt.value),
+                ))
+                out.append(_d_flush_stmt())
+            else:
+                out.append(renamer.visit(stmt))
+    if is_expr and want:
+        out.append(_d_flush_stmt())
+    if want:
+        out.append(ast.Expr(value=ast.Call(
+            func=ast.Name(id="_d_check", ctx=ast.Load()),
+            args=[ast.Constant(value=idx), ast.Constant(value=want)],
+            keywords=[ast.keyword(arg="ell", value=ast.Constant(value=True))] if use_ell else [],
+        )))
+    return out, None
+
+
+def _d_flush_stmt() -> ast.stmt:
+    """Emit ``if _d_r is not None: _d_buf.append(repr(_d_r))`` (displayhook)."""
+    return ast.If(
+        test=ast.Compare(
+            left=ast.Name(id="_d_r", ctx=ast.Load()),
+            ops=[ast.IsNot()],
+            comparators=[ast.Constant(value=None)],
+        ),
+        body=[ast.Expr(value=ast.Call(
+            func=ast.Attribute(value=ast.Name(id="_d_buf", ctx=ast.Load()), attr="append", ctx=ast.Load()),
+            args=[ast.Call(func=ast.Name(id="repr", ctx=ast.Load()), args=[ast.Name(id="_d_r", ctx=ast.Load())], keywords=[])],
+            keywords=[],
+        ))],
+        orelse=[],
+    )
+
+
+def _name_or_attr(dotted: str) -> ast.expr:
+    parts = dotted.split(".")
+    node: ast.expr = ast.Name(id=parts[0], ctx=ast.Load())
+    for part in parts[1:]:
+        node = ast.Attribute(value=node, attr=part, ctx=ast.Load())
+    return node
+
+
+def extract_module_doctests(tree: ast.Module, source: str, modname: str, stem: str) -> Extraction:
+    """Convert module-level doctest strings into runnable pins.
+
+    One pin per labeled docstring (preserves doctest's shared-namespace
+    execution order); each example becomes an inline buffer/compare block.
+    Module-level prelude (imports/classes/functions) is pruned to what the
+    examples reference, mirroring the unittest-method path.
+    """
+    result = Extraction()
+    sources = collect_doctest_sources(tree, modname)
+    if not sources:
+        return result
+    parser = doctest.DocTestParser()
+    all_bodies: dict[str, list[ast.stmt]] = {}
+    for label, text in sources:
+        ident = f"{stem}.doctests:{label}"
+        examples = parser.get_examples(text)
+        if not examples:
+            result.quarantined.append(Quarantined(ident, "doctest-no-examples"))
+            continue
+        helper_stmts = ast.parse(_DOCTEST_HELPERS).body
+        body: list[ast.stmt] = list(helper_stmts)
+        dropped_bindings: set[str] = set()
+        for i, example in enumerate(examples):
+            stmts, reason = _example_stmts(i, example, stem)
+            try:
+                ex_tree = ast.parse(example.source)
+            except SyntaxError:
+                ex_tree = ast.Module(body=[], type_ignores=[])
+            loads = _loaded_names(ex_tree)
+            if reason is None and loads & dropped_bindings:
+                # A definition this example relies on was dropped; running it
+                # would produce a false failure (or mask one).
+                reason = f"doctest-depends-on-dropped:{sorted(loads & dropped_bindings)[:4]}"
+            if reason is not None:
+                # Drop only the offending example; keep the rest of the
+                # docstring runnable. Account for it as a per-example
+                # quarantine entry.
+                result.quarantined.append(Quarantined(f"{ident}.ex{i}", reason))
+                dropped_bindings |= _bound_names(ex_tree)
+                continue
+            body.extend(stmts)
+        all_bodies[ident] = body
+    if not all_bodies:
+        return result
+    prelude, prelude_names = collect_prelude(tree, source, include_classes=True)
+    # Fixpoint closure over everything the examples reference, including
+    # prelude-to-prelude deps (e.g. `tool = Tool()` needs class Tool).
+    kept_prelude = _prune_prelude(
+        [s for b in all_bodies.values() for s in b], prelude, prelude_names
+    )
+    for label, text in sources:
+        ident = f"{stem}.doctests:{label}"
+        body = all_bodies.get(ident)
+        if body is None:
+            continue
+        snippet = render_snippet(body, kept_prelude, needs_re=False, wrap=False)
+        result.pinned.append(Pinned(ident, snippet, {}))
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Snippet rendering
 
 
@@ -669,12 +1054,25 @@ def _concat_expr(parts: list[ast.expr]) -> ast.expr:
     return out
 
 
-def render_snippet(body: list[ast.stmt], prelude: list[ast.stmt], needs_re: bool) -> str:
+def render_snippet(
+    body: list[ast.stmt], prelude: list[ast.stmt], needs_re: bool, wrap: bool = True
+) -> str:
     module = ast.Module(body=[], type_ignores=[])
     stmts: list[ast.stmt] = []
     if needs_re:
         stmts.append(ast.Import(names=[ast.alias(name="re as _re", asname=None)]))
     stmts.extend(prelude)
+    if not wrap:
+        # Doctest pins run at module level: classes/examples must get
+        # module-level __qualname__ (doctest execs at globals scope) and
+        # repr(class) like "<class '__main__.C'>" must match the oracle.
+        stmts.extend(body)
+        # Any failure raises and aborts the process (harness reports it);
+        # reaching this line means every check passed.
+        stmts.append(ast.Expr(value=ast.Call(func=ast.Name(id="print", ctx=ast.Load()), args=[ast.Constant(value=_ORACLE_OK)], keywords=[])))
+        module.body = stmts
+        ast.fix_missing_locations(module)
+        return textwrap.dedent(ast.unparse(module)) + "\n"
     stmts.append(
         ast.FunctionDef(
             name="_t",
@@ -864,6 +1262,9 @@ def run_conversion(source: Path, outdir: Path, name: str, cpython_lib: Path, wri
     source_text = source.read_text(encoding="utf-8")
     tree = ast.parse(source_text)
     extraction = extract_tests(tree, source_text)
+    doctests = extract_module_doctests(tree, source_text, "__main__", name.removeprefix("conv_"))
+    extraction.pinned.extend(doctests.pinned)
+    extraction.quarantined.extend(doctests.quarantined)
 
     meta: dict = {
         **header,
