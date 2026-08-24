@@ -1,9 +1,11 @@
 # AutoscalerObserverRegistry is the structural enforcement of "no code path
 # opens its own watch": every test here injects a lightweight test double
 # via observer_factory so these stay pure registry-semantics tests (identity,
-# keying, shutdown) with no Kubernetes/thread mechanics involved -- those are
-# already covered by test_kubernetes_autoscaler_observer.jac.
+# keying, shutdown, publish atomicity) with no Kubernetes mechanics involved
+# -- those are already covered by test_kubernetes_autoscaler_observer.jac.
 import unittest.mock;
+import time;
+import from threading { Thread, Lock }
 import from jaclang.scale.deploy.autoscale.observer_registry {
     AutoscalerObserverRegistry
 }
@@ -16,7 +18,8 @@ import from jaclang.scale.deploy.autoscale.observer {
 obj FakeObserver(AutoscalerObserver) {
     has watch_calls: list = [],
         stop_calls: list = [],
-        started: bool = False;
+        started: bool = False,
+        watch_called: bool = False;
 
     def start {
         self.started = True;
@@ -26,8 +29,14 @@ obj FakeObserver(AutoscalerObserver) {
         self.stop_calls.append(drain);
     }
 
-    def watch_namespace(namespace: str, label_selector: (str | None) = None) {
-        self.watch_calls.append((namespace, label_selector));
+    def watch_namespace(namespace: str) {
+        # A small delay makes the publish-before-watching race in
+        # get_or_create observable if it regresses: without the fix, a
+        # concurrent caller could see this instance in the registry before
+        # this method -- and therefore this flag -- has run.
+        time.sleep(0.02);
+        self.watch_calls.append(namespace);
+        self.watch_called = True;
     }
 
     def subscribe(
@@ -41,11 +50,20 @@ obj FakeObserver(AutoscalerObserver) {
 }
 
 
+def fake(obs: AutoscalerObserver) -> FakeObserver {
+    # get_or_create is declared to return the abstract AutoscalerObserver;
+    # these tests always inject FakeObserver via observer_factory, so this
+    # narrows the type to reach its test-only fields.
+    assert isinstance(obs, FakeObserver);
+    return obs;
+}
+
+
 test "get_or_create returns the identical instance for the same namespace and cluster" {
     AutoscalerObserverRegistry._instances = {};
 
-    first = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", observer_factory=FakeObserver
+    first = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
     second = AutoscalerObserverRegistry.get_or_create(
         "ns-a", observer_factory=FakeObserver
@@ -54,7 +72,7 @@ test "get_or_create returns the identical instance for the same namespace and cl
     assert first is second;
     assert first.started is True;
     # watch_namespace only runs on the first, actually-creating call.
-    assert first.watch_calls == [("ns-a", None)];
+    assert first.watch_calls == ["ns-a"];
 }
 
 test "get_or_create returns different instances for different namespaces" {
@@ -83,31 +101,61 @@ test "get_or_create returns different instances for the same namespace under dif
     assert cluster_1 is not cluster_2;
 }
 
-test "get_or_create propagates label_selector to the underlying watch only on first creation" {
+test "get_or_create always watches the shared, jac-scale-managed selector" {
+    # There is no per-caller label_selector: the observer is one shared
+    # watch per (cluster, namespace), so its selector is a fixed constant
+    # (see MANAGED_SELECTOR), not something individual callers can set --
+    # scoping to a single scale target happens client-side via
+    # AutoscalerSubscription instead.
     AutoscalerObserverRegistry._instances = {};
 
-    obs = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", label_selector="managed=jac-scale", observer_factory=FakeObserver
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
-    assert obs.watch_calls == [("ns-a", "managed=jac-scale")];
+    assert obs.watch_calls == ["ns-a"];
 
-    # A second caller asking for the same (cluster, namespace) shares the
-    # watch the first caller already established -- their label_selector is
-    # not re-applied.
-    AutoscalerObserverRegistry.get_or_create(
-        "ns-a", label_selector="app=other", observer_factory=FakeObserver
-    );
-    assert obs.watch_calls == [("ns-a", "managed=jac-scale")];
+    AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver);
+    assert obs.watch_calls == ["ns-a"];
+}
+
+test "get_or_create never returns an observer before its watch has started, under concurrent callers" {
+    AutoscalerObserverRegistry._instances = {};
+
+    violations: list = [];
+    violations_lock = Lock();
+
+    def worker {
+        obs = fake(
+            AutoscalerObserverRegistry.get_or_create(
+                "ns-race", observer_factory=FakeObserver
+            )
+        );
+        if not obs.watch_called {
+            with violations_lock {
+                violations.append(obs);
+            }
+        }
+    }
+
+    workers = [Thread(target=worker) for _ in range(16)];
+    for w in workers {
+        w.start();
+    }
+    for w in workers {
+        w.join();
+    }
+
+    assert violations == [];
 }
 
 test "shutdown_all stops every created instance and clears the registry" {
     AutoscalerObserverRegistry._instances = {};
 
-    ns_a = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", observer_factory=FakeObserver
+    ns_a = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
-    ns_b = AutoscalerObserverRegistry.get_or_create(
-        "ns-b", observer_factory=FakeObserver
+    ns_b = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-b", observer_factory=FakeObserver)
     );
 
     AutoscalerObserverRegistry.shutdown_all(drain=True);
@@ -125,8 +173,8 @@ test "get_or_create after shutdown_all returns a fresh instance, not the stopped
     );
     AutoscalerObserverRegistry.shutdown_all();
 
-    fresh = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", observer_factory=FakeObserver
+    fresh = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
     assert fresh is not original;
     assert fresh.stop_calls == [];
@@ -135,8 +183,8 @@ test "get_or_create after shutdown_all returns a fresh instance, not the stopped
 test "shutdown_all defaults to draining" {
     AutoscalerObserverRegistry._instances = {};
 
-    obs = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", observer_factory=FakeObserver
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
     AutoscalerObserverRegistry.shutdown_all();
 
@@ -146,8 +194,8 @@ test "shutdown_all defaults to draining" {
 test "shutdown_all with drain=False passes it through to every instance" {
     AutoscalerObserverRegistry._instances = {};
 
-    obs = AutoscalerObserverRegistry.get_or_create(
-        "ns-a", observer_factory=FakeObserver
+    obs = fake(
+        AutoscalerObserverRegistry.get_or_create("ns-a", observer_factory=FakeObserver)
     );
     AutoscalerObserverRegistry.shutdown_all(drain=False);
 

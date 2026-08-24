@@ -17,7 +17,6 @@ class AutoscalerObserverRegistry {
     static def get_or_create(
         namespace: str,
         cluster_key: (str | None) = None,
-        label_selector: (str | None) = None,
         observer_factory: (ObserverFactoryFn | None) = None
     ) -> AutoscalerObserver {
         key = f"{cluster_key or default_cluster_key()}::{namespace}";
@@ -32,10 +31,10 @@ class AutoscalerObserverRegistry {
                 require_optional("kubernetes", "deploy.k8s");
                 created = KubernetesAutoscalerObserver();
             }
+            created.start();
+            created.watch_namespace(namespace);
             AutoscalerObserverRegistry._instances[key] = created;
         }
-        created.start();
-        created.watch_namespace(namespace, label_selector);
         return created;
     }
 

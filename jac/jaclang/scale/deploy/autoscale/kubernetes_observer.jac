@@ -17,7 +17,8 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 }
 import from jaclang.scale.observability.logger { Logger }
 
-glob WATCHED_KINDS: list[str] = ["scaled_object", "hpa", "deployment"];
+glob WATCHED_KINDS: list[str] = ["scaled_object", "hpa", "deployment"],
+     MANAGED_SELECTOR: str = "managed=jac-scale";
 
 obj KubernetesAutoscalerObserver(AutoscalerObserver) {
     has _custom_api: (any | None) = None,
@@ -34,7 +35,7 @@ obj KubernetesAutoscalerObserver(AutoscalerObserver) {
 
     def start -> None;
     def stop(drain: bool = True) -> None;
-    def watch_namespace(namespace: str, label_selector: (str | None) = None) -> None;
+    def watch_namespace(namespace: str) -> None;
     def subscribe(
         autoscaler_name: (str | None) = None,
         scale_target_name: (str | None) = None,

@@ -108,9 +108,7 @@ class AutoscalerObserver {
         );
     }
 
-    def watch_namespace(
-        self: AutoscalerObserver, namespace: str, label_selector: (str | None) = None
-    ) {
+    def watch_namespace(self: AutoscalerObserver, namespace: str) {
         raise NotImplementedError(
             "watch_namespace() must be implemented by a concrete AutoscalerObserver subclass"
         );

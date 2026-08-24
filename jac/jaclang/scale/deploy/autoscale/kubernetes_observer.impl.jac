@@ -62,7 +62,7 @@ impl KubernetesAutoscalerObserver.watch_namespace{
             }
             t = Thread(
                 target=self._watch_loop,
-                args=(namespace, kind, label_selector),
+                args=(namespace, kind, MANAGED_SELECTOR),
                 name=f"jac-scale-autoscaler-observer-{namespace}-{kind}",
                 daemon=True
             );
