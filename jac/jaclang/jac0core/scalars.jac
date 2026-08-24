@@ -1,3 +1,5 @@
+import math;
+import struct;
 obj ScalarShape {
     has name: str,
         width: int,
@@ -93,12 +95,46 @@ def range_of(name: str) -> tuple[int, int] {
     return shape_range(shape);
 }
 
+def float_repr(shape: ScalarShape, value: int | float) -> float {
+    wide = float(value);
+    if shape.width != 32 or math.isinf(wide) or math.isnan(wide) {
+        return wide;
+    }
+    try {
+        return struct.unpack("f", struct.pack("f", wide))[0];
+    } except OverflowError {
+        return math.copysign(math.inf, wide);
+    }
+}
+
+def shape_float_max(shape: ScalarShape) -> float {
+    import sys;
+    if not shape.is_float {
+        raise ValueError(f"{shape.name} is not a float type");
+    }
+    if shape.width == 32 {
+        return struct.unpack(">f", b"\x7f\x7f\xff\xff")[0];
+    }
+    return sys.float_info.max;
+}
+
+def float_max(name: str) -> float {
+    shape = shape_of(name);
+    if shape is None {
+        raise KeyError(name);
+    }
+    return shape_float_max(shape);
+}
+
 def shape_literal_fits(shape: ScalarShape, value: int | float) -> bool {
     if not shape.sized {
         return False;
     }
     if shape.is_float {
-        return isinstance(value, (int, float));
+        if not isinstance(value, (int, float)) {
+            return False;
+        }
+        return not math.isinf(float_repr(shape, value));
     }
     if isinstance(value, float) {
         return False;
@@ -125,23 +161,11 @@ def shapes_widen_to(s: ScalarShape, d: ScalarShape) -> bool {
     if d.name == "bool" {
         return False;
     }
-    if d.name == "int" {
-        return not s.is_float;
-    }
-    if d.name == "float" {
-        return True;
-    }
-    if s.name == "int" {
-        return False;
-    }
-    if s.name == "float" {
-        return d.name == "f64";
-    }
     if s.is_float {
         return d.is_float and d.width >= s.width;
     }
     if d.is_float {
-        return s.width <= d.width // 2;
+        return d.width >= 64 or s.width <= d.width // 2;
     }
     if s.signed == d.signed {
         return d.width >= s.width;

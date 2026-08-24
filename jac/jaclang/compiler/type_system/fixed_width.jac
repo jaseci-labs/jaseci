@@ -10,7 +10,7 @@ import from jaclang.jac0core.unitree {
     UniNode
 }
 import from jaclang.jac0core.constant { TOKEN_MAP, Tokens as Tok }
-import from jaclang.jac0core.diagnostics { E1126, E1127, E1128 }
+import from jaclang.jac0core.diagnostics { E1126, E1127, E1128, E1130 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
 import from jaclang.compiler.type_system.types {
     AnyType,
@@ -105,7 +105,15 @@ def adopt_literal(
         }
         return AssignVerdict(ok=True);
     }
-    if isinstance(value, float) or probe {
+    if probe {
+        return AssignVerdict(ok=False);
+    }
+    if JAC_TYPE_REGISTRY.numeric_kind_of(name) == NumericKind.FloatKind {
+        import from jaclang.jac0core.scalars { float_max }
+        evaluator.emit_diag(E1130, expr, value=value, type=name, max=float_max(name));
+        return AssignVerdict(ok=False, diagnosed=True);
+    }
+    if isinstance(value, float) {
         return AssignVerdict(ok=False);
     }
     (lo, hi) = JAC_TYPE_REGISTRY.range_of(name);
