@@ -1278,15 +1278,31 @@ obj PyTypeAlias(PyObj) {
 }
 
 # PEP 695 type-parameter stand-in (CPython typing.TypeVar as produced by
-# CALL_INTRINSIC_1(INTRINSIC_TYPEVAR)). Data-only: the intrinsic operand is
-# just the parameter name string, so __bound__ is None and __constraints__ is
-# the empty tuple -- bounded/constrained parameters wrap this object through
-# CALL_INTRINSIC_2 INTRINSIC_TYPEVAR_WITH_BOUND/_WITH_CONSTRAINTS instead.
+# CALL_INTRINSIC_1(INTRINSIC_TYPEVAR) and CALL_INTRINSIC_2
+# TYPEVAR_WITH_BOUND/_WITH_CONSTRAINTS/_DEFAULT). Data-only: bounds,
+# constraints, and defaults are LAZY evaluator functions (PEP 749
+# const-evaluators emitted by codegen) whose first access re-enters the
+# interpreter, so their resolution lives in ceval's py_attr intercepts
+# (typevar_bound_value and siblings), exactly like PyTypeAlias.__value__.
+# CPython's typevarobject caches each evaluated value on the TypeVar after
+# first access -- the cached_* slots + *_resolved flags model that.
 # Implicit PEP 695 parameters live in module 'typing' with inferred variance,
 # and their host repr is the bare name ('T'; the '~T' form belongs to
 # explicitly-constructed TypeVars outside typing).
 obj PyTypeVar(PyObj) {
-    has name: str;
+    has name: str,
+        # Lazy evaluators installed by the CALL_INTRINSIC_2 arms;
+        # py_none() when the parameter has none.
+        evaluate_bound: PyObj = py_none(),
+        evaluate_constraints: PyObj = py_none(),
+        evaluate_default: PyObj = py_none(),
+        # First-access caches.
+        cached_bound: PyObj = py_none(),
+        cached_constraints: PyObj = py_none(),
+        cached_default: PyObj = py_none(),
+        bound_resolved: bool = False,
+        constraints_resolved: bool = False,
+        default_resolved: bool = False;
 
     def tp_getattro(name: str) -> PyObj {
         if name == "__name__" {
@@ -1294,12 +1310,6 @@ obj PyTypeVar(PyObj) {
         }
         if name == "__module__" {
             return PyStr(t="str", val="typing");
-        }
-        if name == "__bound__" {
-            return py_none();
-        }
-        if name == "__constraints__" {
-            return PyTuple(t="tuple", items=[]);
         }
         if name == "__infer_variance__" {
             return PyBool(t="bool", val=True);
