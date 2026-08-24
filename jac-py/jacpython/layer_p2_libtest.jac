@@ -948,6 +948,30 @@ obj P2OpcodeStackEffectFn(PyObj) {
     }
 }
 
+obj P2SupportPassthroughFn(PyObj) {
+    # Identity decorator body for requires_debug_ranges().
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "expected exactly 1 argument");
+        }
+        return args[0];
+    }
+}
+
+obj P2SupportRequiresDebugRangesFn(PyObj) {
+    # CPython requires_debug_ranges(reason='...'): skipIf-style decorator.
+    # Called bare (@requires_debug_ranges()) it must RETURN a decorator, so
+    # serve a passthrough decorator object; imported names must exist or the
+    # snippet import dies before conversion-time quarantine scopes the
+    # decorated helper out.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) == 1 {
+            return args[0];
+        }
+        return P2SupportPassthroughFn(t="function");
+    }
+}
+
 def p2_libtest_reset {
     clear_shim_modules();
     # Route IMPORT_NAME through py_import_name so the registered facades win;
@@ -988,6 +1012,12 @@ def p2_libtest_reset {
     support_attrs: dict[str, PyObj] = {
         # CPython test.support.is_wasi: platform gate; our targets are never WASI.
         "is_wasi": PyBool(t="bool", val=False),
+        # Platform gates from Lib/test/support/__init__.py:595-608; all False on
+        # our targets (linux/darwin-class hosts, never emscripten/mobile).
+        "is_emscripten": PyBool(t="bool", val=False),
+        "is_apple_mobile": PyBool(t="bool", val=False),
+        "is_apple": PyBool(t="bool", val=False),
+        "requires_debug_ranges": P2SupportRequiresDebugRangesFn(t="function"),
         "sortdict": P2SupportSortdictFn(t="function"),
     };
     support_mod = PyModule(t="module", name="test.support", attrs=support_attrs);
@@ -1003,6 +1033,83 @@ def p2_libtest_reset {
     register_shim_module("test.support.os_helper", os_helper_mod);
     support_attrs["os_helper"] = os_helper_mod;
     register_shim_module("test.support", support_mod);
+    # Lib/test/support/numbers.py is pure literal data shared by numeric
+    # suites (test_underscores et al); embedded verbatim from the pinned
+    # CPython reference so the shim-first module resolution serves the real
+    # constants instead of a ModuleNotFoundError.
+    numbers_valid: list[PyObj] = [
+        PyStr(t="str", val="0_0_0"),
+        PyStr(t="str", val="4_2"),
+        PyStr(t="str", val="1_0000_0000"),
+        PyStr(t="str", val="0b1001_0100"),
+        PyStr(t="str", val="0xffff_ffff"),
+        PyStr(t="str", val="0o5_7_7"),
+        PyStr(t="str", val="1_00_00.5"),
+        PyStr(t="str", val="1_00_00.5e5"),
+        PyStr(t="str", val="1_00_00e5_1"),
+        PyStr(t="str", val="1e1_0"),
+        PyStr(t="str", val=".1_4"),
+        PyStr(t="str", val=".1_4e1"),
+        PyStr(t="str", val="0b_0"),
+        PyStr(t="str", val="0x_f"),
+        PyStr(t="str", val="0o_5"),
+        PyStr(t="str", val="1_00_00j"),
+        PyStr(t="str", val="1_00_00.5j"),
+        PyStr(t="str", val="1_00_00e5_1j"),
+        PyStr(t="str", val=".1_4j"),
+        PyStr(t="str", val="(1_2.5+3_3j)"),
+        PyStr(t="str", val="(.5_6j)"),
+    ];
+    numbers_invalid: list[PyObj] = [
+        PyStr(t="str", val="0_"),
+        PyStr(t="str", val="42_"),
+        PyStr(t="str", val="1.4j_"),
+        PyStr(t="str", val="0x_"),
+        PyStr(t="str", val="0b1_"),
+        PyStr(t="str", val="0xf_"),
+        PyStr(t="str", val="0o5_"),
+        PyStr(t="str", val="0 if 1_Else 1"),
+        PyStr(t="str", val="0_b0"),
+        PyStr(t="str", val="0_xf"),
+        PyStr(t="str", val="0_o5"),
+        PyStr(t="str", val="0_7"),
+        PyStr(t="str", val="09_99"),
+        PyStr(t="str", val="4_______2"),
+        PyStr(t="str", val="0.1__4"),
+        PyStr(t="str", val="0.1__4j"),
+        PyStr(t="str", val="0b1001__0100"),
+        PyStr(t="str", val="0xffff__ffff"),
+        PyStr(t="str", val="0x___"),
+        PyStr(t="str", val="0o5__77"),
+        PyStr(t="str", val="1e1__0"),
+        PyStr(t="str", val="1e1__0j"),
+        PyStr(t="str", val="1_.4"),
+        PyStr(t="str", val="1_.4j"),
+        PyStr(t="str", val="1._4"),
+        PyStr(t="str", val="1._4j"),
+        PyStr(t="str", val="._5"),
+        PyStr(t="str", val="._5j"),
+        PyStr(t="str", val="1.0e+_1"),
+        PyStr(t="str", val="1.0e+_1j"),
+        PyStr(t="str", val="1.4_j"),
+        PyStr(t="str", val="1.4e5_j"),
+        PyStr(t="str", val="1_e1"),
+        PyStr(t="str", val="1.4_e1"),
+        PyStr(t="str", val="1.4_e1j"),
+        PyStr(t="str", val="1e_1"),
+        PyStr(t="str", val="1.4e_1"),
+        PyStr(t="str", val="1.4e_1j"),
+        PyStr(t="str", val="(1+1.5_j_)"),
+        PyStr(t="str", val="(1+1.5_j)"),
+    ];
+    numbers_attrs: dict[str, PyObj] = {
+        "VALID_UNDERSCORE_LITERALS": PyList(t="list", items=numbers_valid),
+        "INVALID_UNDERSCORE_LITERALS": PyList(t="list", items=numbers_invalid),
+    };
+    numbers_mod = PyModule(t="module", name="test.support.numbers", attrs=numbers_attrs);
+    register_shim_module("test.support.numbers", numbers_mod);
+    support_attrs["numbers"] = numbers_mod;
+
     register_shim_module(
         "test", PyModule(t="module", name="test", attrs={"support": support_mod})
     );
