@@ -2421,6 +2421,32 @@ glob EXC_EXTRA_PARENTS: dict[str, str] = {
     "ExceptionGroup": "BaseExceptionGroup",
 };
 
+# CPython's OSError smart-mapping (Python/errors.c,
+# PyErr_SetFromErrnoWithFilenameObjects): when OSError itself is called with
+# >=2 positional args and an int first arg, the errno selects a subclass.
+# Values are the Linux (asm-generic) errno numbering, each entry probed
+# against the host interpreter; errnos absent here stay plain OSError
+# (verified: EBUSY(16), EINVAL(22), ... do NOT map on host).
+glob OSERROR_ERRNO_MAP: dict[int, str] = {
+    1: "PermissionError",        # EPERM
+    2: "FileNotFoundError",      # ENOENT
+    3: "ProcessLookupError",     # ESRCH
+    4: "InterruptedError",       # EINTR
+    11: "BlockingIOError",       # EAGAIN / EWOULDBLOCK
+    13: "PermissionError",       # EACCES
+    17: "FileExistsError",       # EEXIST
+    20: "NotADirectoryError",    # ENOTDIR
+    21: "IsADirectoryError",     # EISDIR
+    32: "BrokenPipeError",       # EPIPE
+    103: "ConnectionAbortedError",   # ECONNABORTED
+    104: "ConnectionResetError",     # ECONNRESET
+    108: "BrokenPipeError",          # ESHUTDOWN
+    110: "TimeoutError",             # ETIMEDOUT
+    111: "ConnectionRefusedError",   # ECONNREFUSED
+    114: "BlockingIOError",          # EALREADY
+    115: "BlockingIOError",          # EINPROGRESS
+};
+
 # Membership test for the builtin exception tree (every name in EXC_PARENT
 # plus the BaseException root).
 def is_builtin_exception_name(name: str) -> bool {
@@ -2509,6 +2535,17 @@ def _oserror_parse(args: list[PyObj]) -> dict[str, PyObj] {
 # Trimming of ``.args`` mirrors CPython oserror_init; every construction form
 # succeeds because all OSError arities map to typed fields.
 def _construct_oserror(name: str, args: list[PyObj]) -> PyException {
+    # CPython OSErrorInit smart-mapping: only the bare OSError constructor
+    # remaps; explicit subclasses (PermissionError(13, 'p')) keep their own
+    # identity. The multi-arg int-errno form is required: OSError('msg') and
+    # OSError('a', 'b') stay plain (verified against host).
+    type_name = name;
+    if name == "OSError" and len(args) >= 2 and isinstance(args[0], PyInt) {
+        mapped = OSERROR_ERRNO_MAP.get((args[0] as PyInt).val);
+        if mapped is not None {
+            type_name = mapped;
+        }
+    }
     parsed = _oserror_parse(args);
     # CPython keeps only (errno, strerror) in .args once filename parsing ran.
     exc_args: list[PyObj] = [];
@@ -2522,7 +2559,7 @@ def _construct_oserror(name: str, args: list[PyObj]) -> PyException {
         message = expect_str(exc_args[0]);
     }
     return PyException(
-        t="exception", type_name=name, message=message,
+        t="exception", type_name=type_name, message=message,
         args=exc_args, type_fields=parsed
     );
 }
@@ -2759,10 +2796,25 @@ obj PyExceptionType(PyObj) {
         # into typed fields before falling through to the generic form.
         if self.name != "Exception" and self.name != "BaseException"
             and exc_is_subclass_of(self.name, "OSError") {
+            if len(kwargs) > 0 {
+                return py_error("TypeError", self.name + "() takes no keyword arguments");
+            }
             return _construct_oserror(self.name, args);
         }
+        # ImportError/ModuleNotFoundError is the ONLY builtin exception family
+        # whose constructor accepts keywords (name=, path=); it keeps them.
         if self.name == "ImportError" or self.name == "ModuleNotFoundError" {
             return _construct_import_error(self.name, args, kwargs);
+        }
+        if self.name == "BaseExceptionGroup" or self.name == "ExceptionGroup"
+            or exc_is_subclass_of(self.name, "BaseExceptionGroup") {
+            return _construct_exc_group(self.name, args, kwargs);
+        }
+        # Every remaining builtin exception constructor rejects keyword
+        # arguments byte-exact (host: ValueError(x=1) ->
+        # TypeError('ValueError() takes no keyword arguments')).
+        if len(kwargs) > 0 {
+            return py_error("TypeError", self.name + "() takes no keyword arguments");
         }
         if exc_is_subclass_of(self.name, "SyntaxError") {
             return _construct_syntax_error(self.name, args);
@@ -2770,10 +2822,6 @@ obj PyExceptionType(PyObj) {
         if self.name == "UnicodeDecodeError" or self.name == "UnicodeEncodeError"
             or self.name == "UnicodeTranslateError" {
             return _construct_unicode_error(self.name, args);
-        }
-        if self.name == "BaseExceptionGroup" or self.name == "ExceptionGroup"
-            or exc_is_subclass_of(self.name, "BaseExceptionGroup") {
-            return _construct_exc_group(self.name, args, kwargs);
         }
         # Exception(*args): keep the FULL args tuple (BaseException.args), not just
         # the first, so `e.args`, str(e), and repr(e) round-trip faithfully. The

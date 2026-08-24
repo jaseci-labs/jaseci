@@ -284,3 +284,75 @@ test "stopiteration: generator return value rides .value" {
         "try:\n    next(it)\nexcept StopIteration as e:\n    assert e.value == 42\n"
     );
 }
+
+# ---------------------------------------------------------------------------
+# kwargs rejection on builtin exception constructors + OSError errno
+# smart-mapping. Every expectation below was probed byte-exact against the
+# host CPython 3.14.7 oracle before pinning (ValueError(x=1),
+# OSError(2,'x','file.txt') -> type FileNotFoundError with repr
+# "FileNotFoundError(2, 'x')", OSError(16,'b') stays plain OSError).
+# ---------------------------------------------------------------------------
+
+test "kwargs: builtin exception ctors reject keywords byte-exact" {
+    outcome = vm_try("OSError(errno=2)\n");
+    assert isinstance(outcome, PyError);
+    assert err_type(outcome) == "TypeError", err_type(outcome);
+    assert err_msg(outcome) == "OSError() takes no keyword arguments", err_msg(outcome);
+
+    outcome = vm_try("ValueError(x=1)\n");
+    assert isinstance(outcome, PyError);
+    assert err_type(outcome) == "TypeError", err_type(outcome);
+    assert err_msg(outcome) == "ValueError() takes no keyword arguments", err_msg(outcome);
+}
+
+test "kwargs: ImportError still accepts name=/path= (host-only kwarg family)" {
+    vm_ok(
+        "e = ImportError('m', name='n', path='p')\n"
+        "assert e.name == 'n' and e.path == 'p'\n"
+    );
+}
+
+test "oserror: errno 2 maps to FileNotFoundError with host repr and fields" {
+    vm_ok(
+        "e = OSError(2, 'x', 'file.txt')\n"
+        "assert type(e).__name__ == 'FileNotFoundError', type(e).__name__\n"
+        "assert repr(e) == \"FileNotFoundError(2, 'x')\", repr(e)\n"
+        "assert e.filename == 'file.txt'\n"
+        "assert e.args == (2, 'x')\n"
+    );
+}
+
+test "oserror: errno 13 maps to PermissionError" {
+    vm_ok(
+        "e = OSError(13, 'p')\n"
+        "assert type(e).__name__ == 'PermissionError', type(e).__name__\n"
+        "assert str(e) == '[Errno 13] p', str(e)\n"
+        "assert isinstance(e, OSError)\n"
+    );
+}
+
+test "oserror: unmapped errno stays plain OSError" {
+    # EBUSY(16): probed on host -- NOT in CPython's smart-map table.
+    vm_ok(
+        "e = OSError(16, 'b')\n"
+        "assert type(e).__name__ == 'OSError', type(e).__name__\n"
+    );
+}
+
+test "oserror: mapping applies ONLY to multi-arg int-errno form" {
+    # Single positional string arg is a plain message.
+    vm_ok(
+        "e = OSError('msg')\n"
+        "assert type(e).__name__ == 'OSError', type(e).__name__\n"
+    );
+    # Non-int first arg never remaps.
+    vm_ok(
+        "e = OSError('a', 'b')\n"
+        "assert type(e).__name__ == 'OSError', type(e).__name__\n"
+    );
+    # Explicit subclass keeps its own identity.
+    vm_ok(
+        "e = PermissionError(13, 'p')\n"
+        "assert type(e).__name__ == 'PermissionError', type(e).__name__\n"
+    );
+}
