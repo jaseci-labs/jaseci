@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_errno.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_errno",
+    "--name",
+    "conv_errno"
+  ],
+  "generated_at": "2026-08-24T00:42:33",
+  "hashes": {
+    "pins_jac": "ca8b9721267d298ba289727b21dd586b52854f44a9e815ab923bc1ad2b0e32e5"
+  },
+  "source_file": "reference/cpython/Lib/test/test_errno.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "errno",
+  "pins_file": "conv_errno_pins.jac",
+  "pins": [
+    {
+      "ident": "ErrorcodeTests.test_attributes_in_errorcode",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import errno\n\ndef _t():\n    for attribute in errno.__dict__.keys():\n        if attribute.isupper():\n            assert getattr(errno, attribute) in errno.errorcode, ('assertIn', getattr(errno, attribute), errno.errorcode)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "ErrnoAttributeTests.test_for_improper_attributes",
+      "reason": "self.assertHasAttr"
+    },
+    {
+      "ident": "ErrnoAttributeTests.test_using_errorcode",
+      "reason": "self.assertHasAttr"
+    }
+  ],
+  "counts": {
+    "extracted": 3,
+    "pinned": 1,
+    "quarantined": 2
+  }
+}

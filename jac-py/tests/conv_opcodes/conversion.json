@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_opcodes.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_opcodes",
+    "--name",
+    "conv_opcodes"
+  ],
+  "generated_at": "2026-08-24T00:42:52",
+  "hashes": {
+    "pins_jac": "a3f427c030979c503f1efdfeff0e7dd9e2a17411c1f24b99cffbb4f1dae12d2d"
+  },
+  "source_file": "reference/cpython/Lib/test/test_opcodes.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "opcodes",
+  "pins_file": "conv_opcodes_pins.jac",
+  "pins": [
+    {
+      "ident": "OpcodeTest.test_try_inside_for_loop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    n = 0\n    for i in range(10):\n        n = n + i\n        try:\n            1 / 0\n        except NameError:\n            pass\n        except ZeroDivisionError:\n            pass\n        except TypeError:\n            pass\n        try:\n            pass\n        except:\n            pass\n        try:\n            pass\n        finally:\n            pass\n        n = n + i\n    if n != 90:\n        raise AssertionError('try inside for')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OpcodeTest.test_setup_annotations_line",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "ident": "OpcodeTest.test_default_annotations_exist",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C:\n        pass\n    assert C.__annotations__ == {}, ('assertEqual', C.__annotations__, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OpcodeTest.test_use_existing_annotations",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    ns = {'__annotations__': {1: 2}}\n    exec('x: int', ns)\n    assert ns['__annotations__'] == {1: 2}, ('assertEqual', ns['__annotations__'], {1: 2})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OpcodeTest.test_do_not_recreate_annotations",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "ident": "OpcodeTest.test_raise_class_exceptions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class AClass(Exception):\n        pass\n\n    class BClass(AClass):\n        pass\n\n    class CClass(Exception):\n        pass\n\n    class DClass(AClass):\n\n        def __init__(self, ignore):\n            pass\n    try:\n        raise AClass()\n    except:\n        pass\n    try:\n        raise AClass()\n    except AClass:\n        pass\n    try:\n        raise BClass()\n    except AClass:\n        pass\n    try:\n        raise BClass()\n    except CClass:\n        raise AssertionError('fail()')\n    except:\n        pass\n    a = AClass()\n    b = BClass()\n    try:\n        raise b\n    except AClass as v:\n        assert v == b, ('assertEqual', v, b)\n    else:\n        raise AssertionError('no exception')\n    try:\n        raise DClass(a)\n    except DClass as v:\n        assert isinstance(v, DClass), ('assertIsInstance', v, DClass)\n    else:\n        raise AssertionError('no exception')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OpcodeTest.test_compare_function_objects",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    f = eval('lambda: None')\n    g = eval('lambda: None')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda a: a')\n    g = eval('lambda a: a')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda a=1: a')\n    g = eval('lambda a=1: a')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda: 0')\n    g = eval('lambda: 1')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda: None')\n    g = eval('lambda a: None')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda a: None')\n    g = eval('lambda b: None')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda a: None')\n    g = eval('lambda a=None: None')\n    assert f != g, ('assertNotEqual', f, g)\n    f = eval('lambda a=0: None')\n    g = eval('lambda a=1: None')\n    assert f != g, ('assertNotEqual', f, g)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OpcodeTest.test_modulo_of_string_subclasses",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyString(str):\n\n        def __mod__(self, value):\n            return 42\n    assert MyString() % 3 == 42, ('assertEqual', MyString() % 3, 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 8,
+    "pinned": 6,
+    "quarantined": 2
+  }
+}

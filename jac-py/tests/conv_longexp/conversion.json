@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_longexp.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_longexp",
+    "--name",
+    "conv_longexp"
+  ],
+  "generated_at": "2026-08-24T00:42:57",
+  "hashes": {
+    "pins_jac": "50a476facb389f1787f773fb860a4b90659497e8c77e4bb7035c40abd4637d25"
+  },
+  "source_file": "reference/cpython/Lib/test/test_longexp.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "longexp",
+  "pins_file": "conv_longexp_pins.jac",
+  "pins": [
+    {
+      "ident": "LongExpText.test_longexp",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    REPS = 65580\n    l = eval('[' + '2,' * REPS + ']')\n    assert len(l) == REPS, ('assertEqual', len(l), REPS)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 1,
+    "pinned": 1,
+    "quarantined": 0
+  }
+}

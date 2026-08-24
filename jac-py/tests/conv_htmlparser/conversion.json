@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_htmlparser.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_htmlparser",
+    "--name",
+    "conv_htmlparser"
+  ],
+  "generated_at": "2026-08-24T00:42:51",
+  "hashes": {
+    "pins_jac": "b9a895e2ee2195500faf1ad9034537fc77a86a291e3ba5c40fec878e79ad40d3"
+  },
+  "source_file": "reference/cpython/Lib/test/test_htmlparser.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "htmlparser",
+  "pins_file": "conv_htmlparser_pins.jac",
+  "pins": [],
+  "quarantined": [
+    {
+      "ident": "HTMLParserTestCase.test_script_content",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_style_content",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_rcdata_content",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_rawtext_content",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_script_closing_tag",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_closing_tag",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_invalid_closing_tag",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_invalid_nonascii_closing_tag",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_script",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_title",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_cdata",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_cdata_section_content",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_no_quadratic_complexity",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_processing_instruction_only",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_simple_html",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_malformatted_charref",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_unclosed_entityref",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_entityref",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_unclosed_charref",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_charref",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_bad_nesting",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_bare_ampersands",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_bare_pointy_brackets",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_starttag_end_boundary",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_buffer_artefacts",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_valid_doctypes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_startendtag",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_get_starttag_text",
+      "reason": "self._run_check_extra"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_noscript_content",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_plaintext_content",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_comments",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_condcoms",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_convert_charrefs",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_convert_charrefs_in_attribute_values",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_tolerant_parsing",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_starttag_junk_chars",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_slashes_in_starttag",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_slashes_in_endtag",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_declaration_junk_chars",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_illegal_declarations",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_invalid_end_tags",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_broken_invalid_end_tag",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_correct_detection_of_start_tags",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_comments",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_eof_in_declarations",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_bogus_comments",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_broken_condcoms",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_cdata_section",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "HTMLParserTestCase.test_convert_charrefs_dropped_text",
+      "reason": "unresolved-name:EventCollector"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_syntax",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_values",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_nonascii",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_entity_replacement",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_funky_names",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_entityrefs_in_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_attr_funky_names2",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_entities_in_attribute_value",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_malformed_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_malformed_adjacent_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_adjacent_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_missing_attribute_value",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_javascript_attribute_value",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_end_tag_in_attribute_value",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_with_unquoted_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_comma_between_attributes",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "AttributesTestCase.test_weird_chars_in_unquoted_attribute_values",
+      "reason": "self._run_check"
+    },
+    {
+      "ident": "TestInheritance.test_base_class_methods_called",
+      "reason": "unresolved-name:EventCollector"
+    }
+  ],
+  "counts": {
+    "extracted": 67,
+    "pinned": 0,
+    "quarantined": 67
+  }
+}
