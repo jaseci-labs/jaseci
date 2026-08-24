@@ -125,9 +125,7 @@ def _compile_module(program: any, path: Path) -> any {
     source_key = str(path);
     prev = len(program.errors_had);
 
-    mod = program.compile(
-        source_key, options=CompileOptions(force_codespace='client', type_check=False)
-    );
+    mod = program.compile(source_key, options=CompileOptions(force_codespace='client'));
     new_errors = program.errors_had[prev:];
     if new_errors {
         formatted = "\n".join(str(err) for err in new_errors);
@@ -215,7 +213,7 @@ impl resolve_npm_entry(config: JacConfig, files: list[NpmSourceFile],) -> str | 
     paths = {f.npm_path for f in files};
 
     npm = config._raw_data.get("npm", {});
-    `entry = npm.get("entry", "") if isinstance(npm, dict) else "";
+    `entry: str = str(npm.get("entry", "")) if isinstance(npm, dict) else "";
     if `entry {
         candidate = npm_js_path(`entry.replace("\\", "/"));
         if candidate in paths {

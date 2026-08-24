@@ -48,8 +48,8 @@ All development tasks go through the one binary:
 |---|---|
 | `jac run app.jac` | Run a program |
 | `jac create <name>` | Scaffold a new project |
-| `jac dev` | Dev loop with hot reload |
-| `jac start app.jac` | Serve as a REST API (+ frontend if present) |
+| `jac run --dev` | Dev loop with hot reload |
+| `jac run app.jac` | Serve as a REST API (+ frontend if present) |
 | `jac build` | Type-check and emit an app bundle |
 | `jac build --as native` | Compile to a standalone executable |
 | `jac install <pkg>` | Add PyPI or npm dependencies (declared in `jac.toml`) |

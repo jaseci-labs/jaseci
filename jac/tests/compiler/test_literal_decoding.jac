@@ -208,7 +208,12 @@ def _harvest -> list[tuple[(str, str)]] {
     out: list[tuple[(str, str)]] = [];
     for path in sorted(Path(JAC_ROOT).rglob("*.jac")) {
         text_path = str(path);
-        if ("node_modules" in text_path or "/.jac/" in text_path) {
+        if (
+            "node_modules" in text_path
+            or "/.jac/" in text_path
+            or "/.zig-cache/" in text_path
+            or not path.is_file()
+        ) {
             continue;
         }
         try {

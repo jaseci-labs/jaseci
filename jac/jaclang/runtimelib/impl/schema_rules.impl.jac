@@ -1,8 +1,12 @@
 import threading;
 
-glob _tls = threading.local(),
+obj _SchemaTLS(threading.local) {
+    has stack: (list[SchemaRules] | None) = None;
+}
+
+glob _tls: _SchemaTLS = _SchemaTLS(),
      _collected: dict[str, SchemaRules] = {},
-     _merged_cache: dict = {};
+     _merged_cache: dict[type, (SchemaRules | None)] = {};
 
 
 impl SchemaRules.add_was(old_fqn: str) -> None {

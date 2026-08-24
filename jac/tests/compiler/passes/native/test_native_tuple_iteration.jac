@@ -57,7 +57,7 @@ glob FIXTURES = os.path.join(
 
 
 """Compile the fixture natively once and return the JIT engine."""
-def _engine -> object {
+def _engine -> any {
     if _MEMO {
         return _MEMO[0];
     }
@@ -75,7 +75,7 @@ def _engine -> object {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(name: str) -> object {
+def _get(name: str) -> any {
     addr = _engine().get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -83,7 +83,7 @@ def _get(name: str) -> object {
 
 
 """Import the same fixture through the sv/bytecode pathway."""
-def _sv_module -> object {
+def _sv_module -> any {
     prev = get_effective_default_codespace_override();
     set_effective_default_codespace("server");
     try {

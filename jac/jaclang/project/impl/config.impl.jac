@@ -173,7 +173,8 @@ impl JacConfig.apply_profile(
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in profile {
-            for (key, value) in profile[section].items() {
+            profile_section: dict[str, any] = profile[section];
+            for (key, value) in profile_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -182,7 +183,8 @@ impl JacConfig.apply_profile(
     }
 
     if "project" in profile {
-        for (key, value) in profile["project"].items() {
+        profile_project: dict[str, any] = profile["project"];
+        for (key, value) in profile_project.items() {
             attr = key.replace("-", "_");
             if hasattr(self.project, attr) {
                 setattr(self.project, attr, value);
@@ -191,7 +193,7 @@ impl JacConfig.apply_profile(
     }
 
     if "check" in profile {
-        check_data = profile["check"];
+        check_data: dict[str, any] = profile["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -206,7 +208,7 @@ impl JacConfig.apply_profile(
     }
 
     if "storage" in profile {
-        storage_data = profile["storage"];
+        storage_data: dict[str, any] = profile["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -266,12 +268,13 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     if not toml_path.exists() {
         return;
     }
-    data = read_toml_with_encoding(str(toml_path));
+    data: dict[str, any] = read_toml_with_encoding(str(toml_path));
     data = _interpolate_recursive(data);
     section_map = self._section_map();
     for (section, obj) in section_map.items() {
         if section in data {
-            for (key, value) in data[section].items() {
+            data_section: dict[str, any] = data[section];
+            for (key, value) in data_section.items() {
                 if hasattr(obj, key) {
                     setattr(obj, key, value);
                 }
@@ -279,7 +282,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
         }
     }
     if "project" in data {
-        proj = data["project"];
+        proj: dict[str, any] = data["project"];
         for (key, value) in proj.items() {
             attr = key.replace("-", "_");
             if attr == "authors" {
@@ -295,7 +298,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "check" in data {
-        check_data = data["check"];
+        check_data: dict[str, any] = data["check"];
         for (key, value) in check_data.items() {
             if key == "lint" and isinstance(value, dict) {
                 for (lk, lv) in value.items() {
@@ -310,7 +313,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
     }
 
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 self.storage.storage_type = value;
@@ -1181,7 +1184,6 @@ impl _parse_toml_data(
             _native_opt = _builtin_native.opt_level;
         }
         config.build = BuildConfig(
-            typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
             native_closure_cap=_cap,
@@ -1252,10 +1254,6 @@ impl _parse_toml_data(
         fmt = data["format"];
         config.format = FormatConfig(outfile=fmt.get("outfile", ""));
     }
-    if "precommit" in data {
-        pc_data = data["precommit"];
-        config.precommit = PrecommitConfig(typecheck=pc_data.get("typecheck", True));
-    }
     if "check" in data {
         check_data = data["check"];
         lint_config = LintConfig();
@@ -1294,7 +1292,7 @@ impl _parse_toml_data(
         );
     }
     if "storage" in data {
-        storage_data = data["storage"];
+        storage_data: dict[str, any] = data["storage"];
         for (key, value) in storage_data.items() {
             if key == "type" {
                 config.storage.storage_type = value;
@@ -1386,7 +1384,7 @@ impl get_config(
     return _config;
 }
 
-impl set_config(config: JacConfig) -> None {
+impl set_config(config: JacConfig | None) -> None {
     _config = config;
 
     _config_explicit = config is not None;

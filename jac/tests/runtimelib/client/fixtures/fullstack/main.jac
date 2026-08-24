@@ -91,7 +91,7 @@ def:pub Home -> JsxElement {
         <h1>Fullstack Base</h1>
         <span data-testid="build-meta" style={{"display": "none"}}>
             {globalThis.APP_BUILD_TIME or "(unset)"}|{`import.meta.env.VITE_APP_NAME
-            or "(unset)"}
+                or "(unset)"}
         </span>
         <p data-testid="server-message">{serverMessage}</p>
         <button data-testid="ping-btn" onClick={lambda (e: any) { handlePing(); }}>
@@ -231,7 +231,7 @@ def:pub FormPage -> JsxElement {
     );
 
     async def handleSubmit(data: dict) {
-        window.__submitFired = True;
+        globalThis.__submitFired = True;
     }
 
     <JacForm

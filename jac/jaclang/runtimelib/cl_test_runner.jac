@@ -5,7 +5,7 @@ glob _COLOR_CACHE: dict[(str, bool)] = {};
 
 glob _RESULT_SENTINEL: str = "__JAC_CL_TEST_RESULTS__",
      _NPM_STUB_FILE: str = "__jac_npm_stub.js",
-     _SERVER_ENTRY_NAMES: tuple = ("server.jac", "main.jac"),
+     _SERVER_ENTRY_NAMES: tuple[str, ...] = ("server.jac", "main.jac"),
      _IMPORT_LINE = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
      _IMPORT_FROM = re.compile(
          r"import\s+(?P<clause>[^;]*?)\s+from\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"
@@ -55,7 +55,7 @@ console.log("%%SENTINEL%%" + JSON.stringify(__jac_results));
 import sys
 import jaclang
 from jaclang.cli.commands import execution
-execution.start(
+execution.serve(
     filename=sys.argv[1], port=int(sys.argv[2]), main=True, no_client=True
 )
 """;

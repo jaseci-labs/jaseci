@@ -33,7 +33,7 @@ cd .jac/client/cef
 Or build + launch in one step:
 
 ```bash
-jac start --client cef
+jac run --client cef
 ```
 
 On success you should see in the terminal:
@@ -81,7 +81,7 @@ run with `LD_LIBRARY_PATH` pointing at your Python `LIBDIR` (often `/usr/lib`).
 CEF is stuck in `cef_initialize()` before the browser is created. Try:
 
 ```bash
-jac start --client cef
+jac run --client cef
 ```
 
 or manually with GPU fallback:

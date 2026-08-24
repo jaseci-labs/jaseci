@@ -25,40 +25,17 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from tests.support { TESTS_DIR, native_force_opts }
-import jaclang.jac0core.unitree as uni;
+import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
+
 import from jaclang.jac0core.interop_bridge { _pyb_shadows }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
      EXPECTED = 100 * 100000 + 100 * 10 + 11;
 
-"""Compile a .jac fixture natively and return the JIT engine plus module."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
-}
-
 """Run the fixture's function in the plain Python lane."""
-def run_py_lane(fixture_stem: str, func_name: str) -> object {
+def run_py_lane(fixture_stem: str, func_name: str) -> any {
     added = False;
     if FIXTURES not in sys.path {
         sys.path.insert(0, FIXTURES);
@@ -117,7 +94,7 @@ test "an inherited field store is visible on the Python shadow" {
     assert len(_pyb_shadows) == 1 , (
         f"expected one live shadow, found {len(_pyb_shadows)}"
     );
-    shadow = list(_pyb_shadows.values())[0];
+    shadow: any = list(_pyb_shadows.values())[0];
     assert type(shadow).__name__ == "Kid" , type(shadow).__name__;
     assert any(c.__name__ == "PyBase" for c in type(shadow).__mro__) , (
         "shadow is not an instance of the Python base"

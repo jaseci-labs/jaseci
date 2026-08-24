@@ -303,6 +303,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "string") return "str";
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
+      if (t === "bigint") return "int";
       if (t === "object") return (o.constructor && o.constructor.name) || "object";
       return t;
     },
@@ -563,7 +564,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       for (let i = 0; i < n; i++) result.push(...arr);
       return result;
     },
-    eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
+    eq(a, b) { return _jac.fw.stringify(a) === _jac.fw.stringify(b); },
     lt(a, b) {
       for (let i = 0; i < Math.min(a.length, b.length); i++) {
         if (a[i] < b[i]) return true;
@@ -620,7 +621,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         const va = a[k], vb = b[k];
         if (va !== vb) {
           if (typeof va === "object" && typeof vb === "object" && va !== null && vb !== null) {
-            if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+            if (_jac.fw.stringify(va) !== _jac.fw.stringify(vb)) return false;
           } else return false;
         }
       }
@@ -1251,7 +1252,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return { __jacUnsafeHtml: String(html == null ? "" : html) };
     },
     hash(obj) { return _jac.builtin.id(obj); },
-    repr(obj) { return JSON.stringify(obj); },
+    repr(obj) { return _jac.fw.stringify(obj); },
     pow(base, exp, mod) {
       let result = Math.pow(base, exp);
       if (mod !== undefined) result = ((result % mod) + mod) % mod;
@@ -1306,6 +1307,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       return true;
     },
     float(x) {
+      if (typeof x === "bigint") return Number(x);
       if (typeof x === "number") return x;
       if (typeof x === "boolean") return x ? 1 : 0;
       if (typeof x === "string") {
@@ -1334,6 +1336,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         return sign * parseInt(s, base);
       }
       if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "bigint") return Number(x);
       if (typeof x === "boolean") return x ? 1 : 0;
       if (typeof x === "string") {
         const s = x.trim();
@@ -1425,6 +1428,8 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     }
   },
 
+  fw: __JAC_FW_RUNTIME__,
+
   exc: __JAC_EXC_RUNTIME__
 }""",
      _JS_RESERVED_EXC_NAMES: set[str] = {"TypeError", "ReferenceError"};
@@ -1470,6 +1475,7 @@ def _build_exc_runtime_js -> str {
 
 def _build_types_runtime_js -> str {
     import from jaclang.jac0core.constant { TOKEN_MAP }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator }
     import from jaclang.compiler.passes.ecmascript.primitives_es {
         ESBuiltinEmitter,
@@ -1483,14 +1489,18 @@ def _build_types_runtime_js -> str {
             continue;
         }
         emit_fn = getattr(emitter, "emit_" + name, None);
-        if emit_fn is None {
+        if emit_fn is None and not JAC_TYPE_REGISTRY.is_sized(name) {
             continue;
         }
 
         bodies: list[(str | None)] = [];
         for argv in ([], ["a[0]"], ["a[0]", "a[1]"]) {
             try {
-                bodies.append(emit_fn(ctx, argv));
+                if emit_fn is None {
+                    bodies.append(emitter.emit_sized_cast(name, argv));
+                } else {
+                    bodies.append(emit_fn(ctx, argv));
+                }
             } except Exception {
                 bodies.append(None);
             }
@@ -1525,6 +1535,31 @@ def _build_types_runtime_js -> str {
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
     }
+    import from jaclang.jac0core.scalars { numeric_shapes }
+    sized_lines: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        sized_lines.append(
+            "    T."
+                + shape.name
+                + ".wrap = (x) => _jac.fw.wrap('"
+                + shape.name
+                + "', x);"
+        );
+        if not shape.is_float {
+            sized_lines.append(
+                "    Object.defineProperties(T."
+                    + shape.name
+                    + ", { MIN: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[0] }, MAX: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[1] } });"
+            );
+        }
+    }
     return "\n".join(
         [
             "(() => {",
@@ -1532,9 +1567,186 @@ def _build_types_runtime_js -> str {
             "      __jac_type__: tag,",
             "      toString: () => \"<class '\" + tag + \"'>\"",
             "    });",
-            "    return {",
+            "    const T = {",
             ",\n".join(entries),
             "    };",
+            "\n".join(sized_lines),
+            "    return T;",
+            "  })()"
+        ]
+    );
+}
+
+def _build_fw_runtime_js -> str {
+    import from jaclang.jac0core.scalars { numeric_shapes, range_of }
+    rows: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        t = shape.name;
+        w = shape.width;
+        if shape.is_float {
+            rnd = "Math.fround" if w == 32 else "Number";
+            rows.append(f"    F.cast_{t} = (x) => {rnd}(Number(x));");
+            rows.append(f"    F.neg_{t} = (a) => {rnd}(-a);");
+            rows.append(f"    F.abs_{t} = (a) => {rnd}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float division by zero'); "
+                f"return {rnd}(a / b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float floor division by zero'); "
+                f"return {rnd}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float modulo by zero'); "
+                f"return {rnd}(a - b * Math.floor(a / b)); }};"
+            );
+            rows.append(f"    F.pow_{t} = (a, b) => {rnd}(Math.pow(a, b));");
+            continue;
+        }
+        (lo, hi) = range_of(t);
+        big = w == 64;
+        sfx = "n" if big else "";
+        z = f"0{sfx}";
+        one = f"1{sfx}";
+        wn = f"{w}{sfx}";
+        rows.append(f"    const LO_{t} = {lo}{sfx}, HI_{t} = {hi}{sfx};");
+        rows.append(f"    F.c_{t} = (v) => (v >= LO_{t} && v <= HI_{t}) ? v : ovf();");
+        if big {
+            rows.append(
+                f"    F.big_{t} = (x) => F.c_{t}(typeof x === 'bigint' ? x "
+                f": (typeof x === 'string' ? BigInt(x) "
+                f": BigInt(Math.trunc(Number(x)))));"
+            );
+            rows.append(f"    F.cast_{t} = (x) => F.big_{t}(x);");
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(a < {z} ? -a : a);");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('division by zero'); return Number(a) / Number(b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let q = a / b; "
+                f"if ((a % b) !== {z} && ((a < {z}) !== (b < {z}))) q -= {one}; "
+                f"return F.c_{t}(q); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let r = a % b; "
+                f"if (r !== {z} && ((r < {z}) !== (b < {z}))) r += b; return r; }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < {z}) "
+                f"return Math.pow(Number(a), Number(b)); "
+                f"if ((a > {one} || a < -{one}) && b >= {wn}) ovf(); "
+                f"return F.c_{t}(a ** b); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return F.c_{t}(a << n); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return a >> n; }};"
+            );
+        } else {
+            rows.append(
+                f"    F.cast_{t} = (x) => {{ const v = Math.trunc(Number(x)); "
+                f"if (!Number.isFinite(v)) ovf(); return F.c_{t}(v || 0); }};"
+            );
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('division by zero'); return a / b; }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return F.c_{t}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return a - b * Math.floor(a / b); }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < 0) return Math.pow(a, b); "
+                f"if (Math.abs(a) >= 2 && b >= {w}) ovf(); "
+                f"return F.c_{t}(Math.pow(a, b)); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return F.c_{t}(a * Math.pow(2, b)); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return Math.floor(a / Math.pow(2, b)); }};"
+            );
+        }
+        rows.append(f"    F.neg_{t} = (a) => F.c_{t}(-a);");
+        if shape.signed {
+            rows.append(f"    F.inv_{t} = (a) => F.c_{t}(~a);");
+        } elif big {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        } elif w == 32 {
+            rows.append(f"    F.inv_{t} = (a) => ((~a) >>> 0);");
+        } else {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        }
+        rows.append(f"    B.{t} = [LO_{t}, HI_{t}];");
+        rows.append(f"    WBITS.{t} = {w}n;");
+        tail = (
+            f"return v >= (1n << {w - 1}n) ? v - m : v; }};"
+                if shape.signed
+                else "return v; };"
+        );
+        rows.append(
+            f"    W.{t} = (x) => {{ const m = 1n << {w}n; "
+            f"let v = (typeof x === 'bigint' ? x : BigInt(Math.trunc(Number(x)))) "
+            f"% m; if (v < 0n) v += m; "
+                + tail
+        );
+    }
+    return "\n".join(
+        [
+            "(() => {",
+            "    const ovf = () => { throw new _jac.exc.OverflowError("
+            "'integer overflow'); };",
+            "    const shiftErr = () => { throw new _jac.exc.OverflowError("
+            "'shift count out of range'); };",
+            "    const zdiv = (m) => { throw new _jac.exc.ZeroDivisionError(m); };",
+            "    const F = {}, B = {}, W = {}, WBITS = {};",
+            "\n".join(rows),
+            "    F.r_f32 = Math.fround;",
+            "    F.bounds = (name) => B[name];",
+            "    F.wrap = (name, x) => { const v = W[name](x); "
+            "return B[name][1] > Number.MAX_SAFE_INTEGER ? v : Number(v); };",
+            "    F.wrapping = (name, a, b, op) => {",
+            "      const A = BigInt(a);",
+            "      const Bv = b === undefined ? 0n : BigInt(b);",
+            "      let r;",
+            "      if (op === '+') r = A + Bv; else if (op === '-') r = A - Bv;",
+            "      else if (op === '*') r = A * Bv;",
+            "      else if (op === 'neg') r = -A;",
+            "      else if (op === '<<') r = A << (Bv & (WBITS[name] - 1n));",
+            "      else throw new _jac.exc.TypeError("
+            "'unsupported wrapping operator ' + op);",
+            "      return F.wrap(name, r);",
+            "    };",
+            "    const SAFE = 9007199254740991n;",
+            "    F.replacer = function (k, v) {",
+            "      if (typeof v !== 'bigint') return v;",
+            "      return (v >= -SAFE && v <= SAFE) ? Number(v) : v.toString();",
+            "    };",
+            "    F.stringify = (v, space) => JSON.stringify(v, F.replacer, space);",
+            "    if (typeof globalThis !== 'undefined')"
+            " globalThis.__jacFwReplacer__ = F.replacer;",
+            "    return F;",
             "  })()"
         ]
     );
@@ -1545,6 +1757,8 @@ def build_jac_runtime_js -> str {
         "__JAC_EXC_RUNTIME__", _build_exc_runtime_js()
     ).replace(
         "__JAC_TYPES_RUNTIME__", _build_types_runtime_js()
+    ).replace(
+        "__JAC_FW_RUNTIME__", _build_fw_runtime_js()
     );
 }
 
@@ -1575,7 +1789,7 @@ def build_osp_core_js -> str {
     prog = JacProgram();
     ir = prog.compile(
         file_path=cl_copy,
-        options=CompileOptions(force_codespace='client', no_cgen=True, type_check=True)
+        options=CompileOptions(force_codespace='client', no_cgen=True)
     );
     import from jaclang.jac0core.compiler { run_pass }
     program = run_pass(EsastGenPass, ir, prog).ir_out.gen.es_ast;

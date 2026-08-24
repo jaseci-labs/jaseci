@@ -29,9 +29,16 @@ def _ws_client -> any {
 }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 def _ctx(target: str, user: (str | None) = None) -> ConnectionContext {
     return ConnectionContext(
-        websocket=object(), target_kind='walker', target_name=target, user_id=user
+        websocket=_as_any(object()),
+        target_kind='walker',
+        target_name=target,
+        user_id=user
     );
 }
 
@@ -246,10 +253,22 @@ test "control frames are charged against the rate limit" {
             ctx = _ctx('X');
             ctx.rate_tokens = 1.0;
             first = await ws_handle_control(
-                ws, ctx, {'type': 'refresh', 'token': 'any'}, um, False, 1.0, 1.0
+                _as_any(ws),
+                ctx,
+                {'type': 'refresh', 'token': 'any'},
+                um,
+                False,
+                1.0,
+                1.0
             );
             second = await ws_handle_control(
-                ws, ctx, {'type': 'refresh', 'token': 'any'}, um, False, 1.0, 1.0
+                _as_any(ws),
+                ctx,
+                {'type': 'refresh', 'token': 'any'},
+                um,
+                False,
+                1.0,
+                1.0
             );
             code = ws.sent[0]['error']['code'] if ws.sent else 'no_frame';
             return f"{first}|{second}|{code}";
@@ -265,7 +284,7 @@ test "the heartbeat closes a connection whose token has expired" {
     async def body -> str {
         ws = _FakeWebSocket();
         ctx = _ctx('X', user='u1');
-        ctx.websocket = ws;
+        ctx.websocket = _as_any(ws);
         ctx.exp = time.time() - 1.0;
         await ws_heartbeat_loop(ctx, 0.01, 2);
         close_code = ws.closed[0][0] if ws.closed else 0;
@@ -284,10 +303,10 @@ test "the rate limiter rejects a message once the bucket is empty" {
             ctx = _ctx('X');
             ctx.rate_tokens = 1.0;
             first = await ws_handle_control(
-                ws, ctx, {'message': 'one'}, um, False, 1.0, 1.0
+                _as_any(ws), ctx, {'message': 'one'}, um, False, 1.0, 1.0
             );
             second = await ws_handle_control(
-                ws, ctx, {'message': 'two'}, um, False, 1.0, 1.0
+                _as_any(ws), ctx, {'message': 'two'}, um, False, 1.0, 1.0
             );
             code = ws.sent[0]['error']['code'] if ws.sent else 'no_frame';
             return f"{first}|{second}|{code}";
@@ -308,7 +327,7 @@ test "an expired token closes the connection with a tagged reason" {
             ctx.exp = time.time() - 1.0;
             ctx.rate_tokens = 5.0;
             verdict = await ws_handle_control(
-                ws, ctx, {'message': 'hi'}, um, True, 10.0, 10.0
+                _as_any(ws), ctx, {'message': 'hi'}, um, True, 10.0, 10.0
             );
             frame = ws.sent[0]['error'] if ws.sent else {};
             close_code = ws.closed[0][0] if ws.closed else 0;
@@ -329,7 +348,13 @@ test "a refresh frame on a public endpoint does not disconnect the client" {
             ctx = _ctx('X');
             ctx.rate_tokens = 5.0;
             verdict = await ws_handle_control(
-                ws, ctx, {'type': 'refresh', 'token': 'any'}, um, False, 10.0, 10.0
+                _as_any(ws),
+                ctx,
+                {'type': 'refresh', 'token': 'any'},
+                um,
+                False,
+                10.0,
+                10.0
             );
             return f"{verdict}|{len(ws.sent)}|{len(ws.closed)}";
         }
@@ -351,7 +376,13 @@ test "a refresh with the connection's own valid token is accepted" {
             ctx = _ctx('X', user=owner_id);
             ctx.rate_tokens = 5.0;
             verdict = await ws_handle_control(
-                ws, ctx, {'type': 'refresh', 'token': owner_token}, um, True, 10.0, 10.0
+                _as_any(ws),
+                ctx,
+                {'type': 'refresh', 'token': owner_token},
+                um,
+                True,
+                10.0,
+                10.0
             );
             frame = ws.sent[0] if ws.sent else {};
             return f"{verdict}|{len(ws.closed)}|{frame.get('type')}|{frame.get('ok')}";
@@ -378,7 +409,13 @@ test "a refresh carrying another user's real token is rejected as an identity mi
             ctx = _ctx('X', user=b_id);
             ctx.rate_tokens = 5.0;
             verdict = await ws_handle_control(
-                ws, ctx, {'type': 'refresh', 'token': token_a}, um, True, 10.0, 10.0
+                _as_any(ws),
+                ctx,
+                {'type': 'refresh', 'token': token_a},
+                um,
+                True,
+                10.0,
+                10.0
             );
             frame = ws.sent[0]['error'] if ws.sent else {};
             close_code = ws.closed[0][0] if ws.closed else 0;

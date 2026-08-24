@@ -2,6 +2,7 @@ import from jaclang.jac0core.unitree {
     Ability,
     Archetype,
     Assignment,
+    AstSymbolNode,
     AtomTrailer,
     BinaryExpr,
     Bool,
@@ -17,12 +18,15 @@ import from jaclang.jac0core.unitree {
     FuncSignature,
     Int,
     KWPair,
+    ListVal,
     Module,
     MultiString,
     Name,
     NameAtom,
     String,
     Symbol,
+    Token,
+    TupleVal,
     UniNode,
     UniScopeNode,
     VisitStmt
@@ -41,6 +45,7 @@ import from jaclang.jac0core.mtp {
 }
 
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 glob PRIMITIVE_TYPES: list[str] = [
          'int',
@@ -52,18 +57,9 @@ glob PRIMITIVE_TYPES: list[str] = [
          'list',
          'dict',
          'set',
-         'tuple',
-         'i8',
-         'u8',
-         'i16',
-         'u16',
-         'i32',
-         'u32',
-         'i64',
-         'u64',
-         'f32',
-         'f64'
-     ];
+         'tuple'
+     ]
+         + JAC_TYPE_REGISTRY.sized_scalar_names();
 
 obj MTIRGenPass(Transform) {
     has ir_in: Module,
@@ -73,9 +69,10 @@ obj MTIRGenPass(Transform) {
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
     def _is_primitive_type(type_expr: Expr | None) -> bool;
+    def _doc_text(doc: String | None) -> str | None;
     def _parse_type_expr(
         type_expr: Expr | None, scope: UniScopeNode
-    ) -> ClassInfo | str | tuple | None;
+    ) -> ClassInfo | EnumInfo | str | tuple | None;
 
     def _extract_type_symbol(
         type_expr: Expr | None, scope: UniScopeNode

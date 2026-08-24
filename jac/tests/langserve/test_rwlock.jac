@@ -185,7 +185,9 @@ test "concurrent queries during type checking" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # First, type check the file so hub is populated
         lsp.type_check_file(circle_uri);
@@ -279,7 +281,9 @@ test "shutdown under active dispatch" {
     try {
         lsp = create_server();
         circle_file = os.path.join(FIXTURE_DIR, "circle.jac");
-        circle_uri = uris.from_fs_path(circle_file);
+        circle_uri_maybe = uris.from_fs_path(circle_file);
+        assert circle_uri_maybe is not None;
+        circle_uri: str = circle_uri_maybe;
 
         # Kick off a type check via the dispatcher
         lsp.type_check_file(circle_uri);

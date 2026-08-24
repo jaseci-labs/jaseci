@@ -60,7 +60,7 @@ obj _ContextStack {
 }
 
 with entry {
-    _kernel._walk_stack = _ContextStack();
+    _kernel._walk_stack = cast(list[WalkScope], _ContextStack());
 }
 
 def isolate_request_walk_stack {
@@ -149,7 +149,13 @@ def _sv_node_desc(tag: int) -> NodeDesc {
 def _sv_on_complete(scope: WalkScope, ok: bool) {
     if isinstance(scope.wlk, WalkerArchetype) {
         anch = scope.wlk.__jac__;
-        anch.path = `list(scope.path);
+        walked: list[(NodeAnchor | EdgeAnchor)] = [];
+        for step in scope.path {
+            if isinstance(step, (NodeAnchor, EdgeAnchor)) {
+                walked.append(step);
+            }
+        }
+        anch.path = walked;
         anch.next = [];
         anch.ignores = [];
     }
