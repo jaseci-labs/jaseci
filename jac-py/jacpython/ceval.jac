@@ -12551,8 +12551,13 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(payload);
                 continue;
             }
+            # Non-StopIteration: re-dispatch the exception out of the yield-from
+            # (CPython CLEANUP_THROW -> exit_unwind). A re-dispatch is not an
+            # error event, so no traceback entry is added here -- the entry for
+            # this frame was already laid down at the failing SEND/error site;
+            # grow-free handler search keeps the cadence at one per frame.
             reraised = py_raise_value(exc);
-            target = recover_exception(co, reraised, offset, stack);
+            target = dispatch_exception(co, reraised, offset, offset, stack);
             if target >= 0 {
                 ip = target;
                 continue;
