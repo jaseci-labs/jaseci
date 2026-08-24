@@ -762,6 +762,7 @@ impl Expr.postinit -> None {
     self.narrowed_type = None;
     self.coerce_to = None;
     self.fw = None;
+    self.fw_safe = False;
     self.attached_tokens = None;
 }
 

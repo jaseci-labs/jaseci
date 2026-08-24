@@ -782,6 +782,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " Negate in a signed type (`-i64(x)`), or use `wrapping_neg(x)` for the"
          " two's-complement result at the same width."
      ),
+     E1130 = _err(
+         "E1130",
+         Category.TYPE,
+         "Float literal {value} overflows {type} (largest finite magnitude {max})",
+         help="The literal is past what the target float can represent, so it"
+         " would arrive as `inf`. Use a wider float type, or write the value the"
+         " type can actually hold."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,

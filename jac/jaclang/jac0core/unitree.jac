@@ -264,6 +264,7 @@ obj Expr(UniNode) {
         narrowed_type: (TypeBase | None) postinit,
         coerce_to: (str | None) postinit,
         fw: (str | None) postinit,
+        fw_safe: bool postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;

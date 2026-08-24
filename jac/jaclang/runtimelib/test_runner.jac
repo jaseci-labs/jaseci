@@ -112,6 +112,14 @@ obj ForkPool {
     def _shutdown -> None;
 }
 
+def _log_worker_footprint(
+    kid: dict[(str, any)], record: dict[(str, any)], files: list[str], done: any
+) -> None;
+
+def _worker_rss_mb -> int;
+
+def _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool;
+
 def discover(
     paths: (list[str] | None) = None,
     directory: str = "",

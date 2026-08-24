@@ -341,7 +341,10 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # On PRs, scope fmt/check to .jac files changed vs the merge-base.
+      # On PRs, scope fmt to .jac files changed vs the merge-base. `jac check`
+      # is deliberately NOT scoped: a type error is a property of the whole
+      # program, so a scoped run answers a different question than the push
+      # sweep and a green PR stops predicting a green main.
       - name: Determine changed .jac files
         id: changes
         run: |
@@ -474,15 +477,7 @@ jobs:
         run: |
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
-          if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
-            if [ "${{ steps.changes.outputs.any }}" != "true" ]; then
-              echo "No .jac files changed in this PR; skipping jac check."
-              exit 0
-            fi
-            jac check $(cat changed-jac.txt) --ignore $IGNORE_ARGS --nowarn
-          else
-            jac check . --ignore $IGNORE_ARGS --nowarn
-          fi
+          jac check . --ignore $IGNORE_ARGS --nowarn
 
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')
@@ -612,7 +607,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   # Native-backend validation: the passes-native chunk and the na/sv
   # equivalence pins. The LLVM shim these bind is the one inside the host
@@ -679,7 +674,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   test-native-sealed:
     needs: [changes, build-kit]
@@ -748,7 +743,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   # Everything except the compiler tests.
   test-runtime:
@@ -801,7 +796,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=2 jac test tests/ \
+          HOME="$WORK" JAC_TEST_RSS_LOG=1 JAC_TEST_JOBS=2 jac test tests/ \
             --ignore tests/compiler tests/runtimelib/test_auth_models.jac
 
   # Tests that do not yet pass through the reroute, run here against the
