@@ -15,7 +15,7 @@ def:pub app -> any {
         error: str = "",
         loading: bool = False,
         products: list = [],
-        cart: dict = {},
+        cart: any = {},
         orders: list = [],
         currentView: str = "products";
 
@@ -258,7 +258,7 @@ def:pub app -> any {
                                 </button>
                             </div>
                         )
-                            if cart.items and cart.items.length > 0
+                            if cart.items and len(cart.items) > 0
                             else <p style={{"color": "#888", "textAlign": "center"}}>
                                 Cart is empty
                             </p>}
@@ -291,7 +291,7 @@ def:pub app -> any {
                                 No orders yet
                             </p>
                         )
-                            if orders.length == 0
+                            if len(orders) == 0
                             else None}
                     </div>
                 )
