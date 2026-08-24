@@ -452,7 +452,7 @@
         "jac-py/tests/conv_copyreg/conv_copyreg_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "0/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "notes": "DISPOSITION: 0/2 output-oracle pins pass on jacpython for TWO distinct causes. CopyRegTestCase.test_extension_registry: snippet imports test.pickletester, which the libtest env does not ship -- env-blocked, un-quarantine path = conversion-side quarantine or test.support stub. CopyRegTestCase.test_bool: property() instances unhashable as set elements (\"cannot use property_ctor as a set element\") -- native-descriptor tp_hash gap, objects family.",
       "conversion_meta": "jac-py/tests/conv_copyreg/copyreg.conv.json",
       "jacpython_results": {
         "copyreg": {
