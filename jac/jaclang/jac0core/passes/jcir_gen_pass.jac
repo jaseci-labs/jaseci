@@ -134,6 +134,7 @@ import from jaclang.jac0core.constant {
 }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.scalars { shape_of }
 
 import from jaclang.jac0core.codegen_ir { CodegenIrWriter }
 import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropBinding }
@@ -205,6 +206,23 @@ glob TOKEN_CLS_BY_NAME: dict[(str, str)] = {
          'BW_NOT': 'Invert',
          'PLUS': 'UAdd',
          'MINUS': 'USub'
+     };
+
+glob FW_AUG_TO_BIN: dict[str, str] = {
+         "ADD_EQ": "PLUS",
+         "SUB_EQ": "MINUS",
+         "MUL_EQ": "STAR_MUL",
+         "FLOOR_DIV_EQ": "FLOOR_DIV",
+         "STAR_POW_EQ": "STAR_POW",
+         "LSHIFT_EQ": "LSHIFT",
+         "RSHIFT_EQ": "RSHIFT"
+     },
+     FW_WRAPPING_OPS: dict[str, str] = {
+         "wrapping_add": "+",
+         "wrapping_sub": "-",
+         "wrapping_mul": "*",
+         "wrapping_shl": "<<",
+         "wrapping_neg": "neg"
      };
 
 glob EDGE_DIR_NAMES: dict[(int, str)] = {
@@ -318,6 +336,7 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
         jaclib_imports: set[str] postinit,
         builtin_imports: set[str] postinit,
+        sized_imports: set[str] postinit,
         typing_imports: set[str] postinit,
         _lambda_counter: int = 0,
         _hoist_frames: list[list[CgNode]] postinit,
@@ -348,6 +367,19 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
     def _apply_coercion(nd: Expr) -> None;
+    def _apply_fw(nd: Expr) -> None;
+    def _fw_helper(name: str) -> CgNode;
+    def _fw_call_node(helper: str, args: list, jac_node: UniNode) -> CgNode;
+    def _fw_wrap_call(nd: Expr, helper: str, args: list) -> None;
+    def _fw_binary(nd: BinaryExpr, name: str) -> None;
+    def _fw_unary(nd: UnaryExpr, name: str) -> None;
+    def _fw_call(nd: FuncCall) -> None;
+    def _fw_checked(
+        name: str, op: str, left: CgNode, right: CgNode, op_node: any, jac_node: UniNode
+    ) -> (CgNode | None);
+
+    def _fw_as_load(item: any) -> any;
+    def _fw_aug_assign(nd: Assignment, target: any, value: any) -> (CgNode | None);
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
