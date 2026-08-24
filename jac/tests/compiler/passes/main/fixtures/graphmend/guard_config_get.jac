@@ -22,7 +22,7 @@ def _compute_long(config: RopeConfig, device: any, **rope_kwargs: any) -> any {
     if len(rope_kwargs) > 0 {
         raise ValueError("Unexpected arguments: `**rope_kwargs` should be unset");
     }
-    factor = config.rope_scaling.get("factor");
+    factor = config.rope_scaling.get("factor");  # jac:ignore[E1099]
     return torch.arange(0, 8).float().to(device) * factor;
 }
 

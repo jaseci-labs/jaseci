@@ -14,7 +14,7 @@ import torch;
 def f(x: torch.Tensor, y: torch.Tensor) -> any {
     out = torch.zeros_like(x);
     if (x.sum() > 0) {
-        if not (x == y).all() {
+        if not (x == y).all() {  # jac:ignore[E1030]
             raise ValueError("x and y must match");
         }
         a = x * 2;
