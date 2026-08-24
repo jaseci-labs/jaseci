@@ -269,11 +269,11 @@ def _attach_call_cost(
     usage_obj: object, model_name: str, response: object = None
 ) -> None {
     if usage_obj is None
-        or not (
-            _usage_int(usage_obj, "prompt_tokens")
-            or _usage_int(usage_obj, "completion_tokens")
-            or _usage_int(usage_obj, "total_tokens")
-        ) {
+    or not (
+        _usage_int(usage_obj, "prompt_tokens")
+        or _usage_int(usage_obj, "completion_tokens")
+        or _usage_int(usage_obj, "total_tokens")
+    ) {
         return;
     }
     try {

@@ -162,11 +162,10 @@ impl Tool._required_params(params: dict) -> list {
         if (
             name in params
             and param.default is inspect.Parameter.empty
-            and param.kind
-                in (
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                    inspect.Parameter.KEYWORD_ONLY
-                )
+            and param.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY
+            )
         ) {
             required.append(name);
         }

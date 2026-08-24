@@ -1778,8 +1778,10 @@ def _assert_forces_finish(expected: list, captured: list) {
     assert len(captured) == 1;
     sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
     assert sent_names == expected , f"got {sent_names}, expected {expected}";
-    assert captured[0]["tool_choice"]
-        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
+    assert captured[0]["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "finish_tool"}
+    } , "must force finish_tool specifically, not just narrow the tools list";
 }
 
 # Same bug, but a structured resp_type still needs finish_tool callable, so this
