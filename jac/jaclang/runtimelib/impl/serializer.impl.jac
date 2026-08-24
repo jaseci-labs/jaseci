@@ -480,10 +480,7 @@ impl Serializer.coerce(val: object, target_type: object) -> tuple {
     }
 
     try {
-        # __jac_sized__ is stamped onto the class by sized.jac's type() call,
-        # so it is not a member of `type` -- read it the way a dynamically
-        # attached attribute is read, and name the marker's real type.
-        sized_name: (str | None) = getattr(base, "__jac_sized__", None);
+        sized_name: (str | None) = base?.__jac_sized__;
         if sized_name is not None {
             import from jaclang.runtimelib.sized { json_wire_read }
             if isinstance(val, (bool, int, float, str)) {

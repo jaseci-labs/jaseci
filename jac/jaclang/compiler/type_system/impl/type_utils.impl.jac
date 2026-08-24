@@ -912,11 +912,6 @@ impl build_solution_from_specialized_class(
             }
         }
     } elif class_type.shared.type_params {
-        # A bare generic carries no arguments to read off. W1036 states the
-        # rule for that -- `list` means `list[any]` -- so fill the parameters
-        # here too; leaving them declared lets the class's own type var travel
-        # out through specialize_for_base_class and surface to the author as a
-        # bare "_T" (e.g. `enumerate(xs)` over an unparameterized `xs: list`).
         for tp in class_type.shared.type_params {
             if tp.name {
                 solution[tp.name] = AnyType();

@@ -50,16 +50,8 @@ impl _get_network_ips -> list[str] {
     return ips;
 }
 
-"""Nothing to add -- JServer.postinit builds the user manager. Declared only
-because JacAPIServerParts narrows `user_manager`, and a postinit-initialised
-field obliges its declaring archetype to take part in postinit.
-"""
-impl JacAPIServerParts.postinit -> None {
-    super.postinit();
-}
-
-
-impl JacAPIServerCore._make_user_manager -> JacScaleUserManager {
+impl JacAPIServerCore._make_user_manager -> CoreUserManager {
+    import from jaclang.scale.identity.user_manager { JacScaleUserManager }
     return JacScaleUserManager(base_path=self.base_path);
 }
 

@@ -45,9 +45,11 @@ jac/jaclang/byllm/types.jac
 # jac-scale server surface.
 jac/jaclang/scale/server/impl/serve.auth.impl.jac
 jac/jaclang/scale/server/impl/serve.core.impl.jac
+jac/jaclang/scale/server/impl/serve.emailer.impl.jac
 jac/jaclang/scale/server/impl/serve.endpoints.impl.jac
 jac/jaclang/scale/server/impl/serve.identity.impl.jac
 jac/jaclang/scale/server/impl/serve.scheduler.impl.jac
+jac/jaclang/scale/server/impl/serve.static.impl.jac
 jac/jaclang/scale/server/serve.jac
 
 # jac-scale -- kubernetes / opentelemetry client glue.

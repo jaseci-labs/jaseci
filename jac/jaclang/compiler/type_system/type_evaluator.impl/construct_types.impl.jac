@@ -410,8 +410,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
             and (
                 self._is_expr_self(param.name)
                 or (
-                    node_.is_method
-                    and isinstance(param.name, Name)
+                    isinstance(param.name, Name)
                     and param.name.value == "self"
                     and node_.signature is not None
                     and not node_.signature.is_static

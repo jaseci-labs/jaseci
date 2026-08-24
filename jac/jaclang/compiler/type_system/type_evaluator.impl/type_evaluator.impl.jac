@@ -2983,7 +2983,6 @@ impl TypeEvaluator._assign_class(
     return False;
 }
 
-"""Whether `cls_type` is a structural protocol rather than a nominal class."""
 impl TypeEvaluator._is_protocol_class(cls_type: ClassType) -> bool {
     for base_cls in cls_type.shared.base_classes {
         if not isinstance(base_cls, ClassType) or base_cls._shared is None {
@@ -3018,15 +3017,6 @@ impl TypeEvaluator._is_protocol_class(cls_type: ClassType) -> bool {
 }
 
 
-"""Solve a protocol's own type params structurally against `src_type`.
-
-`src_type` satisfies a protocol by shape, not by inheritance, so the nominal
-MRO walk in `specialize_for_base_class` finds no type arguments to read off
-and every type var in the protocol's signature stays unsolved (issue: `_T`
-leaking out of `next()`, `iter()` and friends). Pair each protocol method with
-the implementing method and unify the two signatures, recording the protocol's
-declared type params in `bindings` keyed by name.
-"""
 impl TypeEvaluator._solve_protocol_type_args(
     src_type: ClassType, proto_type: ClassType, bindings: dict[str, TypeBase]
 ) -> bool {
@@ -3046,9 +3036,6 @@ impl TypeEvaluator._solve_protocol_type_args(
             continue;
         }
 
-        # The protocol side stays generic so its own vars survive to be bound;
-        # the implementing side is specialized against the argument, which is
-        # what turns Iterator[int].__next__ into `-> int` rather than `-> _T_co`.
         proto_func = self.get_type_of_ability(sym.decl.name_of);
         impl_func = self.get_type_of_symbol(member.symbol);
         if isinstance(impl_func, FunctionType) {

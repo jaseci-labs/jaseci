@@ -205,7 +205,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         bindings = self._collect_type_var_bindings(
             caller_type, expr, is_unbound_call=is_unbound_call
         );
-            ret: TypeBase = caller_type.return_type or UnknownType();
+        ret: TypeBase = caller_type.return_type or UnknownType();
         if bindings {
             specialized = caller_type.specialize_func_type_vars(bindings);
             ret = specialized.return_type or UnknownType();
@@ -805,14 +805,8 @@ impl TypeEvaluator.assign_type_to_type_var(
         specialized = specialize_for_base_class(arg_type, param_type);
         arg_type_args = specialized.private.type_args if specialized.private else [];
 
-        # A protocol is satisfied by shape, not by inheritance, so the walk
-        # above finds no nominal path to it and hands back the protocol's own
-        # declared parameters. Binding those to themselves is what leaks a bare
-        # "_T" out of next()/iter(). Recover the real arguments by unifying the
-        # protocol's methods against the ones that implement them.
-        _unresolved = (not arg_type_args) or any(
-            isinstance(a, TypeVarType) for a in arg_type_args
-        );
+        _unresolved = (not arg_type_args)
+            or any(isinstance(a, TypeVarType) for a in arg_type_args);
         if _unresolved and param_type_args and self._is_protocol_class(param_type) {
             proto_bindings: dict[str, TypeBase] = {};
             if self._solve_protocol_type_args(arg_type, param_type, proto_bindings) {
@@ -1108,9 +1102,6 @@ impl TypeEvaluator._collect_type_var_bindings(
             and _recv_t._shared is not None
             and _recv_t.shared.class_name != "object" {
             if self._is_type_subscript(_recv_t) {
-                # The receiver is spelled `type[X]`, so a member reached
-                # through it is X's and Self is X -- `cls.__new__(cls)` builds
-                # an X, not another type[X].
                 _inner = _recv_t.private.type_args[0];
                 if isinstance(_inner, ClassType)
                     and not self._member_is_metaclass_only(
@@ -1119,15 +1110,6 @@ impl TypeEvaluator._collect_type_var_bindings(
                     _recv_t = self._convert_to_instance(_inner);
                 }
             } elif not _recv_t.is_instance() and _recv_t.is_instantiable() {
-                # `Base.__subclasses__()` reaches a member of the metaclass,
-                # and there the receiver already IS an instance -- of `type`.
-                # Binding Self to a Base instance makes `-> list[Self]` read as
-                # list[Base] rather than the list[type[Base]] it actually is.
-                # Spell it as the `type[Base]` subscript rather than the bare
-                # class object, so comparing it against a `type` annotation
-                # does not convert it back to a Base instance. The class's own
-                # MRO is consulted first, so a name the class itself declares
-                # (__init__, __eq__) still takes the instance reading.
                 if self._member_is_metaclass_only(_recv_t, expr)
                     and self.prefetch.type_class is not None {
                     _meta_self = self.prefetch.type_class.clone_as_instance();
@@ -1219,8 +1201,6 @@ impl TypeEvaluator._collect_type_var_bindings(
 }
 
 
-"""Whether the member `expr` reaches on class object `cls_type` is one the
-class itself does not declare and only its metaclass provides."""
 impl TypeEvaluator._member_is_metaclass_only(
     cls_type: ClassType, expr: FuncCall
 ) -> bool {
