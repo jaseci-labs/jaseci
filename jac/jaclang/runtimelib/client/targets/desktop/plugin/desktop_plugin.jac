@@ -80,7 +80,9 @@ obj OsPlugin(DesktopPlugin) {
         return s.replace("'", "''");
     }
 
-    def _run_powershell(ps: str, timeout: int = 60, check: bool = False) {
+    def _run_powershell(
+        ps: str, timeout: int = 60, check: bool = False
+    ) -> subprocess.CompletedProcess {
         encoded = base64.b64encode(ps.encode("utf-16-le")).decode("ascii");
         return subprocess.run(
             ["powershell", "-EncodedCommand", encoded],

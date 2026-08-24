@@ -183,8 +183,9 @@ test "subscribe decorator preserves group and retry" {
     assert last.topic == "orders.shipped";
     assert last.group == "ops";
     assert last.retry is policy;
-    assert last.retry.max_attempts == 5;
-    assert last.retry.dead_letter_suffix == ".dead";
+    _last_retry: any = last.retry;
+    assert _last_retry.max_attempts == 5;
+    assert _last_retry.dead_letter_suffix == ".dead";
 }
 
 test "subscribe decorator defaults start_from to latest" {

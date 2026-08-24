@@ -6,8 +6,8 @@ purpose — mobUI apps import portable primitives from @jac/mobui and never touc
 raw HTML tags. The bundler aliases @jac/mobui to the compiled client_mobui.js and
 (on web only) rewrites react-native -> react-native-web.
 
-    jac start main.jac                       # web   -> View=<div>, Text=<span> (via react-native-web)
-    jac start main.jac --client react-native # native -> real RN components
+    jac run --serve main.jac                                  # web   -> View=<div>, Text=<span> (via react-native-web)
+    jac run --serve --client react-native main.jac # native -> real RN components
 """
 
 import from "@jac/mobui" {

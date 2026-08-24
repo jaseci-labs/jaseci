@@ -2,14 +2,15 @@ import from jaclang.byllm.lib { MockLLM }
 
 glob llm = MockLLM(
          # model_name="gpt-4o-mini",
-         model_name="mockllm", config={"outputs": ["Average marks for Alice : 86.75"]}
+         model_name="mockllm",
+         config={"outputs": ["Average marks for Alice : 86.75"]}
      );
 
 obj Student {
     has name: str,
         marks: list[int] = [];
 
-    def set_marks(subject: str, marks: int) -> str {
+    def set_marks(subject: str, marks: int) {
         # Ignorning the subject for simplicity
         self.marks.append(marks);
     }

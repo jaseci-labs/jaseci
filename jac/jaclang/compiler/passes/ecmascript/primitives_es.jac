@@ -1361,6 +1361,34 @@ class ESBuiltinEmitter(BuiltinEmitter[(str, ESEmitCtx)]) {
         self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
     ) -> (str | None);
 
+    def emit_sized_cast(
+        self: ESBuiltinEmitter, name: str, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, op: str, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_add(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_sub(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_mul(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_shl(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
+    def emit_wrapping_neg(
+        self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
+    ) -> (str | None);
+
     def emit_float(
         self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
     ) -> (str | None);

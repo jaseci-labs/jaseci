@@ -413,7 +413,7 @@ The native codespace adds fixed-width types for C interop. These types map direc
 | `f64` | 64-bit | -- | `double` |
 | `c_void` | -- | -- | `void*` |
 
-The compiler automatically coerces between Jac's standard types (`int` = `i64`, `float` = `f64`) and fixed-width types at call boundaries.
+Conversions follow one lattice on every lane: widening is implicit (`i8 -> i64 -> int`, `u8 -> i16`, `f32 -> f64 -> float`, `bool -> int`, `int -> float`), everything else is the checked cast `T(x)`, and sized arithmetic traps with `OverflowError` on overflow. The full contract is in [Fixed-width semantics](types-and-values.md#fixed-width-semantics).
 
 ---
 

@@ -55,7 +55,7 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
     import from jaclang.runtimelib.utils { get_name }
     name = get_name(target_path=target_path) or 'main';
     safe = ''.join((ch if (ch.isalnum() or ch == '_') else '_') for ch in name.lower());
-    digest = hashlib.sha1(os.path.abspath(base_path).encode('utf-8')).hexdigest()[:8];
+    digest = hashlib.sha1(os.path.realpath(base_path).encode('utf-8')).hexdigest()[:8];
     return f"jac_{safe[:40]}_{digest}";
 }
 
@@ -249,6 +249,7 @@ impl Session.postinit -> None {
     self._flushing = None;
     self._read_scopes = 0;
     self._snapshot_reads = set();
+    self._version_seen = {};
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
@@ -266,7 +267,11 @@ impl Session.postinit -> None {
                 auto_schema=True
             );
             if lease.reset {
-                pgs.reset_data();
+                if lease.runtime.is_running() {
+                    pgs.reset_data();
+                } else {
+                    pgs.pending_reset = True;
+                }
             }
             self.store = pgs;
         }
@@ -684,6 +689,11 @@ impl Session.unit_exit -> None {
         }
         try {
             self.commit();
+        } except WriteConflict {
+            try {
+                self.store.rollback();
+            } except Exception { }
+            raise;
         } except Exception as e {
             logger.warning(
                 f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
@@ -793,9 +803,10 @@ impl Session._flush_locked(full: bool) -> None {
         }
         if rows {
             self.store.upsert(rows);
-            for (anchor, h) in pending {
+            for (i, (anchor, h)) in enumerate(pending) {
                 self._flushed_hash[anchor.id] = h;
                 anchor.hash = h;
+                self._version_seen[anchor.id] = rows[i].version;
                 self._txn_changed.add(anchor.id);
             }
         }
@@ -815,6 +826,9 @@ impl Session._flush_locked(full: bool) -> None {
 impl Session._serialize(anchor: Anchor) -> AnchorRow {
     import from jaclang.runtimelib.serializer { Serializer }
     props = Serializer.serialize(anchor, include_type=True);
+    if isinstance(props, dict) {
+        props.pop('edges', None);
+    }
     arch = anchor.archetype;
     arch_type = '';
     arch_module = '';
@@ -840,6 +854,7 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
         arch_module=arch_module,
         fingerprint=fingerprint,
         root_id=anchor.root,
+        version=self._version_seen.get(anchor.id, 0),
         props=props if isinstance(props, dict) else {},
         src=src,
         dst=dst,
@@ -888,6 +903,10 @@ impl Session._materialize(
         }
         anchor.edges = edges;
     }
+    if isinstance(anchor, NodeAnchor) {
+        anchor.version = row.version;
+    }
+    self._version_seen[row.id] = row.version;
     self.__mem__[row.id] = anchor;
     self._flushed_hash[row.id] = _persist_hash(anchor);
     anchor.hash = self._flushed_hash[row.id];

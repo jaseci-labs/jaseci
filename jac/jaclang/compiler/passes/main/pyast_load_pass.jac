@@ -103,22 +103,33 @@ import from jaclang.jac0core.passes.transform { Transform }
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;
 
+glob PyPositioned: TypeAlias = py_ast.stmt
+         | py_ast.expr
+         | py_ast.arg
+         | py_ast.alias
+         | py_ast.keyword
+         | py_ast.pattern
+         | py_ast.excepthandler,
+     PyComprehensionNode: TypeAlias = py_ast.ListComp
+         | py_ast.SetComp
+         | py_ast.GeneratorExp;
+
 obj PyastBuildPass(Transform) {
     has ir_in: PythonModuleAst,
         cancel_token: Event | None = None,
         mod_path: str postinit,
-        orig_src: str postinit,
+        orig_src: Source postinit,
         _source_lines: list[str] postinit,
         in_type_annotation: bool postinit,
         in_match_pattern: bool postinit,
         in_fstring_expr: bool postinit;
 
     def postinit -> None;
-    def _get_source_segment(nd: py_ast.AST) -> (str | None);
+    def _get_source_segment(nd: py_ast.expr) -> (str | None);
     def _strip_string_continuations(seg: str) -> str;
     def nu(nd: T) -> T;
     def name_node(
-        nd: py_ast.AST,
+        nd: PyPositioned,
         value: str,
         name_tok: Tok = Tok.NAME,
         col_end: int = -1,
@@ -131,7 +142,7 @@ obj PyastBuildPass(Transform) {
     def convert(nd: py_ast.AST) -> UniNode;
     def transform(ir_in: PythonModuleAst) -> Module;
     def extract_with_entry(
-        body: list[UniNode], exclude_types: TypeAlias = T
+        body: list[UniNode], exclude_types: (type[T] | tuple[type[T], ...])
     ) -> list[(T | ModuleCode)];
 
     def proc_module(nd: py_ast.Module) -> Module;
@@ -197,7 +208,7 @@ obj PyastBuildPass(Transform) {
     def proc_nonlocal(nd: py_ast.Nonlocal) -> Semi;
     def proc_pass(nd: py_ast.Pass) -> Semi;
     def proc_set(nd: py_ast.Set) -> SetVal;
-    def _proc_compr(nd: py_ast.AST, compr_cls: type) -> UniNode;
+    def _proc_compr(nd: PyComprehensionNode, compr_cls: type[T]) -> T;
     def proc_set_comp(nd: py_ast.SetComp) -> ListCompr;
     def proc_slice(nd: py_ast.Slice) -> IndexSlice;
     def proc_starred(nd: py_ast.Starred) -> UnaryExpr;

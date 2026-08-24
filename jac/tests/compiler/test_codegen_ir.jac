@@ -71,11 +71,16 @@ def encode_value(w: CodegenIrWriter, val: object) {
             names.append(fname);
         }
         if "lineno" in val._attributes {
-            end_line = val.end_lineno if val.end_lineno is not None else val.lineno;
-            end_col = val.end_col_offset
-                if val.end_col_offset is not None
-                else val.col_offset;
-            w.emit_loc(val.lineno, val.col_offset, end_line, end_col);
+            # Location fields live on concrete nodes, not the `AST` base the
+            # stub types here; the `_attributes` guard is the real check.
+            located: any = val;
+            end_line = located.end_lineno
+                if located.end_lineno is not None
+                else located.lineno;
+            end_col = located.end_col_offset
+                if located.end_col_offset is not None
+                else located.col_offset;
+            w.emit_loc(located.lineno, located.col_offset, end_line, end_col);
         }
         w.emit_node(type(val).__name__, names);
     } else {

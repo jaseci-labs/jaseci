@@ -125,20 +125,16 @@ impl NaIRGenMath._emit_math_call(name: str, nd: uni.FuncCall) -> (ir.Value | Non
 }
 
 
-impl NaIRGenMath._equalize_int_pow_operands(
-    base: ir.Value, exp: ir.Value
-) -> tuple[(ir.Value, ir.Value)] {
-    if exp.type.width > base.type.width {
-        base = self.builder.sext(base, exp.type, name="pow.sext.b");
-    } elif exp.type.width < base.type.width {
-        exp = self.builder.sext(exp, base.type, name="pow.sext.e");
-    }
-    return (base, exp);
-}
-
-impl NaIRGenMath._emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
+impl NaIRGenMath._emit_float_pow(
+    base: ir.Value, exp: ir.Value, unsigned: bool = False
+) -> ir.Value {
     f64 = ir.DoubleType();
-    (fleft, fright) = self._promote_to_float(base, exp);
+    (fleft, fright) = self._promote_to_float(base, exp, unsigned=unsigned);
+    if isinstance(fleft.type, ir.FloatType) {
+        f32 = ir.FloatType();
+        powf_fn = self._get_or_declare_extern("powf", f32, [f32, f32]);
+        return self.builder.call(powf_fn, [fleft, fright], name="pow.f32");
+    }
     pow_fn = self._get_or_declare_extern("pow", f64, [f64, f64]);
     return self.builder.call(pow_fn, [fleft, fright], name="pow.f");
 }
@@ -157,7 +153,9 @@ impl NaIRGenMath._emit_pow_zero_guard(base: ir.Value) -> None {
     );
 }
 
-impl NaIRGenMath._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
+impl NaIRGenMath._codegen_int_pow(
+    base: ir.Value, exp: ir.Value, unsigned: bool = False, checked: bool = False
+) -> ir.Value {
     int_ty = base.type;
     one = ir.Constant(int_ty, 1);
     func = self.builder.function;
@@ -179,7 +177,11 @@ impl NaIRGenMath._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
 
     self.builder.position_at_end(body_bb);
     cur_result = self.builder.load(result_alloca, name="pow.cur");
-    new_result = self.builder.mul(cur_result, base, name="pow.mul");
+    new_result = (
+        self._emit_overflow_op("mul", cur_result, base, unsigned)
+            if checked
+            else self.builder.mul(cur_result, base, name="pow.mul")
+    );
     self.builder.store(new_result, result_alloca);
     cur_counter = self.builder.load(counter_alloca, name="pow.ci");
     next_counter = self.builder.add(cur_counter, one, name="pow.inc");
@@ -191,7 +193,11 @@ impl NaIRGenMath._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
 }
 
 impl NaIRGenMath._codegen_pow(
-    base: ir.Value, exp: ir.Value, exp_node: (uni.Expr | None) = None
+    base: ir.Value,
+    exp: ir.Value,
+    exp_node: (uni.Expr | None) = None,
+    unsigned: bool = False,
+    checked: bool = False
 ) -> ir.Value {
     f64 = ir.DoubleType();
     is_float_op = isinstance(base.type, (ir.DoubleType, ir.FloatType))
@@ -243,14 +249,17 @@ impl NaIRGenMath._codegen_pow(
         }
     }
 
-    (base, exp) = self._equalize_int_pow_operands(base, exp);
+    (base, exp) = self._unify_int_widths(base, exp);
 
     if exp_known {
         if exp_val < 0 {
             self._emit_pow_zero_guard(base);
-            return self._emit_float_pow(base, exp);
+            return self._emit_float_pow(base, exp, unsigned);
         }
-        return self._codegen_int_pow(base, exp);
+        return self._codegen_int_pow(base, exp, unsigned, checked);
+    }
+    if unsigned {
+        return self._codegen_int_pow(base, exp, True, checked);
     }
 
     int_ty = base.type;
@@ -270,7 +279,7 @@ impl NaIRGenMath._codegen_pow(
     self.builder.branch(merge_bb);
 
     self.builder.position_at_end(pos_bb);
-    iresult = self._codegen_int_pow(base, exp);
+    iresult = self._codegen_int_pow(base, exp, unsigned, checked);
     pos_pred = self.builder.block;
     i_as_f = self.builder.sitofp(iresult, f64, name="pow.i2f");
     self.builder.branch(merge_bb);

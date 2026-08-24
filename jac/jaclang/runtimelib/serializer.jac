@@ -38,7 +38,9 @@ glob logger = logging.getLogger(__name__),
      _MAX_IMPORT_FAILURES: int = 1024,
      _IMPORT_RETRY_SECONDS: float = 30.0,
      _IMPORT_RETRY_CEILING_SECONDS: float = 900.0,
-     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8;
+     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8,
+     _PLAIN_WIRE_SCALARS: frozenset = frozenset({str, int, float, bool}),
+     _SIZED_FIELD_CACHE: dict = {};
 
 obj ImportFailure {
     has attempts: int = 0,
@@ -52,7 +54,7 @@ obj Serializer {
         _warn_dedup_saturated: bool = False,
         _import_failures: dict[str, ImportFailure] = {},
         _import_lock: threading.Lock = threading.Lock(),
-        _warn_lock: any = threading.Lock();
+        _warn_lock: threading.Lock = threading.Lock();
 
     static def register(cls: type) -> None;
     static def register_alias(old_name: str, cls: type) -> None;
@@ -73,9 +75,11 @@ obj Serializer {
         include_type: bool,
         api_mode: bool = False,
         ref_mode: bool = False,
-        _seen: (tuple[set, set] | None) = None
+        _seen: (tuple[set, set] | None) = None,
+        declared: object = None
     ) -> object;
 
+    static def _declared_of(owner: object, attr: str) -> object;
     static def _type_info(`obj: object, `include: bool) -> dict[str, object];
     static def _serialize_attrs(
         `obj: object,
@@ -100,17 +104,17 @@ obj Serializer {
     static def _is_report_threshold(n: int) -> bool;
     static def _occurrence_note(n: int) -> str;
     static def _reset_warn_cache -> None;
-    static def _id_to_stub(anchor_cls: type, id_str: str) -> (object | None);
-    static def _deserialize_anchor(data: dict[str, object]) -> (object | None);
-    static def _deserialize_permission(data: object) -> object;
-    static def _deserialize_access(data: object) -> object;
+    static def _id_to_stub(anchor_cls: type[Anchor], id_str: str) -> (Anchor | None);
+    static def _deserialize_anchor(data: dict[str, object]) -> (Anchor | None);
+    static def _deserialize_permission(data: object) -> Permission;
+    static def _deserialize_access(data: object) -> Access;
     static def _deserialize_archetype(
-        data: dict[str, object], anchor: object
+        data: dict[str, object], anchor: Anchor
     ) -> (object | None);
 
-    static def _compute_hash(anchor: object) -> int;
+    static def _compute_hash(anchor: Anchor) -> int;
     static def serialize_fields(
-        anchor: object, field_names: set[str]
+        anchor: Anchor, field_names: set[str]
     ) -> dict[str, object];
 }
 

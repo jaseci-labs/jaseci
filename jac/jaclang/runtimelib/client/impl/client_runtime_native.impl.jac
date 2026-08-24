@@ -12,8 +12,9 @@ impl __jacWirePlatformAdapters -> None {
     globalThis.__jacRemoveLocalStorage__ = __removeLocalStorage;
     globalThis.__jacSeedEndpointEffects__ = lambda -> dict {
         seed = globalThis.__JAC_INIT__;
-        if seed and seed.endpointEffects {
-            return seed.endpointEffects;
+        effects: any = seed.endpointEffects if seed else None;
+        if effects {
+            return effects;
         }
         return {};
     };
@@ -229,15 +230,16 @@ impl _makeNativeLink(link_props: dict, children: list) -> JsxElement {
         rest.pop("href", None);
     }
     if href {
-        rest["onPress"] = lambda { if href.startswith("http://")
-            or href.startswith("https://")
-            or href.startswith("mailto:")
-            or href.startswith("tel:") {
-            RNLinking.openURL(href).catch(
+        target_url = str(href);
+        rest["onPress"] = lambda { if target_url.startswith("http://")
+            or target_url.startswith("https://")
+            or target_url.startswith("mailto:")
+            or target_url.startswith("tel:") {
+            RNLinking.openURL(target_url).catch(
                 lambda (e: any) { console.warn("RNLinking.openURL failed", e); }
             );
         } else {
-            navigate(href);
+            navigate(target_url);
         } };
     }
     return React.createElement(RNText, rest, *children);
@@ -384,7 +386,7 @@ impl _stripMetaParams(params: any) -> dict {
     return {
         key: value
         for (key, value) in params.items()
-        if not key.startswith("__jac")
+        if not str(key).startswith("__jac")
     };
 }
 
@@ -458,7 +460,7 @@ impl _collectNativeRoutes(
         if child.type != __nativeRoute {
             continue;
         }
-        props = child.props or {};
+        props: any = child.props or {};
         route_path = str(props.path) if props.path else "";
         route_element = props.element;
         full_path = _joinRoutePath(parent_path, route_path);
@@ -518,7 +520,7 @@ impl __nativeRouter(props: dict = {}) -> JsxElement {
     return React.createElement(
         JacNavigationContainer,
         {"ref": nav_ref, "onReady": _flushPendingNavigation},
-        props.children
+        props["children"]
     );
 }
 
@@ -526,7 +528,7 @@ impl __nativeRoutes(props: dict = {}) -> JsxElement {
     routes = React.useMemo(
         lambda -> list {
             out: list[RouteDef] = [];
-            _collectNativeRoutes(props.children, "/", [], out);
+            _collectNativeRoutes(props["children"], "/", [], out);
             return out;
         },
         []
@@ -675,7 +677,7 @@ impl navigate(path: str) -> None {
 }
 
 impl __getApiBaseUrl -> str {
-    build_time = globalThis.__JAC_API_BASE_URL__;
+    build_time: any = globalThis.__JAC_API_BASE_URL__;
     if build_time {
         return build_time;
     }
@@ -689,17 +691,19 @@ impl __getApiBaseUrl -> str {
         globalThis.__jacWarnedMissingApiBaseUrl__ = True;
         console.warn(
             "[jac-native-runtime] Missing API base URL. Set expo.extra.apiBaseUrl "
-            "or run jac start --client react-native --dev so it is injected."
+            "or run jac run --client react-native --dev so it is injected."
         );
     }
     return "";
 }
 
 def _nativeStorageCache -> dict {
-    if not globalThis.__jacNativeStorageCache__ {
-        globalThis.__jacNativeStorageCache__ = {};
+    cache: any = globalThis.__jacNativeStorageCache__;
+    if not cache {
+        cache = {};
+        globalThis.__jacNativeStorageCache__ = cache;
     }
-    return globalThis.__jacNativeStorageCache__;
+    return cache;
 }
 
 impl __getLocalStorage(key: str) -> str {
@@ -764,7 +768,7 @@ impl __ensureNativeTokenPrimed -> any {
     return globalThis.__jacNativeTokenPrimePromise__;
 }
 
-impl AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement {
+impl AuthGuard(redirect: str = "/login", children: any = None) -> (JsxElement | None) {
     [ready, setReady] = useState(globalThis.__jacNativeTokenPrimed__ == True);
     React.useEffect(
         lambda {
@@ -1065,7 +1069,7 @@ def _renderSubmitButton(
     );
 }
 
-impl JacForm(props: dict) -> JsxElement {
+impl JacForm(props: dict[str, any]) -> JsxElement {
     schema = props["schema"];
     onSubmit = props["onSubmit"];
     validate_mode = props.get("validateMode", None) or "onTouched";
@@ -1088,7 +1092,7 @@ impl JacForm(props: dict) -> JsxElement {
     for fieldName in fieldNames {
         config = field_config.get(fieldName, None) or {};
         label = config.get("label", None) or fieldName;
-        placeholder = config.get("placeholder", None) or "";
+        placeholder = str(config.get("placeholder", None) or "");
         field_type = str(config.get("type", None) or config.get("key", None) or "text");
         field_options = _getEnumOptions(schemaShape[fieldName]);
         if field_type == "text"

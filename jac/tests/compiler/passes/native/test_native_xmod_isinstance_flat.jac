@@ -23,7 +23,7 @@ import contextlib;
 import ctypes;
 import io;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support { TESTS_DIR, get_func, native_force_opts }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
@@ -68,14 +68,6 @@ def seam_report(fixture: str) -> str {
         );
     }
     return buf.getvalue();
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: object, name: str, restype: type | None, *argtypes: type) -> object {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    functype = ctypes.CFUNCTYPE(restype, *argtypes);
-    return functype(addr);
 }
 
 test "isinstance against a vtable-less imported class lowers natively" {

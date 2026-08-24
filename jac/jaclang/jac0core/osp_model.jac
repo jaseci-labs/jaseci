@@ -30,7 +30,7 @@ obj OspModel {
         order_index: dict[(str, int)] = field(default_factory=`dict),
         isa: dict[(str, list[str])] = field(default_factory=`dict),
         slots: list[OspSlot] = field(default_factory=`list),
-        collisions: list[(str, str)] = field(default_factory=`list),
+        collisions: list[tuple[str, str]] = field(default_factory=`list),
         uses_construct: bool = False;
 
     def has_event_ability -> bool {
@@ -114,7 +114,7 @@ obj OspAnalysis {
         if isinstance(cur, uni.Name) {
             return cur.value;
         }
-        if (cur is not None) and cur?.sym_name {
+        if isinstance(cur, uni.AstSymbolNode) and cur.sym_name {
             return cur.sym_name;
         }
         return None;

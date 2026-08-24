@@ -9,6 +9,11 @@ import from jaclang.scale.plugin { JacScalePlugin }
 import jaclang.scale.runtime.rpc.rpc as rpc_mod;
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
 obj _MockRequest {
     has url: str = '',
         headers: dict[str, str] = {},
@@ -1053,7 +1058,7 @@ test "sv_service_call uses URL from get_sv_registry hookspec when present" {
             "k9_test_mod": "http://k9-test-mod-service.prod.svc.cluster.local:8000"
         };
     }
-    jaclang.JacRuntime.get_sv_registry = staticmethod(fake_registry);
+    _as_any(jaclang.JacRuntime).get_sv_registry = staticmethod(fake_registry);
 
     try {
         if "k9_test_mod" in sv_client._registry {
@@ -1085,7 +1090,7 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
     original_post = _install_mock(handler);
     original_get_registry = jaclang.JacRuntime.get_sv_registry;
 
-    jaclang.JacRuntime.get_sv_registry = staticmethod(lambda { {}; });
+    _as_any(jaclang.JacRuntime).get_sv_registry = staticmethod(lambda { {}; });
 
     try {
         sv_client.register("k9_fallback_mod", "http://fallback.invalid:9999");
