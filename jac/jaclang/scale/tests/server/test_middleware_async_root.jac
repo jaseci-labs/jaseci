@@ -24,6 +24,10 @@ import from jaclang.scale.tests.scale_test_client {
     extract_data
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "middleware calls aset_user_root on top-level context for authenticated requests" {
     # Patch aset_user_root to track calls made on top-level contexts
     # (_parent is None). These are the middleware calls. Calls with _parent
@@ -31,7 +35,7 @@ test "middleware calls aset_user_root on top-level context for authenticated req
     # excluded so the assertion is specific to the middleware fix.
     client = make_client("test_api.jac");
     middleware_calls: list[str] = [];
-    original_aset = ExecutionContext.aset_user_root;
+    original_aset = _as_any(ExecutionContext.aset_user_root);
 
     async def tracking_aset(self: any, root_id: str) {
         if self._parent is None {
@@ -83,7 +87,7 @@ test "middleware skips aset_user_root on top-level context for unauthenticated r
     # not be called on the top-level context (_parent is None).
     client = make_client("test_api.jac");
     middleware_calls: list[str] = [];
-    original_aset = ExecutionContext.aset_user_root;
+    original_aset = _as_any(ExecutionContext.aset_user_root);
 
     async def tracking_aset(self: any, root_id: str) {
         if self._parent is None {

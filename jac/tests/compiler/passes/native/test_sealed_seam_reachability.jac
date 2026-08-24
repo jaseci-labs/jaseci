@@ -3,7 +3,7 @@
 A waiver in `NATIVE_SEAL_DEMOTION_WAIVERS` ships an `abort()` stub into the
 artifact, so a waived method that turns out to be reachable trades a wrong
 answer for a process kill with no diagnostic. `test_unitree_seal_baseline.jac`
-and `test_pass_seal_wave1_baseline.jac` pin that each waiver still names a real
+and `test_pass_seal_baselines.jac` pin that each waiver still names a real
 seam; this pins the other half, that none of them can be called.
 
 The closure below is a deliberate over-approximation, so "not in it" is a
@@ -82,7 +82,6 @@ import from jaclang.utils.precompile_bytecode {
 glob PKG_PATH = Path(jaclang.__file__).parent,
      SEALED_ROOT = "jac0core/parser/parser.jac",
      WAVE1_ROOTS: tuple = (
-         "jac0core/passes/annex_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac"
@@ -183,7 +182,6 @@ def _program_tables(rel: str) -> tuple {
         file_path=str(PKG_PATH / rel),
         options=CompileOptions(
             aot_mode=True,
-            type_check=False,
             force_codespace='native',
             force_target_program=True,
             na_gc_mode='cycles',
@@ -318,7 +316,7 @@ def _walk_closure(
         return out;
     }
 
-    def attr_of(trailer: uni.UniNode) -> (str | None) {
+    def attr_of(trailer: uni.AtomTrailer) -> (str | None) {
         right = trailer.right if trailer?.right is not None else None;
         if isinstance(right, uni.Name) {
             return right.value;
@@ -634,10 +632,6 @@ test "every passenger carve-out is declared in the type system" {
 
 test "wave-1 roots: each walk reaches the pass's own machinery" {
     for (rel, needed) in (
-        (
-            "jac0core/passes/annex_pass.jac",
-            ("JacAnnexPass._merge_annex", "UniNode.add_kids_right")
-        ),
         (
             "jac0core/passes/module_codegen_pass.jac",
             ("ModuleCodegenPass.archetype_refs", "NameAtom.sym.__get__")

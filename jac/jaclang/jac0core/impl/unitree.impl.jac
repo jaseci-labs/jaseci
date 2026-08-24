@@ -760,6 +760,8 @@ impl Expr.postinit -> None {
     self._type_sym_tab = None;
     self.type = None;
     self.narrowed_type = None;
+    self.coerce_to = None;
+    self.fw = None;
     self.attached_tokens = None;
 }
 
@@ -868,7 +870,6 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
-    self.annex_mods = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
@@ -1226,7 +1227,8 @@ impl ModuleItem.binding_name.getter -> (Name | None) {
     if isinstance(self.name, Name) {
         return self.name;
     }
-    if self.name.value == 'default' {
+
+    if self.name.value in ('default', '*') {
         return self.alias;
     }
     return None;
@@ -1507,6 +1509,19 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
                 return nodew;
             }
             nodew = nodew.parent;
+        }
+    }
+
+    if found is None {
+        nodew = self.parent;
+        while isinstance(nodew, (IfStmt, ElseStmt, ModuleCode)) {
+            nodew = nodew.parent;
+        }
+        if nodew is not self.parent and isinstance(nodew, (Archetype, Enum)) {
+            mod = self.find_parent_of_type(Module);
+            if mod is not None and mod.is_raised_from_py {
+                return nodew;
+            }
         }
     }
     return found;
@@ -2852,6 +2867,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 (i.sym_name in i.sym_tab.names_in_scope)
                 and ((sym := i.sym_tab.names_in_scope[i.sym_name]) is not None)
             ) {
+                if sym.imported and isinstance(nd.value, Null) {
+                    sym.add_defn(i.name_spec);
+                }
                 sym.add_use(i.name_spec);
                 record_cross_scope_rebind(i.sym_tab, i.sym_name, sym);
             } elif (
@@ -2869,6 +2887,9 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                     if (
                         (outer := py_scope.lookup(i.sym_name, deep=False)) is not None
                     ) {
+                        if outer.imported and isinstance(nd.value, Null) {
+                            outer.add_defn(i.name_spec);
+                        }
                         outer.add_use(i.name_spec);
                         record_cross_scope_rebind(py_scope, i.sym_name, outer);
                     } else {

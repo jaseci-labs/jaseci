@@ -44,6 +44,11 @@ glob LIB_OK = "obj Foo { has x: int; }\n",
          "}\n"
      );
 
+"""Identity helper that erases static type info for checker-safe casts."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Force the file's mtime to advance past any cache fingerprint, with no real-time wait."""
 def _bump_mtime(path: str) {
     st = os.stat(path);
@@ -100,8 +105,10 @@ test "stale dep refreshed on consumer save" {
         asyncio.run(
             did_save(
                 ls,
-                DidSaveTextDocumentParams(
-                    text_document=TextDocumentIdentifier(uri=app_uri), text=APP_SRC
+                _as_any(
+                    DidSaveTextDocumentParams(
+                        text_document=TextDocumentIdentifier(uri=app_uri), text=APP_SRC
+                    )
                 )
             )
         );
@@ -158,7 +165,7 @@ test "consumer auto-rechecked when dep receives did_change" {
                     text_document=VersionedTextDocumentIdentifier(
                         uri=lib_uri, version=2
                     ),
-                    content_changes=[{"text": LIB_BREAK}]
+                    content_changes=_as_any([{"text": LIB_BREAK}])
                 )
             )
         );

@@ -9,7 +9,8 @@ name: CI
 # PR-time failure) and the jobs that validate the sealed artifact itself
 # consume it. Both producers publish the same five-path kit, so every consumer
 # is checkout -> jac-kit -> run. Deep/exotic sweeps (including the full suite
-# against the sealed binary) live in nightly.yml.
+# against the sealed binary, and the whole darwin native lane) live in
+# nightly.yml; `macos-native` below reruns the darwin lane on a `macos` label.
 
 on:
   workflow_dispatch:
@@ -68,9 +69,10 @@ jobs:
               # runs must run it -- same reasoning as `native` listing ci.yml.
               # Without this an edit to the installer test ships unexercised.
               - '.github/workflows/_installer.yml'
-            # Narrowing filter: the macOS and aarch64 lanes only run when a
-            # path that can move them changes (or on push/dispatch), and the
-            # native suite takes the sealed kit instead of the host kit.
+            # Narrowing filter: the aarch64 lane only runs when a path that
+            # can move it changes (or on push/dispatch), and the native suite
+            # takes the sealed kit instead of the host kit. The darwin lane no
+            # longer reads this filter -- it is nightly + `macos`-label only.
             native:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
@@ -283,49 +285,6 @@ jobs:
             jac/jaclang/vendor/typeshed/stdlib
             jac/.pbs-build/linux-x86_64/musl/lib
             jac/.pbs-build/linux-aarch64/musl/lib
-            jac/.pbs-build/wasm32/libc
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: error
-
-  build-kit-macos:
-    needs: changes
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Build the jac binary (cached)
-        uses: ./.github/actions/setup-jac
-
-      - name: Set up Zig 0.16.0
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0
-          use-cache: false
-
-      - name: Materialize typeshed + wasm libc floor
-        working-directory: jac
-        run: |
-          zig build fetch-typeshed --summary all
-          zig build vendor-wasm-libc --summary all
-
-      - name: Verify the kit is complete
-        working-directory: jac
-        run: |
-          set -euo pipefail
-          for p in zig-out/bin/jac jaclang/vendor/typeshed/stdlib \
-                   .pbs-build/wasm32/libc; do
-            [ -e "$p" ] || { echo "::error::kit is missing $p"; exit 1; }
-          done
-
-      - name: Upload the kit
-        uses: actions/upload-artifact@v4
-        with:
-          name: jac-kit-macos
-          path: |
-            jac/zig-out/bin/jac
-            jac/jaclang/vendor/typeshed/stdlib
             jac/.pbs-build/wasm32/libc
           include-hidden-files: true
           retention-days: 1
@@ -566,10 +525,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # jobs: 2, not auto, for the same reason test-native-sealed caps
+          # its pool: the long-lived fork workers accumulate each compile's
+          # inference weight across files, and four of them exhaust the box.
           - chunk: passes-main
             paths: tests/compiler/passes/main tests/compiler/passes/ecmascript
+            jobs: "2"
           - chunk: toplevel
             paths: tests/compiler/test_*.jac
+            jobs: "2"
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -579,12 +543,37 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # Same swap floor test-native-sealed runs, for the same reason: with
+      # inference on the critical path (#8398) every fixture compile is
+      # heavier, and a memory spike on this swapless box does not fail the
+      # step -- it kills the runner agent ("lost communication", no step log).
+      # Swap converts that into a slow test instead of a dead runner.
+      - name: Swap headroom for checked fixture compiles
+        run: |
+          set -euo pipefail
+          SWAP_DIR="$RUNNER_TEMP"
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - 25 ))
+          if [ "$SIZE_GB" -gt 16 ]; then
+            SIZE_GB=16
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
+            exit 0
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-test-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
+          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   # Native-backend validation: the passes-native chunk and the na/sv
   # equivalence pins. The LLVM shim these bind is the one inside the host
@@ -601,10 +590,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # jobs: 2 and the swap step, for the reason test-native-sealed
+          # records against this same chunk: the pool's long-lived fork
+          # workers accumulate each compile's inference weight across files,
+          # and four of them exhaust the box ~12 minutes in. This is the last
+          # lane running these paths at auto.
           - chunk: passes-native
             paths: tests/compiler/passes/native tests/compiler/passes/tool
+            jobs: "2"
           - chunk: equivalence
             paths: jaclang/compiler/tests
+            jobs: auto
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -614,12 +610,37 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # Same swap floor test-native-sealed runs, for the same reason: with
+      # inference on the critical path (#8398) every fixture compile is
+      # heavier, and a memory spike on this swapless box does not fail the
+      # step -- it kills the runner agent ("lost communication", no step log).
+      # Swap converts that into a slow test instead of a dead runner.
+      - name: Swap headroom for checked fixture compiles
+        run: |
+          set -euo pipefail
+          SWAP_DIR="$RUNNER_TEMP"
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - 25 ))
+          if [ "$SIZE_GB" -gt 16 ]; then
+            SIZE_GB=16
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
+            exit 0
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-test-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
+          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   test-native-sealed:
     needs: [changes, build-kit]
@@ -631,15 +652,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # jobs: 2, not auto. Type checking on the critical path (#8398)
+          # made every fixture compile carry inference, and the pool's
+          # long-lived fork workers accumulate that weight across files:
+          # at auto (4 workers) the swapless runner exhausts memory
+          # ~12 minutes in and the runner agent itself is killed ("lost
+          # communication", no step log). Two workers keep the aggregate
+          # under the box.
           - chunk: passes-native
             paths: tests/compiler/passes/native tests/compiler/passes/tool
             sealed: "1"
+            jobs: "2"
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it always runs through the
           # reroute, here over the sealed kit's shim and floors.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
+            jobs: auto
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -647,6 +677,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # Same swap floor build-kit runs for the seal: with inference on the
+      # critical path every fixture compile is heavier, and a memory spike on
+      # this swapless box does not fail the step -- it kills the runner agent
+      # ("lost communication", no step log). Swap converts that into a slow
+      # test instead of a dead runner.
+      - name: Swap headroom for checked fixture compiles
+        run: |
+          set -euo pipefail
+          SWAP_DIR="$RUNNER_TEMP"
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - 25 ))
+          if [ "$SIZE_GB" -gt 16 ]; then
+            SIZE_GB=16
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
+            exit 0
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-test-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
+          free -h
       - name: Run ${{ matrix.chunk }} chunk
         working-directory: jac
         env:
@@ -654,7 +709,7 @@ jobs:
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test ${{ matrix.paths }}
+          HOME="$WORK" JAC_TEST_JOBS=${{ matrix.jobs }} jac test ${{ matrix.paths }}
 
   # Everything except the compiler tests.
   test-runtime:
@@ -672,13 +727,42 @@ jobs:
           node-version: "20"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
+      # Same swap floor test-compiler and test-native run, for the same
+      # reason: with inference on the critical path (#8398) every compile is
+      # heavier, and a memory spike on this swapless box does not fail the
+      # step -- it kills the runner agent ("lost communication", no step log).
+      # Swap converts that into a slow test instead of a dead runner.
+      - name: Swap headroom for checked fixture compiles
+        run: |
+          set -euo pipefail
+          SWAP_DIR="$RUNNER_TEMP"
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - 25 ))
+          if [ "$SIZE_GB" -gt 16 ]; then
+            SIZE_GB=16
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::warning::only ${AVAIL_GB}G free in $SWAP_DIR; running without extra swap"
+            exit 0
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-test-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
+          free -h
       # test_auth_models.jac runs in test-reroute-gaps (see there).
+      # jobs: 2, not auto, for the reason the compiler lanes already cap: the
+      # pool's long-lived fork workers accumulate each compile's inference
+      # weight across files, and four of them exhaust the box. This is the
+      # widest suite in the file and the last one running at auto.
       - name: Runtime suite via the binary
         working-directory: jac
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/ \
+          HOME="$WORK" JAC_TEST_JOBS=2 jac test tests/ \
             --ignore tests/compiler tests/runtimelib/test_auth_models.jac
 
   # Tests that do not yet pass through the reroute, run here against the
@@ -742,8 +826,12 @@ jobs:
           JAC_TEST_JOBS: "0"
         run: jac test jac/jaclang/scale/tests/server/test_serve.jac -f hmr
 
-  # Degradation path: no LLVM shim, no binary -- programs must still compile
-  # cleanly in the server codespace with zero scheduling errors.
+  # Degradation path: no LLVM shim -- programs must still compile cleanly in
+  # the server codespace with zero scheduling errors. Typeshed is brought in
+  # first: since #8398 type inference is on the critical path of every
+  # compilation, so a checkout without the stdlib stubs compiles nothing and
+  # the stub-less half of this job tested a configuration that no longer
+  # exists.
   test-no-llvm:
     needs: [changes, host-kit]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
@@ -754,19 +842,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Cold-clone compile (no shim, no typeshed stubs)
-        working-directory: jac
-        run: |
-          set -euxo pipefail
-          test ! -e jaclang/compiler/passes/native/llvm/libjacllvm.so
-          test ! -e jaclang/vendor/typeshed/stdlib
-          WORK="$(mktemp -d)"
-          printf 'def add(a: int, b: int) -> int {\n    return a + b;\n}\n\nwith entry {\n    print(add(40, 2));\n}\n' > "$WORK/prog.jac"
-          out="$(HOME="$WORK" XDG_CACHE_HOME="$WORK/cache" PYTHONPATH="$PWD" python -m jaclang run "$WORK/prog.jac" 2>&1)" || { echo "$out"; exit 1; }
-          echo "$out" | tail -5
-          echo "$out" | grep -qx '42'
-          ! echo "$out" | grep -q 'scheduling error'
-          ! echo "$out" | grep -q 'preferred native but did not lower'
       # The kit brings typeshed (and the binary, unused here); shim still absent.
       - uses: ./.github/actions/jac-kit
         with:
@@ -1046,34 +1121,6 @@ jobs:
       - name: Fused-runtime boot of a fresh na host
         run: jac test jac/tests/runtimelib/client/test_fused_runtime_boot.jac
 
-  test-native-macos:
-    needs: [changes, build-kit-macos]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.native == 'true' }}
-    runs-on: macos-latest
-    env:
-      JAC_NO_DEV_SOURCE: "1"
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - uses: ./.github/actions/jac-kit
-        with:
-          name: jac-kit-macos
-      - name: Run native Mach-O linker regression tests
-        run: |
-          jac test jac/tests/compiler/passes/native/test_shared_lib.jac
-          jac test jac/tests/compiler/passes/native/test_exec_link.jac
-      - name: Run na->wasm floor + import-contract tests
-        run: jac test jac/tests/compiler/passes/native/test_wasm_build.jac
-      - name: Run bundled-stdlib equivalence pins (darwin)
-        env:
-          JAC_TEST_JOBS: "0"
-        # Pure-compute na modules that must agree on darwin; str/bytes guard
-        # the libc-binding divergence (musl static vs libSystem).
-        run: >-
-          jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
-          -f "shutil or path or textwrap or keyword or str or bytes"
-
   # Bootstrap unit tests: the Zig seed that fetches the pbs CPython before any
   # Python exists (bootstrap/fetch_pbs.zig). Cross-platform on purpose. The
   # launcher itself is Jac; its trailer codec, payload tool and boot path are
@@ -1184,7 +1231,7 @@ jobs:
       - name: Start jac_site server in background
         working-directory: jac_site
         run: |
-          timeout 600 jac start main.jac > /tmp/jac-site-server.log 2>&1 &
+          timeout 600 jac run --serve main.jac > /tmp/jac-site-server.log 2>&1 &
           SERVER_PID=$!
           echo "JAC_SITE_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "jac_site server starting with PID $SERVER_PID..."
@@ -1280,7 +1327,7 @@ jobs:
         if: failure()
         run: |
           pip install py-spy >/dev/null 2>&1 || true
-          for p in $(pgrep -f "jac start main.jac"); do
+          for p in $(pgrep -f "jac run --serve main.jac"); do
             echo "=== py-spy dump pid $p ==="
             sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
           done
@@ -1311,7 +1358,7 @@ jobs:
       - name: Create fullstack project and eject it
         run: |
           jac create --use web-app fs-smoke
-          cd fs-smoke && jac build --as source --no_typecheck
+          cd fs-smoke && jac build --as source
 
       - name: Install ejected backend and start it
         working-directory: fs-smoke/ejected/backend
@@ -1380,6 +1427,17 @@ jobs:
     with:
       shellcheck: true
 
+  # The darwin native lane (sealed macOS kit + Mach-O / wasm-floor /
+  # libSystem-equivalence tests) lives in nightly.yml; see _macos-native.yml
+  # for why. It stays one label away here: add `macos` to a PR that touches
+  # Mach-O linking or the musl-vs-libSystem binding and it gates that PR like
+  # any other job. Not gated on the `native` path filter -- that filter fires
+  # on ordinary compiler churn, which is what put a 44-68 min leg on the
+  # critical path of every native PR to begin with.
+  macos-native:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'macos')) }}
+    uses: ./.github/workflows/_macos-native.yml
+
   # Aggregate gate: branch protection requires only this context. A NEW job
   # must be added to needs below by hand; always() so failures upstream fail
   # the gate instead of skipping it (skipped required checks count as passing).
@@ -1390,7 +1448,7 @@ jobs:
       - changes
       - host-kit
       - build-kit
-      - build-kit-macos
+      - macos-native
       - jac-check
       - contribution-checks
       - test-compiler
@@ -1405,7 +1463,6 @@ jobs:
       - test-scale
       - test-scale-k8s
       - test-native-aarch64
-      - test-native-macos
       - test-bootstrap
       - test-cef-build
       - test-jac-pack-smoke

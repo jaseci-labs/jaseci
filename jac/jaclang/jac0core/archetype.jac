@@ -47,7 +47,8 @@ obj Access {
 
 obj Permission {
     has all: AccessLevel = AccessLevel.NO_ACCESS,
-        roots: Access = field(default_factory=Access);
+        roots: Access = field(default_factory=Access),
+        groups: Access = field(default_factory=Access);
 }
 
 @dataclass

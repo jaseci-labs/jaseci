@@ -251,11 +251,11 @@ impl WasmObj.parse_linking(o: int, end: int) -> None {
                     self.symtab.append([kind, flags, idx, None]);
                 } else {
                     (idx, o) = _rd_uleb(b, o);
-                    nm = None;
+                    opt_nm: (str | None) = None;
                     if (not undef) or (flags & 0x40) {
-                        (nm, o) = _rd_name(b, o);
+                        (opt_nm, o) = _rd_name(b, o);
                     }
-                    self.symtab.append([kind, flags, idx, nm]);
+                    self.symtab.append([kind, flags, idx, opt_nm]);
                 }
                 ci += 1;
             }
@@ -326,7 +326,7 @@ def _parse_data_segments(b: bytes) -> list {
 }
 
 def _sym_val(
-    ob: WasmObj, si: int, old2new: dict, seg_base: list, heap_base: int = -1
+    ob: WasmObj, si: int, old2new: dict, seg_base: list[int], heap_base: int = -1
 ) -> int {
     e = ob.symtab[si];
     k = e[0];
@@ -372,7 +372,7 @@ impl WasmLinker.link(
     segs = _parse_data_segments(ob.data_raw);
 
     base = 1024;
-    seg_base = [];
+    seg_base: list[int] = [];
     i = 0;
     while i < len(segs) {
         al = 0;

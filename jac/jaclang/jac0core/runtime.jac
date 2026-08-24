@@ -44,7 +44,8 @@ import from jaclang.jac0core.modresolver {
     push_import_base,
     pop_import_base
 }
-import from jaclang.jac0core.mtp { MTIR, Info, MTRuntime }
+import from jaclang.jac0core.mtp { Info }
+import type from jaclang.byllm.mtir { MTRuntime }
 import type from jaclang.cli.console { JacConsole as ConsoleImpl }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.program { JacProgram }
@@ -145,6 +146,8 @@ obj LLMModel(Protocol) {
     has call_params: dict[(str, object)];
 
     def __call__(**kwargs: object) -> LLMModel;
+    def invoke(mt_run: MTRuntime) -> object;
+    async def ainvoke(mt_run: MTRuntime) -> object;
 }
 
 class JacContext {
@@ -191,6 +194,14 @@ class JacAccessValidation {
         level: (AccessLevel | int | str | None) = None
     ) -> None;
 
+    static def allow_group(
+        archetype: Archetype,
+        group_id: UUID,
+        level: (AccessLevel | int | str | None) = None
+    ) -> None;
+
+    static def disallow_group(archetype: Archetype, group_id: UUID) -> None;
+    static def _groups_of(jroot: NodeAnchor) -> list[str];
     static def disallow_root(
         archetype: Archetype,
         root_id: UUID,
@@ -211,7 +222,8 @@ class JacAccessValidation {
 class JacGraph {
     static def refs(
         path: GraphQuery | NodeArchetype | list[NodeArchetype],
-        slc: (slice | None) = None
+        slc: (slice | None) = None,
+        lazy: bool = False
     ) -> list[NodeArchetype]
         | list[EdgeArchetype]
         | list[(NodeArchetype | EdgeArchetype)];
@@ -350,6 +362,10 @@ class JacIntrospection {
 }
 
 class JacLLM {
+    with entry {
+        _default_llm_instance: (LLMModel | None) = None;
+    }
+
     static def get_mtir(
         caller: Callable,
         args: dict[((int | str), object)],

@@ -12,6 +12,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from .types {
+    AnyType,
     ClassType,
     FunctionType,
     NeverType,
@@ -31,6 +32,13 @@ import from jaclang.jac0core.diagnostics {
     E1114,
     E1115,
     E1118
+}
+import from .fixed_width {
+    both_numeric,
+    folded_number,
+    numeric_name_of,
+    shift_result_type,
+    unify_numeric_operands
 }
 import type from .type_evaluator { TypeEvaluator }
 
@@ -64,17 +72,6 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.MOD,
          Tok.STAR_POW
      },
-     INT_LIKE_WIDTHS: dict[str, int] = {
-         "i8": 8,
-         "u8": 8,
-         "i16": 16,
-         "u16": 16,
-         "i32": 32,
-         "u32": 32,
-         "i64": 64,
-         "u64": 64
-     },
-     FLOAT_LIKE_NAMES: set[str] = {"f32", "f64"},
      AUG_OPERATOR_MAP: dict[str, str] = {
          Tok.ADD_EQ: '__iadd__',
          Tok.SUB_EQ: '__isub__',
@@ -106,90 +103,117 @@ glob BINARY_OPERATOR_MAP: dict[str, tuple[str, str]] = {
          Tok.MATMUL_EQ: Tok.DECOR_OP
      };
 
-def _is_int_like(t: ClassType) -> bool {
-    return t.is_builtin("int")
-        or (t.is_builtin() and t.shared.class_name in INT_LIKE_WIDTHS);
+def _is_runtime_archetype_instance(t: TypeBase, base_name: str) -> bool {
+    if not (isinstance(t, ClassType) and t.is_instance()) {
+        return False;
+    }
+    for cls in (t.shared.mro or []) {
+        if cls.shared.class_name == base_name {
+            return True;
+        }
+    }
+    return False;
 }
 
-def _is_float_like(t: ClassType) -> bool {
-    return t.is_builtin("float")
-        or (t.is_builtin() and t.shared.class_name in FLOAT_LIKE_NAMES);
+def _has_gradual_type_args(t: TypeBase) -> bool {
+    if not isinstance(t, ClassType) {
+        return False;
+    }
+    for a in (t.private.type_args or []) {
+        if isinstance(a, (AnyType, UnknownType)) {
+            return True;
+        }
+        if isinstance(a, ClassType) and a.is_any_instance() {
+            return True;
+        }
+    }
+    return False;
 }
+
+glob BITWISE_OPERATORS: set[str] = {Tok.BW_AND, Tok.BW_OR, Tok.BW_XOR},
+     SHIFT_OPERATORS: set[str] = {Tok.LSHIFT, Tok.RSHIFT};
 
 def get_numeric_promotion_type(
-    evaluator: TypeEvaluator, left_type: TypeBase, right_type: TypeBase, op: str
+    evaluator: TypeEvaluator,
+    left_type: TypeBase,
+    right_type: TypeBase,
+    op: str,
+    left_node: Expr | None = None,
+    right_node: Expr | None = None,
+    diag_node: UniNode | None = None
 ) -> TypeBase | None {
-    if not isinstance(left_type, ClassType) or not isinstance(right_type, ClassType) {
+    if not both_numeric(left_type, right_type) {
         return None;
     }
-    left_is_int = _is_int_like(left_type);
-    left_is_float = _is_float_like(left_type);
-    right_is_int = _is_int_like(right_type);
-    right_is_float = _is_float_like(right_type);
-
-    if not ((left_is_int or left_is_float) and (right_is_int or right_is_float)) {
-        return None;
-    }
-
     float_class = evaluator.prefetch.float_class;
-    int_class = evaluator.prefetch.int_class;
-    if float_class is None or int_class is None {
+    if float_class is None {
         return None;
     }
-
+    if op in SHIFT_OPERATORS {
+        if not is_int_kind_type(left_type) or not is_int_kind_type(right_type) {
+            return None;
+        }
+        return shift_result_type(
+            evaluator, left_type, right_type, left_node, right_node
+        );
+    }
+    if op in BITWISE_OPERATORS
+        and not (is_int_kind_type(left_type) and is_int_kind_type(right_type)) {
+        return None;
+    }
+    unified = unify_numeric_operands(
+        evaluator,
+        left_type,
+        right_type,
+        left_node,
+        right_node,
+        diag_node if diag_node is not None else left_node,
+        op
+    );
+    if unified is None {
+        return UnknownType(is_diagnosed=True);
+    }
     if op == Tok.DIV {
         return evaluator._convert_to_instance(float_class);
     }
+    return unified;
+}
 
-    if left_is_float or right_is_float {
-        return evaluator._convert_to_instance(float_class);
-    }
-
-    left_name = left_type.shared.class_name;
-    right_name = right_type.shared.class_name;
-    left_fw = left_name in INT_LIKE_WIDTHS;
-    right_fw = right_name in INT_LIKE_WIDTHS;
-
-    if not left_fw or not right_fw {
-        return evaluator._convert_to_instance(int_class);
-    }
-
-    if INT_LIKE_WIDTHS[left_name] >= INT_LIKE_WIDTHS[right_name] {
-        return evaluator._convert_to_instance(left_type);
-    }
-    return evaluator._convert_to_instance(right_type);
+def is_int_kind_type(t: TypeBase) -> bool {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY, NumericKind }
+    name = numeric_name_of(t);
+    return name is not None
+        and JAC_TYPE_REGISTRY.numeric_kind_of(name) == NumericKind.IntKind;
 }
 
 def get_pow_result_type(
     evaluator: TypeEvaluator,
     left_type: TypeBase,
     right_type: TypeBase,
-    right_node: (UniNode | None)
+    right_node: (Expr | None),
+    left_node: Expr | None = None,
+    diag_node: UniNode | None = None
 ) -> (TypeBase | None) {
-    if not isinstance(left_type, ClassType) or not isinstance(right_type, ClassType) {
-        return None;
-    }
-    left_is_int = _is_int_like(left_type);
-    left_is_float = _is_float_like(left_type);
-    right_is_int = _is_int_like(right_type);
-    right_is_float = _is_float_like(right_type);
-    if not ((left_is_int or left_is_float) and (right_is_int or right_is_float)) {
-        return None;
-    }
+    import from jaclang.jac0core.const_fold { fold_const }
     float_class = evaluator.prefetch.float_class;
-    int_class = evaluator.prefetch.int_class;
-    if float_class is None or int_class is None {
+    if float_class is None or not both_numeric(left_type, right_type) {
         return None;
     }
-    if left_is_float or right_is_float {
+    (rok, rv) = fold_const(right_node);
+    if rok and isinstance(rv, int) and not isinstance(rv, bool) and rv < 0 {
         return evaluator._convert_to_instance(float_class);
     }
-    import from jaclang.jac0core.const_fold { fold_const }
-    (rok, rv) = fold_const(right_node);
-    if rok and isinstance(rv, int) and not isinstance(rv, bool) and rv >= 0 {
-        return get_numeric_promotion_type(
-            evaluator, left_type, right_type, Tok.STAR_POW
-        );
+    promoted = get_numeric_promotion_type(
+        evaluator, left_type, right_type, Tok.STAR_POW, left_node, right_node, diag_node
+    );
+    if promoted is None or isinstance(promoted, UnknownType) {
+        return promoted;
+    }
+    if not is_int_kind_type(promoted) {
+        return evaluator._convert_to_instance(float_class);
+    }
+    if rok and isinstance(rv, int) and not isinstance(rv, bool) {
+        return promoted;
     }
     return evaluator._convert_to_instance(float_class);
 }
@@ -227,6 +251,20 @@ def get_type_of_binary_operation(
     if isinstance(expr.op, Token)
         and expr.op.name in BINARY_OPERATOR_MAP
         and expr.op.name != Tok.BW_OR {
+        for operand_type in (left_type, right_type) {
+            if isinstance(operand_type, AnyType) or operand_type.is_any_instance() {
+                return operand_type;
+            }
+            if isinstance(operand_type, UnknownType) {
+                if operand_type.is_diagnosed or operand_type.is_incomplete {
+                    return operand_type;
+                }
+                evaluator.emit_diag(
+                    E1055, expr, method=BINARY_OPERATOR_MAP[expr.op.name][0]
+                );
+                return UnknownType(is_diagnosed=True);
+            }
+        }
         if isinstance(left_type, TypeVarType) {
             (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
@@ -316,22 +354,35 @@ def get_type_of_binary_operation(
         if expr.op.name == Tok.BW_OR {
             if is_annotation_type(evaluator, left_type)
                 and is_annotation_type(evaluator, right_type) {
-                return UnionType(types=[left_type, right_type]);
+                return UnionType(
+                    types=[
+                        evaluator._convert_to_instance(left_type),
+                        evaluator._convert_to_instance(right_type)
+                    ]
+                );
             }
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
 
-        if expr.op.name in ARITHMETIC_OPERATORS {
+        if expr.op.name in ARITHMETIC_OPERATORS
+            or expr.op.name in BITWISE_OPERATORS
+            or expr.op.name in SHIFT_OPERATORS {
             if expr.op.name == Tok.STAR_POW {
                 pow_type = get_pow_result_type(
-                    evaluator, left_type, right_type, expr.right
+                    evaluator, left_type, right_type, expr.right, expr.left, expr
                 );
                 if pow_type is not None {
                     return pow_type;
                 }
             }
             promoted_type = get_numeric_promotion_type(
-                evaluator, left_type, right_type, expr.op.name
+                evaluator,
+                left_type,
+                right_type,
+                expr.op.name,
+                expr.left,
+                expr.right,
+                expr
             );
             if promoted_type is not None {
                 return promoted_type;
@@ -352,6 +403,10 @@ def get_type_of_binary_operation(
             if expr.op.name == Tok.BW_OR {
                 return UnionType(types=[left_type, right_type]);
             }
+            if _has_gradual_type_args(left_type)
+                or _has_gradual_type_args(right_type) {
+                return UnknownType();
+            }
             evaluator.emit_diag(E1055, expr, method=magic);
             return UnknownType();
         }
@@ -360,7 +415,10 @@ def get_type_of_binary_operation(
 
     if isinstance(expr.op, (ConnectOp, DisconnectOp)) {
         def is_node_type_instance(t: TypeBase) -> bool {
-            return (isinstance(t, ClassType) and t.is_node_type() and t.is_instance());
+            if isinstance(t, ClassType) and t.is_node_type() and t.is_instance() {
+                return True;
+            }
+            return _is_runtime_archetype_instance(t, "NodeArchetype");
         }
 
         def unparameterized_connect_collection(t: TypeBase) -> str | None {
@@ -517,6 +575,9 @@ def get_type_of_binary_operation(
             if isinstance(t, ClassType) and t.is_walker_type() and t.is_instance() {
                 return True;
             }
+            if _is_runtime_archetype_instance(t, "WalkerArchetype") {
+                return True;
+            }
             if isinstance(t, UnionType) {
                 return all(is_walker_instance(m) for m in t.types);
             }
@@ -536,6 +597,10 @@ def get_type_of_binary_operation(
             }
             if isinstance(t, ClassType) {
                 if t.is_node_type() or t.is_edge_type() {
+                    return True;
+                }
+                if _is_runtime_archetype_instance(t, "NodeArchetype")
+                    or _is_runtime_archetype_instance(t, "EdgeArchetype") {
                     return True;
                 }
                 if (
@@ -570,7 +635,12 @@ def get_type_of_binary_operation(
 
         target_node = expr.right if left_walker else expr.left;
         target_type = right_type if left_walker else left_type;
-        if not is_archetype_target(target_type) {
+        _jid_target = (
+            isinstance(target_type, ClassType)
+            and target_type.is_builtin("str")
+            and expr.in_client_context()
+        );
+        if not _jid_target and not is_archetype_target(target_type) {
             evaluator.emit_diag(E1115, target_node, type=str(target_type));
         }
 

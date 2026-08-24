@@ -79,6 +79,7 @@ glob CODEINFO_CLOSURE: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
+         "jac0core/scalars.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
@@ -121,7 +122,6 @@ def _root_coverage(rel: str) -> tuple {
             file_path=str(PKG_PATH / rel),
             options=CompileOptions(
                 aot_mode=True,
-                type_check=False,
                 force_codespace='native',
                 force_target_program=True,
                 na_gc_mode='cycles',

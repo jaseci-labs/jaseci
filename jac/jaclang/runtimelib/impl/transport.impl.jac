@@ -1,6 +1,6 @@
 impl TransportResponse.success(
     data: any = None,
-    msg_type: MessageType = MessageType.RESPONSE,
+    msg_type: (MessageType | str) = MessageType.RESPONSE.value,
     meta: (Meta | None) = None
 ) -> TransportResponse {
     final_meta = meta or Meta();
@@ -17,7 +17,7 @@ impl TransportResponse.fail(
     code: str,
     message: str,
     details: any = None,
-    msg_type: MessageType = MessageType.ERROR,
+    msg_type: (MessageType | str) = MessageType.ERROR.value,
     meta: (Meta | None) = None
 ) -> TransportResponse {
     final_meta = meta or Meta();

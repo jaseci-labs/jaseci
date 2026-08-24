@@ -2,7 +2,7 @@ import json;
 import from abc { abstractmethod }
 import from collections.abc { Callable }
 import from enum { StrEnum }
-import from typing { ClassVar, `override }
+import from typing { ClassVar, NoReturn, `override }
 import type from enum { IntEnum }
 import type from jaclang.jac0core.constructs { AccessLevel, NodeArchetype }
 import type from jaclang.jac0core.runtime { LLMModel }
@@ -74,14 +74,14 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
-def testskip(reason: str = "") -> None;
+def testskip(reason: str = "") -> NoReturn;
 
-def testfail(reason: str = "") -> None;
+def testfail(reason: str = "") -> NoReturn;
 
 def testraises(*excs: type, `match: (str | None) = None) -> RaisesContext;
 
 obj RaisesContext {
-    has excs: tuple,
+    has excs: tuple[type, ...],
         pattern: (str | None) = None,
         value: (BaseException | None) = None;
 
@@ -134,6 +134,21 @@ glob __all__ = [
          'testfail',
          'testraises',
          'RaisesContext',
+         'i8',
+         'u8',
+         'i16',
+         'u16',
+         'i32',
+         'u32',
+         'i64',
+         'u64',
+         'f32',
+         'f64',
+         'wrapping_add',
+         'wrapping_sub',
+         'wrapping_mul',
+         'wrapping_shl',
+         'wrapping_neg',
          'JacListView',
          '_jac_chunks',
          'Region',

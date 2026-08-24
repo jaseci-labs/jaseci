@@ -48,6 +48,8 @@ import from jaclang.jac0core.unitree {
     TypeAlias,
     UniNode,
     VisitStmt,
+    IfStmt,
+    ElseIf,
     WhileStmt,
     WithStmt,
     YieldExpr
@@ -57,6 +59,8 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.type_system.types {
     AnyType,
     ClassType,
+    FunctionType,
+    ModuleType,
     TypeBase,
     TypeVarType,
     UnionType,
@@ -73,6 +77,8 @@ import from jaclang.compiler.type_system.operations {
     AUG_OPERATOR_MAP,
     AUG_TO_BINARY_MAP,
     BINARY_OPERATOR_MAP,
+    BITWISE_OPERATORS,
+    SHIFT_OPERATORS,
     get_numeric_promotion_type,
     get_pow_result_type
 }
@@ -121,20 +127,11 @@ class TypeCheckPass(UniPass) {
     has evaluator: TypeEvaluator,
         _lambda_depth: int = 0;
 
-    static has PROVIDES: tuple = ('inference', ),
-        inference_only: bool = False;
+    static has PROVIDES: tuple = ('inference', );
 
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
-    def emit(
-        self: TypeCheckPass,
-        diag: DiagnosticInfo,
-        node_override: (UniNode | None) = None,
-        related: (list[tuple[str, UniNode]] | None) = None,
-        help_text: (str | None) = None,
-        **kwargs: any
-    ) -> bool;
-
+    def _stamp_fixed_width(self: TypeCheckPass) -> None;
     def _insert_builtin_symbols(self: TypeCheckPass) -> None;
     def _install_client_state_setters(self: TypeCheckPass) -> None;
     def _client_state_field_owner(self: TypeCheckPass, nd: HasVar) -> (Ability | None);
@@ -170,6 +167,8 @@ class TypeCheckPass(UniPass) {
     def exit_raise_stmt(self: TypeCheckPass, nd: RaiseStmt) -> None;
     def enter_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
     def exit_with_stmt(self: TypeCheckPass, nd: WithStmt) -> None;
+    def exit_if_stmt(self: TypeCheckPass, nd: IfStmt) -> None;
+    def exit_else_if(self: TypeCheckPass, nd: ElseIf) -> None;
     def exit_while_stmt(self: TypeCheckPass, nd: WhileStmt) -> None;
     def exit_assert_stmt(self: TypeCheckPass, nd: AssertStmt) -> None;
     def exit_yield_expr(self: TypeCheckPass, nd: YieldExpr) -> None;
@@ -189,11 +188,10 @@ class TypeCheckPass(UniPass) {
         self: TypeCheckPass, nd: HasVar, declared_type: object
     ) -> None;
 
-    def _enclosing_walker_report_elem_type(self: TypeCheckPass, nd: UniNode) -> object;
+    def _enclosing_walker_report_elem_type(
+        self: TypeCheckPass, nd: UniNode
+    ) -> (TypeBase | None);
+
     def _check_event_trigger_archetype(self: TypeCheckPass, nd: Ability) -> None;
     def _check_unresolved_lambda_params(self: TypeCheckPass) -> None;
-}
-
-class TypeInferencePass(TypeCheckPass) {
-    static has inference_only: bool = True;
 }

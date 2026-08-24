@@ -1,8 +1,11 @@
 import from jaclang.jac0core.unitree { Import, Module }
 
-glob PREFIX_NATIVE_FRONTIER: int = 1;
+glob PREFIX_NATIVE_FRONTIER: int = 4;
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+import from jaclang.jac0core.passes.decl_impl_match_pass { DeclImplMatchPass }
+import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
 
 obj PrefixAlertRow {
     has severity: int = 0,
@@ -68,13 +71,28 @@ def run_prefix_passes(mod: Module, claimed_n: int) -> PrefixRunResult {
         _harvest(out.rows, p1.errors_had, p1.warnings_had, 0);
         out.executed = 1;
     }
+    if _cap >= 2 {
+        p2 = SymTabBuildPass(ir_in=mod);
+        _harvest(out.rows, p2.errors_had, p2.warnings_had, 1);
+        out.executed = 2;
+    }
+    if _cap >= 3 {
+        p3 = DeclImplMatchPass(ir_in=mod);
+        _harvest(out.rows, p3.errors_had, p3.warnings_had, 2);
+        out.executed = 3;
+    }
+    if _cap >= 4 {
+        p4 = SemanticAnalysisPass(ir_in=mod);
+        _harvest(out.rows, p4.errors_had, p4.warnings_had, 3);
+        out.executed = 4;
+    }
     if claimed_n > out.executed and not out.clause {
-        out.clause = "prefix-declined";
         out.detail = (
-            f"the native frontier is seat {PREFIX_NATIVE_FRONTIER} "
-            "(ASTValidationPass); later seats run staged until their "
+            f"the native frontier is seat {PREFIX_NATIVE_FRONTIER} of "
+            f"{claimed_n} claimed; later seats run staged until their "
             "native execution is proven"
         );
+        out.clause = "prefix-declined";
     }
     return out;
 }

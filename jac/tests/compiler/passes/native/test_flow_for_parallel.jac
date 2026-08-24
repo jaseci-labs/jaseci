@@ -39,7 +39,7 @@ def _compile_ir_path(path: str, gc_mode: str, enforce: bool) -> str {
     ir = prog.compile(
         file_path=path,
         options=CompileOptions(
-            aot_mode=True, type_check=True, na_gc_mode=gc_mode, nogc_enforce_all=enforce
+            aot_mode=True, na_gc_mode=gc_mode, nogc_enforce_all=enforce
         )
     );
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];

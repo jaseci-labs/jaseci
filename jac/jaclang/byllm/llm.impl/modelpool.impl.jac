@@ -114,7 +114,7 @@ impl ModelPool.model_call_no_stream(params: dict) -> dict {
     return self._router.completion(**params);
 }
 
-impl ModelPool.model_call_with_stream(params: dict) -> Generator[str, None, None] {
+impl ModelPool.model_call_with_stream(params: dict) -> Generator[object, None, None] {
     if self.strategy == "cost-based-routing" {
         async def _collect_stream -> list {
             result = await self._router.acompletion(stream=True, **params);
@@ -132,7 +132,7 @@ impl ModelPool.model_call_with_stream(params: dict) -> Generator[str, None, None
     if self.strategy == "fallback" {
         model_names: list = self._fallback_model_names;
         router = self._router;
-        def _fallback_gen -> Generator {
+        def _fallback_gen -> Generator[object, None, None] {
             for (idx, name) in enumerate(model_names) {
                 yielded: bool = False;
                 try {
