@@ -48,8 +48,8 @@ def resolve_floor_dir(pkg_root: str, triple: str) -> (str | None) {
     want = triple_arch(triple);
 
     pbs = os.path.join(pkg_root, ".pbs-build");
+    fallback: (str | None) = None;
     if os.path.isdir(pbs) {
-        fallback: (str | None) = None;
         for d in sorted(os.listdir(pbs)) {
             libdir = os.path.join(pbs, d, "python", "build", "lib");
             if os.path.isdir(libdir) {
@@ -61,13 +61,13 @@ def resolve_floor_dir(pkg_root: str, triple: str) -> (str | None) {
                 }
             }
         }
-        if fallback is not None {
-            return fallback;
-        }
     }
 
-    floor = os.path.join(os.path.dirname(pkg_root), "python", "floor");
-    if os.path.isdir(floor) {
+    import from jaclang.runtimelib.fused_binary { bundled_floor_roots }
+    for floor in bundled_floor_roots(pkg_root) {
+        if not os.path.isdir(floor) {
+            continue;
+        }
         for d in sorted(os.listdir(floor)) {
             cand = os.path.join(floor, d);
             if os.path.isdir(cand) and (want in d) {
@@ -75,7 +75,7 @@ def resolve_floor_dir(pkg_root: str, triple: str) -> (str | None) {
             }
         }
     }
-    return None;
+    return fallback;
 }
 
 def floor_lib_dir(triple: str) -> (str | None) {
@@ -100,8 +100,8 @@ def collect_floor_archives(
 ) -> tuple {
     import os;
     import from jaclang.compiler.passes.native.linker_common { select_ar_members }
-    member_bytes: list = [];
-    handled: set = set();
+    member_bytes: list[bytes] = [];
+    handled: set[str] = set();
 
     tl = triple.lower();
     is_pe = ("windows" in tl) or ("win32" in tl) or ("msvc" in tl) or ("mingw" in tl);
@@ -113,13 +113,13 @@ def collect_floor_archives(
         return (member_bytes, handled);
     }
 
-    syms_by_lib: dict = {};
+    syms_by_lib: dict[str, list[str]] = {};
     for (sym, raw) in clib_symbol_lib.items() {
         syms_by_lib.setdefault(raw, []).append(sym);
     }
 
-    roots_by_archive: dict = {};
-    paths_by_archive: dict = {};
+    roots_by_archive: dict[str, list[str]] = {};
+    paths_by_archive: dict[str, list[str]] = {};
     for clib_path in clib_paths {
         arch_file = os.path.join(lib_dir, clib_to_archive_name(clib_path));
         if not os.path.isfile(arch_file) {

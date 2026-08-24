@@ -72,7 +72,9 @@ test "webhook durability warning absent when the shared database is available" {
 test "webhook - endpoint exists" {
     client = make_client();
     try {
-        schema = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        schema = srv.server.app.openapi();
         paths = schema.get("paths", {});
 
         assert "/webhook/PaymentReceived" in paths , (
@@ -89,7 +91,9 @@ test "webhook - endpoint exists" {
 test "webhook - normal walker not in webhook" {
     client = make_client();
     try {
-        schema = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        schema = srv.server.app.openapi();
         paths = schema.get("paths", {});
 
         assert "/webhook/NormalPayment" not in paths , (

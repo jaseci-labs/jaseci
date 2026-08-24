@@ -23,7 +23,9 @@ import from jaclang.scale.runtime.gateway.route_table {
 """Serve the in-process jac app over a real socket; returns (server, port)."""
 def _expose_backend(client: ScaleTestClient) -> tuple {
     import from jaclang.runtimelib.serving.server { ServingServer }
-    server = ServingServer(app=client._server.server.app, host="127.0.0.1", port=0);
+    backend = client._server;
+    assert backend is not None , "client has no in-process server";
+    server = ServingServer(app=backend.server.app, host="127.0.0.1", port=0);
     server.serve_background();
     assert server.bound_port , "backend server did not start in time";
     return (server, server.bound_port);

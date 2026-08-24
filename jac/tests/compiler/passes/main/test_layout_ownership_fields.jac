@@ -12,9 +12,7 @@ glob FIXTURES = os.path.join(
 test "own str obj fields draw no W5032 layout warning" {
     path = os.path.join(FIXTURES, "own_str_fields.jac");
     prog = JacProgram();
-    prog.compile(
-        file_path=path, options=CompileOptions(aot_mode=True, type_check=True)
-    );
+    prog.compile(file_path=path, options=CompileOptions(aot_mode=True));
     codes = [
         w.code.code
         for w in prog.warnings_had

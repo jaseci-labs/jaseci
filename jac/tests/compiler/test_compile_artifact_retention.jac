@@ -309,6 +309,7 @@ test "a released dep unit still answers its real verdict" {
     opts = CompileOptions(aot_mode=True, no_ir_cache=True);
     prog = JacProgram();
     first = native_unit_demotions(prog, leaf, opts);
+    assert first is not None;
     assert first == {"bad_fmt"} , f"fixture verdict changed: {first!r}";
     prog.release_native_dep_units();
     second = native_unit_demotions(prog, leaf, opts);
@@ -360,7 +361,7 @@ test "the flow-narrowing caches do not survive the compile" {
         }
     );
     prog = JacProgram();
-    prog.compile(os.path.join(tmp, "main.jac"), type_check=True);
+    prog.compile(os.path.join(tmp, "main.jac"));
     ev = prog.type_evaluator;
     if ev is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
@@ -404,7 +405,7 @@ test "clear_type_system actually releases expression types" {
         }
     );
     prog = JacProgram();
-    prog.compile(os.path.join(tmp, "one.jac"), type_check=True);
+    prog.compile(os.path.join(tmp, "one.jac"));
     if prog.type_evaluator is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
     }
@@ -444,9 +445,7 @@ test "a code-intel compile keeps the types its callers read" {
         }
     );
     prog = JacProgram();
-    mod = prog.compile(
-        os.path.join(tmp, "hoverable.jac"), type_check=True, no_cgen=True
-    );
+    mod = prog.compile(os.path.join(tmp, "hoverable.jac"), no_cgen=True);
     if prog.type_evaluator is None {
         testskip("no type evaluator: this runtime has no typeshed stubs");
     }

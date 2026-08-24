@@ -128,7 +128,7 @@ test "a symtab-only compile survives being the first to need symbol_utils" {
         prog = JacProgram();
         mod = prog.compile(
             os.path.join(TESTS_DIR, "compiler", "fixtures", "distinct", "brands.jac"),
-            options=CompileOptions(symtab_ir_only=True, type_check=False)
+            options=CompileOptions(symtab_ir_only=True)
         );
         assert mod is not None;
     } finally {
@@ -171,7 +171,7 @@ test "a compile that re-enters the module being imported says so" {
             compiler.compile(
                 file_path=EXPR_KEYS,
                 target_program=compiler.internal_program,
-                options=CompileOptions(type_check=False, no_cgen=True)
+                options=CompileOptions(no_cgen=True)
             );
         } except CompilerSourceError as loud {
             raised = True;

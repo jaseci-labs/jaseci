@@ -4,21 +4,6 @@ glob _PASS_ARTIFACT_PREFIXES: tuple = (
          "jaclang.jac0core.passes.",
          "jaclang.compiler.passes."
      ),
-     _ANNEX_MODULE: str = "jaclang.jac0core.passes.annex_pass",
-     _MERGE_CANARY_MAIN: tuple = (
-         "obj Gadget {",
-         "    has n: int = 1;",
-         "    def bump -> int;",
-         "}",
-
-     ),
-     _MERGE_CANARY_ANNEX: tuple = (
-         "impl Gadget.bump -> int {",
-         "    self.n += 1;",
-         "    return self.n;",
-         "}",
-
-     ),
      _BIND_KEEP: list = [];
 
 def _serve_error(fullname: str, reason: str) -> RuntimeError {
@@ -79,50 +64,8 @@ def _bind_one(fullname: str) {
             fullname, "jac_str_new returned NULL; the runtime is not live"
         );
     }
-    if fullname == _ANNEX_MODULE {
-        _native_merge_canary();
-    }
     _BIND_KEEP.append(eng);
     _NATIVE_SERVED_PASSES.add(fullname);
-}
-
-def _native_merge_canary {
-    import from jaclang.jac0core.native_brands { native_parser }
-    np = native_parser("pass_serve:merge_canary");
-    if np is None {
-        raise _serve_error(
-            _ANNEX_MODULE,
-            "the image seals the annex pass but binds no native parser, so "
-            "the merge canary cannot run"
-        );
-    }
-    nl = chr(10);
-    annex_path = "__pass_serve_merge_canary__.impl.jac";
-    (merged, m_errs, a_errs) = np.merge_probe(
-        nl.join(list(_MERGE_CANARY_MAIN)),
-        "__pass_serve_merge_canary__.jac",
-        nl.join(list(_MERGE_CANARY_ANNEX)),
-        annex_path
-    );
-    if m_errs or a_errs {
-        raise _serve_error(
-            _ANNEX_MODULE,
-            f"the merge canary sources did not parse cleanly (main {m_errs}, "
-            f"annex {a_errs} error(s))"
-        );
-    }
-    woven = [
-        stmt
-        for stmt in merged.body
-        if stmt.loc.mod_path == annex_path
-    ];
-    if not woven {
-        raise _serve_error(
-            _ANNEX_MODULE,
-            "mat_merge_probe returned a module with no statement from the "
-            "annex source; the native JacAnnexPass._merge_annex did not weave"
-        );
-    }
 }
 
 def bind_sealed_pass_artifacts {

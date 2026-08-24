@@ -42,5 +42,9 @@ def takes_holder(h: Holder) -> int {
 
 
 def arg_shape_mismatch(s: str) -> int {
-    return takes_holder(s);
+    # With checking on the critical path a plainly-typed mismatch is refused
+    # before codegen, so the type is lost the only way that remains: through
+    # an `any` box, which is exactly the "lost its type upstream" shape.
+    _s: any = s;
+    return takes_holder(_s);
 }

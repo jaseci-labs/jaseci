@@ -8,6 +8,10 @@ import os;
 
 obj NaIRGenCalls(NaIRGenState) {
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_sized_builtin_call(
+        nd: uni.FuncCall, func_name: (str | None), call_kind: str
+    ) -> (ir.Value | None);
+
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
     def _emit_intrinsic_misuse(nd: uni.FuncCall, intr: object, reason: str) -> None;
     def _intrinsic_operand(

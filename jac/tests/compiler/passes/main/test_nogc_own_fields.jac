@@ -5,6 +5,10 @@ world, not a seal into managed storage: no E1402 under enforcement, the
 source binding is consumed (E1301 on later reads), the parent frees the
 field at its own drop, and an overwrite drops the old value first -- at the
 same program points under every gc mode.
+
+The fixture-plus-expected-codes cases for this rule live in the shared
+`test_ownership_codes.jac` table; what stays here asserts something that
+table cannot express.
 """
 
 import os;
@@ -12,7 +16,6 @@ import subprocess;
 import sys;
 import tempfile;
 import from tests.support { TESTS_DIR }
-import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
@@ -33,7 +36,7 @@ def _enforced_codes(name: str) -> list[str] {
         prog.compile(
             os.path.join(FIXDIR, name),
             options=CompileOptions(
-                aot_mode=True, type_check=True, na_gc_mode="none", nogc_enforce_all=True
+                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
             )
         );
         codes = [
@@ -82,11 +85,6 @@ test "own-field store is not a seal under enforcement" {
 test "unannotated-field store still seals under enforcement (E1402)" {
     codes = _enforced_codes("managed_field_store_seals.jac");
     assert "E1402" in codes , codes;
-}
-
-test "own-field store still consumes the source binding (E1301)" {
-    prog = compile_fixture("own_field_store_consumes.jac");
-    expect_ownership_codes(prog, ["E1301"]);
 }
 
 test "own-field drops fire exactly once at identical points in all gc modes" {

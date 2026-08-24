@@ -9,13 +9,21 @@ glob QUERY_OPS: frozenset[str] = frozenset(
 
 
 obj QPred {
-    has field: str,
+    has field: str | tuple[str, ...],
         op: str,
         value: any;
 
     def postinit -> None;
+    def _check_composite -> None;
     def matches(subject: any) -> bool;
     def repr -> str;
+}
+
+
+obj QOrder {
+    has field: str,
+        desc: bool = False,
+        on_edge: bool = False;
 }
 
 
@@ -39,6 +47,9 @@ obj GraphQuery {
         edges_only: bool = False,
         from_visit: bool = False,
         slc: (slice | None) = None,
+        order: list[QOrder] = [],
+        limit: (int | None) = None,
+        offset: int = 0,
         level: str = 'default';
 
     def init(
@@ -46,6 +57,9 @@ obj GraphQuery {
         hops: (list[QHop] | None) = None,
         edges_only: bool = False,
         slc: (slice | None) = None,
+        order: (list[QOrder] | None) = None,
+        limit: (int | None) = None,
+        offset: int = 0,
         level: str = 'default'
     ) -> None;
 
