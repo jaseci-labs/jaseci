@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 24,
+  "module_count": 26,
   "modules": [
     {
       "stem": "augassign",
@@ -390,6 +390,40 @@
         "yield_from": {
           "passed": 23,
           "total": 32
+        }
+      }
+    },
+    {
+      "stem": "tstring",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_tstring/conv_tstring_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1/3 runnable; 9 quarantined (assertTStringEqual helper + subTest). VM CRASH family: SystemError unsupported opcode 2/45 = PEP 750 t-string TEMPLATE opcodes not implemented.",
+      "conversion_meta": "jac-py/tests/conv_tstring/test_tstring.conv.json",
+      "jacpython_results": {
+        "tstring": {
+          "passed": 1,
+          "total": 3
+        }
+      }
+    },
+    {
+      "stem": "utf8source",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_utf8source/conv_utf8source_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1/2; UTF-8 path healthy (PEP3120 passes); VM defect: compile() silently mishandles Latin-1 coding declaration (no SyntaxError, name unbound).",
+      "conversion_meta": "jac-py/tests/conv_utf8source/test_utf8source.conv.json",
+      "jacpython_results": {
+        "utf8source": {
+          "passed": 1,
+          "total": 2
         }
       }
     }

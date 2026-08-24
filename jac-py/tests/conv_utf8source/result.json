@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "896753ce7d06545219072fd3d5524dd8cd7983cd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/convL_utf8source/conv_utf8source_pins.jac"
+  ],
+  "generated_at": "2026-08-24T01:12:59",
+  "hashes": {
+    "pins_jac": "254ae8ddb030a351c2cbcc20777aa94ec16a1f4a65908b92e0543d755c6c2ddd",
+    "conversion_json": "248333bd1b9c1679bab195eeb8c4301b2c73280baa5bd854b89c4ba7e4928544",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "utf8source",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 3,
+    "runnable": 2,
+    "green": 1,
+    "quarantined": 1,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "BuiltinCompileTests.test_latin1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC KeyError \"\\'u\\'\"'>"
+    }
+  ]
+}
