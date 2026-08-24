@@ -948,6 +948,30 @@ obj P2OpcodeStackEffectFn(PyObj) {
     }
 }
 
+obj P2SupportPassthroughFn(PyObj) {
+    # Identity decorator body for requires_debug_ranges().
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "expected exactly 1 argument");
+        }
+        return args[0];
+    }
+}
+
+obj P2SupportRequiresDebugRangesFn(PyObj) {
+    # CPython requires_debug_ranges(reason='...'): skipIf-style decorator.
+    # Called bare (@requires_debug_ranges()) it must RETURN a decorator, so
+    # serve a passthrough decorator object; imported names must exist or the
+    # snippet import dies before conversion-time quarantine scopes the
+    # decorated helper out.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) == 1 {
+            return args[0];
+        }
+        return P2SupportPassthroughFn(t="function");
+    }
+}
+
 def p2_libtest_reset {
     clear_shim_modules();
     # Route IMPORT_NAME through py_import_name so the registered facades win;
@@ -988,6 +1012,12 @@ def p2_libtest_reset {
     support_attrs: dict[str, PyObj] = {
         # CPython test.support.is_wasi: platform gate; our targets are never WASI.
         "is_wasi": PyBool(t="bool", val=False),
+        # Platform gates from Lib/test/support/__init__.py:595-608; all False on
+        # our targets (linux/darwin-class hosts, never emscripten/mobile).
+        "is_emscripten": PyBool(t="bool", val=False),
+        "is_apple_mobile": PyBool(t="bool", val=False),
+        "is_apple": PyBool(t="bool", val=False),
+        "requires_debug_ranges": P2SupportRequiresDebugRangesFn(t="function"),
         "sortdict": P2SupportSortdictFn(t="function"),
     };
     support_mod = PyModule(t="module", name="test.support", attrs=support_attrs);
