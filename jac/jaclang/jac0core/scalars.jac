@@ -1,5 +1,7 @@
-import math;
-import struct;
+glob F32_MAX: float = 3.4028234663852886e38,
+     F32_OVERFLOW: float = 3.4028236692093846e38,
+     F64_MAX: float = 1.7976931348623157e308;
+
 obj ScalarShape {
     has name: str,
         width: int,
@@ -95,27 +97,11 @@ def range_of(name: str) -> tuple[int, int] {
     return shape_range(shape);
 }
 
-def float_repr(shape: ScalarShape, value: int | float) -> float {
-    wide = float(value);
-    if shape.width != 32 or math.isinf(wide) or math.isnan(wide) {
-        return wide;
-    }
-    try {
-        return struct.unpack("f", struct.pack("f", wide))[0];
-    } except OverflowError {
-        return math.copysign(math.inf, wide);
-    }
-}
-
 def shape_float_max(shape: ScalarShape) -> float {
-    import sys;
     if not shape.is_float {
         raise ValueError(f"{shape.name} is not a float type");
     }
-    if shape.width == 32 {
-        return struct.unpack(">f", b"\x7f\x7f\xff\xff")[0];
-    }
-    return sys.float_info.max;
+    return F32_MAX if shape.width == 32 else F64_MAX;
 }
 
 def float_max(name: str) -> float {
@@ -134,7 +120,11 @@ def shape_literal_fits(shape: ScalarShape, value: int | float) -> bool {
         if not isinstance(value, (int, float)) {
             return False;
         }
-        return not math.isinf(float_repr(shape, value));
+        mag = -value if value < 0 else value;
+        if shape.width == 32 {
+            return mag < F32_OVERFLOW;
+        }
+        return mag <= F64_MAX;
     }
     if isinstance(value, float) {
         return False;

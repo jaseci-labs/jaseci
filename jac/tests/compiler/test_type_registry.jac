@@ -160,9 +160,18 @@ test "literal_fits checks a literal against a sized type" {
     assert not JAC_TYPE_REGISTRY.literal_fits("u8", -1);
     assert JAC_TYPE_REGISTRY.literal_fits("i8", -128);
     assert not JAC_TYPE_REGISTRY.literal_fits("i8", -129);
-    assert JAC_TYPE_REGISTRY.literal_fits("f32", 10 ** 40);
     assert JAC_TYPE_REGISTRY.literal_fits("f64", 0.1);
     assert not JAC_TYPE_REGISTRY.literal_fits("u8", 1.5);
+    assert JAC_TYPE_REGISTRY.literal_fits("f32", 0.1) , (
+        "precision loss inside the range stays accepted"
+    );
+    assert JAC_TYPE_REGISTRY.literal_fits("f32", 3.4e38);
+    assert not JAC_TYPE_REGISTRY.literal_fits("f32", 10 ** 40) , (
+        "a literal past the largest finite f32 would arrive as inf"
+    );
+    assert not JAC_TYPE_REGISTRY.literal_fits("f32", 1e60);
+    assert JAC_TYPE_REGISTRY.literal_fits("f64", 1e300);
+    assert not JAC_TYPE_REGISTRY.literal_fits("f64", 10 ** 400);
 }
 
 test "widens_to is the value-preserving lattice" {
