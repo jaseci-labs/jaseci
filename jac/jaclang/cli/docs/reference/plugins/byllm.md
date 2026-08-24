@@ -1529,7 +1529,7 @@ with entry {
 }
 ```
 
-`usage` fires exactly once per invocation, even if no LLM call reported measurable tokens (`total` and `per_call` are then just empty). Every `by llm()` invocation makes at least one LLM call, but a single invocation with tools can make several - not just the ReAct-loop turns you asked for. Each `per_call` entry carries a `call_kind` field so you can tell them apart, and `event.data["by_kind"]` gives you the same totals pre-grouped:
+`usage` fires exactly once per invocation, even with no measurable tokens (`total`/`per_call` are then empty). A single invocation with tools can make several calls, not just the ones you asked for - each `per_call` entry carries a `call_kind` to tell them apart, and `event.data["by_kind"]` gives the same totals pre-grouped:
 
 | `call_kind` | When it happens |
 |---|---|
@@ -1549,7 +1549,7 @@ with entry {
 
 ### Per-Call Usage
 
-`usage` only fires once, after every call in the invocation has finished - useful for a final total, not for tracking spend while a multi-call tool-using turn is still running. For that, `usage_step` fires once per individual LLM call (main ReAct iterations, the final-answer restream, and recovery calls), each event scoped to just that call's usage - same shape as `usage`, so the same parsing code handles both:
+`usage_step` fires once per individual LLM call instead of waiting for the whole invocation - same shape as `usage`, so the same parsing code handles both. Useful for tracking spend while a multi-call tool-using turn is still running:
 
 ```jac
 with entry {
@@ -1558,18 +1558,18 @@ with entry {
         if event.event_type == "usage_step" {
             running_total += event.data["total"].get("total_tokens", 0);
             if running_total > budget {
-                break;  # stop consuming further events once over budget
+                break;
             }
         }
     }
 }
 ```
 
-`usage_step` only fires for invocations that make more than one LLM call (tools present); a single-call invocation has nothing to distinguish a per-call step from the final `usage` event, so only `usage` fires there. `on_iteration`'s `IterationContext` (see [Interrupting the ReAct Loop](#interrupting-the-react-loop)) gives the same real, cumulative cost between calls via `total_cost`, if you'd rather gate the *next* call than react to a stream event.
+Only fires for tool-calling invocations; a single-call invocation has nothing to distinguish a per-call step from the final `usage` event. See also `IterationContext.total_cost` (in [Interrupting the ReAct Loop](#interrupting-the-react-loop)) to gate the *next* call instead of reacting to a stream event.
 
 #### Cache tokens
 
-`cache_read_input_tokens` and `cache_creation_input_tokens` are always present on every `per_call` entry (and summed into `total`/`by_kind`) - `0` when [prompt caching](#project-configuration) isn't active or the provider has no caching concept, the real count otherwise. Providers report caching differently (Anthropic and Gemini set it directly; OpenAI only nests it under `prompt_tokens_details.cached_tokens`), so byLLM normalizes it to these two field names for every call, regardless of provider:
+`cache_read_input_tokens` and `cache_creation_input_tokens` are always present on every `per_call` entry, normalized to the same field names across providers - `0` when [prompt caching](#project-configuration) isn't active or unsupported, the real count otherwise:
 
 ```jac
 with entry {
@@ -2255,11 +2255,11 @@ Each callback receives a dict with these fields:
 | `latency_ms` | `float` | Wall-clock time for the invocation in milliseconds |
 | `status` | `str` | `"success"` or `"error"` |
 | `error` | `str \| None` | Error message if status is `"error"` (truncated to 1000 chars) |
-| `tokens` | `dict` | Token usage for every LLM call this invocation made - `total` (dict), `by_kind` (dict), `per_call` (list[dict]), `requests` (int). Same shape and `call_kind` values as the streaming `usage` `StreamEvent` (see [Usage Tracking](#usage-tracking)) - covers streaming and non-streaming calls alike, including `http_client`/proxy dispatch modes that never touch litellm. |
+| `tokens` | `dict` | Same shape as the `usage` `StreamEvent` (see [Usage Tracking](#usage-tracking)); covers every invocation shape, streaming or not |
 
 ### Combining with LiteLLM Per-Call Logging
 
-The `tokens` field above covers per-invocation totals with no extra wiring. For raw per-underlying-API-call records (e.g. to feed an existing litellm-based observability stack, or to see every retry attempt individually), combine the byLLM agent callback with a [litellm CustomLogger](https://docs.litellm.ai/docs/observability/custom_callback#custom-callback-class). The agent callback fires once per `by llm()` invocation, while the litellm callback fires for each underlying LLM API call (including tool-use round-trips) - for any dispatch mode that actually goes through litellm.
+The `tokens` field above covers per-invocation totals with no extra wiring. For raw per-underlying-API-call records instead, combine the byLLM agent callback with a [litellm CustomLogger](https://docs.litellm.ai/docs/observability/custom_callback#custom-callback-class): the agent callback fires once per `by llm()` invocation, the litellm callback fires for each underlying API call.
 
 ```jac
 import litellm;

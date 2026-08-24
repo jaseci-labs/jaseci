@@ -1,19 +1,10 @@
-"""Usage, cost, and per-call exposure tracking (#7896, #8462, #8484).
+"""Usage, cost, and per-call exposure tracking.
 
-byLLM computes real token usage and cost for every LLM call, records it on
-the per-call `mt_run` (never the shared model instance, which would corrupt
-concurrent invocations), tags calls its own machinery makes on the caller's
-behalf (final-answer restream, recovery, compaction) with a `call_kind`
-distinct from ordinary ReAct iterations, and surfaces it three ways: the
-`usage` StreamEvent (once, at the end of the whole invocation), `usage_step`
-(once per individual call, so a caller enforcing a budget doesn't have to
-wait for a possibly many-call turn to finish), and the `tokens` field on
-`register_agent_callback`'s telemetry record. All three share the same
-`_aggregate_usage`/`_record_usage` machinery and the same per-call record
-shape, including cost (trusting litellm's own native computation when it's
-available, falling back to a local `completion_cost()` call otherwise) and
-cache token counts (normalized to the same field names regardless of how a
-given provider reports them).
+Usage/cost live on the per-call `mt_run`, tagged with a `call_kind` when
+byLLM's own machinery makes a call on the caller's behalf, and reach the
+caller three ways: the `usage` StreamEvent (once per invocation), `usage_step`
+(once per call, for a caller enforcing a per-turn budget), and the `tokens`
+telemetry field. All three share the same recording machinery.
 """
 
 import asyncio;
@@ -60,8 +51,7 @@ def finish_tool(final_output: str) -> str {
 }
 
 
-# A model_call_with_stream return value with a real .logging_obj, matching
-# the shape of litellm's CustomStreamWrapper.
+# Mimics litellm's CustomStreamWrapper: a real .logging_obj, iterable.
 class _FakeStreamResp {
     def init(self: _FakeStreamResp, chunks: list, logging_obj: object) {
         self.chunks = chunks;
@@ -107,9 +97,8 @@ def _mt(
 }
 
 
-# A typed by-model() env whose fake response calls finish_tool - shared setup
-# for both the "hidden call" tagging tests and usage_step's recovery test
-# (recovery_response there is this same shape).
+# A typed by-model() env whose fake response calls finish_tool - shared by
+# the "hidden call" tagging tests and usage_step's recovery test.
 def _finish_env(arguments: str, usage: dict) -> tuple {
     model = Model(model_name="test-model");
     mt_run = _mt(resp_type=_Person, tools=[Tool.make_finish_tool(_Person)]);
@@ -143,11 +132,11 @@ def _with_callback(cb: Callable, fn: Callable) -> object {
 
 
 # =============================================================================
-# Cost computation (#7896)
+# Cost computation
 # =============================================================================
-# Uses litellm's real `completion_cost` rather than a stub: `_attach_call_cost`
-# swallows every exception, so a mocked suite stays green while the feature
-# reports nothing. The pricing table is local, so this needs no network or key.
+# Uses litellm's real `completion_cost`, not a stub: `_attach_call_cost`
+# swallows exceptions, so a mocked one would stay green while reporting
+# nothing. The pricing table is local, so this needs no network or key.
 
 def _usage_from(path: str, response: dict | None = None) -> any {
     resp = response if response is not None else _response();
@@ -275,10 +264,8 @@ test "_attach_call_cost trusts a cost litellm already computed" {
 
 
 test "byllm opts in to litellm's native include_cost_in_streaming_usage, configurably" {
-    # litellm can compute `cost` on the usage object itself, from its own
-    # full response context, when this flag is set - byLLM's own fallback
-    # (`completion_cost` from a synthetic {model, usage} shape) is strictly
-    # less accurate, so byLLM opts in by default.
+    # litellm computes a more accurate `cost` itself when this flag is set,
+    # so byLLM opts in by default rather than relying only on its own fallback.
     litellm.include_cost_in_streaming_usage = False;
     Model(model_name=MODEL);
     assert litellm.include_cost_in_streaming_usage , (
@@ -307,11 +294,9 @@ test "byllm opts in to litellm's native include_cost_in_streaming_usage, configu
 
 
 test "dispatch_streaming_with_tools passes the stream's own logging_obj to stream_chunk_builder" {
-    # litellm only attaches a native cost via include_cost_in_streaming_usage
-    # when stream_chunk_builder receives a logging_obj - byLLM's own rebuild
-    # call must forward the one attached to the CustomStreamWrapper it got
-    # back from model_call_with_stream, or every tools-loop call silently
-    # loses the native path and falls back to a manual completion_cost().
+    # litellm only computes a native cost when stream_chunk_builder receives
+    # a logging_obj - byLLM's rebuild call must forward the one on the
+    # CustomStreamWrapper, or every tools-loop call loses the native path.
     llm = Model(model_name=MODEL);
     mt = _mt(stream=True);
 
@@ -344,14 +329,12 @@ test "dispatch_streaming_with_tools passes the stream's own logging_obj to strea
 
 
 # =============================================================================
-# Usage capture and call_kind tagging (#8462)
+# Usage capture and call_kind tagging
 # =============================================================================
-# Usage lives on the per-call mt_run, not the shared model instance (which is
-# routinely reused across concurrent invocations - a module-level
-# `glob llm = Model(...)`, or a tool function that itself calls `by llm()`
-# from dispatch_batch's thread pool). Calls byLLM's own machinery makes on
-# the caller's behalf are tagged with a call_kind distinct from ordinary
-# react_iteration calls.
+# Usage lives on the per-call mt_run, not the shared model instance (which
+# is routinely reused across concurrent invocations). Calls byLLM's own
+# machinery makes on the caller's behalf get a call_kind distinct from
+# ordinary react_iteration calls.
 
 test "usage is recorded on mt_run, isolated per invocation, sync and async alike" {
     llm = Model(model_name="gpt-4o-mini");
@@ -498,10 +481,8 @@ test "default compactor's summarisation call is tagged compaction on the parent 
     ];
     messages = [sys_msg, user_msg] + round1 + round1 + round1;
 
-    # MockLLM's (output, usage) tuple convention only recognizes tool-call
-    # outputs (see mockllm.impl.jac's first_is_tool check) - compaction's
-    # summariser call returns a plain string, so a real Model with a mocked
-    # response is used here to inject usage.
+    # MockLLM's usage-injection tuple only recognizes tool-call outputs, and
+    # the summariser returns a plain string, so use a real Model instead.
     summariser = Model(model_name="test-model");
     parent_mt = _mt();
 
@@ -523,10 +504,8 @@ test "default compactor's summarisation call is tagged compaction on the parent 
 
 
 test "async by llm() call with no tools surfaces telemetry and tokens the same as sync" {
-    # No-tools, non-streaming is the branch BaseLLM.ainvoke dispatches directly
-    # (_ainvoke_typed_retry) rather than delegating to the already-telemetered
-    # sync Model.invoke via asyncio.to_thread - this is the branch that had no
-    # telemetry at all before Model.ainvoke existed.
+    # This is the branch BaseLLM.ainvoke dispatches directly rather than
+    # delegating to the already-telemetered sync Model.invoke.
     llm = Model(model_name="test-model");
 
     async def _fake(params: dict) -> dict {
@@ -634,15 +613,10 @@ test "cache token fields are normalized onto every recorded call, regardless of 
 
 
 # =============================================================================
-# Per-call usage exposure during a streaming ReAct loop (#8484)
+# Per-call usage exposure during a streaming ReAct loop
 # =============================================================================
-# `usage` only fires once, after the whole invocation finishes - a caller
-# enforcing a per-turn budget can only discover an overrun after a possibly
-# many-call turn has already run. `usage_step` fires once per individual LLM
-# call instead (main ReAct iteration, final-answer restream, recovery),
-# reusing the exact `usage` shape so both can be parsed with the same code.
-# `IterationContext.total_cost` gives the same real, cumulative cost between
-# calls that `on_iteration` already exposes for tokens.
+# `usage` only fires once, after the whole invocation finishes. `usage_step`
+# fires once per individual call instead, reusing the exact `usage` shape.
 
 test "usage_step fires once per react call, scoped to that call's own usage, shape-matching usage" {
     llm = MockLLM(
@@ -694,12 +668,9 @@ test "usage_step fires once per react call, scoped to that call's own usage, sha
 
 
 test "usage_step correctly attributes an interleaved compaction call" {
-    # MockLLM's default compactor shares its config["outputs"] queue with the
-    # main loop (_copy_for_compaction shallow-copies), so driving a real
-    # threshold-triggered compaction through it consumes the wrong queued
-    # response. Simulate the interleaving directly instead: real per-call
-    # dispatch is mocked, and _maybe_compact is made to append a compaction
-    # record the same way the real one does when it actually fires.
+    # MockLLM's default compactor shares its output queue with the main
+    # loop, so a real threshold-triggered compaction would consume the
+    # wrong response. Simulate the interleaving directly instead.
     model = Model(model_name="test-model");
 
     responses = [
@@ -945,12 +916,8 @@ test "on_iteration's IterationContext exposes real cumulative total_cost" {
     assert ctx.total_tokens == 110 , (
         f"total_tokens should reflect the real first call, got {ctx.total_tokens}"
     );
-    # MockLLM never attaches a cost (see mockllm.impl.jac - it calls
-    # _record_usage directly, not _attach_call_cost), so the real, honest
-    # expectation here is 0.0, not a fabricated number. The summation logic
-    # itself is exercised with real, non-zero costs by
-    # "_usage_history_total_cost sums real cost across recorded calls" above;
-    # this test only needs to confirm the field is actually wired through.
+    # MockLLM never attaches a cost, so 0.0 is the honest expectation here;
+    # the summation itself is exercised with real costs elsewhere above.
     assert ctx.total_cost == 0.0 , (
         f"total_cost should reflect real recorded cost (none here), got {ctx.total_cost}"
     );
