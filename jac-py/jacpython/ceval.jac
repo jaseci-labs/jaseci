@@ -6502,12 +6502,13 @@ def recover_exception(
     if value.t != "error" {
         return -1;
     }
-    # Traceback growth (CPython PyTraceBack_Here): every frame the exception
-    # passes through -- including the frame that catches it -- prepends one
-    # entry, so e.__traceback__ heads at the catching frame and tb_next walks
-    # toward the raise point. recover_exception runs exactly once per frame
-    # per propagation, which is precisely that cadence. Entries hold the code
-    # object + line, never the live frame, so no stack/exception cycles.
+    # Traceback growth (CPython generic `error` label): every ERROR EVENT --
+    # a failing opcode or RAISE_VARARGS 1/2 -- prepends exactly one entry per
+    # frame before handler search, so e.__traceback__ heads at the catching
+    # frame and tb_next walks toward the raise point. Reraises are NOT error
+    # events: RERAISE and bare RAISE_VARARGS 0 jump straight to
+    # exception_unwind in CPython, adding no entry -- those paths must go
+    # through dispatch_exception below instead.
     error = value as PyError;
     prev = error.exception.traceback;
     error.exception.traceback = PyTraceback(
@@ -6517,6 +6518,21 @@ def recover_exception(
         tb_lineno=pycode_lineno(co, offset),
         tb_lasti=offset
     );
+    return dispatch_exception(co, value, offset, offset, stack);
+}
+
+# Handler search + stack handoff WITHOUT traceback growth. This is CPython's
+# exception_unwind: locate the covering exception-table entry (at `offset`,
+# the faulting/reraising instruction), trim the value stack to its depth, push
+# lasti (when flagged; `lasti_offset` lets re-raises push the RESTORED lasti,
+# matching CPython's instr_ptr restore) and the exception, and jump.
+def dispatch_exception(
+    co: PyCode,
+    value: PyObj,
+    offset: int,
+    lasti_offset: int,
+    stack: list[PyObj]
+) -> int {
     handler = find_handler(co, offset);
     if handler is None {
         return -1;
@@ -6526,7 +6542,7 @@ def recover_exception(
         stack.pop();
     }
     if handler.lasti {
-        stack.append(PyInt(t="int", val=offset));
+        stack.append(PyInt(t="int", val=lasti_offset));
     }
     stack.append(error.exception);
     return handler.target;
@@ -13218,7 +13234,17 @@ def run_frame(frame: PyFrame) -> PyObj {
                     );
                 }
             }
-            target = recover_exception(co, result, offset, stack);
+            # Bare `raise` (arg == 0) re-dispatches an existing exception:
+            # CPython routes RAISE_VARARGS 0 straight to exception_unwind, so
+            # no new traceback entry (dispatch_exception). A fresh raise
+            # (arg 1/2) or the RuntimeError fallback for a bare raise with no
+            # active exception is a real error event: recover_exception adds
+            # the entry.
+            if arg == 0 and raised.t != "none" {
+                target = dispatch_exception(co, result, offset, offset, stack);
+            } else {
+                target = recover_exception(co, result, offset, stack);
+            }
             if target >= 0 {
                 ip = target;
                 continue;
@@ -13226,9 +13252,22 @@ def run_frame(frame: PyFrame) -> PyObj {
             return result;
         }
         if op == OP_RERAISE {
-            raised = stack[len(stack) - 1];
+            # CPython RERAISE: pop the exception (plus the saved lasti when
+            # oparg != 0, restoring it as the attribution offset) and go
+            # straight to exception_unwind -- a re-raise is not an error
+            # event, so no traceback entry is added here. The exception table
+            # is searched at the RERAISE's own offset, like CPython's
+            # INSTR_OFFSET() in exception_unwind.
+            raised = stack.pop();
+            eff_offset = offset;
+            if arg != 0 {
+                saved_lasti = stack.pop();
+                if isinstance(saved_lasti, PyInt) {
+                    eff_offset = (saved_lasti as PyInt).val;
+                }
+            }
             result = py_raise_value(raised);
-            target = recover_exception(co, result, offset, stack);
+            target = dispatch_exception(co, result, offset, eff_offset, stack);
             if target >= 0 {
                 ip = target;
                 continue;
