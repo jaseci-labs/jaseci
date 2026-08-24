@@ -1,0 +1,668 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp1-out/test_csv/conv_csv_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:47:34",
+  "hashes": {
+    "pins_jac": "ce6245678f0f3909b9a73466cbe5dfd322c30ba18aafb42a1ad3a365297075d6",
+    "conversion_json": "295bff43cbb3e3aa1a6a30bc22ded485b9f0635de5d1267f7435d4e22066c1a8",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "csv",
+  "counts": {
+    "converted": 128,
+    "runnable": 60,
+    "green": 30,
+    "quarantined": 68
+  },
+  "pins": [
+    {
+      "id": "Test_Csv.test_writer_arg_valid",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \\'argument 1 must have a \"write\" method\\''>"
+    },
+    {
+      "id": "Test_Csv.test_reader_attrs",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_writer_attrs",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_reader_kw_attrs",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_writer_kw_attrs",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_reader_dialect_attrs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\',\\', \\'-\\')\"'>"
+    },
+    {
+      "id": "Test_Csv.test_writer_dialect_attrs",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', \\',\\', \\'-\\')\"'>"
+    },
+    {
+      "id": "Test_Csv.test_write_bigfield",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_quoting",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_escape",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_iterable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_writerows",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_writerows_with_none",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_empty_fields",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_empty_fields_space_delimiter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_read_eol",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_nul",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_delimiter",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_escape",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_skipinitialspace",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_space_delimiter",
+      "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_read_linenum",
+      "status": "pass"
+    },
+    {
+      "id": "TestDialectRegistry.test_registry_badargs",
+      "status": "pass"
+    },
+    {
+      "id": "TestDialectRegistry.test_incomplete_dialect",
+      "status": "pass"
+    },
+    {
+      "id": "TestDialectRegistry.test_space_dialect",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDialectRegistry.test_dialect_apply",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDialectRegistry.test_copy",
+      "status": "pass"
+    },
+    {
+      "id": "TestDialectRegistry.test_pickle",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_writeheader_return_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_write_simple_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_write_multiple_dict_rows",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_write_no_fields",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_typo_in_extrasaction_raises_error",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_write_field_not_in_field_names_raise",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_write_field_not_in_field_names_ignore",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_reader_fieldnames_accepts_iter",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_reader_fieldnames_accepts_list",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_reader_set_fieldnames",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_writer_fieldnames_rejects_iter",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_writer_fieldnames_accepts_list",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_dict_reader_fieldnames_is_optional",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_read_dict_fields",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_dict_no_fieldnames",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_dict_fieldnames_from_file",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_dict_fieldnames_chain",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_long",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_long_with_rest",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_long_with_rest_no_fieldnames",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_short",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestDictFields.test_read_multi",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_read_with_blanks",
+      "status": "pass"
+    },
+    {
+      "id": "TestDictFields.test_read_semi_sep",
+      "status": "pass"
+    },
+    {
+      "id": "TestArrayWrites.test_int_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestArrayWrites.test_double_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestArrayWrites.test_float_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestArrayWrites.test_char_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "KeyOrderingTest.test_ordered_dict_reader",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [{\\'FirstName\\': \\'Eric\\', \\'LastName\\': \\'Idle\\'}, {\\'FirstName\\': \\'Graham\\', \\'LastName\\': \\'Chapman\\', None: [\\'Over1\\', \\'Over2\\']}, {\\'FirstName\\': \\'Under1\\', \\'LastName\\': None}, {\\'FirstName\\': \\'John\\', \\'LastName\\': \\'Cleese\\'}], [OrderedDict({\\'FirstName\\': \\'Eric\\', \\'LastName\\': \\'Idle\\'}), OrderedDict({\\'FirstName\\': \\'Graham\\', \\'LastName\\': \\'Chapman\\', None: [\\'Over1\\', \\'Over2\\']}), OrderedDict({\\'FirstName\\': \\'Under1\\', \\'LastName\\': None}), OrderedDict({\\'FirstName\\': \\'John\\', \\'LastName\\': \\'Cleese\\'})])\"'>"
+    },
+    {
+      "id": "MiscTestCase.test__all__",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "MiscTestCase.test_lazy_import",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.import_helper'\">"
+    },
+    {
+      "id": "MiscTestCase.test_subclassable",
+      "status": "pass"
+    },
+    {
+      "id": "TestLeaks.test_create_read",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestLeaks.test_create_write",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestLeaks.test_read",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "TestLeaks.test_write",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "MiscTestCase.test_disallow_instantiation",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "Test_Csv.test_reader_arg_valid",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterable"
+    },
+    {
+      "id": "Test_Csv.test_write_arg_valid",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterable"
+    },
+    {
+      "id": "Test_Csv.test_write_lineterminator",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Test_Csv.test_writerows_errors",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadIterable"
+    },
+    {
+      "id": "Test_Csv.test_read_oddinputs",
+      "status": "quarantined",
+      "reason": "uses-self._read_test"
+    },
+    {
+      "id": "Test_Csv.test_read_eof",
+      "status": "quarantined",
+      "reason": "uses-self._read_test"
+    },
+    {
+      "id": "Test_Csv.test_read_quoting",
+      "status": "quarantined",
+      "reason": "uses-self._read_test"
+    },
+    {
+      "id": "Test_Csv.test_read_bigfield",
+      "status": "quarantined",
+      "reason": "uses-self._read_test"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_quoteed_newlines",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_escaped_unquoted_newlines",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Test_Csv.test_reader_reentrant_iterator",
+      "status": "quarantined",
+      "reason": "uses-self.reader"
+    },
+    {
+      "id": "TestDialectRegistry.test_registry",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "TestDialectRegistry.test_register_kwargs",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "TestDialectRegistry.test_register_kwargs_override",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "TestDialectExcel.test_single",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_simple",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_blankline",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_empty_fields",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted_left_empty",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_singlequoted_right_empty",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_single_quoted_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_quotes",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_inline_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_inline_quotes",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quotes_and_more",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_lone_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quote_and_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_space_and_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quoted_nl",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_dubious_quote",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_null",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_single_writer",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_simple_writer",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quotes",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_quote_fieldsep",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectExcel.test_newlines",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestEscapedExcel.test_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestEscapedExcel.test_read_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectUnix.test_simple_writer",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDialectUnix.test_simple_reader",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestQuotedEscapedExcel.test_write_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "helper:writerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestQuotedEscapedExcel.test_read_escape_fieldsep",
+      "status": "quarantined",
+      "reason": "helper:readerAssertEqual(uses-self.dialect)"
+    },
+    {
+      "id": "TestDictFields.test_write_fields_not_in_fieldnames",
+      "status": "quarantined",
+      "reason": "unresolved-name:cx"
+    },
+    {
+      "id": "TestDialectValidity.test_quoting",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "TestDialectValidity.test_delimiter",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "TestDialectValidity.test_escapechar",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "TestDialectValidity.test_lineterminator",
+      "status": "quarantined",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "id": "TestDialectValidity.test_invalid_chars",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSniffer.test_issue43625",
+      "status": "quarantined",
+      "reason": "uses-self.sample12"
+    },
+    {
+      "id": "TestSniffer.test_has_header_strings",
+      "status": "quarantined",
+      "reason": "uses-self.sample10"
+    },
+    {
+      "id": "TestSniffer.test_has_header",
+      "status": "quarantined",
+      "reason": "uses-self.sample1"
+    },
+    {
+      "id": "TestSniffer.test_has_header_regex_special_delimiter",
+      "status": "quarantined",
+      "reason": "uses-self.sample8"
+    },
+    {
+      "id": "TestSniffer.test_has_header_checks_20_rows",
+      "status": "quarantined",
+      "reason": "uses-self.sample18"
+    },
+    {
+      "id": "TestSniffer.test_guess_quote_and_delimiter",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TestSniffer.test_sniff",
+      "status": "quarantined",
+      "reason": "uses-self.sample1"
+    },
+    {
+      "id": "TestSniffer.test_delimiters",
+      "status": "quarantined",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "id": "TestSniffer.test_doublequote",
+      "status": "quarantined",
+      "reason": "uses-self.header1"
+    },
+    {
+      "id": "TestUnicode.test_unicode_read",
+      "status": "quarantined",
+      "reason": "uses-self.names"
+    },
+    {
+      "id": "TestUnicode.test_unicode_write",
+      "status": "quarantined",
+      "reason": "uses-self.names"
+    }
+  ]
+}

@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp1-out/test_array/conv_array_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:47:36",
+  "hashes": {
+    "pins_jac": "def560644029b4e37074ba1c900b76a03097a745c2e78826f320fe7eb0d84363",
+    "conversion_json": "e961594c5ab96c80be0b4a57b08995dd1ae9ed578aa758472f3c54af5b0dac7b",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "array",
+  "counts": {
+    "converted": 98,
+    "runnable": 5,
+    "green": 2,
+    "quarantined": 93
+  },
+  "pins": [
+    {
+      "id": "MiscTest.test_array_is_sequence",
+      "status": "pass"
+    },
+    {
+      "id": "MiscTest.test_bad_constructor",
+      "status": "pass"
+    },
+    {
+      "id": "MiscTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    },
+    {
+      "id": "LargeArrayTest.test_gh_128961",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__setstate__'\">"
+    },
+    {
+      "id": "LargeArrayTest.test_setitem_use_after_shrink_with_int_data",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"\\'Index\\' object cannot be interpreted as an integer\"'>"
+    },
+    {
+      "id": "MiscTest.test_disallow_instantiation",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "MiscTest.test_immutable",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "BaseTest.test_bug_782369",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "BaseTest.test_sizeof_with_buffer",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "BaseTest.test_sizeof_without_buffer",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "BaseTest.test_obsolete_write_lock",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "LargeArrayTest.test_example_data",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_access",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_slice",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_count",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_append",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_extend",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_frombytes",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_fromlist",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_index",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_insert",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_pop",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_remove",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_reverse",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "LargeArrayTest.test_tolist",
+      "status": "quarantined",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "id": "ArrayReconstructorTest.test_error",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "ArrayReconstructorTest.test_numbers",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "ArrayReconstructorTest.test_unicode",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_constructor",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_len",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_buffer_info",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_byteswap",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_copy",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_deepcopy",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_reduce_ex",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_pickle",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_pickle_for_empty_array",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_iterator_pickle",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_exhausted_iterator",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_reverse_iterator",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_reverse_iterator_picking",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_exhausted_reverse_iterator",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_insert",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_tofromfile",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_fromfile_ioerror",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_filewrite",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_tofromlist",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_tofrombytes",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_fromarray",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_repr",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_str",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_cmp",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_add",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_iadd",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_mul",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_imul",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_getitem",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_setitem",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_delitem",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_getslice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_extended_getslice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_setslice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_extended_set_del_slice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_index",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_count",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_remove",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_pop",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_clear",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_reverse",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_extend",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_constructor_with_iterable_argument",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_coveritertraverse",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_buffer",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_weakref",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_subclass_with_kwargs",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_create_from_bytes",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_initialize_with_unicode",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "BaseTest.test_free_after_iterating",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "StringTest.test_setitem",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnicodeTest.test_unicode",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnicodeTest.test_issue17223",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnicodeTest.test_typecode_u_deprecation",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnicodeTest.test_empty_string_mem_leak_gh140474",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_extslice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_delslice",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_assignment",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_iterationcontains",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_subclassing",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "NumberTest.test_frombytearray",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "IntegerNumberTest.test_type_error",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "SignedNumberTest.test_overflow",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnsignedNumberTest.test_overflow",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "UnsignedNumberTest.test_bytes_extend",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "FPTest.test_nan",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "FPTest.test_byteswap",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "DoubleTest.test_alloc_overflow",
+      "status": "quarantined",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "id": "LargeArrayTest.test_setitem_use_after_clear_with_int_data",
+      "status": "quarantined",
+      "reason": "unresolved-name:dtype"
+    },
+    {
+      "id": "LargeArrayTest.test_setitem_use_after_clear_with_float_data",
+      "status": "quarantined",
+      "reason": "unresolved-name:dtype"
+    }
+  ]
+}

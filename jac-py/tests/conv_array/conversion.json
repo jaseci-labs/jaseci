@@ -1,0 +1,446 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "fd4c8b36fdafb9259707f53f361b63d62fcfd882",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_array.py",
+    "-o",
+    "/var/tmp/sp1-out/test_array",
+    "--name",
+    "conv_array"
+  ],
+  "generated_at": "2026-08-24T13:48:09",
+  "hashes": {
+    "pins_jac": "def560644029b4e37074ba1c900b76a03097a745c2e78826f320fe7eb0d84363"
+  },
+  "source_file": "reference/cpython/Lib/test/test_array.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "array",
+  "pins_file": "conv_array_pins.jac",
+  "pins": [
+    {
+      "ident": "MiscTest.test_array_is_sequence",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections.abc\nimport array\n\ndef _t():\n    assert isinstance(array.array('B'), collections.abc.MutableSequence), ('assertIsInstance', array.array('B'), collections.abc.MutableSequence)\n    assert isinstance(array.array('B'), collections.abc.Reversible), ('assertIsInstance', array.array('B'), collections.abc.Reversible)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MiscTest.test_bad_constructor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    try:\n        array.array()\n    except TypeError:\n        pass\n    try:\n        array.array(spam=42)\n    except TypeError:\n        pass\n    try:\n        array.array(*('xx',))\n    except TypeError:\n        pass\n    try:\n        array.array(*('x',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "MiscTest.test_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    a = array.array('B')\n    a[:] = a\n    assert len(a) == 0, ('assertEqual', len(a), 0)\n    assert len(a + a) == 0, ('assertEqual', len(a + a), 0)\n    assert len(a * 3) == 0, ('assertEqual', len(a * 3), 0)\n    a += a\n    assert len(a) == 0, ('assertEqual', len(a), 0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LargeArrayTest.test_gh_128961",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    a = array.array('i')\n    it = iter(a)\n    list(it)\n    it.__setstate__(0)\n    try:\n        next(*(it,))\n    except StopIteration:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "LargeArrayTest.test_setitem_use_after_shrink_with_int_data",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    victim = array.array('b', [1, 2, 3])\n\n    class Index:\n\n        def __index__(self):\n            victim.pop()\n            victim.pop()\n            return 0\n    try:\n        victim.__setitem__(*(1, Index()))\n    except IndexError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "MiscTest.test_disallow_instantiation",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "MiscTest.test_immutable",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "BaseTest.test_bug_782369",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "BaseTest.test_sizeof_with_buffer",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "BaseTest.test_sizeof_without_buffer",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "BaseTest.test_obsolete_write_lock",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "LargeArrayTest.test_example_data",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_access",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_slice",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_count",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_append",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_extend",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_frombytes",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_fromlist",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_index",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_insert",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_pop",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_remove",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_reverse",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "LargeArrayTest.test_tolist",
+      "reason": "decorator:support.bigmemtest"
+    },
+    {
+      "ident": "ArrayReconstructorTest.test_error",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "ArrayReconstructorTest.test_numbers",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "ArrayReconstructorTest.test_unicode",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_constructor",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_len",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_buffer_info",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_byteswap",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_copy",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_deepcopy",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_reduce_ex",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_pickle",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_pickle_for_empty_array",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_iterator_pickle",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_exhausted_iterator",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_reverse_iterator",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_reverse_iterator_picking",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_exhausted_reverse_iterator",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_insert",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_tofromfile",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_fromfile_ioerror",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_filewrite",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_tofromlist",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_tofrombytes",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_fromarray",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_repr",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_str",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_cmp",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_add",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_iadd",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_mul",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_imul",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_getitem",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_setitem",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_delitem",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_getslice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_extended_getslice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_setslice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_extended_set_del_slice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_index",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_count",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_remove",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_pop",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_clear",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_reverse",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_extend",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_constructor_with_iterable_argument",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_coveritertraverse",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_buffer",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_weakref",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_subclass_with_kwargs",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_create_from_bytes",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_initialize_with_unicode",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "BaseTest.test_free_after_iterating",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "StringTest.test_setitem",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnicodeTest.test_unicode",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnicodeTest.test_issue17223",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnicodeTest.test_typecode_u_deprecation",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnicodeTest.test_empty_string_mem_leak_gh140474",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_extslice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_delslice",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_assignment",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_iterationcontains",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_subclassing",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "NumberTest.test_frombytearray",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "IntegerNumberTest.test_type_error",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "SignedNumberTest.test_overflow",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnsignedNumberTest.test_overflow",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "UnsignedNumberTest.test_bytes_extend",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "FPTest.test_nan",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "FPTest.test_byteswap",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "DoubleTest.test_alloc_overflow",
+      "reason": "helper:setUp(self.enterContext)"
+    },
+    {
+      "ident": "LargeArrayTest.test_setitem_use_after_clear_with_int_data",
+      "reason": "unresolved-name:dtype"
+    },
+    {
+      "ident": "LargeArrayTest.test_setitem_use_after_clear_with_float_data",
+      "reason": "unresolved-name:dtype"
+    }
+  ],
+  "counts": {
+    "extracted": 98,
+    "pinned": 5,
+    "quarantined": 93
+  }
+}
