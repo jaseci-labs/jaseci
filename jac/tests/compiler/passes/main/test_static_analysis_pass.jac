@@ -250,6 +250,20 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     );
     assert not is_bootstrap_compiled_module("/repo/apps/jac0core/module.jac");
     assert not is_bootstrap_compiled_module("");
+
+    # A relative path names the same module. `jac check` receives one whenever
+    # it is handed a path relative to cwd -- which is what CI's scoped mode
+    # does, feeding it the entries of changed-jac.txt. Matching only the
+    # absolute spelling made the same file report E1125 relatively and nothing
+    # absolutely.
+    assert is_bootstrap_compiled_module("jaclang/jac0core/runtime.jac");
+    assert is_bootstrap_compiled_module("jaclang/jac0core/passes/jcir_gen_pass.jac");
+    assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
+    assert not is_bootstrap_compiled_module(
+        "jaclang/compiler/passes/main/layout_pass.jac"
+    );
+    assert not is_bootstrap_compiled_module("apps/jac0core/module.jac");
+    assert not is_bootstrap_compiled_module("myjaclang/jac0core/module.jac");
 }
 
 test "the ambient provider module keeps its typing imports" {
