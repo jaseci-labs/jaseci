@@ -7250,6 +7250,40 @@ def py_dir(arg: PyObj) -> PyObj {
 # arg is the class to instantiate; the rest box the builtin base. Returns a
 # PyUserObj tagged with that class so the subclass's identity and attributes
 # (a .name set right after) survive -- exactly the value/ref line Track B draws.
+# super().__init__/__str__/__repr__ inside a user exception subclass's method.
+# Exception is not a boxed-layout native base (native_base stays ""), so there
+# is no boxed value to delegate to -- these run BaseException's own slot
+# semantics directly over the live instance, exactly like CPython's inherited
+# BaseException slots.
+obj PyExcSuperSlot(PyObj) {
+    has target: PyObj,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        u = self.target as PyUserObj;
+        if self.name == "__init__" {
+            # CPython BaseException_init: replaces args wholesale.
+            if len(kwargs) > 0 {
+                return py_error(
+                    "TypeError", "__init__() takes no keyword arguments"
+                );
+            }
+            stored: list[PyObj] = [];
+            stored.extend(args);
+            u.attrs["args"] = PyTuple(t="tuple", items=stored);
+            return py_none();
+        }
+        view = user_exception_view(u);
+        if self.name == "__str__" {
+            return baseexception_str(view, py_repr, py_str);
+        }
+        if self.name == "__repr__" {
+            return baseexception_repr(view, py_repr);
+        }
+        return py_error("AttributeError", self.name);
+    }
+}
+
 obj PyNativeNew(PyObj) {
     has base_name: str;
 
@@ -7482,6 +7516,15 @@ def super_lookup(defining_cls: PyObj, instance: PyObj, name: str) -> PyObj {
                 base=inst._base_obj(),
                 name=name,
                 owner=instance
+            );
+        }
+        # Exception-derived subclasses have no boxed layout base, but CPython
+        # still gives them BaseException.__init__/__str__/__repr__ via slot
+        # inheritance -- serve those over the live instance.
+        if class_is_exception(inst.cls)
+            and (name == "__init__" or name == "__str__" or name == "__repr__") {
+            return PyExcSuperSlot(
+                t="exc_super_slot", target=inst as PyObj, name=name
             );
         }
     }

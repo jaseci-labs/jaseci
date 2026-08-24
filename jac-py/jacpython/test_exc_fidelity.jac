@@ -253,3 +253,28 @@ test "setting __cause__ implies __suppress_context__" {
     );
     assert vm_str(ns, "sup") == "True";
 }
+
+test "user exception subclass super().__init__ stores args" {
+    # Exception is not a boxed-layout native base, so super resolution serves
+    # BaseException's own slots directly over the live instance: super().
+    # __init__(a, b) replaces args exactly like CPython BaseException_init.
+    ns = vm_exec(
+        "class MyErr(Exception):\n"
+        "    def __init__(self, a=None, b=None):\n"
+        "        super().__init__(a, b)\n"
+        "e = MyErr(1, 2)\n"
+        "a1 = e.args\n"
+        "s1 = str(e)\n"
+        "r1 = repr(e)\n"
+        "try:\n"
+        "    raise MyErr(7, 8)\n"
+        "except MyErr as e2:\n"
+        "    a2 = e2.args\n"
+        "    s2 = str(e2)\n"
+    );
+    assert vm_str(ns, "a1") == "(1, 2)";
+    assert vm_str(ns, "s1") == "(1, 2)";
+    assert vm_str(ns, "r1") == "MyErr(1, 2)";
+    assert vm_str(ns, "a2") == "(7, 8)";
+    assert vm_str(ns, "s2") == "(7, 8)";
+}
