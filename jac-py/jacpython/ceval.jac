@@ -902,6 +902,18 @@ def _jac_host_val_is_type(val):
     return isinstance(val, type)
 
 
+def _jac_host_type_mro(val):
+    return type(val).mro(val)[:-1]
+
+
+def _jac_host_val_is_object_type(val):
+    return val is object
+
+
+def _jac_host_val_same(a, b):
+    return a is b
+
+
 def _jac_drive_native(gen_obj, method_name, args):
     # Call a PyGenMethod driver (send/throw/close/...) on the native PyGenerator
     # and translate the outcome to HOST control flow: a yielded value converts
@@ -1925,6 +1937,25 @@ obj PyHostProxy(PyObj) {
         if len(args) == 1 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
             return py_type_of(args[0]);
         }
+        # 3-arg type(name, bases, ns): reject __mro_entries__ / non-class bases
+        # with CPython's messages BEFORE host routing (the host would see standin
+        # proxies and raise a different error than the guest-visible truth).
+        if len(args) == 3 and len(kwargs) == 0 and bool(_jac_is_type_type(self.val)) {
+            raw_bases: list[PyObj] = [];
+            if isinstance(args[1], PyTuple) {
+                for tb in (args[1] as PyTuple).items {
+                    raw_bases.append(tb);
+                }
+            } elif isinstance(args[1], PyList) {
+                for tb in (args[1] as PyList).items {
+                    raw_bases.append(tb);
+                }
+            }
+            rejected = _jac_validate_type_bases(raw_bases);
+            if rejected is not None {
+                return rejected;
+            }
+        }
         # Zero-arg super() at a GENERIC call site (the proxy wraps the host
         # super TYPE): the compiler lowers every cell-backed super().attr to
         # LOAD_SUPER_ATTR, so this is exactly CPython's frame-without-cell case
@@ -2253,6 +2284,13 @@ obj PyClass(PyObj) {
         if name == "__name__" {
             return PyStr(t="str", val=self.name);
         }
+        if name == "__class__" {
+            # CPython: a class's __class__ IS its metaclass (type when none).
+            if self.metaclass is not None {
+                return self.metaclass as PyObj;
+            }
+            return host_builtin("type");
+        }
         found = class_lookup_attr(self, name);
         if not is_error(found) {
             # Class-level access: a classmethod binds this class, a staticmethod
@@ -2277,13 +2315,17 @@ obj PyClass(PyObj) {
             return PyClassMroMethod(t="class_mro", cls=self);
         }
         if name == "__bases__" {
-            return PyTuple(t="tuple", items=self.bases);
+            # CPython type_ready seeds a baseless class with (object,).
+            if len(self.bases) > 0 {
+                return PyTuple(t="tuple", items=self.bases);
+            }
+            return PyTuple(t="tuple", items=[host_builtin("object")]);
         }
         if name == "__base__" {
             if len(self.bases) > 0 {
                 return self.bases[0];
             }
-            return py_none();
+            return host_builtin("object");
         }
         # A class with no user __new__ inherits object.__new__ (or the builtin base
         # constructor). Attribute access -- unlike class_lookup_attr, which drives
@@ -2357,6 +2399,12 @@ obj PyClass(PyObj) {
         # bind it to the class -- Cls[...] is sugar for
         # Cls.__class_getitem__(index).
         cgi = class_lookup_attr(self, "__class_getitem__");
+        if not is_error(cgi) and isinstance(cgi, PyNoneType) {
+            # CPython type_subscript: __class_getitem__ = None means the class
+            # explicitly opted out -- fall through to the not-subscriptable
+            # error naming this class.
+            cgi = py_error("AttributeError", "__class_getitem__");
+        }
         if not is_error(cgi) {
             return bind_attribute(cgi, self).tp_call([index], {});
         }
@@ -7489,13 +7537,73 @@ def class_mro(cls: PyClass) -> list[PyClass] {
 # object -- appended here as the same host-object proxy the guest sees for the
 # global name `object`, so display matches isinstance/issubclass semantics
 # (both answer True for that proxy via obj_is_builtin).
+#
+# Host-type bases (__mro_entries__ replacements like `dict`, or explicit host
+# base classes) participate in the linearization as opaque nodes: each expands
+# to its own host MRO chain (minus the terminal object), and a shared
+# PyObj-level C3 merge orders everything.
 def class_full_mro(cls: PyClass) -> list[PyObj] {
-    items: list[PyObj] = [];
-    for klass in class_mro(cls) {
-        items.append(klass);
+    seqs: list[list[PyObj]] = [];
+    direct: list[PyObj] = [];
+    has_host_base = False;
+    for base in cls.bases {
+        if isinstance(base, PyClass) {
+            # Bare linearization only -- the terminal object is appended once,
+            # globally, after the merged order.
+            sub: list[PyObj] = [];
+            for k in class_mro(base as PyClass) {
+                sub.append(k);
+            }
+            seqs.append(sub);
+            direct.append(base);
+        } elif isinstance(base, PyHostProxy)
+            and _jac_host_val_is_type((base as PyHostProxy).val) {
+            has_host_base = True;
+            seqs.append(host_type_mro_chain(base));
+            direct.append(base);
+        }
+        # Non-class non-host bases cannot appear post-update_build_class_bases.
     }
-    items.append(host_builtin("object"));
-    return items;
+    if len(direct) > 0 {
+        seqs.append(direct);
+    }
+    result: list[PyObj] = [cls];
+    if has_host_base {
+        for klass in c3_merge_objs(seqs) {
+            result.append(klass);
+        }
+    } else {
+        # Pure guest-class chain: reuse the established PyClass merge.
+        pc_seqs: list[list[PyClass]] = [];
+        for s in seqs {
+            row: list[PyClass] = [];
+            for x in s {
+                if isinstance(x, PyClass) {
+                    row.append(x as PyClass);
+                }
+            }
+            pc_seqs.append(row);
+        }
+        for klass in c3_merge(pc_seqs) {
+            result.append(klass);
+        }
+    }
+    result.append(host_builtin("object"));
+    return result;
+}
+
+# The MRO contribution of a host type base: the type itself plus its host
+# ancestors, excluding the terminal object (appended once globally).
+def host_type_mro_chain(base: PyObj) -> list[PyObj] {
+    raw = (base as PyHostProxy).val;
+    chain: list[PyObj] = [];
+    for t in _jac_host_type_mro(raw) {
+        if _jac_host_val_is_object_type(t) {
+            continue;
+        }
+        chain.append(PyHostProxy(t="host", val=t));
+    }
+    return chain;
 }
 
 # Merge step of C3: repeatedly take the head of some sequence that appears in no
@@ -7551,6 +7659,75 @@ def c3_merge(seqs: list[list[PyClass]]) -> list[PyClass] {
         work = live;
     }
     return result;
+}
+
+# C3 over mixed nodes (guest PyClass + host-type proxies). Same algorithm as
+# c3_merge at PyObj identity; host proxies compare by underlying type via `is`
+# on the raw value so repeated ancestors dedupe correctly.
+def c3_merge_objs(seqs: list[list[PyObj]]) -> list[PyObj] {
+    work: list[list[PyObj]] = [];
+    for s in seqs {
+        row: list[PyObj] = [];
+        for x in s {
+            row.append(x);
+        }
+        work.append(row);
+    }
+    result: list[PyObj] = [];
+    while True {
+        live: list[list[PyObj]] = [];
+        for s in work {
+            if len(s) > 0 {
+                live.append(s);
+            }
+        }
+        if len(live) == 0 {
+            return result;
+        }
+        chosen: PyObj | None = None;
+        for s in live {
+            head = s[0];
+            in_tail = False;
+            for other in live {
+                k = 1;
+                while k < len(other) {
+                    if _jac_mro_node_is(other[k], head) {
+                        in_tail = True;
+                    }
+                    k = k + 1;
+                }
+            }
+            if not in_tail {
+                chosen = head;
+                break;
+            }
+        }
+        if chosen is None {
+            # Inconsistent merge (host/guest cycles cannot occur): stop at the
+            # longest consistent prefix, like the PyClass merge does.
+            return result;
+        }
+        result.append(chosen);
+        for s in live {
+            if len(s) > 0 and _jac_mro_node_is(s[0], chosen) {
+                s.pop(0);
+            }
+        }
+        work = live;
+    }
+    return result;
+}
+
+def _jac_mro_node_is(a: PyObj, b: PyObj) -> bool {
+    if a is b {
+        return True;
+    }
+    if isinstance(a, PyHostProxy) and isinstance(b, PyHostProxy) {
+        raw_a = (a as PyHostProxy).val;
+        raw_b = (b as PyHostProxy).val;
+        return _jac_host_val_same(raw_a, raw_b);
+    }
+    return False;
 }
 
 def class_lookup_attr(cls: PyClass, name: str) -> PyObj {
@@ -8544,6 +8721,29 @@ def make_pyclass_from_map(
 
 # type.__new__(mcls, name, bases, namespace): build a class object. Serves both
 # the metaclass super().__new__ path and a bare 3-arg type(name, bases, ns) call.
+# Shared 3-arg type(name, bases, ns) base validation: a non-class base that
+# defines __mro_entries__ gets CPython's escape-hatch message; any other
+# non-class base is rejected outright. Returns None when bases are acceptable.
+def _jac_validate_type_bases(bases: list[PyObj]) -> PyObj | None {
+    for tb in bases {
+        if isinstance(tb, PyClass) {
+            continue;
+        }
+        if isinstance(tb, PyHostProxy) and _jac_host_val_is_type((tb as PyHostProxy).val) {
+            continue;
+        }
+        hook = py_attr(tb, "__mro_entries__");
+        if not is_error(hook) {
+            return py_error(
+                "TypeError",
+                "type() doesn't support MRO entry resolution; use types.new_class()"
+            );
+        }
+        return py_error("TypeError", "all bases must be classes");
+    }
+    return None;
+}
+
 def type_new(args: list[PyObj]) -> PyObj {
     if len(args) < 4 {
         return py_error("TypeError", "type.__new__() takes name, bases, dict");
@@ -8558,6 +8758,11 @@ def type_new(args: list[PyObj]) -> PyObj {
         bases = (bases_obj as PyList).items;
     }
     namespace = extract_namespace(args[3]);
+    # CPython type_new_impl: a bare 3-arg type() never resolves __mro_entries__.
+    rejected = _jac_validate_type_bases(bases);
+    if rejected is not None {
+        return rejected;
+    }
     made_cls = make_pyclass_from_map(class_name, bases, namespace, mcls);
     if is_error(made_cls) {
         return made_cls;
@@ -8777,7 +8982,8 @@ def py_build_class(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
     # for the body namespace, then call the metaclass as the class factory.
     if isinstance(metaclass, PyClass) {
         return build_class_via_metaclass(
-            metaclass as PyClass, class_name, bases, body, class_kwds
+            metaclass as PyClass, class_name, bases, body, class_kwds,
+            orig_base_list, bases_changed
         );
     }
     # Default `type`: execute the body into a plain namespace and box a PyClass.
@@ -8833,7 +9039,9 @@ def build_class_via_metaclass(
     class_name: str,
     bases: list[PyObj],
     body: PyFunction,
-    class_kwds: dict[str, PyObj]
+    class_kwds: dict[str, PyObj],
+    orig_bases: list[PyObj],
+    bases_changed: bool
 ) -> PyObj {
     bases_tuple = PyTuple(t="tuple", items=bases);
     prepared: PyObj = py_none();
@@ -8858,6 +9066,19 @@ def build_class_via_metaclass(
             return body_result;
         }
         mapping = prepared as PyUserObj;
+        # CPython __build_class__ stores the ORIGINAL bases in the classdict
+        # (after the body ran) whenever update_bases replaced any -- visible to
+        # the metaclass call and later as cls.__orig_bases__.
+        if bases_changed {
+            res_ob = call_user_dunder(
+                mapping, "__setitem__",
+                [PyStr(t="str", val="__orig_bases__"),
+                    PyTuple(t="tuple", items=orig_bases)]
+            );
+            if is_error(res_ob) {
+                return res_ob;
+            }
+        }
         if user_has_dunder(mapping, "__setitem__") {
             for k in namespace {
                 res = call_user_dunder(
@@ -8882,6 +9103,9 @@ def build_class_via_metaclass(
         for pk in prep_map {
             namespace2[pk] = prep_map[pk];
         }
+    }
+    if bases_changed {
+        namespace2["__orig_bases__"] = PyTuple(t="tuple", items=orig_bases);
     }
     body_result2 = exec_code_frame(
         body.code, [], {}, body.globals, namespace2, body.closure, [], {}

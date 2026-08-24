@@ -57,6 +57,16 @@ import from host_oracle { host_compile_marshal }
 
 # ---------------- singletons and metadata objects ----------------
 
+obj DCKwOnlyMark(PyObj) {
+    # Stand-in for dataclasses.KW_ONLY. `x: KW_ONLY` (or KW_ONLY[...]) splits
+    # the field list: every field after it becomes keyword-only.
+    def mp_subscript(index: PyObj) -> PyObj {
+        return self;
+    }
+}
+
+glob DC_KW_ONLY: DCKwOnlyMark = DCKwOnlyMark(t="dc_kw_only");
+
 obj DCMissingSentinel(PyObj) {
     # CPython dataclasses.MISSING: distinct from "no attribute" so a field
     # whose genuine default IS None stays distinguishable from no default.
@@ -853,6 +863,13 @@ def dc_is_classvar(annot: PyObj) -> bool {
     return dc_strip_module_prefix(dc_annotation_str(annot)).startswith("ClassVar");
 }
 
+def dc_is_kwonly(annot: PyObj) -> bool {
+    if isinstance(annot, DCKwOnlyMark) {
+        return True;
+    }
+    return dc_strip_module_prefix(dc_annotation_str(annot)).startswith("KW_ONLY");
+}
+
 def dc_is_initvar(annot: PyObj) -> bool {
     if isinstance(annot, DCInitVarMark) {
         return True;
@@ -917,10 +934,17 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
     }
     if isinstance(anns, PyDict) {
         adict = anns as PyDict;
+        # A KW_ONLY pseudo-annotation splits the declaration: every field after
+        # it becomes keyword-only (CPython _process_class KW_ONLY handling).
+        kw_split = False;
         for hk in adict.items {
             name = expect_str(adict.items[hk].key);
             annot = adict.items[hk].value;
             if dc_is_classvar(annot) {
+                continue;
+            }
+            if dc_is_kwonly(annot) {
+                kw_split = True;
                 continue;
             }
             is_initvar = dc_is_initvar(annot);
@@ -931,10 +955,9 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
             frepr = True;
             fcompare = True;
             # Default resolution for kw_only is the decorator's class-level
-            # param (CPython _get_field leaves it missing and _process_class
-            # fills from the class param); an explicit field(kw_only=...)
+            # param OR a preceding KW_ONLY marker; an explicit field(kw_only=...)
             # carried on a DCField attribute overrides below.
-            fkw_only = params.kw_only;
+            fkw_only = params.kw_only or kw_split;
             new_fhash = False;
             new_has_hash = False;
             new_fmetadata: any = None;
@@ -1297,6 +1320,146 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
 glob DC_DATACLASS_FN: DCDataclassFn = DCDataclassFn(t="dc_dataclass_fn");
 glob DC_FIELD_FN: DCFieldFn = DCFieldFn(t="dc_field_fn");
 
+# Stand-in for the dataclasses.Field CLASS object (isinstance checks against it
+# are out of scope; field() instances are the real DCFields).
+glob DC_FIELD_CLASS_MARK: PyObj = PyObj(t="dc_field_class_mark");
+
+obj DCMakeDataclassFn(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) < 2 {
+            return py_error(
+                "TypeError",
+                "make_dataclass() missing 2 required positional arguments"
+            );
+        }
+        cls_name = expect_str(args[0]);
+        specs_obj = args[1];
+        specs: list[PyObj] = [];
+        if isinstance(specs_obj, PyList) {
+            for sp in (specs_obj as PyList).items {
+                specs.append(sp);
+            }
+        } elif isinstance(specs_obj, PyTuple) {
+            for sp in (specs_obj as PyTuple).items {
+                specs.append(sp);
+            }
+        } else {
+            return py_error("TypeError", "fields must be a list of tuples");
+        }
+        params = dc_parse_params(kwargs);
+        if is_error(params) {
+            return params;
+        }
+        # Decorator parameter text: serialize only non-default flags so error
+        # parity with direct @dataclass use stays exact.
+        pbits: list[str] = [];
+        if not (params as DCParams).init {
+            pbits.append("init=False");
+        }
+        if not (params as DCParams).frepr {
+            pbits.append("repr=False");
+        }
+        if not (params as DCParams).eq {
+            pbits.append("eq=False");
+        }
+        if (params as DCParams).order {
+            pbits.append("order=True");
+        }
+        if (params as DCParams).unsafe_hash {
+            pbits.append("unsafe_hash=True");
+        }
+        if (params as DCParams).frozen {
+            pbits.append("frozen=True");
+        }
+        if (params as DCParams).kw_only {
+            pbits.append("kw_only=True");
+        }
+        if not (params as DCParams).match_args {
+            pbits.append("match_args=False");
+        }
+        dec = "dataclass";
+        if len(pbits) > 0 {
+            dec += "(";
+            first = True;
+            for pb in pbits {
+                if not first {
+                    dec += ", ";
+                }
+                dec += pb;
+                first = False;
+            }
+            dec += ")";
+        }
+        ns: dict[str, PyObj] = {
+            "__name__": PyStr(t="str", val="dataclasses"),
+            "dataclass": DC_DATACLASS_FN,
+        };
+        src = "@" + dec + "\nclass " + cls_name + ":\n";
+        body = "";
+        i = 0;
+        for sp in specs {
+            name = "";
+            annot_helper = "_dc_t" + str(i);
+            default_helper = "";
+            if isinstance(sp, PyStr) {
+                # A bare string name means an untyped field; None annotation
+                # behaves as Any for our collection pass.
+                name = expect_str(sp);
+                ns[annot_helper] = py_none();
+            } elif isinstance(sp, PyTuple) {
+                items = (sp as PyTuple).items;
+                if len(items) < 2 {
+                    return py_error(
+                        "ValueError",
+                        "field tuples must be (name, type[, default])"
+                    );
+                }
+                name = expect_str(items[0]);
+                ns[annot_helper] = items[1];
+                if len(items) >= 3 {
+                    third = items[2];
+                    if isinstance(third, DCField) {
+                        # field(...) spec: seed the DCField as the class-body
+                        # default so dc_collect_fields resolves it exactly like
+                        # an explicit field() declaration.
+                        default_helper = "_dc_f" + str(i);
+                        ns[default_helper] = third;
+                    } elif third is not DC_MISSING {
+                        default_helper = "_dc_d" + str(i);
+                        ns[default_helper] = third;
+                    }
+                }
+            } else {
+                return py_error("TypeError", "invalid field spec");
+            }
+            body += "    " + name + ": " + annot_helper;
+            if default_helper != "" {
+                body += " = " + default_helper;
+            }
+            body += "\n";
+            i += 1;
+        }
+        if body == "" {
+            body = "    pass\n";
+        }
+        src += body;
+        outcome = exec_code(
+            unmarshal(host_compile_marshal(src, "<dataclasses>", "exec")), [], ns
+        );
+        if is_error(outcome) {
+            return outcome;
+        }
+        if cls_name not in ns {
+            return py_error(
+                "SystemError", "make_dataclass lost class '" + cls_name + "'"
+            );
+        }
+        return ns[cls_name];
+    }
+}
+
+glob DC_MAKE_DATACLASS_FN: DCMakeDataclassFn = DCMakeDataclassFn(t="dc_make_dataclass_fn");
+
 def register_dataclasses_module {
     attrs: dict[str, PyObj] = {
         "dataclass": DC_DATACLASS_FN,
@@ -1308,6 +1471,9 @@ def register_dataclasses_module {
         "is_dataclass": DCIsDataclassFn(t="dc_is_dc_fn"),
         "MISSING": DC_MISSING,
         "InitVar": DC_INITVAR,
+        "KW_ONLY": DC_KW_ONLY,
+        "make_dataclass": DC_MAKE_DATACLASS_FN,
+        "Field": DC_FIELD_CLASS_MARK,
         "FrozenInstanceError": PyExceptionType(
             t="exception_type", name="FrozenInstanceError"
         ),
