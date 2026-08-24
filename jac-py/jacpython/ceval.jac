@@ -44,6 +44,38 @@ def _jac_host_call(fn, args, kwargs):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_dir(value):
+    # Exact host dir() for values with a faithful host representation (host
+    # proxies, native scalars/containers): CPython's own enumeration, so the
+    # name list is byte-exact with the host interpreter.
+    try:
+        return (True, [str(n) for n in dir(value)])
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
+def _jac_host_type_surface(kind):
+    # Unsorted __dict__ keys of a HOST type surface -- the static half of
+    # CPython's dir() merge_class_dict walk (object/type/BaseException/...).
+    import builtins
+    import types
+    try:
+        target = None
+        if kind == "object":
+            target = builtins.object
+        elif kind == "type":
+            target = builtins.type
+        elif kind == "function":
+            target = types.FunctionType
+        elif kind == "method":
+            target = types.MethodType
+        else:
+            target = getattr(builtins, kind, None)
+        if target is None:
+            raise TypeError("unknown type surface '" + kind + "'")
+        return (True, [str(n) for n in vars(target)])
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_is_callable(value):
     return callable(value)
 
@@ -3667,6 +3699,10 @@ def host_builtin(name: str) -> PyObj {
     # a lossy to_host copy. This is load-bearing for the import closure, where
     # decorators (functools.wraps, reprlib.recursive_repr) copy dunders via
     # getattr(fn, '__module__').
+    # dir() is native so it enumerates the NATIVE object surface (a PyUserObj's
+    # class chain / a PyModule's namespace) instead of host dir() on a lossy
+    # to_host copy -- and the no-arg form reads the CALLING frame's locals,
+    # which only the ceval call site can see.
     if name == "next"
         or name == "iter"
         or name == "id"
@@ -3683,7 +3719,8 @@ def host_builtin(name: str) -> PyObj {
         or name == "globals"
         or name == "sorted"
         or name == "max"
-        or name == "min" {
+        or name == "min"
+        or name == "dir" {
         # globals() must be native: it returns a LIVE view of the running frame's
         # module namespace, so `globals().update({...})` / `globals()[k] = v`
         # (module init idioms, e.g. re._constants) bind real module globals that a
@@ -6743,6 +6780,189 @@ def class_lookup_attr(cls: PyClass, name: str) -> PyObj {
     return py_error("AttributeError", name);
 }
 
+# ---------------- dir(): CPython attribute enumeration -----------------------
+
+# CPython's dir(obj) for a non-module object is a sorted union of __dict__ keys
+# across obj's type MRO (for instances) or the class's own MRO (for classes),
+# plus the instance's own __dict__ when present. Two native gaps need filling
+# to stay byte-exact with the host: the terminal `object` (and any boxed
+# builtin base like int/Exception) contributes its HOST type-dict surface, and
+# a dict-bearing user class's own dict carries synthesized `__dict__` /
+# `__weakref__` descriptors the VM never stores in attrs.
+def py_dir_add_surface(names: dict[str, bool], kind: str) -> PyObj {
+    surface = _jac_host_type_surface(kind);
+    if host_result_ok(surface) {
+        for k in (surface[1] as list[str]) {
+            names[k] = True;
+        }
+        return py_none();
+    }
+    return host_result_error(surface);
+}
+
+def py_dir_add_class(names: dict[str, bool], cls: PyClass) -> PyObj {
+    # Namespace entries CPython's type.__new__ never lets reach the class dict:
+    # __name__/__qualname__ are stripped at class creation (answered via slot
+    # access instead), and __classdictcell__ is this VM's internal anchor for
+    # method-scope class references. Emitting them would diverge from host
+    # dir(cls)/dir(instance).
+    skip_names: dict[str, bool] = {"__name__": True, "__qualname__": True, "__classdictcell__": True};
+    for klass in class_mro(cls) {
+        for k in klass.attrs.keys() {
+            if k not in skip_names {
+                names[k] = True;
+            }
+        }
+        # A dict-bearing heap class owns __dict__/__weakref__ member
+        # descriptors in CPython; the VM models them implicitly.
+        if klass.instance_has_dict {
+            names["__dict__"] = True;
+            names["__weakref__"] = True;
+        }
+    }
+    if cls.native_base != "" {
+        err = py_dir_add_surface(names, cls.native_base);
+        if is_error(err) {
+            return err;
+        }
+    }
+    return py_dir_add_surface(names, "object");
+}
+
+def py_dir_sorted(names: dict[str, bool]) -> PyObj {
+    items: list[PyObj] = [];
+    for k in names {
+        items.append(PyStr(t="str", val=k));
+    }
+    return builtin_sorted_min_max(
+        "sorted", [PyList(t="list", items=items)], {}
+    );
+}
+
+# dir(arg): one argument. Order mirrors CPython builtin_dir -- a type-level
+# __dir__ override wins, then modules answer from their namespace, then the
+# generic MRO/__dict__ union. Host-backed values (proxies and faithful native
+# scalars/containers) defer to the host interpreter so their name lists are
+# byte-exact by construction.
+def py_dir(arg: PyObj) -> PyObj {
+    # __dir__ override lookup: on the INSTANCE's class, or on a CLASS's
+    # metaclass (a body-defined __dir__ serves instances of that class, never
+    # the class itself). The result is iterated exactly like CPython -- a
+    # non-iterable result surfaces the iteration TypeError unchanged.
+    owner: PyClass | None = None;
+    if isinstance(arg, PyUserObj) {
+        owner = (arg as PyUserObj).cls;
+    } elif isinstance(arg, PyClass) {
+        mc = (arg as PyClass).metaclass;
+        if isinstance(mc, PyClass) {
+            owner = mc as PyClass;
+        }
+    }
+    if owner is not None {
+        d = class_lookup_attr(owner, "__dir__");
+        if not is_error(d) {
+            res = bind_attribute(d, arg).tp_call([], {});
+            if is_error(res) {
+                return res;
+            }
+            items = members_of(res);
+            if is_error(items) {
+                return items;
+            }
+            return builtin_sorted_min_max("sorted", [items], {});
+        }
+    }
+    if isinstance(arg, PyModule) {
+        names: dict[str, bool] = {};
+        for k in (arg as PyModule).attrs.keys() {
+            names[k] = True;
+        }
+        return py_dir_sorted(names);
+    }
+    if isinstance(arg, PyHostProxy) {
+        r = _jac_host_dir((arg as PyHostProxy).val);
+        if host_result_ok(r) {
+            strs: list[PyObj] = [];
+            for n in (r[1] as list[str]) {
+                strs.append(PyStr(t="str", val=n));
+            }
+            return PyList(t="list", items=strs);
+        }
+        return host_result_error(r);
+    }
+    # Native scalars/containers marshal faithfully across the bridge, so the
+    # host's own dir() IS the correct enumeration (dir([1]) == host dir of a
+    # real list). User objects/classes must NOT cross here -- to_host loses
+    # them -- they fall through to the native walks below.
+    tag = arg.t;
+    if tag == "none" or tag == "bool" or tag == "int" or tag == "float"
+        or tag == "complex" or tag == "str" or tag == "bytes" or tag == "tuple"
+        or tag == "list" or tag == "dict" or tag == "set" or tag == "frozenset"
+        or tag == "slice" or tag == "range" or tag == "notimplemented"
+        or tag == "dictview_obj" {
+        h_r = to_host_coerce(arg);
+        if not ((h_r[0] as bool)) {
+            return h_r[1] as PyObj;
+        }
+        hd = _jac_host_dir(h_r[1]);
+        if host_result_ok(hd) {
+            strs2: list[PyObj] = [];
+            for n2 in (hd[1] as list[str]) {
+                strs2.append(PyStr(t="str", val=n2));
+            }
+            return PyList(t="list", items=strs2);
+        }
+        return host_result_error(hd);
+    }
+    if isinstance(arg, PyException) {
+        names_exc: dict[str, bool] = {};
+        err_exc = py_dir_add_surface(names_exc, "BaseException");
+        if is_error(err_exc) {
+            return err_exc;
+        }
+        return py_dir_sorted(names_exc);
+    }
+    if isinstance(arg, PyClass) {
+        names_cls: dict[str, bool] = {};
+        err_cls = py_dir_add_class(names_cls, arg as PyClass);
+        if is_error(err_cls) {
+            return err_cls;
+        }
+        return py_dir_sorted(names_cls);
+    }
+    if isinstance(arg, PyUserObj) {
+        u = arg as PyUserObj;
+        names_u: dict[str, bool] = {};
+        for k in u.attrs.keys() {
+            names_u[k] = True;
+        }
+        err_u = py_dir_add_class(names_u, u.cls);
+        if is_error(err_u) {
+            return err_u;
+        }
+        return py_dir_sorted(names_u);
+    }
+    if isinstance(arg, PyFunction) {
+        f = arg as PyFunction;
+        names_f: dict[str, bool] = {};
+        for k in f.attrs.keys() {
+            names_f[k] = True;
+        }
+        err_f = py_dir_add_surface(names_f, "function");
+        if is_error(err_f) {
+            return err_f;
+        }
+        return py_dir_sorted(names_f);
+    }
+    # Unknown native shape: only the shared object surface is knowable.
+    names_obj: dict[str, bool] = {};
+    err_obj = py_dir_add_surface(names_obj, "object");
+    if is_error(err_obj) {
+        return err_obj;
+    }
+    return py_dir_sorted(names_obj);
+}
+
 # super().name lookup: search the instance's MRO starting AFTER the defining
 # class (zero-arg super semantics). defining_cls comes from the __class__ cell;
 # if it isn't a PyClass, fall back to the instance's own class.
@@ -7856,6 +8076,26 @@ obj PyNativeBuiltin(PyObj) {
                 return py_error("TypeError", "delattr expected 2 arguments");
             }
             return py_del_attr(args[0], expect_str(args[1]));
+        }
+        if self.name == "dir" {
+            # dir(obj): CPython attribute enumeration over the NATIVE object
+            # (see py_dir). The no-arg form is intercepted at the ceval CALL
+            # site (it reads that frame's locals); reaching tp_call with zero
+            # args means an indirect host-side callback, where CPython would
+            # see the trampoline frame -- an empty local scope answers []
+            # instead of leaking foreign frame names.
+            if len(kwargs) > 0 {
+                return py_error("TypeError", "dir() takes no keyword arguments");
+            }
+            if len(args) == 0 {
+                return PyList(t="list", items=[]);
+            }
+            if len(args) > 1 {
+                return py_error(
+                    "TypeError", "dir expected at most 1 argument, got " + str(len(args))
+                );
+            }
+            return py_dir(args[0]);
         }
         if self.name == "iter" {
             if len(args) == 0 {
@@ -12215,6 +12455,37 @@ def run_frame(frame: PyFrame) -> PyObj {
             # the ceval holds -- resolve it here rather than in PyNativeBuiltin.
             if fn.t == "native_builtin" and (fn as PyNativeBuiltin).name == "globals" {
                 stack.append(PyGlobalsProxy(t="globals", ns=globals));
+                continue;
+            }
+            # No-arg dir() answers sorted locals of the CALLING frame -- CPython
+            # reads f_locals of its caller, and only this site knows that frame
+            # state. Module-level frames pass globals AS locals (exec_code_frame),
+            # so a bare dir() at module top level lists module globals, exactly
+            # like CPython. Bound localsplus slots join dict-locals keys; a cell
+            # slot counts only while filled.
+            if fn.t == "native_builtin" and (fn as PyNativeBuiltin).name == "dir"
+                and self_or_null.t == "none" and len(call_args) == 0
+                and len(kwargs_for_call) == 0 {
+                local_names: dict[str, bool] = {};
+                for k in locals {
+                    local_names[k] = True;
+                }
+                si = 0;
+                while si < len(fast) {
+                    bound = False;
+                    if isinstance(fast[si], PyCell) {
+                        if ((fast[si] as PyCell).filled) {
+                            bound = True;
+                        }
+                    } elif si < len(assigned) and assigned[si] {
+                        bound = True;
+                    }
+                    if bound {
+                        local_names[localsplus_name(co, si)] = True;
+                    }
+                    si = si + 1;
+                }
+                stack.append(py_dir_sorted(local_names));
                 continue;
             }
             # CPython's CALL convention carries a `self_or_null` slot below the
