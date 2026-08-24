@@ -12372,6 +12372,11 @@ obj PyGenFrameClear(PyObj) {
 obj PyCopyFn(PyObj) {
     has deep: bool;
 
+    # Identity hash: same stdlib set/dict-key surface as the weakref shim.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) < 1 {
             return py_error("TypeError", "copy expected at least 1 argument");
@@ -12405,6 +12410,12 @@ obj PyCopyFn(PyObj) {
 # proxies are rejected because deref would mint a fresh proxy and break
 # `r() is o` identity.
 obj PyWeakRefFn(PyObj) {
+    # Identity hash (CPython: builtin-style callables hash by id); copy.py's
+    # module init stores these wrappers in hash-keyed dispatch structures.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         if len(args) != 1 {
             # callback= / weakref.ref(cls) forms unsupported by this surface.
