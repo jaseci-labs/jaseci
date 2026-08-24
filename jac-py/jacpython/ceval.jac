@@ -11100,10 +11100,12 @@ def build_types_facade -> PyObj {
     if host_result_ok(result) {
         host_mod = result[1];
         names = _jac_star_names(host_mod);
-        for nm in names {
-            member = _jac_host_getattr(host_mod, nm);
-            if host_result_ok(member) {
-                attrs[nm] = PyHostProxy(t="host", val=member[1]);
+        if host_result_ok(names) {
+            for nm in names[1] {
+                member = _jac_host_getattr(host_mod, nm);
+                if host_result_ok(member) {
+                    attrs[nm] = PyHostProxy(t="host", val=member[1]);
+                }
             }
         }
     }
