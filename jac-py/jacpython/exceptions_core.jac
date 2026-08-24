@@ -13,6 +13,7 @@ import from objects {
     PyBytes,
     PyTuple,
     expect_str,
+    exc_is_subclass_of,
     is_error,
 }
 
@@ -220,8 +221,16 @@ def _repr_obj(value: PyObj, repr_fn: any) -> str {
 # KeyError strs as REPR of its payload (str(KeyError('k')) == "'k'") --
 # callers without a repr fn fall back to plain BaseException_str.
 def baseexception_str(exc: PyException, repr_fn: any = None) -> PyStr {
-    if repr_fn is not None and exc.type_name == "KeyError" and len(exc.args) == 1 {
-        return PyStr(t="str", val=_repr_obj(exc.args[0], repr_fn));
+    # Per-type __str__ slots (CPython ``OSError_str``, ``SyntaxError_str``,
+    # ``Unicode*Error_str``, ``KeyError_str``) take precedence over generic
+    # ``BaseException_str`` exactly as the C slots do. "" means no override
+    # applies (or no repr fn is available for the %R forms) and we fall
+    # through to the generic shape below.
+    if repr_fn is not None {
+        s = typed_exc_str(exc, repr_fn);
+        if s != "" {
+            return PyStr(t="str", val=s);
+        }
     }
     if len(exc.args) == 0 {
         if exc.message != "" {
