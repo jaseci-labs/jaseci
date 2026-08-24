@@ -5202,25 +5202,6 @@ test "final_immutability_enforcement" {
     program.compile(
         os.path.join(CHECKER_FIXTURES, "checker_final_reassignment.jac"), options=NO_TC
     );
-    # Expected errors (15 total, in file order):
-    #   1. glob SHARED_RATE    -- imported Final rebound in this module
-    #   2. self.tag = "u"       -- Final with default reassigned in init
-    #   3. for t in items       -- Final overwritten by a loop target
-    #   4. free init            -- writer is not a method of the declaring obj
-    #   5. Heir.init            -- writer is not the declaring obj's initializer
-    #   6. self.base = d        -- Final attribute written after its declaration
-    #   7. (head, *tail)        -- starred unpacking target
-    #   8. with open() as h     -- with-as target
-    #   9. except ... as err    -- except-as target
-    #  10. c.name = "b"         -- Final attribute reassigned
-    #  11. y = 2                -- Final local reassigned
-    #  12. y += 1               -- augmented assignment
-    #  13. (y, w) = (1, 2)      -- unpacking into a Final
-    #  14. del y                -- deleting a Final
-    #  15. RATE = 2.0           -- Final glob reassigned
-    # Assigning a no-default Final inside init/postinit is a scope rule, not a
-    # count (matching Pyright): the repeated, branched, and looped init writes
-    # in Pair/Cond/LoopInit must all stay clean, and so must Late's postinit.
     assert len(program.errors_had) == 15 , "Expected 15 errors, got "
         + f"{len(program.errors_had)}:\n"
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);

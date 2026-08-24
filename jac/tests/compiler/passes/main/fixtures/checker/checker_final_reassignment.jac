@@ -34,14 +34,8 @@ obj Tagged {
     }
 }
 
-# Assigning a no-default Final in init is a scope rule, not a count. Repeated
-# writes -- sequential, branched, or in a loop -- are all legal inside
-# init/postinit, and only a Final that already has a default errors there.
-# Pyright behaves identically: on the direct Python equivalent of Pair/Cond/
-# LoopInit/Tagged below it reports exactly one diagnostic, on Tagged, in both
-# basic and strict mode (verified against 1.1.411). Counting writes instead
-# would need definite-assignment analysis the checker does not have, and would
-# reject the legal Cond form where exactly one branch runs.
+# Setting a no-default Final in init is a scope rule, not a count, so repeated,
+# branched, and looped init writes are all legal. Pyright agrees.
 obj Pair {
     has a: Final[int];
 
@@ -126,10 +120,8 @@ def rebinding_forms(items: list[int], path: str) {
     }
 }
 
-# Bare `Final` (no subscript) infers the declared type from the initializer.
-# This lives in a function so it is unambiguously a local: at `with entry`
-# statement level the same line parses as a module global, and `jac fmt`
-# rewrites it to `glob b: Final = 99;`.
+# Bare `Final` infers the declared type from the initializer. It lives in a
+# function so it is a local: at entry level `jac fmt` rewrites it to a glob.
 def bare_final_infers -> int {
     b: Final = 99;  # OK: bare Final infers from value
     return b;
