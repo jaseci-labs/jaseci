@@ -82,7 +82,8 @@ obj DCParams(PyObj) {
         order: bool = False,
         unsafe_hash: bool = False,
         frozen: bool = False,
-        kw_only: bool = False;
+        kw_only: bool = False,
+        match_args: bool = True;
 }
 
 obj DCField(PyObj) {
@@ -755,6 +756,7 @@ def dc_parse_params(kwargs: dict[str, PyObj]) -> PyObj {
         unsafe_hash=dc_param_flag(kwargs, "unsafe_hash", False),
         frozen=dc_param_flag(kwargs, "frozen", False),
         kw_only=dc_param_flag(kwargs, "kw_only", False),
+        match_args=dc_param_flag(kwargs, "match_args", True),
     );
 }
 
@@ -1078,6 +1080,17 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
             return made;
         }
         cls.attrs["__init__"] = made;
+    }
+    if params.match_args {
+        # CPython _process_class: __match_args__ lists the fields callable can
+        # pass positionally -- init=True, not kw_only.
+        ma: list[PyObj] = [];
+        for f in fields_list {
+            if f.finit and not f.fkw_only {
+                ma.append(PyStr(t="str", val=f.fname));
+            }
+        }
+        cls.attrs["__match_args__"] = PyTuple(t="tuple", items=ma);
     }
     if params.frepr {
         ns["_dc_repr_op"] = DC_REPR_OP;

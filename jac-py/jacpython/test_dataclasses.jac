@@ -401,6 +401,31 @@ test "dataclass: inherited __post_init__ resolves through the MRO once" {
     assert vm_int(ns, "ncalls") == 1;
 }
 
+# ---------------- __match_args__ ----------------
+
+test "dataclass: __match_args__ lists positional init fields" {
+    ns = dc_exec(
+        "from dataclasses import field\n"
+        "@dataclass\n"
+        "class M:\n"
+        "    a: int\n"
+        "    b: str = 'x'\n"
+        "    c: int = field(default=0, kw_only=True)\n"
+        "rv = M.__match_args__\n"
+    );
+    assert vm_str(ns, "rv") == "('a', 'b')";
+}
+
+test "dataclass: match_args=False leaves __match_args__ unset on the class" {
+    ns = dc_exec(
+        "@dataclass(match_args=False)\n"
+        "class M:\n"
+        "    a: int = 0\n"
+        "has_ma = hasattr(M, '__match_args__')\n"
+    );
+    assert vm_bool(ns, "has_ma") == False;
+}
+
 # ---------------- ClassVar vs fields ----------------
 
 test "dataclass: ClassVar annotations stay class attributes, not fields" {
