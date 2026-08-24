@@ -2626,6 +2626,122 @@ def _construct_unicode_error(name: str, args: list[PyObj]) -> PyObj {
     );
 }
 
+# CPython ``PySequence_Tuple`` over the native shapes our VM produces:
+# tuples/lists pass through; str/dict iterate (sq_item protocol); generators
+# and bare iterables lack sq_item -> False (caller raises the "must be a
+# sequence" TypeError). range and user-defined sequences need VM-side
+# protocol dispatch (PyRange lives in ceval; P3 split kernel shares this seam).
+def _py_sequence_tuple(o: PyObj, out: list[PyObj]) -> bool {
+    if isinstance(o, PyTuple) {
+        out.extend((o as PyTuple).items);
+        return True;
+    }
+    if isinstance(o, PyList) {
+        out.extend((o as PyList).items);
+        return True;
+    }
+    if isinstance(o, PyStr) {
+        for ch in (o as PyStr).val {
+            out.append(PyStr(t="str", val=ch));
+        }
+        return True;
+    }
+    if isinstance(o, PyDict) {
+        for hk in (o as PyDict).items {
+            out.append((o as PyDict).items[hk].key);
+        }
+        return True;
+    }
+    return False;
+}
+
+# CPython ``_BaseExceptionGroup_new_impl`` (Objects/exceptions.c). The
+# positional-arity and message-type errors carry the FIXED literal
+# "BaseExceptionGroup.__new__" regardless of which group class the call went
+# through (host: ExceptionGroup('m') reports the BaseExceptionGroup parser),
+# while the keyword rejection names the FINAL selected type. Validation order
+# mirrors the C flow exactly: arity, msg str-check, PySequence_Tuple,
+# non-empty, per-item instance scan tracking BaseException-only leaves, nest
+# rejection under ExceptionGroup subclasses, auto-selection of ExceptionGroup
+# for exact-BaseExceptionGroup calls whose leaves are all Exceptions, and the
+# keyword check LAST.
+def _construct_exc_group(name: str, args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+    if len(args) != 2 {
+        return py_error(
+            "TypeError",
+            "BaseExceptionGroup.__new__() takes exactly 2 arguments ("
+                + str(len(args)) + " given)",
+        );
+    }
+    if args[0].t != "str" {
+        return py_error(
+            "TypeError",
+            "BaseExceptionGroup.__new__() argument 1 must be str, not "
+                + args[0].t,
+        );
+    }
+    seq_items: list[PyObj] = [];
+    if not _py_sequence_tuple(args[1], seq_items) {
+        return py_error(
+            "TypeError", "second argument (exceptions) must be a sequence"
+        );
+    }
+    items: list[PyObj] = [];
+    has_base_leaf = False;
+    for idx in range(len(seq_items)) {
+        item = seq_items[idx];
+        # Exception-instance membership. User-subclass instances (t=="instance"
+        # / host proxies) are rejected until family resolution gains an
+        # objects.jac-visible seam -- PyClass/class_mro live in ceval.
+        if item.t != "exception" {
+            return py_error(
+                "ValueError",
+                "Item " + str(idx)
+                    + " of second argument (exceptions) is not an exception",
+            );
+        }
+        leaf_name = (item as PyException).type_name;
+        if not exc_is_subclass_of(leaf_name, "Exception") {
+            has_base_leaf = True;
+        }
+        items.append(item);
+    }
+    if len(items) == 0 {
+        return py_error(
+            "ValueError", "second argument (exceptions) must be a non-empty sequence"
+        );
+    }
+    final_name = name;
+    if has_base_leaf {
+        if exc_is_subclass_of(name, "ExceptionGroup") {
+            return py_error(
+                "TypeError", "Cannot nest BaseExceptions in an ExceptionGroup"
+            );
+        }
+    } elif name == "BaseExceptionGroup" {
+        # CPython selects the ExceptionGroup layout when every contained leaf
+        # derives from Exception and the call targeted BaseExceptionGroup
+        # itself (subclasses keep their own identity).
+        final_name = "ExceptionGroup";
+    }
+    if len(kwargs) > 0 {
+        return py_error("TypeError", final_name + "() takes no keyword arguments");
+    }
+    # BaseException.args presents (message, [exceptions-list]) on groups
+    # (host: ExceptionGroup('hello', [ValueError()]).args); .message/.exceptions
+    # serve the typed members read-only.
+    exc_args: list[PyObj] = [args[0]];
+    arg_list_items: list[PyObj] = [];
+    arg_list_items.extend(items);
+    exc_args.append(PyList(t="list", items=arg_list_items));
+    excs_copy: list[PyObj] = [];
+    excs_copy.extend(items);
+    return PyExcGroup(
+        t="exception", type_name=final_name, message=(args[0] as PyStr).val,
+        args=exc_args, excs=excs_copy
+    );
+}
+
 obj PyExceptionType(PyObj) {
     has name: str;
 
@@ -2654,6 +2770,10 @@ obj PyExceptionType(PyObj) {
         if self.name == "UnicodeDecodeError" or self.name == "UnicodeEncodeError"
             or self.name == "UnicodeTranslateError" {
             return _construct_unicode_error(self.name, args);
+        }
+        if self.name == "BaseExceptionGroup" or self.name == "ExceptionGroup"
+            or exc_is_subclass_of(self.name, "BaseExceptionGroup") {
+            return _construct_exc_group(self.name, args, kwargs);
         }
         # Exception(*args): keep the FULL args tuple (BaseException.args), not just
         # the first, so `e.args`, str(e), and repr(e) round-trip faithfully. The
@@ -2841,6 +2961,37 @@ obj PyException(PyObj) {
             return py_none();
         }
         return py_error("AttributeError", name);
+    }
+}
+
+# CPython ``BaseExceptionGroup`` (Objects/exceptions.c): a BaseException
+# subtype carrying a validated non-empty tuple of exception instances plus the
+# message. Subtyping PyException keeps every raise/match/chain path working
+# unchanged (they all dispatch on t=="exception"/PyException); the group-only
+# members ride the override below with explicit parent delegation.
+obj PyExcGroup(PyException) {
+    # Validated copy of the constructor's exception sequence; .exceptions
+    # serves a fresh tuple over it so callers can't mutate group state.
+    has excs: list[PyObj] = [];
+
+    def tp_getattro(name: str) -> PyObj {
+        if name == "message" {
+            return PyStr(t="str", val=self.message);
+        }
+        if name == "exceptions" {
+            items: list[PyObj] = [];
+            items.extend(self.excs);
+            return PyTuple(t="tuple", items=items);
+        }
+        return PyException.tp_getattro(self, name);
+    }
+
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        # CPython getset members reject writes with the bare member message.
+        if name == "message" or name == "exceptions" {
+            return py_error("AttributeError", "readonly attribute");
+        }
+        return PyException.tp_setattro(self, name, value);
     }
 }
 

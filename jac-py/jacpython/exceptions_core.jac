@@ -5,6 +5,7 @@
 import from objects {
     PyObj,
     PyException,
+    PyExcGroup,
     PyExceptionType,
     PyStr,
     PyInt,
@@ -13,8 +14,10 @@ import from objects {
     PyBytes,
     PyTuple,
     expect_str,
+    str_repr_text,
     exc_is_subclass_of,
     is_error,
+    EXC_PARENT,
 }
 
 # The builtin hierarchy table (EXC_PARENT) lives canonically in objects.jac;
@@ -159,8 +162,37 @@ def _repr_obj(value: PyObj, repr_fn: any) -> str {
 # ``str_fn`` (py_str) lets non-scalar args render through the full str()
 # dispatch (CPython BaseException_str does str(args[i])); without it only
 # scalar args survive.
+# CPython ``BaseExceptionGroup_str``: "<msg> (<n> sub-exception<s>)".
+def exc_group_str(exc: PyExcGroup) -> PyStr {
+    n = len(exc.excs);
+    suffix = "";
+    if n != 1 {
+        suffix = "s";
+    }
+    return PyStr(
+        t="str", val=exc.message + " (" + str(n) + " sub-exception" + suffix + ")"
+    );
+}
+
+# CPython ``BaseExceptionGroup_repr``: TypeName(<msg %R>, [<exc reprs>]).
+def exc_group_repr(exc: PyExcGroup, repr_fn: any) -> PyStr {
+    parts: list[str] = [];
+    for item in exc.excs {
+        parts.append(_repr_obj(item, repr_fn));
+    }
+    return PyStr(
+        t="str",
+        val=exc.type_name + "(" + str_repr_text(exc.message) + ", ["
+            + ", ".join(parts) + "])",
+    );
+}
+
 def baseexception_str(exc: PyException, repr_fn: any = None,
     str_fn: any = None) -> PyStr {
+    # Group instances carry their own str slot regardless of type_name.
+    if isinstance(exc, PyExcGroup) {
+        return exc_group_str(exc as PyExcGroup);
+    }
     # Per-type __str__ slots (CPython ``OSError_str``, ``SyntaxError_str``,
     # ``Unicode*Error_str``, ``KeyError_str``) take precedence over generic
     # ``BaseException_str`` exactly as the C slots do. "" means no override
@@ -192,6 +224,9 @@ def baseexception_str(exc: PyException, repr_fn: any = None,
 # CPython ``BaseException_repr`` (single-arg ``%R`` uses ``repr`` of the arg).
 # ``repr_fn`` is ``py_repr`` from ceval (full native/host repr dispatch).
 def baseexception_repr(exc: PyException, repr_fn: any) -> PyStr {
+    if isinstance(exc, PyExcGroup) {
+        return exc_group_repr(exc as PyExcGroup, repr_fn);
+    }
     name = exc.type_name;
     if len(exc.args) == 0 {
         return PyStr(t="str", val=name + "()");

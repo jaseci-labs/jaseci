@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "wave": "conv_pipeline",
+  "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
+  "module_count": 1,
+  "modules": [
+    {
+      "stem": "copy",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_copy/conv_copy_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/41 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "conversion_meta": "jac-py/tests/conv_copy/copy.conv.json",
+      "jacpython_results": {
+        "copy": {
+          "passed": 0,
+          "total": 41
+        }
+      }
+    }
+  ]
+}
