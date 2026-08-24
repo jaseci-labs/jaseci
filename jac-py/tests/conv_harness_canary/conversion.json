@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0-canary",
+  "jac_sha": "n/a",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "manual: harness-health canary (fake-shim resurrection + dunder-fallback detector)"
+  ],
+  "generated_at": "2026-08-24T14:51",
+  "hashes": {},
+  "source_file": "(none - hand-written harness canary)",
+  "generator": "slatepetrel",
+  "module_stem": "harness_canary",
+  "pins_file": "conv_harness_canary_pins.jac",
+  "pins": [
+    {
+      "ident": "HarnessCanary.test_pprint_import",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pprint\nprint('ok')"
+    },
+    {
+      "ident": "HarnessCanary.test_ordereddict_repr_surface",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import collections\nassert collections.OrderedDict.__repr__ is not None\nprint('ok')"
+    },
+    {
+      "ident": "HarnessCanary.test_guest_class_dunder_fallback",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "class C:\n    pass\nassert C.__repr__ is not None\nprint('ok')"
+    },
+    {
+      "ident": "HarnessCanary.test_functools_cache_present",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import functools\nassert hasattr(functools, 'cache')\nprint('ok')"
+    },
+    {
+      "ident": "HarnessCanary.test_typing_import",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import typing\nprint('ok')"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "converted": 5,
+    "runnable": 5,
+    "green": 0,
+    "quarantined": 0,
+    "extracted": 5
+  }
+}
