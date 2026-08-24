@@ -1136,7 +1136,12 @@ import from floatobject { float_repr, }
 import from complexobject { complex_repr_text, complex_parse_text, }
 import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
-import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
+import from exceptions_core {
+    exc_name_matches,
+    baseexception_str,
+    baseexception_repr,
+    prep_reraise_star,
+}
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
 import from objects {
@@ -14215,6 +14220,19 @@ def run_frame(frame: PyFrame) -> PyObj {
         if op == OP_CALL_INTRINSIC_2 {
             rhs = stack.pop();
             lhs = stack.pop();
+            if arg == 1 {
+                # INTRINSIC_PREP_RERAISE_STAR: (orig, excs-list) -> the
+                # exception to reraise at the tail of a lowered try/except*
+                # block (None when everything was swallowed). Semantics live
+                # in exceptions_core.prep_reraise_star (_PyExc_PrepReraiseStar
+                # port); zero logic inline.
+                rr_prep = prep_reraise_star(lhs, rhs);
+                if is_error(rr_prep) {
+                    return rr_prep;
+                }
+                stack.append(rr_prep);
+                continue;
+            }
             if arg == 2 {
                 # INTRINSIC_TYPEVAR_WITH_BOUND: (name, lazy-bound-evaluator).
                 # The bound stays unevaluated until first __bound__ access --
