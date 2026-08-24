@@ -184,6 +184,16 @@ def _jac_host_builtin(name):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_code_marshal(co):
+    # A HOST code object (compile()/types.CodeType crossing the bridge as a
+    # proxy) marshalled into the transport form unmarshal() turns back into a
+    # native PyCode -- the exec() builtin's route for host-built code objects.
+    import marshal
+    try:
+        return (True, marshal.dumps(co))
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_type_name(value):
     return type(value).__name__
 
@@ -3810,7 +3820,11 @@ def host_builtin(name: str) -> PyObj {
     # class chain / a PyModule's namespace) instead of host dir() on a lossy
     # to_host copy -- and the no-arg form reads the CALLING frame's locals,
     # which only the ceval call site can see.
-    if name == "next"
+    # exec() is native so the namespace dicts stay LIVE: routed through the
+    # host, they cross by copy and every top-level binding the executed code
+    # makes (def/class/assignment) is lost before control returns.
+    if name == "exec"
+        or name == "next"
         or name == "iter"
         or name == "id"
         or name == "len"
@@ -13778,6 +13792,22 @@ def run_frame(frame: PyFrame) -> PyObj {
                 stack.append(py_dir_sorted(local_names));
                 continue;
             }
+            # exec() must run IN the VM against the LIVE namespace dicts -- see
+            # builtin_exec below. Only this call site holds the running frame's
+            # globals/locals for the one-argument form.
+            if fn.t == "native_builtin" and (fn as PyNativeBuiltin).name == "exec" {
+                result = builtin_exec(call_args, kwargs_for_call, globals, locals);
+                if is_error(result) {
+                    target = recover_exception(co, result, offset, stack);
+                    if target >= 0 {
+                        ip = target;
+                        continue;
+                    }
+                    return result;
+                }
+                stack.append(result);
+                continue;
+            }
             # CPython's CALL convention carries a `self_or_null` slot below the
             # args. NULL (a plain call after PUSH_NULL, modeled here as None) is
             # dropped; a real value (a bound self, or a genexpr's `.0` iterator
@@ -14364,6 +14394,128 @@ def run_frame(frame: PyFrame) -> PyObj {
             continue;
         }
         return py_error("SystemError", "unsupported opcode " + str(op));
+    }
+    return py_none();
+}
+
+# Sync a guest PyDict argument with the working map exec() ran against:
+# every name the code bound (or rebound) lands in the caller's dict, and
+# every name the code deleted is removed -- STORE_NAME must stay observable
+# through the ORIGINAL object the caller passed.
+def _sync_ns_back(d: PyDict, work: dict[str, PyObj]) -> PyObj {
+    stale: list[PyObj] = [];
+    for hk in d.items {
+        key_obj = d.items[hk].key;
+        if key_obj.t == "str" and not (expect_str(key_obj) in work) {
+            stale.append(key_obj);
+        }
+    }
+    for k in stale {
+        del_err = d.mp_del_subscript(k);
+        if is_error(del_err) {
+            return del_err;
+        }
+    }
+    for name in work {
+        set_err = d.dict_set(PyStr(t="str", val=name), work[name]);
+        if is_error(set_err) {
+            return set_err;
+        }
+    }
+    return py_none();
+}
+
+# Native builtin exec(source, globals=None, locals=None) -- port of
+# bltinmodule.c builtin_exec_impl. The executed module-level MAKE_FUNCTION /
+# STORE_NAME sequence binds top-level names through the frame's f_locals and
+# f_globals, so those must be the caller's LIVE namespaces -- never copies on
+# the host side of the bridge. Guest PyDict arguments run against an internal
+# map seeded from the dict and synced back after the run (see _sync_ns_back);
+# PyGlobalsProxy views (globals()) are live already. Known accepted delta:
+# functions/classes defined by the exec'd code capture the working map as
+# their __globals__, not the caller's dict object.
+def builtin_exec(
+    args: list[PyObj],
+    kwargs: dict[str, PyObj],
+    frame_globals: dict[str, PyObj],
+    frame_locals: dict[str, PyObj]
+) -> PyObj {
+    if len(kwargs) > 0 {
+        return py_error("TypeError", "exec() takes no keyword arguments");
+    }
+    if len(args) < 1 or len(args) > 3 {
+        return py_error(
+            "TypeError",
+            "exec expected at least 1 argument, got " + str(len(args))
+        );
+    }
+    co: PyCode;
+    match args[0] {
+        case PyCode():
+            co = args[0] as PyCode;
+        case PyHostProxy():
+            # compile()/types.CodeType built on the host arrive as proxies;
+            # bring the code back through the marshal transport -- the same
+            # route every oracle code object already travels.
+            packed = _jac_host_code_marshal((args[0] as PyHostProxy).val);
+            if not host_result_ok(packed) {
+                return py_error("TypeError", "exec() argument 1 must be a code object");
+            }
+            converted = unmarshal(packed[1] as list[int]);
+            if not isinstance(converted, PyCode) {
+                return py_error("TypeError", "exec() argument 1 must be a code object");
+            }
+            co = converted as PyCode;
+        case _:
+            return py_error("TypeError", "exec() argument 1 must be a code object");
+    }
+    g_work: dict[str, PyObj] = frame_globals;
+    g_copy = False;
+    if len(args) >= 2 and not isinstance(args[1], PyNoneType) {
+        if isinstance(args[1], PyDict) {
+            g_work = (args[1] as PyDict).dict_str_map();
+            g_copy = True;
+        } elif isinstance(args[1], PyGlobalsProxy) {
+            g_work = (args[1] as PyGlobalsProxy).ns;
+        } else {
+            return py_error(
+                "TypeError",
+                "exec() argument 2 must be a dict, not '"
+                    + _compare_type_name(args[1]) + "'"
+            );
+        }
+    }
+    l_work: dict[str, PyObj] = g_work;
+    l_copy = False;
+    if len(args) == 3 and not isinstance(args[2], PyNoneType) {
+        if isinstance(args[2], PyDict) {
+            l_work = (args[2] as PyDict).dict_str_map();
+            l_copy = True;
+        } elif isinstance(args[2], PyGlobalsProxy) {
+            l_work = (args[2] as PyGlobalsProxy).ns;
+        } else {
+            return py_error(
+                "TypeError",
+                "exec() argument 3 must be a dict, not '"
+                    + _compare_type_name(args[2]) + "'"
+            );
+        }
+    }
+    outcome = exec_code_frame(co, [], {}, g_work, l_work, [], [], {});
+    if is_error(outcome) {
+        return outcome;
+    }
+    if g_copy {
+        sync_g = _sync_ns_back(args[1] as PyDict, g_work);
+        if is_error(sync_g) {
+            return sync_g;
+        }
+    }
+    if l_copy {
+        sync_l = _sync_ns_back(args[2] as PyDict, l_work);
+        if is_error(sync_l) {
+            return sync_l;
+        }
     }
     return py_none();
 }
