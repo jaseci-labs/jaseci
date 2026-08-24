@@ -206,6 +206,11 @@ def read_file_with_encoding(file_path: str) -> str {
 }
 
 
+def _to_posix_path(raw_path: str) -> str {
+    return raw_path.replace(os.sep, '/');
+}
+
+
 def path_matches_exclude(
     file_path: str, patterns: list[str], project_root: str = ""
 ) -> bool {
@@ -213,9 +218,9 @@ def path_matches_exclude(
     if not patterns {
         return False;
     }
-    norm: str = file_path.replace(os.sep, '/');
+    norm = _to_posix_path(file_path);
     if project_root {
-        root_prefix = project_root.replace(os.sep, '/').rstrip('/') + '/';
+        root_prefix = _to_posix_path(project_root).rstrip('/') + '/';
         if norm.startswith(root_prefix) {
             norm = norm[len(root_prefix):];
         }

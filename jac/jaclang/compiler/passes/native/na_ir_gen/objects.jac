@@ -21,7 +21,7 @@ import from jaclang.jac0core.codeinfo {
     RC_SENTINEL
 }
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-import from jaclang.jac0core.constant { OwnershipKind }
+import from jaclang.jac0core.constant { OwnershipKind, SymbolAccess }
 import from jaclang.jac0core.diagnostics { E5090, E5091, E5092 }
 import from jaclang.jac0core.osp_model { stable_osp_tag }
 import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
@@ -69,7 +69,10 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Constant | None);
 
     def _forward_declare_method(
-        arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
+        arch_name: str,
+        method: uni.Ability,
+        field: (uni.HasVar | None) = None,
+        imported: bool = False
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
@@ -119,7 +122,11 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Function | None);
 
     def _demote_method_if_unlowerable(
-        full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
+        full_name: str,
+        func: ir.Function,
+        local_mark: int,
+        keep_func: bool = False,
+        stub_body: bool = True
     ) -> bool;
 
     def _seam_warnings_on -> bool;
@@ -182,6 +189,7 @@ obj NaIRGenObjects(NaIRGenState) {
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;
+    def _devirt_closed_world(arch_name: str) -> bool;
     def _hasvar_is_own(var: uni.UniNode) -> bool;
     def _store_inline_field(
         type_name: str,

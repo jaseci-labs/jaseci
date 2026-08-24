@@ -14,8 +14,16 @@ import from jaclang.runtimelib.serving.endpoint {
     ParameterType
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.server.native_server { NativeJServer }
+import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.scale.observability.metrics { MetricsCollector }
 
 obj JacAPIServerAdmin {
+    has server: (NativeJServer | None) = None,
+        user_manager: (JacScaleUserManager | None) = None,
+        _metrics: (MetricsCollector | None) = None;
+
+    def _require_user_manager -> JacScaleUserManager;
     def register_admin_endpoints -> None;
     def bootstrap_admin -> None;
     def admin_login(username: str, password: str) -> TransportResponse;

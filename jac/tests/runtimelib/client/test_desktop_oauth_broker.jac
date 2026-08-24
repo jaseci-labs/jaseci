@@ -38,7 +38,7 @@ def _start_server -> tuple {
     }
     handler = make_handler(web_dir, store, fake_open);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
-    port = srv.server_address[1];
+    port: int = int(srv.server_address[1]);
     t = threading.Thread(target=srv.serve_forever, daemon=True);
     t.start();
     return (srv, port, store, opened, web_dir);
@@ -464,7 +464,7 @@ test "broker routes walker + function POSTs to the sv bridge verbatim" {
     }
     handler = make_handler(web_dir, store, sv_bridge=fake_sv);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
-    port = srv.server_address[1];
+    port: int = int(srv.server_address[1]);
     threading.Thread(target=srv.serve_forever, daemon=True).start();
     try {
         (s, b) = _req(

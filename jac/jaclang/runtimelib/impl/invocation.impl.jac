@@ -107,6 +107,13 @@ def _normalize_execution_result(result: any, request_id: str) -> TransportRespon
         );
     }
     if isinstance(result, dict) and "error" in result {
+        if result.get("error") == "User not found" {
+            return TransportResponse.fail(
+                code="UNAUTHORIZED",
+                message="Unauthorized: unknown user",
+                meta=Meta(request_id=request_id, extra={"http_status": 401})
+            );
+        }
         code = "EXECUTION_ERROR";
         http_status = 500;
         if result.get("error_code") == "write_conflict" {

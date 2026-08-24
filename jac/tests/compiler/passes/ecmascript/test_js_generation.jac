@@ -66,7 +66,7 @@ def _fatal_compile_errors(prog: JacProgram) -> list[Alert] {
     # Filter out type-checker diagnostics (non-fatal warnings about
     # Unknown types in client code).  Only fail on parse/compile errors.
     # issubclass: diagnostics may come from TypeCheckPass itself or its
-    # TypeInferencePass schedule entry.
+    # TypeCheckPass schedule entry.
     return [
         e
         for e in prog.errors_had
@@ -82,7 +82,7 @@ def compile_fixture_to_js(fixture_name: str, fixture_dir: str = "") -> str {
         return _js_compile_cache[cache_key];
     }
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     _fatal = _fatal_compile_errors(prog);
     assert not _fatal , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in _fatal]}"
@@ -1165,7 +1165,7 @@ test "sv import duplicate kwarg is a compile error" {
 
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
+    ir = prog.compile(file_path=fixture, no_cgen=True);
     run_pass(EsastGenPass, ir, prog);
 
     dup_errs = [
@@ -2879,7 +2879,7 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
     fixture_path = _resolve_fixture_path("builtin_func_untyped.jac", FIXTURES);
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture_path, no_cgen=True, type_check=False);
+    ir = prog.compile(file_path=fixture_path, no_cgen=True);
     _fatal = _fatal_compile_errors(prog);
     assert not _fatal , (f"Compilation errors: {[str(e) for e in _fatal]}");
     _ensure_js_generated(ir, prog);
@@ -3069,7 +3069,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         drops = [
             e
@@ -3108,7 +3108,7 @@ test "supported client statements do not trip the completeness guard (#7922)" {
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         drops = [
             e
@@ -3139,7 +3139,7 @@ test "E5018 names the rewrite that makes the pattern lower (#8375)" {
     temp_path = write_temp_jac(jac_code);
     try {
         prog = JacProgram();
-        ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
+        ir = prog.compile(file_path=temp_path, no_cgen=True);
         run_pass(EsastGenPass, ir, prog);
         pats = [
             e

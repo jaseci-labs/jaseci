@@ -1515,7 +1515,12 @@ impl NaIRGenStmt._bind_match_arch(
 }
 
 impl NaIRGenStmt._apply_scalar_aug_op(
-    current: ir.Value, rhs: ir.Value, aug_op: str, rhs_node: (uni.Expr | None) = None
+    current: ir.Value,
+    rhs: ir.Value,
+    aug_op: str,
+    rhs_node: (uni.Expr | None) = None,
+    unsigned: bool = False,
+    checked: bool = False
 ) -> (ir.Value | None) {
     current = self._str_norm(current);
     rhs = self._str_norm(rhs);
@@ -1543,10 +1548,14 @@ impl NaIRGenStmt._apply_scalar_aug_op(
         return None;
     }
     if aug_op == "**=" {
-        return self._codegen_pow(current, rhs, rhs_node);
+        return self._codegen_pow(
+            current, rhs, rhs_node, unsigned=unsigned, checked=checked
+        );
     }
     coerced = self._coerce_type(rhs, current.type);
-    result = self._emit_binary_op(op_toks[aug_op], current, coerced);
+    result = self._emit_binary_op(
+        op_toks[aug_op], current, coerced, unsigned=unsigned, checked=checked
+    );
     if result is not None and result.type != current.type {
         result = self._coerce_type(result, current.type);
     }
@@ -1787,7 +1796,12 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value, nd.value
+                                            cur_elem,
+                                            value,
+                                            nd.aug_op.value,
+                                            nd.value,
+                                            checked=self._is_sized_node(nd.target)
+                                                or self._is_sized_node(nd.value)
                                         );
                                     }
                                 }
@@ -1822,7 +1836,12 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value, nd.value
+                                            cur_elem,
+                                            value,
+                                            nd.aug_op.value,
+                                            nd.value,
+                                            checked=self._is_sized_node(nd.target)
+                                                or self._is_sized_node(nd.value)
                                         );
                                     }
                                 }
@@ -1903,8 +1922,26 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     self.builder.load(alloca, name=f"{var_name}.cur")
                 );
                 value = self._str_norm(value);
+                _scalar_aug: (ir.Value | None) = None;
+                if isinstance(current.type, (ir.IntType, ir.FloatType, ir.DoubleType))
+                    and isinstance(
+                        value.type, (ir.IntType, ir.FloatType, ir.DoubleType)
+                    )
+                    and aug_op_val != "**=" {
+                    _scalar_aug = self._apply_scalar_aug_op(
+                        current,
+                        value,
+                        aug_op_val,
+                        nd.value,
+                        unsigned=self._is_unsigned_node(target_expr),
+                        checked=self._is_sized_node(target_expr)
+                            or self._is_sized_node(nd.value)
+                    );
+                }
                 coerced = self._coerce_type(value, current.type);
-                if aug_op_val == "+=" {
+                if _scalar_aug is not None {
+                    value = _scalar_aug;
+                } elif aug_op_val == "+=" {
                     if isinstance(current.type, ir.IntType) {
                         value = self.builder.add(
                             current, coerced, name=f"{var_name}.add"
@@ -2213,7 +2250,13 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                     }
                 } elif aug_op_val == "**=" {
                     pow_res = self._apply_scalar_aug_op(
-                        current, value, "**=", nd.value
+                        current,
+                        value,
+                        "**=",
+                        nd.value,
+                        unsigned=self._is_unsigned_node(target_expr),
+                        checked=self._is_sized_node(target_expr)
+                            or self._is_sized_node(nd.value)
                     );
                     if pow_res is not None {
                         value = pow_res;

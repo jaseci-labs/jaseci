@@ -65,7 +65,7 @@ def _compile(fixture: str) -> tuple {
 
 
 """ctypes handle for an (int) -> int function in the JIT engine."""
-def _get(eng: object, name: str) -> object {
+def _get(eng: any, name: str) -> object {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)(addr);
@@ -115,7 +115,7 @@ def _fn_body(txt: str, name: str) -> str {
 
 
 """Assert native and sv agree on every flag for each named function."""
-def _assert_congruent(eng: object, sv: object, names: list[str]) {
+def _assert_congruent(eng: any, sv: object, names: list[str]) {
     for name in names {
         na_fn = _get(eng, name);
         sv_fn = getattr(sv, name);

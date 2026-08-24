@@ -318,7 +318,7 @@ test "the bound emission still runs the Python body, and says so" {
     (tmp, arts) = _built();
     real_for = sealed.native_artifact_for;
     real_names = sealed.native_artifact_names;
-    real_exit = JcirGenPass.exit_module;
+    real_exit: any = JcirGenPass.exit_module;
     seen: list = [];
     def _counting_exit(self: any, nd: any) -> any {
         seen.append(1);

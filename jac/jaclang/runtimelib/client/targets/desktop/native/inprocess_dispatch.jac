@@ -24,9 +24,9 @@ enum DispatchMode: str { SSE = "sse", JSON = "json", ERROR = "error" }
 
 
 obj CallState {
-    has lock: any,
+    has lock: threading.Lock,
         done: bool = False,
-        timer: any = None;
+        timer: (threading.Timer | None) = None;
 }
 
 
@@ -714,12 +714,14 @@ def _error_envelope(code: str, message: str, details: str = "") -> str {
 def _webview_return(w: int, id_bytes: bytes, status: int, payload: bytes) {
     if _wv_return is None {
         lib = ctypes.CDLL(None);
-        lib.webview_return.argtypes = [
+        argtypes:
+            list[type[ctypes.c_void_p] | type[ctypes.c_char_p] | type[ctypes.c_int]] = [
             ctypes.c_void_p,
             ctypes.c_char_p,
             ctypes.c_int,
             ctypes.c_char_p
         ];
+        lib.webview_return.argtypes = argtypes;
         lib.webview_return.restype = ctypes.c_int;
         _wv_return = lib.webview_return;
     }
@@ -864,7 +866,8 @@ def _handle_impl(req_ptr: int, w: int, id_bytes: bytes) {
         return;
     }
     try {
-        outer = json.loads(ctypes.cast(req_ptr, ctypes.c_char_p).value.decode());
+        req_bytes = ctypes.cast(req_ptr, ctypes.c_char_p).value or b"";
+        outer = json.loads(req_bytes.decode());
         payload_json = outer[0];
     } except Exception as e {
         _reply(

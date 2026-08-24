@@ -28,7 +28,7 @@ def:pub maybe_list -> list[UserProfile] | None {
 }
 
 
-import from .typed_optional_union { find_user, get_user_or_error }
+import from .typed_optional_union { ErrorResponse, find_user, get_user_or_error }
 
 def:pub app -> JsxElement {
     has user: any = None,
@@ -36,7 +36,7 @@ def:pub app -> JsxElement {
 
     async can with entry {
         result = await get_user_or_error("123");
-        if result.code {
+        if isinstance(result, ErrorResponse) {
             error = result;
         } else {
             user = result;

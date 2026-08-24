@@ -26,6 +26,12 @@ glob DEFAULT_PREFIX: str = "/__jac",
          + "<p style='color:#888'>You can close this window and return to the app.</p>";
 
 
+class _EventHub(Protocol) {
+    def subscribe(self: _EventHub) -> (queue.Queue[(str | None)] | None);
+    def unsubscribe(self: _EventHub, q: queue.Queue[(str | None)]) -> None;
+}
+
+
 class SessionStore {
     def init(self: SessionStore, path: str) {
         self.path = path;
@@ -60,6 +66,10 @@ class SessionStore {
 
 
 class _PendingAuth {
+    with entry {
+        states: dict[str, float];
+    }
+
     def init(self: _PendingAuth, ttl_seconds: float = 600.0, max_entries: int = 16) {
         self.ttl = ttl_seconds;
         self.max_entries = max_entries;
@@ -69,7 +79,7 @@ class _PendingAuth {
 
     def _prune(self: _PendingAuth) {
         now = time.monotonic();
-        stale = [];
+        stale: list[str] = [];
         for (nonce, deadline) in self.states.items() {
             if deadline < now {
                 stale.append(nonce);
@@ -84,8 +94,8 @@ class _PendingAuth {
         self._prune();
 
         while len(self.states) >= self.max_entries {
-            oldest = None;
-            oldest_deadline = None;
+            oldest: (str | None) = None;
+            oldest_deadline: (float | None) = None;
             for (nonce, deadline) in self.states.items() {
                 if oldest_deadline is None or deadline < oldest_deadline {
                     oldest = nonce;
@@ -107,9 +117,9 @@ class _PendingAuth {
             return False;
         }
         self._prune();
-        matched = None;
+        matched: (str | None) = None;
         for known in list(self.states.keys()) {
-            if hmac.compare_digest(known, nonce) {
+            if hmac.compare_digest(known.encode("utf-8"), nonce.encode("utf-8")) {
                 matched = known;
                 break;
             }
@@ -147,12 +157,12 @@ def build_sso_login_url(
 def make_handler(
     directory: str,
     tok_store: SessionStore,
-    opener: Callable = webbrowser.open,
+    opener: Callable[[str], bool] = webbrowser.open,
     prefix: str = DEFAULT_PREFIX,
-    dispatch: Callable | None = None,
+    dispatch: Callable[[str], str] | None = None,
     events: object | None = None,
-    sv_bridge: Callable | None = None,
-    sv_router: Callable | None = None
+    sv_bridge: Callable[[str, str, bytes, str], tuple[int, str, str]] | None = None,
+    sv_router: Callable[[str, str], bool] | None = None
 ) -> type {
     pending = _PendingAuth();
 
@@ -293,7 +303,7 @@ def make_handler(
         }
 
         def _host_allowed(self: _BrokerHandler) -> bool {
-            raw = self.headers.get("Host");
+            raw = str(self.headers.get("Host") or "");
             if not raw {
                 return True;
             }
@@ -314,7 +324,7 @@ def make_handler(
         }
 
         def _origin_allowed(self: _BrokerHandler) -> bool {
-            origin = self.headers.get("Origin");
+            origin = str(self.headers.get("Origin") or "");
             if origin {
                 try {
                     host = urlparse(origin).hostname;
@@ -404,7 +414,8 @@ def make_handler(
                 return;
             }
 
-            q = events.subscribe();
+            hub = events as _EventHub;
+            q = hub.subscribe();
             if q is None {
                 self.send_error(503);
                 return;
@@ -434,7 +445,7 @@ def make_handler(
                     self.wfile.flush();
                 }
             } except (BrokenPipeError, ConnectionResetError, OSError) { } finally {
-                events.unsubscribe(q);
+                hub.unsubscribe(q);
             }
         }
 
@@ -462,6 +473,7 @@ def make_handler(
                     self.send_error(404);
                     return;
                 }
+                call = dispatch;
                 try {
                     n = int(self.headers.get("Content-Length", 0) or 0);
                 } except (TypeError, ValueError) {
@@ -493,7 +505,7 @@ def make_handler(
                     return;
                 }
                 raw = self.rfile.read(n) if n > 0 else b"";
-                auth = self.headers.get("Authorization", "") or "";
+                auth = str(self.headers.get("Authorization", "") or "");
                 token = auth[7:] if auth.startswith("Bearer ") else "";
 
                 self._render_sv(sv_bridge("POST", self.path, raw, token));

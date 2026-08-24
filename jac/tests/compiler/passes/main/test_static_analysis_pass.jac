@@ -13,7 +13,7 @@ glob FIXTURES = os.path.join(
 test "unused variable produces warning" {
     file_path = os.path.join(FIXTURES, "unused_var.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     assert any("'x' is defined but never used" in w for w in warning_msgs) , f"Expected unused variable warning for 'x', got: {warning_msgs}";
 }
@@ -21,7 +21,7 @@ test "unused variable produces warning" {
 test "used variables produce no warnings" {
     file_path = os.path.join(FIXTURES, "used_var.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unused_warnings = [
         w
@@ -34,7 +34,7 @@ test "used variables produce no warnings" {
 test "skip patterns produce no warnings" {
     file_path = os.path.join(FIXTURES, "skip_patterns.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unused_warnings = [
         w
@@ -47,7 +47,7 @@ test "skip patterns produce no warnings" {
 test "unreachable code after return" {
     file_path = os.path.join(FIXTURES, "unreachable_after_return.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     assert any("Unreachable" in w for w in warning_msgs) , f"Expected unreachable code warning, got: {warning_msgs}";
 }
@@ -55,7 +55,7 @@ test "unreachable code after return" {
 test "all reachable code produces no unreachable warnings" {
     file_path = os.path.join(FIXTURES, "all_reachable.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unreachable_warnings = [
         w
@@ -68,7 +68,7 @@ test "all reachable code produces no unreachable warnings" {
 test "impl file warnings: undefined name and unreachable code are reported" {
     file_path = os.path.join(FIXTURES, "impl_checks.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     assert any("'bad_name' may be undefined" in w for w in warning_msgs) , f"Expected undefined name warning from impl file, got: {warning_msgs}";
     assert any("Unreachable" in w for w in warning_msgs) , f"Expected unreachable code warning from impl file, got: {warning_msgs}";
@@ -77,7 +77,7 @@ test "impl file warnings: undefined name and unreachable code are reported" {
 test "by-llm ability params produce no unused warnings" {
     file_path = os.path.join(FIXTURES, "genai_ability_params.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unused_warnings = [
         w
@@ -120,7 +120,7 @@ test "classmethod on node warns with correct archetype name" {
 test "cl def has variables reassigned in nested abilities produce no unused warnings" {
     file_path = os.path.join(FIXTURES, "cl_def_has_var.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unused_warnings = [
         w
@@ -136,7 +136,7 @@ test "cl def has variables reassigned in nested abilities produce no unused warn
 test "ambient typing names resolve without import" {
     file_path = os.path.join(FIXTURES, "ambient_typing.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     error_msgs = [str(e) for e in prog.errors_had];
     typing_names = ["Callable", "Mapping", "Sequence", "Iterable", "Protocol"];
@@ -166,7 +166,7 @@ test "ambient typing names resolve in .impl.jac annex files" {
     # name referenced in the same .impl.jac annex still produces W2001.
     file_path = os.path.join(FIXTURES, "ambient_typing_impl.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     error_msgs = [str(e) for e in prog.errors_had];
     for tname in ["Callable", "Sequence"] {
@@ -190,7 +190,7 @@ test "ambient typing names resolve in .impl.jac annex files" {
 test "ambient-name imports are refused on the import line with E1125" {
     file_path = os.path.join(FIXTURES, "redundant_typing_imports.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
 
     e1125 = [
         e
@@ -250,6 +250,20 @@ test "bootstrap-compiled modules keep the ambient-import advisory" {
     );
     assert not is_bootstrap_compiled_module("/repo/apps/jac0core/module.jac");
     assert not is_bootstrap_compiled_module("");
+
+    # A relative path names the same module. `jac check` receives one whenever
+    # it is handed a path relative to cwd -- which is what CI's scoped mode
+    # does, feeding it the entries of changed-jac.txt. Matching only the
+    # absolute spelling made the same file report E1125 relatively and nothing
+    # absolutely.
+    assert is_bootstrap_compiled_module("jaclang/jac0core/runtime.jac");
+    assert is_bootstrap_compiled_module("jaclang/jac0core/passes/jcir_gen_pass.jac");
+    assert is_bootstrap_compiled_module("jaclang\\jac0core\\runtime.jac");
+    assert not is_bootstrap_compiled_module(
+        "jaclang/compiler/passes/main/layout_pass.jac"
+    );
+    assert not is_bootstrap_compiled_module("apps/jac0core/module.jac");
+    assert not is_bootstrap_compiled_module("myjaclang/jac0core/module.jac");
 }
 
 test "the ambient provider module keeps its typing imports" {
@@ -274,7 +288,7 @@ test "the ambient provider module keeps its typing imports" {
 test "every import shape binding typing.Any is refused with E1122" {
     file_path = os.path.join(FIXTURES, "typing_any_refused.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
 
     e1122 = [
         e
@@ -315,7 +329,7 @@ test "every import shape binding typing.Any is refused with E1122" {
 test "module-form typing.Any stays legal as the reflection escape hatch" {
     file_path = os.path.join(FIXTURES, "typing_any_module_form.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
 
     e1122 = [
         e
@@ -330,7 +344,7 @@ test "module-form typing.Any stays legal as the reflection escape hatch" {
 test "every import shape binding a deprecated typing alias is refused with E1123" {
     file_path = os.path.join(FIXTURES, "typing_alias_refused.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
 
     e1123 = [
         e
@@ -386,7 +400,7 @@ test "every import shape binding a deprecated typing alias is refused with E1123
 test "module-form typing.List stays legal as the runtime-object escape hatch" {
     file_path = os.path.join(FIXTURES, "typing_alias_module_form.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
 
     e1123 = [
         e
@@ -405,7 +419,7 @@ test "lowercase boolean and null literals carry a did-you-mean hint" {
     # instead of a confusing "Cannot return <Unknown>" dead end.
     file_path = os.path.join(FIXTURES, "lowercase_bool_literals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     w2001 = [
         w
         for w in prog.warnings_had
@@ -437,7 +451,7 @@ test "lowercase boolean and null literals carry a did-you-mean hint" {
 test "obj bare assignment to has var name still warns as unused" {
     file_path = os.path.join(FIXTURES, "obj_bare_has_assign.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warning_msgs = [str(w) for w in prog.warnings_had];
     unused_warnings = [
         w

@@ -4,6 +4,7 @@ import json;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core.ext_registry { base_stem, is_annex }
+import type from jaclang.project.config { JacConfig }
 
 glob _SKIP_DIRS: set = {
          ".jac",
@@ -560,7 +561,7 @@ def _is_meaningful_python(py_code: str) -> bool {
 }
 
 
-def _eject_config(src: Path, project_name: str) -> object {
+def _eject_config(src: Path, project_name: str) -> JacConfig {
     import from jaclang.project.config { JacConfig }
     config = JacConfig.load(src / "jac.toml");
     if (not config.project.name) or ("{{" in config.project.name) {
@@ -652,7 +653,7 @@ def _copy_client_runtime(src: Path, frontend_root: Path) -> bool {
         console.warning(
             "  No .jac/client/compiled/client_runtime.js found; "
             "@jac/runtime imports will be unresolved. "
-            "Run `jac install` (or any `jac start`) before `jac eject` "
+            "Run `jac install` (or any `jac run`) before `jac eject` "
             "to build the client runtime."
         );
         return False;
@@ -937,7 +938,7 @@ def _py_import_targets(py_code: str, mod_name: str, known: set) -> set {
                 if keep < 0 {
                     continue;
                 }
-                base_parts = list(pkg_parts[:keep]);
+                base_parts = [str(part) for part in pkg_parts[:keep]];
                 if node.module {
                     base_parts.append(str(node.module));
                 }

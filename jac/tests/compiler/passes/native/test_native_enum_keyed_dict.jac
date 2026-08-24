@@ -62,14 +62,14 @@ def sv_module -> object {
 }
 
 """Assert the native str-returning function matches the sv one."""
-def same_str(eng: object, name: str) {
+def same_str(eng: any, name: str) {
     native = native_str_func(eng, name, ctypes.c_char_p)().decode("utf-8");
     sv = getattr(sv_module(), name)();
     assert native == sv , f"{name}: native {native!r} != sv {sv!r}";
 }
 
 """Assert the native int-returning function matches the sv one."""
-def same_int(eng: object, name: str) {
+def same_int(eng: any, name: str) {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     native = ctypes.CFUNCTYPE(ctypes.c_int64)(addr)();

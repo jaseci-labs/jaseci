@@ -11,6 +11,8 @@ import from jaclang.runtimelib.client_bundle {
 import from .compiler { ViteCompiler }
 
 class ViteClientBundleBuilder(ClientBundleBuilder) {
+    has _compiler: (ViteCompiler | None) = None;
+
     def init(
         self: ViteClientBundleBuilder,
         runtime_path: (Path | None) = None,

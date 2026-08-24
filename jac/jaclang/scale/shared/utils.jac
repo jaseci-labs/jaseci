@@ -23,7 +23,9 @@ def is_safe_loopback_redirect(url: str | None) -> bool {
 }
 
 def generate_random_password(length: int = 8) -> str {
-    characters = string.ascii_letters + string.digits + string.punctuation;
+    characters: str = ''.join(
+        [string.ascii_letters, string.digits, string.punctuation]
+    );
     password_chars = [random.choice(characters) for _ in range(length)];
     return ''.join(password_chars);
 }

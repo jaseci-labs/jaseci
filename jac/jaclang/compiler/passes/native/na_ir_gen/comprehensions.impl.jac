@@ -8,6 +8,23 @@ impl NaIRGenComprehensions._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value |
     if _own_spec == "i64" and isinstance(nd.out_expr, uni.Null) {
         _own_spec = "ptr";
     }
+
+    if _own_spec is None
+        and isinstance(nd.out_expr, uni.Expr)
+        and nd.out_expr.type is not None {
+        _out_low = self._lower_type(nd.out_expr.type);
+        if _out_low is not None {
+            if isinstance(_out_low, ir.DoubleType) {
+                _own_spec = "f64";
+            } elif isinstance(_out_low, ir.PointerType) {
+                _own_spec = "ptr";
+            } elif self?.jacval_type and _out_low == self.jacval_type {
+                _own_spec = "jacval";
+            } elif isinstance(_out_low, ir.IntType) {
+                _own_spec = "i64";
+            }
+        }
+    }
     if _own_spec is not None {
         elem_type_name = _own_spec;
     } else {
@@ -54,6 +71,8 @@ impl NaIRGenComprehensions._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value |
         self._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
     } elif elem_type_name == "f64" {
         self._emit_list_helpers("f64", ir.DoubleType());
+    } elif elem_type_name == "jacval" and self?.jacval_type {
+        self._emit_list_helpers("jacval", self.jacval_type);
     } else {
         self._emit_list_helpers("i64", ir.IntType(64));
     }

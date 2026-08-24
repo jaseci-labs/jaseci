@@ -59,7 +59,7 @@ def native_build -> tuple {
 }
 
 """Call a no-argument int-returning function out of the JIT engine."""
-def native_call(eng: object, name: str) -> int {
+def native_call(eng: any, name: str) -> int {
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     return ctypes.CFUNCTYPE(ctypes.c_int64)(addr)();

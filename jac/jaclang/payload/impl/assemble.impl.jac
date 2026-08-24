@@ -58,7 +58,7 @@ impl mk_payload(pbs_py_dir: str, repo_root: str, out: str, opts: MkPayloadOpts) 
 
     run_precompile_stage(py, pbs_py_dir, site, opts);
 
-    log("==> bundling watchdog (jac start --dev) + tomlkit");
+    log("==> bundling watchdog (jac run --dev) + tomlkit");
     delete_tree(os.path.join(site, "__pycache__"));
     run_child(
         [
@@ -103,6 +103,11 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(repo_root, "jaclang"),
             os.path.join(site, "jaclang"),
             skip_jaclang
+        );
+
+        copy_file(
+            os.path.join(repo_root, "bootstrap", "pins.json"),
+            os.path.join(site, "jaclang", "payload", "pins.json")
         );
     } else {
         log(

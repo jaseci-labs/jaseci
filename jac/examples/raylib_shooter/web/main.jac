@@ -1,7 +1,7 @@
 # Single-file full-stack build: the SAME rlgl shooter as ../shooter.jac. The
 # game code infers native from its extern raylib import and is compiled to
-# wasm by `jac build`/`jac start`; the WebGL shim + page infer client in the
-# same module. Run: jac start (open localhost).
+# wasm by `jac build`/`jac run --serve`; the WebGL shim + page infer client in the
+# same module. Run: jac run --serve (open localhost).
 
 # ─── Client: the page + HUD. The WebGL shim (rlgl/input/libc -> wasm imports) is
 # the reusable raylib_shim.jac library; here we mount the canvas, style the
@@ -109,7 +109,7 @@ glob RL_MODELVIEW: int = 0x1700,
 """Open a window. No frame-rate cap is set, so the loop runs as fast as the
 hardware allows (call `SetTargetFPS` yourself if you want to limit it)."""
 def open_window(width: int, height: int, title: str) {
-    InitWindow(width, height, title);
+    InitWindow(i32(width), i32(height), title);
 }
 
 """True once the user closes the window or presses ESC."""
@@ -129,12 +129,12 @@ def dt -> float {
 
 """Held-this-frame test for a raylib key code."""
 def key_held(code: int) -> bool {
-    return IsKeyDown(code);
+    return IsKeyDown(i32(code));
 }
 
 """Pressed-this-frame (edge) test for a raylib key code."""
 def key_tapped(code: int) -> bool {
-    return IsKeyPressed(code);
+    return IsKeyPressed(i32(code));
 }
 
 """Current mouse X in pixels (as a float - see the GetMouseX note above)."""
@@ -149,7 +149,7 @@ def mouse_y -> float {
 
 """Pressed-this-frame test for a mouse button (0 = left)."""
 def mouse_pressed(button: int) -> bool {
-    return IsMouseButtonPressed(button);
+    return IsMouseButtonPressed(i32(button));
 }
 
 """Hide and lock the cursor for FPS-style relative mouse-look."""
@@ -165,7 +165,7 @@ def unlock_mouse {
 """Begin a frame: clear color+depth to (r,g,b) and turn on depth testing."""
 def begin_frame(r: int, g: int, b: int) {
     BeginDrawing();
-    rlClearColor(r, g, b, 255);
+    rlClearColor(u8(r), u8(g), u8(b), 255);
     rlClearScreenBuffers();
     rlEnableDepthTest();
 }
@@ -184,16 +184,16 @@ set_camera, which pushes the projection matrix. `width`/`height` are the window
 size in pixels. Call this before drawing any 2D overlay (e.g. the FPS counter)."""
 def end_camera(width: float, height: float) {
     EndMode3D();
-    rlMatrixMode(RL_PROJECTION);
+    rlMatrixMode(i32(RL_PROJECTION));
     rlLoadIdentity();
     rlOrtho(0.0, width, height, 0.0, -1.0, 1.0);
-    rlMatrixMode(RL_MODELVIEW);
+    rlMatrixMode(i32(RL_MODELVIEW));
     rlLoadIdentity();
 }
 
 """Draw raylib's built-in FPS counter at (x, y) as a 2D overlay."""
 def draw_fps(x: int, y: int) {
-    DrawFPS(x, y);
+    DrawFPS(i32(x), i32(y));
 }
 
 """Install a perspective camera at (px,py,pz) looking with yaw/pitch (degrees).
@@ -209,14 +209,14 @@ def set_camera(
     far_plane = 400.0;
     top = near * 0.57735026;
     right = top * aspect;
-    rlMatrixMode(RL_PROJECTION);
+    rlMatrixMode(i32(RL_PROJECTION));
     rlLoadIdentity();
     rlFrustum(-right, right, -top, top, near, far_plane);
-    rlMatrixMode(RL_MODELVIEW);
+    rlMatrixMode(i32(RL_MODELVIEW));
     rlLoadIdentity();
-    rlRotatef(-pitch_deg, 1.0, 0.0, 0.0);
-    rlRotatef(-yaw_deg, 0.0, 1.0, 0.0);
-    rlTranslatef(-px, -py, -pz);
+    rlRotatef(f32(-pitch_deg), 1.0, 0.0, 0.0);
+    rlRotatef(f32(-yaw_deg), 0.0, 1.0, 0.0);
+    rlTranslatef(f32(-px), f32(-py), f32(-pz));
 }
 
 """Emit one quad (corners 0->1->2->3, CCW) as two triangles.
@@ -239,12 +239,12 @@ def _quad(
     p10: float,
     p11: float
 ) {
-    rlVertex3f(p0, p1, p2);
-    rlVertex3f(p3, p4, p5);
-    rlVertex3f(p6, p7, p8);
-    rlVertex3f(p0, p1, p2);
-    rlVertex3f(p6, p7, p8);
-    rlVertex3f(p9, p10, p11);
+    rlVertex3f(f32(p0), f32(p1), f32(p2));
+    rlVertex3f(f32(p3), f32(p4), f32(p5));
+    rlVertex3f(f32(p6), f32(p7), f32(p8));
+    rlVertex3f(f32(p0), f32(p1), f32(p2));
+    rlVertex3f(f32(p6), f32(p7), f32(p8));
+    rlVertex3f(f32(p9), f32(p10), f32(p11));
 }
 
 """Scale a 0-255 channel by a percentage (cheap face shading)."""
@@ -274,18 +274,18 @@ def draw_box(
     hy = sy * 0.5;
     hz = sz * 0.5;
     rlPushMatrix();
-    rlTranslatef(cx, cy, cz);
-    rlBegin(RL_TRIANGLES);
+    rlTranslatef(f32(cx), f32(cy), f32(cz));
+    rlBegin(i32(RL_TRIANGLES));
 
-    rlColor4ub(_shade(r, 100), _shade(g, 100), _shade(b, 100), 255);
+    rlColor4ub(u8(_shade(r, 100)), u8(_shade(g, 100)), u8(_shade(b, 100)), 255);
     _quad(-hx, hy, hz, hx, hy, hz, hx, hy, -hz, -hx, hy, -hz);
-    rlColor4ub(_shade(r, 85), _shade(g, 85), _shade(b, 85), 255);
+    rlColor4ub(u8(_shade(r, 85)), u8(_shade(g, 85)), u8(_shade(b, 85)), 255);
     _quad(-hx, -hy, hz, hx, -hy, hz, hx, hy, hz, -hx, hy, hz);
     _quad(hx, -hy, -hz, -hx, -hy, -hz, -hx, hy, -hz, hx, hy, -hz);
-    rlColor4ub(_shade(r, 70), _shade(g, 70), _shade(b, 70), 255);
+    rlColor4ub(u8(_shade(r, 70)), u8(_shade(g, 70)), u8(_shade(b, 70)), 255);
     _quad(hx, -hy, hz, hx, -hy, -hz, hx, hy, -hz, hx, hy, hz);
     _quad(-hx, -hy, -hz, -hx, -hy, hz, -hx, hy, hz, -hx, hy, -hz);
-    rlColor4ub(_shade(r, 45), _shade(g, 45), _shade(b, 45), 255);
+    rlColor4ub(u8(_shade(r, 45)), u8(_shade(g, 45)), u8(_shade(b, 45)), 255);
     _quad(-hx, -hy, -hz, hx, -hy, -hz, hx, -hy, hz, -hx, -hy, hz);
 
     rlEnd();
@@ -296,15 +296,15 @@ def draw_box(
 def draw_floor(half: int, step: float) {
     ext = float(half) * step;
     rlSetLineWidth(1.0);
-    rlBegin(RL_LINES);
+    rlBegin(i32(RL_LINES));
     rlColor4ub(55, 60, 75, 255);
     i = -half;
     while i <= half {
         f = float(i) * step;
-        rlVertex3f(f, 0.0, -ext);
-        rlVertex3f(f, 0.0, ext);
-        rlVertex3f(-ext, 0.0, f);
-        rlVertex3f(ext, 0.0, f);
+        rlVertex3f(f32(f), 0.0, f32(-ext));
+        rlVertex3f(f32(f), 0.0, f32(ext));
+        rlVertex3f(f32(-ext), 0.0, f32(f));
+        rlVertex3f(f32(ext), 0.0, f32(f));
         i += 1;
     }
     rlEnd();

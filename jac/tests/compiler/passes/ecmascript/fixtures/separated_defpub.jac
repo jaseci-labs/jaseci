@@ -13,8 +13,9 @@ node Task {
 
 """Add a task and return it."""
 def:pub add_task(title: str) -> Task {
-    task = root ++> Task(id="1", title=title);
-    return task[0];
+    task = Task(id="1", title=title);
+    root ++> task;
+    return task;
 }
 
 """Get all tasks."""

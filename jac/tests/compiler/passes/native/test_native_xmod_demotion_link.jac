@@ -83,7 +83,6 @@ glob FIXTURES = os.path.join(
 def _seal_opts -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
-        type_check=False,
         force_codespace='native',
         force_target_program=True,
         na_gc_mode='cycles',
@@ -126,7 +125,7 @@ def _dangling_declares(llvm_ir_text: str, symbol: str) -> list[str] {
 
 """Link the module the way the seal does and run the dlopen canary on it,
 subprocess-isolated; returns the canary verdict line."""
-def _link_and_canary(ir: object, stem: str) -> str {
+def _link_and_canary(ir: any, stem: str) -> str {
     layout = ir.gen.native_layout;
     clib_syms = set((ir.gen._clib_symbol_lib or {}).keys());
     exports = sorted(

@@ -42,7 +42,7 @@ def get_warnings_with_code(prog: JacProgram, code: str) -> list {
 test "console usage produces W6001 warning" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6001");
     warning_msgs = [str(w) for w in warnings];
     assert any("console" in w for w in warning_msgs) , f"Expected W6001 warning for 'console', got: {warning_msgs}";
@@ -51,7 +51,7 @@ test "console usage produces W6001 warning" {
 test "Math usage produces W6001 warning" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6001");
     warning_msgs = [str(w) for w in warnings];
     assert any("Math" in w for w in warning_msgs) , f"Expected W6001 warning for 'Math', got: {warning_msgs}";
@@ -60,7 +60,7 @@ test "Math usage produces W6001 warning" {
 test "JSON usage produces W6001 warning" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6001");
     warning_msgs = [str(w) for w in warnings];
     assert any("JSON" in w for w in warning_msgs) , f"Expected W6001 warning for 'JSON', got: {warning_msgs}";
@@ -69,7 +69,7 @@ test "JSON usage produces W6001 warning" {
 test "Array/Object/Map/Set constructors produce W6001 warnings" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6001");
     warning_msgs = [str(w) for w in warnings];
     assert any("Array" in w for w in warning_msgs) , f"Expected W6001 warning for 'Array', got: {warning_msgs}";
@@ -80,7 +80,7 @@ test "Array/Object/Map/Set constructors produce W6001 warnings" {
 test "setTimeout/setInterval produce W6001 warnings" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6001");
     warning_msgs = [str(w) for w in warnings];
     assert any("setTimeout" in w for w in warning_msgs) , f"Expected W6001 warning for 'setTimeout', got: {warning_msgs}";
@@ -90,7 +90,7 @@ test "setTimeout/setInterval produce W6001 warnings" {
 test "multiple JS globals produce correct count of W6001 warnings" {
     file_path = os.path.join(FIXTURES, "js_globals.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     count = count_warning_code(prog, "W6001");
     # console (2: log, warn), Math (2: floor, ceil), JSON (2: parse, stringify),
     # Array, Object, Map, Set (4), setTimeout, setInterval (2) = 12
@@ -103,7 +103,7 @@ test "multiple JS globals produce correct count of W6001 warnings" {
 test "push method produces W6002 warning" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("push" in w for w in warning_msgs) , f"Expected W6002 warning for '.push()', got: {warning_msgs}";
@@ -112,7 +112,7 @@ test "push method produces W6002 warning" {
 test "forEach method produces W6002 warning" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("forEach" in w for w in warning_msgs) , f"Expected W6002 warning for '.forEach()', got: {warning_msgs}";
@@ -121,7 +121,7 @@ test "forEach method produces W6002 warning" {
 test "indexOf method produces W6002 warning" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("indexOf" in w for w in warning_msgs) , f"Expected W6002 warning for '.indexOf()', got: {warning_msgs}";
@@ -130,7 +130,7 @@ test "indexOf method produces W6002 warning" {
 test "string JS methods produce W6002 warnings" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("charAt" in w for w in warning_msgs) , f"Expected W6002 warning for '.charAt()', got: {warning_msgs}";
@@ -141,7 +141,7 @@ test "string JS methods produce W6002 warnings" {
 test "functional methods (every, some, find) produce W6002 warnings" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("every" in w for w in warning_msgs) , f"Expected W6002 warning for '.every()', got: {warning_msgs}";
@@ -152,7 +152,7 @@ test "functional methods (every, some, find) produce W6002 warnings" {
 test "str.find with string arguments produces no W6002 warning" {
     file_path = os.path.join(FIXTURES, "py_str_find.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert not any("find" in w for w in warning_msgs) , f"str.find is Python-congruent and must not warn, got: {warning_msgs}";
@@ -161,7 +161,7 @@ test "str.find with string arguments produces no W6002 warning" {
 test "find with a lambda callback produces W6002 warning" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     count = count_warning_code(prog, "W6002");
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
@@ -179,7 +179,7 @@ test "find with a lambda callback produces W6002 warning" {
 test "conversion methods (toFixed, toString) produce W6002 warnings" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert any("toFixed" in w for w in warning_msgs) , f"Expected W6002 warning for '.toFixed()', got: {warning_msgs}";
@@ -189,7 +189,7 @@ test "conversion methods (toFixed, toString) produce W6002 warnings" {
 test "multiple JS methods produce correct count of W6002 warnings" {
     file_path = os.path.join(FIXTURES, "js_methods.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     count = count_warning_code(prog, "W6002");
     # push, forEach, indexOf, splice, unshift, shift, includes (7)
     # charAt, charCodeAt, substring, padStart, trim (5)
@@ -202,7 +202,7 @@ test "multiple JS methods produce correct count of W6002 warnings" {
 test "user-defined methods sharing JS names do not warn W6002" {
     file_path = os.path.join(FIXTURES, "user_defined_members.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6002");
     warning_msgs = [str(w) for w in warnings];
     assert not any("parse" in w for w in warning_msgs) , f"Config.parse is a declared method, must not warn: {warning_msgs}";
@@ -222,7 +222,7 @@ test "user-defined methods sharing JS names do not warn W6002" {
 test "user-declared length field access does not warn W6004" {
     file_path = os.path.join(FIXTURES, "user_defined_members.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6004");
     warning_msgs = [str(w) for w in warnings];
     # cfg.length resolves to the declared field; items.length stays JS slop.
@@ -242,7 +242,7 @@ test "user-declared length field access does not warn W6004" {
 test "undefined keyword produces W6003 warning" {
     file_path = os.path.join(FIXTURES, "js_keywords.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6003");
     warning_msgs = [str(w) for w in warnings];
     assert any("undefined" in w for w in warning_msgs) , f"Expected W6003 warning for 'undefined', got: {warning_msgs}";
@@ -251,7 +251,7 @@ test "undefined keyword produces W6003 warning" {
 test "typeof keyword produces W6003 warning" {
     file_path = os.path.join(FIXTURES, "js_keywords.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6003");
     warning_msgs = [str(w) for w in warnings];
     assert any("typeof" in w for w in warning_msgs) , f"Expected W6003 warning for 'typeof', got: {warning_msgs}";
@@ -260,7 +260,7 @@ test "typeof keyword produces W6003 warning" {
 test "void keyword produces W6003 warning" {
     file_path = os.path.join(FIXTURES, "js_keywords.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6003");
     warning_msgs = [str(w) for w in warnings];
     assert any("void" in w for w in warning_msgs) , f"Expected W6003 warning for 'void', got: {warning_msgs}";
@@ -269,7 +269,7 @@ test "void keyword produces W6003 warning" {
 test "JS keywords produce correct count of W6003 warnings" {
     file_path = os.path.join(FIXTURES, "js_keywords.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     count = count_warning_code(prog, "W6003");
     # undefined, typeof, void = 3
     assert count >= 3 , f"Expected at least 3 W6003 warnings, got: {count}";
@@ -281,7 +281,7 @@ test "JS keywords produce correct count of W6003 warnings" {
 test "length property produces W6004 warning" {
     file_path = os.path.join(FIXTURES, "js_properties.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6004");
     warning_msgs = [str(w) for w in warnings];
     assert any("length" in w for w in warning_msgs) , f"Expected W6004 warning for '.length', got: {warning_msgs}";
@@ -290,7 +290,7 @@ test "length property produces W6004 warning" {
 test "prototype property produces W6004 warning" {
     file_path = os.path.join(FIXTURES, "js_properties.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     warnings = get_warnings_with_code(prog, "W6004");
     warning_msgs = [str(w) for w in warnings];
     assert any("prototype" in w for w in warning_msgs) , f"Expected W6004 warning for '.prototype', got: {warning_msgs}";
@@ -299,7 +299,7 @@ test "prototype property produces W6004 warning" {
 test "JS properties produce correct count of W6004 warnings" {
     file_path = os.path.join(FIXTURES, "js_properties.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     count = count_warning_code(prog, "W6004");
     # items.length, s.length, MyObj.prototype = 3
     assert count >= 3 , f"Expected at least 3 W6004 warnings, got: {count}";
@@ -311,7 +311,7 @@ test "JS properties produce correct count of W6004 warnings" {
 test "clean Jac code produces no portability warnings" {
     file_path = os.path.join(FIXTURES, "clean_jac.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     portability_warnings = [
         w
         for w in prog.warnings_had
@@ -328,7 +328,7 @@ test "clean Jac code produces no portability warnings" {
 test "mixed code produces warnings only for JS idioms" {
     file_path = os.path.join(FIXTURES, "mixed_usage.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     # Should have W6001 for console
     assert has_warning_code(prog, "W6001") , "Expected W6001 for console.log in mixed code";
     # Should have W6002 for push, forEach
@@ -340,7 +340,7 @@ test "mixed code produces warnings only for JS idioms" {
 test "mixed code warning messages include alternatives" {
     file_path = os.path.join(FIXTURES, "mixed_usage.jac");
     prog = JacProgram();
-    prog.compile(file_path, type_check=True);
+    prog.compile(file_path);
     w6001_warnings = get_warnings_with_code(prog, "W6001");
     # Check that warning message suggests the alternative
     assert any("print()" in str(w) for w in w6001_warnings) , f"Expected W6001 to suggest 'print()' as alternative, got: {[

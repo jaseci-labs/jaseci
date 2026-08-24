@@ -54,7 +54,7 @@ def:pub __removeLocalStorage(key: str) -> None;
 def:pub __getEndpointEffects -> dict;
 def:pub __getCacheState -> dict;
 def:pub __isFresh(`entry: dict) -> bool;
-def:pub __cacheGet(key: str) -> dict;
+def:pub __cacheGet(key: str) -> dict | None;
 def:pub __cacheSet(key: str, data: any, ttl: int) -> None;
 def:pub __evictOldest -> None;
 async def:pub __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any;
@@ -64,7 +64,7 @@ async def:pub __cachedEndpointCall(
 ) -> any;
 
 def:pub __invalidateEndpoint(endpoint_key: str) -> None;
-def:pub __overlaps(list1: list, list2: list) -> bool;
+def:pub __overlaps(list1: list[str], list2: list[str]) -> bool;
 
 def:pub __jacReportError(
     message: str,

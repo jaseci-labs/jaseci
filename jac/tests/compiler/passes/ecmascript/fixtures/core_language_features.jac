@@ -40,13 +40,13 @@ def addItem(items: any, setItems: any) {
 def formatCompact(num: float) -> str {
     if num >= 1000000 {
         divided = num / 1000000;
-        return (Math.round(divided * 10) / 10).toString().concat("M");
+        return str(Math.round(divided * 10) / 10) + "M";
     }
     if num >= 1000 {
         divided = num / 1000;
-        return (Math.round(divided * 10) / 10).toString().concat("K");
+        return str(Math.round(divided * 10) / 10) + "K";
     }
-    return Math.round(num).toString();
+    return str(Math.round(num));
 }
 
 def loop_examples(limit: int) -> int {
@@ -104,7 +104,8 @@ def destructuring_examples -> dict {
 }
 
 def assignment_examples(value: int) -> dict {
-    current = value;
+    # `/=` produces a float, so the accumulator is float-typed from the start.
+    current: float = value;
     current += 5;
     current -= 2;
     current *= 3;

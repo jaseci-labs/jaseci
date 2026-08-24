@@ -1,8 +1,8 @@
 # Local API Server
 
-> **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): your program text does not change with the shape of its deployment. `jac start` is the same program as `jac run`, served.
+> **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): your program text does not change with the shape of its deployment. `jac run` is the same program as `jac run`, served.
 
-During development, `jac run` executes your program and exits. But production applications need to stay running and respond to HTTP requests from browsers, mobile apps, or other services. The `jac start` command transforms your Jac application into a persistent API server -- every walker and function marked with `:pub` or `:priv` access modifiers automatically becomes a REST endpoint, complete with authentication, JSON serialization, and API documentation.
+During development, `jac run` executes your program and exits. But production applications need to stay running and respond to HTTP requests from browsers, mobile apps, or other services. The `jac run` command transforms your Jac application into a persistent API server -- every walker and function marked with `:pub` or `:priv` access modifiers automatically becomes a REST endpoint, complete with authentication, JSON serialization, and API documentation.
 
 This means you go from "Jac program that runs locally" to "HTTP API server that clients can call" with a single command change -- no Flask routes, no Express middleware, no API framework needed.
 
@@ -15,11 +15,11 @@ This means you go from "Jac program that runs locally" to "HTTP API server that 
 
 ## Overview
 
-The `jac start` command turns your walkers and functions into REST API endpoints automatically:
+The `jac run` command turns your walkers and functions into REST API endpoints automatically:
 
 ```mermaid
 graph LR
-    Client["Client<br/>(Browser, Mobile)"] -- "HTTP" --> Server["jac start<br/>Server"]
+    Client["Client<br/>(Browser, Mobile)"] -- "HTTP" --> Server["jac run"]
     Server -- "JSON" --> Client
 ```
 
@@ -59,10 +59,10 @@ walker:pub add_task {
 ### 2. Start the Server
 
 !!! note
-    `main.jac` is the default entry point. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
-jac start
+jac run
 ```
 
 Output:
@@ -94,7 +94,7 @@ curl -X POST http://localhost:8000/walker/add_task \
 
 ```bash
 # Custom port
-jac start --port 3000
+jac run --port 3000
 ```
 
 If the specified port is already in use, the server automatically finds and uses the next available port:
@@ -108,7 +108,7 @@ Port 3000 is in use, using port 3001 instead
 Hot Module Replacement for development:
 
 ```bash
-jac start --dev
+jac run --dev
 ```
 
 Changes to your `.jac` files will automatically reload.
@@ -118,7 +118,7 @@ Changes to your `.jac` files will automatically reload.
 Skip client bundling and only serve the API:
 
 ```bash
-jac start --dev --no-client
+jac run --dev --no-client
 ```
 
 ---
@@ -212,7 +212,7 @@ Response (all walker responses are wrapped in a standard envelope):
 
 ## Interactive Documentation
 
-`jac start` automatically generates Swagger/OpenAPI docs:
+`jac run` automatically generates Swagger/OpenAPI docs:
 
 - **Swagger UI:** `http://localhost:8000/docs`
 - **ReDoc:** `http://localhost:8000/redoc`
@@ -378,7 +378,6 @@ walker:pub ready {
 | `--dev`, `-d` | Enable Hot Module Replacement | false |
 | `--no-client`, `-n` | Skip client bundling (API only) | false |
 | `--faux`, `-f` | Print API docs only (no server) | false |
-| `--scale` | Deploy to Kubernetes (built-in scale subsystem) | false |
 
 ---
 
@@ -488,7 +487,7 @@ walker:pub health {
 Run it:
 
 ```bash
-jac start api.jac --port 8000 --dev
+jac run --port 8000 --dev api.jac
 ```
 
 Test it:
