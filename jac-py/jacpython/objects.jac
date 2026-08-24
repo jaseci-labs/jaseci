@@ -1314,6 +1314,21 @@ obj PyTypeVar(PyObj) {
         if name == "__infer_variance__" {
             return PyBool(t="bool", val=True);
         }
+        # Getset surface (CPython typevarobject.c evaluate_bound/
+        # evaluate_constraints/evaluate_default): expose the hidden zero-arg
+        # evaluator functions themselves; calling one forces evaluation
+        # through the py_attr seam's caches. None when the slot is absent.
+        if name == "evaluate_bound" {
+            return self.evaluate_bound;
+        }
+        if name == "evaluate_constraints" {
+            return self.evaluate_constraints;
+        }
+        if name == "evaluate_default" {
+            return self.evaluate_default;
+        }
+        # has_default() is a zero-arg probe needing a callable wrapper built
+        # on the ceval side of the substrate boundary -- served by py_attr.
         return py_error(
             "AttributeError",
             "'typing.TypeVar' object has no attribute '" + name + "'"
