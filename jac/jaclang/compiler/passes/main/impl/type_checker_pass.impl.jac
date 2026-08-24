@@ -1215,7 +1215,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
 impl TypeCheckPass.after_pass(self: TypeCheckPass) -> None {
     self._check_unresolved_lambda_params();
     self._stamp_fixed_width();
-    if self._prev_eval_pass is not None and self.evaluator._pass is self {
+    if self.evaluator._pass is self {
         self.evaluator._pass = self._prev_eval_pass;
     }
 }
