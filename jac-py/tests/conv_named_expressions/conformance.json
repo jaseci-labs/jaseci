@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,7 +10,7 @@
     "diff_runner.py",
     "jac-py/tests/conv_named_expressions/conv_named_expressions_pins.jac"
   ],
-  "generated_at": "2026-08-24T15:01:21",
+  "generated_at": "2026-08-24T15:05:46",
   "hashes": {
     "pins_jac": "0d10aa961456f0864467d220a6051b321ff2aad5dcb92d8c86988f7a04900334",
     "conversion_json": "ea8776197f22d4944e07a661aba7dc1963c85ac251776935972f1936609ab135",

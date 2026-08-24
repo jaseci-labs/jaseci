@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_unicode_file/conv_unicode_file_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:08:40",
+  "hashes": {
+    "pins_jac": "7ae711b3358c9927b4b2129619bdd8409600cbed2eb162f4e09d3112e9b1a455",
+    "conversion_json": "53422917fd8056669ad6858b6aa79260560be962fe722e479388149bbd3259ab",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "unicode_file",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 2,
+    "runnable": 2,
+    "green": 0,
+    "quarantined": 0,
+    "failed": 2,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestUnicodeFiles.test_single_files",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "TestUnicodeFiles.test_directories",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    }
+  ]
+}
