@@ -592,13 +592,12 @@ def get_py_code_gen(
                 DeferSideEffectPass
             }
             passes.extend(
-                resolve_schedule(
-                    [TrapLoweringPass, PredicateCtrlFlowPass, DeferSideEffectPass],
-                    providers=providers_for(
-                        [GraphBreakDetectPass, TrapLoweringPass, PredicateCtrlFlowPass]
-                    ),
-                    origin='graphmend codegen schedule'
-                )
+                [
+                    GraphBreakDetectPass,
+                    TrapLoweringPass,
+                    PredicateCtrlFlowPass,
+                    DeferSideEffectPass
+                ]
             );
         }
         passes.extend(_py_codegen_tail());
