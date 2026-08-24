@@ -609,44 +609,40 @@ it. Those are followed one level in, which is as deep as the tree puts them and
 avoids having to reason about recursion between record types.
 """
 def _pushes_for(g: _MatGen, ann: str, expr: str, ind: str, nest: bool) -> list[str] {
-    arms = [
-        a
-        for a in _split_union(_norm(ann))
-        if a != "None"
-    ];
-    if len(arms) != 1 {
-        return [];
-    }
-    ab = _base_of(arms[0]);
-    if ab == "list" {
-        ib = _base_of(_norm(_inner(arms[0])));
-        if ib in g.ns and g.is_chain(ib) {
-            return [
-                ind
-                    + f"if {expr} is not None {{ for _k in {expr} "
-                    + "{ stack.append(_k); } }"
-            ];
-        }
-        if nest and ib in g.ns {
-            _b = _nested_pushes(g, ib, "_c", ind + "    ");
-            if _b {
-                return [ind + f"if {expr} is not None {{ for _c in {expr} {{"]
-                    + _b
-                    + [ind + "} }"];
-            }
-        }
-        return [];
-    }
-    if ab not in g.ns {
-        return [];
-    }
-    if g.is_chain(ab) {
+    (kind, tname) = _field_kind(g, ann);
+    if kind == "node" or kind == "opt_node" {
         return [ind + f"if {expr} is not None {{ stack.append({expr}); }}"];
     }
-    if nest {
-        _b = _nested_pushes(g, ab, expr, ind + "    ");
+    if kind == "node_list" {
+        return [
+            ind
+                + f"if {expr} is not None {{ for _k in {expr} "
+                + "{ stack.append(_k); } }"
+        ];
+    }
+    if kind == "record" and nest {
+        _b = _nested_pushes(g, tname, expr, ind + "    ");
         if _b {
             return [ind + f"if {expr} is not None {{"] + _b + [ind + "}"];
+        }
+    }
+    if kind == "" and nest {
+        # A list of records: the elements are not nodes but each may name some.
+        arms = [
+            a
+            for a in _split_union(_norm(ann))
+            if a != "None"
+        ];
+        if len(arms) == 1 and _base_of(arms[0]) == "list" {
+            ib = _base_of(_norm(_inner(arms[0])));
+            if ib in g.ns {
+                _b = _nested_pushes(g, ib, "_c", ind + "    ");
+                if _b {
+                    return [ind + f"if {expr} is not None {{ for _c in {expr} {{"]
+                        + _b
+                        + [ind + "} }"];
+                }
+            }
         }
     }
     return [];
