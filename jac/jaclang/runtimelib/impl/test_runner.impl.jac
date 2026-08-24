@@ -806,15 +806,21 @@ impl Reporter.record(outcome: TestOutcome) -> None {
     if outcome.is_failure() {
         self.failures.append(outcome);
     }
+    pct = self._pct_text();
     if self.verbose {
-        self.stream.write(
-            f"{outcome.status.upper():8} {outcome.name}  [{outcome.file}]\n"
-        );
+        line = f"{outcome.status.upper():8} {outcome.name}  [{outcome.file}]";
+        if pct {
+            line += " " * max(1, _PROGRESS_WIDTH - len(line)) + pct;
+        }
+        self.stream.write(line + "\n");
     } else {
         marks = {PASSED: ".", FAILED: "F", ERROR: "E", SKIPPED: "s", CRASHED: "!"};
         self.stream.write(marks.get(outcome.status, "?"));
         self.column += 1;
         if self.column >= _PROGRESS_WIDTH {
+            if pct {
+                self.stream.write(" " + pct);
+            }
             self.stream.write("\n");
             self.column = 0;
         }
@@ -822,7 +828,20 @@ impl Reporter.record(outcome: TestOutcome) -> None {
     self.stream.flush();
 }
 
+impl Reporter.file_done -> None {
+    self.files_done += 1;
+}
+
+impl Reporter._pct_text -> str {
+    if self.total_files <= 0 {
+        return "";
+    }
+    pct = (self.files_done * 100) // self.total_files;
+    return f"[{min(pct, 100):3d}%]";
+}
+
 impl Reporter.file_crashed(filepath: str, detail: str) -> None {
+    self.file_done();
     self.record(
         TestOutcome(
             file=filepath,
@@ -847,6 +866,10 @@ impl Reporter.failure_count -> int {
 
 impl Reporter.summarize(elapsed: float) -> int {
     if self.column {
+        pct = self._pct_text();
+        if pct {
+            self.stream.write(" " * max(1, _PROGRESS_WIDTH - self.column + 1) + pct);
+        }
         self.stream.write("\n");
         self.column = 0;
     }
@@ -1054,6 +1077,9 @@ impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     done = kid["inflight"];
     kid["inflight"] = None;
     _log_worker_footprint(kid, record, self.plan.files, done);
+    if done is not None {
+        self.reporter.file_done();
+    }
     for item in record.get("outcomes", []) {
         self.reporter.record(TestOutcome.from_wire(item));
     }
@@ -1277,6 +1303,7 @@ impl _run_serial(
                 )
             ];
         }
+        reporter.file_done();
         for outcome in outcomes {
             reporter.record(outcome);
         }
@@ -1304,7 +1331,7 @@ impl run_tests(
     import sys;
     import time;
     plan = discover(paths, directory, ignore);
-    reporter = Reporter(verbose=verbose);
+    reporter = Reporter(verbose=verbose, total_files=len(plan.files));
     if plan.is_empty() {
         sys.stdout.write("no tests ran (no test files collected)\n");
         sys.stdout.flush();

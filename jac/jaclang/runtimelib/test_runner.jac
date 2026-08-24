@@ -78,15 +78,19 @@ obj Reporter {
     has verbose: bool = False,
         stream: any = None,
         column: int = 0,
+        total_files: int = 0,
+        files_done: int = 0,
         counts: dict[(str, int)] postinit,
         failures: list[TestOutcome] postinit;
 
     def postinit -> None;
     def record(outcome: TestOutcome) -> None;
+    def file_done -> None;
     def file_crashed(filepath: str, detail: str) -> None;
     def failure_count -> int;
     def total_count -> int;
     def summarize(elapsed: float) -> int;
+    def _pct_text -> str;
 }
 
 obj ForkPool {
