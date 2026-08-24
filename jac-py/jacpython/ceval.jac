@@ -3677,6 +3677,13 @@ def to_host(value: PyObj) -> any {
             # None, so str(e) was "None" and type(e) was NoneType.
             return host_exception(value);
 
+        case PyClass():
+            # STANDIN: the guest class itself crossing to the host gets its
+            # cached name-faithful stand-in (same "class" policy-table entry
+            # as instances; from_host recovers the original via
+            # _jac_guest_cls_, so identity round-trips).
+            return _jac_standin_class(value);
+
         case PyUserObj():
             # A builtin subclass reaching the host boundary (len/print/format)
             # presents as its boxed value; an exception-derived user instance
