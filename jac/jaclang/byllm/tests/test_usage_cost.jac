@@ -27,12 +27,12 @@ glob MODEL = "gpt-4o-mini",
 
 
 class _FakeStreamResp {
-    def init(self, chunks: list, logging_obj: object) {
+    def init(self: _FakeStreamResp, chunks: list, logging_obj: object) {
         self.chunks = chunks;
         self.logging_obj = logging_obj;
     }
 
-    def __iter__(self) {
+    def __iter__(self: _FakeStreamResp) {
         return iter(self.chunks);
     }
 }
