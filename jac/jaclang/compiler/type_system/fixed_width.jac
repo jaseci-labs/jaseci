@@ -26,6 +26,56 @@ obj AssignVerdict {
         diagnosed: bool = False;
 }
 
+def interval_of_op(
+    op: str, left: (tuple | None), right: (tuple | None), target: str
+) -> bool {
+    if left is None or right is None {
+        return False;
+    }
+    if not JAC_TYPE_REGISTRY.is_sized(target) {
+        return False;
+    }
+    `entry = JAC_TYPE_REGISTRY.get(target);
+    if `entry is None or `entry.is_float {
+        return False;
+    }
+    (a_lo, a_hi) = left;
+    (b_lo, b_hi) = right;
+    if op == "+" {
+        (lo, hi) = (a_lo + b_lo, a_hi + b_hi);
+    } elif op == "-" {
+        (lo, hi) = (a_lo - b_hi, a_hi - b_lo);
+    } elif op == "*" {
+        ends = [a_lo * b_lo, a_lo * b_hi, a_hi * b_lo, a_hi * b_hi];
+        (lo, hi) = (min(ends), max(ends));
+    } elif op == "neg" {
+        (lo, hi) = (-a_hi, -a_lo);
+    } else {
+        return False;
+    }
+    (t_lo, t_hi) = JAC_TYPE_REGISTRY.range_of(target);
+    return t_lo <= lo and hi <= t_hi;
+}
+
+def interval_of_expr(expr: (Expr | None)) -> (tuple | None) {
+    if expr is None {
+        return None;
+    }
+    value = folded_number(expr);
+    if isinstance(value, int) and not isinstance(value, bool) {
+        return (value, value);
+    }
+    name = numeric_name_of(expr.type);
+    if name is None or not JAC_TYPE_REGISTRY.is_sized(name) {
+        return None;
+    }
+    `entry = JAC_TYPE_REGISTRY.get(name);
+    if `entry is None or `entry.is_float {
+        return None;
+    }
+    return JAC_TYPE_REGISTRY.range_of(name);
+}
+
 def numeric_name_of(t: TypeBase | None) -> str | None {
     if isinstance(t, AnyType) {
         return t.foreign_scalar;

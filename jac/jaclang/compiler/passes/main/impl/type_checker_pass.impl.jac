@@ -1691,10 +1691,36 @@ impl TypeCheckPass._stamp_fixed_width(self: TypeCheckPass) -> None {
             name = numeric_name_of(nd.type);
             if name is not None and JAC_TYPE_REGISTRY.is_sized(name) {
                 nd.fw = name;
+                nd.fw_safe = self._provably_in_range(nd, name);
             }
         }
         for k in nd.kid {
             stack.append(k);
         }
     }
+}
+
+impl TypeCheckPass._provably_in_range(
+    self: TypeCheckPass, nd: Expr, name: str
+) -> bool {
+    import from jaclang.compiler.type_system.fixed_width {
+        interval_of_expr,
+        interval_of_op
+    }
+    if isinstance(nd, BinaryExpr) and isinstance(nd.op, Token) {
+        op = FW_INTERVAL_OPS.get(nd.op.name);
+        if op is None {
+            return False;
+        }
+        return interval_of_op(
+            op, interval_of_expr(nd.left), interval_of_expr(nd.right), name
+        );
+    }
+    if isinstance(nd, UnaryExpr) and isinstance(nd.op, Token) {
+        if nd.op.name != Tok.MINUS {
+            return False;
+        }
+        return interval_of_op("neg", interval_of_expr(nd.operand), (0, 0), name);
+    }
+    return False;
 }
