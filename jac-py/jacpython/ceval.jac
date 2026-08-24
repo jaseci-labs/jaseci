@@ -3158,6 +3158,11 @@ obj PyProperty(PyObj) {
         fset: any = None,
         fdel: any = None;
 
+    # Identity hash: CPython property objects are set/dict-key legal.
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     # `@x.setter` / `.getter` / `.deleter` each yield a modifier that rebuilds the
     # property with one accessor replaced.
     def tp_getattro(name: str) -> PyObj {
@@ -3388,6 +3393,13 @@ obj PyStaticMethodCtor(PyObj) {
 }
 
 obj PyPropertyCtor(PyObj) {
+    # Identity hash (CPython: builtin_function_or_method-style objects hash by
+    # id) -- property/property-constructor objects live in sets and dict keys
+    # across the stdlib (codec registries, ABC caches).
+    def tp_hashkey -> PyObj {
+        return PyStr(t="str", val="obj:" + str(id(self)));
+    }
+
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
         fget: PyObj = py_none();
         fset: PyObj = py_none();
@@ -4276,6 +4288,22 @@ def host_result_error(result: any) -> PyObj {
 }
 
 def host_builtin(name: str) -> PyObj {
+    # Identity memo: native builtins are singletons (CPython's builtin tables
+    # hold one object per name). Minting a fresh wrapper per lookup breaks
+    # identity idioms -- {property: 1}[property], `len is len`, etc.
+    if name in native_builtin_cache {
+        return native_builtin_cache[name] as PyObj;
+    }
+    built = _mint_host_builtin(name);
+    if not is_error(built) {
+        native_builtin_cache[name] = built;
+    }
+    return built;
+}
+
+glob native_builtin_cache: dict[str, PyObj] = {};
+
+def _mint_host_builtin(name: str) -> PyObj {
     # The FULL builtin exception tree resolves to native PyExceptionType
     # markers: construction then runs the typed constructors (OSError
     # errno/strerror/filename forms, ImportError name/path, SyntaxError info,
