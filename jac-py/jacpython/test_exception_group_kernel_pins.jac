@@ -51,7 +51,13 @@ def _run_native(src: str) -> str {
         return str(e.exception.type_name) + ": " + str(e.exception.message);
     }
     if "r" in ns {
-        return repr(to_host(ns["r"]));
+        # String results return raw: digests record semantic content, and
+        # repr() would wrap them in quotes the oracle capture never had.
+        v = ns["r"];
+        if isinstance(v, PyStr) {
+            return (v as PyStr).val;
+        }
+        return repr(to_host(v));
     }
     return "";
 }
@@ -170,8 +176,8 @@ test "p3 split: basic type partition preserves leaf identity" {
         "ve, te = ValueError('v'), TypeError('t')\n"
         "eg = ExceptionGroup('g', [ve, te])\n"
         "m, rest = eg.split(ValueError)\n"
-        "r = repr(m) + ' ## ' + repr(rest) + ' ## '\n"
-        "    + str(m.exceptions[0] is ve) + ' ## ' + str(rest.exceptions[0] is te)\n"
+        "r = repr(m) + ' ## ' + repr(rest) + ' ## ' "
+        "+ str(m.exceptions[0] is ve) + ' ## ' + str(rest.exceptions[0] is te)\n"
     ) == (
         "ExceptionGroup('g', [ValueError('v')]) ## "
         "ExceptionGroup('g', [TypeError('t')]) ## True ## True"

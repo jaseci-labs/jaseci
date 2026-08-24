@@ -2779,6 +2779,13 @@ def _construct_exc_group(name: str, args: list[PyObj], kwargs: dict[str, PyObj])
     );
 }
 
+# Unbound marker served for ExceptionGroup.split / .subgroup on the TYPE
+# object; instance calls bind through PyExcGroupMethod on the ceval side.
+obj PyEgroupTypeMember(PyObj) {
+    has name: str;
+}
+
+
 obj PyExceptionType(PyObj) {
     has name: str;
 
@@ -2786,6 +2793,11 @@ obj PyExceptionType(PyObj) {
         # Type-object identity surface: e.__class__.__name__ idioms.
         if name2 == "__name__" or name2 == "__qualname__" {
             return PyStr(t="str", val=self.name);
+        }
+        # P3 kernel entry points exist on the type for hasattr/introspection;
+        # calls route through the bound instance methods.
+        if name2 == "split" or name2 == "subgroup" {
+            return PyEgroupTypeMember(t="egroup_type_member", name=name2);
         }
         return py_error("AttributeError", name2);
     }
@@ -2943,6 +2955,16 @@ obj PyException(PyObj) {
         # Type-specific fields (e.errno, e.strerror, e.name, e.lineno, ...):
         # unset optional members read as None, exactly like the C structs'
         # zero-initialized slots.
+        if name == "__notes__" {
+            # PEP 678 notes: reads before any add_note yield an empty list.
+            stored = self.type_fields.get("__notes__");
+            if stored is not None and isinstance(stored, PyList) {
+                items: list[PyObj] = [];
+                items.extend((stored as PyList).items);
+                return PyList(t="list", items=items);
+            }
+            return PyList(t="list", items=[]);
+        }
         if name in self.type_fields {
             return self.type_fields[name];
         }
