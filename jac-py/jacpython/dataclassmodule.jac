@@ -157,7 +157,10 @@ obj DCField(PyObj) {
 obj DCSpec(PyObj) {
     has cls: PyClass,
         fields: list[DCField],
-        params: DCParams;
+        params: DCParams,
+        # The class MRO resolves __post_init__: dc_build_init appends the
+        # trailing self.__post_init__() call (CPython _init_fn has_post_init).
+        has_post_init: bool = False;
 }
 
 # ---------------- shared helpers ----------------
@@ -998,6 +1001,11 @@ def dc_build_init(spec: DCSpec, ns: dict[str, PyObj]) -> PyObj {
         src += ", " + sig;
     }
     src += "):\n";
+    if spec.has_post_init {
+        # CPython _init_fn: the generated __init__ ends with the __post_init__
+        # call (InitVar args come later with InitVar support).
+        body += "    self.__post_init__()\n";
+    }
     if body == "" {
         body = "    pass\n";
     }
@@ -1052,7 +1060,11 @@ def dc_process_class(cls: PyClass, params: DCParams) -> PyObj {
             );
         }
     }
-    spec = DCSpec(t="dc_spec", cls=cls, fields=fields_list, params=params);
+    resolved_post = class_lookup_attr(cls, "__post_init__");
+    spec = DCSpec(
+        t="dc_spec", cls=cls, fields=fields_list, params=params,
+        has_post_init=not is_error(resolved_post),
+    );
     ns: dict[str, PyObj] = {
         "_DC_MISSING": DC_MISSING,
         "_DC_SPEC": spec,

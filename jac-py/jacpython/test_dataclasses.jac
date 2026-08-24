@@ -352,6 +352,55 @@ test "dataclass: per-field kw_only splits the signature after '*'" {
     assert vm_bool(ns, "positional_c_rejected") == True;
 }
 
+# ---------------- __post_init__ hook ----------------
+
+test "dataclass: __post_init__ runs after field assignment" {
+    ns = dc_exec(
+        "@dataclass\n"
+        "class P:\n"
+        "    a: int = 0\n"
+        "    seen: int = -1\n"
+        "    def __post_init__(self):\n"
+        "        self.seen = self.a * 2\n"
+        "p = P(5)\n"
+        "rv = p.seen\n"
+    );
+    assert vm_int(ns, "rv") == 10;
+}
+
+test "dataclass: __post_init__ can reject bad input via raise" {
+    outcome = vm_try(
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class P:\n"
+        "    a: int\n"
+        "    def __post_init__(self):\n"
+        "        if self.a < 0:\n"
+        "            raise ValueError('negative')\n"
+        "P(-1)\n"
+    );
+    assert err_type(outcome) == "ValueError";
+    assert err_msg(outcome) == "negative";
+}
+
+test "dataclass: inherited __post_init__ resolves through the MRO once" {
+    ns = dc_exec(
+        "from dataclasses import dataclass\n"
+        "calls = []\n"
+        "@dataclass\n"
+        "class Base:\n"
+        "    a: int = 0\n"
+        "    def __post_init__(self):\n"
+        "        calls.append('base')\n"
+        "@dataclass\n"
+        "class Sub(Base):\n"
+        "    b: int = 0\n"
+        "s = Sub(a=1, b=2)\n"
+        "ncalls = len(calls)\n"
+    );
+    assert vm_int(ns, "ncalls") == 1;
+}
+
 # ---------------- ClassVar vs fields ----------------
 
 test "dataclass: ClassVar annotations stay class attributes, not fields" {
