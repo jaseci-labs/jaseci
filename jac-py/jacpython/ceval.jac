@@ -1801,13 +1801,19 @@ def import_native(absname: str) -> PyObj {
         shim_modules["weakref"] = build_weakref_module();
     }
     if absname == "sys" and not ("sys" in shim_modules) {
-        # Serve a delegate snapshot with exc_info OVERRIDDEN: the host sys sees
-        # only host exception state, never guest frames. Snapshot failure falls
-        # through to plain delegation (no worse than before).
+        # Serve a delegate snapshot with exception-state OVERRIDDEN: the host sys
+        # sees only host exception state, never guest frames. Snapshot failure
+        # falls through to plain delegation (no worse than before).
         sysmod = delegated_module("sys");
         if not is_error(sysmod) {
             (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
                 t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["exception"] = PyNativeBuiltin(
+                t="native_builtin", name="exception"
+            );
+            (sysmod as PyModule).attrs["intern"] = PyNativeBuiltin(
+                t="native_builtin", name="intern"
             );
             (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
             shim_modules["sys"] = sysmod;
@@ -4129,6 +4135,32 @@ def live_container_bridge(value: PyObj) -> any {
     return None;
 }
 
+# Identity-counting removal of one occurrence per item: generator suspend must
+# deactivate exactly ITS handler entries so unrelated frames stop seeing them
+# (CPython exc_info is dynamic; the global stack is a single-threaded mirror).
+def _handled_stack_remove_each(items: list[PyObj]) -> None {
+    for it in items {
+        idx = -1;
+        i = 0;
+        while i < len(_handled_exc_stack) {
+            if py_identity(_handled_exc_stack[i], it) {
+                idx = i;
+                break;
+            }
+            i = i + 1;
+        }
+        if idx >= 0 {
+            _handled_exc_stack = _handled_exc_stack[:idx] + _handled_exc_stack[idx + 1:];
+        }
+    }
+}
+
+def _handled_stack_append_each(items: list[PyObj]) -> None {
+    for it in items {
+        _handled_exc_stack.append(it);
+    }
+}
+
 def from_host(raw: any) -> PyObj {
     if raw is None {
         return py_none();
@@ -4777,11 +4809,18 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         shim_modules["types"] = build_types_facade();
     }
     if name == "sys" and not ("sys" in shim_modules) {
-        # Mirror of the import_native site: exc_info must read GUEST state.
+        # Mirror of the import_native site: exception-state attrs must read
+        # GUEST state.
         sysmod = delegated_module("sys");
         if not is_error(sysmod) {
             (sysmod as PyModule).attrs["exc_info"] = PyNativeBuiltin(
                 t="native_builtin", name="exc_info"
+            );
+            (sysmod as PyModule).attrs["exception"] = PyNativeBuiltin(
+                t="native_builtin", name="exception"
+            );
+            (sysmod as PyModule).attrs["intern"] = PyNativeBuiltin(
+                t="native_builtin", name="intern"
             );
             (sysmod as PyModule).attrs["__jac_marker__"] = PyStr(t="str", val="installed");
             shim_modules["sys"] = sysmod;
@@ -10301,6 +10340,32 @@ obj PyNativeBuiltin(PyObj) {
             vals: list[PyObj] = [py_type_of(e), e, tbv];
             return PyTuple(t="tuple", items=vals);
         }
+        if self.name == "exception" {
+            # sys.exception() over GUEST handled-exception state: the most
+            # recently caught exception, or None with no active handler. Must
+            # agree with the exc_info branch above (same _handled_exc_stack).
+            if len(_handled_exc_stack) == 0 {
+                return py_none();
+            }
+            return _handled_exc_stack[len(_handled_exc_stack) - 1];
+        }
+        if self.name == "intern" {
+            # sys.intern() must return its argument ITSELF (CPython identity
+            # contract). The host bridge would round-trip a guest PyStr into a
+            # fresh host string, breaking `intern(s) is s`; keep it in-VM.
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    "intern expected 1 argument, got " + str(len(args))
+                );
+            }
+            if not isinstance(args[0], PyStr) {
+                return py_error(
+                    "TypeError", "intern() argument must be str, not " + args[0].tp_type_name()
+                );
+            }
+            return args[0];
+        }
         if self.name == "tb_format_exc" {
             e = current_handled_exc();
             if isinstance(e, PyNoneType) {
@@ -13015,6 +13080,12 @@ def frame_clear(frame: PyFrame) -> None {
     for name in frame.locals {
         held.append(frame.locals[name]);
     }
+    if frame.exc_state is not None {
+        # Abandoned (never-resumed/closed) generator: its suspended handler
+        # entries were already removed at suspend time EXCEPT when cleared
+        # mid-handling after a resume -- drain any residual copies.
+        _handled_stack_remove_each(frame.exc_state as list[PyObj]);
+    }
     frame.fast = [];
     frame.stack = [];
     frame.locals = {};
@@ -13618,6 +13689,7 @@ def run_frame(frame: PyFrame) -> PyObj {
     exc_handling: list[PyObj] = [];
     if frame.exc_state is not None {
         exc_handling = frame.exc_state as list[PyObj];
+        _handled_stack_append_each(exc_handling);
     }
     # Polymorphic opcode scratch slots: handlers below store PyObj values (and
     # occasionally the narrower PyStr/PyException subtypes) here, so they are
@@ -15637,6 +15709,10 @@ def run_frame(frame: PyFrame) -> PyObj {
             frame.ip = ip;
             frame.yf = arg == 1;
             frame.exc_state = exc_handling;
+            # Suspend deactivates this frame's handler entries in the global
+            # exc_info view (re-appended on resume); without this, an unrelated
+            # frame reading sys.exc_info() sees the suspended gen's exception.
+            _handled_stack_remove_each(exc_handling);
             return PyYield(t="yield", val=value);
         }
         if op == OP_TO_BOOL {
