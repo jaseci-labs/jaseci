@@ -2691,12 +2691,20 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                             )
                         ) {
                             _adopted = value_type.clone_as_instance();
+                            _is_dict_decl = declared_inst.is_builtin("dict");
                             _adopted.private.type_args = [
                                 (
-                                    AnyType()
-                                        if isinstance(_arg, UnionType)
-                                        else self._widen_literal_for_declaration(_arg)
-                                ) for _arg in value_type.private.type_args
+                                    self._widen_literal_for_declaration(_arg)
+                                        if (
+                                            _is_dict_decl
+                                            and _ai == 0
+                                            and not isinstance(_arg, UnionType)
+                                        )
+                                        else AnyType()
+                                )
+                                for (_ai, _arg) in enumerate(
+                                    value_type.private.type_args
+                                )
                             ];
                             return _adopted;
                         }
