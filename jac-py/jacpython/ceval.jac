@@ -3128,6 +3128,39 @@ obj PyProperty(PyObj) {
         if name == "fget" {
             return self.fget if self.fget is not None else py_none();
         }
+        if name == "fset" {
+            return self.fset if self.fset is not None else py_none();
+        }
+        if name == "fdel" {
+            return self.fdel if self.fdel is not None else py_none();
+        }
+        # CPython property.__doc__: the getter's docstring (None when absent);
+        # derived lazily so @x.setter chains keep the original doc for free.
+        if name == "__doc__" {
+            if self.fget is not None {
+                doc = py_attr(self.fget as PyObj, "__doc__");
+                if not is_error(doc) {
+                    return doc;
+                }
+            }
+            return py_none();
+        }
+        # ABC machinery reads this on every attribute walk of an abstract
+        # base -- absent answers False unless any accessor declares itself
+        # abstract (CPython property_init / prop_get___isabstractmethod__).
+        if name == "__isabstractmethod__" {
+            for acc in [self.fget, self.fset, self.fdel] {
+                if acc is not None {
+                    mark = py_attr(acc as PyObj, "__isabstractmethod__");
+                    if not is_error(mark)
+                        and isinstance(mark, PyBool)
+                        and (mark as PyBool).val {
+                        return mark;
+                    }
+                }
+            }
+            return PyBool(t="bool", val=False);
+        }
         # The descriptor protocol surface itself: property.__get__/__set__/
         # __delete__ are real attributes in CPython (C.v.__get__(inst) runs the
         # accessor directly).

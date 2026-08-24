@@ -244,3 +244,50 @@ test "attr protocol: slotted __dict__ view excludes member storage" {
     assert result.failed == 0;
     assert result.errored == 0;
 }
+
+# ---------------- property attribute surface ----------------
+# CPython exposes fget/fset/fdel (None when absent), __doc__ from the getter,
+# and __isabstractmethod__ on every property object -- ABC walks and
+# introspection tools read these unconditionally.
+test "attr protocol: property object surface" {
+    src = "class TestPropertySurface(unittest.TestCase):\n"
+    "    def test_accessors_exposed(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                return 1\n"
+    "        self.assertTrue(C.p.fget is not None)\n"
+    "        self.assertIsNone(C.p.fset)\n"
+    "        self.assertIsNone(C.p.fdel)\n"
+    "    def test_setter_chain_sets_fset(self):\n"
+    "        class C:\n"
+    "            _x = 0\n"
+    "            @property\n"
+    "            def x(self):\n"
+    "                return self._x\n"
+    "            @x.setter\n"
+    "            def x(self, v):\n"
+    "                self._x = v\n"
+    "        self.assertTrue(C.x.fset is not None)\n"
+    "        c = C()\n"
+    "        c.x = 7\n"
+    "        self.assertEqual(c.x, 7)\n"
+    "    def test_doc_from_getter(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                'doc here'\n"
+    "                return 1\n"
+    "        self.assertEqual(C.p.__doc__, 'doc here')\n"
+    "    def test_isabstractmethod_default_false(self):\n"
+    "        class C:\n"
+    "            @property\n"
+    "            def p(self):\n"
+    "                return 1\n"
+    "        self.assertFalse(C.p.__isabstractmethod__)\n";
+    result = layer1_replay_source(src);
+    assert result.passed == 4;
+    assert result.skipped == 0;
+    assert result.failed == 0;
+    assert result.errored == 0;
+}
