@@ -1,0 +1,340 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/conv_named_expressions/conv_named_expressions_pins.jac"
+  ],
+  "generated_at": "2026-08-24T00:42:26",
+  "hashes": {
+    "pins_jac": "7c495e192bac992b2782d07cf273bee84c1aedcc5a92c8ae697cbc7c0278cf17",
+    "conversion_json": "24f08adfc5e42ada2d46afe5f5053503d471dd8385800d50846f2104a2b457f6",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "named_expressions",
+  "counts": {
+    "converted": 74,
+    "runnable": 60,
+    "green": 59,
+    "quarantined": 14
+  },
+  "pins": [
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_01",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_02",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_03",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_04",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_06",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_07",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_08",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_09",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_10",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_11",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_12",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_13",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_14",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_15",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_16",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_17",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_in_class_body",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_mangled_class_variables",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_01",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_02",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_03",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_04",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_05",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_06",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_07",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_08",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_09",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_10",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_11",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_12",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_13",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_14",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_15",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_16",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_17",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_01",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_02",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_03",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_04",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_05",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_06",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_07",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_08",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_09",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_10",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_11",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_17",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_18",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_19",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_20",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_21",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_22",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_23",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_24",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_25",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC KeyError \"\\'a\\'\"'>"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_global_scope",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_global_scope_no_global_keyword",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_nonlocal_scope",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_nonlocal_scope_no_nonlocal_keyword",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_in_genexp",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_valid_rebinding_iteration_variable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_iteration_variable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_iteration_variable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_inner_loop",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_iteration_variable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_inner_loop",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_set_comprehension_iterable_expression",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionAssignmentTest.test_named_expression_assignment_18",
+      "status": "quarantined",
+      "reason": "uses-self.two_dimensional_list"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "NamedExpressionScopeTest.test_named_expression_scope_mangled_names",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    }
+  ]
+}

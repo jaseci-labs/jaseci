@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/conv_htmlparser/conv_htmlparser_pins.jac"
+  ],
+  "generated_at": "2026-08-24T00:42:52",
+  "hashes": {
+    "pins_jac": "b9a895e2ee2195500faf1ad9034537fc77a86a291e3ba5c40fec878e79ad40d3",
+    "conversion_json": "9ecdbe63e5c64f1207fb1fbb79f4495a3e1dcfa6d285d3fede7de9e23acf2ddb",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "htmlparser",
+  "counts": {
+    "converted": 67,
+    "runnable": 0,
+    "green": 0,
+    "quarantined": 67
+  },
+  "pins": [
+    {
+      "id": "HTMLParserTestCase.test_script_content",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_style_content",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_rcdata_content",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_rawtext_content",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_script_closing_tag",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_closing_tag",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_invalid_closing_tag",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_invalid_nonascii_closing_tag",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_script",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_title",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_cdata",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_cdata_section_content",
+      "status": "quarantined",
+      "reason": "decorator:support.subTests"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_no_quadratic_complexity",
+      "status": "quarantined",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "id": "HTMLParserTestCase.test_processing_instruction_only",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_simple_html",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_malformatted_charref",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_unclosed_entityref",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_entityref",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_unclosed_charref",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_charref",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_bad_nesting",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_bare_ampersands",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_bare_pointy_brackets",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_starttag_end_boundary",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_buffer_artefacts",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_valid_doctypes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_startendtag",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_get_starttag_text",
+      "status": "quarantined",
+      "reason": "self._run_check_extra"
+    },
+    {
+      "id": "HTMLParserTestCase.test_noscript_content",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_plaintext_content",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_comments",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_condcoms",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_convert_charrefs",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_convert_charrefs_in_attribute_values",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_tolerant_parsing",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_starttag_junk_chars",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_slashes_in_starttag",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_slashes_in_endtag",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_declaration_junk_chars",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_illegal_declarations",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_invalid_end_tags",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_broken_invalid_end_tag",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_correct_detection_of_start_tags",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_comments",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_eof_in_declarations",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_bogus_comments",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_broken_condcoms",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_cdata_section",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "HTMLParserTestCase.test_convert_charrefs_dropped_text",
+      "status": "quarantined",
+      "reason": "unresolved-name:EventCollector"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_syntax",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_values",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_nonascii",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_entity_replacement",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_funky_names",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_entityrefs_in_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_attr_funky_names2",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_entities_in_attribute_value",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_malformed_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_malformed_adjacent_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_adjacent_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_missing_attribute_value",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_javascript_attribute_value",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_end_tag_in_attribute_value",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_with_unquoted_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_comma_between_attributes",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "AttributesTestCase.test_weird_chars_in_unquoted_attribute_values",
+      "status": "quarantined",
+      "reason": "self._run_check"
+    },
+    {
+      "id": "TestInheritance.test_base_class_methods_called",
+      "status": "quarantined",
+      "reason": "unresolved-name:EventCollector"
+    }
+  ]
+}

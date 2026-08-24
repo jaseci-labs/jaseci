@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_yield_from.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_yield_from",
+    "--name",
+    "conv_yield_from"
+  ],
+  "generated_at": "2026-08-24T00:42:54",
+  "hashes": {
+    "pins_jac": "9aba8968493dfad8e6844b1d98e94b053ad7dc101de3922bf62386873b7a72cd"
+  },
+  "source_file": "reference/cpython/Lib/test/test_yield_from.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "yield_from",
+  "pins_file": "conv_yield_from_pins.jac",
+  "pins": [
+    {
+      "ident": "TestPEP380Operation.test_delegation_of_initial_next_to_subgenerator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegation of initial next() call to subgenerator\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('Starting g1')\n        yield from g2()\n        trace.append('Finishing g1')\n\n    def g2():\n        trace.append('Starting g2')\n        yield 42\n        trace.append('Finishing g2')\n    for x in g1():\n        trace.append('Yielded %s' % (x,))\n    assert trace == ['Starting g1', 'Starting g2', 'Yielded 42', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Starting g2', 'Yielded 42', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_raising_exception_in_initial_next_call",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test raising exception in initial next() call\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield from g2()\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            raise ValueError('spanish inquisition occurred')\n        finally:\n            trace.append('Finishing g2')\n    try:\n        for x in g1():\n            trace.append('Yielded %s' % (x,))\n    except ValueError as e:\n        assert e.args[0] == 'spanish inquisition occurred', ('assertEqual', e.args[0], 'spanish inquisition occurred')\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g1', 'Starting g2', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Starting g2', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegation_of_next_call_to_subgenerator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegation of next() call to subgenerator\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('Starting g1')\n        yield 'g1 ham'\n        yield from g2()\n        yield 'g1 eggs'\n        trace.append('Finishing g1')\n\n    def g2():\n        trace.append('Starting g2')\n        yield 'g2 spam'\n        yield 'g2 more spam'\n        trace.append('Finishing g2')\n    for x in g1():\n        trace.append('Yielded %s' % (x,))\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'Yielded g1 eggs', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'Yielded g1 eggs', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_raising_exception_in_delegated_next_call",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test raising exception in delegated next() call\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield 'g1 ham'\n            yield from g2()\n            yield 'g1 eggs'\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            yield 'g2 spam'\n            raise ValueError('hovercraft is full of eels')\n            yield 'g2 more spam'\n        finally:\n            trace.append('Finishing g2')\n    try:\n        for x in g1():\n            trace.append('Yielded %s' % (x,))\n    except ValueError as e:\n        assert e.args[0] == 'hovercraft is full of eels', ('assertEqual', e.args[0], 'hovercraft is full of eels')\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegation_of_send",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegation of send()\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('Starting g1')\n        x = (yield 'g1 ham')\n        trace.append('g1 received %s' % (x,))\n        yield from g2()\n        x = (yield 'g1 eggs')\n        trace.append('g1 received %s' % (x,))\n        trace.append('Finishing g1')\n\n    def g2():\n        trace.append('Starting g2')\n        x = (yield 'g2 spam')\n        trace.append('g2 received %s' % (x,))\n        x = (yield 'g2 more spam')\n        trace.append('g2 received %s' % (x,))\n        trace.append('Finishing g2')\n    g = g1()\n    y = next(g)\n    x = 1\n    try:\n        while 1:\n            y = g.send(x)\n            trace.append('Yielded %s' % (y,))\n            x += 1\n    except StopIteration:\n        pass\n    assert trace == ['Starting g1', 'g1 received 1', 'Starting g2', 'Yielded g2 spam', 'g2 received 2', 'Yielded g2 more spam', 'g2 received 3', 'Finishing g2', 'Yielded g1 eggs', 'g1 received 4', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'g1 received 1', 'Starting g2', 'Yielded g2 spam', 'g2 received 2', 'Yielded g2 more spam', 'g2 received 3', 'Finishing g2', 'Yielded g1 eggs', 'g1 received 4', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_handling_exception_while_delegating_send",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test handling exception while delegating 'send'\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('Starting g1')\n        x = (yield 'g1 ham')\n        trace.append('g1 received %s' % (x,))\n        yield from g2()\n        x = (yield 'g1 eggs')\n        trace.append('g1 received %s' % (x,))\n        trace.append('Finishing g1')\n\n    def g2():\n        trace.append('Starting g2')\n        x = (yield 'g2 spam')\n        trace.append('g2 received %s' % (x,))\n        raise ValueError('hovercraft is full of eels')\n        x = (yield 'g2 more spam')\n        trace.append('g2 received %s' % (x,))\n        trace.append('Finishing g2')\n\n    def run():\n        g = g1()\n        y = next(g)\n        x = 1\n        try:\n            while 1:\n                y = g.send(x)\n                trace.append('Yielded %s' % (y,))\n                x += 1\n        except StopIteration:\n            trace.append('StopIteration')\n    try:\n        run()\n    except ValueError:\n        pass\n    assert trace == ['Starting g1', 'g1 received 1', 'Starting g2', 'Yielded g2 spam', 'g2 received 2'], ('assertEqual', trace, ['Starting g1', 'g1 received 1', 'Starting g2', 'Yielded g2 spam', 'g2 received 2'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_close",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegating 'close'\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield 'g1 ham'\n            yield from g2()\n            yield 'g1 eggs'\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            yield 'g2 spam'\n            yield 'g2 more spam'\n        finally:\n            trace.append('Finishing g2')\n    g = g1()\n    for i in range(2):\n        x = next(g)\n        trace.append('Yielded %s' % (x,))\n    g.close()\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_handing_exception_while_delegating_close",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test handling exception while delegating 'close'\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield 'g1 ham'\n            yield from g2()\n            yield 'g1 eggs'\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            yield 'g2 spam'\n            yield 'g2 more spam'\n        finally:\n            trace.append('Finishing g2')\n            raise ValueError('nybbles have exploded with delight')\n    try:\n        g = g1()\n        for i in range(2):\n            x = next(g)\n            trace.append('Yielded %s' % (x,))\n        g.close()\n    except ValueError as e:\n        assert e.args[0] == 'nybbles have exploded with delight', ('assertEqual', e.args[0], 'nybbles have exploded with delight')\n        assert isinstance(e.__context__, GeneratorExit), ('assertIsInstance', e.__context__, GeneratorExit)\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegating 'throw'\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield 'g1 ham'\n            yield from g2()\n            yield 'g1 eggs'\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            yield 'g2 spam'\n            yield 'g2 more spam'\n        finally:\n            trace.append('Finishing g2')\n    try:\n        g = g1()\n        for i in range(2):\n            x = next(g)\n            trace.append('Yielded %s' % (x,))\n        e = ValueError('tomato ejected')\n        g.throw(e)\n    except ValueError as e:\n        assert e.args[0] == 'tomato ejected', ('assertEqual', e.args[0], 'tomato ejected')\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Finishing g2', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_value_attribute_of_StopIteration_exception",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test 'value' attribute of StopIteration exception\n        \"\"\"\n    trace = []\n\n    def pex(e):\n        trace.append('%s: %s' % (e.__class__.__name__, e))\n        trace.append('value = %s' % (e.value,))\n    e = StopIteration()\n    pex(e)\n    e = StopIteration('spam')\n    pex(e)\n    e.value = 'eggs'\n    pex(e)\n    assert trace == ['StopIteration: ', 'value = None', 'StopIteration: spam', 'value = spam', 'StopIteration: spam', 'value = eggs'], ('assertEqual', trace, ['StopIteration: ', 'value = None', 'StopIteration: spam', 'value = spam', 'StopIteration: spam', 'value = eggs'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_exception_value_crash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def g1():\n        yield from g2()\n\n    def g2():\n        yield 'g2'\n        return [42]\n    assert list(g1()) == ['g2'], ('assertEqual', list(g1()), ['g2'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_generator_return_value",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test generator return value\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('Starting g1')\n        yield 'g1 ham'\n        ret = (yield from g2())\n        trace.append('g2 returned %r' % (ret,))\n        for v in (1, (2,), StopIteration(3)):\n            ret = (yield from g2(v))\n            trace.append('g2 returned %r' % (ret,))\n        yield 'g1 eggs'\n        trace.append('Finishing g1')\n\n    def g2(v=None):\n        trace.append('Starting g2')\n        yield 'g2 spam'\n        yield 'g2 more spam'\n        trace.append('Finishing g2')\n        if v:\n            return v\n    for x in g1():\n        trace.append('Yielded %s' % (x,))\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned None', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned 1', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned (2,)', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned StopIteration(3)', 'Yielded g1 eggs', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned None', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned 1', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned (2,)', 'Starting g2', 'Yielded g2 spam', 'Yielded g2 more spam', 'Finishing g2', 'g2 returned StopIteration(3)', 'Yielded g1 eggs', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegation_of_next_to_non_generator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegation of next() to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        yield from range(3)\n    for x in g():\n        trace.append('Yielded %s' % (x,))\n    assert trace == ['Yielded 0', 'Yielded 1', 'Yielded 2'], ('assertEqual', trace, ['Yielded 0', 'Yielded 1', 'Yielded 2'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_conversion_of_sendNone_to_next",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test conversion of send(None) to next()\n        \"\"\"\n    trace = []\n\n    def g():\n        yield from range(3)\n    gi = g()\n    for x in range(3):\n        y = gi.send(None)\n        trace.append('Yielded: %s' % (y,))\n    assert trace == ['Yielded: 0', 'Yielded: 1', 'Yielded: 2'], ('assertEqual', trace, ['Yielded: 0', 'Yielded: 1', 'Yielded: 2'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegation_of_close_to_non_generator",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_throw_to_non_generator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test delegating 'throw' to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        try:\n            trace.append('Starting g')\n            yield from range(10)\n        finally:\n            trace.append('Finishing g')\n    try:\n        gi = g()\n        for i in range(5):\n            x = next(gi)\n            trace.append('Yielded %s' % (x,))\n        e = ValueError('tomato ejected')\n        gi.throw(e)\n    except ValueError as e:\n        assert e.args[0] == 'tomato ejected', ('assertEqual', e.args[0], 'tomato ejected')\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Starting g', 'Yielded 0', 'Yielded 1', 'Yielded 2', 'Yielded 3', 'Yielded 4', 'Finishing g'], ('assertEqual', trace, ['Starting g', 'Yielded 0', 'Yielded 1', 'Yielded 2', 'Yielded 3', 'Yielded 4', 'Finishing g'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_attempting_to_send_to_non_generator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test attempting to send to non-generator\n        \"\"\"\n    trace = []\n\n    def g():\n        try:\n            trace.append('starting g')\n            yield from range(3)\n            trace.append('g should not be here')\n        finally:\n            trace.append('finishing g')\n    try:\n        gi = g()\n        next(gi)\n        for x in range(3):\n            y = gi.send(42)\n            trace.append('Should not have yielded: %s' % (y,))\n    except AttributeError as e:\n        assert 'send' in e.args[0], ('assertIn', 'send', e.args[0])\n    else:\n        raise AssertionError('was able to send into non-generator')\n    assert trace == ['starting g', 'finishing g'], ('assertEqual', trace, ['starting g', 'finishing g'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_exception_in_initial_next_call",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test exception in initial next() call\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('g1 about to yield from g2')\n        yield from g2()\n        trace.append('g1 should not be here')\n\n    def g2():\n        yield (1 / 0)\n\n    def run():\n        gi = g1()\n        next(gi)\n    try:\n        run()\n    except ZeroDivisionError:\n        pass\n    assert trace == ['g1 about to yield from g2'], ('assertEqual', trace, ['g1 about to yield from g2'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_attempted_yield_from_loop",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test attempted yield-from loop\n        \"\"\"\n    trace = []\n\n    def g1():\n        trace.append('g1: starting')\n        yield 'y1'\n        trace.append('g1: about to yield from g2')\n        yield from g2()\n        trace.append('g1 should not be here')\n\n    def g2():\n        trace.append('g2: starting')\n        yield 'y2'\n        trace.append('g2: about to yield from g1')\n        yield from gi\n        trace.append('g2 should not be here')\n    try:\n        gi = g1()\n        for y in gi:\n            trace.append('Yielded: %s' % (y,))\n    except ValueError as e:\n        assert e.args[0] == 'generator already executing', ('assertEqual', e.args[0], 'generator already executing')\n    else:\n        raise AssertionError(\"subgenerator didn't raise ValueError\")\n    assert trace == ['g1: starting', 'Yielded: y1', 'g1: about to yield from g2', 'g2: starting', 'Yielded: y2', 'g2: about to yield from g1'], ('assertEqual', trace, ['g1: starting', 'Yielded: y1', 'g1: about to yield from g2', 'g2: starting', 'Yielded: y2', 'g2: about to yield from g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_returning_value_from_delegated_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test returning value from delegated 'throw'\n        \"\"\"\n    trace = []\n\n    def g1():\n        try:\n            trace.append('Starting g1')\n            yield 'g1 ham'\n            yield from g2()\n            yield 'g1 eggs'\n        finally:\n            trace.append('Finishing g1')\n\n    def g2():\n        try:\n            trace.append('Starting g2')\n            yield 'g2 spam'\n            yield 'g2 more spam'\n        except LunchError:\n            trace.append('Caught LunchError in g2')\n            yield 'g2 lunch saved'\n            yield 'g2 yet more spam'\n\n    class LunchError(Exception):\n        pass\n    g = g1()\n    for i in range(2):\n        x = next(g)\n        trace.append('Yielded %s' % (x,))\n    e = LunchError('tomato ejected')\n    g.throw(e)\n    for x in g:\n        trace.append('Yielded %s' % (x,))\n    assert trace == ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Caught LunchError in g2', 'Yielded g2 yet more spam', 'Yielded g1 eggs', 'Finishing g1'], ('assertEqual', trace, ['Starting g1', 'Yielded g1 ham', 'Starting g2', 'Yielded g2 spam', 'Caught LunchError in g2', 'Yielded g2 yet more spam', 'Yielded g1 eggs', 'Finishing g1'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_next_and_return_with_value",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test next and return with value\n        \"\"\"\n    trace = []\n\n    def f(r):\n        gi = g(r)\n        next(gi)\n        try:\n            trace.append('f resuming g')\n            next(gi)\n            trace.append('f SHOULD NOT BE HERE')\n        except StopIteration as e:\n            trace.append('f caught %r' % (e,))\n\n    def g(r):\n        trace.append('g starting')\n        yield\n        trace.append('g returning %r' % (r,))\n        return r\n    f(None)\n    f(1)\n    f((2,))\n    f(StopIteration(3))\n    assert trace == ['g starting', 'f resuming g', 'g returning None', 'f caught StopIteration()', 'g starting', 'f resuming g', 'g returning 1', 'f caught StopIteration(1)', 'g starting', 'f resuming g', 'g returning (2,)', 'f caught StopIteration((2,))', 'g starting', 'f resuming g', 'g returning StopIteration(3)', 'f caught StopIteration(StopIteration(3))'], ('assertEqual', trace, ['g starting', 'f resuming g', 'g returning None', 'f caught StopIteration()', 'g starting', 'f resuming g', 'g returning 1', 'f caught StopIteration(1)', 'g starting', 'f resuming g', 'g returning (2,)', 'f caught StopIteration((2,))', 'g starting', 'f resuming g', 'g returning StopIteration(3)', 'f caught StopIteration(StopIteration(3))'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_send_and_return_with_value",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test send and return with value\n        \"\"\"\n    trace = []\n\n    def f(r):\n        gi = g(r)\n        next(gi)\n        try:\n            trace.append('f sending spam to g')\n            gi.send('spam')\n            trace.append('f SHOULD NOT BE HERE')\n        except StopIteration as e:\n            trace.append('f caught %r' % (e,))\n\n    def g(r):\n        trace.append('g starting')\n        x = (yield)\n        trace.append('g received %r' % (x,))\n        trace.append('g returning %r' % (r,))\n        return r\n    f(None)\n    f(1)\n    f((2,))\n    f(StopIteration(3))\n    assert trace == ['g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning None', 'f caught StopIteration()', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning 1', 'f caught StopIteration(1)', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning (2,)', 'f caught StopIteration((2,))', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning StopIteration(3)', 'f caught StopIteration(StopIteration(3))'], ('assertEqual', trace, ['g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning None', 'f caught StopIteration()', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning 1', 'f caught StopIteration(1)', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning (2,)', 'f caught StopIteration((2,))', 'g starting', 'f sending spam to g', \"g received 'spam'\", 'g returning StopIteration(3)', 'f caught StopIteration(StopIteration(3))'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_catching_exception_from_subgen_and_returning",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test catching an exception thrown into a\n        subgenerator and returning a value\n        \"\"\"\n\n    def inner():\n        try:\n            yield 1\n        except ValueError:\n            trace.append('inner caught ValueError')\n        return value\n\n    def outer():\n        v = (yield from inner())\n        trace.append('inner returned %r to outer' % (v,))\n        yield v\n    for value in (2, (2,), StopIteration(2)):\n        trace = []\n        g = outer()\n        trace.append(next(g))\n        trace.append(repr(g.throw(ValueError)))\n        assert trace == [1, 'inner caught ValueError', 'inner returned %r to outer' % (value,), repr(value)], ('assertEqual', trace, [1, 'inner caught ValueError', 'inner returned %r to outer' % (value,), repr(value)])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_returns",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test throwing GeneratorExit into a subgenerator that\n        catches it and returns normally.\n        \"\"\"\n    trace = []\n\n    def f():\n        try:\n            trace.append('Enter f')\n            yield\n            trace.append('Exit f')\n        except GeneratorExit:\n            return\n\n    def g():\n        trace.append('Enter g')\n        yield from f()\n        trace.append('Exit g')\n    try:\n        gi = g()\n        next(gi)\n        gi.throw(GeneratorExit)\n    except GeneratorExit:\n        pass\n    else:\n        raise AssertionError('subgenerator failed to raise GeneratorExit')\n    assert trace == ['Enter g', 'Enter f'], ('assertEqual', trace, ['Enter g', 'Enter f'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgenerator_that_yields",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test throwing GeneratorExit into a subgenerator that\n        catches it and yields.\n        \"\"\"\n    trace = []\n\n    def f():\n        try:\n            trace.append('Enter f')\n            yield\n            trace.append('Exit f')\n        except GeneratorExit:\n            yield\n\n    def g():\n        trace.append('Enter g')\n        yield from f()\n        trace.append('Exit g')\n    try:\n        gi = g()\n        next(gi)\n        gi.throw(GeneratorExit)\n    except RuntimeError as e:\n        assert e.args[0] == 'generator ignored GeneratorExit', ('assertEqual', e.args[0], 'generator ignored GeneratorExit')\n    else:\n        raise AssertionError('subgenerator failed to raise GeneratorExit')\n    assert trace == ['Enter g', 'Enter f'], ('assertEqual', trace, ['Enter g', 'Enter f'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_raises",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    \"\"\"\n        Test throwing GeneratorExit into a subgenerator that\n        catches it and raises a different exception.\n        \"\"\"\n    trace = []\n\n    def f():\n        try:\n            trace.append('Enter f')\n            yield\n            trace.append('Exit f')\n        except GeneratorExit:\n            raise ValueError('Vorpal bunny encountered')\n\n    def g():\n        trace.append('Enter g')\n        yield from f()\n        trace.append('Exit g')\n    try:\n        gi = g()\n        next(gi)\n        gi.throw(GeneratorExit)\n    except ValueError as e:\n        assert e.args[0] == 'Vorpal bunny encountered', ('assertEqual', e.args[0], 'Vorpal bunny encountered')\n        assert isinstance(e.__context__, GeneratorExit), ('assertIsInstance', e.__context__, GeneratorExit)\n    else:\n        raise AssertionError('subgenerator failed to raise ValueError')\n    assert trace == ['Enter g', 'Enter f'], ('assertEqual', trace, ['Enter g', 'Enter f'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_yield_from_empty",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def g():\n        yield from ()\n    try:\n        next(*(g(),))\n    except StopIteration:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_generators_claim_to_be_running",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def one():\n        yield 0\n        yield from two()\n        yield 3\n\n    def two():\n        yield 1\n        try:\n            yield from g1\n        except ValueError:\n            pass\n        yield 2\n    g1 = one()\n    assert list(g1) == [0, 1, 2, 3], ('assertEqual', list(g1), [0, 1, 2, 3])\n    g1 = one()\n    res = [next(g1)]\n    try:\n        while True:\n            res.append(g1.send(42))\n    except StopIteration:\n        pass\n    assert res == [0, 1, 2, 3], ('assertEqual', res, [0, 1, 2, 3])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_throw",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyErr(Exception):\n        pass\n\n    def one():\n        try:\n            yield 0\n        except MyErr:\n            pass\n        yield from two()\n        try:\n            yield 3\n        except MyErr:\n            pass\n\n    def two():\n        try:\n            yield 1\n        except MyErr:\n            pass\n        try:\n            yield from g1\n        except ValueError:\n            pass\n        try:\n            yield 2\n        except MyErr:\n            pass\n    g1 = one()\n    res = [next(g1)]\n    try:\n        while True:\n            res.append(g1.throw(MyErr))\n    except StopIteration:\n        pass\n    except:\n        assert res == [0, 1, 2, 3], ('assertEqual', res, [0, 1, 2, 3])\n        raise\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegator_is_visible_to_debugger",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import inspect\n\ndef _t():\n\n    def call_stack():\n        return [f[3] for f in inspect.stack()]\n\n    def gen():\n        yield call_stack()\n        yield call_stack()\n        yield call_stack()\n\n    def spam(g):\n        yield from g\n\n    def eggs(g):\n        yield from g\n    for stack in spam(gen()):\n        assert 'spam' in stack, ('assertTrue', 'spam' in stack)\n    for stack in spam(eggs(gen())):\n        assert 'spam' in stack and 'eggs' in stack, ('assertTrue', 'spam' in stack and 'eggs' in stack)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_custom_iterator_return",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyIter:\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            raise StopIteration(42)\n\n    def gen():\n        nonlocal ret\n        ret = (yield from MyIter())\n    ret = None\n    list(gen())\n    assert ret == 42, ('assertEqual', ret, 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestPEP380Operation.test_close_with_cleared_frame",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "ident": "TestPEP380Operation.test_send_tuple_with_custom_generator",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class MyGen:\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            return 42\n\n        def send(self, what):\n            nonlocal v\n            v = what\n            return None\n\n    def outer():\n        v = (yield from MyGen())\n    g = outer()\n    next(g)\n    v = None\n    g.send((1, 2, 3, 4))\n    assert v == (1, 2, 3, 4), ('assertEqual', v, (1, 2, 3, 4))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_throws_in_iter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    class Silly:\n\n        def __iter__(self):\n            raise RuntimeError('nobody expects the spanish inquisition')\n\n    def my_generator():\n        yield from Silly()\n    try:\n        next(iter(my_generator()))\n    except RuntimeError as _exc:\n        assert _re.search('nobody expects the spanish inquisition', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestPEP380Operation.test_broken_getattr_handling",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "ident": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close",
+      "reason": "uses-self.assertTrue"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_work",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_base_exception",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_raise_exception",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_yield",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "ident": "TestInterestingEdgeCases.test_close_and_throw_return",
+      "reason": "self.assert_stop_iteration"
+    }
+  ],
+  "counts": {
+    "extracted": 43,
+    "pinned": 32,
+    "quarantined": 11
+  }
+}

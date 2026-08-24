@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_class.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_class",
+    "--name",
+    "conv_class"
+  ],
+  "generated_at": "2026-08-24T00:40:44",
+  "hashes": {
+    "pins_jac": "3f0402248c06ea8d2a50aee8365da00c3f059e735712b146b20a5e074c892f76"
+  },
+  "source_file": "reference/cpython/Lib/test/test_class.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "class",
+  "pins_file": "conv_class_pins.jac",
+  "pins": [
+    {
+      "ident": "TestInlineValues.test_store_attr_deleted_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "callLst = []\n\ndef trackCall(f):\n\n    def track(*args, **kwargs):\n        callLst.append((f.__name__, args))\n        return f(*args, **kwargs)\n    return track\n\ndef _t():\n\n    class Foo:\n        pass\n    f = Foo()\n    del f.__dict__\n    f.a = 3\n    assert f.a == 3, ('assertEqual', f.a, 3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestInlineValues.test_rematerialize_object_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "callLst = []\n\ndef trackCall(f):\n\n    def track(*args, **kwargs):\n        callLst.append((f.__name__, args))\n        return f(*args, **kwargs)\n    return track\n\ndef _t():\n\n    class Foo:\n        pass\n    f = Foo()\n    f.__dict__['attr'] = 1\n    del f.__dict__\n\n    class StrSubclass(str):\n        pass\n    assert not hasattr(f, StrSubclass('attr')), ('assertFalse', hasattr(f, StrSubclass('attr')))\n\n    class Bar:\n        pass\n    f.__class__ = Bar\n    assert isinstance(f, Bar), ('assertIsInstance', f, Bar)\n    assert f.__dict__ == {}, ('assertEqual', f.__dict__, {})\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestInlineValues.test_detach_materialized_dict_no_memory",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "ClassTests.testInit",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testBinaryOps",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testListAndDictOps",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testUnaryOps",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testMisc",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testGetSetAndDel",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testHasAttrString",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testDel",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testBadTypeReturned",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testHashStuff",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testPredefinedAttrs",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testSFBug532646",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testForExceptionsRaisedInInstanceGetattr2",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testHashComparisonOfMethods",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testSetattrWrapperNameIntern",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testSetattrNonStringName",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testTypeAttributeAccessErrorMessages",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testObjectAttributeAccessErrorMessages",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testConstructorErrorMessages",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testClassWithExtCall",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testClassCallRecursionLimit",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.testMetaclassCallOptimization",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "ClassTests.test_specialization_class_call_doesnt_crash",
+      "reason": "decorator:support.thread_unsafe"
+    },
+    {
+      "ident": "TestInlineValues.test_no_flags_for_slots_class",
+      "reason": "unresolved-name:NoManagedDict"
+    },
+    {
+      "ident": "TestInlineValues.test_both_flags_for_regular_class",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TestInlineValues.test_managed_dict_only_for_varsized_subclass",
+      "reason": "unresolved-name:VarSizedSubclass"
+    },
+    {
+      "ident": "TestInlineValues.test_has_inline_values",
+      "reason": "unresolved-name:Plain"
+    },
+    {
+      "ident": "TestInlineValues.test_instances",
+      "reason": "unresolved-name:Plain"
+    },
+    {
+      "ident": "TestInlineValues.test_inspect_dict",
+      "reason": "unresolved-name:Plain"
+    },
+    {
+      "ident": "TestInlineValues.test_update_dict",
+      "reason": "unresolved-name:Plain"
+    },
+    {
+      "ident": "TestInlineValues.test_many_attributes",
+      "reason": "self.set_100"
+    },
+    {
+      "ident": "TestInlineValues.test_many_attributes_with_dict",
+      "reason": "self.set_100"
+    },
+    {
+      "ident": "TestInlineValues.test_bug_117750",
+      "reason": "uses-self.__dict__"
+    },
+    {
+      "ident": "TestInlineValues.test_store_attr_type_cache",
+      "reason": "uses-self.assertEqual"
+    }
+  ],
+  "counts": {
+    "extracted": 37,
+    "pinned": 2,
+    "quarantined": 35
+  }
+}

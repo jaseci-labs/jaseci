@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "unknown",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_decorators.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_decorators",
+    "--name",
+    "conv_decorators"
+  ],
+  "generated_at": "2026-08-24T00:35:07",
+  "hashes": {
+    "pins_jac": "3d746a51443f9408ea6804e14c5a8a21af0d2d8448ec37c704d36c7c685df674"
+  },
+  "source_file": "reference/cpython/Lib/test/test_decorators.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "decorators",
+  "pins_file": "conv_decorators_pins.jac",
+  "pins": [
+    {
+      "ident": "TestDecorators.test_single",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class C(object):\n\n        @staticmethod\n        def foo():\n            return 42\n    assert C.foo() == 42, ('assertEqual', C.foo(), 42)\n    assert C().foo() == 42, ('assertEqual', C().foo(), 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_argforms",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def funcattrs(**kwds):\n\n    def decorate(func):\n        func.__dict__.update(kwds)\n        return func\n    return decorate\n\ndef dbcheck(exprstr, globals=None, locals=None):\n    \"\"\"Decorator to implement debugging assertions\"\"\"\n\n    def decorate(func):\n        expr = compile(exprstr, 'dbcheck-%s' % func.__name__, 'eval')\n\n        def check(*args, **kwds):\n            if not eval(expr, globals, locals):\n                raise DbcheckError(exprstr, func, args, kwds)\n            return func(*args, **kwds)\n        return check\n    return decorate\n\ndef countcalls(counts):\n    \"\"\"Decorator to count calls to a function\"\"\"\n\n    def decorate(func):\n        func_name = func.__name__\n        counts[func_name] = 0\n\n        def call(*args, **kwds):\n            counts[func_name] += 1\n            return func(*args, **kwds)\n        call.__name__ = func_name\n        return call\n    return decorate\n\ndef memoize(func):\n    saved = {}\n\n    def call(*args):\n        try:\n            return saved[args]\n        except KeyError:\n            res = func(*args)\n            saved[args] = res\n            return res\n        except TypeError:\n            return func(*args)\n    call.__name__ = func.__name__\n    return call\n\ndef _t():\n\n    def noteargs(*args, **kwds):\n\n        def decorate(func):\n            setattr(func, 'dbval', (args, kwds))\n            return func\n        return decorate\n    args = ('Now', 'is', 'the', 'time')\n    kwds = dict(one=1, two=2)\n\n    @noteargs(*args, **kwds)\n    def f1():\n        return 42\n    assert f1() == 42, ('assertEqual', f1(), 42)\n    assert f1.dbval == (args, kwds), ('assertEqual', f1.dbval, (args, kwds))\n\n    @noteargs('terry', 'gilliam', eric='idle', john='cleese')\n    def f2():\n        return 84\n    assert f2() == 84, ('assertEqual', f2(), 84)\n    assert f2.dbval == (('terry', 'gilliam'), dict(eric='idle', john='cleese')), ('assertEqual', f2.dbval, (('terry', 'gilliam'), dict(eric='idle', john='cleese')))\n\n    @noteargs(1, 2)\n    def f3():\n        pass\n    assert f3.dbval == ((1, 2), {}), ('assertEqual', f3.dbval, ((1, 2), {}))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_memoize",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def funcattrs(**kwds):\n\n    def decorate(func):\n        func.__dict__.update(kwds)\n        return func\n    return decorate\n\ndef dbcheck(exprstr, globals=None, locals=None):\n    \"\"\"Decorator to implement debugging assertions\"\"\"\n\n    def decorate(func):\n        expr = compile(exprstr, 'dbcheck-%s' % func.__name__, 'eval')\n\n        def check(*args, **kwds):\n            if not eval(expr, globals, locals):\n                raise DbcheckError(exprstr, func, args, kwds)\n            return func(*args, **kwds)\n        return check\n    return decorate\n\ndef countcalls(counts):\n    \"\"\"Decorator to count calls to a function\"\"\"\n\n    def decorate(func):\n        func_name = func.__name__\n        counts[func_name] = 0\n\n        def call(*args, **kwds):\n            counts[func_name] += 1\n            return func(*args, **kwds)\n        call.__name__ = func_name\n        return call\n    return decorate\n\ndef memoize(func):\n    saved = {}\n\n    def call(*args):\n        try:\n            return saved[args]\n        except KeyError:\n            res = func(*args)\n            saved[args] = res\n            return res\n        except TypeError:\n            return func(*args)\n    call.__name__ = func.__name__\n    return call\n\ndef _t():\n    counts = {}\n\n    @memoize\n    @countcalls(counts)\n    def double(x):\n        return x * 2\n    assert double.__name__ == 'double', ('assertEqual', double.__name__, 'double')\n    assert counts == dict(double=0), ('assertEqual', counts, dict(double=0))\n    assert double(2) == 4, ('assertEqual', double(2), 4)\n    assert counts['double'] == 1, ('assertEqual', counts['double'], 1)\n    assert double(2) == 4, ('assertEqual', double(2), 4)\n    assert counts['double'] == 1, ('assertEqual', counts['double'], 1)\n    assert double(3) == 6, ('assertEqual', double(3), 6)\n    assert counts['double'] == 2, ('assertEqual', counts['double'], 2)\n    assert double([10]) == [10, 10], ('assertEqual', double([10]), [10, 10])\n    assert counts['double'] == 3, ('assertEqual', counts['double'], 3)\n    assert double([10]) == [10, 10], ('assertEqual', double([10]), [10, 10])\n    assert counts['double'] == 4, ('assertEqual', counts['double'], 4)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_errors",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def funcattrs(**kwds):\n\n    def decorate(func):\n        func.__dict__.update(kwds)\n        return func\n    return decorate\n\ndef dbcheck(exprstr, globals=None, locals=None):\n    \"\"\"Decorator to implement debugging assertions\"\"\"\n\n    def decorate(func):\n        expr = compile(exprstr, 'dbcheck-%s' % func.__name__, 'eval')\n\n        def check(*args, **kwds):\n            if not eval(expr, globals, locals):\n                raise DbcheckError(exprstr, func, args, kwds)\n            return func(*args, **kwds)\n        return check\n    return decorate\n\ndef countcalls(counts):\n    \"\"\"Decorator to count calls to a function\"\"\"\n\n    def decorate(func):\n        func_name = func.__name__\n        counts[func_name] = 0\n\n        def call(*args, **kwds):\n            counts[func_name] += 1\n            return func(*args, **kwds)\n        call.__name__ = func_name\n        return call\n    return decorate\n\ndef memoize(func):\n    saved = {}\n\n    def call(*args):\n        try:\n            return saved[args]\n        except KeyError:\n            res = func(*args)\n            saved[args] = res\n            return res\n        except TypeError:\n            return func(*args)\n    call.__name__ = func.__name__\n    return call\n\ndef _t():\n    for stmt in ('x,', 'x, y', 'x = y', 'pass', 'import sys'):\n        compile(stmt, 'test', 'exec')\n        try:\n            compile(f'@{stmt}\\ndef f(): pass', 'test', 'exec')\n        except SyntaxError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n    for expr in ('1.+2j', '[1, 2][-1]', '(1, 2)', 'True', '...', 'None'):\n        compile(expr, 'test', 'eval')\n        try:\n            exec(f'@{expr}\\ndef f(): pass')\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\n\n    def unimp(func):\n        raise NotImplementedError\n    context = dict(nullval=None, unimp=unimp)\n    for expr, exc in [('undef', NameError), ('nullval', TypeError), ('nullval.attr', AttributeError), ('unimp', NotImplementedError)]:\n        codestr = '@%s\\ndef f(): pass\\nassert f() is None' % expr\n        code = compile(codestr, 'test', 'exec')\n        try:\n            eval(*(code, context))\n        except exc:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_expressions",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def funcattrs(**kwds):\n\n    def decorate(func):\n        func.__dict__.update(kwds)\n        return func\n    return decorate\n\ndef dbcheck(exprstr, globals=None, locals=None):\n    \"\"\"Decorator to implement debugging assertions\"\"\"\n\n    def decorate(func):\n        expr = compile(exprstr, 'dbcheck-%s' % func.__name__, 'eval')\n\n        def check(*args, **kwds):\n            if not eval(expr, globals, locals):\n                raise DbcheckError(exprstr, func, args, kwds)\n            return func(*args, **kwds)\n        return check\n    return decorate\n\ndef countcalls(counts):\n    \"\"\"Decorator to count calls to a function\"\"\"\n\n    def decorate(func):\n        func_name = func.__name__\n        counts[func_name] = 0\n\n        def call(*args, **kwds):\n            counts[func_name] += 1\n            return func(*args, **kwds)\n        call.__name__ = func_name\n        return call\n    return decorate\n\ndef memoize(func):\n    saved = {}\n\n    def call(*args):\n        try:\n            return saved[args]\n        except KeyError:\n            res = func(*args)\n            saved[args] = res\n            return res\n        except TypeError:\n            return func(*args)\n    call.__name__ = func.__name__\n    return call\n\ndef _t():\n    for expr in ('(x,)', '(x, y)', 'x := y', '(x := y)', 'x @y', '(x @ y)', 'x[0]', 'w[x].y.z', 'w + x - (y + z)', 'x(y)()(z)', '[w, x, y][z]', 'x.y'):\n        compile(f'@{expr}\\ndef f(): pass', 'test', 'exec')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_double",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def funcattrs(**kwds):\n\n    def decorate(func):\n        func.__dict__.update(kwds)\n        return func\n    return decorate\n\ndef dbcheck(exprstr, globals=None, locals=None):\n    \"\"\"Decorator to implement debugging assertions\"\"\"\n\n    def decorate(func):\n        expr = compile(exprstr, 'dbcheck-%s' % func.__name__, 'eval')\n\n        def check(*args, **kwds):\n            if not eval(expr, globals, locals):\n                raise DbcheckError(exprstr, func, args, kwds)\n            return func(*args, **kwds)\n        return check\n    return decorate\n\ndef countcalls(counts):\n    \"\"\"Decorator to count calls to a function\"\"\"\n\n    def decorate(func):\n        func_name = func.__name__\n        counts[func_name] = 0\n\n        def call(*args, **kwds):\n            counts[func_name] += 1\n            return func(*args, **kwds)\n        call.__name__ = func_name\n        return call\n    return decorate\n\ndef memoize(func):\n    saved = {}\n\n    def call(*args):\n        try:\n            return saved[args]\n        except KeyError:\n            res = func(*args)\n            saved[args] = res\n            return res\n        except TypeError:\n            return func(*args)\n    call.__name__ = func.__name__\n    return call\n\ndef _t():\n\n    class C(object):\n\n        @funcattrs(abc=1, xyz='haha')\n        @funcattrs(booh=42)\n        def foo(self):\n            return 42\n    assert C().foo() == 42, ('assertEqual', C().foo(), 42)\n    assert C.foo.abc == 1, ('assertEqual', C.foo.abc, 1)\n    assert C.foo.xyz == 'haha', ('assertEqual', C.foo.xyz, 'haha')\n    assert C.foo.booh == 42, ('assertEqual', C.foo.booh, 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_order",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def callnum(num):\n        \"\"\"Decorator factory that returns a decorator that replaces the\n            passed-in function with one that returns the value of 'num'\"\"\"\n\n        def deco(func):\n            return lambda: num\n        return deco\n\n    @callnum(2)\n    @callnum(1)\n    def foo():\n        return 42\n    assert foo() == 2, ('assertEqual', foo(), 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestDecorators.test_bound_function_inside_classmethod",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class A:\n\n        def foo(self, cls):\n            return 'spam'\n\n    class B:\n        bar = classmethod(A().foo)\n    assert B.bar() == 'spam', ('assertEqual', B.bar(), 'spam')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestClassDecorators.test_simple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def plain(x):\n        x.extra = 'Hello'\n        return x\n\n    @plain\n    class C(object):\n        pass\n    assert C.extra == 'Hello', ('assertEqual', C.extra, 'Hello')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestClassDecorators.test_double",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def ten(x):\n        x.extra = 10\n        return x\n\n    def add_five(x):\n        x.extra += 5\n        return x\n\n    @add_five\n    @ten\n    class C(object):\n        pass\n    assert C.extra == 15, ('assertEqual', C.extra, 15)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestClassDecorators.test_order",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def applied_first(x):\n        x.extra = 'first'\n        return x\n\n    def applied_second(x):\n        x.extra = 'second'\n        return x\n\n    @applied_second\n    @applied_first\n    class C(object):\n        pass\n    assert C.extra == 'second', ('assertEqual', C.extra, 'second')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestDecorators.test_staticmethod",
+      "reason": "uses-self.check_wrapper_attrs"
+    },
+    {
+      "ident": "TestDecorators.test_classmethod",
+      "reason": "uses-self.check_wrapper_attrs"
+    },
+    {
+      "ident": "TestDecorators.test_dotted",
+      "reason": "unresolved-name:MiscDecorators"
+    },
+    {
+      "ident": "TestDecorators.test_dbcheck",
+      "reason": "unresolved-name:DbcheckError"
+    },
+    {
+      "ident": "TestDecorators.test_eval_order",
+      "reason": "uses-self.index"
+    }
+  ],
+  "counts": {
+    "extracted": 16,
+    "pinned": 11,
+    "quarantined": 5
+  }
+}

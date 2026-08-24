@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "eaede505ed271a6b8e7417adfe94c0693b10fff5",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/conv_yield_from/conv_yield_from_pins.jac"
+  ],
+  "generated_at": "2026-08-24T00:42:57",
+  "hashes": {
+    "pins_jac": "9aba8968493dfad8e6844b1d98e94b053ad7dc101de3922bf62386873b7a72cd",
+    "conversion_json": "d133e7d0ee8f28e3f82dd80d42fc180070987ca06a85466809c85379c2e53300",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "yield_from",
+  "counts": {
+    "converted": 43,
+    "runnable": 32,
+    "green": 23,
+    "quarantined": 11
+  },
+  "pins": [
+    {
+      "id": "TestPEP380Operation.test_delegation_of_initial_next_to_subgenerator",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_raising_exception_in_initial_next_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegation_of_next_call_to_subgenerator",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_raising_exception_in_delegated_next_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegation_of_send",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_handling_exception_while_delegating_send",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_close",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_handing_exception_while_delegating_close",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_throw",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_value_attribute_of_StopIteration_exception",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'value'\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_exception_value_crash",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_generator_return_value",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegation_of_next_to_non_generator",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_conversion_of_sendNone_to_next",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegation_of_close_to_non_generator",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_throw_to_non_generator",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_attempting_to_send_to_non_generator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'tuple index out of range'\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_exception_in_initial_next_call",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_attempted_yield_from_loop",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC IndexError 'tuple index out of range'\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_returning_value_from_delegated_throw",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_next_and_return_with_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', [\\'g starting\\', \\'f resuming g\\', \\'g returning None\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning 1\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning (2,)\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning StopIteration(3)\\', \\'f caught StopIteration()\\'], [\\'g starting\\', \\'f resuming g\\', \\'g returning None\\', \\'f caught StopIteration()\\', \\'g starting\\', \\'f resuming g\\', \\'g returning 1\\', \\'f caught StopIteration(1)\\', \\'g starting\\', \\'f resuming g\\', \\'g returning (2,)\\', \\'f caught StopIteration((2,))\\', \\'g starting\\', \\'f resuming g\\', \\'g returning StopIteration(3)\\', \\'f caught StopIteration(StopIteration(3))\\'])\"'>"
+    },
+    {
+      "id": "TestPEP380Operation.test_send_and_return_with_value",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \\'(\\\\\\'assertEqual\\\\\\', [\\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning None\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning 1\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning (2,)\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning StopIteration(3)\\\\\\', \\\\\\'f caught StopIteration()\\\\\\'], [\\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning None\\\\\\', \\\\\\'f caught StopIteration()\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning 1\\\\\\', \\\\\\'f caught StopIteration(1)\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning (2,)\\\\\\', \\\\\\'f caught StopIteration((2,))\\\\\\', \\\\\\'g starting\\\\\\', \\\\\\'f sending spam to g\\\\\\', \"g received \\\\\\'spam\\\\\\'\", \\\\\\'g returning StopIteration(3)\\\\\\', \\\\\\'f caught StopIteration(StopIteration(3))\\\\\\'])\\''>"
+    },
+    {
+      "id": "TestPEP380Operation.test_catching_exception_from_subgen_and_returning",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_returns",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC StopIteration ''\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgenerator_that_yields",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'subgenerator failed to raise GeneratorExit'\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_throwing_GeneratorExit_into_subgen_that_raises",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_yield_from_empty",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_generators_claim_to_be_running",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_throw",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegator_is_visible_to_debugger",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: bridge-table: type 'native_builtin' has policy BridgePolicy.TRAMPOLINE but no to_host conversion arm\">"
+    },
+    {
+      "id": "TestPEP380Operation.test_custom_iterator_return",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', None, 42)\"'>"
+    },
+    {
+      "id": "TestPEP380Operation.test_close_with_cleared_frame",
+      "status": "quarantined",
+      "reason": "harness-error:ModuleNotFoundError: No module named 'test'"
+    },
+    {
+      "id": "TestPEP380Operation.test_send_tuple_with_custom_generator",
+      "status": "pass"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_throws_in_iter",
+      "status": "pass"
+    },
+    {
+      "id": "TestPEP380Operation.test_broken_getattr_handling",
+      "status": "quarantined",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "id": "TestPEP380Operation.test_delegating_generators_claim_to_be_running_with_close",
+      "status": "quarantined",
+      "reason": "uses-self.assertTrue"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_work",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_raise_generator_exit",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_raise_stop_iteration",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_raise_base_exception",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_raise_exception",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_yield",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    },
+    {
+      "id": "TestInterestingEdgeCases.test_close_and_throw_return",
+      "status": "quarantined",
+      "reason": "self.assert_stop_iteration"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_property.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_property",
+    "--name",
+    "conv_property"
+  ],
+  "generated_at": "2026-08-24T00:40:01",
+  "hashes": {
+    "pins_jac": "8f54e4b296b8ba88e0d5060cca7b137f37ae3f8ed08da508eb036e023bb2b375"
+  },
+  "source_file": "reference/cpython/Lib/test/test_property.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "property",
+  "pins_file": "conv_property_pins.jac",
+  "pins": [
+    {
+      "ident": "PropertyTests.test_property___isabstractmethod__descriptor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    for val in (True, False, [], [1], '', '1'):\n\n        class C(object):\n\n            def foo(self):\n                pass\n            foo.__isabstractmethod__ = val\n            foo = property(foo)\n        assert C.foo.__isabstractmethod__ is bool(val), ('assertIs', C.foo.__isabstractmethod__, bool(val))\n\n    class NotBool(object):\n\n        def __bool__(self):\n            raise ValueError()\n        __len__ = __bool__\n    try:\n\n        class C(object):\n\n            def foo(self):\n                pass\n            foo.__isabstractmethod__ = NotBool()\n            foo = property(foo)\n        C.foo.__isabstractmethod__\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PropertyTests.test_property_name",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    def getter(self):\n        return 42\n\n    def setter(self, value):\n        pass\n\n    class A:\n\n        @property\n        def foo(self):\n            return 1\n\n        @foo.setter\n        def oof(self, value):\n            pass\n        bar = property(getter)\n        baz = property(None, setter)\n    assert A.foo.__name__ == 'foo', ('assertEqual', A.foo.__name__, 'foo')\n    assert A.oof.__name__ == 'oof', ('assertEqual', A.oof.__name__, 'oof')\n    assert A.bar.__name__ == 'bar', ('assertEqual', A.bar.__name__, 'bar')\n    assert A.baz.__name__ == 'baz', ('assertEqual', A.baz.__name__, 'baz')\n    A.quux = property(getter)\n    assert A.quux.__name__ == 'getter', ('assertEqual', A.quux.__name__, 'getter')\n    A.quux.__name__ = 'myquux'\n    assert A.quux.__name__ == 'myquux', ('assertEqual', A.quux.__name__, 'myquux')\n    assert A.bar.__name__ == 'bar', ('assertEqual', A.bar.__name__, 'bar')\n    A.quux.__name__ = None\n    assert A.quux.__name__ is None, ('assertIsNone', A.quux.__name__)\n    try:\n        property(None, setter).__name__\n    except AttributeError as _exc:\n        assert _re.search(\"'property' object has no attribute '__name__'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        property(1).__name__\n    except AttributeError as _exc:\n        assert _re.search(\"'property' object has no attribute '__name__'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n\n    class Err:\n\n        def __getattr__(self, attr):\n            raise RuntimeError('fail')\n    p = property(Err())\n    try:\n        p.__name__\n    except RuntimeError as _exc:\n        assert _re.search('fail', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    p.__name__ = 'not_fail'\n    assert p.__name__ == 'not_fail', ('assertEqual', p.__name__, 'not_fail')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PropertyTests.test_property_set_name_incorrect_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    p = property()\n    for i in (0, 1, 3):\n        try:\n            p.__set_name__(*[0] * i)\n        except TypeError as _exc:\n            assert _re.search(f'^__set_name__\\\\(\\\\) takes 2 positional arguments but {i} were given$', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PropertyTests.test_property_setname_on_property_subclass",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class pro(property):\n\n        def __new__(typ, *args, **kwargs):\n            return 'abcdef'\n\n    class A:\n        pass\n    p = property.__new__(pro)\n    p.__set_name__(A, 1)\n    np = p.getter(lambda self: 1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_with_slots_no_docstring",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class slotted_prop(property):\n        __slots__ = ('foo',)\n    p = slotted_prop()\n    assert getattr(p, '__doc__', None) is None, ('assertIsNone', getattr(p, '__doc__', None))\n\n    def undocumented_getter():\n        return 4\n    p = slotted_prop(undocumented_getter)\n    assert getattr(p, '__doc__', None) is None, ('assertIsNone', getattr(p, '__doc__', None))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PropertyTests.test_property_decorator_subclass_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_baseclass_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_getter_doc_override",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_builtin_doc_writable",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_doc_writable",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_refleaks_in___init__",
+      "reason": "decorator:support.refcount_test"
+    },
+    {
+      "ident": "PropertyTests.test_gh_115618",
+      "reason": "decorator:support.refcount_test"
+    },
+    {
+      "ident": "PropertySubclassTests.test_slots_docstring_copy_exception",
+      "reason": "decorator:support.requires_docstrings"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_with_slots_docstring_silently_dropped",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_with_slots_and_doc_slot_docstring_present",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_issue41287",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_docstring_copy",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_docstring_copy2",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_prefer_explicit_doc",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_setter_copies_getter_docstring",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_new_getter_new_docstring",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_baseclass",
+      "reason": "self.assertNotHasAttr"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_subclass",
+      "reason": "unresolved-name:PropertyDel"
+    },
+    {
+      "ident": "PropertyTests.test_property_decorator_doc",
+      "reason": "unresolved-name:PropertyDocBase"
+    },
+    {
+      "ident": "PropertySubclassTests.test_property_no_doc_on_getter",
+      "reason": "unresolved-name:PropertySub"
+    },
+    {
+      "ident": "_PropertyUnreachableAttribute.test_get_property",
+      "reason": "uses-self.obj"
+    },
+    {
+      "ident": "_PropertyUnreachableAttribute.test_set_property",
+      "reason": "uses-self.obj"
+    },
+    {
+      "ident": "_PropertyUnreachableAttribute.test_del_property",
+      "reason": "uses-self.obj"
+    }
+  ],
+  "counts": {
+    "extracted": 28,
+    "pinned": 5,
+    "quarantined": 23
+  }
+}

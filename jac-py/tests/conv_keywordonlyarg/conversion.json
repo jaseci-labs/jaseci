@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_keywordonlyarg.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_keywordonlyarg",
+    "--name",
+    "conv_keywordonlyarg"
+  ],
+  "generated_at": "2026-08-24T00:40:28",
+  "hashes": {
+    "pins_jac": "4bea0d26162baeb1ab6fc0a97fe8bf796a511e3d090f74a5e7a168de35c5fe93"
+  },
+  "source_file": "reference/cpython/Lib/test/test_keywordonlyarg.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "keywordonlyarg",
+  "pins_file": "conv_keywordonlyarg_pins.jac",
+  "pins": [
+    {
+      "ident": "KeywordOnlyArgTestCase.testSyntaxForManyArguments",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    fundef = 'def f(%s):\\n  pass\\n' % ', '.join(('i%d' % i for i in range(300)))\n    compile(fundef, '<test>', 'single')\n    fundef = 'def f(*, %s):\\n  pass\\n' % ', '.join(('i%d' % i for i in range(300)))\n    compile(fundef, '<test>', 'single')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.testKwDefaults",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def posonly_sum(pos_arg1, *arg, **kwarg):\n    return pos_arg1 + sum(arg) + sum(kwarg.values())\n\ndef keywordonly_sum(*, k1=0, k2):\n    return k1 + k2\n\ndef keywordonly_nodefaults_sum(*, k1, k2):\n    return k1 + k2\n\ndef keywordonly_and_kwarg_sum(*, k1, k2, **kwarg):\n    return k1 + k2 + sum(kwarg.values())\n\ndef mixedargs_sum(a, b=0, *arg, k1, k2=0):\n    return a + b + k1 + k2 + sum(arg)\n\ndef mixedargs_sum2(a, b=0, *arg, k1, k2=0, **kwargs):\n    return a + b + k1 + k2 + sum(arg) + sum(kwargs.values())\n\ndef sortnum(*nums, reverse=False):\n    return sorted(list(nums), reverse=reverse)\n\ndef sortwords(*words, reverse=False, **kwargs):\n    return sorted(list(words), reverse=reverse)\n\ndef _t():\n\n    def foo(p1, p2=0, *, k1, k2=0):\n        return p1 + p2 + k1 + k2\n    assert 2 == foo.__code__.co_kwonlyargcount, ('assertEqual', 2, foo.__code__.co_kwonlyargcount)\n    assert {'k2': 0} == foo.__kwdefaults__, ('assertEqual', {'k2': 0}, foo.__kwdefaults__)\n    foo.__kwdefaults__ = {'k1': 0}\n    try:\n        foo(1, k1=10)\n        raise AssertionError('__kwdefaults__ is not properly changed')\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.test_kwonly_methods",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def posonly_sum(pos_arg1, *arg, **kwarg):\n    return pos_arg1 + sum(arg) + sum(kwarg.values())\n\ndef keywordonly_sum(*, k1=0, k2):\n    return k1 + k2\n\ndef keywordonly_nodefaults_sum(*, k1, k2):\n    return k1 + k2\n\ndef keywordonly_and_kwarg_sum(*, k1, k2, **kwarg):\n    return k1 + k2 + sum(kwarg.values())\n\ndef mixedargs_sum(a, b=0, *arg, k1, k2=0):\n    return a + b + k1 + k2 + sum(arg)\n\ndef mixedargs_sum2(a, b=0, *arg, k1, k2=0, **kwargs):\n    return a + b + k1 + k2 + sum(arg) + sum(kwargs.values())\n\ndef sortnum(*nums, reverse=False):\n    return sorted(list(nums), reverse=reverse)\n\ndef sortwords(*words, reverse=False, **kwargs):\n    return sorted(list(words), reverse=reverse)\n\ndef _t():\n\n    class Example:\n\n        def f(self, *, k1=1, k2=2):\n            return (k1, k2)\n    assert Example().f(k1=1, k2=2) == (1, 2), ('assertEqual', Example().f(k1=1, k2=2), (1, 2))\n    assert Example.f(Example(), k1=1, k2=2) == (1, 2), ('assertEqual', Example.f(Example(), k1=1, k2=2), (1, 2))\n    try:\n        Example.f(k1=1, k2=2)\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.test_issue13343",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import unittest\n\ndef _t():\n    lambda *, k1=unittest: None\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.test_mangling",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class X:\n\n        def f(self, *, __a=42):\n            return __a\n    assert X().f() == 42, ('assertEqual', X().f(), 42)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionDefinition",
+      "reason": "self.assertRaisesSyntaxError"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.testTooManyPositionalErrorMessage",
+      "reason": "unresolved-name:exc"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall",
+      "reason": "self.assertRaisesSyntaxError"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.testRaiseErrorFuncallWithUnexpectedKeywordArgument",
+      "reason": "unresolved-name:Foo"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.testFunctionCall",
+      "reason": "unresolved-name:Foo"
+    },
+    {
+      "ident": "KeywordOnlyArgTestCase.test_default_evaluation_order",
+      "reason": "unresolved-name:c"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 5,
+    "quarantined": 6
+  }
+}
