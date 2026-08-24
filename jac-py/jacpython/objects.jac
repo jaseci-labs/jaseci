@@ -2851,6 +2851,50 @@ obj PyExceptionType(PyObj) {
     }
 }
 
+# Bound BaseException.__setstate__(state) for native exceptions: 'args' is
+# restored first (CPython BaseException_set_state order), remaining keys land
+# in the instance attribute surface (type_fields), mirroring the instance-dict
+# update CPython does for the rest of the state mapping.
+obj ExcSetStateFn(PyObj) {
+    has exc: PyException;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 or len(kwargs) > 0 {
+            return py_error("TypeError", "__setstate__() takes exactly 1 argument");
+        }
+        if not isinstance(args[0], PyDict) {
+            return py_error(
+                "TypeError", "__setstate__() argument must be a dict, not '" + args[0].t + "'"
+            );
+        }
+        state = args[0] as PyDict;
+        rest: list[tuple[str, PyObj]] = [];
+        for skey in state.items {
+            sval = state.items[skey];
+            if isinstance(skey, PyStr) {
+                if (skey as PyStr).val == "args" {
+                    set = self.exc.tp_setattro("args", sval);
+                    if is_error(set) {
+                        return set;
+                    }
+                    continue;
+                }
+                rest.append(((skey as PyStr).val, sval));
+            }
+        }
+        for pair in rest {
+            set = self.exc.tp_setattro(pair[0], pair[1]);
+            if is_error(set) {
+                # Unknown/readonly names are stored in type_fields instead of
+                # failing the restore, matching the instance-dict semantics
+                # CPython uses for non-slot attributes.
+                self.exc.type_fields[pair[0]] = pair[1];
+            }
+        }
+        return py_none();
+    }
+}
+
 obj PyException(PyObj) {
     has type_name: str,
         message: str,
@@ -2896,6 +2940,11 @@ obj PyException(PyObj) {
             items: list[PyObj] = [];
             items.extend(self.args);
             return PyTuple(t="tuple", items=items);
+        }
+        if name == "__setstate__" {
+            # BaseException.__setstate__(state): restore protocol hook used by
+            # pickle/copy and callable directly (gh-97591 test exercises it).
+            return ExcSetStateFn(t="exc_setstate_fn", exc=self);
         }
         if name == "value" {
             if self.value is not None {

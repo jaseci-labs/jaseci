@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "7021ff79e4a5341a1ce8942c45111261e345dfc1",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_copyreg/conv_copyreg_pins.jac"
+  ],
+  "generated_at": "2026-08-24T10:02:29",
+  "hashes": {
+    "pins_jac": "93e7e94ce453693115773bebd3c1f9dd9ea3702c210a82a344701dffb2f26d08",
+    "conversion_json": "41dd88976e53b8dcf39771bfce63b984bd9fb443407fb265f9e69bd2ce814d44",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "copyreg",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 6,
+    "runnable": 2,
+    "green": 0,
+    "quarantined": 4,
+    "failed": 2,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "CopyRegTestCase.test_bool",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC TypeError \"cannot use \\'property_ctor\\' as a set element (unhashable type: \\'property_ctor\\')\"'>"
+    },
+    {
+      "id": "CopyRegTestCase.test_extension_registry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.pickletester'\">"
+    }
+  ]
+}

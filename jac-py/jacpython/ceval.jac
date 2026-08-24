@@ -220,8 +220,22 @@ def _jac_host_code_marshal(co):
     except BaseException as exc:
         return _jac_host_error(exc)
 
+def _jac_host_source_marshal(source):
+    # exec(str)/exec(bytes) source compiled on the host into the transport
+    # form (native statement-mode compile is Phase C). Errors -- SyntaxError
+    # above all -- come back through the tuple protocol so the guest raises a
+    # CATCHABLE exception, matching CPython's exec('for = 1') contract.
+    import marshal
+    try:
+        return (True, marshal.dumps(compile(source, "<string>", "exec")))
+    except BaseException as exc:
+        return _jac_host_error(exc)
+
 def _jac_host_type_name(value):
     return type(value).__name__
+
+def _jac_host_id(value):
+    return id(value)
 
 def _jac_host_type(value):
     # type(value) for a host object -- the fallback for py_type_of when the
@@ -1177,7 +1191,7 @@ def _jac_make_guest_async_generator(agen_obj):
 
 
 
-import from marshal_reader { unmarshal, }
+import from marshal_reader { unmarshal, bytes_to_str }
 
 # Bootstrap transport duplicate (pyc_first.jac keeps the canonical copy for re-export).
 def host_compile_marshal(source: str) -> list[int] {
@@ -1243,6 +1257,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
+import from tracebackmodule { traceback_module_attrs }
 import from objects {
     _zero_step_error,
     DictEntry,
@@ -1670,6 +1685,12 @@ def import_native(absname: str) -> PyObj {
         # Register before the module-info lookup: weakref.py is pure-Python
         # stdlib and would otherwise be executed in-VM against C internals.
         shim_modules["weakref"] = build_weakref_module();
+    }
+    if absname == "traceback" and not ("traceback" in shim_modules) {
+        # The host traceback module is unreachable: every API takes tb objects
+        # and a native PyTraceback has no to_host arm (host TracebackType needs
+        # real host frames). Serve the native chain-walking surface instead.
+        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
     }
     if absname in sys3_modules {
         return sys3_modules[absname];
@@ -3905,6 +3926,13 @@ obj PyFuncKwDefaults(PyDict) {
         return py_error("KeyError", dict_key_repr(index));
     }
 }
+# Cycle guard for from_host container conversion (host marshal/pickle can
+# hand back SELF-REFERENTIAL structures, e.g. marshal.loads(b'[<R>]')). Keyed
+# on host id(); list/dict/set placeholders are registered BEFORE filling so
+# re-entry returns the same guest container (identity preserved); tuples are
+# immutable so a re-entrant reference degrades to a host proxy instead of
+# recursing forever.
+glob _from_host_memo: dict[int, PyObj] = {};
 
 def from_host(raw: any) -> PyObj {
     if raw is None {
@@ -3966,17 +3994,31 @@ def from_host(raw: any) -> PyObj {
         );
     }
     if isinstance(raw, list) {
-        list_values: list[PyObj] = [];
-        for item in raw {
-            list_values.append(from_host(item));
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            return _from_host_memo[memo_key];
         }
-        return PyList(t="list", items=list_values);
+        placeholder = PyList(t="list", items=[]);
+        _from_host_memo[memo_key] = placeholder;
+        for item in raw {
+            (placeholder as PyList).items.append(from_host(item));
+        }
+        _from_host_memo.pop(memo_key);
+        return placeholder;
     }
     if isinstance(raw, tuple) {
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            # Immutable: a cycle through this tuple cannot be patched up
+            # post-construction; degrade the re-entrant reference to a proxy.
+            return PyHostProxy(t="host", val=raw);
+        }
+        _from_host_memo[memo_key] = PyNoneType(t="none");
         tuple_values: list[PyObj] = [];
         for item in raw {
             tuple_values.append(from_host(item));
         }
+        _from_host_memo.pop(memo_key);
         return PyTuple(t="tuple", items=tuple_values);
     }
     if isinstance(raw, dict) {
@@ -3984,14 +4026,21 @@ def from_host(raw: any) -> PyObj {
         # (int, tuple, float, ...) lands natively. A key whose from_host wrapper
         # is unhashable (e.g. an opaque host object) keeps the whole dict opaque
         # as a PyHostProxy -- it round-trips through to_host unchanged.
+        memo_key = _jac_host_id(raw);
+        if memo_key in _from_host_memo {
+            return _from_host_memo[memo_key];
+        }
         native = PyDict(t="dict", items={});
+        _from_host_memo[memo_key] = native;
         for key in raw {
             keyobj = from_host(key);
             if is_error(keyobj.tp_hashkey()) {
+                _from_host_memo.pop(memo_key);
                 return PyHostProxy(t="host", val=raw);
             }
             native.dict_set(keyobj, from_host(raw[key]));
         }
+        _from_host_memo.pop(memo_key);
         return native;
     }
     if isinstance(raw, frozenset) {
@@ -4485,6 +4534,11 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         # semantics implemented natively. The layer3 boot path instead runs
         # the real types.py in-VM and overrides just the coroutine attribute.
         shim_modules["types"] = build_types_facade();
+    }
+    if name == "traceback" and not ("traceback" in shim_modules) {
+        # Same rationale as the import_native site above: host traceback APIs
+        # cannot accept native PyTraceback across the bridge.
+        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
     }
     if name in shim_modules {
         return shim_modules[name];
@@ -15351,6 +15405,27 @@ def builtin_exec(
             "TypeError",
             "exec expected at least 1 argument, got " + str(len(args))
         );
+    }
+    # str/bytes source: compile through the same marshal transport the import
+    # machinery uses (native statement-mode compile is Phase C) and normalize
+    # to a PyCode before dispatch. A host SyntaxError surfaces as a catchable
+    # guest exception, matching CPython's exec('for = 1') -> SyntaxError.
+    if isinstance(args[0], PyStr) or isinstance(args[0], PyBytes) {
+        src = "";
+        if isinstance(args[0], PyStr) {
+            src = (args[0] as PyStr).val;
+        } else {
+            src = bytes_to_str((args[0] as PyBytes).val);
+        }
+        packed_src = _jac_host_source_marshal(src);
+        if not host_result_ok(packed_src) {
+            return host_result_error(packed_src);
+        }
+        converted_src = unmarshal(packed_src[1] as list[int]);
+        if not isinstance(converted_src, PyCode) {
+            return py_error("TypeError", "exec() argument 1 must be a code object");
+        }
+        args[0] = converted_src;
     }
     co: PyCode;
     match args[0] {

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "unknown",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_html.py",
+    "-o",
+    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_html",
+    "--name",
+    "conv_html"
+  ],
+  "generated_at": "2026-08-24T09:44:12",
+  "hashes": {
+    "pins_jac": "7b2e5cd55266dd9646603e57a91900e2333c1cf7b57b284d5321ddd56ed64641"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_html.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "html",
+  "pins_file": "conv_html_pins.jac",
+  "pins": [
+    {
+      "ident": "HtmlTests.test_escape",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import html\n\ndef _t():\n    assert html.escape('\\'<script>\"&foo;\"</script>\\'') == '&#x27;&lt;script&gt;&quot;&amp;foo;&quot;&lt;/script&gt;&#x27;', ('assertEqual', html.escape('\\'<script>\"&foo;\"</script>\\''), '&#x27;&lt;script&gt;&quot;&amp;foo;&quot;&lt;/script&gt;&#x27;')\n    assert html.escape('\\'<script>\"&foo;\"</script>\\'', False) == '\\'&lt;script&gt;\"&amp;foo;\"&lt;/script&gt;\\'', ('assertEqual', html.escape('\\'<script>\"&foo;\"</script>\\'', False), '\\'&lt;script&gt;\"&amp;foo;\"&lt;/script&gt;\\'')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HtmlTests.test_unescape",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import html\n\ndef _t():\n    numeric_formats = ['&#%d', '&#%d;', '&#x%x', '&#x%x;']\n    errmsg = 'unescape(%r) should have returned %r'\n\n    def check(text, expected):\n        assert html.unescape(text) == expected, ('assertEqual', html.unescape(text), expected, errmsg % (text, expected))\n\n    def check_num(num, expected):\n        for format in numeric_formats:\n            text = format % num\n            assert html.unescape(text) == expected, ('assertEqual', html.unescape(text), expected, errmsg % (text, expected))\n    check('no character references', 'no character references')\n    check('&\\n&\\t& &&', '&\\n&\\t& &&')\n    check('&0 &9 &a &0; &9; &a;', '&0 &9 &a &0; &9; &a;')\n    for x in ['&', '&#', '&#x', '&#X', '&#y', '&#xy', '&#Xy']:\n        check(x, x)\n        check(x + ';', x + ';')\n    formats = ['&#%d', '&#%07d', '&#%d;', '&#%07d;', '&#x%x', '&#x%06x', '&#x%x;', '&#x%06x;', '&#x%X', '&#x%06X', '&#X%x;', '&#X%06x;']\n    for num, char in zip([65, 97, 34, 38, 9731, 1053236], ['A', 'a', '\"', '&', '\u2603', '\\U00101234']):\n        for s in formats:\n            check(s % num, char)\n            for end in [' ', 'X']:\n                check((s + end) % num, char + end)\n    for cp in [55296, 56064, 56320, 57343, 1114112]:\n        check_num(cp, '\ufffd')\n    for cp in [1, 11, 14, 127, 65534, 65535, 1114110, 1114111]:\n        check_num(cp, '')\n    for num, ch in zip([13, 128, 149, 157], '\\r\u20ac\u2022\\x9d'):\n        check_num(num, ch)\n    check_num(0, '\ufffd')\n    check_num(9, '\\t')\n    check_num(1000000000000000000, '\ufffd')\n    for e in ['&quot;;', '&#34;;', '&#x22;;', '&#X22;;']:\n        check(e, '\";')\n    for e in ['&quot;quot;', '&#34;quot;', '&#x22;quot;', '&#X22;quot;']:\n        check(e, '\"quot;')\n    for e in ['&quot', '&#34', '&#x22', '&#X22']:\n        check(e * 3, '\"\"\"')\n        check((e + ';') * 3, '\"\"\"')\n    for e in ['&amp', '&amp;', '&AMP', '&AMP;']:\n        check(e, '&')\n    for e in ['&Amp', '&Amp;']:\n        check(e, e)\n    check('&svadilfari;', '&svadilfari;')\n    check('&notit', '\u00acit')\n    check('&notit;', '\u00acit;')\n    check('&notin', '\u00acin')\n    check('&notin;', '\u2209')\n    check('&notReallyAnExistingNamedCharacterReference;', '\u00acReallyAnExistingNamedCharacterReference;')\n    check('&CounterClockwiseContourIntegral;', '\u2233')\n    check('&acE;', '\u223e\u0333')\n    check('&acE', '&acE')\n    check('&#123; ' * 1050, '{ ' * 1050)\n    check('&Eacuteric&Eacute;ric&alphacentauri&alpha;centauri', '\u00c9ric\u00c9ric&alphacentauri\u03b1centauri')\n    check('&co;', '&co;')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 2,
+    "pinned": 2,
+    "quarantined": 0
+  }
+}

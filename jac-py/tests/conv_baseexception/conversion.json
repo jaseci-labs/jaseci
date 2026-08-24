@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "7f5db5e8c68d10b8dbcdcd7224c1d7498c3f22d6",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_baseexception.py",
+    "-o",
+    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_baseexception",
+    "--name",
+    "conv_baseexception"
+  ],
+  "generated_at": "2026-08-24T12:28:51",
+  "hashes": {
+    "pins_jac": "bb57f1e8b18207d5d5471f17d6f7e1629fa61095a5776bbf506152b2a93df9d8"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_baseexception.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "baseexception",
+  "pins_file": "conv_baseexception_pins.jac",
+  "pins": [
+    {
+      "ident": "ExceptionClassTests.test_setstate_refcount_no_crash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import gc\n    d = {}\n\n    class HashThisKeyWillClearTheDict(str):\n\n        def __hash__(self) -> int:\n            d.clear()\n            return super().__hash__()\n\n    class Value(str):\n        pass\n    exc = Exception()\n    d[HashThisKeyWillClearTheDict()] = Value()\n    exc.__setstate__(d)\n    gc.collect()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "ExceptionClassTests.test_builtins_new_style",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "ident": "ExceptionClassTests.test_inheritance",
+      "reason": "self.assertIsSubclass"
+    },
+    {
+      "ident": "ExceptionClassTests.test_interface_single_arg",
+      "reason": "self.interface_test_driver"
+    },
+    {
+      "ident": "ExceptionClassTests.test_interface_multi_arg",
+      "reason": "self.interface_test_driver"
+    },
+    {
+      "ident": "ExceptionClassTests.test_interface_no_arg",
+      "reason": "self.interface_test_driver"
+    },
+    {
+      "ident": "UsageTests.test_raise_new_style_non_exception",
+      "reason": "self.raise_fails"
+    },
+    {
+      "ident": "UsageTests.test_raise_string",
+      "reason": "self.raise_fails"
+    },
+    {
+      "ident": "UsageTests.test_catch_non_BaseException",
+      "reason": "self.catch_fails"
+    },
+    {
+      "ident": "UsageTests.test_catch_BaseException_instance",
+      "reason": "self.catch_fails"
+    },
+    {
+      "ident": "UsageTests.test_catch_string",
+      "reason": "self.catch_fails"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 1,
+    "quarantined": 10
+  }
+}

@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 26,
+  "module_count": 33,
   "modules": [
     {
       "stem": "augassign",
@@ -424,6 +424,126 @@
         "utf8source": {
           "passed": 1,
           "total": 2
+        }
+      }
+    },
+    {
+      "stem": "keyword",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_keyword/conv_keyword_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "9/9 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "conversion_meta": "jac-py/tests/conv_keyword/keyword.conv.json",
+      "jacpython_results": {
+        "keyword": {
+          "passed": 9,
+          "total": 9
+        }
+      }
+    },
+    {
+      "stem": "copyreg",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_copyreg/conv_copyreg_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "DISPOSITION: 0/2 output-oracle pins pass on jacpython for TWO distinct causes. CopyRegTestCase.test_extension_registry: snippet imports test.pickletester, which the libtest env does not ship -- env-blocked, un-quarantine path = conversion-side quarantine or test.support stub. CopyRegTestCase.test_bool: property() instances unhashable as set elements (\"cannot use property_ctor as a set element\") -- native-descriptor tp_hash gap, objects family.",
+      "conversion_meta": "jac-py/tests/conv_copyreg/copyreg.conv.json",
+      "jacpython_results": {
+        "copyreg": {
+          "passed": 0,
+          "total": 2
+        }
+      }
+    },
+    {
+      "stem": "getopt",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_getopt/conv_getopt_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "conversion_meta": "jac-py/tests/conv_getopt/getopt.conv.json",
+      "jacpython_results": {
+        "getopt": {
+          "passed": 1,
+          "total": 2
+        }
+      }
+    },
+    {
+      "stem": "html",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "jac-py/tests/conv_html/conv_html_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "2/2 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "conversion_meta": "jac-py/tests/conv_html/html.conv.json",
+      "jacpython_results": {
+        "html": {
+          "passed": 2,
+          "total": 2
+        }
+      }
+    },
+    {
+      "stem": "textwrap",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_textwrap/conv_textwrap_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "6/7 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "conversion_meta": "jac-py/tests/conv_textwrap/textwrap.conv.json",
+      "jacpython_results": {
+        "textwrap": {
+          "passed": 6,
+          "total": 7
+        }
+      }
+    },
+    {
+      "stem": "difflib",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_difflib/conv_difflib_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "PERF DISPOSITION: 0/30 output-oracle pins TIMEOUT at the 60s diff_runner cap -- SequenceMatcher autojunk is O(n^2) and the guest VM runs it too slow; not a correctness gap (heapq nlargest ImportError was fixed on this branch). Un-quarantine path = guest perf work on SequenceMatcher, then rerun diff_runner.",
+      "conversion_meta": "jac-py/tests/conv_difflib/difflib.conv.json",
+      "jacpython_results": {
+        "difflib": {
+          "passed": 0,
+          "total": 30
+        }
+      }
+    },
+    {
+      "stem": "baseexception",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_baseexception/conv_baseexception_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "jac-py/tests/conv_baseexception/baseexception.conv.json",
+      "jacpython_results": {
+        "baseexception": {
+          "passed": 1,
+          "total": 1,
+          "notes": "1/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report."
         }
       }
     }

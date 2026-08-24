@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "unknown",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_keyword.py",
+    "-o",
+    "/var/tmp/nicestorm-selfhost-wt/jac-py/tests/conv_keyword",
+    "--name",
+    "conv_keyword"
+  ],
+  "generated_at": "2026-08-24T09:44:11",
+  "hashes": {
+    "pins_jac": "1faa66b4c4cf1a319a690f87c1b12152b4950a1f9083a93f8090ce6a7b7fe152"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_keyword.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "keyword",
+  "pins_file": "conv_keyword_pins.jac",
+  "pins": [
+    {
+      "ident": "Test_iskeyword.test_true_is_a_keyword",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert keyword.iskeyword('True'), ('assertTrue', keyword.iskeyword('True'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_uppercase_true_is_not_a_keyword",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert not keyword.iskeyword('TRUE'), ('assertFalse', keyword.iskeyword('TRUE'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_none_value_is_not_a_keyword",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert not keyword.iskeyword(None), ('assertFalse', keyword.iskeyword(None))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_all_keywords_fail_to_be_used_as_names",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    for key in keyword.kwlist:\n        try:\n            exec(f'{key} = 42')\n        except SyntaxError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_all_soft_keywords_can_be_used_as_names",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    for key in keyword.softkwlist:\n        exec(f'{key} = 42')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_async_and_await_are_keywords",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert 'async' in keyword.kwlist, ('assertIn', 'async', keyword.kwlist)\n    assert 'await' in keyword.kwlist, ('assertIn', 'await', keyword.kwlist)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_soft_keywords",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert 'type' in keyword.softkwlist, ('assertIn', 'type', keyword.softkwlist)\n    assert 'match' in keyword.softkwlist, ('assertIn', 'match', keyword.softkwlist)\n    assert 'case' in keyword.softkwlist, ('assertIn', 'case', keyword.softkwlist)\n    assert '_' in keyword.softkwlist, ('assertIn', '_', keyword.softkwlist)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_keywords_are_sorted",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert sorted(keyword.kwlist) == keyword.kwlist, ('assertListEqual', sorted(keyword.kwlist), keyword.kwlist)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "Test_iskeyword.test_softkeywords_are_sorted",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import keyword\n\ndef _t():\n    assert sorted(keyword.softkwlist) == keyword.softkwlist, ('assertListEqual', sorted(keyword.softkwlist), keyword.softkwlist)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "Test_iskeyword.test_changing_the_kwlist_does_not_affect_iskeyword",
+      "reason": "self.addCleanup"
+    },
+    {
+      "ident": "Test_iskeyword.test_changing_the_softkwlist_does_not_affect_issoftkeyword",
+      "reason": "self.addCleanup"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 9,
+    "quarantined": 2
+  }
+}
