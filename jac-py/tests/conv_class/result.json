@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/conv_class/conv_class_pins.jac"
+  ],
+  "generated_at": "2026-08-24T00:40:45",
+  "hashes": {
+    "pins_jac": "3f0402248c06ea8d2a50aee8365da00c3f059e735712b146b20a5e074c892f76",
+    "conversion_json": "42bd6e481b1fe3e7630be41c0e8ebc213cc31c5600845b229878f1fab19ea22d",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "class",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 37,
+    "runnable": 2,
+    "green": 0,
+    "quarantined": 35,
+    "failed": 2,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestInlineValues.test_store_attr_deleted_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__dict__'\">"
+    },
+    {
+      "id": "TestInlineValues.test_rematerialize_object_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError '__dict__'\">"
+    }
+  ]
+}

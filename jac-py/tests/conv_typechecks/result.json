@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "b2fed455b5e7cdf32358e4def7f6c65d0a338fcf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/wp4-mech/out/conv_typechecks/conv_typechecks_pins.jac"
+  ],
+  "generated_at": "2026-08-24T00:40:49",
+  "hashes": {
+    "pins_jac": "26f3cec99a5408c13c7e11c70028b2d933e3bccab194ec16593cceea6f09b7bb",
+    "conversion_json": "935910a72467f267bb82af0a3fea95eb060f6882b280e89d1fb8a5433cfa3d0b",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "typechecks",
+  "status": "passed",
+  "timed_out": false,
+  "counts": {
+    "converted": 6,
+    "runnable": 0,
+    "green": 0,
+    "quarantined": 6,
+    "failed": 0,
+    "infra_failed": 0
+  },
+  "failures": []
+}
