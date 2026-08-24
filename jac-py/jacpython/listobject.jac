@@ -18,7 +18,23 @@ def list_richcompare(op: int, vl: PyList, wl: PyList, compare_fn: any) -> PyObj 
 }
 
 # CPython ``list_repr_impl``: strong ref per element, re-fetch length each step.
+# Cycle guard (Py_ReprEnter/Py_ReprLeave contract): a list already mid-repr
+# prints as [...] when re-encountered (self-referential lists).
+glob list_repr_active: list[PyList] = [];
+
 def list_repr(v: PyList, repr_elem: any) -> PyObj {
+    for seen in list_repr_active {
+        if seen is v {
+            return PyStr(t="str", val="[...]");
+        }
+    }
+    list_repr_active.append(v);
+    res = _list_repr_walk(v, repr_elem);
+    list_repr_active.pop();
+    return res;
+}
+
+def _list_repr_walk(v: PyList, repr_elem: any) -> PyObj {
     if len(v.items) == 0 {
         return PyStr(t="str", val="[]");
     }

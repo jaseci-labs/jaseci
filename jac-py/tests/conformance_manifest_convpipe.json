@@ -2,8 +2,41 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 22,
+  "module_count": 24,
   "modules": [
+    {
+      "stem": "augassign",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_augassign/conv_augassign_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "5/5 runnable pins pass; 2 quarantined at conversion (class-scope self.* vocabulary).",
+      "conversion_meta": "jac-py/tests/conv_augassign/test_augassign.conv.json",
+      "jacpython_results": {
+        "augassign": {
+          "passed": 5,
+          "total": 5
+        }
+      }
+    },
+    {
+      "stem": "class",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_class/conv_class_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/2 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "class": {
+          "passed": 0,
+          "total": 2
+        }
+      }
+    },
     {
       "stem": "copy",
       "gate_type": "oracle",
@@ -39,213 +72,18 @@
       }
     },
     {
-      "stem": "unary",
-      "gate_type": "oracle",
-      "status": "gated",
-      "oracle_tests": [
-        "jac-py/tests/conv_unary/conv_unary_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "6/6 output-oracle pins pass, zero quarantined (diff_runner).",
-      "conversion_meta": "jac-py/tests/conv_unary/test_unary.conv.json",
-      "jacpython_results": {
-        "unary": {
-          "passed": 6,
-          "total": 6
-        }
-      }
-    },
-    {
-      "stem": "augassign",
+      "stem": "descr",
       "gate_type": "oracle",
       "status": "partial",
       "oracle_tests": [
-        "jac-py/tests/conv_augassign/conv_augassign_pins.jac"
+        "/var/tmp/wp4-mech/out/conv2_descr/conv_descr_pins.jac"
       ],
       "libtest_snippets": [],
-      "notes": "5/5 runnable pins pass; 2 quarantined at conversion (class-scope self.* vocabulary).",
-      "conversion_meta": "jac-py/tests/conv_augassign/test_augassign.conv.json",
+      "notes": "23/59 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
       "jacpython_results": {
-        "augassign": {
-          "passed": 5,
-          "total": 5
-        }
-      }
-    },
-    {
-      "stem": "unpack",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "jac-py/tests/conv_unpack/conv_unpack_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/1 pins pass; exec()-built code does not populate the namespace dict (KeyError unpack_400) -- VM fingerprint filed.",
-      "conversion_meta": "jac-py/tests/conv_unpack/test_unpack.conv.json",
-      "jacpython_results": {
-        "unpack": {
-          "passed": 0,
-          "total": 1
-        }
-      }
-    },
-    {
-      "stem": "property",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_property/conv_property_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "1/5 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "property": {
-          "passed": 1,
-          "total": 5
-        }
-      }
-    },
-    {
-      "stem": "keywordonlyarg",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_keywordonlyarg/conv_keywordonlyarg_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "3/5 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "keywordonlyarg": {
-          "passed": 3,
-          "total": 5
-        }
-      }
-    },
-    {
-      "stem": "metaclass",
-      "gate_type": "oracle",
-      "status": "gated",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_metaclass/conv_metaclass_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/0 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "metaclass": {
-          "passed": 0,
-          "total": 0
-        }
-      }
-    },
-    {
-      "stem": "class",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_class/conv_class_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/2 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "class": {
-          "passed": 0,
-          "total": 2
-        }
-      }
-    },
-    {
-      "stem": "genericclass",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_genericclass/conv_genericclass_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "14/20 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "genericclass": {
-          "passed": 14,
-          "total": 20
-        }
-      }
-    },
-    {
-      "stem": "typechecks",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_typechecks/conv_typechecks_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/0 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "typechecks": {
-          "passed": 0,
-          "total": 0
-        }
-      }
-    },
-    {
-      "stem": "named_expressions",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_named_expressions/conv_named_expressions_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "59/60 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "named_expressions": {
-          "passed": 59,
-          "total": 60
-        }
-      }
-    },
-    {
-      "stem": "int_literal",
-      "gate_type": "oracle",
-      "status": "gated",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_int_literal/conv_int_literal_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "6/6 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "int_literal": {
-          "passed": 6,
-          "total": 6
-        }
-      }
-    },
-    {
-      "stem": "unicode_identifiers",
-      "gate_type": "oracle",
-      "status": "partial",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_unicode_identifiers/conv_unicode_identifiers_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/2 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "unicode_identifiers": {
-          "passed": 0,
-          "total": 2
-        }
-      }
-    },
-    {
-      "stem": "pep646_syntax",
-      "gate_type": "oracle",
-      "status": "gated",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_pep646_syntax/conv_pep646_syntax_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "0/0 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "pep646_syntax": {
-          "passed": 0,
-          "total": 0
+        "descr": {
+          "passed": 23,
+          "total": 59
         }
       }
     },
@@ -262,6 +100,22 @@
         "descrtut": {
           "passed": 0,
           "total": 0
+        }
+      }
+    },
+    {
+      "stem": "dict",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv2_dict/conv_dict_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "44/59 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "jacpython_results": {
+        "dict": {
+          "passed": 44,
+          "total": 59
         }
       }
     },
@@ -298,6 +152,22 @@
       }
     },
     {
+      "stem": "genericclass",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_genericclass/conv_genericclass_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "14/20 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "genericclass": {
+          "passed": 14,
+          "total": 20
+        }
+      }
+    },
+    {
       "stem": "htmlparser",
       "gate_type": "oracle",
       "status": "partial",
@@ -310,6 +180,86 @@
         "htmlparser": {
           "passed": 0,
           "total": 0
+        }
+      }
+    },
+    {
+      "stem": "int_literal",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_int_literal/conv_int_literal_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "6/6 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "int_literal": {
+          "passed": 6,
+          "total": 6
+        }
+      }
+    },
+    {
+      "stem": "keywordonlyarg",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_keywordonlyarg/conv_keywordonlyarg_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "3/5 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "keywordonlyarg": {
+          "passed": 3,
+          "total": 5
+        }
+      }
+    },
+    {
+      "stem": "longexp",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_longexp/conv_longexp_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1/1 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "longexp": {
+          "passed": 1,
+          "total": 1
+        }
+      }
+    },
+    {
+      "stem": "metaclass",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_metaclass/conv_metaclass_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/0 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "metaclass": {
+          "passed": 0,
+          "total": 0
+        }
+      }
+    },
+    {
+      "stem": "named_expressions",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_named_expressions/conv_named_expressions_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "59/60 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "named_expressions": {
+          "passed": 59,
+          "total": 60
         }
       }
     },
@@ -330,6 +280,104 @@
       }
     },
     {
+      "stem": "pep646_syntax",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_pep646_syntax/conv_pep646_syntax_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/0 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "pep646_syntax": {
+          "passed": 0,
+          "total": 0
+        }
+      }
+    },
+    {
+      "stem": "property",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_property/conv_property_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "1/5 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "property": {
+          "passed": 1,
+          "total": 5
+        }
+      }
+    },
+    {
+      "stem": "typechecks",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_typechecks/conv_typechecks_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/0 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "typechecks": {
+          "passed": 0,
+          "total": 0
+        }
+      }
+    },
+    {
+      "stem": "unary",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "jac-py/tests/conv_unary/conv_unary_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "6/6 output-oracle pins pass, zero quarantined (diff_runner).",
+      "conversion_meta": "jac-py/tests/conv_unary/test_unary.conv.json",
+      "jacpython_results": {
+        "unary": {
+          "passed": 6,
+          "total": 6
+        }
+      }
+    },
+    {
+      "stem": "unicode_identifiers",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/wp4-mech/out/conv_unicode_identifiers/conv_unicode_identifiers_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/2 output-oracle pins pass on jacpython.",
+      "jacpython_results": {
+        "unicode_identifiers": {
+          "passed": 0,
+          "total": 2
+        }
+      }
+    },
+    {
+      "stem": "unpack",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_unpack/conv_unpack_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/1 pins pass; exec()-built code does not populate the namespace dict (KeyError unpack_400) -- VM fingerprint filed.",
+      "conversion_meta": "jac-py/tests/conv_unpack/test_unpack.conv.json",
+      "jacpython_results": {
+        "unpack": {
+          "passed": 0,
+          "total": 1
+        }
+      }
+    },
+    {
       "stem": "yield_from",
       "gate_type": "oracle",
       "status": "partial",
@@ -342,22 +390,6 @@
         "yield_from": {
           "passed": 23,
           "total": 32
-        }
-      }
-    },
-    {
-      "stem": "longexp",
-      "gate_type": "oracle",
-      "status": "gated",
-      "oracle_tests": [
-        "/var/tmp/wp4-mech/out/conv_longexp/conv_longexp_pins.jac"
-      ],
-      "libtest_snippets": [],
-      "notes": "1/1 output-oracle pins pass on jacpython.",
-      "jacpython_results": {
-        "longexp": {
-          "passed": 1,
-          "total": 1
         }
       }
     }
