@@ -13,6 +13,10 @@ obj MaterializeProfile {
         envelope_modules: list[str],
         chain_base_module: str,
         chain_base_class: str,
+        chain_kid_field: str,
+        chain_back_fields: list[str],
+        chain_aux_node_fields: list[str],
+        chain_shared_fields: list[str],
         mask_sources: list[str],
         mask_corpus: str,
         parse_entry: str,
@@ -73,6 +77,10 @@ def unitree_profile -> MaterializeProfile {
         envelope_modules=["jaclang.jac0core.parser.tokens"],
         chain_base_module="jaclang.jac0core.unitree",
         chain_base_class="UniNode",
+        chain_kid_field="kid",
+        chain_back_fields=["parent"],
+        chain_aux_node_fields=["_in_mod_nodes"],
+        chain_shared_fields=["loc"],
         mask_sources=["jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac"],
         mask_corpus=nl.join(list(_UNITREE_MASK_CORPUS_LINES)),
         parse_entry="parse_program",
@@ -626,6 +634,30 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    root_h = _emit_node(mod);',
          '    return root_h;',
          '}',
+         '',
+         '# A parse product is a tree whose nodes point back at their parents, so',
+         '# every node sits in a reference cycle and refcounting alone can never',
+         '# reclaim one. The crossing is where that tree provably dies -- its',
+         '# contents have either been copied into Python objects or were never',
+         '# handed out at all -- so this is the one place that can say so. Severing',
+         '# the back-references and child lists leaves an acyclic graph the',
+         '# refcounts then collect on their own.',
+         '#',
+         '# The child links are not the only way back in. A location record holds',
+         '# the tokens that bound a node, and for a token that range is the token',
+         '# itself, so every leaf closes a second cycle through its own location.',
+         '# Repointing every node at the root location frees the per-node records,',
+         '# and with them the token references they were holding open. Only the',
+         '# root record and the two tokens it names outlive the walk.',
+         'def _mat_drop_tree(nd: @CHAIN_BASE@) -> None {',
+         '@CHAIN_PINS@',
+         '    stack: list[@CHAIN_BASE@] = [nd];',
+         '    while stack {',
+         '        cur = stack.pop();',
+         '        for k in cur.@CHAIN_KID@ { stack.append(k); }',
+         '@CHAIN_CLEARS@',
+         '    }',
+         '}',
 
      ),
      _CROSSING_LINES: tuple[str, ...] = (
@@ -650,6 +682,7 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    PyList_SetItem(out, 3, _emit_comment_list(comments));',
          '    PyList_SetItem(out, 4, _emit_diag_list(lex_diags));',
          '    PyList_SetItem(out, 5, PyLong_FromLongLong(lex_errs));',
+         '    _mat_drop_tree(mod);',
          '    _mat_flush();',
          '    return out;',
          '}',
@@ -663,6 +696,7 @@ glob _HEADER_LINES: tuple[str, ...] = (
          '    PyList_SetItem(out, 1, PyLong_FromLongLong(lex_errs));',
          '    PyList_SetItem(out, 2, _emit_diag_list(p_diags));',
          '    PyList_SetItem(out, 3, _emit_diag_list(lex_diags));',
+         '    _mat_drop_tree(mod);',
          '    _mat_flush();',
          '    return out;',
          '}',
@@ -1012,6 +1046,18 @@ def generate(
         )
     );
     header = header.replace("@CHAIN_BASE@", prof.chain_base_class);
+    header = header.replace("@CHAIN_KID@", prof.chain_kid_field);
+    header = header.replace(
+        "@CHAIN_PINS@",
+        nl.join([f"    _pin_{_f} = nd.{_f};" for _f in prof.chain_shared_fields])
+    );
+    _clear_lines = [f"        cur.{_f} = None;" for _f in prof.chain_back_fields]
+        + [
+            f"        cur.{_f} = [];"
+            for _f in ([prof.chain_kid_field] + prof.chain_aux_node_fields)
+        ]
+        + [f"        cur.{_f} = _pin_{_f};" for _f in prof.chain_shared_fields];
+    header = header.replace("@CHAIN_CLEARS@", nl.join(_clear_lines));
 
     sep = nl + nl;
     parts = [header, sep.join(enum_fns), sep.join(emit_fns), nl.join(chain), crossing];

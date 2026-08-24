@@ -18,10 +18,16 @@ list slot in a layout held nodes. `Ability.event_triggers` is
 the sealed closure -- E1053 on the generated source, with ten artifacts
 already emitted behind it.
 
+The generator also emits the crossing's teardown. A parse tree is cyclic twice
+over -- nodes point back at their parents, and a token's location record names
+the token itself -- so refcounting alone reclaims none of it, and the crossing is
+the only place that knows the tree is dead. `_mat_drop_tree` is what says so, and
+both entry points have to call it.
+
 These tests drive `generate` directly with a synthetic layout, so they measure
-the emitter without a native compile or a seal. The last one is the general
-gate: it sweeps every field of every class the profile knows and fails if any
-emitted key conversion disagrees with the annotation it was generated from, so
+the emitter without a native compile or a seal. The key-conversion sweep is the
+general gate: it covers every field of every class the profile knows and fails if
+any emitted conversion disagrees with the annotation it was generated from, so
 the next key type to gain a native representation cannot reopen this.
 """
 
@@ -258,4 +264,39 @@ test "every emitted key conversion matches the declared key type" {
         f"{len(bad)} dict key conversion(s) disagree with their annotation:\n"
         + "\n".join(f"  {b}" for b in bad)
     );
+}
+
+test "the crossing tears the parse tree down on both entry points" {
+    # The tree is unreachable after the crossing returns and cyclic in two
+    # independent ways, so nothing else can ever free it. Both entries must
+    # dismantle it: `mat_parse` has already copied the tree into CPython
+    # objects, and `mat_parse_diags` never hands it out at all.
+    (txt, _m) = _gen({"UniNode": ["kid", "parent", "_in_mod_nodes", "loc"]});
+    assert "def _mat_drop_tree(nd: UniNode) -> None {" in txt;
+    for crossing in ["mat_parse", "mat_parse_diags"] {
+        body = txt[txt.index(f"def {crossing}(src: str, path: str)"):];
+        body = body[:body.index("\n}")];
+        assert "_mat_drop_tree(mod);" in body , (
+            f"{crossing} must drop the parse tree before returning"
+        );
+    }
+}
+
+test "the teardown severs every link the profile calls cyclic" {
+    # Clearing the child links alone leaves the tree alive: a token's location
+    # record names the token itself, so every leaf still closes a cycle through
+    # `loc`. Each node is repointed at the root's record so its own is freed,
+    # releasing the token references that record was holding open.
+    (txt, _m) = _gen({"UniNode": ["kid", "parent", "_in_mod_nodes", "loc"]});
+    body = txt[txt.index("def _mat_drop_tree("):];
+    body = body[:body.index("\n}")];
+    assert "_pin_loc = nd.loc;" in body;
+    for line in [
+        "cur.parent = None;",
+        "cur.kid = [];",
+        "cur._in_mod_nodes = [];",
+        "cur.loc = _pin_loc;"
+    ] {
+        assert line in body , (f"teardown must emit `{line}`");
+    }
 }
