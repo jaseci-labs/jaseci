@@ -14819,7 +14819,11 @@ def run_frame(frame: PyFrame) -> PyObj {
                 continue;
             }
             reraised = py_raise_value(exc);
-            target = recover_exception(co, reraised, offset, stack);
+            # This is a RERAISE-class event (the error entry for main was
+            # already appended when the awaited __anext__ failed): growing the
+            # traceback here duplicated main's frame (main|main|agen vs host
+            # main|agen). Route through dispatch like every other reraise.
+            target = dispatch_exception(co, reraised, offset, offset, stack);
             if target >= 0 {
                 ip = target;
                 continue;

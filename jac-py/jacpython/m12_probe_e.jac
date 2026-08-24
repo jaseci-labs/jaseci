@@ -7,8 +7,14 @@ import from pyc_first { exec_code, unmarshal }
 import from objects { PyObj, PyStr, PyError, is_error }
 
 ::py::
-with open("probes_m12/scenario_e_delegation_throw.py") as fh:
-    SRC = fh.read()
+SRC = None
+for _p in ("probes_m12/scenario_e_delegation_throw.py", "jac-py/jacpython/probes_m12/scenario_e_delegation_throw.py"):
+    try:
+        with open(_p) as fh:
+            SRC = fh.read()
+        break
+    except OSError:
+        continue
 ::py::
 
 with entry {
