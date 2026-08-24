@@ -1283,6 +1283,7 @@ import from objects {
     PySet,
     PySeqIter,
     PyExceptionType,
+    PyExcGroup,
     PyException,
     PyError,
     PyTraceback,
@@ -6568,6 +6569,17 @@ def py_attr(value: PyObj, name: str) -> PyObj {
     if is_error(result) and isinstance(value, PyStr) and is_str_method(name) {
         return PyStrMethod(t="str_method", target=value as PyStr, name=name);
     }
+    # ExceptionGroup split/subgroup kernel (PEP 654): bound native methods so
+    # partitioning runs on live guest objects rather than host copies.
+    if is_error(result) and isinstance(value, PyException) and name == "add_note" {
+        return PyAddNoteMethod(t="add_note_method", target=value as PyException);
+    }
+    if is_error(result) and isinstance(value, PyExcGroup)
+        and (name == "split" or name == "subgroup") {
+        return PyExcGroupMethod(
+            t="egroup_method", target=value as PyExcGroup, name=name
+        );
+    }
     if is_error(result) and _is_host_backed(value.t) {
         return host_getattr(value, name);
     }
@@ -7839,15 +7851,216 @@ def eg_build(message: str, members: list[PyObj]) -> PyObj {
         PyStr(t="str", val=message),
         PyList(t="list", items=inner),
     ];
-    return PyException(
-        t="exception", type_name=name, message="", args=stored_args
+    excs_copy: list[PyObj] = [];
+    excs_copy.extend(members);
+    # Construct the typed group object so rebuilt groups carry the full
+    # member surface (.message/.exceptions), same as tp_call construction.
+    return PyExcGroup(
+        t="exception", type_name=name, message=message,
+        args=stored_args, excs=excs_copy
     );
 }
+
 
 # _PyEval_ExceptionGroupMatch primitive: returns (rest, match). A full match
 # yields (None, group-or-wrapped-exc); an EG partial match yields the split
 # pair (either half may be None); no match yields (exc, None). Both None means
 # there was no active exception.
+# ---------------- P3 split/subgroup kernel (PEP 654) ----------------
+# Port of Objects/exception_groups.c: check_subgroup condition validation and
+# subgroup_split_recursive partitioning. Conditions are exception types,
+# tuples of them, None (matches everything), or a callable applied per leaf.
+# Type matching routes through the family-string matcher, so an unhashable
+# metaclass type stays a valid condition (no hashing on this path).
+
+obj PyAddNoteMethod(PyObj) {
+    has target: PyException;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 or not isinstance(args[0], PyStr) {
+            return py_error("TypeError", "add_note() argument must be a str");
+        }
+        note = args[0];
+        existing = self.target.type_fields.get("__notes__");
+        notes: list[PyObj] = [];
+        if existing is not None and isinstance(existing, PyList) {
+            notes.extend((existing as PyList).items);
+        }
+        notes.append(note);
+        self.target.type_fields["__notes__"] = PyList(t="list", items=notes);
+        return py_none();
+    }
+}
+
+obj PyExcGroupMethod(PyObj) {
+    has target: PyExcGroup,
+        name: str;
+
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error(
+                "TypeError",
+                self.name + "() takes exactly one argument ("
+                + str(len(args)) + " given)"
+            );
+        }
+        if self.name == "split" {
+            return eg_split_entry(self.target, args[0]);
+        }
+        return eg_subgroup_entry(self.target, args[0]);
+    }
+}
+
+def eg_condition_error() -> PyObj {
+    return py_error(
+        "TypeError",
+        "expected an exception type, a tuple of exception types, or a "
+        "callable (other than a class)"
+    );
+}
+
+# "" = invalid; "all" = None; "match" = type/tuple-of-types; "pred" = callable.
+def eg_condition_kind(cond: PyObj) -> str {
+    if cond.t == "none" {
+        return "all";
+    }
+    if cond.t == "tuple" {
+        for item in (cond as PyTuple).items {
+            if eg_target_family(item) == "" and not isinstance(item, PyClass) {
+                return "";
+            }
+        }
+        return "match";
+    }
+    if eg_target_family(cond) != "" {
+        return "match";
+    }
+    # Guest-defined classes carry no builtin family at the root; their name
+    # matches leaves through eg_cond_match without crossing the host bridge
+    # (an unhashable metaclass must never be hashed or to_host'ed here).
+    if isinstance(cond, PyClass) {
+        return "match";
+    }
+    if isinstance(cond, PyFunction) or isinstance(cond, PyNativeBuiltin) {
+        return "pred";
+    }
+    return "";
+}
+
+# Leaf-vs-condition match for kind == "match": guest classes compare by name /
+# family subclass chains (no hashing); builtin types and tuples delegate to
+# the standard matcher.
+def eg_cond_match(leaf: PyObj, cond: PyObj) -> bool {
+    if isinstance(cond, PyClass) {
+        lf = eg_leaf_family(leaf);
+        cname = (cond as PyClass).name;
+        return lf == cname or exc_is_subclass_of(lf, cname);
+    }
+    # Builtin/host-proxy types match through family strings -- never through
+    # the host bridge, so an unhashable metaclass type stays valid.
+    cf = eg_target_family(cond);
+    if cf != "" {
+        lf = eg_leaf_family(leaf);
+        return lf == cf or exc_is_subclass_of(lf, cf);
+    }
+    return exception_matches(leaf, cond);
+}
+
+# subgroup_split_recursive: partitions the group's members into (match, rest)
+# group halves sharing the original message; nested groups are rebuilt (never
+# reused), empty halves collapse to None, leaves keep identity. Third slot
+# carries an error instead when condition evaluation raises.
+def eg_split_rec(gexc: PyObj, kind: str, cond: PyObj) -> tuple[PyObj, PyObj, PyObj] {
+    m_items: list[PyObj] = [];
+    r_items: list[PyObj] = [];
+    members = eg_members(gexc);
+    if is_error(members) {
+        return (py_none(), py_none(), members);
+    }
+    for m in (members as PyList).items {
+        matched = False;
+        if eg_is_group(m) {
+            triple = eg_split_rec(m, kind, cond);
+            if is_error(triple[2]) {
+                return (py_none(), py_none(), triple[2]);
+            }
+            if triple[0].t != "none" {
+                m_items.append(triple[0]);
+            }
+            if triple[1].t != "none" {
+                r_items.append(triple[1]);
+            }
+            continue;
+        }
+        if kind == "all" {
+            matched = true;
+        } elif kind == "match" {
+            matched = eg_cond_match(m, cond);
+        } else {
+            rv = py_invoke(cond, [m], {});
+            if is_error(rv) {
+                return (py_none(), py_none(), rv);
+            }
+            matched = rv.tp_bool();
+        }
+        if matched {
+            m_items.append(m);
+        } else {
+            r_items.append(m);
+        }
+    }
+    msg = eg_message(gexc);
+    return (eg_build(msg, m_items), eg_build(msg, r_items), py_none());
+}
+
+# split_recursive tail: derived partitions inherit the original group's
+# __context__/__cause__ when set (CPython SetContext/SetCause).
+def eg_copy_chain(orig: PyObj, derived: PyObj) -> None {
+    o = orig as PyException;
+    d = derived as PyException;
+    if o.context is not None {
+        d.context = o.context;
+    }
+    if o.cause is not None {
+        d.cause = o.cause;
+    }
+}
+
+def eg_split_entry(exc: PyObj, cond: PyObj) -> PyObj {
+    kind = eg_condition_kind(cond);
+    if kind == "" {
+        return eg_condition_error();
+    }
+    triple = eg_split_rec(exc, kind, cond);
+    if is_error(triple[2]) {
+        return triple[2];
+    }
+    if triple[0].t == "exception" {
+        eg_copy_chain(exc, triple[0]);
+    }
+    if triple[1].t == "exception" {
+        eg_copy_chain(exc, triple[1]);
+    }
+    items: list[PyObj] = [triple[0], triple[1]];
+    return PyTuple(t="tuple", items=items);
+}
+
+def eg_subgroup_entry(exc: PyObj, cond: PyObj) -> PyObj {
+    kind = eg_condition_kind(cond);
+    if kind == "" {
+        return eg_condition_error();
+    }
+    triple = eg_split_rec(exc, kind, cond);
+    if is_error(triple[2]) {
+        return triple[2];
+    }
+    if triple[0].t == "exception" {
+        eg_copy_chain(exc, triple[0]);
+    }
+    return triple[0];
+}
+
+
 def exception_group_split(exc: PyObj, target: PyObj) -> tuple[PyObj, PyObj] {
     if exc.t == "none" {
         return (py_none(), py_none());
