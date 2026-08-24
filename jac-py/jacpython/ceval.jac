@@ -633,6 +633,23 @@ def _jac_module_info(absname):
         depth = depth + 1
     return finish(loc[0], loc[1])
 
+def _jac_sys_modules_lookup(absname):
+    # sys.modules-first rule (CPython _find_and_load checks the registry before
+    # every path finder): a module body can register a submodule ALIAS at exec
+    # time that exists nowhere on disk. CPython 3.14 removed Lib/collections/
+    # abc.py; collections/__init__.py does
+    #     _sys.modules['collections.abc'] = _collections_abc
+    # so `import collections.abc` resolves through the registry, not a file.
+    # Returns ("hit", module) / ("absent", "") / ("error", type, message).
+    import sys
+    try:
+        mod = sys.modules.get(absname)
+    except BaseException as exc:
+        return _jac_host_error(exc)
+    if mod is None:
+        return ("absent", "")
+    return ("hit", mod)
+
 def _jac_star_names(host_val):
     # `from proxied_module import *` name set: __all__ if defined, else every
     # public (non-underscore) attribute -- CPython's import_all_from rule.
@@ -1609,6 +1626,36 @@ def import_native(absname: str) -> PyObj {
     info = _jac_module_info(absname);
     status = str(info[0]);
     if status == "missing" {
+        # CPython imports the parent package BEFORE resolving the submodule,
+        # then consults sys.modules before any finder: a package body may have
+        # registered the submodule as a registry alias at exec time (see
+        # _jac_sys_modules_lookup -- collections.abc on 3.14 has no file).
+        if "." in absname {
+            pmod = import_native(_parent_package(absname));
+            if is_error(pmod) {
+                return pmod;
+            }
+        } else {
+            pmod = py_none();
+        }
+        looked = _jac_sys_modules_lookup(absname);
+        looked_status = str(looked[0]);
+        if looked_status == "error" {
+            return py_error(str(looked[1]), str(looked[2]));
+        }
+        if looked_status == "hit" {
+            alias = PyHostProxy(t="host", val=looked[1]);
+            if "." in absname {
+                bound = py_set_attr(
+                    pmod, _last_component(absname), alias as PyObj
+                );
+                if is_error(bound) {
+                    return bound;
+                }
+            }
+            sys3_modules[absname] = alias;
+            return alias;
+        }
         return py_error("ModuleNotFoundError", "No module named '" + absname + "'");
     }
     if status == "not-package" {
