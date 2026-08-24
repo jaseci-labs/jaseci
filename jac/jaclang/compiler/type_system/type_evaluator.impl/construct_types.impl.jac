@@ -208,6 +208,9 @@ impl TypeEvaluator._get_iterable_element_type(
             if _me is None {
                 return None;
             }
+            if isinstance(_me, AnyType) or self.is_any_type(_me) {
+                return _me;
+            }
             if not self._type_in_list(_me, _member_elems) {
                 _member_elems.append(_me);
             }
