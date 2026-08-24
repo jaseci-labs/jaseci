@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_memoryview.py",
+    "-o",
+    "/var/tmp/sp6-out/test_memoryview",
+    "--name",
+    "conv_memoryview"
+  ],
+  "generated_at": "2026-08-24T13:51:41",
+  "hashes": {
+    "pins_jac": "3654e5ebe58c676a908828066a19624e4dd1a683b8083c3eeba95a2c0887f7df"
+  },
+  "source_file": "reference/cpython/Lib/test/test_memoryview.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "memoryview",
+  "pins_file": "conv_memoryview_pins.jac",
+  "pins": [
+    {
+      "ident": "AbstractMemoryTests.test_issue22668",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    a = array.array('H', [256, 256, 256, 256])\n    x = memoryview(a)\n    m = x.cast('B')\n    b = m.cast('H')\n    c = b[0:2]\n    d = memoryview(b)\n    del b\n    assert c[0] == 256, ('assertEqual', c[0], 256)\n    assert d[0] == 256, ('assertEqual', d[0], 256)\n    assert c.format == 'H', ('assertEqual', c.format, 'H')\n    assert d.format == 'H', ('assertEqual', d.format, 'H')\n    _ = m.cast('I')\n    assert c[0] == 256, ('assertEqual', c[0], 256)\n    assert d[0] == 256, ('assertEqual', d[0], 256)\n    assert c.format == 'H', ('assertEqual', c.format, 'H')\n    assert d.format == 'H', ('assertEqual', d.format, 'H')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_hex_use_after_free",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    ba = bytearray(b'A' * 1024)\n    mv = memoryview(ba)\n\n    class S(bytes):\n\n        def __len__(self):\n            mv.release()\n            ba.clear()\n            return 1\n    try:\n        mv.hex(*(S(b':'),))\n    except BufferError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ArrayMemoryviewTest.test_array_assign",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import array\n\ndef _t():\n    a = array.array('i', range(10))\n    m = memoryview(a)\n    new_a = array.array('i', range(9, -1, -1))\n    m[:] = new_a\n    assert a == new_a, ('assertEqual', a, new_a)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "ArrayMemoryviewTest.test_boolean_format",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    m1a = memoryview(b'\\x00\\x02\\x00').cast('?')\n    assert m1a.tolist() == [False, True, False], ('assertEqual', m1a.tolist(), [False, True, False])\n    m1b = memoryview(b'\\x00\\x04\\x00').cast('?')\n    assert m1b.tolist() == [False, True, False], ('assertEqual', m1b.tolist(), [False, True, False])\n    assert m1a == m1b, ('assertEqual', m1a, m1b)\n    m2a = memoryview(b'\\x01\\x03\\x05').cast('?')\n    assert m2a.tolist() == [True, True, True], ('assertEqual', m2a.tolist(), [True, True, True])\n    m2b = memoryview(b'\\x02\\x04\\x06').cast('?')\n    assert m2b.tolist() == [True, True, True], ('assertEqual', m2b.tolist(), [True, True, True])\n    assert m2a == m2b, ('assertEqual', m2a, m2b)\n    allbytes = bytes(range(256))\n    allbytes = memoryview(allbytes).cast('?')\n    assert allbytes.tolist() == [False] + [True] * 255, ('assertEqual', allbytes.tolist(), [False] + [True] * 255)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OtherTest.test_half_float",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import struct\n\ndef _t():\n    half_data = struct.pack('eee', 0.0, -1.5, 1.5)\n    float_data = struct.pack('fff', 0.0, -1.5, 1.5)\n    half_view = memoryview(half_data).cast('e')\n    float_view = memoryview(float_data).cast('f')\n    assert half_view.nbytes * 2 == float_view.nbytes, ('assertEqual', half_view.nbytes * 2, float_view.nbytes)\n    assert half_view.tolist() == float_view.tolist(), ('assertListEqual', half_view.tolist(), float_view.tolist())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OtherTest.test_memoryview_hex",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = b'0' * 200000\n    m1 = memoryview(x)\n    m2 = m1[::-1]\n    assert m2.hex() == '30' * 200000, ('assertEqual', m2.hex(), '30' * 200000)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OtherTest.test_copy",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import copy\n\ndef _t():\n    m = memoryview(b'abc')\n    try:\n        copy.copy(m)\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "OtherTest.test_pickle",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import pickle\n\ndef _t():\n    m = memoryview(b'abc')\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        try:\n            pickle.dumps(m, proto)\n        except TypeError as _exc:\n            pass\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "BaseArrayMemoryTests.test_getbuffer",
+      "reason": "decorator:unittest.skip"
+    },
+    {
+      "ident": "BaseArrayMemoryTests.test_tolist",
+      "reason": "decorator:unittest.skip"
+    },
+    {
+      "ident": "RacingTest.test_racing_getbuf_and_releasebuf",
+      "reason": "decorator:support.requires_resource"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_getitem",
+      "reason": "helper:check_getitem_with_type(uses-self._source)"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_index",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_iter",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_count",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_setitem_readonly",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_setitem_writable",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_delitem",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_tobytes",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_tolist",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_compare",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_attributes_readonly",
+      "reason": "helper:check_attributes_with_type(uses-self._view)"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_attributes_writable",
+      "reason": "helper:check_attributes_with_type(uses-self._view)"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_getbuffer",
+      "reason": "self._check_contents"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_gc",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_contextmanager",
+      "reason": "helper:_check_released(uses-self.assertRaisesRegex)"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_release",
+      "reason": "helper:_check_released(uses-self.assertRaisesRegex)"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_writable_readonly",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_getbuf_fail",
+      "reason": "uses-self._view"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_hash",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_hash_writable",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_hash_use_after_free",
+      "reason": "uses-self.clear"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_weakref",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_reversed",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "AbstractMemoryTests.test_toreadonly",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "BaseMemoryviewTests.test_count",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "BaseMemorySliceTests.test_refs",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "BytesMemoryviewTest.test_constructor",
+      "reason": "uses-self._types"
+    },
+    {
+      "ident": "OtherTest.test_ctypes_cast",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "OtherTest.test_memoryview_hex_separator",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "OtherTest.test_use_released_memory",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "OtherTest.test_buffer_reference_loop",
+      "reason": "unresolved-name:MyObject"
+    },
+    {
+      "ident": "OtherTest.test_picklebuffer_reference_loop",
+      "reason": "unresolved-name:MyObject"
+    }
+  ],
+  "counts": {
+    "extracted": 43,
+    "pinned": 8,
+    "quarantined": 35
+  }
+}

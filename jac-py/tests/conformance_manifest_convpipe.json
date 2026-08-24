@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 62,
+  "module_count": 68,
   "modules": [
     {
       "stem": "augassign",
@@ -984,6 +984,82 @@
       "libtest_snippets": [],
       "notes": "5 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
       "conversion_meta": "array.conv.json"
+    },
+    {
+      "stem": "compare",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_compare_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "8 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "compare.conv.json"
+    },
+    {
+      "stem": "codeccallbacks",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_codeccallbacks_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "27 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "codeccallbacks.conv.json"
+    },
+    {
+      "stem": "memoryview",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_memoryview_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "8 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "memoryview.conv.json"
+    },
+    {
+      "stem": "dictcomps",
+      "gate_type": "oracle",
+      "status": "converted",
+      "oracle_tests": [
+        "conv_dictcomps_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "9 output-oracle pins generated from CPython Lib/test; run diff_runner to gate.",
+      "conversion_meta": "dictcomps.conv.json"
+    },
+    {
+      "stem": "listcomps",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/sp4-out/listcomps/conv_listcomps_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "2/5 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "jacpython_results": {
+        "listcomps": {
+          "passed": 2,
+          "total": 5
+        }
+      }
+    },
+    {
+      "stem": "setcomps",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "/var/tmp/sp4-out/setcomps/conv_setcomps_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/1 output-oracle pins pass on jacpython (diff_runner); lanes fix VM gaps from the triage report.",
+      "jacpython_results": {
+        "setcomps": {
+          "passed": 0,
+          "total": 1
+        }
+      }
     }
   ]
 }

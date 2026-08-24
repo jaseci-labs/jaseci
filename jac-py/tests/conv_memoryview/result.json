@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp6-out/test_memoryview/conv_memoryview_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:51:02",
+  "hashes": {
+    "pins_jac": "3654e5ebe58c676a908828066a19624e4dd1a683b8083c3eeba95a2c0887f7df",
+    "conversion_json": "5c4717b74f0975867bfeb6e21289747e8a247cea8e9f6e822a256f20ef99e2d7",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "memoryview",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 43,
+    "runnable": 8,
+    "green": 7,
+    "quarantined": 35,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "ArrayMemoryviewTest.test_array_assign",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'object does not support item assignment'\">"
+    }
+  ]
+}

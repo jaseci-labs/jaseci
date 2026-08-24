@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp6-out/test_codeccallbacks/conv_codeccallbacks_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:51:01",
+  "hashes": {
+    "pins_jac": "c5d024609c02a7503193f3bbbbbef96411e0627e88e01950c6630600ef6977e1",
+    "conversion_json": "5972f2bd85c9eaed43d7f89323a0d284c9de7fbeaecc78b3b00dda0c36349460",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "codeccallbacks",
+  "counts": {
+    "converted": 43,
+    "runnable": 27,
+    "green": 14,
+    "quarantined": 16
+  },
+  "pins": [
+    {
+      "id": "CodecCallbackTest.test_xmlcharrefreplace",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_xmlcharnamereplace",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'test.xmlcharnamereplace\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_uninamereplace",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'test.uninamereplace\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_backslashescape",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: iso-8859-15'\">"
+    },
+    {
+      "id": "CodecCallbackTest.test_nameescape",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'namereplace\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_decoding_callbacks",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_charmapencode",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_callbacks",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'test.handler1\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_longstrings",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: iso-8859-15'\">"
+    },
+    {
+      "id": "CodecCallbackTest.test_unicodeencodeerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \\'(\\\\\\'assertEqual\\\\\\', \"\\\\\\'ascii\\\\\\' codec can\\\\\\'t encode character \\\\\\\\\\\\\\\\u00fc in position 1: ouch\", \"\\\\\\'ascii\\\\\\' codec can\\\\\\'t encode character \\\\\\'\\\\\\\\\\\\\\\\xfc\\\\\\' in position 1: ouch\")\\''>"
+    },
+    {
+      "id": "CodecCallbackTest.test_unicodedecodeerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \\'(\\\\\\'assertEqual\\\\\\', \"(ascii, bytearray(b\\\\\\'g\\\\\\\\\\\\\\\\xfcrk\\\\\\'), 1, 2, ouch)\", \"\\\\\\'ascii\\\\\\' codec can\\\\\\'t decode byte 0xfc in position 1: ouch\")\\''>"
+    },
+    {
+      "id": "CodecCallbackTest.test_unicodetranslateerror",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'UnicodeTranslateError constructor takes exactly 5 arguments'\">"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodstrictexceptions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'UnicodeTranslateError constructor takes exactly 5 arguments'\">"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodignoreexceptions",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'UnicodeTranslateError constructor takes exactly 5 arguments'\">"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodxmlcharrefreplaceexceptions",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_badhandlerresults",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'test.badhandler\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_badregistercall",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_badlookupcall",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_unknownhandler",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_xmlcharrefvalues",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'test.xmlcharrefreplace\\'\"'>"
+    },
+    {
+      "id": "CodecCallbackTest.test_translatehelper",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_bug828737",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_mutating_decode_handler",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_crashing_decode_handler",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_unregister_custom_error_handler",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_unregister_custom_unknown_error_handler",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodreplaceexceptions",
+      "status": "quarantined",
+      "reason": "unresolved-name:BadObjectUnicodeDecodeError"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodbackslashreplaceexceptions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodnamereplaceexceptions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodsurrogateescapeexceptions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_badandgoodsurrogatepassexceptions",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_encode_nonascii_replacement",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_encode_unencodable_replacement",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_encode_bytes_replacement",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_encode_odd_bytes_replacement",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_decodehelper",
+      "status": "quarantined",
+      "reason": "unresolved-name:PosReturn"
+    },
+    {
+      "id": "CodecCallbackTest.test_encodehelper",
+      "status": "quarantined",
+      "reason": "unresolved-name:PosReturn"
+    },
+    {
+      "id": "CodecCallbackTest.test_decodehelper_bug36819",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_encodehelper_bug36819",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_mutating_decode_handler_unicode_escape",
+      "status": "quarantined",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "id": "CodecCallbackTest.test_fake_error_class",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecCallbackTest.test_reject_unregister_builtin_error_handler",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    }
+  ]
+}

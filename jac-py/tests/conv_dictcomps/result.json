@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "c01c89da056bb6d42e60df316b7e375e687a90dd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/sp4-out/dictcomps/conv_dictcomps_pins.jac"
+  ],
+  "generated_at": "2026-08-24T13:51:21",
+  "hashes": {
+    "pins_jac": "0ecd0ba0751f3acc6d865cb8be46f163e615e40f62faf00c79ad6ff735d4dc38",
+    "conversion_json": "9801abbbedd618261a0d18b3ddde0d0858b88dbb110d132fef286d6f56295781",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "dictcomps",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 10,
+    "runnable": 9,
+    "green": 8,
+    "quarantined": 1,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "DictComprehensionTest.test_star_expression",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', {}, {0: 0, 1: 1, 2: 4, 3: 9})\"'>"
+    }
+  ]
+}
