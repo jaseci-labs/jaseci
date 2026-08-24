@@ -92,7 +92,7 @@ test "capability error is a structured 415/501 envelope naming [desktop.http]" {
     assert multi["http_status"] == 415;
     assert multi["error"]["code"] == "CAPABILITY_NOT_AVAILABLE";
     assert multi["error"]["capability"] == "multipart";
-    assert multi["error"]["hint"].includes("[desktop.http]");
+    assert "[desktop.http]" in multi["error"]["hint"];
 
     hook = __jacCapabilityError("webhooks");
     assert hook["http_status"] == 501;
@@ -110,7 +110,7 @@ test "jacUploadFile fails with the capability error in lean mode (no sidecar)" {
         msg = String(e);
     }
     assert raised == True;
-    assert msg.includes("[desktop.http]") and msg.includes("multipart");
+    assert "[desktop.http]" in msg and "multipart" in msg;
 
     _clear_env();
 }
