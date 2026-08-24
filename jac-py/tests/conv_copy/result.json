@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "17027b0a53a9513da7086b107e795f2ddc032cfd",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_copy/conv_copy_pins.jac"
+  ],
+  "generated_at": "2026-08-23T23:58:57",
+  "hashes": {
+    "pins_jac": "67b46a71054c4b420527a56c60ea0839cdb5e7375806e65def7594af02355b7d",
+    "conversion_json": "29b865c1f4ef15de718a8703537745d0fd34825ed480b09f7a8dbc4255e5165d",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "copy",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 81,
+    "runnable": 41,
+    "green": 0,
+    "quarantined": 40,
+    "failed": 41,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "TestCopy.test_copy_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_registry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_reduce",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_cant",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_atomic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_list",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_set",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_frozenset",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_bytearray",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_basic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_memo",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_issubclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_registry",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_reduce",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_cant",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_atomic",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_list",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_empty_tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_tuple",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_tuple_of_immutables",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_dict",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_keepalive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_dont_memo_immutable",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_reflexive_inst",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_reconstruct_string",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_reconstruct_nostate",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_reconstruct_reflexive",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_slots",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_slots",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_list_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_list_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_tuple_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_tuple_subclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_getstate_exc",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_copy_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_function",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestCopy.test_deepcopy_bound_method",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestReplace.test_unsupported",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "TestReplace.test_dataclass",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    }
+  ]
+}
