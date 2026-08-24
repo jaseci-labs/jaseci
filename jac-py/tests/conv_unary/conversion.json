@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_unary.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_unary",
+    "--name",
+    "conv_unary"
+  ],
+  "generated_at": "2026-08-24T00:36:08",
+  "hashes": {
+    "pins_jac": "bd44f7ab25c010a51912ed83b83c423339c340fe71a0239d9dcf50272e1e08ef"
+  },
+  "source_file": "reference/cpython/Lib/test/test_unary.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "unary",
+  "pins_file": "conv_unary_pins.jac",
+  "pins": [
+    {
+      "ident": "UnaryOpTestCase.test_negative",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert -2 == 0 - 2, ('assertTrue', -2 == 0 - 2)\n    assert -0 == 0, ('assertEqual', -0, 0)\n    assert --2 == 2, ('assertEqual', --2, 2)\n    assert -2.0 == 0 - 2.0, ('assertTrue', -2.0 == 0 - 2.0)\n    assert -2j == 0 - 2j, ('assertTrue', -2j == 0 - 2j)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnaryOpTestCase.test_positive",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert +2 == 2, ('assertEqual', +2, 2)\n    assert +0 == 0, ('assertEqual', +0, 0)\n    assert ++2 == 2, ('assertEqual', ++2, 2)\n    assert +2.0 == 2.0, ('assertEqual', +2.0, 2.0)\n    assert +2j == 2j, ('assertEqual', +2j, 2j)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnaryOpTestCase.test_invert",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert ~2 == -(2 + 1), ('assertTrue', ~2 == -(2 + 1))\n    assert ~0 == -1, ('assertEqual', ~0, -1)\n    assert ~~2 == 2, ('assertEqual', ~~2, 2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnaryOpTestCase.test_no_overflow",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    nines = '9' * 32\n    assert eval('+' + nines) == 10 ** 32 - 1, ('assertTrue', eval('+' + nines) == 10 ** 32 - 1)\n    assert eval('-' + nines) == -(10 ** 32 - 1), ('assertTrue', eval('-' + nines) == -(10 ** 32 - 1))\n    assert eval('~' + nines) == ~(10 ** 32 - 1), ('assertTrue', eval('~' + nines) == ~(10 ** 32 - 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnaryOpTestCase.test_negation_of_exponentiation",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert -2 ** 3 == -8, ('assertEqual', -2 ** 3, -8)\n    assert (-2) ** 3 == -8, ('assertEqual', (-2) ** 3, -8)\n    assert -2 ** 4 == -16, ('assertEqual', -2 ** 4, -16)\n    assert (-2) ** 4 == 16, ('assertEqual', (-2) ** 4, 16)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "UnaryOpTestCase.test_bad_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    for op in ('+', '-', '~'):\n        try:\n            eval(*(op + \"b'a'\",))\n        except TypeError:\n            pass\n        try:\n            eval(*(op + \"'a'\",))\n        except TypeError:\n            pass\n    try:\n        eval(*('~2j',))\n    except TypeError:\n        pass\n    try:\n        eval(*('~2.0',))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [],
+  "counts": {
+    "extracted": 6,
+    "pinned": 6,
+    "quarantined": 0
+  }
+}

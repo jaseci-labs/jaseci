@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.2.0",
+  "jac_sha": "9d86274c42461fda69d309214d128e472ac69395",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_augassign.py",
+    "-o",
+    "/var/tmp/wp4-mech/out/conv_augassign",
+    "--name",
+    "conv_augassign"
+  ],
+  "generated_at": "2026-08-24T00:36:10",
+  "hashes": {
+    "pins_jac": "4102beb50b744586f7b41a011b79d95c24c4394d66a85fdbe1c3a3426cfa793f"
+  },
+  "source_file": "reference/cpython/Lib/test/test_augassign.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "augassign",
+  "pins_file": "conv_augassign_pins.jac",
+  "pins": [
+    {
+      "ident": "AugAssignTest.testBasic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = 2\n    x += 1\n    x *= 2\n    x **= 2\n    x -= 8\n    x //= 5\n    x %= 3\n    x &= 2\n    x |= 5\n    x ^= 1\n    x /= 2\n    assert x == 3.0, ('assertEqual', x, 3.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AugAssignTest.test_with_unpacking",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    try:\n        compile(*('x, b += 3', '<test>', 'exec'))\n    except SyntaxError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AugAssignTest.testInList",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = [2]\n    x[0] += 1\n    x[0] *= 2\n    x[0] **= 2\n    x[0] -= 8\n    x[0] //= 5\n    x[0] %= 3\n    x[0] &= 2\n    x[0] |= 5\n    x[0] ^= 1\n    x[0] /= 2\n    assert x[0] == 3.0, ('assertEqual', x[0], 3.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AugAssignTest.testInDict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = {0: 2}\n    x[0] += 1\n    x[0] *= 2\n    x[0] **= 2\n    x[0] -= 8\n    x[0] //= 5\n    x[0] %= 3\n    x[0] &= 2\n    x[0] |= 5\n    x[0] ^= 1\n    x[0] /= 2\n    assert x[0] == 3.0, ('assertEqual', x[0], 3.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "AugAssignTest.testSequences",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    x = [1, 2]\n    x += [3, 4]\n    x *= 2\n    assert x == [1, 2, 3, 4, 1, 2, 3, 4], ('assertEqual', x, [1, 2, 3, 4, 1, 2, 3, 4])\n    x = [1, 2, 3]\n    y = x\n    x[1:2] *= 2\n    y[1:2] += [1]\n    assert x == [1, 2, 1, 2, 3], ('assertEqual', x, [1, 2, 1, 2, 3])\n    assert x is y, ('assertTrue', x is y)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "AugAssignTest.testCustomMethods1",
+      "reason": "uses-self.val"
+    },
+    {
+      "ident": "AugAssignTest.testCustomMethods2",
+      "reason": "unresolved-name:test_self"
+    }
+  ],
+  "counts": {
+    "extracted": 7,
+    "pinned": 5,
+    "quarantined": 2
+  }
+}

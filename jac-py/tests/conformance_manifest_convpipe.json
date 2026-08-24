@@ -2,7 +2,7 @@
   "version": 1,
   "wave": "conv_pipeline",
   "description": "D2 mechanical test-conversion pipeline (convert_suite/diff_runner)",
-  "module_count": 1,
+  "module_count": 5,
   "modules": [
     {
       "stem": "copy",
@@ -18,6 +18,74 @@
         "copy": {
           "passed": 0,
           "total": 41
+        }
+      }
+    },
+    {
+      "stem": "decorators",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_decorators/conv_decorators_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "10/11 output-oracle pins pass on jacpython (diff_runner); gap: function __dict__.update() attr persistence (AttributeError on funcattrs kwarg).",
+      "conversion_meta": "jac-py/tests/conv_decorators/test_decorators.conv.json",
+      "jacpython_results": {
+        "decorators": {
+          "passed": 10,
+          "total": 11
+        }
+      }
+    },
+    {
+      "stem": "unary",
+      "gate_type": "oracle",
+      "status": "gated",
+      "oracle_tests": [
+        "jac-py/tests/conv_unary/conv_unary_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "6/6 output-oracle pins pass, zero quarantined (diff_runner).",
+      "conversion_meta": "jac-py/tests/conv_unary/test_unary.conv.json",
+      "jacpython_results": {
+        "unary": {
+          "passed": 6,
+          "total": 6
+        }
+      }
+    },
+    {
+      "stem": "augassign",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_augassign/conv_augassign_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "5/5 runnable pins pass; 2 quarantined at conversion (class-scope self.* vocabulary).",
+      "conversion_meta": "jac-py/tests/conv_augassign/test_augassign.conv.json",
+      "jacpython_results": {
+        "augassign": {
+          "passed": 5,
+          "total": 5
+        }
+      }
+    },
+    {
+      "stem": "unpack",
+      "gate_type": "oracle",
+      "status": "partial",
+      "oracle_tests": [
+        "jac-py/tests/conv_unpack/conv_unpack_pins.jac"
+      ],
+      "libtest_snippets": [],
+      "notes": "0/1 pins pass; exec()-built code does not populate the namespace dict (KeyError unpack_400) -- VM fingerprint filed.",
+      "conversion_meta": "jac-py/tests/conv_unpack/test_unpack.conv.json",
+      "jacpython_results": {
+        "unpack": {
+          "passed": 0,
+          "total": 1
         }
       }
     }
