@@ -204,29 +204,32 @@ def _mark_message_for_caching(msg: dict) {
 }
 
 
-glob _CACHE_TOKEN_DETAIL_FALLBACK: dict[str, str] = {
-         "cache_read_input_tokens": "cached_tokens",
-         "cache_creation_input_tokens": "cache_creation_tokens"
-     };
-
 def _usage_int(usage: any, key: str) -> int {
     if usage is None {
         return 0;
     }
     val = usage.get(key) if isinstance(usage, dict) else getattr(usage, key, None);
-    if val is None and key in _CACHE_TOKEN_DETAIL_FALLBACK {
-        ptd = (
-            usage.get("prompt_tokens_details")
-                if isinstance(usage, dict)
-                else usage?.prompt_tokens_details
+    if val is None {
+        detail_key = (
+            "cached_tokens"
+                if key == "cache_read_input_tokens"
+                else "cache_creation_tokens"
+                    if key == "cache_creation_input_tokens"
+                    else None
         );
-        if ptd is not None {
-            detail_key = _CACHE_TOKEN_DETAIL_FALLBACK[key];
-            val = (
-                ptd.get(detail_key)
-                    if isinstance(ptd, dict)
-                    else getattr(ptd, detail_key, None)
+        if detail_key {
+            ptd = (
+                usage.get("prompt_tokens_details")
+                    if isinstance(usage, dict)
+                    else usage?.prompt_tokens_details
             );
+            if ptd is not None {
+                val = (
+                    ptd.get(detail_key)
+                        if isinstance(ptd, dict)
+                        else getattr(ptd, detail_key, None)
+                );
+            }
         }
     }
     try {
@@ -351,9 +354,12 @@ def _record_usage(
     if finish_reason {
         record["finish_reason"] = finish_reason;
     }
-    for key in _CACHE_TOKEN_DETAIL_FALLBACK {
-        record[key] = _usage_int(usage_obj, key);
-    }
+    record["cache_read_input_tokens"] = _usage_int(
+        usage_obj, "cache_read_input_tokens"
+    );
+    record["cache_creation_input_tokens"] = _usage_int(
+        usage_obj, "cache_creation_input_tokens"
+    );
     mt_run._usage_history.append(record);
 }
 
