@@ -1617,6 +1617,15 @@ def import_native(absname: str) -> PyObj {
         _sys3_forget(absname);
         return outcome;
     }
+    if absname == "types" {
+        # The real types.py runs in-VM, but its coroutine() fast path needs host
+        # FunctionType/CodeType identity, which native PyFunction lacks -- its
+        # fallback wrapper then hands back plain generators that GET_AWAITABLE
+        # must reject. Serve CPython's fast-path semantics natively instead.
+        (module as PyModule).attrs["coroutine"] = PyTypesCoroutine(
+            t="types_coroutine"
+        );
+    }
     # attrs aliases modglobals (same dict), so STORE_NAME writes are already live.
     if parent != "" and isinstance(sys3_modules[parent], PyModule) {
         (sys3_modules[parent] as PyModule).attrs[_last_component(absname)] = module;
@@ -3768,6 +3777,15 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         # None), so serve our identity-faithful shim instead.
         shim_modules["weakref"] = build_weakref_module();
     }
+    if name == "types" and not ("types" in shim_modules) {
+        # The host types.coroutine cannot mark VM-native functions (it mutates
+        # host code objects our PyFunction does not share), so its fallback
+        # wrapper hands GET_AWAITABLE plain generators -- which must be
+        # rejected. Serve a facade over the real module with the fast-path
+        # semantics implemented natively. The layer3 boot path instead runs
+        # the real types.py in-VM and overrides just the coroutine attribute.
+        shim_modules["types"] = build_types_facade();
+    }
     if name in shim_modules {
         return shim_modules[name];
     }
@@ -5664,10 +5682,22 @@ def py_aiter(value: PyObj) -> PyObj {
 }
 
 # Resolve a value to the iterator GET_AWAITABLE / SEND drive (native coroutine,
-# generator, native async-gen driver, or host awaitable).
+# generator, native async-gen driver, or host awaitable). A plain generator is
+# only admitted when its code carries CO_ITERABLE_COROUTINE -- the
+# types.coroutine contract; unmarked generators are rejected exactly as
+# CPython's GET_AWAITABLE).
 def py_get_awaitable(value: PyObj) -> PyObj {
-    if value.t == "coroutine" or value.t == "generator"
-        or value.t == "async_anext" or value.t == "async_aclose" {
+    if value.t == "coroutine" {
+        return value;
+    }
+    if value.t == "generator" {
+        gen = value as PyGenerator;
+        if (gen.frame.co.flags & 256) != 0 {
+            return value;
+        }
+        return py_error("TypeError", "'generator' object can't be awaited");
+    }
+    if value.t == "async_anext" or value.t == "async_aclose" {
         return value;
     }
     if isinstance(value, PyHostProxy) {
@@ -7982,7 +8012,12 @@ obj PyFrame(PyObj) {
         pending_throw: any = None,
         # True once the frame's locals/stack have been released (gen.close() or
         # gi_frame.clear()); guards against running __del__ finalizers twice.
-        cleared: bool = False;
+        cleared: bool = False,
+        # Exception-handler stack captured at a YIELD_VALUE suspension and
+        # restored when the generator resumes, so a bare `raise` inside an
+        # except block that spans a yield re-raises the right exception
+        # (CPython keeps this state in the frame's exc_info across suspends).
+        exc_state: list[PyObj] | None = None;
 }
 
 obj PyYield(PyObj) {
@@ -10214,7 +10249,12 @@ obj PyGenerator(PyObj) {
     has frame: PyFrame,
         started: bool = False,
         finished: bool = False,
-        running: bool = False;
+        running: bool = False,
+        # __name__ / __qualname__ overrides (gen_set_name/gen_set_qualname write
+        # the generator object, not the code). Empty string = fall back to the
+        # code object's name, matching CPython's pre-assignment read path.
+        gen_name: str = "",
+        gen_qualname: str = "";
 
     def tp_iter -> PyObj {
         return self;
@@ -10241,7 +10281,56 @@ obj PyGenerator(PyObj) {
             # itself through a callback), False while suspended/finished.
             return PyBool(t="bool", val=self.running);
         }
+        if name == "gi_yieldfrom" {
+            # The sub-iterator a `yield from` is currently delegating to, else
+            # None (genobject.c gi_yieldfrom getter). At a YIELD_VALUE(oparg 1)
+            # suspension the sent slot has been consumed by the yield, so the
+            # delegating receiver is the stack top.
+            if self.frame.yf and len(self.frame.stack) >= 1 {
+                return self.frame.stack[len(self.frame.stack) - 1];
+            }
+            return py_none();
+        }
+        if name == "__name__" {
+            gname = self.gen_name;
+            if gname == "" {
+                gname = self.frame.co.name;
+            }
+            return PyStr(t="str", val=gname);
+        }
+        if name == "__qualname__" {
+            gqn = self.gen_qualname;
+            if gqn == "" {
+                gqn = self.frame.co.qualname;
+            }
+            return PyStr(t="str", val=gqn);
+        }
         return py_error("AttributeError", name);
+    }
+
+    # Only __name__/__qualname__ are writable on a generator object; everything
+    # else keeps raising AttributeError (CPython has no other settable members).
+    def tp_setattro(name: str, value: PyObj) -> PyObj {
+        if name != "__name__" and name != "__qualname__" {
+            return py_error("AttributeError", name);
+        }
+        if not isinstance(value, PyStr) {
+            label = "__qualname__";
+            if name == "__name__" {
+                label = "__name__";
+            }
+            return py_error("TypeError", label + " must be set to a string object");
+        }
+        if self.running {
+            return py_error("ValueError", "generator already executing");
+        }
+        text = (value as PyStr).val;
+        if name == "__name__" {
+            self.gen_name = text;
+        } else {
+            self.gen_qualname = text;
+        }
+        return py_none();
     }
 }
 
@@ -10266,22 +10355,142 @@ obj PyGenMethod(PyObj) {
             }
             return PyAsyncGenAClose(t="async_aclose", gen=self.gen, done=False);
         }
+        # Method-name prefix in arity errors mirrors CPython's METH_DEF_NAME
+        # bindings: "generator.send()", "coroutine.close()", ...
+        label = self.gen.t;
+        if len(kwargs) > 0 {
+            return py_error("TypeError", label + "." + self.kind + "() takes no keyword arguments");
+        }
         if self.kind == "throw" {
-            thrown = py_none();
-            if len(args) > 0 {
-                thrown = args[0];
+            if len(args) < 1 {
+                return py_error("TypeError", "throw expected at least 1 argument, got 0");
             }
-            return gen_throw(self.gen, thrown);
+            if len(args) > 3 {
+                return py_error(
+                    "TypeError",
+                    "throw expected at most 3 arguments, got " + str(len(args))
+                );
+            }
+            thrown = normalize_throw_args(args);
+            result = gen_throw(self.gen, thrown);
+            # A generator that catches the injected exception and returns
+            # normally exhausts like any other run: surface its return value as
+            # StopIteration(return_value), not a bare sentinel (gen_send_ex).
+            if result.t == "genstop" {
+                return stop_iteration((result as PyGenStop).val);
+            }
+            return result;
         }
         if self.kind == "close" {
+            if len(args) > 0 {
+                return py_error(
+                    "TypeError",
+                    label + ".close() takes no arguments (" + str(len(args)) + " given)"
+                );
+            }
             return gen_close(self.gen);
         }
-        sent = py_none();
-        if self.kind == "send" and len(args) > 0 {
-            sent = args[0];
+        if self.kind == "send" {
+            if len(args) != 1 {
+                return py_error(
+                    "TypeError",
+                    label + ".send() takes exactly one argument ("
+                        + str(len(args)) + " given)"
+                );
+            }
+            return gen_send(self.gen, args[0]);
         }
-        return gen_send(self.gen, sent);
+        # __next__: CPython's slot wrapper takes no arguments.
+        if len(args) > 0 {
+            return py_error(
+                "TypeError",
+                label + ".__next__() takes no arguments (" + str(len(args)) + " given)"
+            );
+        }
+        return gen_send(self.gen, py_none());
     }
+}
+
+# Normalize gen.throw(a[, b[, c]]) operands into the error to inject, following
+# CPython _gen_throw: instance with a separate value is rejected; a type is
+# instantiated with the value; anything else is a TypeError naming its type.
+# (The 2/3-arg form carries a DeprecationWarning upstream; the VM has no warning
+# machinery yet, so only the behavior is mirrored here.)
+def normalize_throw_args(args: list[PyObj]) -> PyObj {
+    typ = args[0];
+    val = py_none();
+    if len(args) >= 2 {
+        val = args[1];
+    }
+    if len(args) == 3 and args[2].t != "none" {
+        return py_error("TypeError", "throw() third argument must be a traceback object");
+    }
+    if isinstance(typ, PyHostProxy) {
+        # Host-proxied exception classes/instances (the non-layer3 builtin
+        # surface). Same normalization order as CPython, decided over the raw
+        # host object.
+        raw = (typ as PyHostProxy).val;
+        inst_info = _jac_host_exception_instance(raw);
+        if inst_info[0] as bool {
+            if val.t != "none" {
+                return py_error("TypeError", "instance exception may not have a separate value");
+            }
+            return as_error(typ);
+        }
+        if bool(_jac_is_exception_type(raw)) {
+            if val.t == "none" {
+                return as_error(typ);
+            }
+            inst = typ.tp_call([val], {});
+            if is_error(inst) {
+                return inst;
+            }
+            return py_raise_value(inst);
+        }
+    }
+    if typ.t == "exception"
+        or (isinstance(typ, PyUserObj)
+            and class_is_exception((typ as PyUserObj).cls)) {
+        # Raising an instance: the value must be a dummy.
+        if val.t != "none" {
+            return py_error("TypeError", "instance exception may not have a separate value");
+        }
+        return as_error(typ);
+    }
+    if typ.t == "exception_type" {
+        if val.t == "none" {
+            return as_error(typ);
+        }
+        return PyError(
+            t="error", exception=(typ as PyExceptionType).tp_call([val], {})
+        );
+    }
+    if isinstance(typ, PyClass) and class_is_exception(typ as PyClass) {
+        if val.t == "none" {
+            return as_error(typ);
+        }
+        inst = (typ as PyClass).tp_call([val], {});
+        if is_error(inst) {
+            return inst;
+        }
+        return py_raise_value(inst);
+    }
+    # Not something you can throw.
+    type_label = "object";
+    tn = py_type_of(typ);
+    if isinstance(tn, PyClass) {
+        type_label = (tn as PyClass).name;
+    } elif isinstance(tn, PyHostProxy) {
+        nm = (tn as PyHostProxy).tp_getattro("__name__");
+        if not is_error(nm) and isinstance(nm, PyStr) {
+            type_label = (nm as PyStr).val;
+        }
+    }
+    return py_error(
+        "TypeError",
+        "exceptions must be classes or instances deriving from BaseException, not "
+            + type_label
+    );
 }
 
 # Resume `gen` with `sent` (the value YIELD_VALUE produces on wake; None for
@@ -10293,6 +10502,10 @@ def gen_resume(gen: PyGenerator, sent: PyObj) -> PyObj {    if gen.running {
         return py_error("ValueError", "generator already executing");
     }
     if gen.finished {
+        if gen.t == "coroutine" {
+            # CPython coro_send: a finished coroutine cannot be driven again.
+            return py_error("RuntimeError", "cannot reuse already awaited coroutine");
+        }
         return PyGenStop(t="genstop", val=py_none());
     }
     if gen.started {
@@ -10367,6 +10580,11 @@ def gen_throw(gen: PyGenerator, thrown: PyObj) -> PyObj {
     err = as_error(thrown);
     if err.t != "error" {
         return err;
+    }
+    if gen.finished and gen.t == "coroutine" {
+        # Same reuse guard as gen_resume: throwing into a finished coroutine
+        # reports the re-await, not the injected exception (CPython coro throw).
+        return py_error("RuntimeError", "cannot reuse already awaited coroutine");
     }
     if not gen.started or gen.finished {
         # Nothing suspended to resume into: the exception propagates directly.
@@ -10573,6 +10791,48 @@ obj PyWeakRef(PyObj) {
         # The raw value IS the original PyObj: identity (`r() is o`) holds.
         return raw as PyObj;
     }
+}
+
+# Native types.coroutine fast path: mark a generator function's code object
+# CO_ITERABLE_COROUTINE (0x100) in place, exactly like CPython mutates
+# func.__code__, so GET_AWAITABLE accepts the generators it produces. Callables
+# that are not native generator functions pass through unchanged (CPython would
+# wrap their returned generators; the VM has no faithful equivalent yet).
+obj PyTypesCoroutine(PyObj) {
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 or len(kwargs) > 0 {
+            return py_error("TypeError", "coroutine() expects a callable");
+        }
+        fn = args[0];
+        if isinstance(fn, PyFunction) {
+            co = (fn as PyFunction).code;
+            if (co.flags & 0x180) == 0 and (co.flags & 32) != 0 {
+                co.flags = co.flags | 256;
+            }
+        }
+        return fn;
+    }
+}
+
+# Facade over the real host `types` module for the proxy import path: every
+# public member stays the same host object that direct proxying would serve,
+# with coroutine swapped for the native implementation above.
+def build_types_facade -> PyObj {
+    star: list[PyObj] = [PyStr(t="str", val="*")];
+    result = _jac_host_import("types", star);
+    attrs: dict[str, PyObj] = {};
+    if host_result_ok(result) {
+        host_mod = result[1];
+        names = _jac_star_names(host_mod);
+        for nm in names {
+            member = _jac_host_getattr(host_mod, nm);
+            if host_result_ok(member) {
+                attrs[nm] = PyHostProxy(t="host", val=member[1]);
+            }
+        }
+    }
+    attrs["coroutine"] = PyTypesCoroutine(t="types_coroutine");
+    return PyModule(t="module", name="types", attrs=attrs);
 }
 
 def build_weakref_module -> PyObj {
@@ -10917,10 +11177,14 @@ def run_frame(frame: PyFrame) -> PyObj {
     ip = frame.ip;
     ext_arg = 0;
     # The stack of exceptions currently being handled (one entry per active except
-    # block). A bare `raise` re-raises the top; PUSH_EXC_INFO pushes on handler
-    # entry, POP_EXCEPT pops on handler exit. Frame-local: a bare raise across a
-    # generator yield boundary is not modeled (vanishingly rare).
+    # block). A bare `raise` re-raises the top; PUSH_EXCEPT_INFO pushes on handler
+    # entry, POP_EXCEPT pops on handler exit. A generator suspended inside an
+    # except block carries the stack across the yield via frame.exc_state, so a
+    # bare raise after resuming still names the exception being handled.
     exc_handling: list[PyObj] = [];
+    if frame.exc_state is not None {
+        exc_handling = frame.exc_state as list[PyObj];
+    }
     # Polymorphic opcode scratch slots: handlers below store PyObj values (and
     # occasionally the narrower PyStr/PyException subtypes) here, so they are
     # declared once up front instead of being pinned to a first-use type.
@@ -12788,6 +13052,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             value = stack.pop();
             frame.ip = ip;
             frame.yf = arg == 1;
+            frame.exc_state = exc_handling;
             return PyYield(t="yield", val=value);
         }
         if op == OP_TO_BOOL {
