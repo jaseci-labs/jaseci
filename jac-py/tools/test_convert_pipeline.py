@@ -375,5 +375,148 @@ def load_tests(loader, tests, pattern):
         self.assertEqual(result.quarantined, [])
 
 
+class FixtureVocabularyTests(unittest.TestCase):
+    """Custom TestCase helper methods lift into plain prelude functions."""
+
+    MODULE = '''\
+import unittest
+
+
+class Collector:
+    def __init__(self):
+        self.items = []
+
+
+class BaseCase(unittest.TestCase):
+    def get_collector(self):
+        return Collector()
+
+    def _run_check(self, source, expected):
+        col = self.get_collector()
+        for item in source:
+            col.items.append(item)
+        if col.items != expected:
+            self.fail("got {0}".format(col.items))
+
+
+class TestInherited(BaseCase):
+    def test_via_base_helper(self):
+        self._run_check(["a", "b"], ["a", "b"])
+
+    def test_fixture_attr(self):
+        self.assertEqual(self.nope, 1)
+
+    def test_unknown_helper(self):
+        self.getHTML()
+
+
+class TestBadHelpers(unittest.TestCase):
+    def _uses_state(self):
+        return self.state
+
+    @staticmethod
+    def _static():
+        return 1
+
+    def test_unsupported_helper(self):
+        self.assertEqual(self._uses_state(), None)
+
+    def test_decorated_helper(self):
+        self.assertEqual(self._static(), 1)
+
+    def test_independent(self):
+        self.assertEqual(1, 1)
+
+
+class TestCleanSetUp(unittest.TestCase):
+    def setUp(self):
+        seed = [1, 2]
+
+    def test_sees_set_up_locals(self):
+        seed.append(3)
+        self.assertEqual(seed, [1, 2, 3])
+
+
+class TestStatefulSetUp(unittest.TestCase):
+    def setUp(self):
+        self.log = []
+
+    def test_writes_log(self):
+        self.log.append(1)
+'''
+
+    @classmethod
+    def setUpClass(cls):
+        tree = ast.parse(cls.MODULE)
+        cls.extraction = cs.extract_tests(tree, cls.MODULE)
+
+    def pinned_idents(self) -> set[str]:
+        return {p.ident for p in self.extraction.pinned}
+
+    def quarantined_reasons(self) -> dict[str, str]:
+        return {q.ident: q.reason for q in self.extraction.quarantined}
+
+    def test_pinned_set(self):
+        # Helpers lift per-candidate on demand: a broken sibling helper or
+        # stateful setUp must not sink unrelated tests.
+        self.assertEqual(
+            self.pinned_idents(),
+            {"TestInherited.test_via_base_helper",
+             "TestBadHelpers.test_independent",
+             "TestCleanSetUp.test_sees_set_up_locals"},
+        )
+
+    def test_quarantine_reasons_are_precise(self):
+        reasons = self.quarantined_reasons()
+        self.assertEqual(reasons["TestInherited.test_fixture_attr"], "uses-self.nope")
+        self.assertEqual(reasons["TestInherited.test_unknown_helper"], "self.getHTML")
+        self.assertEqual(
+            reasons["TestBadHelpers.test_unsupported_helper"],
+            "helper:_uses_state(uses-self.state)",
+        )
+        self.assertEqual(
+            reasons["TestBadHelpers.test_decorated_helper"],
+            "helper:_static(decorated-helper)",
+        )
+        # setUp runs implicitly: an unliftable setUp fails every test below it.
+        self.assertEqual(
+            reasons["TestStatefulSetUp.test_writes_log"],
+            "helper:setUp(uses-self.log)",
+        )
+
+    def test_helpers_lifted_as_plain_functions(self):
+        pin = next(
+            p for p in self.extraction.pinned
+            if p.ident == "TestInherited.test_via_base_helper"
+        )
+        self.assertIn("def _run_check(source, expected):", pin.snippet)
+        self.assertIn("def get_collector():", pin.snippet)
+        self.assertNotIn("self._run_check", pin.snippet)
+        self.assertNotIn("self.get_collector", pin.snippet)
+
+    def test_clean_set_up_body_spliced_into_test(self):
+        pin = next(
+            p for p in self.extraction.pinned
+            if p.ident == "TestCleanSetUp.test_sees_set_up_locals"
+        )
+        self.assertLess(pin.snippet.index("seed = [1, 2]"),
+                        pin.snippet.index("def _t"))
+
+    def test_lifted_snippet_passes_on_host(self):
+        pin = next(
+            p for p in self.extraction.pinned
+            if p.ident == "TestInherited.test_via_base_helper"
+        )
+        compile(pin.snippet, pin.ident, "exec")
+        captured = []
+        env = {"print": lambda *a, **k: captured.append(a)}
+        exec(pin.snippet, env)  # noqa: S102 - fixture
+        self.assertEqual(captured[-1][0], cs._ORACLE_OK)
+
+    def test_pinned_snippets_compile_as_python(self):
+        for pin in self.extraction.pinned:
+            compile(pin.snippet, pin.ident, "exec")
+
+
 if __name__ == "__main__":
     unittest.main()

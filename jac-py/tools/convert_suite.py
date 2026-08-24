@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import copy
 import doctest
 import json
 import os
@@ -44,7 +45,7 @@ _DEFAULT_LIB = _REPO / "reference" / "cpython" / "Lib"
 _TESTS_DIR = _REPO / "jac-py" / "tests"
 _MANIFEST = _TESTS_DIR / "conformance_manifest_convpipe.json"
 
-TOOL_VERSION = "conv_suite-0.3.0"
+TOOL_VERSION = "conv_suite-0.4.0"
 CPYTHON_VERSION = "3.14.6"
 
 
@@ -514,14 +515,14 @@ def _loaded_names(nodes: ast.AST) -> set[str]:
     }
 
 
-def _check_self_usage(body: list[ast.stmt]) -> None:
+def _check_self_usage(body: list[ast.stmt], prefix: str = "") -> None:
     for node in ast.walk(ast.Module(body=body, type_ignores=[])):
         if (
             isinstance(node, ast.Attribute)
             and isinstance(node.value, ast.Name)
             and node.value.id == "self"
         ):
-            raise Unsupported(f"uses-self.{node.attr}")
+            raise Unsupported(f"{prefix}uses-self.{node.attr}")
 
 
 def _check_names(body: list[ast.stmt], available: set[str]) -> None:
@@ -553,6 +554,254 @@ def _decorator_reason(deco: ast.expr) -> str | None:
     if name and name in _SKIP_DECOS:
         return f"decorator:{name}"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Fixture-vocabulary lifting (custom TestCase helper methods)
+#
+# Suites like test_htmlparser route every assertion through helpers defined
+# on the TestCase hierarchy (``self._run_check(...)``). Those methods are
+# mechanically liftable: drop the ``self`` parameter, rewrite nested
+# ``self.helper(...)`` calls to plain calls, and reuse the standard
+# assertion vocabulary inside the helper body. Anything a helper does that
+# has no mechanical mapping (instance state, decorators, unresolved names)
+# quarantines the *test* with the helper's precise reason instead of
+# mistranslating.
+
+
+@dataclass
+class _ClassInfo:
+    methods: dict[str, ast.FunctionDef]
+    bases: list[str]
+
+
+def _module_class_map(tree: ast.Module) -> dict[str, _ClassInfo]:
+    cmap: dict[str, _ClassInfo] = {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            cmap[node.name] = _ClassInfo(
+                methods={
+                    m.name: m for m in node.body if isinstance(m, ast.FunctionDef)
+                },
+                bases=[b.id for b in node.bases if isinstance(b, ast.Name)],
+            )
+    return cmap
+
+
+def _resolve_method(
+    cmap: dict[str, _ClassInfo], cls_name: str | None, attr: str
+) -> ast.FunctionDef | None:
+    """attr on cls_name or its in-module bases (BFS); test methods excluded."""
+    seen: set[str] = set()
+    queue = [cls_name] if cls_name else []
+    while queue:
+        name = queue.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        info = cmap.get(name)
+        if info is None:
+            continue
+        fn = info.methods.get(attr)
+        if fn is not None and not attr.startswith("test"):
+            return fn
+        queue.extend(info.bases)
+    return None
+
+
+def _drop_self_arg(fn: ast.FunctionDef) -> ast.arguments:
+    """Copy fn.args minus the leading ``self`` parameter."""
+    a = fn.args
+    posonly = list(a.posonlyargs)
+    args = list(a.args)
+    if posonly and posonly[0].arg == "self":
+        posonly.pop(0)
+    elif args and args[0].arg == "self":
+        args.pop(0)
+    else:
+        raise Unsupported("missing-self-parameter")
+    total_before = len(a.posonlyargs) + len(a.args)
+    defaults = list(a.defaults)
+    if len(defaults) == total_before:
+        # self itself was defaulted; shift defaults with the parameter list
+        defaults = defaults[1:]
+    return ast.arguments(
+        posonlyargs=posonly,
+        args=args,
+        vararg=a.vararg,
+        kwonlyargs=list(a.kwonlyargs),
+        kw_defaults=list(a.kw_defaults),
+        kwarg=a.kwarg,
+        defaults=defaults,
+    )
+
+
+class _HelperCallRewriter(ast.NodeTransformer):
+    """``self.helper(...)`` -> ``helper(...)``, lifting helper transitively.
+
+    self-attribute calls that do not resolve to an in-module method are left
+    untouched so downstream checks report them with their usual reason.
+    """
+
+    def __init__(self, session: "_FixtureVocab") -> None:
+        self.session = session
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        self.generic_visit(node)
+        func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "self"
+            and _resolve_method(self.session.cmap, self.session.cls_name, func.attr)
+            is not None
+        ):
+            self.session.ensure(func.attr)
+            node.func = ast.Name(id=func.attr, ctx=ast.Load())
+        return node
+
+
+class _FixtureVocab:
+    """Per-candidate lifting session for one test method's class."""
+
+    def __init__(self, cls_name: str | None, cmap: dict[str, _ClassInfo],
+                 available_names: set[str]) -> None:
+        self.cls_name = cls_name
+        self.cmap = cmap
+        self.available_names = available_names
+        self.lifted: list[ast.FunctionDef] = []  # insertion order
+        self.needs_re = False
+        self._ok: dict[str, ast.FunctionDef] = {}
+        self._failed: dict[str, Unsupported] = {}
+
+    def ensure(self, attr: str) -> ast.FunctionDef:
+        if attr in self._ok:
+            return self._ok[attr]
+        if attr in self._failed:
+            raise self._failed[attr]
+        try:
+            fn = _resolve_method(self.cmap, self.cls_name, attr)
+            if fn is None:
+                raise Unsupported("not-in-class-hierarchy")
+            lifted, needs_re = self._lift(fn)
+        except Unsupported as exc:
+            wrapped = Unsupported(f"helper:{attr}({exc})")
+            self._failed[attr] = wrapped
+            raise wrapped from None
+        self._ok[attr] = lifted
+        self.lifted.append(lifted)
+        self.needs_re = self.needs_re or needs_re
+        return lifted
+
+    def _lift(self, fn: ast.FunctionDef) -> tuple[ast.FunctionDef, bool]:
+        # Deep-copy before transforming: helper methods are tree nodes shared
+        # by every test candidate; in-place substitution would leak one
+        # candidate's rewriting into the next candidate's lift.
+        fn = copy.deepcopy(fn)
+        if fn.decorator_list:
+            raise Unsupported("decorated-helper")
+        args = _drop_self_arg(fn)
+        rewriter = _HelperCallRewriter(self)
+        body = [rewriter.visit(stmt) for stmt in fn.body]
+        body, needs_re = rewrite_block(body)
+        _check_self_usage(body)
+        try:
+            siblings = {f.name for f in self.lifted} | {
+                f.name for f in self._ok.values()
+            }
+            params = {
+                a.arg
+                for group in (
+                    args.posonlyargs, args.args, args.kwonlyargs,
+                    ([args.vararg] if args.vararg else []),
+                    ([args.kwarg] if args.kwarg else []),
+                )
+                for a in group
+            }
+            _check_names(body, self.available_names | siblings | params)
+        except Unsupported as exc:
+            raise Unsupported(str(exc)) from None
+        return (
+            ast.FunctionDef(
+                name=fn.name,
+                args=args,
+                body=body,
+                decorator_list=[],
+                returns=None,
+                type_params=[],
+            ),
+            needs_re,
+        )
+
+
+def _helper_class_deps(
+    lifted: list[ast.FunctionDef], mod_classes: dict[str, ast.ClassDef]
+) -> list[ast.stmt]:
+    """Module classes referenced by lifted helpers, base classes first.
+
+    Helper bodies construct fixture classes (EventCollector & co.); those
+    must join the prune pool or name resolution would quarantine every
+    helper-using test. Test bodies referencing classes directly keep the
+    stricter pre-existing behavior (classes stay out of scope for them).
+    """
+    if not lifted:
+        return []
+    used: set[str] = set()
+    for fn in lifted:
+        used |= _loaded_names(ast.Module(body=[fn], type_ignores=[]))
+    ordered: list[ast.ClassDef] = []
+    placed: set[str] = set()
+    pending = [c for c in mod_classes.values() if c.name in used]
+    while pending:
+        rest = []
+        progressed = False
+        for cnode in pending:
+            deps = {
+                b.id for b in cnode.bases if isinstance(b, ast.Name)
+            } & set(mod_classes)
+            if deps <= placed:
+                ordered.append(cnode)
+                placed.add(cnode.name)
+                used |= _loaded_names(cnode)
+                progressed = True
+            else:
+                rest.append(cnode)
+        pending = [c for c in rest if c.name not in placed and c.name in used]
+        if not progressed and pending:
+            # cyclic or externally-unsatisfied bases; emit remaining as-is
+            ordered.extend(pending)
+            break
+    return ordered
+
+
+def _apply_fixture_vocab(
+    body: list[ast.stmt],
+    cls_name: str,
+    cmap: dict[str, _ClassInfo],
+    mod_classes: dict[str, ast.ClassDef],
+    available_names: set[str],
+) -> tuple[list[ast.stmt], list[ast.stmt], bool]:
+    """Lift custom helper vocabulary for one test candidate.
+
+    Returns (rewritten body, extra prelude statements, needs_re).
+    """
+    session = _FixtureVocab(cls_name, cmap, available_names)
+    prefix: list[ast.stmt] = []
+    if _resolve_method(cmap, cls_name, "setUp") is not None:
+        # unittest runs setUp before every test; splice its lifted body so
+        # locals it binds become locals of the test. A setUp that cannot be
+        # lifted cleanly fails the whole test via ensure()'s reason.
+        prefix = list(session.ensure("setUp").body)
+        prefix = [copy.deepcopy(s) for s in prefix]
+    rewriter = _HelperCallRewriter(session)
+    stmts = [rewriter.visit(s) for s in prefix + list(body)]
+    rewritten, needs_re = rewrite_block(stmts)
+    _check_self_usage(rewritten)
+    extra_prelude = [
+        *session.lifted,
+        *_helper_class_deps(session.lifted, mod_classes),
+    ]
+    return rewritten, extra_prelude, needs_re or session.needs_re
 
 
 # ---------------------------------------------------------------------------
@@ -619,8 +868,15 @@ def _prune_prelude(
 def extract_tests(tree: ast.Module, source: str) -> Extraction:
     result = Extraction()
     prelude, prelude_names = collect_prelude(tree, source)
+    cmap = _module_class_map(tree)
+    mod_classes = {
+        node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
+    }
+    # Lifted helper bodies may reference module-level fixture classes; those
+    # are materialized into the snippet pool afterwards (_helper_class_deps).
+    vocab_available = prelude_names | set(mod_classes)
 
-    candidates: list[tuple[str, list[ast.stmt]]] = []
+    candidates: list[tuple[str | None, str, list[ast.stmt]]] = []
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             class_reason = None
@@ -641,7 +897,7 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
                 if reason is not None:
                     result.quarantined.append(Quarantined(ident, reason))
                     continue
-                candidates.append((ident, list(member.body)))
+                candidates.append((node.name, ident, list(member.body)))
         elif isinstance(node, ast.FunctionDef) and node.name.startswith("test"):
             for deco in node.decorator_list:
                 reason = _decorator_reason(deco)
@@ -649,16 +905,28 @@ def extract_tests(tree: ast.Module, source: str) -> Extraction:
                     result.quarantined.append(Quarantined(node.name, reason))
                     break
             else:
-                candidates.append((node.name, list(node.body)))
+                candidates.append((None, node.name, list(node.body)))
 
-    for ident, body_stmts in candidates:
+    for cls_name, ident, body_stmts in candidates:
         try:
-            rewritten, needs_re = rewrite_block(body_stmts)
+            extra_prelude: list[ast.stmt] = []
+            if cls_name is not None:
+                rewritten, extra_prelude, needs_re = _apply_fixture_vocab(
+                    body_stmts, cls_name, cmap, mod_classes, vocab_available
+                )
+            else:
+                rewritten, needs_re = rewrite_block(body_stmts)
             # After rewriting, any surviving self.* attribute is an unsupported
             # construct (fixture access, custom helper, skip machinery).
             _check_self_usage(rewritten)
-            kept_prelude = _prune_prelude(rewritten, prelude, prelude_names)
-            available = prelude_names | _bound_names(ast.Module(body=kept_prelude, type_ignores=[]))
+            pool = prelude + extra_prelude
+            pool_names = prelude_names | {
+                binding
+                for item in extra_prelude
+                for binding in _prelude_bindings(item)
+            }
+            kept_prelude = _prune_prelude(rewritten, pool, pool_names)
+            available = pool_names | _bound_names(ast.Module(body=kept_prelude, type_ignores=[]))
             _check_names(rewritten, available)
         except Unsupported as exc:
             result.quarantined.append(Quarantined(ident, str(exc)))
