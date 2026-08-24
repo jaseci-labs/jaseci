@@ -3877,6 +3877,14 @@ obj PyFunction(PyObj) {
             self.kw_live = d;
             return d as PyObj;
         }
+        if name == "__closure__" {
+            # CPython: None for functions without free variables, else a tuple
+            # of cells (introspection surface used by inspect and functools).
+            if len(self.closure) == 0 {
+                return py_none();
+            }
+            return PyTuple(t="tuple", items=self.closure);
+        }
         if name == "__code__" {
             return self.code;
         }
