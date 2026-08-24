@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_posixpath/conv_posixpath_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:34:47",
+  "generated_at": "2026-08-24T15:03:11",
   "hashes": {
-    "pins_jac": "eaf3c3ccbed0a7d9bb40aa8e7f0c46df64d3978f3fcd92b9fbccd8a5eaae966f",
-    "conversion_json": "ab3866b12da37e3b31159e74a05eaeffc446a65d639b73610651cb000a070847",
+    "pins_jac": "2d77d5731d51b5fbd28d837fd6575f4ded86d12edb5b247fa567d702773bace6",
+    "conversion_json": "43ccadbcda78b28c0c4885e5263b4736402da0b21f77b28e29c24675da6112ef",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "posixpath",
   "counts": {
     "converted": 64,
-    "runnable": 23,
+    "runnable": 24,
     "green": 16,
-    "quarantined": 41
+    "quarantined": 40
   },
   "pins": [
     {
@@ -85,6 +85,17 @@
     {
       "id": "PosixPathTest.test_expanduser",
       "status": "pass"
+    },
+    {
+      "id": "PosixPathTest.test_expanduser_home_envvar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'EnvironmentVarGuard'\">"
+    },
+    {
+      "id": "PosixPathTest.test_normpath",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'NORMPATH_CASES'"
     },
     {
       "id": "PosixPathTest.test_realpath_strict",
@@ -169,16 +180,6 @@
       "id": "PosixPathTest.test_islink",
       "status": "quarantined",
       "reason": "self.addCleanup"
-    },
-    {
-      "id": "PosixPathTest.test_expanduser_home_envvar",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "PosixPathTest.test_normpath",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "PosixPathTest.test_realpath_curdir",

@@ -19,6 +19,12 @@ test "PickleBufferTest.test_basics" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "PickleBufferTest.test_raw" {
+    (ok, detail) = p2_libtest_run_snippet("from pickle import PickleBuffer\n\ndef check_memoryview(pb, equiv):\n    with memoryview(pb) as m:\n        with memoryview(equiv) as expected:\n            assert m.nbytes == expected.nbytes, ('assertEqual', m.nbytes, expected.nbytes)\n            assert m.readonly == expected.readonly, ('assertEqual', m.readonly, expected.readonly)\n            assert m.itemsize == expected.itemsize, ('assertEqual', m.itemsize, expected.itemsize)\n            assert m.shape == expected.shape, ('assertEqual', m.shape, expected.shape)\n            assert m.strides == expected.strides, ('assertEqual', m.strides, expected.strides)\n            assert m.c_contiguous == expected.c_contiguous, ('assertEqual', m.c_contiguous, expected.c_contiguous)\n            assert m.f_contiguous == expected.f_contiguous, ('assertEqual', m.f_contiguous, expected.f_contiguous)\n            assert m.format == expected.format, ('assertEqual', m.format, expected.format)\n            assert m.tobytes() == expected.tobytes(), ('assertEqual', m.tobytes(), expected.tobytes())\n\ndef check_raw(obj, equiv):\n    pb = PickleBuffer(obj)\n    with pb.raw() as m:\n        assert isinstance(m, memoryview), ('assertIsInstance', m, memoryview)\n        check_memoryview(m, equiv)\n\ndef _t():\n    for obj in (b'foo', bytearray(b'foo')):\n        check_raw(obj, obj)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "PickleBufferTest.test_raw_released" {
     (ok, detail) = p2_libtest_run_snippet("from pickle import PickleBuffer\n\ndef _t():\n    pb = PickleBuffer(b'foo')\n    pb.release()\n    try:\n        pb.raw()\n    except ValueError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

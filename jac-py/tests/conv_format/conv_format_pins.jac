@@ -73,6 +73,12 @@ test "FormatTest.test_with_an_underscore_and_a_comma_in_format_specifier" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "FormatTest.test_better_error_message_format" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport re\n\ndef _t():\n    for value in [12j, 12, 12.0, '12']:\n        bad_format_spec = '%M'\n        err = re.escape(f\"Invalid format specifier '{bad_format_spec}' for object of type '{type(value).__name__}'\")\n        try:\n            f'xx{{value:{bad_format_spec}}}yy'.format(value=value)\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            format(value, bad_format_spec)\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            eval(\"f'xx{value:{bad_format_spec}}yy'\")\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "FormatTest.test_unicode_in_error_message" {
     (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport re\n\ndef _t():\n    str_err = re.escape(\"Invalid format specifier '%\u042b\u0439\u042f\u0427' for object of type 'str'\")\n    try:\n        '{a:%\u042b\u0439\u042f\u0427}'.format(a='a')\n    except ValueError as _exc:\n        assert _re.search(str_err, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

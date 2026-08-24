@@ -1,8 +1,8 @@
 # Triage report: `conv_shlex_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_shlex.py
-- guest leg: 0/17 marks
-- pins: **3 passed** / 17 run (+2 quarantined of 19 extracted)
+- guest leg: 0/19 marks
+- pins: **4 passed** / 19 run (+0 quarantined of 19 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -21,15 +21,10 @@
 | ShlexTest.testEmptyStringHandling | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC IndexError 'pop from an empty deque'"> |
 | ShlexTest.testUnicodeHandling | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC IndexError 'pop from an empty deque'"> |
 | ShlexTest.testQuote | PASS | |
+| ShlexTest.testJoin | PASS | |
+| ShlexTest.testJoinRoundtrip | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC IndexError 'pop from an empty deque'"> |
 | ShlexTest.testPunctuationCharsReadOnly | PASS | |
 | ShlexTest.test_lazy_imports | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'import_helper' from '<unknown>'"> |
-
-## Quarantined at conversion
-
-| test | reason |
-|---|---|
-| ShlexTest.testJoin | uses-self.subTest |
-| ShlexTest.testJoinRoundtrip | uses-self.subTest |
 
 ## Expected vs got
 
@@ -39,6 +34,11 @@
 - got: GOT<"ORACLE_EXC IndexError 'pop from an empty deque'">
 
 ### ShlexTest.testEmptyStringHandling (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC IndexError 'pop from an empty deque'">
+
+### ShlexTest.testJoinRoundtrip (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC IndexError 'pop from an empty deque'">

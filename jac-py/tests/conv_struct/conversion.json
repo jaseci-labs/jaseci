@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_struct"
   ],
-  "generated_at": "2026-08-24T14:41:29",
+  "generated_at": "2026-08-24T15:03:40",
   "hashes": {
-    "pins_jac": "c8cd1df8fbbd3ef9134d5d6af70d5bb0a65cfdba0771283e1c8fcdcfc36a4079"
+    "pins_jac": "0f20d62577e90c6ec9e12e5af7cc91bef02b34a146983e7d18156c8fbbb86747"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_struct.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -240,6 +240,14 @@
       "snippet": "import array\nimport struct\n\ndef _t():\n    S = struct.Struct.__new__(struct.Struct)\n    spam = array.array('b', b' ')\n    try:\n        S.iter_unpack(*(spam,))\n    except RuntimeError:\n        pass\n    try:\n        S.pack(*(1,))\n    except RuntimeError:\n        pass\n    try:\n        S.pack_into(*(spam, 1))\n    except RuntimeError:\n        pass\n    try:\n        S.unpack(*(spam,))\n    except RuntimeError:\n        pass\n    try:\n        S.unpack_from(*(spam,))\n    except RuntimeError:\n        pass\n    try:\n        getattr(*(S, 'format'))\n    except RuntimeError:\n        pass\n    try:\n        S.__sizeof__()\n    except RuntimeError:\n        pass\n    try:\n        repr(*(S,))\n    except RuntimeError:\n        pass\n    assert S.size == -1, ('assertEqual', S.size, -1)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "StructTest.test_float_round_trip",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import math\nimport struct\nINF = float('inf')\nNAN = float('nan')\n\ndef _t():\n    for format in ('f', '<f', '>f', 'd', '<d', '>d', 'e', '<e', '>e'):\n        f = struct.unpack(format, struct.pack(format, 1.5))[0]\n        assert f == 1.5, ('assertEqual', f, 1.5)\n        f = struct.unpack(format, struct.pack(format, NAN))[0]\n        assert math.isnan(f), ('assertTrue', math.isnan(f))\n        f = struct.unpack(format, struct.pack(format, INF))[0]\n        assert math.isinf(f), ('assertTrue', math.isinf(f))\n        assert math.copysign(1.0, f) == 1.0, ('assertEqual', math.copysign(1.0, f), 1.0)\n        f = struct.unpack(format, struct.pack(format, -INF))[0]\n        assert math.isinf(f), ('assertTrue', math.isinf(f))\n        assert math.copysign(1.0, f) == -1.0, ('assertEqual', math.copysign(1.0, f), -1.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "UnpackIteratorTest.test_construct",
       "status": "pinned",
       "oracle": {
@@ -325,15 +333,11 @@
     {
       "ident": "StructTest.test_c_complex_round_trip",
       "reason": "self.assertComplexesAreIdentical"
-    },
-    {
-      "ident": "StructTest.test_float_round_trip",
-      "reason": "uses-self.subTest"
     }
   ],
   "counts": {
     "extracted": 43,
-    "pinned": 33,
-    "quarantined": 10
+    "pinned": 34,
+    "quarantined": 9
   }
 }

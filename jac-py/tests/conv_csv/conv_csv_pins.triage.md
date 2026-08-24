@@ -1,8 +1,8 @@
 # Triage report: `conv_csv_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_csv.py
-- guest leg: 0/61 marks
-- pins: **30 passed** / 61 run (+67 quarantined of 128 extracted)
+- guest leg: 0/66 marks
+- pins: **32 passed** / 66 run (+62 quarantined of 128 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -16,6 +16,7 @@
 | Test_Csv.test_write_bigfield | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | Test_Csv.test_write_quoting | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | Test_Csv.test_write_escape | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| Test_Csv.test_write_lineterminator | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'StringIO.**enter**() takes no arguments (1 given)'"> |
 | Test_Csv.test_write_iterable | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | Test_Csv.test_writerows | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | Test_Csv.test_writerows_with_none | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
@@ -28,6 +29,8 @@
 | Test_Csv.test_read_skipinitialspace | PASS | |
 | Test_Csv.test_read_space_delimiter | PASS | |
 | Test_Csv.test_read_linenum | PASS | |
+| Test_Csv.test_roundtrip_quoteed_newlines | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| Test_Csv.test_roundtrip_escaped_unquoted_newlines | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | Test_Csv.test_reader_reentrant_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'ReentrantIter\' object is not iterable"'> |
 | TestDialectRegistry.test_registry_badargs | PASS | |
 | TestDialectRegistry.test_incomplete_dialect | PASS | |
@@ -63,6 +66,8 @@
 | TestArrayWrites.test_double_write | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | TestArrayWrites.test_float_write | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | TestArrayWrites.test_char_write | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
+| TestDialectValidity.test_invalid_chars | PASS | |
+| TestSniffer.test_guess_quote_and_delimiter | PASS | |
 | KeyOrderingTest.test_ordering_for_the_dict_reader_and_writer | GUEST-WRONG-OUTPUT | RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>"> |
 | KeyOrderingTest.test_ordered_dict_reader | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [{\'FirstName\': \'Eric\', \'LastName\': \'Idle\'}, {\'FirstName\': \'Graham\', \'LastName\': \'Chapman\', None: [\'Over1\', \'Over2\']}, {\'FirstName\': \'Under1\', \'LastName\': None}, {\'FirstName\': \'John\', \'LastName\': \'Cleese\'}], [OrderedDict({\'FirstName\': \'Eric\', \'LastName\': \'Idle\'}), OrderedDict({\'FirstName\': \'Graham\', \'LastName\': \'Chapman\', None: [\'Over1\', \'Over2\']}), OrderedDict({\'FirstName\': \'Under1\', \'LastName\': None}), OrderedDict({\'FirstName\': \'John\', \'LastName\': \'Cleese\'})])"'> |
 | MiscTestCase.test_lazy_import | GUEST-WRONG-OUTPUT | RUN<"ModuleNotFoundError: No module named 'test.support.import_helper'"> |
@@ -79,14 +84,11 @@
 | MiscTestCase.test_disallow_instantiation | decorator:support.cpython_only |
 | Test_Csv.test_reader_arg_valid | unresolved-name:BadIterable |
 | Test_Csv.test_write_arg_valid | unresolved-name:BadIterable |
-| Test_Csv.test_write_lineterminator | uses-self.subTest |
 | Test_Csv.test_writerows_errors | unresolved-name:BadIterable |
 | Test_Csv.test_read_oddinputs | uses-self._read_test |
 | Test_Csv.test_read_eof | uses-self._read_test |
 | Test_Csv.test_read_quoting | uses-self._read_test |
 | Test_Csv.test_read_bigfield | uses-self._read_test |
-| Test_Csv.test_roundtrip_quoteed_newlines | uses-self.subTest |
-| Test_Csv.test_roundtrip_escaped_unquoted_newlines | uses-self.subTest |
 | TestDialectRegistry.test_registry | self.addCleanup |
 | TestDialectRegistry.test_register_kwargs | self.addCleanup |
 | TestDialectRegistry.test_register_kwargs_override | self.addCleanup |
@@ -95,8 +97,6 @@
 | TestDialectValidity.test_delimiter | unresolved-name:cm |
 | TestDialectValidity.test_escapechar | unresolved-name:cm |
 | TestDialectValidity.test_lineterminator | unresolved-name:cm |
-| TestDialectValidity.test_invalid_chars | uses-self.subTest |
-| TestSniffer.test_guess_quote_and_delimiter | uses-self.subTest |
 | TestSniffer.test_delimiters | assertRaisesRegex call form |
 | TestDialectExcel.test_single | host-raised:NameError: name 'self' is not defined |
 | TestDialectExcel.test_simple | host-raised:NameError: name 'self' is not defined |
@@ -247,6 +247,16 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC TypeError "\'ReentrantIter\' object is not iterable"'>
 
+### Test_Csv.test_roundtrip_escaped_unquoted_newlines (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### Test_Csv.test_roundtrip_quoteed_newlines (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
 ### Test_Csv.test_write_bigfield (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -271,6 +281,11 @@
 
 - expected: host oracle = `ok`
 - got: RUN<"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>">
+
+### Test_Csv.test_write_lineterminator (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC TypeError 'StringIO.**enter**() takes no arguments (1 given)'">
 
 ### Test_Csv.test_write_quoting (GUEST-WRONG-OUTPUT)
 

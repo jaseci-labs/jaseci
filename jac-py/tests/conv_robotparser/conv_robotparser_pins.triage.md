@@ -17,11 +17,11 @@
 | NetworkTestCase.test_basic | decorator:support.requires_working_socket |
 | NetworkTestCase.test_can_fetch | decorator:support.requires_working_socket |
 | NetworkTestCase.test_read_404 | decorator:support.requires_working_socket |
-| BaseRobotTest.test_good_urls | uses-self.subTest |
-| BaseRobotTest.test_bad_urls | uses-self.subTest |
-| BaseRequestRateTest.test_request_rate | uses-self.subTest |
+| BaseRobotTest.test_good_urls | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
+| BaseRobotTest.test_bad_urls | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
 | BaseRobotTest.test_site_maps | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
 | BaseRobotTest.test_string_formatting | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
+| BaseRequestRateTest.test_request_rate | host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt' |
 | LocalNetworkTestCase.testRead | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
 | HttpErrorsTestCase.testUnauthorized | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |
 | HttpErrorsTestCase.testForbidden | host-raised:AttributeError: '_SelfNS' object has no attribute 'server' |

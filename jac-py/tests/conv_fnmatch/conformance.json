@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_fnmatch/conv_fnmatch_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:32:51",
+  "generated_at": "2026-08-24T15:03:18",
   "hashes": {
-    "pins_jac": "e3df61c0add2a2054ce1cac45eb9b56fb1bc6c5acd5815d1de02c0a3d5572cd6",
-    "conversion_json": "e36e98a7102490670f8676906ce94e3d4e5c14cf6e22a4459e294597c7a05b96",
+    "pins_jac": "6c372f588c3d0e684bed82ec13a9e3fd247a77882f4783df1f193bb5b221f788",
+    "conversion_json": "97d7355bd0cd8f0b80bf8d6e5c67b1cf9908852981fa65fc5e3f893d1466074e",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "fnmatch",
   "counts": {
     "converted": 24,
-    "runnable": 12,
-    "green": 11,
-    "quarantined": 12
+    "runnable": 14,
+    "green": 13,
+    "quarantined": 10
   },
   "pins": [
     {
@@ -87,6 +87,14 @@
       "status": "pass"
     },
     {
+      "id": "TranslateTestCase.test_translate_wildcards",
+      "status": "pass"
+    },
+    {
+      "id": "TranslateTestCase.test_translate_expressions",
+      "status": "pass"
+    },
+    {
       "id": "TranslateTestCase.test_star_indices_locations",
       "status": "pass"
     },
@@ -123,16 +131,6 @@
     {
       "id": "FilterFalseTestCase.test_sep",
       "status": "pass"
-    },
-    {
-      "id": "TranslateTestCase.test_translate_wildcards",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "TranslateTestCase.test_translate_expressions",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     }
   ]
 }

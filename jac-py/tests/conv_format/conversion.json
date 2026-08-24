@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_format"
   ],
-  "generated_at": "2026-08-24T14:32:52",
+  "generated_at": "2026-08-24T15:03:33",
   "hashes": {
-    "pins_jac": "2cb16d5a453cb5f69d6379c75f5a38c0833be126821ad3a31403eeca16508185"
+    "pins_jac": "1052aa320d63298f99ef2d1a36facfb4fe883eabf7b28fa4a1b20ef0217ac00c"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_format.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -132,6 +132,14 @@
       "snippet": "import re as _re\nimport re\n\ndef _t():\n    error_msg = re.escape(\"Cannot specify both ',' and '_'.\")\n    try:\n        '{:_,}'.format(1)\n    except ValueError as _exc:\n        assert _re.search(error_msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        '{:._,f}'.format(1.1)\n    except ValueError as _exc:\n        assert _re.search(error_msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "FormatTest.test_better_error_message_format",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport re\n\ndef _t():\n    for value in [12j, 12, 12.0, '12']:\n        bad_format_spec = '%M'\n        err = re.escape(f\"Invalid format specifier '{bad_format_spec}' for object of type '{type(value).__name__}'\")\n        try:\n            f'xx{{value:{bad_format_spec}}}yy'.format(value=value)\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            format(value, bad_format_spec)\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            eval(\"f'xx{value:{bad_format_spec}}yy'\")\n        except ValueError as _exc:\n            assert _re.search(err, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "FormatTest.test_unicode_in_error_message",
       "status": "pinned",
       "oracle": {
@@ -168,15 +176,11 @@
     {
       "ident": "FormatTest.test_locale",
       "reason": "self.skipTest"
-    },
-    {
-      "ident": "FormatTest.test_better_error_message_format",
-      "reason": "uses-self.subTest"
     }
   ],
   "counts": {
     "extracted": 22,
-    "pinned": 14,
-    "quarantined": 8
+    "pinned": 15,
+    "quarantined": 7
   }
 }

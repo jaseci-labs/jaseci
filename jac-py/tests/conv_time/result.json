@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_time/conv_time_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:41:46",
+  "generated_at": "2026-08-24T15:03:01",
   "hashes": {
-    "pins_jac": "4e016044fe706981cf28219269cc285035f6da38fc05a01d183332c44d975256",
-    "conversion_json": "2ecfdc8d33cad78a548c1d40f414717c2e266d5829611dca2d3b258775a0b37f",
+    "pins_jac": "c32a6fcbbe0c0ee05bf81d4bd06b1aa353f4a3c6d8fa48e32e3025eb433966ed",
+    "conversion_json": "1c70dca8ba70e217be2a89d2247170350b89f92d47f534c01db3c10f361a4b2a",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "time",
@@ -21,13 +21,19 @@
   "timed_out": false,
   "counts": {
     "converted": 63,
-    "runnable": 23,
-    "green": 21,
-    "quarantined": 40,
-    "failed": 2,
+    "runnable": 26,
+    "green": 23,
+    "quarantined": 37,
+    "failed": 3,
     "infra_failed": 0
   },
   "failures": [
+    {
+      "id": "TimeTestCase.test_strftime_invalid_format",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ImportError: cannot import name 'skip_if_buggy_ucrt_strfptime' from '<unknown>'\">"
+    },
     {
       "id": "TimeTestCase.test_default_values_for_zero",
       "status": "fail",

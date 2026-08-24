@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_copy"
   ],
-  "generated_at": "2026-08-24T14:30:54",
+  "generated_at": "2026-08-24T15:03:45",
   "hashes": {
-    "pins_jac": "61a7d67ceac0c81957aa848350ff839846edb19ba411d0429ae5507742a70a39"
+    "pins_jac": "c8f2ea4263761b4bfe7f18439b922e89ea8a9cac816105ce63bd6121822b370f"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_copy.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -592,6 +592,14 @@
       "snippet": "import copy\nfrom operator import le, lt, ge, gt, eq, ne, attrgetter\n\ndef global_foo(x, y):\n    return x + y\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class A:\n\n        def __new__(cls, x, y=0):\n            self = object.__new__(cls)\n            self.x = x\n            self.y = y\n            return self\n\n        def __init__(self, *args, **kwargs):\n            self.z = self.x + self.y\n\n        def __replace__(self, **changes):\n            x = changes.get('x', self.x)\n            y = changes.get('y', self.y)\n            return type(self)(x, y)\n    attrs = attrgetter('x', 'y', 'z')\n    a = A(11, 22)\n    assert attrs(copy.replace(a)) == (11, 22, 33), ('assertEqual', attrs(copy.replace(a)), (11, 22, 33))\n    assert attrs(copy.replace(a, x=1)) == (1, 22, 23), ('assertEqual', attrs(copy.replace(a, x=1)), (1, 22, 23))\n    assert attrs(copy.replace(a, y=2)) == (11, 2, 13), ('assertEqual', attrs(copy.replace(a, y=2)), (11, 2, 13))\n    assert attrs(copy.replace(a, x=1, y=2)) == (1, 2, 3), ('assertEqual', attrs(copy.replace(a, x=1, y=2)), (1, 2, 3))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestReplace.test_namedtuple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\nimport copy\n\ndef _t():\n    from collections import namedtuple\n    from typing import NamedTuple\n    PointFromCall = namedtuple('Point', 'x y', defaults=(0,))\n\n    class PointFromInheritance(PointFromCall):\n        pass\n\n    class PointFromClass(NamedTuple):\n        x: int\n        y: int = 0\n    for Point in (PointFromCall, PointFromInheritance, PointFromClass):\n        p = Point(11, 22)\n        assert isinstance(p, Point), ('assertIsInstance', p, Point)\n        assert copy.replace(p) == (11, 22), ('assertEqual', copy.replace(p), (11, 22))\n        assert isinstance(copy.replace(p), Point), ('assertIsInstance', copy.replace(p), Point)\n        assert copy.replace(p, x=1) == (1, 22), ('assertEqual', copy.replace(p, x=1), (1, 22))\n        assert copy.replace(p, y=2) == (11, 2), ('assertEqual', copy.replace(p, y=2), (11, 2))\n        assert copy.replace(p, x=1, y=2) == (1, 2), ('assertEqual', copy.replace(p, x=1, y=2), (1, 2))\n        try:\n            copy.replace(p, x=1, error=2)\n        except TypeError as _exc:\n            assert _re.search('unexpected field name', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
       "ident": "TestReplace.test_dataclass",
       "status": "pinned",
       "oracle": {
@@ -633,15 +641,11 @@
     {
       "ident": "TestCopy.test_reduce_5tuple",
       "reason": "uses-self.items"
-    },
-    {
-      "ident": "TestReplace.test_namedtuple",
-      "reason": "uses-self.subTest"
     }
   ],
   "counts": {
     "extracted": 81,
-    "pinned": 72,
-    "quarantined": 9
+    "pinned": 73,
+    "quarantined": 8
   }
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_format/conv_format_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:32:56",
+  "generated_at": "2026-08-24T15:03:37",
   "hashes": {
-    "pins_jac": "2cb16d5a453cb5f69d6379c75f5a38c0833be126821ad3a31403eeca16508185",
-    "conversion_json": "99d1dbebb09e3eceb5f31ac6f86d8dc051e6dcaaaa9ab9d2d32ea08973f8220d",
+    "pins_jac": "1052aa320d63298f99ef2d1a36facfb4fe883eabf7b28fa4a1b20ef0217ac00c",
+    "conversion_json": "5690c897e8212fd44e6eed8cb13e2e0c671ff1e9303c328ad4b6239b48f0308b",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "format",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 22,
-    "runnable": 14,
+    "runnable": 15,
     "green": 9,
-    "quarantined": 8,
-    "failed": 5,
+    "quarantined": 7,
+    "failed": 6,
     "infra_failed": 0
   },
   "failures": [
@@ -57,6 +57,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"ImportError: cannot import name 'verbose' from '<unknown>'\">"
+    },
+    {
+      "id": "FormatTest.test_better_error_message_format",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC NameError \"name \\'value\\' is not defined\"'>"
     }
   ]
 }

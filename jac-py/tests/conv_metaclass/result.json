@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_metaclass/conv_metaclass_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:08:36",
+  "hashes": {
+    "pins_jac": "01e2a6bed3392fdd373aaddc928a5e8f9e0b3618cd692912c99f2bfea7a4f761",
+    "conversion_json": "034596e10a0974eeb5be3010fafe1a9206a85c415de9fe86695e15f49edefeaa",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "metaclass",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 11,
+    "runnable": 1,
+    "green": 0,
+    "quarantined": 10,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "metaclass.doctests:doctests",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AssertionError: '>"
+    }
+  ]
+}

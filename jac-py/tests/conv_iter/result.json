@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_iter/conv_iter_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:33:45",
+  "generated_at": "2026-08-24T15:03:30",
   "hashes": {
     "pins_jac": "395ba76ea5bb2e4b271565222909b9654bc610d4182a4e5434b87e2e8e7aa812",
-    "conversion_json": "d39fd950991ee5acfb24b199906d8c7c5a214f416aef4c239cdd5df578ad6ceb",
+    "conversion_json": "1a189364dd3fb5fdd7f1af64d28be9566e6ef069435eb24311618324a9d815eb",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "iter",
@@ -32,7 +32,7 @@
       "id": "TestCase.test_iter_basic",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ce59c70>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f676425dc70>\"'>"
     },
     {
       "id": "TestCase.test_iter_for_loop",
@@ -68,13 +68,13 @@
       "id": "TestCase.test_iter_empty",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ce59bc0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f676425dbc0>\"'>"
     },
     {
       "id": "TestCase.test_iter_tuple",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa4b0>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f67642b64b0>\"'>"
     },
     {
       "id": "TestCase.test_iter_range",
@@ -86,13 +86,13 @@
       "id": "TestCase.test_iter_string",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceab110>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f67642b7110>\"'>"
     },
     {
       "id": "TestCase.test_iter_dict",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f3d9ceaa560>\"'>"
+      "detail": "GOT<'ORACLE_EXC PicklingError \"Can\\'t pickle local object <function _jac_make_host_iterator.<locals>._next at 0x7f67642b6560>\"'>"
     },
     {
       "id": "TestCase.test_unicode_join_endcase",

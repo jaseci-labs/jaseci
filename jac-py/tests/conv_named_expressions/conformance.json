@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_named_expressions/conv_named_expressions_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:34:38",
+  "generated_at": "2026-08-24T15:05:46",
   "hashes": {
-    "pins_jac": "cfa30b05faf22f09bffeba07fe82014545a06a798a6eb431acb7a0703cb809a1",
-    "conversion_json": "b0117fbf2ee0a5d6774bedfe14fd8285b1d07e3b3348f54bd04371a7453358be",
+    "pins_jac": "0d10aa961456f0864467d220a6051b321ff2aad5dcb92d8c86988f7a04900334",
+    "conversion_json": "ea8776197f22d4944e07a661aba7dc1963c85ac251776935972f1936609ab135",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "named_expressions",
   "counts": {
     "converted": 74,
-    "runnable": 61,
-    "green": 61,
-    "quarantined": 13
+    "runnable": 73,
+    "green": 73,
+    "quarantined": 1
   },
   "pins": [
     {
@@ -90,6 +90,50 @@
     },
     {
       "id": "NamedExpressionInvalidTest.test_named_expression_invalid_in_class_body",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_valid_rebinding_iteration_variable",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_iteration_variable",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_iteration_variable",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_inner_loop",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_iteration_variable",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_inner_loop",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_set_comprehension_iterable_expression",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop",
+      "status": "pass"
+    },
+    {
+      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression",
       "status": "pass"
     },
     {
@@ -249,6 +293,10 @@
       "status": "pass"
     },
     {
+      "id": "NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions",
+      "status": "pass"
+    },
+    {
       "id": "NamedExpressionScopeTest.test_named_expression_global_scope",
       "status": "pass"
     },
@@ -267,66 +315,6 @@
     {
       "id": "NamedExpressionScopeTest.test_named_expression_scope_in_genexp",
       "status": "pass"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_valid_rebinding_iteration_variable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_iteration_variable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_iteration_variable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_list_comprehension_inner_loop",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_iteration_variable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_set_comprehension_inner_loop",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_set_comprehension_iterable_expression",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_iteration_variable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_rebinding_dict_comprehension_inner_loop",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "NamedExpressionScopeTest.test_named_expression_scope_mangled_names",

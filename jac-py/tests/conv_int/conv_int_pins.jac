@@ -61,6 +61,12 @@ test "IntTestCases.test_int_base_indexable" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "IntTestCases.test_non_numeric_input_types" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n\n    class CustomStr(str):\n        pass\n\n    class CustomBytes(bytes):\n        pass\n\n    class CustomByteArray(bytearray):\n        pass\n    factories = [bytes, bytearray, lambda b: CustomStr(b.decode()), CustomBytes, CustomByteArray, memoryview]\n    try:\n        from array import array\n    except ImportError:\n        pass\n    else:\n        factories.append(lambda b: array('B', b))\n    for f in factories:\n        x = f(b'100')\n        assert int(x) == 100, ('assertEqual', int(x), 100)\n        if isinstance(x, (str, bytes, bytearray)):\n            assert int(x, 2) == 4, ('assertEqual', int(x, 2), 4)\n        else:\n            msg = \"can't convert non-string\"\n            try:\n                int(x, 2)\n            except TypeError as _exc:\n                assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n            else:\n                raise AssertionError('assertRaises: did not raise')\n        try:\n            int(f(b'A' * 16))\n        except ValueError as _exc:\n            assert _re.search('invalid literal', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "IntTestCases.test_int_memoryview" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert int(memoryview(b'123')[1:3]) == 23, ('assertEqual', int(memoryview(b'123')[1:3]), 23)\n    assert int(memoryview(b'123\\x00')[1:3]) == 23, ('assertEqual', int(memoryview(b'123\\x00')[1:3]), 23)\n    assert int(memoryview(b'123 ')[1:3]) == 23, ('assertEqual', int(memoryview(b'123 ')[1:3]), 23)\n    assert int(memoryview(b'123A')[1:3]) == 23, ('assertEqual', int(memoryview(b'123A')[1:3]), 23)\n    assert int(memoryview(b'1234')[1:3]) == 23, ('assertEqual', int(memoryview(b'1234')[1:3]), 23)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.4.0",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "convert_suite.py",
+    "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_metaclass.py",
+    "-o",
+    "/var/tmp/lane8/jac-py/tests/conv_metaclass",
+    "--name",
+    "conv_metaclass"
+  ],
+  "generated_at": "2026-08-24T15:08:28",
+  "hashes": {
+    "pins_jac": "01e2a6bed3392fdd373aaddc928a5e8f9e0b3618cd692912c99f2bfea7a4f761"
+  },
+  "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_metaclass.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "metaclass",
+  "pins_file": "conv_metaclass_pins.jac",
+  "pins": [
+    {
+      "ident": "metaclass.doctests:doctests",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "_d_buf = []\n\ndef _d_print(*args, sep=' '):\n    _d_buf.append(sep.join((str(a) for a in args)))\n\ndef _d_clear():\n    _d_buf.clear()\n\ndef _d_ell_match(want, got):\n    parts = want.split('...')\n    if len(parts) == 1:\n        return want == got\n    if not got.startswith(parts[0]) or not got.endswith(parts[-1]):\n        return False\n    pos = len(parts[0])\n    end = len(got) - len(parts[-1])\n    for seg in parts[1:-1]:\n        idx = got.find(seg, pos)\n        if idx < 0 or idx > end:\n            return False\n        pos = idx + len(seg)\n    return True\n\ndef _d_check(idx, want, ell=False):\n    got = chr(10).join(_d_buf)\n    ok = _d_ell_match(want, got) if ell else got == want\n    if not ok and want in ('0', '1'):\n        ok = got == ('False' if want == '0' else 'True')\n    assert ok, ('doctest', idx, got, want)\n_d_clear()\n\nclass C:\n\n    def meth(self):\n        _d_print('Hello')\n_d_clear()\n_d_r = C.__class__ is type\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(1, 'True')\n_d_clear()\na = C()\n_d_clear()\n_d_r = a.__class__ is C\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(3, 'True')\n_d_clear()\n_d_r = a.meth()\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(4, 'Hello')\n_d_clear()\n\nclass A:\n    pass\n_d_clear()\n\nclass B:\n    pass\n_d_clear()\nbases = (A, B)\n_d_clear()\n\nclass C(*bases):\n    pass\n_d_clear()\n_d_r = C.__bases__ == bases\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(9, 'True')\n_d_clear()\n\nclass M(type):\n    pass\n_d_clear()\n\nclass C(metaclass=M):\n\n    def meth(self):\n        _d_print('Hello')\n_d_clear()\n_d_r = C.__class__ is M\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(12, 'True')\n_d_clear()\na = C()\n_d_clear()\n_d_r = a.__class__ is C\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(14, 'True')\n_d_clear()\n_d_r = a.meth()\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(15, 'Hello')\n_d_clear()\nkwds = {'metaclass': M}\n_d_clear()\n\nclass C(**kwds):\n    pass\n_d_clear()\n_d_r = C.__class__ is M\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(18, 'True')\n_d_clear()\na = C()\n_d_clear()\n_d_r = a.__class__ is C\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(20, 'True')\n_d_clear()\n\nclass M(type):\n\n    @staticmethod\n    def __prepare__(*args, **kwds):\n        _d_print('Prepare called:', args, kwds)\n        return dict()\n\n    def __new__(cls, name, bases, namespace, **kwds):\n        _d_print('New called:', kwds)\n        return type.__new__(cls, name, bases, namespace)\n\n    def __init__(cls, *args, **kwds):\n        pass\n_d_clear()\n\nclass C(metaclass=M):\n\n    def meth(self):\n        _d_print('Hello')\n_d_check(22, \"Prepare called: ('C', ()) {}\\nNew called: {}\")\n_d_clear()\n\nclass C(object, metaclass=M, other='haha'):\n    pass\n_d_check(23, \"Prepare called: ('C', (<class 'object'>,)) {'other': 'haha'}\\nNew called: {'other': 'haha'}\")\n_d_clear()\n_d_r = C.__class__ is M\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(24, 'True')\n_d_clear()\n_d_r = C.__bases__ == (object,)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(25, 'True')\n_d_clear()\na = C()\n_d_clear()\n_d_r = a.__class__ is C\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(27, 'True')\n_d_clear()\nkwds = {'metaclass': type}\n_d_clear()\n\nclass C(**kwds):\n    pass\n_d_clear()\n_d_r = kwds == {'metaclass': type}\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(30, 'True')\n_d_clear()\nbases = (object,)\n_d_clear()\nkwds = {'metaclass': M, 'other': 'haha'}\n_d_clear()\n\nclass C(*bases, **kwds):\n    pass\n_d_check(33, \"Prepare called: ('C', (<class 'object'>,)) {'other': 'haha'}\\nNew called: {'other': 'haha'}\")\n_d_clear()\n_d_r = C.__class__ is M\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(34, 'True')\n_d_clear()\n_d_r = C.__bases__ == (object,)\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(35, 'True')\n_d_clear()\n\nclass B:\n    pass\n_d_clear()\nkwds = {'other': 'haha'}\ntry:\n    exec('class C(metaclass=type, metaclass=type): pass\\n')\n    raise AssertionError('ex41: expected SyntaxError')\nexcept SyntaxError:\n    pass\n_d_clear()\nkwds = {'metaclass': type}\ntry:\n    _d_clear()\n\n    class C(metaclass=type, **kwds):\n        pass\nexcept TypeError as _d_e:\n    assert type(_d_e).__name__ + (': ' + (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) if (_d_e.msg if isinstance(_d_e, SyntaxError) else str(_d_e)) != '' else '') == \"TypeError: __build_class__() got multiple values for keyword argument 'metaclass'\", ('doctest-exc43', _d_e)\nelse:\n    raise AssertionError('ex43: expected TypeError')\n_d_clear()\n\nclass LoggingDict(dict):\n\n    def __setitem__(self, key, value):\n        _d_print('d[%r] = %r' % (key, value))\n        dict.__setitem__(self, key, value)\n_d_clear()\n\nclass Meta(type):\n\n    @staticmethod\n    def __prepare__(name, bases):\n        return LoggingDict()\n_d_clear()\n\ndef meta(name, bases, namespace, **kwds):\n    _d_print('meta:', name, bases)\n    _d_print('ns:', sorted(namespace.items()))\n    _d_print('kw:', sorted(kwds.items()))\n    return namespace\n_d_clear()\n\ndef prepare(name, bases, **kwds):\n    _d_print('prepare:', name, bases, sorted(kwds.items()))\n    return LoggingDict()\n_d_clear()\nmeta.__prepare__ = prepare\n_d_clear()\n_d_r = type.__prepare__()\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(54, '{}')\n_d_clear()\n\nclass M(type):\n\n    @classmethod\n    def __prepare__(cls, *args, **kwds):\n        d = super().__prepare__(*args, **kwds)\n        d['hello'] = 42\n        return d\n_d_clear()\n\nclass C(metaclass=M):\n    _d_print(hello)\n_d_check(56, '42')\n_d_clear()\n\nclass ObscureException(Exception):\n    pass\n_d_clear()\n\nclass FailDescr:\n\n    def __get__(self, instance, owner):\n        raise ObscureException\n_d_clear()\n\nclass Meta(type):\n    __prepare__ = FailDescr()\n_d_clear()\n\nclass Base:\n    value = 1\n_d_clear()\n\nclass Meta(type):\n\n    def mro(cls):\n        return (cls, Base, object)\n_d_clear()\n\nclass WeirdClass(metaclass=Meta):\n    pass\n_d_clear()\n_d_r = Base.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(65, '1')\n_d_clear()\n_d_r = WeirdClass.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(66, '1')\n_d_clear()\nBase.value = 2\n_d_clear()\n_d_r = Base.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(68, '2')\n_d_clear()\n_d_r = WeirdClass.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(69, '2')\n_d_clear()\nBase.value = 3\n_d_clear()\n_d_r = Base.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(71, '3')\n_d_clear()\n_d_r = WeirdClass.value\nif _d_r is not None:\n    _d_buf.append(repr(_d_r))\n_d_check(72, '3')\nprint('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "metaclass.doctests:doctests.ex38",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex39",
+      "reason": "doctest-depends-on-dropped:['C']"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex40",
+      "reason": "doctest-depends-on-dropped:['C']"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex46",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex48",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex49",
+      "reason": "doctest-depends-on-dropped:['C']"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex50",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex53",
+      "reason": "doctest-module-qualified-expected"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex57",
+      "reason": "doctest-depends-on-dropped:['C']"
+    },
+    {
+      "ident": "metaclass.doctests:doctests.ex61",
+      "reason": "doctest-module-qualified-expected"
+    }
+  ],
+  "counts": {
+    "extracted": 11,
+    "pinned": 1,
+    "quarantined": 10
+  }
+}

@@ -1,8 +1,8 @@
 # Triage report: `conv_int_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_int.py
-- guest leg: 0/15 marks
-- pins: **13 passed** / 15 run (+27 quarantined of 42 extracted)
+- guest leg: 0/16 marks
+- pins: **13 passed** / 16 run (+26 quarantined of 42 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -15,6 +15,7 @@
 | IntTestCases.test_int_base_limits | PASS | |
 | IntTestCases.test_int_base_bad_types | PASS | |
 | IntTestCases.test_int_base_indexable | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "\'MyIndexable\' object cannot be interpreted as an integer"'> |
+| IntTestCases.test_non_numeric_input_types | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC TypeError "int() argument must be a string, a bytes-like object or a real number, not \'CustomByteArray\'"'> |
 | IntTestCases.test_int_memoryview | PASS | |
 | IntTestCases.test_string_float | PASS | |
 | IntTestCases.test_intconversion | PASS | |
@@ -36,7 +37,6 @@
 | PyLongModuleTests.test_whitebox_dec_str_to_int_inner_failsafe | decorator:support.requires_resource |
 | PyLongModuleTests.test_whitebox_dec_str_to_int_inner_monster | decorator:unittest.skipUnless |
 | PyLongModuleTests.test_pylong_compute_powers | decorator:unittest.skipUnless |
-| IntTestCases.test_non_numeric_input_types | uses-self.subTest |
 | IntTestCases.test_int_returns_int_subclass | uses-self.assertWarns |
 | IntTestCases.test_error_message | unresolved-name:cm |
 | IntStrDigitLimitsTests.test_disabled_limit | uses-self.int_class |
@@ -45,10 +45,10 @@
 | IntStrDigitLimitsTests.test_denial_of_service_prevented_str_to_int | uses-self.assertRaises |
 | IntStrDigitLimitsTests.test_power_of_two_bases_unlimited | self.int_class |
 | IntStrDigitLimitsTests.test_underscores_ignored | helper:check(uses-self.int_class) |
-| IntStrDigitLimitsTests.test_int_from_other_bases | uses-self.subTest |
 | PyLongModuleTests.test_pylong_roundtrip | self.assertNotStartsWith |
 | IntStrDigitLimitsTests.test_max_str_digits_edge_cases | host-raised:RuntimeError: super(): no arguments |
 | IntStrDigitLimitsTests.test_sign_not_counted | host-raised:RuntimeError: super(): no arguments |
+| IntStrDigitLimitsTests.test_int_from_other_bases | host-raised:RuntimeError: super(): no arguments |
 | IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter | host-raised:RuntimeError: super(): no arguments |
 | PyLongModuleTests.test_pylong_int_to_decimal | host-raised:RuntimeError: super(): no arguments |
 | PyLongModuleTests.test_pylong_int_divmod | host-raised:RuntimeError: super(): no arguments |
@@ -60,6 +60,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC TypeError "\'MyIndexable\' object cannot be interpreted as an integer"'>
+
+### IntTestCases.test_non_numeric_input_types (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC TypeError "int() argument must be a string, a bytes-like object or a real number, not \'CustomByteArray\'"'>
 
 ### IntTestCases.test_underscores (GUEST-WRONG-OUTPUT)
 

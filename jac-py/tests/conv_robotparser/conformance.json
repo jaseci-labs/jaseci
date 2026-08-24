@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "ac08a64851ccfed082ecf7de18dd723383ee3abb",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_robotparser/conv_robotparser_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:26:48",
+  "generated_at": "2026-08-24T15:02:31",
   "hashes": {
     "pins_jac": "9613498aec7c2a85b79ea4a9107063120a073547007bc3393add214205110334",
-    "conversion_json": "e48a8b054709edb7ef845fc58d6494d8eea16d71fe8649c10bc22924092a5bfe",
+    "conversion_json": "107c36a216a63c223ada8d2430e32b86092914dc4b86a08914629fc686f3d324",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "robotparser",
@@ -25,12 +25,27 @@
   },
   "pins": [
     {
+      "id": "BaseRobotTest.test_good_urls",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
+    },
+    {
+      "id": "BaseRobotTest.test_bad_urls",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
+    },
+    {
       "id": "BaseRobotTest.test_site_maps",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
     },
     {
       "id": "BaseRobotTest.test_string_formatting",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
+    },
+    {
+      "id": "BaseRequestRateTest.test_request_rate",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'robots_txt'"
     },
@@ -96,21 +111,6 @@
       "id": "NetworkTestCase.test_read_404",
       "status": "quarantined",
       "reason": "decorator:support.requires_working_socket"
-    },
-    {
-      "id": "BaseRobotTest.test_good_urls",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "BaseRobotTest.test_bad_urls",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "BaseRequestRateTest.test_request_rate",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     }
   ]
 }

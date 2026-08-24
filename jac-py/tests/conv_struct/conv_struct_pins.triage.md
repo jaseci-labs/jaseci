@@ -1,8 +1,8 @@
 # Triage report: `conv_struct_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_struct.py
-- guest leg: 0/33 marks
-- pins: **28 passed** / 33 run (+10 quarantined of 43 extracted)
+- guest leg: 0/34 marks
+- pins: **29 passed** / 34 run (+9 quarantined of 43 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -33,6 +33,7 @@
 | StructTest.test_struct_subclass_instantiation | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC TypeError 'object.**init**() takes exactly one argument (the instance to initialize)'"> |
 | StructTest.test_repr | PASS | |
 | StructTest.test_operations_on_half_initialized_Struct | PASS | |
+| StructTest.test_float_round_trip | PASS | |
 | UnpackIteratorTest.test_construct | PASS | |
 | UnpackIteratorTest.test_uninstantiable | PASS | |
 | UnpackIteratorTest.test_iterate | PASS | |
@@ -52,7 +53,6 @@
 | StructTest.test_integers | uses-self.assertEqual |
 | StructTest.test_nN_code | unresolved-name:cm |
 | StructTest.test_c_complex_round_trip | self.assertComplexesAreIdentical |
-| StructTest.test_float_round_trip | uses-self.subTest |
 | UnpackIteratorTest.test_half_float | host-raised:SkipTest: No module named '_testcapi' |
 
 ## Expected vs got

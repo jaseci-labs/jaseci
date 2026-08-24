@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_marshal/conv_marshal_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:34:03",
+  "generated_at": "2026-08-24T15:02:25",
   "hashes": {
-    "pins_jac": "ce70d09082611206bcf110f17c0daabee96506cef5ed0725354f6c03474ab341",
-    "conversion_json": "6453df2baa3494e2831905260f215163b557b7b25ebeff689fd0a85d16c9b77e",
+    "pins_jac": "ed1ed89ebf8ff7c603ca812ac18609c8c9d2fe6bb9f1d56733fbdf5ee0ceba26",
+    "conversion_json": "2f010860c3e696b4da58bf64e7bb1412e422d668fe75987d4449b96a7ed12d04",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "marshal",
   "counts": {
     "converted": 75,
-    "runnable": 36,
-    "green": 16,
-    "quarantined": 39
+    "runnable": 39,
+    "green": 17,
+    "quarantined": 36
   },
   "pins": [
     {
@@ -167,6 +167,12 @@
       "status": "pass"
     },
     {
+      "id": "BugsTestCase.test_loads_abnormal_reference_loops",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIs\\', ([(...)],), ([([(...)],)],))\"'>"
+    },
+    {
       "id": "BugsTestCase.test_exact_type_match",
       "status": "pass"
     },
@@ -196,6 +202,16 @@
     },
     {
       "id": "BugsTestCase.test_eof",
+      "status": "pass"
+    },
+    {
+      "id": "BugsTestCase.test_deterministic_sets",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"ModuleNotFoundError: No module named 'test.support.script_helper'\">"
+    },
+    {
+      "id": "BugsTestCase.test_unmarshallable",
       "status": "pass"
     },
     {
@@ -262,6 +278,11 @@
       "id": "InterningTestCase.testNoIntern",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'strobj'"
+    },
+    {
+      "id": "SliceTestCase.test_slice",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'helper'"
     },
     {
       "id": "CodeTestCase.test_same_filename_used",
@@ -359,21 +380,6 @@
       "reason": "self.addCleanup"
     },
     {
-      "id": "BugsTestCase.test_loads_abnormal_reference_loops",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "BugsTestCase.test_deterministic_sets",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "BugsTestCase.test_unmarshallable",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
       "id": "InstancingTestCase.testModule",
       "status": "quarantined",
       "reason": "unresolved-name:__file__"
@@ -397,11 +403,6 @@
       "id": "CompatibilityTestCase.test3To3",
       "status": "quarantined",
       "reason": "helper:_test(unresolved-name:__file__)"
-    },
-    {
-      "id": "SliceTestCase.test_slice",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     }
   ]
 }

@@ -31,6 +31,12 @@ test "TimeTestCase.test_conversions" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TimeTestCase.test_sleep" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    for value in [-0.0, 0, 0.0, 1e-100, 1e-09, 1e-06, 1, 1.2]:\n        time.sleep(value)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TimeTestCase.test_epoch" {
     (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    epoch = time.gmtime(0)\n    assert tuple(epoch)[:6] == (1970, 1, 1, 0, 0, 0), ('assertEqual', tuple(epoch)[:6], (1970, 1, 1, 0, 0, 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -39,6 +45,12 @@ test "TimeTestCase.test_epoch" {
 
 test "TimeTestCase.test_strftime" {
     (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    tt = time.gmtime(self.t)\n    for directive in ('a', 'A', 'b', 'B', 'c', 'd', 'H', 'I', 'j', 'm', 'M', 'p', 'S', 'U', 'w', 'W', 'x', 'X', 'y', 'Y', 'Z', '%'):\n        format = ' %' + directive\n        try:\n            time.strftime(format, tt)\n        except ValueError:\n            raise AssertionError('conversion specifier: %r failed.' % format)\n    try:\n        time.strftime(*(b'%S', tt))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_strftime_invalid_format" {
+    (ok, detail) = p2_libtest_run_snippet("import time\nfrom test.support import skip_if_buggy_ucrt_strfptime, SuppressCrashReport\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    tt = time.gmtime(self.t)\n    with SuppressCrashReport():\n        for i in range(1, 128):\n            format = ' %' + chr(i)\n            try:\n                time.strftime(format, tt)\n            except ValueError as exc:\n                assert str(exc) == 'Invalid format string', ('assertEqual', str(exc), 'Invalid format string')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -135,6 +147,12 @@ test "TimeTestCase.test_monotonic" {
 
 test "TimeTestCase.test_perf_counter" {
     (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    time.perf_counter()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TimeTestCase.test_get_clock_info" {
+    (ok, detail) = p2_libtest_run_snippet("import time\n\ndef _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n    self.t = time.time()\n    clocks = ['monotonic', 'perf_counter', 'process_time', 'time']\n    if hasattr(time, 'thread_time'):\n        clocks.append('thread_time')\n    for name in clocks:\n        info = time.get_clock_info(name)\n        assert isinstance(info.implementation, str), ('assertIsInstance', info.implementation, str)\n        assert info.implementation != '', ('assertNotEqual', info.implementation, '')\n        assert isinstance(info.monotonic, bool), ('assertIsInstance', info.monotonic, bool)\n        assert isinstance(info.resolution, float), ('assertIsInstance', info.resolution, float)\n        assert info.resolution > 0.0, ('assertGreater', info.resolution, 0.0)\n        assert info.resolution <= 1.0, ('assertLessEqual', info.resolution, 1.0)\n        assert isinstance(info.adjustable, bool), ('assertIsInstance', info.adjustable, bool)\n    try:\n        time.get_clock_info(*('xxx',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }

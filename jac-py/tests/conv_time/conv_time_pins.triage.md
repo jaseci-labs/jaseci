@@ -1,8 +1,8 @@
 # Triage report: `conv_time_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_time.py
-- guest leg: 0/23 marks
-- pins: **21 passed** / 23 run (+40 quarantined of 63 extracted)
+- guest leg: 0/26 marks
+- pins: **23 passed** / 26 run (+37 quarantined of 63 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -10,8 +10,10 @@
 | TimeTestCase.test_time | PASS | |
 | TimeTestCase.test_time_ns_type | PASS | |
 | TimeTestCase.test_conversions | PASS | |
+| TimeTestCase.test_sleep | PASS | |
 | TimeTestCase.test_epoch | PASS | |
 | TimeTestCase.test_strftime | PASS | |
+| TimeTestCase.test_strftime_invalid_format | GUEST-WRONG-OUTPUT | RUN<"ImportError: cannot import name 'skip_if_buggy_ucrt_strfptime' from '<unknown>'"> |
 | TimeTestCase.test_strftime_special | PASS | |
 | TimeTestCase.test_strftime_bounding_check | PASS | |
 | TimeTestCase.test_strftime_format_check | PASS | |
@@ -28,6 +30,7 @@
 | TimeTestCase.test_mktime | PASS | |
 | TimeTestCase.test_monotonic | PASS | |
 | TimeTestCase.test_perf_counter | PASS | |
+| TimeTestCase.test_get_clock_info | PASS | |
 | _TestAsctimeYear.test_large_year | PASS | |
 
 ## Quarantined at conversion
@@ -53,13 +56,10 @@
 | TestCPyTime.test_AsTimespec_clamp | decorator:unittest.skipUnless |
 | TestTimeWeaklinking.test_clock_functions | decorator:unittest.skipUnless |
 | TimeTestCase.test_sleep_exceptions | unresolved-name:errmsg |
-| TimeTestCase.test_sleep | uses-self.subTest |
-| TimeTestCase.test_strftime_invalid_format | uses-self.subTest |
 | TimeTestCase.test_strptime_exception_context | unresolved-name:e |
 | TimeTestCase.test_strptime_leap_year | uses-self.assertWarnsRegex |
 | TimeTestCase.test_thread_time | self.skipTest |
 | TimeTestCase.test_localtime_failure | self.skipTest |
-| TimeTestCase.test_get_clock_info | uses-self.subTest |
 | _Test4dYear.test_large_year | uses-self.yearstr |
 | _Test4dYear.test_negative | uses-self.yearstr |
 | TestCPyTime.test_FromSeconds | helper:check_int_rounding(helper:_check_rounding(helper:_rounding_values(unresolved-name:_testcapi))) |
@@ -86,3 +86,8 @@
 
 - expected: host oracle = `ok`
 - got: RUN<"ImportError: cannot import name 'warnings_helper' from '<unknown>'">
+
+### TimeTestCase.test_strftime_invalid_format (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"ImportError: cannot import name 'skip_if_buggy_ucrt_strfptime' from '<unknown>'">

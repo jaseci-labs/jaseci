@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,7 +14,7 @@
     "--name",
     "conv_fstring"
   ],
-  "generated_at": "2026-08-24T14:32:56",
+  "generated_at": "2026-08-24T15:01:07",
   "hashes": {
     "pins_jac": "dac10f3fb4b78ebbcfb6879cad3f3db48e1ff14cf48743bd6118ac731f4cec27"
   },
@@ -136,12 +136,42 @@
       "snippet": "import ast\n\ndef _t():\n    x = ['']\n    expr = \"x[0] = 'foo' f'{3}'\"\n    t = ast.parse(expr)\n    c = compile(t, '', 'exec')\n    exec(c)\n    assert x[0] == 'foo3', ('assertEqual', x[0], 'foo3')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_compile_time_concat_errors",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_literal",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "def _t():\n    assert f'' == '', ('assertEqual', f'', '')\n    assert f'a' == 'a', ('assertEqual', f'a', 'a')\n    assert f' ' == ' ', ('assertEqual', f' ', ' ')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_unterminated_string",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_syntax_error_in_nested_fstring",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_double_braces",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_compile_time_concat",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_comments",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "ident": "TestCase.test_many_expressions",
@@ -152,12 +182,47 @@
       "snippet": "def _t():\n\n    def build_fstr(n, extra=''):\n        return \"f'\" + '{x} ' * n + extra + \"'\"\n    x = 'X'\n    width = 1\n    for i in range(250, 260):\n        assert eval(build_fstr(i)) == (x + ' ') * i, ('assertEqual', eval(build_fstr(i)), (x + ' ') * i)\n    assert eval(build_fstr(255) * 256) == (x + ' ') * (255 * 256), ('assertEqual', eval(build_fstr(255) * 256), (x + ' ') * (255 * 256))\n    s = build_fstr(253, '{x:{width}} ')\n    assert eval(s) == (x + ' ') * 254, ('assertEqual', eval(s), (x + ' ') * 254)\n    s = \"f'{1}' 'x' 'y'\" * 1024\n    assert eval(s) == '1xy' * 1024, ('assertEqual', eval(s), '1xy' * 1024)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_format_specifier_expressions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_side_effect_order",
       "status": "pinned",
       "oracle": {
         "status": "ok"
       },
       "snippet": "def _t():\n\n    class _SelfNS:\n        pass\n    self = _SelfNS()\n\n    class X:\n\n        def __init__(self):\n            self.i = 0\n\n        def __format__(self, spec):\n            self.i += 1\n            return str(self.i)\n    x = X()\n    assert f'{x} {x}' == '1 2', ('assertEqual', f'{x} {x}', '1 2')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_missing_expression",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_parens_in_expressions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_newlines_before_syntax_error",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_misformed_unicode_character_name",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_backslashes_in_expression_part",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_invalid_backslashes_inside_fstring_context",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "ident": "TestCase.test_no_escapes_for_braces",
@@ -174,6 +239,11 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    assert f'{0}' == '0', ('assertEqual', f'{0}', '0')\n    assert f'{3 + 4}' == '7', ('assertEqual', f'{3 + 4}', '7')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_lambda",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "ident": "TestCase.test_valid_prefixes",
@@ -304,6 +374,11 @@
       "snippet": "def _t():\n    y = 5\n    assert f\"{f'{0}' * 3}\" == '000', ('assertEqual', f\"{f'{0}' * 3}\", '000')\n    assert f\"{f'{y}' * 3}\" == '555', ('assertEqual', f\"{f'{y}' * 3}\", '555')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_invalid_string_prefixes",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_leading_trailing_spaces",
       "status": "pinned",
       "oracle": {
@@ -328,6 +403,26 @@
       "snippet": "def _t():\n    assert f'{0 == 1}' == 'False', ('assertEqual', f'{0 == 1}', 'False')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_conversions",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_assignment",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_del",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_mismatched_braces",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_if_conditional",
       "status": "pinned",
       "oracle": {
@@ -350,6 +445,11 @@
         "status": "ok"
       },
       "snippet": "def _t():\n    d = {'a': 'string', 0: 'integer'}\n    a = 0\n    assert f'{d[0]}' == 'integer', ('assertEqual', f'{d[0]}', 'integer')\n    assert f\"{d['a']}\" == 'string', ('assertEqual', f\"{d['a']}\", 'string')\n    assert f'{d[a]}' == 'integer', ('assertEqual', f'{d[a]}', 'integer')\n    assert '{d[a]}'.format(d=d) == 'string', ('assertEqual', '{d[a]}'.format(d=d), 'string')\n    assert '{d[0]}'.format(d=d) == 'integer', ('assertEqual', '{d[0]}'.format(d=d), 'integer')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_errors",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
     },
     {
       "ident": "TestCase.test_filename_in_syntaxerror",
@@ -456,6 +556,16 @@
       "snippet": "import re as _re\n\ndef _t():\n    try:\n        compile(\"f'{*a}'\", '?', 'exec')\n    except SyntaxError as _exc:\n        assert _re.search(\"can't use starred expression here\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\n    try:\n        compile(\"f'{**a}'\", '?', 'exec')\n    except SyntaxError as _exc:\n        assert _re.search(\"f-string: expecting a valid expression after '{'\", str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_not_closing_quotes",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
+      "ident": "TestCase.test_syntax_error_after_debug",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_debug_in_file",
       "status": "pinned",
       "oracle": {
@@ -488,6 +598,11 @@
       "snippet": "def _t():\n    assert f'1==2={1 == 2!r}' == '1==2=False', ('assertEqual', f'1==2={1 == 2!r}', '1==2=False')\n    assert f'1 == 2={1 == 2!r}' == '1 == 2=False', ('assertEqual', f'1 == 2={1 == 2!r}', '1 == 2=False')\n    assert f'1!=2={1 != 2!r}' == '1!=2=True', ('assertEqual', f'1!=2={1 != 2!r}', '1!=2=True')\n    assert f'1 != 2={1 != 2!r}' == '1 != 2=True', ('assertEqual', f'1 != 2={1 != 2!r}', '1 != 2=True')\n    assert f'(1) != 2={1 != 2!r}' == '(1) != 2=True', ('assertEqual', f'(1) != 2={1 != 2!r}', '(1) != 2=True')\n    assert f'(1*2) != (3)={1 * 2 != 3!r}' == '(1*2) != (3)=True', ('assertEqual', f'(1*2) != (3)={1 * 2 != 3!r}', '(1*2) != (3)=True')\n    assert f'1 != 2 == 3 != 4={1 != 2 == 3 != 4!r}' == '1 != 2 == 3 != 4=False', ('assertEqual', f'1 != 2 == 3 != 4={1 != 2 == 3 != 4!r}', '1 != 2 == 3 != 4=False')\n    assert f'1 == 2 != 3 == 4={1 == 2 != 3 == 4!r}' == '1 == 2 != 3 == 4=False', ('assertEqual', f'1 == 2 != 3 == 4={1 == 2 != 3 == 4!r}', '1 == 2 != 3 == 4=False')\n    assert f\"f'{{1==2=}}'={f'1==2={1 == 2!r}'!r}\" == \"f'{1==2=}'='1==2=False'\", ('assertEqual', f\"f'{{1==2=}}'={f'1==2={1 == 2!r}'!r}\", \"f'{1==2=}'='1==2=False'\")\n    assert f\"f'{{1 == 2=}}'={f'1 == 2={1 == 2!r}'!r}\" == \"f'{1 == 2=}'='1 == 2=False'\", ('assertEqual', f\"f'{{1 == 2=}}'={f'1 == 2={1 == 2!r}'!r}\", \"f'{1 == 2=}'='1 == 2=False'\")\n    assert f\"f'{{1!=2=}}'={f'1!=2={1 != 2!r}'!r}\" == \"f'{1!=2=}'='1!=2=True'\", ('assertEqual', f\"f'{{1!=2=}}'={f'1!=2={1 != 2!r}'!r}\", \"f'{1!=2=}'='1!=2=True'\")\n    assert f\"f'{{1 != 2=}}'={f'1 != 2={1 != 2!r}'!r}\" == \"f'{1 != 2=}'='1 != 2=True'\", ('assertEqual', f\"f'{{1 != 2=}}'={f'1 != 2={1 != 2!r}'!r}\", \"f'{1 != 2=}'='1 != 2=True'\")\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
+      "ident": "TestCase.test_newlines_in_format_specifiers",
+      "status": "quarantined",
+      "reason": "host-raised:TypeError: 'str' object is not callable"
+    },
+    {
       "ident": "TestCase.test_raw_fstring_format_spec",
       "status": "pinned",
       "oracle": {
@@ -514,68 +629,12 @@
       "reason": "decorator:unittest.skipIf"
     },
     {
-      "ident": "TestCase.test_compile_time_concat_errors",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_unterminated_string",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_syntax_error_in_nested_fstring",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_double_braces",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_compile_time_concat",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_comments",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_format_specifier_expressions",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
       "ident": "TestCase.test_custom_format_specifier",
       "reason": "uses-self.assertWarns"
     },
     {
-      "ident": "TestCase.test_missing_expression",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_parens_in_expressions",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_newlines_before_syntax_error",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
       "ident": "TestCase.test_backslashes_in_string_part",
       "reason": "uses-self.assertWarns"
-    },
-    {
-      "ident": "TestCase.test_misformed_unicode_character_name",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_backslashes_in_expression_part",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_invalid_backslashes_inside_fstring_context",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_lambda",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
     },
     {
       "ident": "TestCase.test_fstring_backslash_before_double_bracket",
@@ -588,42 +647,6 @@
     {
       "ident": "TestCase.test_missing_variable",
       "reason": "unresolved-name:value"
-    },
-    {
-      "ident": "TestCase.test_invalid_string_prefixes",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_conversions",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_assignment",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_del",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_mismatched_braces",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_errors",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_not_closing_quotes",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_syntax_error_after_debug",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
-    },
-    {
-      "ident": "TestCase.test_newlines_in_format_specifiers",
-      "reason": "helper:assertAllRaise(uses-self.subTest)"
     }
   ],
   "counts": {

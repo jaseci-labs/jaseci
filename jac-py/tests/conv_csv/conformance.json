@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,18 +10,18 @@
     "diff_runner.py",
     "jac-py/tests/conv_csv/conv_csv_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:31:18",
+  "generated_at": "2026-08-24T15:02:14",
   "hashes": {
-    "pins_jac": "da76047301e72409293b3a0421697c9ad57648d7a25008720d5b6250e6604a6b",
-    "conversion_json": "c370cf5b20345ad114955f54ff5f487ca2d38c0819f03bb4a614fb90c0122606",
+    "pins_jac": "2486c72a21b2581fd24bec7143b39a2580457828212739bf6fe3f2e432606581",
+    "conversion_json": "06a8c3d46cc321f28a694c504e669192cdcff5295840736c9a9bd77aadda45a2",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "csv",
   "counts": {
     "converted": 128,
-    "runnable": 61,
-    "green": 30,
-    "quarantined": 67
+    "runnable": 66,
+    "green": 32,
+    "quarantined": 62
   },
   "pins": [
     {
@@ -75,6 +75,12 @@
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_write_lineterminator",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'StringIO.__enter__() takes no arguments (1 given)'\">"
     },
     {
       "id": "Test_Csv.test_write_iterable",
@@ -133,6 +139,18 @@
     {
       "id": "Test_Csv.test_read_linenum",
       "status": "pass"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_quoteed_newlines",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
+    },
+    {
+      "id": "Test_Csv.test_roundtrip_escaped_unquoted_newlines",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
       "id": "Test_Csv.test_reader_reentrant_iterator",
@@ -464,6 +482,10 @@
       "detail": "RUN<\"TypeError: <enum 'IntFlag'> cannot extend <class 'ceval.Flag'>\">"
     },
     {
+      "id": "TestDialectValidity.test_invalid_chars",
+      "status": "pass"
+    },
+    {
       "id": "TestSniffer.test_issue43625",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample12'"
@@ -487,6 +509,10 @@
       "id": "TestSniffer.test_has_header_checks_20_rows",
       "status": "quarantined",
       "reason": "host-raised:AttributeError: '_SelfNS' object has no attribute 'sample17'"
+    },
+    {
+      "id": "TestSniffer.test_guess_quote_and_delimiter",
+      "status": "pass"
     },
     {
       "id": "TestSniffer.test_sniff",
@@ -571,11 +597,6 @@
       "reason": "unresolved-name:BadIterable"
     },
     {
-      "id": "Test_Csv.test_write_lineterminator",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
       "id": "Test_Csv.test_writerows_errors",
       "status": "quarantined",
       "reason": "unresolved-name:BadIterable"
@@ -599,16 +620,6 @@
       "id": "Test_Csv.test_read_bigfield",
       "status": "quarantined",
       "reason": "uses-self._read_test"
-    },
-    {
-      "id": "Test_Csv.test_roundtrip_quoteed_newlines",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "Test_Csv.test_roundtrip_escaped_unquoted_newlines",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "TestDialectRegistry.test_registry",
@@ -649,16 +660,6 @@
       "id": "TestDialectValidity.test_lineterminator",
       "status": "quarantined",
       "reason": "unresolved-name:cm"
-    },
-    {
-      "id": "TestDialectValidity.test_invalid_chars",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
-    },
-    {
-      "id": "TestSniffer.test_guess_quote_and_delimiter",
-      "status": "quarantined",
-      "reason": "uses-self.subTest"
     },
     {
       "id": "TestSniffer.test_delimiters",

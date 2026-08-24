@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "diff_runner-0.2.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -10,10 +10,10 @@
     "diff_runner.py",
     "jac-py/tests/conv_types/conv_types_pins.jac"
   ],
-  "generated_at": "2026-08-24T14:42:08",
+  "generated_at": "2026-08-24T15:02:52",
   "hashes": {
-    "pins_jac": "29d348c7b83943fb617886fd6d28d014f22cece8eb9ded03cfbc253edbd4e3eb",
-    "conversion_json": "b4fab1fbf6d20ac287808a41c0fbbe9e817b3ddd8b305c7689937205cd5d1ecd",
+    "pins_jac": "0877a5072d8ba31c395bee8cadc49e8b508d831de82b5b1e369c18a07dacfef0",
+    "conversion_json": "ed144ca1f45ddc140c5680aaec1ac901fdfb584bc5a96ebde5b0fdf7d85d3a3b",
     "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
   },
   "module_stem": "types",
@@ -21,10 +21,10 @@
   "timed_out": false,
   "counts": {
     "converted": 129,
-    "runnable": 95,
-    "green": 48,
-    "quarantined": 34,
-    "failed": 47,
+    "runnable": 98,
+    "green": 49,
+    "quarantined": 31,
+    "failed": 49,
     "infra_failed": 0
   },
   "failures": [
@@ -96,6 +96,12 @@
     },
     {
       "id": "UnionTests.test_or_type_operator_with_TypeVar",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_union_args",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<'AttributeError: cache'>"
@@ -180,6 +186,12 @@
     },
     {
       "id": "UnionTests.test_or_type_repr",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AttributeError: cache'>"
+    },
+    {
+      "id": "UnionTests.test_or_type_operator_with_genericalias",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
       "detail": "RUN<'AttributeError: cache'>"
@@ -284,7 +296,7 @@
       "id": "CoroutineTests.test_gen",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7fd3716c47c0>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIsInstance\\', <callable_iterator object at 0x7f69008ccd90>, <class \\'__main__._GeneratorWrapper\\'>)\"'>"
     },
     {
       "id": "CoroutineTests.test_genfunc",
@@ -296,7 +308,7 @@
       "id": "CoroutineTests.test_wrapper_object",
       "status": "fail",
       "classification": "GUEST-WRONG-OUTPUT",
-      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7fd3713f2950>\\')\"'>"
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertIn\\', \\'GeneratorWrapper\\', \\'<callable_iterator object at 0x7f69009868f0>\\')\"'>"
     },
     {
       "id": "FunctionTests.test_function_type_defaults",

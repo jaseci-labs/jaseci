@@ -1,8 +1,8 @@
 # Triage report: `conv_codecs_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_codecs.py
-- guest leg: 0/90 marks
-- pins: **57 passed** / 90 run (+117 quarantined of 207 extracted)
+- guest leg: 0/105 marks
+- pins: **69 passed** / 105 run (+102 quarantined of 207 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -17,6 +17,8 @@
 | UTF16Test.test_errors | PASS | |
 | UTF16LETest.test_errors | PASS | |
 | UTF16BETest.test_errors | PASS | |
+| UTF7Test.test_errors | PASS | |
+| UTF7Test.test_lone_surrogates | PASS | |
 | UTF16ExTest.test_errors | PASS | |
 | UTF16ExTest.test_bad_args | PASS | |
 | ReadBufferTest.test_array | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'spam\', 4), (b\'spam\', 4))"'> |
@@ -53,6 +55,7 @@
 | CodecsModuleTest.test_file_closes_if_lookup_error_raised | GUEST-WRONG-OUTPUT | RUN<'AttributeError: **repr**'> |
 | CodecsModuleTest.test_copy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'> |
 | CodecsModuleTest.test_deepcopy | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', None, \'utf-8\')"'> |
+| CodecsModuleTest.test_pickle | PASS | |
 | EncodedFileTest.test_basic | PASS | |
 | BasicUnicodeTest.test_seek | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: big5'"> |
 | BasicUnicodeTest.test_bad_decode_args | PASS | |
@@ -73,17 +76,29 @@
 | RawUnicodeEscapeTest.test_raw_encode | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\\\\x00\', 1), (b\'\\\\x00\', 1))"'> |
 | RawUnicodeEscapeTest.test_raw_decode | PASS | |
 | RawUnicodeEscapeTest.test_decode_errors | PASS | |
+| EscapeEncodeTest.test_escape_encode | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\', 0), (b\'\', 0))"'> |
 | SurrogateEscapeTest.test_utf8 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
 | SurrogateEscapeTest.test_ascii | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
 | SurrogateEscapeTest.test_charmap | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: iso-8859-3'"> |
 | SurrogateEscapeTest.test_latin1 | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
+| TransformCodecTest.test_basics | PASS | |
+| TransformCodecTest.test_read | PASS | |
+| TransformCodecTest.test_readline | PASS | |
+| TransformCodecTest.test_buffer_api_usage | PASS | |
 | TransformCodecTest.test_text_to_binary_denylists_text_transforms | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'"> |
+| TransformCodecTest.test_binary_to_text_denylists_binary_transforms | PASS | |
+| TransformCodecTest.test_aliases | PASS | |
 | TransformCodecTest.test_quopri_stateless | PASS | |
 | TransformCodecTest.test_uu_invalid | PASS | |
 | ASCIITest.test_encode | PASS | |
+| ASCIITest.test_encode_error | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
 | ASCIITest.test_encode_surrogateescape_error | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
 | ASCIITest.test_decode | PASS | |
+| ASCIITest.test_decode_error | PASS | |
+| Latin1Test.test_encode | PASS | |
+| Latin1Test.test_encode_errors | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
 | Latin1Test.test_encode_surrogateescape_error | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'> |
+| Latin1Test.test_decode | PASS | |
 | StreamRecoderTest.test_writelines | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'ascii'"> |
 | StreamRecoderTest.test_write | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'utf_8'"> |
 | StreamRecoderTest.test_seeking_read | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'"> |
@@ -128,40 +143,28 @@
 | ReadTest.test_readlinequeue | unresolved-name:Queue |
 | UTF16Test.test_bug691291 | self.addCleanup |
 | UTF16Test.test_invalid_modes | unresolved-name:cm |
-| UTF8Test.test_decode_error | uses-self.subTest |
 | UTF8Test.test_lone_surrogates | unresolved-name:cm |
-| UTF8Test.test_incremental_errors | uses-self.subTest |
-| UTF7Test.test_errors | uses-self.subTest |
-| UTF7Test.test_lone_surrogates | uses-self.subTest |
 | EscapeDecodeTest.test_warnings | uses-self.assertWarns |
-| PunycodeTest.test_decode_invalid | uses-self.subTest |
-| IDNACodecTest.test_builtin_decode_invalid | uses-self.subTest |
-| IDNACodecTest.test_builtin_encode_invalid | uses-self.subTest |
-| IDNACodecTest.test_incremental_decode_invalid | uses-self.subTest |
-| IDNACodecTest.test_incremental_encode_invalid | uses-self.subTest |
+| PunycodeTest.test_decode_invalid | unresolved-name:cm |
+| IDNACodecTest.test_builtin_decode_invalid | unresolved-name:cm |
+| IDNACodecTest.test_builtin_encode_invalid | unresolved-name:cm |
+| IDNACodecTest.test_incremental_decode_invalid | unresolved-name:cm |
+| IDNACodecTest.test_incremental_encode_invalid | unresolved-name:cm |
 | CodecsModuleTest.test_open | self.addCleanup |
-| CodecsModuleTest.test_pickle | uses-self.subTest |
 | StreamReaderTest.test_readlines | uses-self.reader |
 | StreamReaderTest.test_copy | uses-self.reader |
 | StreamReaderTest.test_pickle | uses-self.reader |
 | StreamWriterTest.test_copy | uses-self.writer |
-| StreamWriterTest.test_pickle | uses-self.subTest |
+| StreamWriterTest.test_pickle | uses-self.writer |
 | StreamReaderWriterTest.test_copy | unresolved-name:Queue |
-| StreamReaderWriterTest.test_pickle | uses-self.subTest |
+| StreamReaderWriterTest.test_pickle | unresolved-name:Queue |
 | BasicUnicodeTest.test_basics | unresolved-name:Queue |
 | CharmapTest.test_decode_with_int2str_map | assertRaisesRegex call form |
 | UnicodeEscapeTest.test_decode_warnings | uses-self.assertWarns |
-| EscapeEncodeTest.test_escape_encode | uses-self.subTest |
 | BomTest.test_seek0 | self.addCleanup |
-| TransformCodecTest.test_basics | uses-self.subTest |
-| TransformCodecTest.test_read | uses-self.subTest |
-| TransformCodecTest.test_readline | uses-self.subTest |
-| TransformCodecTest.test_buffer_api_usage | uses-self.subTest |
-| TransformCodecTest.test_text_to_binary_denylists_binary_transforms | uses-self.subTest |
-| TransformCodecTest.test_binary_to_text_denylists_binary_transforms | uses-self.subTest |
-| TransformCodecTest.test_binary_to_text_denylists_text_transforms | uses-self.subTest |
+| TransformCodecTest.test_text_to_binary_denylists_binary_transforms | unresolved-name:failure |
+| TransformCodecTest.test_binary_to_text_denylists_text_transforms | unresolved-name:failure |
 | TransformCodecTest.test_custom_hex_error_is_noted | unresolved-name:failure |
-| TransformCodecTest.test_aliases | uses-self.subTest |
 | ExceptionNotesTest.test_raise_by_type | helper:setUp(self.addCleanup) |
 | ExceptionNotesTest.test_raise_by_value | helper:setUp(self.addCleanup) |
 | ExceptionNotesTest.test_raise_grandchild_subclass_exact_size | helper:setUp(self.addCleanup) |
@@ -173,12 +176,7 @@
 | ExceptionNotesTest.test_multiple_args | helper:setUp(self.addCleanup) |
 | ExceptionNotesTest.test_codec_lookup_failure | helper:setUp(self.addCleanup) |
 | ExceptionNotesTest.test_unflagged_non_text_codec_handling | helper:setUp(self.addCleanup) |
-| ASCIITest.test_encode_error | uses-self.subTest |
-| ASCIITest.test_decode_error | uses-self.subTest |
-| Latin1Test.test_encode | uses-self.subTest |
-| Latin1Test.test_encode_errors | uses-self.subTest |
-| Latin1Test.test_decode | uses-self.subTest |
-| StreamRecoderTest.test_pickle | uses-self.subTest |
+| StreamRecoderTest.test_pickle | unresolved-name:Queue |
 | CodecNameNormalizationTest.test_codecs_lookup | self.addCleanup |
 | ReadTest.test_readline | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
 | ReadTest.test_mixed_readline_and_read | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
@@ -205,7 +203,9 @@
 | UTF16BETest.test_nonbmp | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
 | UTF8Test.test_partial | host-raised:NameError: name 'self' is not defined |
 | UTF8Test.test_decoder_state | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF8Test.test_decode_error | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
 | UTF8Test.test_surrogatepass_handler | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
+| UTF8Test.test_incremental_errors | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
 | UTF7Test.test_ascii | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
 | UTF7Test.test_partial | host-raised:NameError: name 'self' is not defined |
 | UTF7Test.test_nonbmp | host-raised:AttributeError: '_SelfNS' object has no attribute 'encoding' |
@@ -220,6 +220,11 @@
 | TransformCodecTest.test_alias_modules_exist | host-raised:AttributeError: module 'importlib' has no attribute 'util' |
 
 ## Expected vs got
+
+### ASCIITest.test_encode_error (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'>
 
 ### ASCIITest.test_encode_surrogateescape_error (GUEST-WRONG-OUTPUT)
 
@@ -271,6 +276,11 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\\\\x000\', 2), (b\'\\\\x000\', 2))"'>
 
+### EscapeEncodeTest.test_escape_encode (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', (b\'\', 0), (b\'\', 0))"'>
+
 ### IDNACodecTest.test_builtin_encode (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -280,6 +290,11 @@
 
 - expected: host oracle = `ok`
 - got: GOT<"ORACLE_EXC LookupError 'unknown encoding: idna'">
+
+### Latin1Test.test_encode_errors (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<'ORACLE_EXC LookupError "unknown error handler name \'surrogateescape\'"'>
 
 ### Latin1Test.test_encode_surrogateescape_error (GUEST-WRONG-OUTPUT)
 

@@ -1,8 +1,8 @@
 # Triage report: `conv_dict_pins.jac`
 
 - source: /home/jac/repos/jac-python/reference/cpython/Lib/test/test_dict.py
-- guest leg: 0/72 marks
-- pins: **49 passed** / 72 run (+20 quarantined of 92 extracted)
+- guest leg: 0/75 marks
+- pins: **49 passed** / 75 run (+17 quarantined of 92 extracted)
 
 | pin | result | got |
 |---|---|---|
@@ -23,6 +23,7 @@
 | DictTest.test_update_shared_keys | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {\'a\': \'a\', \'a\': \'a\', \'b\': \'b\'}, {\'a\': \'a\', \'b\': \'b\'})"'> |
 | DictTest.test_fromkeys | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIsInstance\', {\'a\': None}, <class \'**main**.dictlike\'>)"'> |
 | DictTest.test_copy | PASS | |
+| DictTest.test_copy_fuzz | GUEST-WRONG-OUTPUT | RUN<"AttributeError: 'super' object has no attribute 'seed'"> |
 | DictTest.test_copy_maintains_tracking | PASS | |
 | DictTest.test_copy_noncompact | PASS | |
 | DictTest.test_get | PASS | |
@@ -35,22 +36,23 @@
 | DictTest.test_mutating_iteration_delete | PASS | |
 | DictTest.test_mutating_iteration_delete_over_values | PASS | |
 | DictTest.test_mutating_iteration_delete_over_items | PASS | |
-| DictTest.test_mutating_lookup | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7f2c2f5bbad0>: 2})"'> |
+| DictTest.test_mutating_lookup | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7fd5cb7478d0>: 2})"'> |
 | DictTest.test_repr | PASS | |
 | DictTest.test_eq | PASS | |
 | DictTest.test_keys_contained | PASS | |
 | DictTest.test_errors_in_view_containment_check | PASS | |
 | DictTest.test_dictview_set_operations_on_keys | PASS | |
 | DictTest.test_dictview_set_operations_on_items | PASS | |
+| DictTest.test_items_symmetric_difference | GUEST-WRONG-OUTPUT | RUN<"AttributeError: 'super' object has no attribute 'seed'"> |
 | DictTest.test_dictview_mixed_set_operations | PASS | |
 | DictTest.test_bad_key | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC NameError "name \'d\' is not defined"'> |
 | DictTest.test_resize1 | PASS | |
 | DictTest.test_resize2 | PASS | |
 | DictTest.test_empty_presized_dict_in_freelist | PASS | |
-| DictTest.test_container_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7f2c2f5bbdd0>, None)"'> |
-| DictTest.test_iterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b2afb0>"'> |
-| DictTest.test_itemiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b375e0>"'> |
-| DictTest.test_valuesiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b36a30>"'> |
+| DictTest.test_container_iterator | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7fd5cb7a4150>, None)"'> |
+| DictTest.test_iterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>"'> |
+| DictTest.test_itemiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>"'> |
+| DictTest.test_valuesiterator_pickling | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>"'> |
 | DictTest.test_reverseiterator_pickling | PASS | |
 | DictTest.test_reverseitemiterator_pickling | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'abc'"> |
 | DictTest.test_reversevaluesiterator_pickling | PASS | |
@@ -70,6 +72,7 @@
 | DictTest.test_reverse_iterator_for_shared_shared_dicts | PASS | |
 | DictTest.test_dict_copy_order | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', [(\'c\', 3), (\'b\', 2), (\'a\', 1)], [(\'a\', 1), (\'b\', 2), (\'c\', 3)])"'> |
 | DictTest.test_store_evilattr | PASS | |
+| DictTest.test_str_nonstr | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'check_impl_detail'"> |
 | DictTest.test_overwrite_managed_dict | GUEST-WRONG-OUTPUT | GOT<"ORACLE_EXC AttributeError 'attr'"> |
 | DictTest.test_clear_at_lookup | PASS | |
 | DictTest.test_split_table_update_with_str_subclass | GUEST-WRONG-OUTPUT | GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 1, 2)"'> |
@@ -95,11 +98,8 @@
 | DictTest.test_dict_items_result_gc_reversed | decorator:support.cpython_only |
 | CAPITest.test_getitem_knownhash | decorator:support.cpython_only |
 | DictTest.test_update_type_error | unresolved-name:cm |
-| DictTest.test_copy_fuzz | uses-self.subTest |
-| DictTest.test_items_symmetric_difference | uses-self.subTest |
 | DictTest.test_missing | self.assertNotHasAttr |
 | DictTest.test_tuple_keyerror | unresolved-name:c |
-| DictTest.test_str_nonstr | uses-self.subTest |
 | DictTest.test_unhashable_key | uses-self.assertRaisesRegex |
 | DictTest.test_hash_collision_remove_add | unresolved-name:CustomHash |
 | DictTest.test_free_after_iterating | host-raised:NameError: name 'self' is not defined |
@@ -114,7 +114,12 @@
 ### DictTest.test_container_iterator (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7f2c2f5bbdd0>, None)"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertIs\', <**main**.C object at 0x7fd5cb7a4150>, None)"'>
+
+### DictTest.test_copy_fuzz (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"AttributeError: 'super' object has no attribute 'seed'">
 
 ### DictTest.test_dict_copy_order (GUEST-WRONG-OUTPUT)
 
@@ -144,12 +149,17 @@
 ### DictTest.test_itemiterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b375e0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccbab0>"'>
+
+### DictTest.test_items_symmetric_difference (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: RUN<"AttributeError: 'super' object has no attribute 'seed'">
 
 ### DictTest.test_iterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b2afb0>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5cb84b110>"'>
 
 ### DictTest.test_literal_constructor (GUEST-WRONG-OUTPUT)
 
@@ -164,7 +174,7 @@
 ### DictTest.test_mutating_lookup (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7f2c2f5bbad0>: 2})"'>
+- got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', {}, {<**main**.NastyKey object at 0x7fd5cb7478d0>: 2})"'>
 
 ### DictTest.test_overwrite_managed_dict (GUEST-WRONG-OUTPUT)
 
@@ -201,6 +211,11 @@
 - expected: host oracle = `ok`
 - got: GOT<'ORACLE_EXC AssertionError "(\'assertEqual\', 1, 2)"'>
 
+### DictTest.test_str_nonstr (GUEST-WRONG-OUTPUT)
+
+- expected: host oracle = `ok`
+- got: GOT<"ORACLE_EXC AttributeError 'check_impl_detail'">
+
 ### DictTest.test_update (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
@@ -214,7 +229,7 @@
 ### DictTest.test_valuesiterator_pickling (GUEST-WRONG-OUTPUT)
 
 - expected: host oracle = `ok`
-- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7f2c30b36a30>"'>
+- got: GOT<'ORACLE_EXC PicklingError "Can\'t pickle local object <function_jac_make_host_iterator.<locals>._next at 0x7fd5ccccb110>"'>
 
 ### DictTest.test_views_mapping (GUEST-WRONG-OUTPUT)
 

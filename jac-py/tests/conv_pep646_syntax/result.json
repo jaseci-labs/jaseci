@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "4fb4392e73e65d6f98577c05b12f6dc398c1ffe8",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "unknown"
+  },
+  "command": [
+    "diff_runner.py",
+    "jac-py/tests/conv_pep646_syntax/conv_pep646_syntax_pins.jac"
+  ],
+  "generated_at": "2026-08-24T15:08:38",
+  "hashes": {
+    "pins_jac": "54abb4582bae9086ab76183db5d888bd2a2bf80f0e879677bac6ffa717095fb9",
+    "conversion_json": "dd997cce8af64c76b06b5b2086a73bf95da27df0780e780a236b4f02137647e9",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "pep646_syntax",
+  "status": "failed",
+  "timed_out": false,
+  "counts": {
+    "converted": 1,
+    "runnable": 1,
+    "green": 0,
+    "quarantined": 0,
+    "failed": 1,
+    "infra_failed": 0
+  },
+  "failures": [
+    {
+      "id": "pep646_syntax.doctests:doctests",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'AssertionError: '>"
+    }
+  ]
+}

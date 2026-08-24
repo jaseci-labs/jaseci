@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "tool_version": "conv_suite-0.4.0",
-  "jac_sha": "1ef121a8b895522452b0fd0238dd99de3e01d3a7",
+  "jac_sha": "e04dddeb5f741bc4740b54f7516f040ca3f0ab48",
   "cpython": {
     "version": "3.14.6",
     "sha": "unknown"
@@ -14,9 +14,9 @@
     "--name",
     "conv_float"
   ],
-  "generated_at": "2026-08-24T14:32:46",
+  "generated_at": "2026-08-24T15:03:30",
   "hashes": {
-    "pins_jac": "6ca0420e2907cb548f4caed1e308704f64fe1e2d59ac55fb4ae6b81498003e0a"
+    "pins_jac": "cc65349f0a4a7ca83f4d4862ae5e02a065cc81342dd8aa8afb2c1c0763ebbbae"
   },
   "source_file": "/home/jac/repos/jac-python/reference/cpython/Lib/test/test_float.py",
   "generator": "jac-py/tools/convert_suite.py",
@@ -38,6 +38,14 @@
         "status": "ok"
       },
       "snippet": "from test.support.numbers import VALID_UNDERSCORE_LITERALS, INVALID_UNDERSCORE_LITERALS\n\ndef _t():\n    for lit in VALID_UNDERSCORE_LITERALS:\n        if not any((ch in lit for ch in 'jJxXoObB')):\n            assert float(lit) == eval(lit), ('assertEqual', float(lit), eval(lit))\n            assert float(lit) == float(lit.replace('_', '')), ('assertEqual', float(lit), float(lit.replace('_', '')))\n    for lit in INVALID_UNDERSCORE_LITERALS:\n        if lit in ('0_7', '09_99'):\n            continue\n        if not any((ch in lit for ch in 'jJxXoObB')):\n            try:\n                float(*(lit,))\n            except ValueError:\n                pass\n    try:\n        float(*('_NaN',))\n    except ValueError:\n        pass\n    try:\n        float(*('Na_N',))\n    except ValueError:\n        pass\n    try:\n        float(*('IN_F',))\n    except ValueError:\n        pass\n    try:\n        float(*('-_INF',))\n    except ValueError:\n        pass\n    try:\n        float(*('-INF_',))\n    except ValueError:\n        pass\n    try:\n        float(*(b'0_.\\xff9',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_non_numeric_input_types",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n\n    class CustomStr(str):\n        pass\n\n    class CustomBytes(bytes):\n        pass\n\n    class CustomByteArray(bytearray):\n        pass\n    factories = [bytes, bytearray, lambda b: CustomStr(b.decode()), CustomBytes, CustomByteArray, memoryview]\n    try:\n        from array import array\n    except ImportError:\n        pass\n    else:\n        factories.append(lambda b: array('B', b))\n    for f in factories:\n        x = f(b' 3.14  ')\n        assert float(x) == 3.14, ('assertEqual', float(x), 3.14)\n        try:\n            float(f(b'A' * 16))\n        except ValueError as _exc:\n            assert _re.search('could not convert', str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
     },
     {
       "ident": "GeneralFloatCases.test_float_memoryview",
@@ -298,10 +306,6 @@
       "reason": "assertRaisesRegex call form"
     },
     {
-      "ident": "GeneralFloatCases.test_non_numeric_input_types",
-      "reason": "uses-self.subTest"
-    },
-    {
       "ident": "GeneralFloatCases.test_error_message",
       "reason": "unresolved-name:cm"
     },
@@ -340,7 +344,7 @@
   ],
   "counts": {
     "extracted": 54,
-    "pinned": 24,
-    "quarantined": 30
+    "pinned": 25,
+    "quarantined": 29
   }
 }

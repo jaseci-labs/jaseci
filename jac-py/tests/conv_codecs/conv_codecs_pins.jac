@@ -73,6 +73,18 @@ test "UTF16BETest.test_errors" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "UTF7Test.test_errors" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\n\ndef _t():\n    tests = [(b'\\xffb', '\ufffdb'), (b'a\\xffb', 'a\ufffdb'), (b'a\\xff\\xffb', 'a\ufffd\ufffdb'), (b'a+IK', 'a\ufffd'), (b'a+IK-b', 'a\ufffdb'), (b'a+IK,b', 'a\ufffdb'), (b'a+IKx', 'a\u20ac\ufffd'), (b'a+IKx-b', 'a\u20ac\ufffdb'), (b'a+IKwgr', 'a\u20ac\ufffd'), (b'a+IKwgr-b', 'a\u20ac\ufffdb'), (b'a+IKwgr,', 'a\u20ac\ufffd'), (b'a+IKwgr,-b', 'a\u20ac\ufffd-b'), (b'a+IKwgrB', 'a\u20ac\u20ac\ufffd'), (b'a+IKwgrB-b', 'a\u20ac\u20ac\ufffdb'), (b'a+/,+IKw-b', 'a\ufffd\u20acb'), (b'a+//,+IKw-b', 'a\ufffd\u20acb'), (b'a+///,+IKw-b', 'a\\uffff\ufffd\u20acb'), (b'a+////,+IKw-b', 'a\\uffff\ufffd\u20acb'), (b'a+IKw-b\\xff', 'a\u20acb\ufffd'), (b'a+IKw\\xffb', 'a\u20ac\ufffdb'), (b'a+@b', 'a\ufffdb')]\n    for raw, expected in tests:\n        try:\n            codecs.utf_7_decode(*(raw, 'strict', True))\n        except UnicodeDecodeError:\n            pass\n        assert raw.decode('utf-7', 'replace') == expected, ('assertEqual', raw.decode('utf-7', 'replace'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "UTF7Test.test_lone_surrogates" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    tests = [(b'a+2AE-b', 'a\\ud801b'), (b'a+2AE\\xffb', 'a\ufffdb'), (b'a+2AE', 'a\ufffd'), (b'a+2AEA-b', 'a\ufffdb'), (b'a+2AH-b', 'a\ufffdb'), (b'a+IKzYAQ-b', 'a\u20ac\\ud801b'), (b'a+IKzYAQ\\xffb', 'a\u20ac\ufffdb'), (b'a+IKzYAQA-b', 'a\u20ac\ufffdb'), (b'a+IKzYAd-b', 'a\u20ac\ufffdb'), (b'a+IKwgrNgB-b', 'a\u20ac\u20ac\\ud801b'), (b'a+IKwgrNgB\\xffb', 'a\u20ac\u20ac\ufffdb'), (b'a+IKwgrNgB', 'a\u20ac\u20ac\ufffd'), (b'a+IKwgrNgBA-b', 'a\u20ac\u20ac\ufffdb')]\n    for raw, expected in tests:\n        assert raw.decode('utf-7', 'replace') == expected, ('assertEqual', raw.decode('utf-7', 'replace'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "UTF16ExTest.test_errors" {
     (ok, detail) = p2_libtest_run_snippet("import codecs\n\ndef _t():\n    try:\n        codecs.utf_16_ex_decode(*(b'\\xff', 'strict', 0, True))\n    except UnicodeDecodeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -289,6 +301,12 @@ test "CodecsModuleTest.test_deepcopy" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "CodecsModuleTest.test_pickle" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\nimport pickle\n\ndef _t():\n    codec_info = codecs.lookup('utf-8')\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        pickled_codec_info = pickle.dumps(codec_info)\n        unpickled_codec_info = pickle.loads(pickled_codec_info)\n        assert codec_info is not unpickled_codec_info, ('assertIsNot', codec_info, unpickled_codec_info)\n        assert codec_info == unpickled_codec_info, ('assertEqual', codec_info, unpickled_codec_info)\n        assert codec_info.name == unpickled_codec_info.name, ('assertEqual', codec_info.name, unpickled_codec_info.name)\n        assert codec_info.incrementalencoder == unpickled_codec_info.incrementalencoder, ('assertEqual', codec_info.incrementalencoder, unpickled_codec_info.incrementalencoder)\n        assert unpickled_codec_info._is_text_encoding, ('assertTrue', unpickled_codec_info._is_text_encoding)\n    codec_info = codecs.lookup('base64')\n    for proto in range(pickle.HIGHEST_PROTOCOL + 1):\n        pickled_codec_info = pickle.dumps(codec_info)\n        unpickled_codec_info = pickle.loads(pickled_codec_info)\n        assert codec_info is not unpickled_codec_info, ('assertIsNot', codec_info, unpickled_codec_info)\n        assert codec_info == unpickled_codec_info, ('assertEqual', codec_info, unpickled_codec_info)\n        assert codec_info.name == unpickled_codec_info.name, ('assertEqual', codec_info.name, unpickled_codec_info.name)\n        assert codec_info.incrementalencoder == unpickled_codec_info.incrementalencoder, ('assertEqual', codec_info.incrementalencoder, unpickled_codec_info.incrementalencoder)\n        assert not unpickled_codec_info._is_text_encoding, ('assertFalse', unpickled_codec_info._is_text_encoding)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "EncodedFileTest.test_basic" {
     (ok, detail) = p2_libtest_run_snippet("import codecs\nimport io\n\ndef _t():\n    f = io.BytesIO(b'\\xed\\x95\\x9c\\n\\xea\\xb8\\x80')\n    ef = codecs.EncodedFile(f, 'utf-16-le', 'utf-8')\n    assert ef.read() == b'\\\\\\xd5\\n\\x00\\x00\\xae', ('assertEqual', ef.read(), b'\\\\\\xd5\\n\\x00\\x00\\xae')\n    f = io.BytesIO()\n    ef = codecs.EncodedFile(f, 'utf-8', 'latin-1')\n    ef.write(b'\\xc3\\xbc')\n    assert f.getvalue() == b'\\xfc', ('assertEqual', f.getvalue(), b'\\xfc')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -409,6 +427,12 @@ test "RawUnicodeEscapeTest.test_decode_errors" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "EscapeEncodeTest.test_escape_encode" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\n\ndef _t():\n    tests = [(b'', (b'', 0)), (b'foobar', (b'foobar', 6)), (b'spam\\x00eggs', (b'spam\\\\x00eggs', 9)), (b\"a'b\", (b\"a\\\\'b\", 3)), (b'b\\\\c', (b'b\\\\\\\\c', 3)), (b'c\\nd', (b'c\\\\nd', 3)), (b'd\\re', (b'd\\\\re', 3)), (b'f\\x7fg', (b'f\\\\x7fg', 3))]\n    for data, output in tests:\n        assert codecs.escape_encode(data) == output, ('assertEqual', codecs.escape_encode(data), output)\n    try:\n        codecs.escape_encode(*('spam',))\n    except TypeError:\n        pass\n    try:\n        codecs.escape_encode(*(bytearray(b'spam'),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "SurrogateEscapeTest.test_utf8" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    assert b'foo\\x80bar'.decode('utf-8', 'surrogateescape') == 'foo\\udc80bar', ('assertEqual', b'foo\\x80bar'.decode('utf-8', 'surrogateescape'), 'foo\\udc80bar')\n    assert 'foo\\udc80bar'.encode('utf-8', 'surrogateescape') == b'foo\\x80bar', ('assertEqual', 'foo\\udc80bar'.encode('utf-8', 'surrogateescape'), b'foo\\x80bar')\n    assert b'\\xed\\xb0\\x80'.decode('utf-8', 'surrogateescape') == '\\udced\\udcb0\\udc80', ('assertEqual', b'\\xed\\xb0\\x80'.decode('utf-8', 'surrogateescape'), '\\udced\\udcb0\\udc80')\n    assert '\\udced\\udcb0\\udc80'.encode('utf-8', 'surrogateescape') == b'\\xed\\xb0\\x80', ('assertEqual', '\\udced\\udcb0\\udc80'.encode('utf-8', 'surrogateescape'), b'\\xed\\xb0\\x80')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -433,8 +457,44 @@ test "SurrogateEscapeTest.test_latin1" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "TransformCodecTest.test_basics" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\nbytes_transform_encodings = ['base64_codec', 'uu_codec', 'quopri_codec', 'hex_codec']\n\ndef _t():\n    binput = bytes(range(256))\n    for encoding in bytes_transform_encodings:\n        o, size = codecs.getencoder(encoding)(binput)\n        assert size == len(binput), ('assertEqual', size, len(binput))\n        i, size = codecs.getdecoder(encoding)(o)\n        assert size == len(o), ('assertEqual', size, len(o))\n        assert i == binput, ('assertEqual', i, binput)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TransformCodecTest.test_read" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\nimport io\nbytes_transform_encodings = ['base64_codec', 'uu_codec', 'quopri_codec', 'hex_codec']\n\ndef _t():\n    for encoding in bytes_transform_encodings:\n        sin = codecs.encode(b'\\x80', encoding)\n        reader = codecs.getreader(encoding)(io.BytesIO(sin))\n        sout = reader.read()\n        assert sout == b'\\x80', ('assertEqual', sout, b'\\x80')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TransformCodecTest.test_readline" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\nimport io\nbytes_transform_encodings = ['base64_codec', 'uu_codec', 'quopri_codec', 'hex_codec']\n\ndef _t():\n    for encoding in bytes_transform_encodings:\n        sin = codecs.encode(b'\\x80', encoding)\n        reader = codecs.getreader(encoding)(io.BytesIO(sin))\n        sout = reader.readline()\n        assert sout == b'\\x80', ('assertEqual', sout, b'\\x80')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TransformCodecTest.test_buffer_api_usage" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\nbytes_transform_encodings = ['base64_codec', 'uu_codec', 'quopri_codec', 'hex_codec']\n\ndef _t():\n    original = b'12345\\x80'\n    for encoding in bytes_transform_encodings:\n        data = original\n        view = memoryview(data)\n        data = codecs.encode(data, encoding)\n        view_encoded = codecs.encode(view, encoding)\n        assert view_encoded == data, ('assertEqual', view_encoded, data)\n        view = memoryview(data)\n        data = codecs.decode(data, encoding)\n        assert data == original, ('assertEqual', data, original)\n        view_decoded = codecs.decode(view, encoding)\n        assert view_decoded == data, ('assertEqual', view_decoded, data)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "TransformCodecTest.test_text_to_binary_denylists_text_transforms" {
     (ok, detail) = p2_libtest_run_snippet("import re as _re\n\ndef _t():\n    msg = \"^'rot_13' is not a text encoding; use codecs.encode\\\\(\\\\) to handle arbitrary codecs\"\n    try:\n        'just an example message'.encode('rot_13')\n    except LookupError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TransformCodecTest.test_binary_to_text_denylists_binary_transforms" {
+    (ok, detail) = p2_libtest_run_snippet("import re as _re\nimport codecs\nbytes_transform_encodings = ['base64_codec', 'uu_codec', 'quopri_codec', 'hex_codec']\n\ndef _t():\n    data = b'encode first to ensure we meet any format restrictions'\n    for encoding in bytes_transform_encodings:\n        encoded_data = codecs.encode(data, encoding)\n        fmt = '{!r} is not a text encoding; use codecs.decode\\\\(\\\\) to handle arbitrary codecs'\n        msg = fmt.format(encoding)\n        try:\n            encoded_data.decode(encoding)\n        except LookupError as _exc:\n            assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\n        try:\n            bytearray(encoded_data).decode(encoding)\n        except LookupError as _exc:\n            assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n        else:\n            raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "TransformCodecTest.test_aliases" {
+    (ok, detail) = p2_libtest_run_snippet("import codecs\n\ndef is_code_page_present(cp):\n    from ctypes import POINTER, WINFUNCTYPE, WinDLL, Structure\n    from ctypes.wintypes import BOOL, BYTE, WCHAR, UINT, DWORD\n    MAX_LEADBYTES = 12\n    MAX_DEFAULTCHAR = 2\n    MAX_PATH = 260\n\n    class CPINFOEXW(Structure):\n        _fields_ = [('MaxCharSize', UINT), ('DefaultChar', BYTE * MAX_DEFAULTCHAR), ('LeadByte', BYTE * MAX_LEADBYTES), ('UnicodeDefaultChar', WCHAR), ('CodePage', UINT), ('CodePageName', WCHAR * MAX_PATH)]\n    prototype = WINFUNCTYPE(BOOL, UINT, DWORD, POINTER(CPINFOEXW))\n    GetCPInfoEx = prototype(('GetCPInfoExW', WinDLL('kernel32')))\n    info = CPINFOEXW()\n    return GetCPInfoEx(cp, 0, info)\ntransform_aliases = {'base64_codec': ['base64', 'base_64'], 'uu_codec': ['uu'], 'quopri_codec': ['quopri', 'quoted_printable', 'quotedprintable'], 'hex_codec': ['hex'], 'rot_13': ['rot13']}\n_TEST_CODECS = {}\n\ndef _get_test_codec(codec_name):\n    return _TEST_CODECS.get(codec_name)\n\ndef _t():\n    for codec_name, aliases in transform_aliases.items():\n        expected_name = codecs.lookup(codec_name).name\n        for alias in aliases:\n            info = codecs.lookup(alias)\n            assert info.name == expected_name, ('assertEqual', info.name, expected_name)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
@@ -457,6 +517,12 @@ test "ASCIITest.test_encode" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "ASCIITest.test_encode_error" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    for data, error_handler, expected in (('[\\x80\u00ff\u20ac]', 'ignore', b'[]'), ('[\\x80\u00ff\u20ac]', 'replace', b'[???]'), ('[\\x80\u00ff\u20ac]', 'xmlcharrefreplace', b'[&#128;&#255;&#8364;]'), ('[\\x80\u00ff\u20ac\\U000abcde]', 'backslashreplace', b'[\\\\x80\\\\xff\\\\u20ac\\\\U000abcde]'), ('[\\udc80\\udcff]', 'surrogateescape', b'[\\x80\\xff]')):\n        assert data.encode('ascii', error_handler) == expected, ('assertEqual', data.encode('ascii', error_handler), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "ASCIITest.test_encode_surrogateescape_error" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    try:\n        '\\udc80\u00ff'.encode('ascii', 'surrogateescape')\n    except UnicodeEncodeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
@@ -469,8 +535,32 @@ test "ASCIITest.test_decode" {
     assert detail == "ok" , "GOT<" + detail + ">";
 }
 
+test "ASCIITest.test_decode_error" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    for data, error_handler, expected in ((b'[\\x80\\xff]', 'ignore', '[]'), (b'[\\x80\\xff]', 'replace', '[\ufffd\ufffd]'), (b'[\\x80\\xff]', 'surrogateescape', '[\\udc80\\udcff]'), (b'[\\x80\\xff]', 'backslashreplace', '[\\\\x80\\\\xff]')):\n        assert data.decode('ascii', error_handler) == expected, ('assertEqual', data.decode('ascii', error_handler), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "Latin1Test.test_encode" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    for data, expected in (('abc', b'abc'), ('\\x80\u00e9\u00ff', b'\\x80\\xe9\\xff')):\n        assert data.encode('latin1') == expected, ('assertEqual', data.encode('latin1'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "Latin1Test.test_encode_errors" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    for data, error_handler, expected in (('[\u20ac\\udc80]', 'ignore', b'[]'), ('[\u20ac\\udc80]', 'replace', b'[??]'), ('[\u20ac\\U000abcde]', 'backslashreplace', b'[\\\\u20ac\\\\U000abcde]'), ('[\u20ac\\udc80]', 'xmlcharrefreplace', b'[&#8364;&#56448;]'), ('[\\udc80\\udcff]', 'surrogateescape', b'[\\x80\\xff]')):\n        assert data.encode('latin1', error_handler) == expected, ('assertEqual', data.encode('latin1', error_handler), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
 test "Latin1Test.test_encode_surrogateescape_error" {
     (ok, detail) = p2_libtest_run_snippet("def _t():\n    try:\n        '\\udc80\u20ac'.encode('latin1', 'surrogateescape')\n    except UnicodeEncodeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
+    assert ok , "RUN<" + detail + ">";
+    assert detail == "ok" , "GOT<" + detail + ">";
+}
+
+test "Latin1Test.test_decode" {
+    (ok, detail) = p2_libtest_run_snippet("def _t():\n    for data, expected in ((b'abc', 'abc'), (b'[\\x80\\xff]', '[\\x80\u00ff]')):\n        assert data.decode('latin1') == expected, ('assertEqual', data.decode('latin1'), expected)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n");
     assert ok , "RUN<" + detail + ">";
     assert detail == "ok" , "GOT<" + detail + ">";
 }
