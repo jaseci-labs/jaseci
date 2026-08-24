@@ -859,7 +859,11 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
             finit = True;
             frepr = True;
             fcompare = True;
-            fkw_only = False;
+            # Default resolution for kw_only is the decorator's class-level
+            # param (CPython _get_field leaves it missing and _process_class
+            # fills from the class param); an explicit field(kw_only=...)
+            # carried on a DCField attribute overrides below.
+            fkw_only = params.kw_only;
             if name in cls.attrs {
                 existing = cls.attrs[name];
                 if isinstance(existing, DCField) {
@@ -879,6 +883,8 @@ def dc_collect_fields(cls: PyClass, anns: PyObj, params: DCParams) -> PyObj {
                     }
                 } else {
                     new_default = existing;
+                    # Plain non-field default: class-param resolution already
+                    # held when fkw_only was initialized.
                 }
             }
             mutable = dc_mutable_type_name(new_default);
