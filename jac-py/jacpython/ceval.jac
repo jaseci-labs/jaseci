@@ -745,6 +745,108 @@ def _jac_make_live_ns_view(proxy):
         get = collections.abc.Mapping.get
     return _LiveNsView()
 
+def _jac_make_live_list(pylist):
+    # Live host view over a guest PyList crossing to host code (fp-e87c live-
+    # view cluster): reads route through mp_subscript, writes through
+    # mp_ass_subscript / the raw items table -- host mutations land in the
+    # guest list and guest appends stay visible to the host. A MutableSequence
+    # (not a list subclass) because the storage is the Jac PyObj items table,
+    # not a host list; documented deltas: isinstance(x, list) is False, ==
+    # against a real list falls back to identity (Sequence defines no __eq__),
+    # and __iter__ walks by index through mp_subscript so it reflects appends
+    # made during iteration instead of snapshotting.
+    import collections.abc
+    class _LiveListView(collections.abc.MutableSequence):
+        def __getitem__(self, i):
+            r = pylist.mp_subscript(from_host(i))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+            return to_host(r)
+        def __setitem__(self, i, v):
+            r = pylist.mp_ass_subscript(from_host(i), from_host(v))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def __delitem__(self, i):
+            # PyList carries mp_del_subscript, so del works here (unlike the ns
+            # view, whose proxy has no delete protocol).
+            r = pylist.mp_del_subscript(from_host(i))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def __len__(self):
+            return len(pylist.items)
+        def __iter__(self):
+            i = 0
+            while True:
+                r = pylist.mp_subscript(PyInt(t="int", val=i))
+                if isinstance(r, PyError):
+                    return
+                yield to_host(r)
+                i = i + 1
+        def insert(self, i, v):
+            # CPython list.insert clamps out-of-range positions; do the same on
+            # the backing table (MutableSequence.append routes through here).
+            n = len(pylist.items)
+            if i < 0:
+                i = max(0, n + i)
+            else:
+                i = min(i, n)
+            pylist.items.insert(i, from_host(v))
+        def __repr__(self):
+            return repr([x for x in self])
+    return _LiveListView()
+
+def _jac_make_live_dict(pydict):
+    # Live host view over a guest PyDict: same contract as _jac_make_live_list.
+    # Errors re-raise through _jac_reraise_pyerror so KeyError/IndexError carry
+    # the exact guest type+args (KeyError('k'), "unhashable type") instead of a
+    # resynthesized message. __contains__/get inherit from MutableMapping, whose
+    # try-getitem shape propagates TypeError for unhashable keys like CPython.
+    import collections.abc
+    class _LiveDictView(collections.abc.MutableMapping):
+        def __getitem__(self, k):
+            r = pydict.mp_subscript(from_host(k))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+            return to_host(r)
+        def __setitem__(self, k, v):
+            r = pydict.mp_ass_subscript(from_host(k), from_host(v))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def __delitem__(self, k):
+            r = pydict.mp_del_subscript(from_host(k))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def __iter__(self):
+            return iter([to_host(k) for k in pydict.dict_keys()])
+        def __len__(self):
+            return len(pydict.items)
+        def __repr__(self):
+            return repr(dict(self))
+    return _LiveDictView()
+
+def _jac_make_live_set(pyset):
+    # Live host view over a guest MUTABLE PySet (frozensets never cross here --
+    # the dispatcher refuses them): MutableSet's add/discard/contains surface.
+    import collections.abc
+    class _LiveSetView(collections.abc.MutableSet):
+        def __contains__(self, v):
+            return pyset.set_contains(from_host(v))
+        def __iter__(self):
+            return iter([to_host(m) for m in pyset.set_members()])
+        def __len__(self):
+            return len(pyset.items)
+        def add(self, v):
+            r = pyset.set_add(from_host(v))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def discard(self, v):
+            r = pyset.set_discard(from_host(v))
+            if isinstance(r, PyError):
+                _jac_reraise_pyerror(r)
+        def __repr__(self):
+            return repr(set(self))
+    return _LiveSetView()
+
 def _jac_make_host_trampoline(native_fn):
     # Native-callable -> host round-trip. When a native PyFunction crosses the
     # host boundary (to_host), it can't become None -- host machinery that wraps
@@ -3933,6 +4035,27 @@ obj PyFuncKwDefaults(PyDict) {
 # immutable so a re-entrant reference degrades to a host proxy instead of
 # recursing forever.
 glob _from_host_memo: dict[int, PyObj] = {};
+
+# Explicit opt-in live bridge (fp-e87c ContextVar cluster): consumers that need
+# WRITE-THROUGH container crossing -- guest mutations visible to host code and
+# vice versa -- call this INSTEAD of the default snapshot to_host arms. The
+# default MUTABLE_COPY policy for plain list/dict/set stays untouched (existing
+# consumers rely on snapshot isolation); live views are minted only through
+# this explicit path. Returns None for anything not a live-viewable mutable
+# container (frozenset included) so callers can fall back to to_host.
+def live_container_bridge(value: PyObj) -> any {
+    match value {
+        case PyList():
+            return _jac_make_live_list(value);
+        case PyDict():
+            return _jac_make_live_dict(value);
+        case PySet():
+            if not (value as PySet).frozen {
+                return _jac_make_live_set(value as PySet);
+            }
+    }
+    return None;
+}
 
 def from_host(raw: any) -> PyObj {
     if raw is None {

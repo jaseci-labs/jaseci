@@ -42,6 +42,7 @@ import from ceval {
     exec_module,
     to_host,
     from_host,
+    live_container_bridge,
     py_compare,
     py_hash,
     py_subscript,
