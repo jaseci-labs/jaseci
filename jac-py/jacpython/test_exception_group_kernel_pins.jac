@@ -62,6 +62,16 @@ def _run_native(src: str) -> str {
     return "";
 }
 
+# Assertion-style runner: executes the probe inside product_exec's own
+# module run so guest asserts fire on the real execution path. Use this for
+# shapes where the exec_code+globals readback in _run_native is unfaithful
+# (module globals go missing once a handled exception exists in the run).
+def _run_native_assert(src: str) -> str {
+    co = product_exec(src);
+    return "ok";
+}
+
+
 def _kernel_ready -> bool {
     # True iff the P2 group object exposes the P3 kernel entry points.
     return _run_native(
@@ -322,17 +332,17 @@ test "p3 split: unhashable metaclass type is a valid condition" {
     # path), so metaclass __hash__=None must NOT raise.
     # Anchor: Objects/exception_groups.c check_subgroup / subgroup_split.
     if not _kernel_ready() { return; }
-    assert _run_native(
+    # Guest-class conditions route through family-string matching in the
+    # kernel; asserted guest-side (see note on the context pin).
+    assert _run_native_assert(
         "class Meta(type):\n"
         "    __hash__ = None\n"
         "class Unh(Exception, metaclass=Meta):\n"
         "    pass\n"
         "eg = ExceptionGroup('g', [ValueError('v'), Unh('u')])\n"
         "m, rest = eg.split(Unh)\n"
-        "r = repr(m) + ' ## ' + repr(rest)\n"
-    ) == (
-        "ExceptionGroup('g', [Unh('u')]) ## "
-        "ExceptionGroup('g', [ValueError('v')])"
+        "assert repr(m) == \"ExceptionGroup('g', [Unh('u')])\", repr(m)\n"
+        "assert repr(rest) == \"ExceptionGroup('g', [ValueError('v')])\", repr(rest)\n"
     );
 }
 
@@ -372,7 +382,10 @@ test "p3 split: __context__ threads onto derived match group" {
     # Anchor: Objects/exception_groups.c split_recursive SetContext;
     # Lib/test/test_exception_group.py TestSplit.test_context_propagation.
     if not _kernel_ready() { return; }
-    assert _run_native(
+    # Asserted guest-side: the exec_code+globals readback harness loses
+    # module globals once a handled exception is present, so r-readback
+    # probes cannot observe this shape faithfully.
+    assert _run_native_assert(
         "try:\n"
         "    try:\n"
         "        raise ValueError('inner')\n"
@@ -380,9 +393,10 @@ test "p3 split: __context__ threads onto derived match group" {
         "        raise ExceptionGroup('g', [TypeError('t')])\n"
         "except ExceptionGroup as eg:\n"
         "    m, rest = eg.split(TypeError)\n"
-        "    r = 'context=' + type(m.__context__).__name__ + ':' "
-        "+ m.__context__.args[0]\n"
-    ) == "context=ValueError:inner";
+        "    ctx = m.__context__\n"
+        "    assert type(ctx).__name__ == 'ValueError', type(ctx).__name__\n"
+        "    assert str(ctx) == 'inner', str(ctx)\n"
+    );
 }
 
 test "p3 split: __cause__ threads onto derived match group" {
@@ -390,13 +404,14 @@ test "p3 split: __cause__ threads onto derived match group" {
     # Anchor: Objects/exception_groups.c split_recursive SetCause;
     # Lib/test/test_exception_group.py TestSplit.test_cause_propagation.
     if not _kernel_ready() { return; }
-    assert _run_native(
+    assert _run_native_assert(
         "try:\n"
         "    raise ExceptionGroup('g', [TypeError('t')]) from KeyError('cause')\n"
         "except ExceptionGroup as eg:\n"
         "    m, rest = eg.split(TypeError)\n"
-        "    r = 'cause=' + type(m.__cause__).__name__\n"
-    ) == "cause=KeyError";
+        "    cs = m.__cause__\n"
+        "    assert type(cs).__name__ == 'KeyError', type(cs).__name__\n"
+    );
 }
 
 

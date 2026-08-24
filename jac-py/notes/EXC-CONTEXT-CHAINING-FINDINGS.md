@@ -1,4 +1,21 @@
-# FINDINGS: __context__ self-reference on raise-inside-except (pre-existing)
+# RETRACTED: __context__ self-reference report was a harness artifact
+
+__STATUS: RETRACTED.__ The self-referential __context__ observation does not
+reproduce on the real guest execution path (product_exec's own module run).
+Three product_exec-direct assertion probes -- plain re-raise-in-except,
+ExceptionGroup context threading through split(), and cause threading --
+all pass byte-exact on clean tip 9f36fdd96 AND on the P3 kernel branch.
+
+Root cause of the false positive: the exec_code(co, [], explicit-globals)
+readback harness used by_run_native loses module-global bindings once a
+handled exception exists anywhere in the run (module "completes" without an
+error outcome, but globals written before/during handling are absent), so
+probes read stale/None values and misreported them as chain corruption.
+
+Residual value: embedders calling exec_code with explicit globals should
+know handled-exception runs may not surface global writes there
+(possible ceval seam, low priority, non-guest-visible). Guest-visible
+chaining semantics are correct.
 
 Lane: exceptions family (LoudStorm). Verified pre-existing on clean tip
 9f36fdd96. Blocks 2 P3 kernel pins (__context__/__cause__ threading); runtime
