@@ -1170,23 +1170,6 @@ impl JacGraph.build_edge(
     return builder;
 }
 
-def _require_write_on_root(jctx: ExecutionContext, owner: UUID) {
-    target = jctx.mem.get(owner);
-    if not isinstance(target, NodeAnchor) or not target.is_populated() {
-        raise ValueError(f"owner root {owner} does not exist");
-    }
-    if not isinstance(target.archetype, Root) {
-        raise ValueError(f"owner {owner} is not a root");
-    }
-    level = JacRuntimeInterface.check_access_level(target);
-    if level.value < AccessLevel.WRITE.value {
-        raise PermissionError(
-            f"caller root may not create content owned by root {owner}: "
-            'requires WRITE on that root'
-        );
-    }
-}
-
 impl JacPersistence.save(
     `obj: (Archetype | Anchor), owner: (UUID | None) = None
 ) -> None {
@@ -1202,7 +1185,20 @@ impl JacPersistence.save(
     if (not anchor.persistent and not anchor.root) {
         anchor.persistent = True;
         if (owner is not None and owner != jctx.user_root.id) {
-            _require_write_on_root(jctx, owner);
+            target = jctx.mem.get(owner);
+            if not isinstance(target, NodeAnchor) or not target.is_populated() {
+                raise ValueError(f"owner root {owner} does not exist");
+            }
+            if not isinstance(target.archetype, Root) {
+                raise ValueError(f"owner {owner} is not a root");
+            }
+            if JacRuntimeInterface.check_access_level(target).value
+                < AccessLevel.WRITE.value {
+                raise PermissionError(
+                    f"caller root may not create content owned by root {owner}: "
+                    'requires WRITE on that root'
+                );
+            }
         }
         anchor.`root = owner if owner is not None else jctx.user_root.id;
     }
