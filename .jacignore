@@ -67,18 +67,8 @@ jac/jaclang/compiler/type_system/type_evaluator.impl/ts_declarations.impl.jac
 jac/jaclang/compiler/type_system/type_evaluator.impl/type_evaluator.impl.jac
 jac/jaclang/compiler/type_system/type_evaluator.jac
 
-# jac0core runtime/archetype.
-jac/jaclang/jac0core/archetype.jac
-jac/jaclang/jac0core/impl/archetype.impl.jac
-jac/jaclang/jac0core/impl/runtime.impl.jac
-jac/jaclang/jac0core/runtime.jac
-
 # Runtime library.
 jac/jaclang/runtimelib/client/targets/desktop/native/cef/cef_subprocess.jac
-jac/jaclang/runtimelib/client_runtime.jac
-jac/jaclang/runtimelib/impl/client_runtime.impl.jac
-jac/jaclang/runtimelib/impl/serializer.impl.jac
-jac/jaclang/runtimelib/serializer.jac
 
 # ECMAScript backend.
 jac/jaclang/compiler/passes/ecmascript/esast_gen_pass.jac
@@ -87,4 +77,3 @@ jac/jaclang/compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac
 # Example apps.
 jac/examples/mobui/hello/main.jac
 jac/examples/mobui/littlex/main.jac
-jac/examples/todo_app/main.jac

@@ -665,6 +665,7 @@ obj TypeEvaluator {
     def bind_type_vars_to_opaque(
         param_type: TypeBase, bindings: dict[str, TypeBase], fill: TypeBase
     ) -> None;
+    def _member_is_metaclass_only(cls_type: ClassType, expr: FuncCall) -> bool;
 
     def class_constructor_callables(cls_type: ClassType) -> list[FunctionType];
     def _infer_type_args_from_method(

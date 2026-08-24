@@ -337,6 +337,22 @@ impl TypeEvaluator._lookup_class_member(
             return ClassMember(sym, cls, overloaded_syms);
         }
     }
+
+    # A stub written in Python syntax cannot declare a member whose name is a
+    # Python keyword, so the ambient JS globals spell `Object.is` as `is_` and
+    # `Array.from` as `from_`. Jac reaches those keyword-escaped -- Object.`is
+    # -- which matches nothing literally. Honour the stub's spelling. Only a
+    # keyword can take this path, and only once the literal name has missed,
+    # so a class declaring the escaped name itself still wins.
+    import keyword;
+    if keyword.iskeyword(member) {
+        for cls in base_type.shared.mro {
+            escaped_syms: list[Symbol] = [];
+            if sym := cls.lookup_member_symbol(member + "_", escaped_syms) {
+                return ClassMember(sym, cls, escaped_syms);
+            }
+        }
+    }
     return None;
 }
 

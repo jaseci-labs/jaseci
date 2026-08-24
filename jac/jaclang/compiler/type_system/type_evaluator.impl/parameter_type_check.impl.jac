@@ -205,7 +205,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         bindings = self._collect_type_var_bindings(
             caller_type, expr, is_unbound_call=is_unbound_call
         );
-        ret: TypeBase = caller_type.return_type or UnknownType();
+            ret: TypeBase = caller_type.return_type or UnknownType();
         if bindings {
             specialized = caller_type.specialize_func_type_vars(bindings);
             ret = specialized.return_type or UnknownType();
@@ -1107,8 +1107,35 @@ impl TypeEvaluator._collect_type_var_bindings(
         if isinstance(_recv_t, ClassType)
             and _recv_t._shared is not None
             and _recv_t.shared.class_name != "object" {
-            if not _recv_t.is_instance() and _recv_t.is_instantiable() {
-                _recv_t = _recv_t.clone_as_instance();
+            if self._is_type_subscript(_recv_t) {
+                # The receiver is spelled `type[X]`, so a member reached
+                # through it is X's and Self is X -- `cls.__new__(cls)` builds
+                # an X, not another type[X].
+                _inner = _recv_t.private.type_args[0];
+                if isinstance(_inner, ClassType)
+                    and not self._member_is_metaclass_only(
+                        _inner.clone_as_class(), expr
+                    ) {
+                    _recv_t = self._convert_to_instance(_inner);
+                }
+            } elif not _recv_t.is_instance() and _recv_t.is_instantiable() {
+                # `Base.__subclasses__()` reaches a member of the metaclass,
+                # and there the receiver already IS an instance -- of `type`.
+                # Binding Self to a Base instance makes `-> list[Self]` read as
+                # list[Base] rather than the list[type[Base]] it actually is.
+                # Spell it as the `type[Base]` subscript rather than the bare
+                # class object, so comparing it against a `type` annotation
+                # does not convert it back to a Base instance. The class's own
+                # MRO is consulted first, so a name the class itself declares
+                # (__init__, __eq__) still takes the instance reading.
+                if self._member_is_metaclass_only(_recv_t, expr)
+                    and self.prefetch.type_class is not None {
+                    _meta_self = self.prefetch.type_class.clone_as_instance();
+                    _meta_self.private.type_args = [_recv_t.clone_as_instance()];
+                    _recv_t = _meta_self;
+                } else {
+                    _recv_t = _recv_t.clone_as_instance();
+                }
             }
             bindings["Self"] = _recv_t;
         }
@@ -1189,4 +1216,28 @@ impl TypeEvaluator._collect_type_var_bindings(
     }
 
     return bindings;
+}
+
+
+"""Whether the member `expr` reaches on class object `cls_type` is one the
+class itself does not declare and only its metaclass provides."""
+impl TypeEvaluator._member_is_metaclass_only(
+    cls_type: ClassType, expr: FuncCall
+) -> bool {
+    if not isinstance(expr.target, AtomTrailer)
+        or not isinstance(expr.target.right, Name) {
+        return False;
+    }
+    member_name = expr.target.right.value;
+    if self._lookup_class_member(cls_type, member_name) is not None {
+        return False;
+    }
+
+    meta_cls = self._metaclass_of(cls_type) or self.prefetch.type_class;
+    if meta_cls is None {
+        return False;
+    }
+    meta_inst = self._convert_to_instance(meta_cls);
+    return isinstance(meta_inst, ClassType)
+        and self._lookup_object_member(meta_inst, member_name) is not None;
 }
