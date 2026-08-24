@@ -2670,6 +2670,37 @@ impl TypeEvaluator._get_type_of_symbol_decl(
                             return value_type;
                         }
                     }
+
+                    if (
+                        isinstance(declared_inst, ClassType)
+                        and declared_inst.is_builtin(
+                            ["list", "dict", "set", "frozenset", "tuple"]
+                        )
+                        and not declared_inst.private.type_args
+                        and node_.parent.value is not None
+                    ) {
+                        value_type = self.get_type_of_expression(node_.parent.value);
+                        if (
+                            isinstance(value_type, ClassType)
+                            and value_type._shared is not None
+                            and value_type.shared.same_class(declared_inst.shared)
+                            and value_type.private.type_args
+                            and not any(
+                                isinstance(_arg, UnknownType)
+                                for _arg in value_type.private.type_args
+                            )
+                        ) {
+                            _adopted = value_type.clone_as_instance();
+                            _adopted.private.type_args = [
+                                (
+                                    AnyType()
+                                        if isinstance(_arg, UnionType)
+                                        else self._widen_literal_for_declaration(_arg)
+                                ) for _arg in value_type.private.type_args
+                            ];
+                            return _adopted;
+                        }
+                    }
                     return declared_inst;
                 } else {
                     if node_.parent.value is not None {

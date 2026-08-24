@@ -30,7 +30,7 @@ with entry {
     bare_t: tuple = ();
     a ++> bare_t;                                    # E1118
     a ++> make_bare_tuple();                         # E1118
-    bare_s: set = {1};
+    bare_s: set = set();
     a ++> bare_s;                                    # E1118
     a ++> make_bare_set();                           # E1118
     bare_f: frozenset = frozenset();

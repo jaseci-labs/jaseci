@@ -2517,7 +2517,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
             if (
                 var_type is None
                 and value is not None
-                and self._tb_is(_decl_ty, ("tuple", ))
+                and self._tb_is(_decl_ty, ("tuple", "list", "dict", "set", "frozenset"))
                 and not self._tb_args(_decl_ty)
             ) {
                 var_type = value.type;

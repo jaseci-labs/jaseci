@@ -46,7 +46,7 @@ glob JCIR_BUILTIN_NAMES: frozenset[str] = frozenset(
          }
              | set(sized_scalar_names())
      ),
-     JCIR_AMBIENT_TYPING_NAMES: frozenset = frozenset(
+     JCIR_AMBIENT_TYPING_NAMES: frozenset[str] = frozenset(
          {
              "Annotated",
              "AsyncIterable",

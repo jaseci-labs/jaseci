@@ -351,16 +351,45 @@ obj _MatGen {
             out.append(ind + f"{v} = _py_none();");
             return False;
         }
+        _vt_arms = [a.strip() for a in _split_union(_norm(vt))];
+        _vt_core = [
+            a
+            for a in _vt_arms
+            if a not in ("None", "NoneType")
+        ];
+        _vt_opt = len(_vt_arms) > len(_vt_core);
+        _vcb = _base_of(_vt_core[0]) if len(_vt_core) == 1 else "";
+        _v_scalar = len(_vt_core) == 1 and _vt_core[0] in _SCALARS;
+        _v_container = _vcb in ("list", "set");
+        _v_node = (
+            len(_vt_core) == 1
+            and not _v_scalar
+            and not _v_container
+            and (_vcb in self.ns or _vcb == "SubTag")
+        );
+        if not (_v_scalar or _v_container or _v_node) {
+            self.warn(
+                f"dict value type {repr(
+                    vt
+                )} has no materializer -> field erased to None"
+            );
+            out.append(ind + f"{v} = _py_none();");
+            return False;
+        }
         out.append(ind + f"{v} = PyDict_New();");
         out.append(ind + f"for (dk_{u}, dv_{u}) in {expr}.items() {{");
         out.append(ind + f"    kh_{u} = {kexpr};");
-        vb = _base_of(vt);
-        if vt in _SCALARS {
-            out.append(ind + f"    vh_{u} = " + self.scalar_expr(f"dv_{u}", vt) + ";");
+        vb = _vcb;
+        if _v_scalar {
+            out.append(
+                ind + f"    vh_{u} = " + self.scalar_expr(f"dv_{u}", _vt_core[0]) + ";"
+            );
         } elif vb == "list" {
-            self.emit_list(f"vh_{u}", f"dv_{u}", _inner(vt), out, ind + "    ", u);
+            self.emit_list(
+                f"vh_{u}", f"dv_{u}", _inner(_vt_core[0]), out, ind + "    ", u
+            );
         } elif vb == "set" {
-            _sv = _norm(_inner(vt));
+            _sv = _norm(_inner(_vt_core[0]));
             if _sv in _SCALARS {
                 out.append(ind + f"    vh_{u} = PySet_New(0);");
                 out.append(ind + f"    for sv_{u} in dv_{u} {{");
@@ -373,8 +402,13 @@ obj _MatGen {
             } else {
                 out.append(ind + f"    vh_{u} = _py_none();");
             }
-        } elif vb in self.ns and not self.is_chain(vb) {
+        } elif vb in self.ns and not self.is_chain(vb) and not _vt_opt {
             out.append(ind + f"    vh_{u} = _emit_{vb}(dv_{u});");
+        } elif _vt_opt {
+            out.append(
+                ind
+                    + f"    vh_{u} = _emit_node(dv_{u}) if dv_{u} is not None else _py_none();"
+            );
         } else {
             out.append(ind + f"    vh_{u} = _emit_node(dv_{u});");
         }
@@ -467,8 +501,14 @@ obj _MatGen {
             if list_arms {
                 la_elem = _inner(_norm(list_arms[0]));
                 la_base = _base_of(la_elem) if la_elem else "UniNode";
+                la_ann = " | ".join(
+                    [
+                        f"list[{_base_of(_inner(_norm(a))) or 'UniNode'}]"
+                        for a in list_arms
+                    ]
+                );
                 buf.append(pre + f"if isinstance({expr}, list) {{");
-                buf.append(pre + f"    tl_{uid}: list[{la_base}] = {expr};");
+                buf.append(pre + f"    tl_{uid}: {la_ann} = {expr};");
                 self.emit_list(v, f"tl_{uid}", la_elem, buf, pre + "    ", uid);
                 first_kw = "} elif";
             }

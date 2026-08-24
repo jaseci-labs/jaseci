@@ -9,9 +9,11 @@ import time;
 import webbrowser;
 import from urllib.parse { parse_qs, quote, urlparse }
 
-glob _LOOPBACK_HOSTS: frozenset = frozenset({"127.0.0.1", "localhost", "::1"});
+glob _LOOPBACK_HOSTS: frozenset[str] = frozenset(
+         {"127.0.0.1", "localhost", "::1"}
+     );
 
-glob _SAME_SITE_VALUES: frozenset = frozenset({"same-origin", "none"});
+glob _SAME_SITE_VALUES: frozenset[str] = frozenset({"same-origin", "none"});
 
 glob DEFAULT_PREFIX: str = "/__jac",
      ALLOWED_PLATFORMS: tuple = ("google", "github", "apple"),
