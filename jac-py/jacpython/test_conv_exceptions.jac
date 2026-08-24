@@ -70,8 +70,6 @@ test "conv exceptions: except tuple subclass and non-match routing" {
     # test_raise.py/test_exceptions.py matching semantics: instances match via
     # the handler tuple; a non-matching type falls through to later handlers
     # exactly as CPython's exception normal form does.
-    # NOTE: a USER subclass of a builtin (class MyErr(ValueError)) is currently
-    # NOT matched by `except ValueError` natively -- exc-hierarchy lane.
     src = "class TestExceptMatch(unittest.TestCase):\n"
     "    def test_tuple_subclass_nonmatch(self):\n"
     "        hits = []\n"

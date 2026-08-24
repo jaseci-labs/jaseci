@@ -2092,19 +2092,34 @@ glob EXC_PARENT: dict[str, str] = {
     "UserWarning": "Warning",
 };
 
+# Extra direct parents for multiple-inheritance nodes of the builtin tree.
+# CPython has exactly one (``class ExceptionGroup(BaseExceptionGroup,
+# Exception)``), which the single-parent EXC_PARENT chain cannot express:
+# ``issubclass(ExceptionGroup, BaseExceptionGroup)`` must hold even though
+# BaseExceptionGroup is not reachable through Exception. Consulted by
+# exc_is_subclass_of alongside EXC_PARENT.
+glob EXC_EXTRA_PARENTS: dict[str, str] = {
+    "ExceptionGroup": "BaseExceptionGroup",
+};
+
 # Membership test for the builtin exception tree (every name in EXC_PARENT
 # plus the BaseException root).
 def is_builtin_exception_name(name: str) -> bool {
     return name == "BaseException" or name in EXC_PARENT;
 }
 
-# Name-level subclass test over EXC_PARENT (inclusive of `name == base`).
+# Name-level subclass test over EXC_PARENT (inclusive of `name == base`),
+# with multiple-inheritance parents from EXC_EXTRA_PARENTS.
 def exc_is_subclass_of(name: str, base: str) -> bool {
     if name == base {
         return True;
     }
     cur = name;
     while cur in EXC_PARENT {
+        if cur in EXC_EXTRA_PARENTS
+            and exc_is_subclass_of(EXC_EXTRA_PARENTS[cur], base) {
+            return True;
+        }
         cur = EXC_PARENT[cur];
         if cur == base {
             return True;
