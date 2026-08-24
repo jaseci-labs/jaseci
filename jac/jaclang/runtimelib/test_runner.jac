@@ -146,6 +146,7 @@ def run_tests(
     filter: str = "",
     xit: bool = False,
     maxfail: (int | None) = None,
+    collect_only: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
     jobs: (str | int | None) = None

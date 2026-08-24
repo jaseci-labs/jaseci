@@ -1819,7 +1819,8 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac test --xit --verbose',
                     'Stop on first failure with verbose output'
-                )
+                ),
+                ('jac test --collect_only', 'List test files without running them')
             ],
             args=[
                 ArgMeta(
@@ -1853,6 +1854,13 @@ def _command_routes -> list[CommandMeta] {
                 ),
                 ArgMeta(
                     name='directory', `default='', help='Test directory', short='d'
+                ),
+                ArgMeta(
+                    name='collect_only',
+                    typ='bool',
+                    `default=False,
+                    help='List collected test files without running them',
+                    short='c'
                 ),
                 ArgMeta(
                     name='verbose',

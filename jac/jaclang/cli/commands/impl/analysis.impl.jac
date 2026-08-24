@@ -1225,6 +1225,7 @@ impl `test(
     xit: bool = False,
     maxfail: int = None,
     directory: str = "",
+    collect_only: bool = False,
     verbose: bool = False,
     ignore: (list | None) = None
 ) -> int {
@@ -1283,6 +1284,7 @@ impl `test(
             filter=filter,
             xit=xit,
             maxfail=maxfail,
+            collect_only=collect_only,
             verbose=verbose,
             ignore=[
                 p

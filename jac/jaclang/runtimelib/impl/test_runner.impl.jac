@@ -1324,6 +1324,7 @@ impl run_tests(
     filter: str = "",
     xit: bool = False,
     maxfail: (int | None) = None,
+    collect_only: bool = False,
     verbose: bool = False,
     ignore: (list[str] | None) = None,
     jobs: (str | int | None) = None
@@ -1336,6 +1337,17 @@ impl run_tests(
         sys.stdout.write("no tests ran (no test files collected)\n");
         sys.stdout.flush();
         return EXIT_NO_TESTS;
+    }
+    if collect_only {
+        for path in plan.files {
+            rel = os.path.relpath(path);
+            sys.stdout.write((path if rel.startswith("..") else rel) + "\n");
+        }
+        count = len(plan.files);
+        plural = "" if count == 1 else "s";
+        sys.stdout.write(f"\n{count} test file{plural} collected\n");
+        sys.stdout.flush();
+        return EXIT_OK;
     }
     selector = _build_selector(test_name, filter);
     workers = resolve_jobs(jobs);

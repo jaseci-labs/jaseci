@@ -272,6 +272,12 @@ def precommit(
         ),
         Arg.create("directory", `default="", help="Test directory", short="d"),
         Arg.create(
+            "collect_only",
+            typ=bool,
+            `default=False,
+            help="List collected test files without running them"
+        ),
+        Arg.create(
             "verbose",
             typ=bool,
             `default=False,
@@ -299,6 +305,7 @@ def precommit(
         ("jac test a.jac b.jac", "Run tests in several files"),
         ("jac test --test_name my_test", "Run only test_my_test"),
         ("jac test --xit --verbose", "Stop on first failure with verbose output"),
+        ("jac test --collect_only", "List test files without running them"),
 
     ],
     group="analysis"
@@ -310,6 +317,7 @@ def `test(
     xit: bool = False,
     maxfail: int = None,
     directory: str = "",
+    collect_only: bool = False,
     verbose: bool = False,
     ignore: (list | None) = None
 ) -> int;
