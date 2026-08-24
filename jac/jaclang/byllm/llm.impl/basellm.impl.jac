@@ -1837,10 +1837,15 @@ impl BaseLLM._force_final_answer(mt_run: MTRuntime) -> object {
         content="Based on the tool calls and their results above, provide only your final answer.",
     );
     mt_run.add_scaffolding_message(final_instruction);
-    original_tools = mt_run.tools;
     original_call_kind = mt_run._call_kind;
     finish_tool_obj = mt_run.get_tool("finish_tool");
-    mt_run.tools = [finish_tool_obj] if finish_tool_obj else [];
+    original_tool_choice = mt_run.call_params.pop("tool_choice", None);
+    if finish_tool_obj {
+        mt_run.call_params["tool_choice"] = {
+            "type": "function",
+            "function": {"name": "finish_tool"}
+        };
+    }
     mt_run._call_kind = "final_answer_restream";
     try {
         final_resp = self.dispatch_no_streaming(mt_run);
@@ -1854,8 +1859,11 @@ impl BaseLLM._force_final_answer(mt_run: MTRuntime) -> object {
         }
         return str(final_resp.output) if final_resp.output else "";
     } finally {
-        mt_run.tools = original_tools;
         mt_run._call_kind = original_call_kind;
+        mt_run.call_params.pop("tool_choice", None);
+        if original_tool_choice is not None {
+            mt_run.call_params["tool_choice"] = original_tool_choice;
+        }
     }
 }
 
@@ -1868,10 +1876,7 @@ impl BaseLLM._stream_final_answer(mt_run: MTRuntime) -> Generator[str, None, Non
     );
     mt_run.add_scaffolding_message(final_instruction);
 
-    original_tools = mt_run.tools;
     original_call_kind = mt_run._call_kind;
-    finish_tool_obj = mt_run.get_tool("finish_tool");
-    mt_run.tools = [finish_tool_obj] if finish_tool_obj else [];
     mt_run._call_kind = "final_answer_restream";
 
     original_tool_choice = mt_run.call_params.pop("tool_choice", None);
@@ -1883,7 +1888,6 @@ impl BaseLLM._stream_final_answer(mt_run: MTRuntime) -> Generator[str, None, Non
             yield token;
         }
     } finally {
-        mt_run.tools = original_tools;
         mt_run._call_kind = original_call_kind;
         mt_run.call_params.pop("tool_choice", None);
         if original_tool_choice is not None {
@@ -1908,15 +1912,21 @@ impl BaseLLM._attempt_recovery(mt_run: MTRuntime) -> CompletionResult | None {
         content="You must use finish_tool to return your response. Call finish_tool now.",
     );
     mt_run.add_scaffolding_message(recovery_msg);
-    original_tools = mt_run.tools;
     original_call_kind = mt_run._call_kind;
-    mt_run.tools = [finish_tool_obj];
     mt_run._call_kind = "recovery";
+    original_tool_choice = mt_run.call_params.pop("tool_choice", None);
+    mt_run.call_params["tool_choice"] = {
+        "type": "function",
+        "function": {"name": "finish_tool"}
+    };
     try {
         return self.dispatch_no_streaming(mt_run);
     } finally {
-        mt_run.tools = original_tools;
         mt_run._call_kind = original_call_kind;
+        mt_run.call_params.pop("tool_choice", None);
+        if original_tool_choice is not None {
+            mt_run.call_params["tool_choice"] = original_tool_choice;
+        }
     }
 }
 
