@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_contains.py",
+    "-o",
+    "/var/tmp/laneb-out/test_contains",
+    "--name",
+    "conv_contains"
+  ],
+  "generated_at": "2026-08-24T10:31:08",
+  "hashes": {
+    "pins_jac": "fb29fa0868e93aed99e6e44b78d75328895b68f0830a59c084ecfcfce6d24b6e"
+  },
+  "source_file": "reference/cpython/Lib/test/test_contains.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "contains",
+  "pins_file": "conv_contains_pins.jac",
+  "pins": [
+    {
+      "ident": "TestContains.test_nonreflexive",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from collections import deque\nfrom test.support import NEVER_EQ\n\ndef _t():\n    values = (float('nan'), 1, None, 'abc', NEVER_EQ)\n    constructors = (list, tuple, dict.fromkeys, set, frozenset, deque)\n    for constructor in constructors:\n        container = constructor(values)\n        for elem in container:\n            assert elem in container, ('assertIn', elem, container)\n        assert container == constructor(values), ('assertTrue', container == constructor(values))\n        assert container == container, ('assertTrue', container == container)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestContains.test_block_fallback",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class ByContains(object):\n\n        def __contains__(self, other):\n            return False\n    c = ByContains()\n\n    class BlockContains(ByContains):\n        \"\"\"Is not a container\n\n            This class is a perfectly good iterable (as tested by\n            list(bc)), as well as inheriting from a perfectly good\n            container, but __contains__ = None prevents the usual\n            fallback to iteration in the container protocol. That\n            is, normally, 0 in bc would fall back to the equivalent\n            of any(x==0 for x in bc), but here it's blocked from\n            doing so.\n            \"\"\"\n\n        def __iter__(self):\n            while False:\n                yield None\n        __contains__ = None\n    bc = BlockContains()\n    assert not 0 in c, ('assertFalse', 0 in c)\n    assert not 0 in list(bc), ('assertFalse', 0 in list(bc))\n    try:\n        (lambda: 0 in bc)()\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestContains.test_common_tests",
+      "reason": "unresolved-name:base_set"
+    },
+    {
+      "ident": "TestContains.test_builtin_sequence_types",
+      "reason": "uses-self.aList"
+    }
+  ],
+  "counts": {
+    "extracted": 4,
+    "pinned": 2,
+    "quarantined": 2
+  }
+}

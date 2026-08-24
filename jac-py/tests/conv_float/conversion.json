@@ -1,0 +1,338 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_float.py",
+    "-o",
+    "/var/tmp/laneb-out/test_float",
+    "--name",
+    "conv_float"
+  ],
+  "generated_at": "2026-08-24T11:07:21",
+  "hashes": {
+    "pins_jac": "b850f331fe74d79d67374541017e6f0c5e4cdf0ed4c560f0033a96c0e1382838"
+  },
+  "source_file": "reference/cpython/Lib/test/test_float.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "float",
+  "pins_file": "conv_float_pins.jac",
+  "pins": [
+    {
+      "ident": "GeneralFloatCases.test_noargs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert float() == 0.0, ('assertEqual', float(), 0.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_underscores",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.numbers import VALID_UNDERSCORE_LITERALS, INVALID_UNDERSCORE_LITERALS\n\ndef _t():\n    for lit in VALID_UNDERSCORE_LITERALS:\n        if not any((ch in lit for ch in 'jJxXoObB')):\n            assert float(lit) == eval(lit), ('assertEqual', float(lit), eval(lit))\n            assert float(lit) == float(lit.replace('_', '')), ('assertEqual', float(lit), float(lit.replace('_', '')))\n    for lit in INVALID_UNDERSCORE_LITERALS:\n        if lit in ('0_7', '09_99'):\n            continue\n        if not any((ch in lit for ch in 'jJxXoObB')):\n            try:\n                float(*(lit,))\n            except ValueError:\n                pass\n    try:\n        float(*('_NaN',))\n    except ValueError:\n        pass\n    try:\n        float(*('Na_N',))\n    except ValueError:\n        pass\n    try:\n        float(*('IN_F',))\n    except ValueError:\n        pass\n    try:\n        float(*('-_INF',))\n    except ValueError:\n        pass\n    try:\n        float(*('-INF_',))\n    except ValueError:\n        pass\n    try:\n        float(*(b'0_.\\xff9',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_memoryview",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert float(memoryview(b'12.3')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3')[1:4]), 2.3)\n    assert float(memoryview(b'12.3\\x00')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3\\x00')[1:4]), 2.3)\n    assert float(memoryview(b'12.3 ')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3 ')[1:4]), 2.3)\n    assert float(memoryview(b'12.3A')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.3A')[1:4]), 2.3)\n    assert float(memoryview(b'12.34')[1:4]) == 2.3, ('assertEqual', float(memoryview(b'12.34')[1:4]), 2.3)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_keyword_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    try:\n        float(x='3.14')\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_is_integer",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert not 1.1.is_integer(), ('assertFalse', 1.1.is_integer())\n    assert 1.0.is_integer(), ('assertTrue', 1.0.is_integer())\n    assert not float('nan').is_integer(), ('assertFalse', float('nan').is_integer())\n    assert not float('inf').is_integer(), ('assertFalse', float('inf').is_integer())\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_floatasratio",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import fractions\nimport random\n\ndef _t():\n    for f, ratio in [(0.875, (7, 8)), (-0.875, (-7, 8)), (0.0, (0, 1)), (11.5, (23, 2))]:\n        assert f.as_integer_ratio() == ratio, ('assertEqual', f.as_integer_ratio(), ratio)\n    for i in range(10000):\n        f = random.random()\n        f *= 10 ** random.randint(-100, 100)\n        n, d = f.as_integer_ratio()\n        assert float(n).__truediv__(d) == f, ('assertEqual', float(n).__truediv__(d), f)\n    R = fractions.Fraction\n    assert R(0, 1) == R(*float(0.0).as_integer_ratio()), ('assertEqual', R(0, 1), R(*float(0.0).as_integer_ratio()))\n    assert R(5, 2) == R(*float(2.5).as_integer_ratio()), ('assertEqual', R(5, 2), R(*float(2.5).as_integer_ratio()))\n    assert R(1, 2) == R(*float(0.5).as_integer_ratio()), ('assertEqual', R(1, 2), R(*float(0.5).as_integer_ratio()))\n    assert R(4728779608739021, 2251799813685248) == R(*float(2.1).as_integer_ratio()), ('assertEqual', R(4728779608739021, 2251799813685248), R(*float(2.1).as_integer_ratio()))\n    assert R(-4728779608739021, 2251799813685248) == R(*float(-2.1).as_integer_ratio()), ('assertEqual', R(-4728779608739021, 2251799813685248), R(*float(-2.1).as_integer_ratio()))\n    assert R(-2100, 1) == R(*float(-2100.0).as_integer_ratio()), ('assertEqual', R(-2100, 1), R(*float(-2100.0).as_integer_ratio()))\n    try:\n        float('inf').as_integer_ratio()\n    except OverflowError:\n        pass\n    try:\n        float('-inf').as_integer_ratio()\n    except OverflowError:\n        pass\n    try:\n        float('nan').as_integer_ratio()\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_containment",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "INF = float('inf')\nNAN = float('nan')\n\ndef _t():\n    floats = (INF, -INF, 0.0, 1.0, NAN)\n    for f in floats:\n        assert f in [f], ('assertIn', f, [f])\n        assert f in (f,), ('assertIn', f, (f,))\n        assert f in {f}, ('assertIn', f, {f})\n        assert f in {f: None}, ('assertIn', f, {f: None})\n        assert [f].count(f) == 1, ('assertEqual', [f].count(f), 1)\n        assert f in floats, ('assertIn', f, floats)\n    for f in floats:\n        assert [f] == [f], ('assertTrue', [f] == [f])\n        assert (f,) == (f,), ('assertTrue', (f,) == (f,))\n        assert {f} == {f}, ('assertTrue', {f} == {f})\n        assert {f: None} == {f: None}, ('assertTrue', {f: None} == {f: None})\n        l, t, s, d = ([f], (f,), {f}, {f: None})\n        assert l == l, ('assertTrue', l == l)\n        assert t == t, ('assertTrue', t == t)\n        assert s == s, ('assertTrue', s == s)\n        assert d == d, ('assertTrue', d == d)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_floor",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert isinstance(float(0.5).__floor__(), int), ('assertIsInstance', float(0.5).__floor__(), int)\n    assert float(0.5).__floor__() == 0, ('assertEqual', float(0.5).__floor__(), 0)\n    assert float(1.0).__floor__() == 1, ('assertEqual', float(1.0).__floor__(), 1)\n    assert float(1.5).__floor__() == 1, ('assertEqual', float(1.5).__floor__(), 1)\n    assert float(-0.5).__floor__() == -1, ('assertEqual', float(-0.5).__floor__(), -1)\n    assert float(-1.0).__floor__() == -1, ('assertEqual', float(-1.0).__floor__(), -1)\n    assert float(-1.5).__floor__() == -2, ('assertEqual', float(-1.5).__floor__(), -2)\n    assert float(1.23e+167).__floor__() == 1.23e+167, ('assertEqual', float(1.23e+167).__floor__(), 1.23e+167)\n    assert float(-1.23e+167).__floor__() == -1.23e+167, ('assertEqual', float(-1.23e+167).__floor__(), -1.23e+167)\n    try:\n        float('nan').__floor__()\n    except ValueError:\n        pass\n    try:\n        float('inf').__floor__()\n    except OverflowError:\n        pass\n    try:\n        float('-inf').__floor__()\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_ceil",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert isinstance(float(0.5).__ceil__(), int), ('assertIsInstance', float(0.5).__ceil__(), int)\n    assert float(0.5).__ceil__() == 1, ('assertEqual', float(0.5).__ceil__(), 1)\n    assert float(1.0).__ceil__() == 1, ('assertEqual', float(1.0).__ceil__(), 1)\n    assert float(1.5).__ceil__() == 2, ('assertEqual', float(1.5).__ceil__(), 2)\n    assert float(-0.5).__ceil__() == 0, ('assertEqual', float(-0.5).__ceil__(), 0)\n    assert float(-1.0).__ceil__() == -1, ('assertEqual', float(-1.0).__ceil__(), -1)\n    assert float(-1.5).__ceil__() == -1, ('assertEqual', float(-1.5).__ceil__(), -1)\n    assert float(1.23e+167).__ceil__() == 1.23e+167, ('assertEqual', float(1.23e+167).__ceil__(), 1.23e+167)\n    assert float(-1.23e+167).__ceil__() == -1.23e+167, ('assertEqual', float(-1.23e+167).__ceil__(), -1.23e+167)\n    try:\n        float('nan').__ceil__()\n    except ValueError:\n        pass\n    try:\n        float('inf').__ceil__()\n    except OverflowError:\n        pass\n    try:\n        float('-inf').__ceil__()\n    except OverflowError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_hash",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import sys\n\ndef _t():\n    for x in range(-30, 30):\n        assert hash(float(x)) == hash(x), ('assertEqual', hash(float(x)), hash(x))\n    assert hash(float(sys.float_info.max)) == hash(int(sys.float_info.max)), ('assertEqual', hash(float(sys.float_info.max)), hash(int(sys.float_info.max)))\n    assert hash(float('inf')) == sys.hash_info.inf, ('assertEqual', hash(float('inf')), sys.hash_info.inf)\n    assert hash(float('-inf')) == -sys.hash_info.inf, ('assertEqual', hash(float('-inf')), -sys.hash_info.inf)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_hash_nan",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    value = float('nan')\n    assert hash(value) == object.__hash__(value), ('assertEqual', hash(value), object.__hash__(value))\n\n    class H:\n\n        def __hash__(self):\n            return 42\n\n    class F(float, H):\n        pass\n    value = F('nan')\n    assert hash(value) == object.__hash__(value), ('assertEqual', hash(value), object.__hash__(value))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "GeneralFloatCases.test_issue_gh143006",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class EvilInt(int):\n\n        def __neg__(self):\n            return ''\n    i = -1 << 50\n    f = float(i) - 0.5\n    i = EvilInt(i)\n    assert not f == i, ('assertFalse', f == i)\n    assert f != i, ('assertTrue', f != i)\n    assert f < i, ('assertTrue', f < i)\n    assert f <= i, ('assertTrue', f <= i)\n    assert not f > i, ('assertFalse', f > i)\n    assert not f >= i, ('assertFalse', f >= i)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FormatTestCase.test_format",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "INF = float('inf')\nNAN = float('nan')\n\ndef _t():\n    assert format(0.0, 'f') == '0.000000', ('assertEqual', format(0.0, 'f'), '0.000000')\n    assert format(0.0, '') == '0.0', ('assertEqual', format(0.0, ''), '0.0')\n    assert format(0.01, '') == '0.01', ('assertEqual', format(0.01, ''), '0.01')\n    assert format(0.01, 'g') == '0.01', ('assertEqual', format(0.01, 'g'), '0.01')\n    x = 100 / 7.0\n    assert format(x, '') == str(x), ('assertEqual', format(x, ''), str(x))\n    assert format(x, '-') == str(x), ('assertEqual', format(x, '-'), str(x))\n    assert format(x, '>') == str(x), ('assertEqual', format(x, '>'), str(x))\n    assert format(x, '2') == str(x), ('assertEqual', format(x, '2'), str(x))\n    assert format(1.0, 'f') == '1.000000', ('assertEqual', format(1.0, 'f'), '1.000000')\n    assert format(-1.0, 'f') == '-1.000000', ('assertEqual', format(-1.0, 'f'), '-1.000000')\n    assert format(1.0, ' f') == ' 1.000000', ('assertEqual', format(1.0, ' f'), ' 1.000000')\n    assert format(-1.0, ' f') == '-1.000000', ('assertEqual', format(-1.0, ' f'), '-1.000000')\n    assert format(1.0, '+f') == '+1.000000', ('assertEqual', format(1.0, '+f'), '+1.000000')\n    assert format(-1.0, '+f') == '-1.000000', ('assertEqual', format(-1.0, '+f'), '-1.000000')\n    assert format(-1.0, '%') == '-100.000000%', ('assertEqual', format(-1.0, '%'), '-100.000000%')\n    try:\n        format(*(3.0, 's'))\n    except ValueError:\n        pass\n    for format_spec in 'sbcdoxX':\n        try:\n            format(*(0.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1.0, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1e+100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1e+100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(1e-100, format_spec))\n        except ValueError:\n            pass\n        try:\n            format(*(-1e-100, format_spec))\n        except ValueError:\n            pass\n    assert format(NAN, 'f') == 'nan', ('assertEqual', format(NAN, 'f'), 'nan')\n    assert format(NAN, 'F') == 'NAN', ('assertEqual', format(NAN, 'F'), 'NAN')\n    assert format(INF, 'f') == 'inf', ('assertEqual', format(INF, 'f'), 'inf')\n    assert format(INF, 'F') == 'INF', ('assertEqual', format(INF, 'F'), 'INF')\n    x = 123456.123456\n    assert format(x, '_f') == '123_456.123456', ('assertEqual', format(x, '_f'), '123_456.123456')\n    assert format(x, ',f') == '123,456.123456', ('assertEqual', format(x, ',f'), '123,456.123456')\n    assert format(x, '._f') == '123456.123_456', ('assertEqual', format(x, '._f'), '123456.123_456')\n    assert format(x, '.,f') == '123456.123,456', ('assertEqual', format(x, '.,f'), '123456.123,456')\n    assert format(x, '_._f') == '123_456.123_456', ('assertEqual', format(x, '_._f'), '123_456.123_456')\n    assert format(x, ',.,f') == '123,456.123,456', ('assertEqual', format(x, ',.,f'), '123,456.123,456')\n    assert format(x, '.10_f') == '123456.123_456_000_0', ('assertEqual', format(x, '.10_f'), '123456.123_456_000_0')\n    assert format(x, '.10,f') == '123456.123,456,000,0', ('assertEqual', format(x, '.10,f'), '123456.123,456,000,0')\n    assert format(x, '>21._f') == '       123456.123_456', ('assertEqual', format(x, '>21._f'), '       123456.123_456')\n    assert format(x, '<21._f') == '123456.123_456       ', ('assertEqual', format(x, '<21._f'), '123456.123_456       ')\n    assert format(x, '+.11_e') == '+1.234_561_234_56e+05', ('assertEqual', format(x, '+.11_e'), '+1.234_561_234_56e+05')\n    assert format(x, '+.11,e') == '+1.234,561,234,56e+05', ('assertEqual', format(x, '+.11,e'), '+1.234,561,234,56e+05')\n    assert format(x, '021_._f') == '0_000_123_456.123_456', ('assertEqual', format(x, '021_._f'), '0_000_123_456.123_456')\n    assert format(x, '020_._f') == '0_000_123_456.123_456', ('assertEqual', format(x, '020_._f'), '0_000_123_456.123_456')\n    assert format(x, '+021_._f') == '+0_000_123_456.123_456', ('assertEqual', format(x, '+021_._f'), '+0_000_123_456.123_456')\n    assert format(x, '21_._f') == '      123_456.123_456', ('assertEqual', format(x, '21_._f'), '      123_456.123_456')\n    assert format(x, '>021_._f') == '000000123_456.123_456', ('assertEqual', format(x, '>021_._f'), '000000123_456.123_456')\n    assert format(x, '<021_._f') == '123_456.123_456000000', ('assertEqual', format(x, '<021_._f'), '123_456.123_456000000')\n    assert format(x, '023_.10_f') == '0_123_456.123_456_000_0', ('assertEqual', format(x, '023_.10_f'), '0_123_456.123_456_000_0')\n    assert format(x, '022_.10_f') == '0_123_456.123_456_000_0', ('assertEqual', format(x, '022_.10_f'), '0_123_456.123_456_000_0')\n    assert format(x, '+023_.10_f') == '+0_123_456.123_456_000_0', ('assertEqual', format(x, '+023_.10_f'), '+0_123_456.123_456_000_0')\n    assert format(x, '023_.9_f') == '000_123_456.123_456_000', ('assertEqual', format(x, '023_.9_f'), '000_123_456.123_456_000')\n    assert format(x, '021_._e') == '0_000_001.234_561e+05', ('assertEqual', format(x, '021_._e'), '0_000_001.234_561e+05')\n    assert format(x, '020_._e') == '0_000_001.234_561e+05', ('assertEqual', format(x, '020_._e'), '0_000_001.234_561e+05')\n    assert format(x, '+021_._e') == '+0_000_001.234_561e+05', ('assertEqual', format(x, '+021_._e'), '+0_000_001.234_561e+05')\n    assert format(x, '023_.10_e') == '0_001.234_561_234_6e+05', ('assertEqual', format(x, '023_.10_e'), '0_001.234_561_234_6e+05')\n    assert format(x, '022_.10_e') == '0_001.234_561_234_6e+05', ('assertEqual', format(x, '022_.10_e'), '0_001.234_561_234_6e+05')\n    assert format(x, '023_.9_e') == '000_001.234_561_235e+05', ('assertEqual', format(x, '023_.9_e'), '000_001.234_561_235e+05')\n    try:\n        format(*(x, '._6f'))\n    except ValueError:\n        pass\n    try:\n        format(*(x, '.,_f'))\n    except ValueError:\n        pass\n    try:\n        format(*(x, '.6,_f'))\n    except ValueError:\n        pass\n    try:\n        format(*(x, '.6_,f'))\n    except ValueError:\n        pass\n    try:\n        format(*(x, '.6_n'))\n    except ValueError:\n        pass\n    try:\n        format(*(x, '.6,n'))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FormatTestCase.test_issue5864",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert format(123.456, '.4') == '123.5', ('assertEqual', format(123.456, '.4'), '123.5')\n    assert format(1234.56, '.4') == '1.235e+03', ('assertEqual', format(1234.56, '.4'), '1.235e+03')\n    assert format(12345.6, '.4') == '1.235e+04', ('assertEqual', format(12345.6, '.4'), '1.235e+04')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FormatTestCase.test_issue35560",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert format(123.0, '00') == '123.0', ('assertEqual', format(123.0, '00'), '123.0')\n    assert format(123.34, '00f') == '123.340000', ('assertEqual', format(123.34, '00f'), '123.340000')\n    assert format(123.34, '00e') == '1.233400e+02', ('assertEqual', format(123.34, '00e'), '1.233400e+02')\n    assert format(123.34, '00g') == '123.34', ('assertEqual', format(123.34, '00g'), '123.34')\n    assert format(123.34, '00.10f') == '123.3400000000', ('assertEqual', format(123.34, '00.10f'), '123.3400000000')\n    assert format(123.34, '00.10e') == '1.2334000000e+02', ('assertEqual', format(123.34, '00.10e'), '1.2334000000e+02')\n    assert format(123.34, '00.10g') == '123.34', ('assertEqual', format(123.34, '00.10g'), '123.34')\n    assert format(123.34, '01f') == '123.340000', ('assertEqual', format(123.34, '01f'), '123.340000')\n    assert format(-123.0, '00') == '-123.0', ('assertEqual', format(-123.0, '00'), '-123.0')\n    assert format(-123.34, '00f') == '-123.340000', ('assertEqual', format(-123.34, '00f'), '-123.340000')\n    assert format(-123.34, '00e') == '-1.233400e+02', ('assertEqual', format(-123.34, '00e'), '-1.233400e+02')\n    assert format(-123.34, '00g') == '-123.34', ('assertEqual', format(-123.34, '00g'), '-123.34')\n    assert format(-123.34, '00.10f') == '-123.3400000000', ('assertEqual', format(-123.34, '00.10f'), '-123.3400000000')\n    assert format(-123.34, '00.10f') == '-123.3400000000', ('assertEqual', format(-123.34, '00.10f'), '-123.3400000000')\n    assert format(-123.34, '00.10e') == '-1.2334000000e+02', ('assertEqual', format(-123.34, '00.10e'), '-1.2334000000e+02')\n    assert format(-123.34, '00.10g') == '-123.34', ('assertEqual', format(-123.34, '00.10g'), '-123.34')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_inf_from_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from math import isinf, isnan, copysign, ldexp\n\ndef _t():\n    assert isinf(float('inf')), ('assertTrue', isinf(float('inf')))\n    assert isinf(float('+inf')), ('assertTrue', isinf(float('+inf')))\n    assert isinf(float('-inf')), ('assertTrue', isinf(float('-inf')))\n    assert isinf(float('infinity')), ('assertTrue', isinf(float('infinity')))\n    assert isinf(float('+infinity')), ('assertTrue', isinf(float('+infinity')))\n    assert isinf(float('-infinity')), ('assertTrue', isinf(float('-infinity')))\n    assert repr(float('inf')) == 'inf', ('assertEqual', repr(float('inf')), 'inf')\n    assert repr(float('+inf')) == 'inf', ('assertEqual', repr(float('+inf')), 'inf')\n    assert repr(float('-inf')) == '-inf', ('assertEqual', repr(float('-inf')), '-inf')\n    assert repr(float('infinity')) == 'inf', ('assertEqual', repr(float('infinity')), 'inf')\n    assert repr(float('+infinity')) == 'inf', ('assertEqual', repr(float('+infinity')), 'inf')\n    assert repr(float('-infinity')) == '-inf', ('assertEqual', repr(float('-infinity')), '-inf')\n    assert repr(float('INF')) == 'inf', ('assertEqual', repr(float('INF')), 'inf')\n    assert repr(float('+Inf')) == 'inf', ('assertEqual', repr(float('+Inf')), 'inf')\n    assert repr(float('-iNF')) == '-inf', ('assertEqual', repr(float('-iNF')), '-inf')\n    assert repr(float('Infinity')) == 'inf', ('assertEqual', repr(float('Infinity')), 'inf')\n    assert repr(float('+iNfInItY')) == 'inf', ('assertEqual', repr(float('+iNfInItY')), 'inf')\n    assert repr(float('-INFINITY')) == '-inf', ('assertEqual', repr(float('-INFINITY')), '-inf')\n    assert str(float('inf')) == 'inf', ('assertEqual', str(float('inf')), 'inf')\n    assert str(float('+inf')) == 'inf', ('assertEqual', str(float('+inf')), 'inf')\n    assert str(float('-inf')) == '-inf', ('assertEqual', str(float('-inf')), '-inf')\n    assert str(float('infinity')) == 'inf', ('assertEqual', str(float('infinity')), 'inf')\n    assert str(float('+infinity')) == 'inf', ('assertEqual', str(float('+infinity')), 'inf')\n    assert str(float('-infinity')) == '-inf', ('assertEqual', str(float('-infinity')), '-inf')\n    try:\n        float(*('info',))\n    except ValueError:\n        pass\n    try:\n        float(*('+info',))\n    except ValueError:\n        pass\n    try:\n        float(*('-info',))\n    except ValueError:\n        pass\n    try:\n        float(*('in',))\n    except ValueError:\n        pass\n    try:\n        float(*('+in',))\n    except ValueError:\n        pass\n    try:\n        float(*('-in',))\n    except ValueError:\n        pass\n    try:\n        float(*('infinit',))\n    except ValueError:\n        pass\n    try:\n        float(*('+Infin',))\n    except ValueError:\n        pass\n    try:\n        float(*('-INFI',))\n    except ValueError:\n        pass\n    try:\n        float(*('infinitys',))\n    except ValueError:\n        pass\n    try:\n        float(*('++Inf',))\n    except ValueError:\n        pass\n    try:\n        float(*('-+inf',))\n    except ValueError:\n        pass\n    try:\n        float(*('+-infinity',))\n    except ValueError:\n        pass\n    try:\n        float(*('--Infinity',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_inf_as_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert repr(1e+300 * 1e+300) == 'inf', ('assertEqual', repr(1e+300 * 1e+300), 'inf')\n    assert repr(-1e+300 * 1e+300) == '-inf', ('assertEqual', repr(-1e+300 * 1e+300), '-inf')\n    assert str(1e+300 * 1e+300) == 'inf', ('assertEqual', str(1e+300 * 1e+300), 'inf')\n    assert str(-1e+300 * 1e+300) == '-inf', ('assertEqual', str(-1e+300 * 1e+300), '-inf')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_nan_from_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from math import isinf, isnan, copysign, ldexp\n\ndef _t():\n    assert isnan(float('nan')), ('assertTrue', isnan(float('nan')))\n    assert isnan(float('+nan')), ('assertTrue', isnan(float('+nan')))\n    assert isnan(float('-nan')), ('assertTrue', isnan(float('-nan')))\n    assert repr(float('nan')) == 'nan', ('assertEqual', repr(float('nan')), 'nan')\n    assert repr(float('+nan')) == 'nan', ('assertEqual', repr(float('+nan')), 'nan')\n    assert repr(float('-nan')) == 'nan', ('assertEqual', repr(float('-nan')), 'nan')\n    assert repr(float('NAN')) == 'nan', ('assertEqual', repr(float('NAN')), 'nan')\n    assert repr(float('+NAn')) == 'nan', ('assertEqual', repr(float('+NAn')), 'nan')\n    assert repr(float('-NaN')) == 'nan', ('assertEqual', repr(float('-NaN')), 'nan')\n    assert str(float('nan')) == 'nan', ('assertEqual', str(float('nan')), 'nan')\n    assert str(float('+nan')) == 'nan', ('assertEqual', str(float('+nan')), 'nan')\n    assert str(float('-nan')) == 'nan', ('assertEqual', str(float('-nan')), 'nan')\n    try:\n        float(*('nana',))\n    except ValueError:\n        pass\n    try:\n        float(*('+nana',))\n    except ValueError:\n        pass\n    try:\n        float(*('-nana',))\n    except ValueError:\n        pass\n    try:\n        float(*('na',))\n    except ValueError:\n        pass\n    try:\n        float(*('+na',))\n    except ValueError:\n        pass\n    try:\n        float(*('-na',))\n    except ValueError:\n        pass\n    try:\n        float(*('++nan',))\n    except ValueError:\n        pass\n    try:\n        float(*('-+NAN',))\n    except ValueError:\n        pass\n    try:\n        float(*('+-NaN',))\n    except ValueError:\n        pass\n    try:\n        float(*('--nAn',))\n    except ValueError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_nan_as_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert repr(1e+300 * 1e+300 * 0) == 'nan', ('assertEqual', repr(1e+300 * 1e+300 * 0), 'nan')\n    assert repr(-1e+300 * 1e+300 * 0) == 'nan', ('assertEqual', repr(-1e+300 * 1e+300 * 0), 'nan')\n    assert str(1e+300 * 1e+300 * 0) == 'nan', ('assertEqual', str(1e+300 * 1e+300 * 0), 'nan')\n    assert str(-1e+300 * 1e+300 * 0) == 'nan', ('assertEqual', str(-1e+300 * 1e+300 * 0), 'nan')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_inf_signs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from math import isinf, isnan, copysign, ldexp\n\ndef _t():\n    assert copysign(1.0, float('inf')) == 1.0, ('assertEqual', copysign(1.0, float('inf')), 1.0)\n    assert copysign(1.0, float('-inf')) == -1.0, ('assertEqual', copysign(1.0, float('-inf')), -1.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "InfNanTest.test_nan_signs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from math import isinf, isnan, copysign, ldexp\n\ndef _t():\n    assert copysign(1.0, float('nan')) == 1.0, ('assertEqual', copysign(1.0, float('nan')), 1.0)\n    assert copysign(1.0, float('-nan')) == -1.0, ('assertEqual', copysign(1.0, float('-nan')), -1.0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "HexFloatTestCase.test_invalid_inputs",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "fromHex = float.fromhex\n\ndef _t():\n    invalid_inputs = ['infi', '-Infinit', '++inf', '-+Inf', '--nan', '+-NaN', 'snan', 'NaNs', 'nna', 'an', 'nf', 'nfinity', 'inity', 'iinity', '0xnan', '', ' ', 'x1.0p0', '0xX1.0p0', '+ 0x1.0p0', '- 0x1.0p0', '0 x1.0p0', '0x 1.0p0', '0x1 2.0p0', '+0x1 .0p0', '0x1. 0p0', '-0x1.0 1p0', '-0x1.0 p0', '+0x1.0p +0', '0x1.0p -0', '0x1.0p 0', '+0x1.0p+ 0', '-0x1.0p- 0', '++0x1.0p-0', '--0x1.0p0', '+-0x1.0p+0', '-+0x1.0p0', '0x1.0p++0', '+0x1.0p+-0', '-0x1.0p-+0', '0x1.0p--0', '0x1.0.p0', '0x.p0', '0x1,p0', '0x1pa', '0x1p\uff10', '\uff10x1p0', '0x\uff11p0', '0x1.\uff10p0', '0x1p0 \\n 0x2p0', '0x1p0\\x00 0x1p0']\n    for x in invalid_inputs:\n        try:\n            result = fromHex(x)\n        except ValueError:\n            pass\n        else:\n            raise AssertionError('Expected float.fromhex(%r) to raise ValueError; got %r instead' % (x, result))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "GeneralFloatCases.test_float_with_comma",
+      "reason": "decorator:support.run_with_locale"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_mod",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float_pow",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "FormatFunctionsTestCase.test_getformat",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "IEEEFormatTestCase.test_double_specials_do_unpack",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "IEEEFormatTestCase.test_float_specials_do_unpack",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "IEEEFormatTestCase.test_serialized_float_rounding",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "FormatTestCase.test_format_testfile",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "ReprTestCase.test_short_repr",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "RoundTestCase.test_inf_nan",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_inf_nan_ndigits",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_large_n",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_small_n",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_overflow",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_previous_round_bugs",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_matches_float_format",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_format_specials",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_None_ndigits",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "RoundTestCase.test_round_with_none_arg_direct_call",
+      "reason": "decorator:support.requires_IEEE_754"
+    },
+    {
+      "ident": "GeneralFloatCases.test_float",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "ident": "GeneralFloatCases.test_non_numeric_input_types",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "GeneralFloatCases.test_error_message",
+      "reason": "unresolved-name:cm"
+    },
+    {
+      "ident": "GeneralFloatCases.test_floatconversion",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "GeneralFloatCases.test_keywords_in_subclass",
+      "reason": "uses-self.newarg"
+    },
+    {
+      "ident": "GeneralFloatCases.test_from_number",
+      "reason": "unresolved-name:FloatLike"
+    },
+    {
+      "ident": "GeneralFloatCases.test_from_number_subclass",
+      "reason": "self.test_from_number"
+    },
+    {
+      "ident": "ReprTestCase.test_repr",
+      "reason": "unresolved-name:__file__"
+    },
+    {
+      "ident": "HexFloatTestCase.test_ends",
+      "reason": "self.identical"
+    },
+    {
+      "ident": "HexFloatTestCase.test_whitespace",
+      "reason": "self.identical"
+    },
+    {
+      "ident": "HexFloatTestCase.test_from_hex",
+      "reason": "self.identical"
+    },
+    {
+      "ident": "HexFloatTestCase.test_roundtrip",
+      "reason": "self.identical"
+    },
+    {
+      "ident": "HexFloatTestCase.test_subclass",
+      "reason": "uses-self.foo"
+    }
+  ],
+  "counts": {
+    "extracted": 54,
+    "pinned": 22,
+    "quarantined": 32
+  }
+}

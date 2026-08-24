@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_fnmatch.py",
+    "-o",
+    "/var/tmp/laneb-out/test_fnmatch",
+    "--name",
+    "conv_fnmatch"
+  ],
+  "generated_at": "2026-08-24T10:30:53",
+  "hashes": {
+    "pins_jac": "cfe1f362dfc1837f4da3053d490b365559a60ad867073ccd8280e6701b9e3d7d"
+  },
+  "source_file": "reference/cpython/Lib/test/test_fnmatch.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "fnmatch",
+  "pins_file": "conv_fnmatch_pins.jac",
+  "pins": [
+    {
+      "ident": "FnmatchTestCase.test_mix_bytes_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    try:\n        fnmatch(*('test', b'*'))\n    except TypeError:\n        pass\n    try:\n        fnmatch(*(b'test', '*'))\n    except TypeError:\n        pass\n    try:\n        fnmatchcase(*('test', b'*'))\n    except TypeError:\n        pass\n    try:\n        fnmatchcase(*(b'test', '*'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TranslateTestCase.test_translate",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    import re\n    assert translate('*') == '(?s:.*)\\\\z', ('assertEqual', translate('*'), '(?s:.*)\\\\z')\n    assert translate('?') == '(?s:.)\\\\z', ('assertEqual', translate('?'), '(?s:.)\\\\z')\n    assert translate('a?b*') == '(?s:a.b.*)\\\\z', ('assertEqual', translate('a?b*'), '(?s:a.b.*)\\\\z')\n    assert translate('[abc]') == '(?s:[abc])\\\\z', ('assertEqual', translate('[abc]'), '(?s:[abc])\\\\z')\n    assert translate('[]]') == '(?s:[]])\\\\z', ('assertEqual', translate('[]]'), '(?s:[]])\\\\z')\n    assert translate('[!x]') == '(?s:[^x])\\\\z', ('assertEqual', translate('[!x]'), '(?s:[^x])\\\\z')\n    assert translate('[^x]') == '(?s:[\\\\^x])\\\\z', ('assertEqual', translate('[^x]'), '(?s:[\\\\^x])\\\\z')\n    assert translate('[x') == '(?s:\\\\[x)\\\\z', ('assertEqual', translate('[x'), '(?s:\\\\[x)\\\\z')\n    assert translate('*.txt') == '(?s:.*\\\\.txt)\\\\z', ('assertEqual', translate('*.txt'), '(?s:.*\\\\.txt)\\\\z')\n    assert translate('*********') == '(?s:.*)\\\\z', ('assertEqual', translate('*********'), '(?s:.*)\\\\z')\n    assert translate('A*********') == '(?s:A.*)\\\\z', ('assertEqual', translate('A*********'), '(?s:A.*)\\\\z')\n    assert translate('*********A') == '(?s:.*A)\\\\z', ('assertEqual', translate('*********A'), '(?s:.*A)\\\\z')\n    assert translate('A*********?[?]?') == '(?s:A.*.[?].)\\\\z', ('assertEqual', translate('A*********?[?]?'), '(?s:A.*.[?].)\\\\z')\n    t = translate('**a*a****a')\n    assert t == '(?s:(?>.*?a)(?>.*?a).*a)\\\\z', ('assertEqual', t, '(?s:(?>.*?a)(?>.*?a).*a)\\\\z')\n    r1 = translate('**a**a**a*')\n    r2 = translate('**b**b**b*')\n    r3 = translate('*c*c*c*')\n    fatre = '|'.join([r1, r2, r3])\n    assert re.match(fatre, 'abaccad'), ('assertTrue', re.match(fatre, 'abaccad'))\n    assert re.match(fatre, 'abxbcab'), ('assertTrue', re.match(fatre, 'abxbcab'))\n    assert re.match(fatre, 'cbabcaxc'), ('assertTrue', re.match(fatre, 'cbabcaxc'))\n    assert not re.match(fatre, 'dabccbad'), ('assertFalse', re.match(fatre, 'dabccbad'))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TranslateTestCase.test_star_indices_locations",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    from fnmatch import _translate\n    blocks = ['a^b', '***', '?', '?', '[a-z]', '[1-9]', '*', '++', '[[a']\n    parts, star_indices = _translate(''.join(blocks), '*', '.')\n    expect_parts = ['a', '\\\\^', 'b', '*', '.', '.', '[a-z]', '[1-9]', '*', '\\\\+', '\\\\+', '\\\\[', '\\\\[', 'a']\n    assert parts == expect_parts, ('assertListEqual', parts, expect_parts)\n    assert star_indices == [3, 8], ('assertListEqual', star_indices, [3, 8])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterTestCase.test_filter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    assert filter(['Python', 'Ruby', 'Perl', 'Tcl'], 'P*') == ['Python', 'Perl'], ('assertEqual', filter(['Python', 'Ruby', 'Perl', 'Tcl'], 'P*'), ['Python', 'Perl'])\n    assert filter([b'Python', b'Ruby', b'Perl', b'Tcl'], b'P*') == [b'Python', b'Perl'], ('assertEqual', filter([b'Python', b'Ruby', b'Perl', b'Tcl'], b'P*'), [b'Python', b'Perl'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterTestCase.test_mix_bytes_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    try:\n        filter(*(['test'], b'*'))\n    except TypeError:\n        pass\n    try:\n        filter(*([b'test'], '*'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterTestCase.test_case",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import os\nfrom fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\nIGNORECASE = os.path.normcase('P') == os.path.normcase('p')\n\ndef _t():\n    assert filter(['Test.py', 'Test.rb', 'Test.PL'], '*.p*') == (['Test.py', 'Test.PL'] if IGNORECASE else ['Test.py']), ('assertEqual', filter(['Test.py', 'Test.rb', 'Test.PL'], '*.p*'), (['Test.py', 'Test.PL'] if IGNORECASE else ['Test.py']))\n    assert filter(['Test.py', 'Test.rb', 'Test.PL'], '*.P*') == (['Test.py', 'Test.PL'] if IGNORECASE else ['Test.PL']), ('assertEqual', filter(['Test.py', 'Test.rb', 'Test.PL'], '*.P*'), (['Test.py', 'Test.PL'] if IGNORECASE else ['Test.PL']))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterTestCase.test_sep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import os\nfrom fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\nNORMSEP = os.path.normcase('\\\\') == os.path.normcase('/')\n\ndef _t():\n    assert filter(['usr/bin', 'usr', 'usr\\\\lib'], 'usr/*') == (['usr/bin', 'usr\\\\lib'] if NORMSEP else ['usr/bin']), ('assertEqual', filter(['usr/bin', 'usr', 'usr\\\\lib'], 'usr/*'), (['usr/bin', 'usr\\\\lib'] if NORMSEP else ['usr/bin']))\n    assert filter(['usr/bin', 'usr', 'usr\\\\lib'], 'usr\\\\*') == (['usr/bin', 'usr\\\\lib'] if NORMSEP else ['usr\\\\lib']), ('assertEqual', filter(['usr/bin', 'usr', 'usr\\\\lib'], 'usr\\\\*'), (['usr/bin', 'usr\\\\lib'] if NORMSEP else ['usr\\\\lib']))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterFalseTestCase.test_filterfalse",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    actual = filterfalse(['Python', 'Ruby', 'Perl', 'Tcl'], 'P*')\n    assert actual == ['Ruby', 'Tcl'], ('assertListEqual', actual, ['Ruby', 'Tcl'])\n    actual = filterfalse([b'Python', b'Ruby', b'Perl', b'Tcl'], b'P*')\n    assert actual == [b'Ruby', b'Tcl'], ('assertListEqual', actual, [b'Ruby', b'Tcl'])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterFalseTestCase.test_mix_bytes_str",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\n\ndef _t():\n    try:\n        filterfalse(*(['test'], b'*'))\n    except TypeError:\n        pass\n    try:\n        filterfalse(*([b'test'], '*'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterFalseTestCase.test_case",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import os\nfrom fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\nIGNORECASE = os.path.normcase('P') == os.path.normcase('p')\n\ndef _t():\n    assert filterfalse(['Test.py', 'Test.rb', 'Test.PL'], '*.p*') == (['Test.rb'] if IGNORECASE else ['Test.rb', 'Test.PL']), ('assertEqual', filterfalse(['Test.py', 'Test.rb', 'Test.PL'], '*.p*'), (['Test.rb'] if IGNORECASE else ['Test.rb', 'Test.PL']))\n    assert filterfalse(['Test.py', 'Test.rb', 'Test.PL'], '*.P*') == (['Test.rb'] if IGNORECASE else ['Test.py', 'Test.rb']), ('assertEqual', filterfalse(['Test.py', 'Test.rb', 'Test.PL'], '*.P*'), (['Test.rb'] if IGNORECASE else ['Test.py', 'Test.rb']))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "FilterFalseTestCase.test_sep",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import os\nfrom fnmatch import fnmatch, fnmatchcase, translate, filter, filterfalse\nNORMSEP = os.path.normcase('\\\\') == os.path.normcase('/')\n\ndef _t():\n    assert filterfalse(['usr/bin', 'usr', 'usr\\\\lib'], 'usr/*') == (['usr'] if NORMSEP else ['usr', 'usr\\\\lib']), ('assertEqual', filterfalse(['usr/bin', 'usr', 'usr\\\\lib'], 'usr/*'), (['usr'] if NORMSEP else ['usr', 'usr\\\\lib']))\n    assert filterfalse(['usr/bin', 'usr', 'usr\\\\lib'], 'usr\\\\*') == (['usr'] if NORMSEP else ['usr/bin', 'usr']), ('assertEqual', filterfalse(['usr/bin', 'usr', 'usr\\\\lib'], 'usr\\\\*'), (['usr'] if NORMSEP else ['usr/bin', 'usr']))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "FnmatchTestCase.test_fnmatch",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_slow_fnmatch",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_fnmatchcase",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_bytes",
+      "reason": "self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_case",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_char_set",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_range",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep_in_char_set",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_sep_in_range",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "FnmatchTestCase.test_warnings",
+      "reason": "uses-self.check_match"
+    },
+    {
+      "ident": "TranslateTestCase.test_translate_wildcards",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TranslateTestCase.test_translate_expressions",
+      "reason": "uses-self.subTest"
+    }
+  ],
+  "counts": {
+    "extracted": 24,
+    "pinned": 11,
+    "quarantined": 13
+  }
+}

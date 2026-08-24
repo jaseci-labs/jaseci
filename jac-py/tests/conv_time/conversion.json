@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "82dee0e2e6841054e57babda9a44e4d0a5945e88",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_time.py",
+    "-o",
+    "/var/tmp/laneb-out/test_time",
+    "--name",
+    "conv_time"
+  ],
+  "generated_at": "2026-08-24T11:05:49",
+  "hashes": {
+    "pins_jac": "9cc02f1f01a2eb95aa509171f29a66ffbf411a69e9561a3f9c7a008fb0a1ef1d"
+  },
+  "source_file": "reference/cpython/Lib/test/test_time.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "time",
+  "pins_file": "conv_time_pins.jac",
+  "pins": [
+    {
+      "ident": "TimeTestCase.test_data_attributes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    time.altzone\n    time.daylight\n    time.timezone\n    time.tzname\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_time",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    time.time()\n    info = time.get_clock_info('time')\n    assert not info.monotonic, ('assertFalse', info.monotonic)\n    assert info.adjustable, ('assertTrue', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_time_ns_type",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n\n    def check_ns(sec, ns):\n        assert isinstance(ns, int), ('assertIsInstance', ns, int)\n        sec_ns = int(sec * 1000000000.0)\n        assert sec_ns - ns < 50 ** 6, ('assertLess', sec_ns - ns, 50 ** 6)\n    check_ns(time.time(), time.time_ns())\n    check_ns(time.monotonic(), time.monotonic_ns())\n    check_ns(time.perf_counter(), time.perf_counter_ns())\n    check_ns(time.process_time(), time.process_time_ns())\n    if hasattr(time, 'thread_time'):\n        check_ns(time.thread_time(), time.thread_time_ns())\n    if hasattr(time, 'clock_gettime'):\n        check_ns(time.clock_gettime(time.CLOCK_REALTIME), time.clock_gettime_ns(time.CLOCK_REALTIME))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_epoch",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    epoch = time.gmtime(0)\n    assert tuple(epoch)[:6] == (1970, 1, 1, 0, 0, 0), ('assertEqual', tuple(epoch)[:6], (1970, 1, 1, 0, 0, 0))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_strftime_format_check",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    for x in ['', 'A', '%A', '%AA']:\n        for y in range(0, 16):\n            for z in ['%', 'A%', 'AA%', '%A%', 'A%A%', '%#']:\n                try:\n                    time.strftime(x * y + z)\n                except ValueError:\n                    pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_default_values_for_zero",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support import warnings_helper\nimport time\n\ndef _t():\n    expected = '2000 01 01 00 00 00 1 001'\n    with warnings_helper.check_warnings():\n        result = time.strftime('%Y %m %d %H %M %S %w %j', (2000,) + (0,) * 8)\n    assert expected == result, ('assertEqual', expected, result)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_strptime_bytes",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    try:\n        time.strptime(*(b'2009', '%Y'))\n    except TypeError:\n        pass\n    try:\n        time.strptime(*('2009', b'%Y'))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_ctime",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    t = time.mktime((1973, 9, 16, 1, 3, 52, 0, 0, -1))\n    assert time.ctime(t) == 'Sun Sep 16 01:03:52 1973', ('assertEqual', time.ctime(t), 'Sun Sep 16 01:03:52 1973')\n    t = time.mktime((2000, 1, 1, 0, 0, 0, 0, 0, -1))\n    assert time.ctime(t) == 'Sat Jan  1 00:00:00 2000', ('assertEqual', time.ctime(t), 'Sat Jan  1 00:00:00 2000')\n    for year in [-100, 100, 1000, 2000, 2050, 10000]:\n        try:\n            testval = time.mktime((year, 1, 10) + (0,) * 6)\n        except (ValueError, OverflowError):\n            pass\n        else:\n            assert time.ctime(testval)[20:] == str(year), ('assertEqual', time.ctime(testval)[20:], str(year))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_insane_timestamps",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    for func in (time.ctime, time.gmtime, time.localtime):\n        for unreasonable in (-1e+200, 1e+200):\n            try:\n                func(*(unreasonable,))\n            except OverflowError:\n                pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_ctime_without_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    time.ctime()\n    time.ctime(None)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_gmtime_without_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    gt0 = time.gmtime()\n    gt1 = time.gmtime(None)\n    t0 = time.mktime(gt0)\n    t1 = time.mktime(gt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_localtime_without_arg",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    lt0 = time.localtime()\n    lt1 = time.localtime(None)\n    t0 = time.mktime(lt0)\n    t1 = time.mktime(lt1)\n    assert round(t1 - t0, 7) == 0, ('assertAlmostEqual', t1, t0)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_mktime",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    for t in (-2, -1, 0, 1):\n        try:\n            tt = time.localtime(t)\n        except (OverflowError, OSError):\n            pass\n        else:\n            assert time.mktime(tt) == t, ('assertEqual', time.mktime(tt), t)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_monotonic",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    times = [time.monotonic() for n in range(100)]\n    t1 = times[0]\n    for t2 in times[1:]:\n        assert t2 >= t1, ('assertGreaterEqual', t2, t1)\n        t1 = t2\n    t1 = time.monotonic()\n    time.sleep(0.5)\n    t2 = time.monotonic()\n    dt = t2 - t1\n    assert t2 > t1, ('assertGreater', t2, t1)\n    assert 0.45 <= dt, ('assertTrue', 0.45 <= dt)\n    info = time.get_clock_info('monotonic')\n    assert info.monotonic, ('assertTrue', info.monotonic)\n    assert not info.adjustable, ('assertFalse', info.adjustable)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TimeTestCase.test_perf_counter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import time\n\ndef _t():\n    time.perf_counter()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "_TestStrftimeYear.test_large_year",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "_TestStrftimeYear.test_negative",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TimeTestCase.test_clock_realtime",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_clock_monotonic",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_pthread_getcpuclockid",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_clock_getres",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_clock_settime",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_tzset",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_mktime_error",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_process_time",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "ident": "TimeTestCase.test_monotonic_settime",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestLocale.test_bug_3061",
+      "reason": "decorator:support.run_with_locale"
+    },
+    {
+      "ident": "_TestStrftimeYear.test_4dyear",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestPytime.test_localtime_timezone",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestPytime.test_strptime_timezone",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestPytime.test_short_times",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestCPyTime.test_AsTimespec",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestCPyTime.test_AsTimeval_clamp",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestCPyTime.test_AsTimespec_clamp",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TestTimeWeaklinking.test_clock_functions",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "ident": "TimeTestCase.test_conversions",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_sleep_exceptions",
+      "reason": "unresolved-name:errmsg"
+    },
+    {
+      "ident": "TimeTestCase.test_sleep",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "TimeTestCase.test_strftime",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_strftime_invalid_format",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_strftime_special",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_strftime_bounding_check",
+      "reason": "self._bounds_checking"
+    },
+    {
+      "ident": "TimeTestCase.test_strptime",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_strptime_exception_context",
+      "reason": "unresolved-name:e"
+    },
+    {
+      "ident": "TimeTestCase.test_strptime_leap_year",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "ident": "TimeTestCase.test_asctime",
+      "reason": "uses-self.t"
+    },
+    {
+      "ident": "TimeTestCase.test_asctime_bounding_check",
+      "reason": "self._bounds_checking"
+    },
+    {
+      "ident": "TimeTestCase.test_thread_time",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "TimeTestCase.test_localtime_failure",
+      "reason": "self.skipTest"
+    },
+    {
+      "ident": "TimeTestCase.test_get_clock_info",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "ident": "_TestAsctimeYear.test_large_year",
+      "reason": "uses-self.yearstr"
+    },
+    {
+      "ident": "_Test4dYear.test_year",
+      "reason": "uses-self._format"
+    },
+    {
+      "ident": "_Test4dYear.test_large_year",
+      "reason": "uses-self.yearstr"
+    },
+    {
+      "ident": "_Test4dYear.test_negative",
+      "reason": "uses-self.yearstr"
+    },
+    {
+      "ident": "TestCPyTime.test_FromSeconds",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestCPyTime.test_FromSecondsObject",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestCPyTime.test_AsSecondsDouble",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestCPyTime.test_AsTimeval",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestCPyTime.test_AsMilliseconds",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestCPyTime.test_AsMicroseconds",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestOldPyTime.test_object_to_time_t",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestOldPyTime.test_object_to_timeval",
+      "reason": "self.check_int_rounding"
+    },
+    {
+      "ident": "TestOldPyTime.test_object_to_timespec",
+      "reason": "self.check_int_rounding"
+    }
+  ],
+  "counts": {
+    "extracted": 63,
+    "pinned": 15,
+    "quarantined": 48
+  }
+}

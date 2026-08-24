@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_tuple.py",
+    "-o",
+    "/var/tmp/laneb-out/test_tuple",
+    "--name",
+    "conv_tuple"
+  ],
+  "generated_at": "2026-08-24T10:31:07",
+  "hashes": {
+    "pins_jac": "fc41d9d45225cd6cde8c420302e2e252d2919b2579bfb31a4a9fdde5dbd9a39c"
+  },
+  "source_file": "reference/cpython/Lib/test/test_tuple.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "tuple",
+  "pins_file": "conv_tuple_pins.jac",
+  "pins": [
+    {
+      "ident": "TupleTest.test_getitem_error",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    t = ()\n    msg = 'tuple indices must be integers or slices'\n    try:\n        t['a']\n    except TypeError as _exc:\n        assert _re.search(msg, str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_constructors",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "TupleTest.test_keyword_args",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import re as _re\n\ndef _t():\n    try:\n        tuple(sequence=())\n    except TypeError as _exc:\n        assert _re.search('keyword argument', str(_exc)), 'assertRaisesRegex: message mismatch'\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_truth",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "TupleTest.test_len",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "TupleTest.test_iadd",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "TupleTest.test_imul",
+      "status": "quarantined",
+      "reason": "host-raised:RuntimeError: super(): no arguments"
+    },
+    {
+      "ident": "TupleTest.test_tupleresizebug",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def f():\n        for i in range(1000):\n            yield i\n    assert list(tuple(f())) == list(range(1000)), ('assertEqual', list(tuple(f())), list(range(1000)))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_hash_exact",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support, seq_tests\n\ndef _t():\n\n    def check_one_exact(t, e32, e64):\n        got = hash(t)\n        expected = e32 if support.NHASHBITS == 32 else e64\n        if got != expected:\n            msg = f'FAIL hash({t!r}) == {got} != {expected}'\n            raise AssertionError(msg)\n    check_one_exact((), 750394483, 5740354900026072187)\n    check_one_exact((0,), 1214856301, -8753497827991233192)\n    check_one_exact((0, 0), -168982784, -8458139203682520985)\n    check_one_exact((0.5,), 2077348973, -408149959306781352)\n    check_one_exact((0.5, (), (-2, 3, (4, 6))), 714642271, -1845940830829704396)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_hash_optional",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test import support, seq_tests\nRUN_ALL_HASH_TESTS = False\nJUST_SHOW_HASH_RESULTS = False\n\ndef _t():\n    from itertools import product\n    if not RUN_ALL_HASH_TESTS:\n        return\n\n    def tryone_inner(tag, nbins, hashes, expected=None, zlimit=None):\n        from collections import Counter\n        nballs = len(hashes)\n        mean, sdev = support.collision_stats(nbins, nballs)\n        c = Counter(hashes)\n        collisions = nballs - len(c)\n        z = (collisions - mean) / sdev\n        pileup = max(c.values()) - 1\n        del c\n        got = (collisions, pileup)\n        failed = False\n        prefix = ''\n        if zlimit is not None and z > zlimit:\n            failed = True\n            prefix = f'FAIL z > {zlimit}; '\n        if expected is not None and got != expected:\n            failed = True\n            prefix += f'FAIL {got} != {expected}; '\n        if failed or JUST_SHOW_HASH_RESULTS:\n            msg = f'{prefix}{tag}; pileup {pileup:,} mean {mean:.1f} '\n            msg += f'coll {collisions:,} z {z:+.1f}'\n            if JUST_SHOW_HASH_RESULTS:\n                import sys\n                print(msg, file=sys.__stdout__)\n            else:\n                raise AssertionError(msg)\n\n    def tryone(tag, xs, native32=None, native64=None, hi32=None, lo32=None, zlimit=None):\n        NHASHBITS = support.NHASHBITS\n        hashes = list(map(hash, xs))\n        tryone_inner(tag + f'; {NHASHBITS}-bit hash codes', 1 << NHASHBITS, hashes, native32 if NHASHBITS == 32 else native64, zlimit)\n        if NHASHBITS > 32:\n            shift = NHASHBITS - 32\n            tryone_inner(tag + '; 32-bit upper hash codes', 1 << 32, [h >> shift for h in hashes], hi32, zlimit)\n            mask = (1 << 32) - 1\n            tryone_inner(tag + '; 32-bit lower hash codes', 1 << 32, [h & mask for h in hashes], lo32, zlimit)\n    tryone('range(100) by 3', list(product(range(100), repeat=3)), (0, 0), (0, 0), (4, 1), (0, 0))\n    cands = list(range(-10, -1)) + list(range(9))\n    tryone('-10 .. 8 by 4', list(product(cands, repeat=4)), (0, 0), (0, 0), (0, 0), (0, 0))\n    del cands\n    L = [n << 60 for n in range(100)]\n    tryone('0..99 << 60 by 3', list(product(L, repeat=3)), (0, 0), (0, 0), (0, 0), (324, 1))\n    del L\n    tryone('[-3, 3] by 18', list(product([-3, 3], repeat=18)), (7, 1), (0, 0), (7, 1), (6, 1))\n    tryone('[0, 0.5] by 18', list(product([0, 0.5], repeat=18)), (5, 1), (0, 0), (9, 1), (12, 1))\n    tryone('4-char tuples', list(product('abcdefghijklmnopqrstuvwxyz', repeat=4)), zlimit=4.0)\n    N = 50\n    base = list(range(N))\n    xp = list(product(base, repeat=2))\n    inps = base + list(product(base, xp)) + list(product(xp, base)) + xp + list(zip(base))\n    tryone('old tuple test', inps, (2, 1), (0, 0), (52, 49), (7, 1))\n    del base, xp, inps\n    n = 5\n    A = [x for x in range(-n, n + 1) if x != -1]\n    B = A + [(a,) for a in A]\n    L2 = list(product(A, repeat=2))\n    L3 = L2 + list(product(A, repeat=3))\n    L4 = L3 + list(product(A, repeat=4))\n    T = A\n    T += [(a,) for a in B + L4]\n    T += product(L3, B)\n    T += product(L2, repeat=2)\n    T += product(B, L3)\n    T += product(B, B, L2)\n    T += product(B, L2, B)\n    T += product(L2, B, B)\n    T += product(B, repeat=4)\n    assert len(T) == 345130\n    tryone('new tuple test', T, (9, 1), (0, 0), (21, 5), (6, 1))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_repr_large",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def check(n):\n        l = (0,) * n\n        s = repr(l)\n        assert s == '(' + ', '.join(['0'] * n) + ')', ('assertEqual', s, '(' + ', '.join(['0'] * n) + ')')\n    check(10)\n    check(1000000)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TupleTest.test_no_comdat_folding",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class T(tuple):\n        pass\n    try:\n        [3] + T((1, 2))\n    except TypeError as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TupleTest.test_track_literals",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TupleTest.test_track_dynamic",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TupleTest.test_track_subtypes",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TupleTest.test_bug7466",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "ident": "TupleTest.test_keywords_in_subclass",
+      "reason": "uses-self.newarg"
+    },
+    {
+      "ident": "TupleTest.test_repr",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "TupleTest.test_iterator_pickle",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "TupleTest.test_reversed_pickle",
+      "reason": "uses-self.type2test"
+    },
+    {
+      "ident": "TupleTest.test_lexicographic_ordering",
+      "reason": "uses-self.type2test"
+    }
+  ],
+  "counts": {
+    "extracted": 21,
+    "pinned": 7,
+    "quarantined": 14
+  }
+}

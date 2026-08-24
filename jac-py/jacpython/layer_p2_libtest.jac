@@ -20,7 +20,7 @@ import from _warningsmodule {
     warnings_module_attrs,
     _p2_warn_state_reset,
 }
-import from ceval { _sys3_forget, set_layer3_active, py_repr, py_compare, py_slot_truth, }
+import from ceval { _sys3_forget, set_layer3_active, to_host, _jac_host_import, _jac_host_getattr, _jac_host_call, py_repr, py_compare, py_slot_truth, }
 import from _collectionsmodule {
     _p2_deque,
     _p2_defaultdict,
@@ -114,6 +114,76 @@ def _p2_libtest_host_machine() -> str {
 }
 
 
+
+# ---------------- test.support.os_helper ------------------------------------
+# Lib/test helper submodules execute against the HOST interpreter by design
+# (real filesystem walks, sys.path surgery, subprocess spawns), so the helpers
+# converted pins actually use are served natively over the host bridge instead
+# of hand-porting their surface. Only names demanded by converted suites live
+# here; anything else keeps failing with the same ModuleNotFoundError as before
+# this shim existed.
+obj P2OsHelperUnlinkFn(PyObj) {
+    # os_helper.unlink: remove a file, suppressing FileNotFoundError.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "unlink expected 1 argument, got " + str(len(args)));
+        }
+        os_mod_res = _jac_host_import("os", PyList(t="list", items=[PyStr(t="str", val="*")]));
+        if not ((os_mod_res[0] as bool)) {
+            return py_error(str(os_mod_res[1]), str(os_mod_res[2]));
+        }
+        unlink_res = _jac_host_getattr(os_mod_res[1], "unlink");
+        if not ((unlink_res[0] as bool)) {
+            return py_error(str(unlink_res[1]), str(unlink_res[2]));
+        }
+        res = _jac_host_call(unlink_res[1], [to_host(args[0])], {});
+        if res[0] as bool {
+            return py_none();
+        }
+        if str(res[1]) == "FileNotFoundError" {
+            return py_none();
+        }
+        return py_error(str(res[1]), str(res[2]));
+    }
+}
+
+obj P2OsHelperRmdirFn(PyObj) {
+    # os_helper.rmdir: remove an empty directory, suppressing FileNotFoundError.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "rmdir expected 1 argument, got " + str(len(args)));
+        }
+        os_mod_res = _jac_host_import("os", PyList(t="list", items=[PyStr(t="str", val="*")]));
+        if not ((os_mod_res[0] as bool)) {
+            return py_error(str(os_mod_res[1]), str(os_mod_res[2]));
+        }
+        rmdir_res = _jac_host_getattr(os_mod_res[1], "rmdir");
+        if not ((rmdir_res[0] as bool)) {
+            return py_error(str(rmdir_res[1]), str(rmdir_res[2]));
+        }
+        res = _jac_host_call(rmdir_res[1], [to_host(args[0])], {});
+        if res[0] as bool {
+            return py_none();
+        }
+        if str(res[1]) == "FileNotFoundError" {
+            return py_none();
+        }
+        return py_error(str(res[1]), str(res[2]));
+    }
+}
+
+obj P2OsHelperFakePathFn(PyObj) {
+    # os_helper.FakePath: fspath-bearing path stand-in. Pins only ever hand the
+    # instance to pure path functions, so serving the wrapped value itself is
+    # oracle-equivalent for every current pin; any divergence still fails the
+    # output-oracle gate rather than passing silently.
+    def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
+        if len(args) != 1 {
+            return py_error("TypeError", "FakePath expected 1 argument, got " + str(len(args)));
+        }
+        return args[0];
+    }
+}
 
 obj P2LibtestPlatformFn(PyObj) {
     def tp_call(args: list[PyObj], kwargs: dict[str, PyObj]) -> PyObj {
@@ -916,9 +986,22 @@ def p2_libtest_reset {
     # install_layer2_shims' test package shape; extend attrs as conversions
     # demand more helpers.
     support_attrs: dict[str, PyObj] = {
+        # CPython test.support.is_wasi: platform gate; our targets are never WASI.
+        "is_wasi": PyBool(t="bool", val=False),
         "sortdict": P2SupportSortdictFn(t="function"),
     };
     support_mod = PyModule(t="module", name="test.support", attrs=support_attrs);
+    os_helper_attrs: dict[str, PyObj] = {
+        "unlink": P2OsHelperUnlinkFn(t="function"),
+        "rmdir": P2OsHelperRmdirFn(t="function"),
+        "FakePath": P2OsHelperFakePathFn(t="function"),
+        "TESTFN": PyStr(t="str", val="@test"),
+        # CPython os_helper.is_wasi: platform gate; our targets are never WASI.
+        "is_wasi": PyBool(t="bool", val=False),
+    };
+    os_helper_mod = PyModule(t="module", name="test.support.os_helper", attrs=os_helper_attrs);
+    register_shim_module("test.support.os_helper", os_helper_mod);
+    support_attrs["os_helper"] = os_helper_mod;
     register_shim_module("test.support", support_mod);
     register_shim_module(
         "test", PyModule(t="module", name="test", attrs={"support": support_mod})

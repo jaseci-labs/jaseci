@@ -1,0 +1,1038 @@
+{
+  "schema_version": 1,
+  "tool_version": "diff_runner-0.2.0",
+  "jac_sha": "888737bb476d88dc6dc77c271a2da80c2da8713d",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "diff_runner.py",
+    "/var/tmp/laneb-out/test_codecs/conv_codecs_pins.jac"
+  ],
+  "generated_at": "2026-08-24T11:07:59",
+  "hashes": {
+    "pins_jac": "4b97d4e3fe3c24bead4f17d738aa34709747af34f457ce57772f59a5ef11c4ab",
+    "conversion_json": "339e3b04bc2332d3e7c05b826e39c778381d55436e92329d4965d9596103aacc",
+    "guest_jac_sha_note": "jac_sha is the repo HEAD driving .venv/bin/jac"
+  },
+  "module_stem": "codecs",
+  "counts": {
+    "converted": 207,
+    "runnable": 89,
+    "green": 57,
+    "quarantined": 118
+  },
+  "pins": [
+    {
+      "id": "UTF32Test.test_handlers",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32Test.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32Test.test_issue8941",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32LETest.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32LETest.test_issue8941",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32BETest.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF32BETest.test_issue8941",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16Test.test_handlers",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16Test.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16LETest.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16BETest.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16ExTest.test_errors",
+      "status": "pass"
+    },
+    {
+      "id": "UTF16ExTest.test_bad_args",
+      "status": "pass"
+    },
+    {
+      "id": "ReadBufferTest.test_array",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'spam\\', 4), (b\\'spam\\', 4))\"'>"
+    },
+    {
+      "id": "ReadBufferTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "ReadBufferTest.test_bad_args",
+      "status": "pass"
+    },
+    {
+      "id": "UTF8SigTest.test_bug1601501",
+      "status": "pass"
+    },
+    {
+      "id": "UTF8SigTest.test_bom",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-8-sig'\">"
+    },
+    {
+      "id": "UTF8SigTest.test_stream_bom",
+      "status": "pass"
+    },
+    {
+      "id": "UTF8SigTest.test_stream_bare",
+      "status": "pass"
+    },
+    {
+      "id": "EscapeDecodeTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "EscapeDecodeTest.test_raw",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\\\\\\\x000\\', 2), (b\\'\\\\\\\\x000\\', 2))\"'>"
+    },
+    {
+      "id": "EscapeDecodeTest.test_escape",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "EscapeDecodeTest.test_errors",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'[]\\', 6), (b\\'[]\\', 6))\"'>"
+    },
+    {
+      "id": "PunycodeTest.test_encode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: punycode'\">"
+    },
+    {
+      "id": "PunycodeTest.test_decode",
+      "status": "pass"
+    },
+    {
+      "id": "NameprepTest.test_nameprep",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_builtin_decode",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_builtin_encode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: idna'\">"
+    },
+    {
+      "id": "IDNACodecTest.test_builtin_decode_length_limit",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_stream",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_incremental_decode",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_incremental_encode",
+      "status": "pass"
+    },
+    {
+      "id": "IDNACodecTest.test_errors",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: idna'\">"
+    },
+    {
+      "id": "CodecsModuleTest.test_decode",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_encode",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_register",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_unregister",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CodecsModuleTest.test_lookup",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_getencoder",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_getdecoder",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_getreader",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_getwriter",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_all",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_undefined",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_file_closes_if_lookup_error_raised",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<'SystemError: unsupported opcode 36'>"
+    },
+    {
+      "id": "CodecsModuleTest.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "CodecsModuleTest.test_deepcopy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "EncodedFileTest.test_basic",
+      "status": "pass"
+    },
+    {
+      "id": "BasicUnicodeTest.test_seek",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: big5'\">"
+    },
+    {
+      "id": "BasicUnicodeTest.test_bad_decode_args",
+      "status": "pass"
+    },
+    {
+      "id": "BasicUnicodeTest.test_bad_encode_args",
+      "status": "pass"
+    },
+    {
+      "id": "BasicUnicodeTest.test_encoding_map_type_initialized",
+      "status": "pass"
+    },
+    {
+      "id": "CharmapTest.test_decode_with_string_map",
+      "status": "pass"
+    },
+    {
+      "id": "CharmapTest.test_decode_with_int2int_map",
+      "status": "pass"
+    },
+    {
+      "id": "WithStmtTest.test_encodedfile",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'StreamRecoder.__enter__() takes 1 positional argument but 2 were given'\">"
+    },
+    {
+      "id": "WithStmtTest.test_streamreaderwriter",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC TypeError 'StreamReaderWriter.__enter__() takes 1 positional argument but 2 were given'\">"
+    },
+    {
+      "id": "TypesTest.test_decode_unicode",
+      "status": "pass"
+    },
+    {
+      "id": "TypesTest.test_unicode_escape",
+      "status": "pass"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_raw_encode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\' \\', 1), (b\\' \\', 1))\"'>"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_raw_decode",
+      "status": "pass"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_escape_encode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_escape_decode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_decode_errors",
+      "status": "pass"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_empty",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\', 0), (b\\'\\', 0))\"'>"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_raw_encode",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC AssertionError \"(\\'assertEqual\\', (b\\'\\\\\\\\x00\\', 1), (b\\'\\\\\\\\x00\\', 1))\"'>"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_raw_decode",
+      "status": "pass"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_escape_encode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_escape_decode",
+      "status": "quarantined",
+      "reason": "host-raised:NameError: name 'self' is not defined"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_decode_errors",
+      "status": "pass"
+    },
+    {
+      "id": "SurrogateEscapeTest.test_utf8",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "SurrogateEscapeTest.test_ascii",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "SurrogateEscapeTest.test_charmap",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: iso-8859-3'\">"
+    },
+    {
+      "id": "SurrogateEscapeTest.test_latin1",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "TransformCodecTest.test_text_to_binary_denylists_text_transforms",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AssertionError 'assertRaisesRegex: message mismatch'\">"
+    },
+    {
+      "id": "TransformCodecTest.test_alias_modules_exist",
+      "status": "quarantined",
+      "reason": "host-raised:AttributeError: module 'importlib' has no attribute 'util'"
+    },
+    {
+      "id": "TransformCodecTest.test_quopri_stateless",
+      "status": "pass"
+    },
+    {
+      "id": "TransformCodecTest.test_uu_invalid",
+      "status": "pass"
+    },
+    {
+      "id": "ASCIITest.test_encode",
+      "status": "pass"
+    },
+    {
+      "id": "ASCIITest.test_encode_surrogateescape_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "ASCIITest.test_decode",
+      "status": "pass"
+    },
+    {
+      "id": "Latin1Test.test_encode_surrogateescape_error",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<'ORACLE_EXC LookupError \"unknown error handler name \\'surrogateescape\\'\"'>"
+    },
+    {
+      "id": "StreamRecoderTest.test_writelines",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'ascii'\">"
+    },
+    {
+      "id": "StreamRecoderTest.test_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC AttributeError 'utf_8'\">"
+    },
+    {
+      "id": "StreamRecoderTest.test_seeking_read",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "StreamRecoderTest.test_seeking_write",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "GOT<\"ORACLE_EXC LookupError 'unknown encoding: utf-16-le'\">"
+    },
+    {
+      "id": "StreamRecoderTest.test_copy",
+      "status": "fail",
+      "classification": "GUEST-WRONG-OUTPUT",
+      "detail": "RUN<\"TypeError: cannot use 'property_ctor' as a set element (unhashable type: 'property_ctor')\">"
+    },
+    {
+      "id": "Rot13Test.test_encode",
+      "status": "pass"
+    },
+    {
+      "id": "Rot13Test.test_decode",
+      "status": "pass"
+    },
+    {
+      "id": "Rot13Test.test_incremental_encode",
+      "status": "pass"
+    },
+    {
+      "id": "Rot13Test.test_incremental_decode",
+      "status": "pass"
+    },
+    {
+      "id": "Rot13UtilTest.test_rot13_func",
+      "status": "pass"
+    },
+    {
+      "id": "CodecNameNormalizationTest.test_encodings_normalize_encoding",
+      "status": "pass"
+    },
+    {
+      "id": "CodecCacheTest.test_cache_bounded",
+      "status": "pass"
+    },
+    {
+      "id": "CodecsModuleTest.test_lookup_issue1813",
+      "status": "quarantined",
+      "reason": "decorator:support.run_with_locale"
+    },
+    {
+      "id": "BasicUnicodeTest.test_basics_capi",
+      "status": "quarantined",
+      "reason": "decorator:support.cpython_only"
+    },
+    {
+      "id": "TransformCodecTest.test_custom_zlib_error_is_noted",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_invalid_code_page",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_code_page_name",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_cp932",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_cp1252",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_cp708",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_cp20106",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_cp_utf7",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_multibyte_encoding",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_code_page_decode_flags",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_incremental",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_mbcs_code_page",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_large_input",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "CodePageTest.test_large_utf8_input",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipUnless"
+    },
+    {
+      "id": "LocaleCodecTest.test_encode_strict",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_encode_surrogateescape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_encode_surrogatepass",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_encode_unsupported_error_handler",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_decode_strict",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_decode_surrogateescape",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_decode_surrogatepass",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "LocaleCodecTest.test_decode_unsupported_error_handler",
+      "status": "quarantined",
+      "reason": "decorator:unittest.skipIf"
+    },
+    {
+      "id": "ReadTest.test_readline",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_mixed_readline_and_read",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_bug1175396",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_readlinequeue",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_bug1098990_a",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_bug1098990_b",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_lone_surrogates",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "ReadTest.test_incremental_surrogatepass",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF32Test.test_only_one_bom",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF32Test.test_badbom",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF32Test.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF32Test.test_decoder_state",
+      "status": "quarantined",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "id": "UTF32LETest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF32LETest.test_simple",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF32BETest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF32BETest.test_simple",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF16Test.test_only_one_bom",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF16Test.test_badbom",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF16Test.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF16Test.test_decoder_state",
+      "status": "quarantined",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "id": "UTF16Test.test_bug691291",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "UTF16Test.test_invalid_modes",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF16LETest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF16LETest.test_nonbmp",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF16BETest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF16BETest.test_nonbmp",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF8Test.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF8Test.test_decoder_state",
+      "status": "quarantined",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "id": "UTF8Test.test_decode_error",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UTF8Test.test_lone_surrogates",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF8Test.test_surrogatepass_handler",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF8Test.test_incremental_errors",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UTF7Test.test_ascii",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF7Test.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "UTF7Test.test_errors",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UTF7Test.test_nonbmp",
+      "status": "quarantined",
+      "reason": "uses-self.encoding"
+    },
+    {
+      "id": "UTF7Test.test_lone_surrogates",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "UTF8SigTest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "EscapeDecodeTest.test_warnings",
+      "status": "quarantined",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "id": "PunycodeTest.test_decode_invalid",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "IDNACodecTest.test_builtin_decode_invalid",
+      "status": "quarantined",
+      "reason": "uses-self.invalid_decode_testcases"
+    },
+    {
+      "id": "IDNACodecTest.test_builtin_encode_invalid",
+      "status": "quarantined",
+      "reason": "uses-self.invalid_encode_testcases"
+    },
+    {
+      "id": "IDNACodecTest.test_incremental_decode_invalid",
+      "status": "quarantined",
+      "reason": "uses-self.invalid_decode_testcases"
+    },
+    {
+      "id": "IDNACodecTest.test_incremental_encode_invalid",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecsModuleTest.test_open",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "CodecsModuleTest.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "StreamReaderTest.test_readlines",
+      "status": "quarantined",
+      "reason": "uses-self.reader"
+    },
+    {
+      "id": "StreamReaderTest.test_copy",
+      "status": "quarantined",
+      "reason": "uses-self.reader"
+    },
+    {
+      "id": "StreamReaderTest.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "StreamWriterTest.test_copy",
+      "status": "quarantined",
+      "reason": "uses-self.writer"
+    },
+    {
+      "id": "StreamWriterTest.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "StreamReaderWriterTest.test_copy",
+      "status": "quarantined",
+      "reason": "uses-self.reader"
+    },
+    {
+      "id": "StreamReaderWriterTest.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "BasicUnicodeTest.test_basics",
+      "status": "quarantined",
+      "reason": "unresolved-name:Queue"
+    },
+    {
+      "id": "BasicUnicodeTest.test_decoder_state",
+      "status": "quarantined",
+      "reason": "self.check_state_handling_decode"
+    },
+    {
+      "id": "CharmapTest.test_decode_with_int2str_map",
+      "status": "quarantined",
+      "reason": "assertRaisesRegex call form"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_decode_warnings",
+      "status": "quarantined",
+      "reason": "uses-self.assertWarnsRegex"
+    },
+    {
+      "id": "UnicodeEscapeTest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "RawUnicodeEscapeTest.test_partial",
+      "status": "quarantined",
+      "reason": "self.check_partial"
+    },
+    {
+      "id": "EscapeEncodeTest.test_escape_encode",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "BomTest.test_seek0",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    },
+    {
+      "id": "TransformCodecTest.test_basics",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_read",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_readline",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_buffer_api_usage",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_text_to_binary_denylists_binary_transforms",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_binary_to_text_denylists_binary_transforms",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_binary_to_text_denylists_text_transforms",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "TransformCodecTest.test_custom_hex_error_is_noted",
+      "status": "quarantined",
+      "reason": "unresolved-name:failure"
+    },
+    {
+      "id": "TransformCodecTest.test_aliases",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ExceptionNotesTest.test_raise_by_type",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_raise_by_value",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_raise_grandchild_subclass_exact_size",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_raise_subclass_with_weakref_support",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_init_override",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_new_override",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_instance_attribute",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_non_str_arg",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_multiple_args",
+      "status": "quarantined",
+      "reason": "self.check_note"
+    },
+    {
+      "id": "ExceptionNotesTest.test_codec_lookup_failure",
+      "status": "quarantined",
+      "reason": "uses-self.codec_name"
+    },
+    {
+      "id": "ExceptionNotesTest.test_unflagged_non_text_codec_handling",
+      "status": "quarantined",
+      "reason": "self.set_codec"
+    },
+    {
+      "id": "ASCIITest.test_encode_error",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "ASCIITest.test_decode_error",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Latin1Test.test_encode",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Latin1Test.test_encode_errors",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "Latin1Test.test_decode",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "StreamRecoderTest.test_pickle",
+      "status": "quarantined",
+      "reason": "uses-self.subTest"
+    },
+    {
+      "id": "CodecNameNormalizationTest.test_codecs_lookup",
+      "status": "quarantined",
+      "reason": "self.addCleanup"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_pow.py",
+    "-o",
+    "/var/tmp/laneb-out/test_pow",
+    "--name",
+    "conv_pow"
+  ],
+  "generated_at": "2026-08-24T10:31:08",
+  "hashes": {
+    "pins_jac": "01deb2e00d12e130bb3988016c15fb1ee818ab4136da61be533446c021fd1b18"
+  },
+  "source_file": "reference/cpython/Lib/test/test_pow.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "pow",
+  "pins_file": "conv_pow_pins.jac",
+  "pins": [
+    {
+      "ident": "PowTest.test_other",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    assert pow(3, 3) % 8 == pow(3, 3, 8), ('assertEqual', pow(3, 3) % 8, pow(3, 3, 8))\n    assert pow(3, 3) % -8 == pow(3, 3, -8), ('assertEqual', pow(3, 3) % -8, pow(3, 3, -8))\n    assert pow(3, 2) % -2 == pow(3, 2, -2), ('assertEqual', pow(3, 2) % -2, pow(3, 2, -2))\n    assert pow(-3, 3) % 8 == pow(-3, 3, 8), ('assertEqual', pow(-3, 3) % 8, pow(-3, 3, 8))\n    assert pow(-3, 3) % -8 == pow(-3, 3, -8), ('assertEqual', pow(-3, 3) % -8, pow(-3, 3, -8))\n    assert pow(5, 2) % -8 == pow(5, 2, -8), ('assertEqual', pow(5, 2) % -8, pow(5, 2, -8))\n    assert pow(3, 3) % 8 == pow(3, 3, 8), ('assertEqual', pow(3, 3) % 8, pow(3, 3, 8))\n    assert pow(3, 3) % -8 == pow(3, 3, -8), ('assertEqual', pow(3, 3) % -8, pow(3, 3, -8))\n    assert pow(3, 2) % -2 == pow(3, 2, -2), ('assertEqual', pow(3, 2) % -2, pow(3, 2, -2))\n    assert pow(-3, 3) % 8 == pow(-3, 3, 8), ('assertEqual', pow(-3, 3) % 8, pow(-3, 3, 8))\n    assert pow(-3, 3) % -8 == pow(-3, 3, -8), ('assertEqual', pow(-3, 3) % -8, pow(-3, 3, -8))\n    assert pow(5, 2) % -8 == pow(5, 2, -8), ('assertEqual', pow(5, 2) % -8, pow(5, 2, -8))\n    for i in range(-10, 11):\n        for j in range(0, 6):\n            for k in range(-7, 11):\n                if j >= 0 and k != 0:\n                    assert pow(i, j) % k == pow(i, j, k), ('assertEqual', pow(i, j) % k, pow(i, j, k))\n                if j >= 0 and k != 0:\n                    assert pow(int(i), j) % k == pow(int(i), j, k), ('assertEqual', pow(int(i), j) % k, pow(int(i), j, k))\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PowTest.test_big_exp",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    import random\n    assert pow(2, 50000) == 1 << 50000, ('assertEqual', pow(2, 50000), 1 << 50000)\n    prime = 1000000000039\n    for i in range(10):\n        a = random.randrange(1000, 1000000)\n        bpower = random.randrange(1000, 50000)\n        b = random.randrange(1 << bpower - 1, 1 << bpower)\n        b1 = random.randrange(1, b)\n        b2 = b - b1\n        got1 = pow(a, b, prime)\n        got2 = pow(a, b1, prime) * pow(a, b2, prime) % prime\n        if got1 != got2:\n            raise AssertionError(f'a={a:x} b1={b1:x} b2={b2:x} got1={got1:x} got2={got2:x}')\n        got3 = pow(a, b1 * b2, prime)\n        got4 = pow(pow(a, b1, prime), b2, prime)\n        if got3 != got4:\n            raise AssertionError(f'a={a:x} b1={b1:x} b2={b2:x} got3={got3:x} got4={got4:x}')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "PowTest.test_bug643260",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class TestRpow:\n\n        def __rpow__(self, other):\n            return None\n    None ** TestRpow()\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "PowTest.test_powint",
+      "reason": "self.powtest"
+    },
+    {
+      "ident": "PowTest.test_powfloat",
+      "reason": "self.powtest"
+    },
+    {
+      "ident": "PowTest.test_bug705231",
+      "reason": "uses-self.assertEqual"
+    },
+    {
+      "ident": "PowTest.test_negative_exponent",
+      "reason": "uses-self.subTest"
+    }
+  ],
+  "counts": {
+    "extracted": 7,
+    "pinned": 3,
+    "quarantined": 4
+  }
+}

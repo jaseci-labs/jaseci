@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_index.py",
+    "-o",
+    "/var/tmp/laneb-out/test_index",
+    "--name",
+    "conv_index"
+  ],
+  "generated_at": "2026-08-24T10:31:09",
+  "hashes": {
+    "pins_jac": "d0c75d028d2f97e5e9a139669ad120d0641cd1d72356f6e4f72884931489c486"
+  },
+  "source_file": "reference/cpython/Lib/test/test_index.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "index",
+  "pins_file": "conv_index_pins.jac",
+  "pins": [
+    {
+      "ident": "BaseTestCase.test_int_subclass_with_index",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "import operator\n\ndef _t():\n\n    class MyInt(int):\n\n        def __index__(self):\n            return int(str(self)) + 1\n    my_int = MyInt(7)\n    direct_index = my_int.__index__()\n    operator_index = operator.index(my_int)\n    assert direct_index == 8, ('assertEqual', direct_index, 8)\n    assert operator_index == 7, ('assertEqual', operator_index, 7)\n    assert type(direct_index) is int, ('assertIs', type(direct_index), int)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "BaseTestCase.test_basic",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "BaseTestCase.test_slice",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "BaseTestCase.test_wrappers",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "BaseTestCase.test_subclasses",
+      "reason": "unresolved-name:TrapInt"
+    },
+    {
+      "ident": "BaseTestCase.test_error",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "BaseTestCase.test_index_returns_int_subclass",
+      "reason": "uses-self.assertWarns"
+    },
+    {
+      "ident": "SeqTestCase.test_index",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "SeqTestCase.test_slice",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "SeqTestCase.test_slice_bug7532",
+      "reason": "uses-self.seq"
+    },
+    {
+      "ident": "SeqTestCase.test_repeat",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "SeqTestCase.test_wrappers",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "SeqTestCase.test_subclasses",
+      "reason": "uses-self.seq"
+    },
+    {
+      "ident": "SeqTestCase.test_error",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "ListTestCase.test_setdelitem",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "ListTestCase.test_inplace_repeat",
+      "reason": "uses-self.o"
+    },
+    {
+      "ident": "RangeTestCase.test_range",
+      "reason": "unresolved-name:newstyle"
+    },
+    {
+      "ident": "OverflowTestCase.test_large_longs",
+      "reason": "uses-self.pos"
+    },
+    {
+      "ident": "OverflowTestCase.test_getitem",
+      "reason": "uses-self.pos"
+    },
+    {
+      "ident": "OverflowTestCase.test_sequence_repeat",
+      "reason": "uses-self.pos"
+    }
+  ],
+  "counts": {
+    "extracted": 20,
+    "pinned": 1,
+    "quarantined": 19
+  }
+}

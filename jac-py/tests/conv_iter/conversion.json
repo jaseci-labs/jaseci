@@ -1,0 +1,334 @@
+{
+  "schema_version": 1,
+  "tool_version": "conv_suite-0.3.0",
+  "jac_sha": "9f36fdd966dec68dff2123ddfe8326c8bf8301bf",
+  "cpython": {
+    "version": "3.14.6",
+    "sha": "c63aec69bd59c55314c06c23f4c22c03de76fe45"
+  },
+  "command": [
+    "convert_suite.py",
+    "reference/cpython/Lib/test/test_iter.py",
+    "-o",
+    "/var/tmp/laneb-out/test_iter",
+    "--name",
+    "conv_iter"
+  ],
+  "generated_at": "2026-08-24T10:31:06",
+  "hashes": {
+    "pins_jac": "dc3be110afc324710d97f3fdf2532037f67a1f5be8fb0faada0f1f88fc223c2a"
+  },
+  "source_file": "reference/cpython/Lib/test/test_iter.py",
+  "generator": "jac-py/tools/convert_suite.py",
+  "module_stem": "iter",
+  "pins_file": "conv_iter_pins.jac",
+  "pins": [
+    {
+      "ident": "TestCase.test_iter_idempotency",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    seq = list(range(10))\n    it = iter(seq)\n    it2 = iter(it)\n    assert it is it2, ('assertTrue', it is it2)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_independence",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "TRIPLETS = [(0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 2, 0), (0, 2, 1), (0, 2, 2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 2, 0), (1, 2, 1), (1, 2, 2), (2, 0, 0), (2, 0, 1), (2, 0, 2), (2, 1, 0), (2, 1, 1), (2, 1, 2), (2, 2, 0), (2, 2, 1), (2, 2, 2)]\n\ndef _t():\n    seq = range(3)\n    res = []\n    for i in iter(seq):\n        for j in iter(seq):\n            for k in iter(seq):\n                res.append((i, j, k))\n    assert res == TRIPLETS, ('assertEqual', res, TRIPLETS)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_nested_comprehensions_iter",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "TRIPLETS = [(0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 2, 0), (0, 2, 1), (0, 2, 2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 2, 0), (1, 2, 1), (1, 2, 2), (2, 0, 0), (2, 0, 1), (2, 0, 2), (2, 1, 0), (2, 1, 1), (2, 1, 2), (2, 2, 0), (2, 2, 1), (2, 2, 2)]\n\ndef _t():\n    seq = range(3)\n    res = [(i, j, k) for i in iter(seq) for j in iter(seq) for k in iter(seq)]\n    assert res == TRIPLETS, ('assertEqual', res, TRIPLETS)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_nested_comprehensions_for",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "TRIPLETS = [(0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 2, 0), (0, 2, 1), (0, 2, 2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 2, 0), (1, 2, 1), (1, 2, 2), (2, 0, 0), (2, 0, 1), (2, 0, 2), (2, 1, 0), (2, 1, 1), (2, 1, 2), (2, 2, 0), (2, 2, 1), (2, 2, 2)]\n\ndef _t():\n    seq = range(3)\n    res = [(i, j, k) for i in seq for j in seq for k in seq]\n    assert res == TRIPLETS, ('assertEqual', res, TRIPLETS)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_new_style_iter_class",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class IterClass(object):\n\n        def __iter__(self):\n            return self\n    try:\n        iter(*(IterClass(),))\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_iter_function_concealing_reentrant_exhaustion",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    HAS_MORE = 1\n    NO_MORE = 2\n\n    def exhaust(iterator):\n        \"\"\"Exhaust an iterator without raising StopIteration.\"\"\"\n        list(iterator)\n\n    def spam():\n        if spam.is_recursive_call:\n            return NO_MORE\n        spam.is_recursive_call = True\n        exhaust(spam.iterator)\n        return HAS_MORE\n    spam.is_recursive_call = False\n    spam.iterator = iter(spam, NO_MORE)\n    try:\n        next(spam.iterator)\n    except StopIteration as _exc:\n        pass\n    else:\n        raise AssertionError('assertRaises: did not raise')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_exception_function",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def spam(state=[0]):\n        i = state[0]\n        state[0] = i + 1\n        if i == 10:\n            raise RuntimeError\n        return i\n    res = []\n    try:\n        for x in iter(spam, 20):\n            res.append(x)\n    except RuntimeError:\n        assert res == list(range(10)), ('assertEqual', res, list(range(10)))\n    else:\n        raise AssertionError('should have raised RuntimeError')\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_countOf",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "from test.support.os_helper import TESTFN, unlink\n\ndef _t():\n    from operator import countOf\n    assert countOf([1, 2, 2, 3, 2, 5], 2) == 3, ('assertEqual', countOf([1, 2, 2, 3, 2, 5], 2), 3)\n    assert countOf((1, 2, 2, 3, 2, 5), 2) == 3, ('assertEqual', countOf((1, 2, 2, 3, 2, 5), 2), 3)\n    assert countOf('122325', '2') == 3, ('assertEqual', countOf('122325', '2'), 3)\n    assert countOf('122325', '6') == 0, ('assertEqual', countOf('122325', '6'), 0)\n    try:\n        countOf(*(42, 1))\n    except TypeError:\n        pass\n    try:\n        countOf(*(countOf, countOf))\n    except TypeError:\n        pass\n    d = {'one': 3, 'two': 3, 'three': 3, 1j: 2j}\n    for k in d:\n        assert countOf(d, k) == 1, ('assertEqual', countOf(d, k), 1)\n    assert countOf(d.values(), 3) == 3, ('assertEqual', countOf(d.values(), 3), 3)\n    assert countOf(d.values(), 2j) == 1, ('assertEqual', countOf(d.values(), 2j), 1)\n    assert countOf(d.values(), 1j) == 0, ('assertEqual', countOf(d.values(), 1j), 0)\n    f = open(TESTFN, 'w', encoding='utf-8')\n    try:\n        f.write('a\\nb\\nc\\nb\\n')\n    finally:\n        f.close()\n    f = open(TESTFN, 'r', encoding='utf-8')\n    try:\n        for letter, count in (('a', 1), ('b', 2), ('c', 1), ('d', 0)):\n            f.seek(0, 0)\n            assert countOf(f, letter + '\\n') == count, ('assertEqual', countOf(f, letter + '\\n'), count)\n    finally:\n        f.close()\n        try:\n            unlink(TESTFN)\n        except OSError:\n            pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_list",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = list(range(5))\n    b = iter(a)\n    assert list(b) == list(range(5)), ('assertEqual', list(b), list(range(5)))\n    a.extend(range(5, 10))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_tuple",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = (0, 1, 2, 3, 4)\n    b = iter(a)\n    assert list(b) == list(range(5)), ('assertEqual', list(b), list(range(5)))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_string",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = 'abcde'\n    b = iter(a)\n    assert list(b) == ['a', 'b', 'c', 'd', 'e'], ('assertEqual', list(b), ['a', 'b', 'c', 'd', 'e'])\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_callable",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def spam(state=[0]):\n        i = state[0]\n        state[0] = i + 1\n        if i == 10:\n            raise AssertionError(\"shouldn't have gotten this far\")\n        return i\n    b = iter(spam, 5)\n    assert list(b) == list(range(5)), ('assertEqual', list(b), list(range(5)))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_dict",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = {1: 1, 2: 2, 0: 0, 4: 4, 3: 3}\n    for b in (iter(a), a.keys(), a.items(), a.values()):\n        b = iter(a)\n        assert len(list(b)) == 5, ('assertEqual', len(list(b)), 5)\n        assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_yield",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def gen():\n        for i in range(5):\n            yield i\n    b = gen()\n    assert list(b) == list(range(5)), ('assertEqual', list(b), list(range(5)))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_range",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = range(5)\n    b = iter(a)\n    assert list(b) == list(range(5)), ('assertEqual', list(b), list(range(5)))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_enumerate",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n    a = range(5)\n    e = enumerate(a)\n    b = iter(e)\n    assert list(b) == list(zip(range(5), range(5))), ('assertEqual', list(b), list(zip(range(5), range(5))))\n    assert list(b) == [], ('assertEqual', list(b), [])\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_3720",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    class BadIterator(object):\n\n        def __iter__(self):\n            return self\n\n        def __next__(self):\n            del BadIterator.__next__\n            return 1\n    try:\n        for i in BadIterator():\n            pass\n    except TypeError:\n        pass\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    },
+    {
+      "ident": "TestCase.test_extending_list_with_iterator_does_not_segfault",
+      "status": "pinned",
+      "oracle": {
+        "status": "ok"
+      },
+      "snippet": "def _t():\n\n    def gen():\n        for i in range(500):\n            yield i\n    lst = [0] * 500\n    for i in range(240):\n        lst.pop(0)\n    lst.extend(gen())\n    assert len(lst) == 760, ('assertEqual', len(lst), 760)\ntry:\n    _t()\nexcept BaseException as _e:\n    print('ORACLE_EXC ' + type(_e).__name__ + ' ' + repr(str(_e)))\nelse:\n    print('ok')\n"
+    }
+  ],
+  "quarantined": [
+    {
+      "ident": "TestCase.test_iter_basic",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_iter_for_loop",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_class_for",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_class_iter",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_seq_class_for",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_seq_class_iter",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_mutating_seq_class_iter_pickle",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_mutating_seq_class_exhausted_iter",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_reduce_mutating_builtins_iter",
+      "reason": "uses-self.name"
+    },
+    {
+      "ident": "TestCase.test_iter_callable",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_iter_function",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_iter_function_stop",
+      "reason": "self.check_iterator"
+    },
+    {
+      "ident": "TestCase.test_exception_sequence",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_stop_sequence",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_big_range",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_empty",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_tuple",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_range",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_string",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_dict",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_iter_file",
+      "reason": "self.check_for_loop"
+    },
+    {
+      "ident": "TestCase.test_builtin_list",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_builtin_tuple",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_builtin_filter",
+      "reason": "uses-self.truth"
+    },
+    {
+      "ident": "TestCase.test_builtin_max_min",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_builtin_map",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_builtin_zip",
+      "reason": "uses-self.i"
+    },
+    {
+      "ident": "TestCase.test_unicode_join_endcase",
+      "reason": "uses-self.it"
+    },
+    {
+      "ident": "TestCase.test_in_and_not_in",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "ident": "TestCase.test_indexOf",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "ident": "TestCase.test_writelines",
+      "reason": "uses-self.start"
+    },
+    {
+      "ident": "TestCase.test_unpack_iter",
+      "reason": "unresolved-name:IteratingSequenceClass"
+    },
+    {
+      "ident": "TestCase.test_ref_counting_behavior",
+      "reason": "uses-self.__class__"
+    },
+    {
+      "ident": "TestCase.test_sinkstate_sequence",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_iter_overflow",
+      "reason": "unresolved-name:UnlimitedSequenceClass"
+    },
+    {
+      "ident": "TestCase.test_iter_neg_setstate",
+      "reason": "unresolved-name:UnlimitedSequenceClass"
+    },
+    {
+      "ident": "TestCase.test_free_after_iterating",
+      "reason": "unresolved-name:SequenceClass"
+    },
+    {
+      "ident": "TestCase.test_error_iter",
+      "reason": "unresolved-name:BadIterableClass"
+    },
+    {
+      "ident": "TestCase.test_exception_locations",
+      "reason": "uses-self.subTest"
+    }
+  ],
+  "counts": {
+    "extracted": 57,
+    "pinned": 18,
+    "quarantined": 39
+  }
+}
