@@ -79,6 +79,25 @@ indexes = { Post = ["at", "published"], Msg = ["at", "seq"] }
 
 Without this a `[?:Post, -at]` still returns the right rows -- correctness never depends on the declaration -- it just sorts the whole set to do it.
 
+**Owning content as a group.** A minted `Root()` is created unowned - grant
+yourself `WRITE` on it in the same function that mints it, or nothing can ever
+reach it. Then create content under it with `save(obj, owner=...)`, and one
+grant on that root covers all of it:
+
+```jac
+org = Root();
+Jac.save(org);
+Jac.allow_root(org, jid(root), AccessLevel.WRITE);   # member #1 is the creator
+
+item = Item(label="x");
+Jac.save(item, owner=org.__jac__.id);    # owned by the org, not by the caller
+Jac.allow_root(org, member_root_id, AccessLevel.READ);   # one entry, all content
+```
+
+`save(obj, owner=r)` requires `WRITE` on `r` and raises otherwise; it never
+silently falls back to the caller. `Jac.owner_of(obj)` reads which root owns an
+anchor.
+
 **Sharing: name a group, not every grantee.** `allow_root(obj, root_id)` writes one entry per grantee into the object's own permission map, so sharing with an audience of N costs N entries on that object -- re-serialised on every write to it. `allow_group(obj, group_id, level)` is one entry, and membership is an edge:
 
 ```
