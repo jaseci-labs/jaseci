@@ -13,6 +13,7 @@ import from objects {
     PyBytes,
     PyTuple,
     expect_str,
+    exc_is_subclass_of,
     is_error,
 }
 
