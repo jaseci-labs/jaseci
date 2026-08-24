@@ -404,7 +404,7 @@ test "a quarantined module reports the parity-guard trip by name" {
     }
 }
 
-test "a module with annexes declines before it is parsed" {
+test "a module with annexes crosses, and the impl arrives woven" {
     _reset();
     import tempfile;
     try {
@@ -418,10 +418,22 @@ test "a module with annexes declines before it is parsed" {
             );
             (_prog, mod) = _compile(path);
             assert mod is not None;
+            impls = [
+                st
+                for st in mod.body
+                if type(st).__name__ == "ImplDef"
+            ];
+            assert len(impls) == 1 , (
+                "the annex body did not reach the module the crossing "
+                f"produced: {[type(st).__name__ for st in mod.body]}. The "
+                "weave is part of producing a module now, so a module whose "
+                "impl lives in an annex must arrive carrying it."
+            );
         }
         by_clause = prefix_fallbacks_by_clause();
-        assert by_clause.get("annex-present", 0) >= 1 , (
-            f"an annexed module was not declined by name: {by_clause}"
+        assert by_clause.get("annex-present", 0) == 0 , (
+            "an annexed module was declined for carrying annexes, but the "
+            f"bound entry serves the multi-source crossing: {by_clause}"
         );
     } finally {
         _reset();
@@ -548,8 +560,8 @@ stamps `code_context` onto the tree -- but it does that after the parse step
 the crossing owns. A pass running inside the crossing therefore sees the
 `postinit` default, SERVER, no matter what the module is really pinned to.
 
-That is not hypothetical. `ASTValidationPass`, the one seat executing today,
-gates E0067 on exactly that field, so an ECMAScript fixture with backtick
+That is not hypothetical. `ASTValidationPass`, the first seat, gates E0067
+on exactly that field, so an ECMAScript fixture with backtick
 escaped `from`/`class` parameters -- legal in client code -- collected two
 Python-reserved-word errors the staged route never produces. Native and staged
 agree on identical input; what diverged was WHEN the pass ran relative to a
@@ -557,9 +569,11 @@ fact the driver had not stamped yet.
 
 So the crossing declines by name instead of computing on a tree the driver has
 not finished preparing. Carrying the codespace across as a prefix fact and
-coercing inside the drive is the real fix, and it is a prerequisite for
-admitting seat two -- every later seat reads more driver-stamped facts than
-this one does.
+coercing inside the drive is the real fix. Seat two did not need it --
+`SymTabBuildPass` reads neither `code_context` nor the codespace, and the
+clause keeps a pinned module out of the crossing entirely -- but every seat
+after it reads more driver-stamped facts than this one does, so the fix stays
+on the path.
 """
 test "a codespace-pinned module declines instead of crossing" {
     _reset();

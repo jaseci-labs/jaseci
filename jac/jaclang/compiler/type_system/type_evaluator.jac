@@ -141,6 +141,14 @@ import from jaclang.compiler.type_system.operations {
     get_type_of_binary_operation,
     is_annotation_type
 }
+import from jaclang.compiler.type_system.fixed_width {
+    AssignVerdict,
+    assign_numeric_expr,
+    both_numeric,
+    fixed_width_call_type,
+    is_unsigned_type,
+    unify_numeric_operands
+}
 import from jaclang.compiler.type_system.type_utils {
     ClassMember,
     ParamAssignmentTracker,
@@ -222,7 +230,9 @@ import from jaclang.jac0core.diagnostics {
     E1111,
     E1120,
     E1121,
+    E1129,
     E0049,
+    E5094,
     W1050,
     W1051,
     W1100,
@@ -462,6 +472,18 @@ obj TypeEvaluator {
         src_type: TypeBase, dest_type: TypeBase, strict: bool = False
     ) -> bool;
 
+    def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
+    def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
+    def _extern_field_type(field: HasVar) -> TypeBase;
+    def assign_expr(
+        expr: Expr | None,
+        src_type: TypeBase,
+        dest_type: TypeBase,
+        strict: bool = False,
+        probe: bool = False
+    ) -> AssignVerdict;
+
     def get_type_of_magic_method_call(
         obj_type: TypeBase,
         method_name: str,
@@ -566,6 +588,9 @@ obj TypeEvaluator {
 
     def _lookup_class_member(base_type: ClassType, member: str) -> ClassMember | None;
     def _lookup_object_member(base_type: ClassType, member: str) -> ClassMember | None;
+    def _bind_filter_compare(cmp: Expr, filter_type: ClassType) -> None;
+    def _bind_filter_member(target: Name, filter_type: ClassType) -> None;
+    def _filter_order_name(expr: Expr) -> (Name | None);
     def _is_type_subscript(class_type: ClassType) -> bool;
     def _get_type_for_member_lookup(object_type: ClassType) -> ClassType;
     def _get_getattr_return_type(base_type: ClassType) -> TypeBase | None;

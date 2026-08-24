@@ -127,27 +127,9 @@ glob METHOD_TABLE: dict[str, MethodSemantics] = {
          "check_name": ["NAME", "KWESC_NAME"],
          "is_keyword_token": ["NAME"],
          "is_builtin_type_token": [
-             "TYP_STRING",
-             "TYP_INT",
-             "TYP_FLOAT",
-             "TYP_LIST",
-             "TYP_TUPLE",
-             "TYP_SET",
-             "TYP_DICT",
-             "TYP_BOOL",
-             "TYP_BYTES",
-             "TYP_ANY",
-             "TYP_TYPE",
-             "TYP_I8",
-             "TYP_U8",
-             "TYP_I16",
-             "TYP_U16",
-             "TYP_I32",
-             "TYP_U32",
-             "TYP_I64",
-             "TYP_U64",
-             "TYP_F32",
-             "TYP_F64"
+             kind.name
+             for kind in TokenKind
+             if kind.name.startswith("TYP_")
          ]
      };
 

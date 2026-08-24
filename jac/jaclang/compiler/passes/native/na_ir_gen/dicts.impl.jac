@@ -247,6 +247,8 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value) -> ir.Value {
         b.store(ir.Constant(i8, 0), tag_ptr);
         if value.type.width == 64 {
             b.store(value, payload_ptr);
+        } elif value?.jac_signed {
+            b.store(b.sext(value, i64, name="jv.iext"), payload_ptr);
         } else {
             b.store(b.zext(value, i64, name="jv.iext"), payload_ptr);
         }

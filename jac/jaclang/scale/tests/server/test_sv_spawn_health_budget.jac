@@ -1,13 +1,13 @@
 """The lazy sv-to-sv spawn must wait on the configured boot health budget.
 
-`ensure_sv_service` shells out to `jac start <mod>.jac --no-client` and waits
+`ensure_sv_service` shells out to `jac run --serve --no-client <mod>.jac` and waits
 for the child's /healthz. The orchestrated path already waits
 `boot_health_timeout` (60s) for exactly this and lets an operator raise it;
 the lazy path took `wait_for_health`'s 15s signature default and read no
 config, so a service whose cold start exceeds 15s could never come up and
 every retry was killed partway through warming.
 
-These run a real `jac start` subprocess against a real temp project and a real
+These run a real `jac run --serve` subprocess against a real temp project and a real
 config load. Nothing here is stubbed: the child is the actual CLI, the budget
 comes from a real jac.toml, and the assertions are on whether the service
 answers.

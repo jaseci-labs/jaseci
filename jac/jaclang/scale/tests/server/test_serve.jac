@@ -71,10 +71,11 @@ def _start_server(
 ) -> subprocess.Popen {
     cmd = [
         jac_executable(),
-        "start",
-        test_file.name if not extra_args else str(test_file),
+        "run",
+        "--serve",
         "--port",
-        str(port)
+        str(port),
+        test_file.name if not extra_args else str(test_file)
     ];
     if extra_args {
         cmd.extend(extra_args);
@@ -1540,11 +1541,12 @@ def setup_dev_mode_server -> subprocess.Popen {
     # always relied on after reserving ports at import time.
     cmd = [
         jac_executable(),
-        "start",
-        str(dm_test_file),
-        "--api_port",
+        "run",
+        "--serve",
+        "--api-port",
         str(dm_api_port),
-        "--dev"
+        "--dev",
+        str(dm_test_file)
     ];
 
     server_process = subprocess.Popen(
@@ -2012,11 +2014,12 @@ test "server startup - a second server refuses an already-taken explicit port" {
 
         cmd = [
             jac_executable(),
-            "start",
-            sv_test_file.name,
+            "run",
+            "--serve",
             "--port",
             str(port1),
-            "--no-client"
+            "--no-client",
+            sv_test_file.name
         ];
 
         sp2 = subprocess.Popen(
@@ -2200,7 +2203,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "start", "--client", "pwa", "main.jac", "-p", str(port)],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

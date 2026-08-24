@@ -21,46 +21,20 @@ Refs #8067, #8039
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_force_opts
+}
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
-
-"""Compile a .jac fixture natively and return the JIT engine."""
-def compile_native(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(os.path.join(FIXTURES, fixture)), options=native_force_opts()
-    );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
-    eng = ir.gen.native_engine;
-    assert eng is not None , f"No native engine produced for {fixture}";
-    return (eng, ir);
-}
-
-"""Get a ctypes-callable function from the JIT engine."""
-def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
-    addr = eng.get_function_address(name);
-    assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    return ctypes.CFUNCTYPE(restype, *argtypes)(addr);
-}
-
-"""Return True if the program emitted at least one alert with the given code."""
-def has_error_code(prog: JacProgram, code: str) -> bool {
-    for alrt in prog.errors_had {
-        if alrt.code is not None and alrt.code.code == code {
-            return True;
-        }
-    }
-    return False;
-}
-
 
 test "an enum arm over an enum/object/None union answers by tag" {
     (eng, _) = compile_native("isinstance_enum_union.jac");
@@ -69,7 +43,6 @@ test "an enum arm over an enum/object/None union answers by tag" {
     assert f(2) is False , "an object must not match the enum class";
     assert f(0) is False , "None is an instance of nothing";
 }
-
 
 test "the object arm of the same union is unaffected by the enum member" {
     (eng, _) = compile_native("isinstance_enum_union.jac");
@@ -82,7 +55,6 @@ test "the object arm of the same union is unaffected by the enum member" {
     assert f(0) is False , "None is an instance of nothing";
 }
 
-
 test "UniScopeNode.insert's access-spec resolution answers correctly" {
     (eng, _) = compile_native("isinstance_enum_union.jac");
     f = get_func(eng, "resolve_access", ctypes.c_int64, ctypes.c_int64);
@@ -90,7 +62,6 @@ test "UniScopeNode.insert's access-spec resolution answers correctly" {
     assert f(2) == 2 , "a node resolves through its access_type (PROTECTED)";
     assert f(0) == 0 , "an absent spec falls back to the default (PRIVATE)";
 }
-
 
 test "the same resolution with the union declared on the parameter" {
     # The two union shapes reach `_enum_union_tags` differently: a branch
@@ -104,7 +75,6 @@ test "the same resolution with the union declared on the parameter" {
     assert f(0) == 0 , "an absent spec falls back to the default (PRIVATE)";
 }
 
-
 test "an enum against bool still owns the int tag alone" {
     (eng, _) = compile_native("isinstance_enum_union.jac");
     f = get_func(eng, "chk_enum_over_bool", ctypes.c_bool, ctypes.c_int64);
@@ -112,7 +82,6 @@ test "an enum against bool still owns the int tag alone" {
     assert f(2) is False , "True is tag 7, not the enum's tag 0";
     assert f(0) is False , "False is tag 7, not the enum's tag 0";
 }
-
 
 test "an enum sharing the int tag is refused, not answered by tag" {
     prog = JacProgram();
