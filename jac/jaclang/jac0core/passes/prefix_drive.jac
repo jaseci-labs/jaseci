@@ -1,16 +1,11 @@
 import from jaclang.jac0core.unitree { Import, Module }
 
-glob PREFIX_NATIVE_FRONTIER: int = 7;
+glob PREFIX_NATIVE_FRONTIER: int = 4;
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.jac0core.passes.decl_impl_match_pass { DeclImplMatchPass }
 import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
-import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
-import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
-    JsxIntrinsicGuardPass
-}
 
 obj PrefixAlertRow {
     has severity: int = 0,
@@ -90,21 +85,6 @@ def run_prefix_passes(mod: Module, claimed_n: int) -> PrefixRunResult {
         p4 = SemanticAnalysisPass(ir_in=mod);
         _harvest(out.rows, p4.errors_had, p4.warnings_had, 3);
         out.executed = 4;
-    }
-    if _cap >= 5 {
-        p5 = SemDefMatchPass(ir_in=mod);
-        _harvest(out.rows, p5.errors_had, p5.warnings_had, 4);
-        out.executed = 5;
-    }
-    if _cap >= 6 {
-        p6 = CFGBuildPass(ir_in=mod);
-        _harvest(out.rows, p6.errors_had, p6.warnings_had, 5);
-        out.executed = 6;
-    }
-    if _cap >= 7 {
-        p7 = JsxIntrinsicGuardPass(ir_in=mod);
-        _harvest(out.rows, p7.errors_had, p7.warnings_had, 6);
-        out.executed = 7;
     }
     if claimed_n > out.executed and not out.clause {
         out.detail = (

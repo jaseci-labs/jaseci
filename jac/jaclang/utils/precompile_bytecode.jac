@@ -521,9 +521,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
-         "compiler/native_materialize.jac": (
-             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
-         ),
+         "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -1023,6 +1021,7 @@ glob _PARITY_CANARY_LINES: tuple[str, ...] = (
          "    else { try { raise ValueError('v'); } except ValueError as e { } }",
          "    return self.x if self.x else -1;",
          "}",
+         "sem Hue.RED = \"the warm end of the corpus\";",
          "enum Mood;",
          "impl Mood {",
          "    UP = 1,",
@@ -1772,9 +1771,15 @@ def _sym_table_fingerprint(mod: any) -> list[str] {
             reb = ",".join(sorted((nd.implicit_rebinds or {}).keys()));
             kids = len(nd.kid_scope or []);
             has_parent = "y" if nd.parent_scope is not None else "n";
+            sems = ",".join(
+                f"{nm}={sym.semstr}"
+                for (nm, sym) in sorted((nd.names_in_scope or {}).items())
+                if sym.semstr
+            );
             out.append(
                 f"scope {type(nd).__name__}:{nd.scope_name} names=[{names}] "
-                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent}"
+                f"over=[{over}] rebind=[{reb}] kids={kids} parent={has_parent} "
+                f"sems=[{sems}]"
             );
         }
         if isinstance(nd, uni.NameAtom) {
