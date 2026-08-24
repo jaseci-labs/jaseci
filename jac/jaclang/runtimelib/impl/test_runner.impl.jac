@@ -940,11 +940,11 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
     } except ValueError {
         _recycle = 25;
     }
-    _rss_cap = 2048;
+    _rss_cap = 8192;
     try {
-        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "2048") or "2048");
+        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "8192") or "8192");
     } except ValueError {
-        _rss_cap = 2048;
+        _rss_cap = 8192;
     }
     _served = 0;
     reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
