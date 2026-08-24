@@ -1195,6 +1195,7 @@ import from exceptions_core {
 }
 import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
+import from tracebackmodule { traceback_module_attrs }
 import from objects {
     _zero_step_error,
     slice_indices,
@@ -1620,6 +1621,12 @@ def import_native(absname: str) -> PyObj {
         # Register before the module-info lookup: weakref.py is pure-Python
         # stdlib and would otherwise be executed in-VM against C internals.
         shim_modules["weakref"] = build_weakref_module();
+    }
+    if absname == "traceback" and not ("traceback" in shim_modules) {
+        # The host traceback module is unreachable: every API takes tb objects
+        # and a native PyTraceback has no to_host arm (host TracebackType needs
+        # real host frames). Serve the native chain-walking surface instead.
+        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
     }
     if absname in sys3_modules {
         return sys3_modules[absname];
@@ -3996,6 +4003,11 @@ def host_import(name: str, fromlist: PyObj) -> PyObj {
         # semantics implemented natively. The layer3 boot path instead runs
         # the real types.py in-VM and overrides just the coroutine attribute.
         shim_modules["types"] = build_types_facade();
+    }
+    if name == "traceback" and not ("traceback" in shim_modules) {
+        # Same rationale as the import_native site above: host traceback APIs
+        # cannot accept native PyTraceback across the bridge.
+        shim_modules["traceback"] = PyModule(t="module", name="traceback", attrs=traceback_module_attrs());
     }
     if name in shim_modules {
         return shim_modules[name];
