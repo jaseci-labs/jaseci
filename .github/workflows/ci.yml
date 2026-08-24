@@ -302,7 +302,10 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # On PRs, scope fmt/check to .jac files changed vs the merge-base.
+      # On PRs, scope fmt to .jac files changed vs the merge-base. `jac check`
+      # is deliberately NOT scoped: a type error is a property of the whole
+      # program, so a scoped run answers a different question than the push
+      # sweep and a green PR stops predicting a green main.
       - name: Determine changed .jac files
         id: changes
         run: |
@@ -435,15 +438,7 @@ jobs:
         run: |
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
-          if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
-            if [ "${{ steps.changes.outputs.any }}" != "true" ]; then
-              echo "No .jac files changed in this PR; skipping jac check."
-              exit 0
-            fi
-            jac check $(cat changed-jac.txt) --ignore $IGNORE_ARGS --nowarn
-          else
-            jac check . --ignore $IGNORE_ARGS --nowarn
-          fi
+          jac check . --ignore $IGNORE_ARGS --nowarn
 
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')
