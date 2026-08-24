@@ -6900,8 +6900,13 @@ def exception_matches(value: PyObj, target: PyObj) -> bool {
                 return True;
             }
             for base in klass.bases {
+                # Transitive name-level match so a user subclass of a builtin
+                # subclass (MyErr(KeyError)) satisfies broader targets
+                # (`except LookupError`); inclusive of exact equality.
                 if isinstance(base, PyExceptionType)
-                    and (base as PyExceptionType).name == target_name {
+                    and exc_is_subclass_of(
+                        (base as PyExceptionType).name, target_name
+                    ) {
                     return True;
                 }
                 if isinstance(base, PyHostProxy)
