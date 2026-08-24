@@ -167,6 +167,26 @@ obj TBPrintTbFn(PyObj) {
     }
 }
 
+# Shared formatter for format_exception/format_exc: native exceptions render
+# through tb_format (full cause/context chain); user instances fall back to
+# stack-only rendering off their __traceback__.
+def format_exception_text(exc: PyObj) -> PyObj {
+    if isinstance(exc, PyException) {
+        text = tb_format(exc as PyException, None);
+        return PyStr(t="str", val=text);
+    }
+    got_tb = exc.tp_getattro("__traceback__");
+    if is_error(got_tb) or isinstance(got_tb, PyNoneType) {
+        return PyStr(t="str", val="Traceback (most recent call last):\n");
+    }
+    (codes, linenos) = _tb_collect(got_tb);
+    text = "Traceback (most recent call last):\n";
+    for i in range(len(codes)) {
+        text = text + _tb_frame_text(codes[i].filename, linenos[i], codes[i].name);
+    }
+    return PyStr(t="str", val=text);
+}
+
 obj TBFmtExcFn(PyObj) {
     # format_exception(exc, /, value, tb, limit=None): 3.14 one-arg form over
     # the full cause/context chain via tb_render's tb_format. Native exception
@@ -177,20 +197,7 @@ obj TBFmtExcFn(PyObj) {
             return py_error("TypeError", "format_exception expected at least 1 argument, got 0");
         }
         exc = args[0];
-        if isinstance(exc, PyException) {
-            text = tb_format(exc as PyException, None);
-            return PyList(t="list", items=[PyStr(t="str", val=text)]);
-        }
-        got_tb = exc.tp_getattro("__traceback__");
-        if is_error(got_tb) or isinstance(got_tb, PyNoneType) {
-            return py_error("TypeError", "format_exception() requires an exception");
-        }
-        (codes, linenos) = _tb_collect(got_tb);
-        text = "Traceback (most recent call last):\n";
-        for i in range(len(codes)) {
-            text = text + _tb_frame_text(codes[i].filename, linenos[i], codes[i].name);
-        }
-        return PyList(t="list", items=[PyStr(t="str", val=text)]);
+        return PyList(t="list", items=[format_exception_text(exc)]);
     }
 }
 
