@@ -53,33 +53,40 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
-obj CFGBuildPass(UniPass) {
+class CFGBuildPass(UniPass) {
     static has PROVIDES: tuple = ('cfg', );
 
-    def before_pass -> None;
-    def link_bbs(source: UniCFGNode, target: UniCFGNode) -> None;
-    def _link_sequential(body: Sequence[CodeBlockStmt]) -> None;
-    def _exit_wired(nd: UniCFGNode) -> bool;
-    def _connect_tails(parent: UniNode, target: UniCFGNode) -> None;
-    def _link_body_tails_to_header(
-        nd: WhileStmt | ForeverStmt | InForStmt | IterForStmt
+    def before_pass(self: CFGBuildPass) -> None;
+    def link_bbs(self: CFGBuildPass, source: UniCFGNode, target: UniCFGNode) -> None;
+    def _link_sequential(self: CFGBuildPass, body: Sequence[CodeBlockStmt]) -> None;
+    def _exit_wired(self: CFGBuildPass, nd: UniCFGNode) -> bool;
+    def _connect_tails(
+        self: CFGBuildPass, parent: UniNode, target: UniCFGNode
     ) -> None;
 
-    def _is_terminal(nd: UniNode) -> bool;
+    def _link_body_tails_to_header(
+        self: CFGBuildPass, nd: WhileStmt | ForeverStmt | InForStmt | IterForStmt
+    ) -> None;
+
+    def _is_terminal(self: CFGBuildPass, nd: UniNode) -> bool;
     def _find_parent_of_types(
-        nd: UniNode, types: tuple[type[UniCFGNode], ...]
+        self: CFGBuildPass, nd: UniNode, types: tuple[type[UniCFGNode], ...]
     ) -> (UniCFGNode | None);
 
     def _next_in_body(
-        body: Sequence[CodeBlockStmt], child: UniNode
+        self: CFGBuildPass, body: Sequence[CodeBlockStmt], child: UniNode
     ) -> (UniCFGNode | None);
 
     def _find_next_cfg_stmt_after(
-        parent: UniNode, child: UniNode
+        self: CFGBuildPass, parent: UniNode, child: UniNode
     ) -> (UniCFGNode | None);
 
-    def _find_next_cfg_stmt_after_branch(nd: UniNode) -> (UniCFGNode | None);
+    def _find_next_cfg_stmt_after_branch(
+        self: CFGBuildPass, nd: UniNode
+    ) -> (UniCFGNode | None);
+
     def _wire_bool_operands(
+        self: CFGBuildPass,
         values: list[CfgExpr],
         op_is_and: bool,
         true_target: (UniCFGNode | None),
@@ -87,6 +94,7 @@ obj CFGBuildPass(UniPass) {
     ) -> CfgExpr;
 
     def _wire_bool_chain(
+        self: CFGBuildPass,
         values: list[CfgExpr],
         op_is_and: bool,
         true_target: (UniCFGNode | None),
@@ -94,47 +102,51 @@ obj CFGBuildPass(UniPass) {
     ) -> CfgExpr;
 
     def _set_and_link(
+        self: CFGBuildPass,
         cfg: CfgExpr,
         true_target: (UniCFGNode | None),
         false_target: (UniCFGNode | None)
     ) -> None;
 
-    def enter_node(nd: UniNode) -> None;
-    def enter_if_stmt(nd: IfStmt) -> None;
-    def enter_else_if(nd: ElseIf) -> None;
-    def enter_assert_stmt(nd: AssertStmt) -> None;
-    def enter_match_stmt(nd: MatchStmt) -> None;
-    def exit_bool_expr(nd: BoolExpr) -> None;
-    def exit_if_else_expr(nd: IfElseExpr) -> None;
-    def exit_if_stmt(nd: IfStmt) -> None;
-    def exit_else_if(nd: ElseIf) -> None;
-    def exit_else_stmt(nd: ElseStmt) -> None;
-    def exit_while_stmt(nd: WhileStmt) -> None;
-    def exit_forever_stmt(nd: ForeverStmt) -> None;
-    def exit_in_for_stmt(nd: InForStmt) -> None;
-    def exit_iter_for_stmt(nd: IterForStmt) -> None;
-    def exit_list_compr(nd: ListCompr) -> None;
-    def exit_set_compr(nd: SetCompr) -> None;
-    def exit_gen_compr(nd: GenCompr) -> None;
-    def exit_dict_compr(nd: DictCompr) -> None;
-    def _wire_compr_filters(target_node: UniCFGNode, comprs: list[InnerCompr]) -> None;
-    def exit_ctrl_stmt(nd: CtrlStmt) -> None;
-    def exit_try_stmt(nd: TryStmt) -> None;
-    def exit_except(nd: Except) -> None;
-    def exit_finally_stmt(nd: FinallyStmt) -> None;
-    def exit_match_stmt(nd: MatchStmt) -> None;
-    def exit_match_case(nd: MatchCase) -> None;
-    def exit_switch_stmt(nd: SwitchStmt) -> None;
-    def exit_switch_case(nd: SwitchCase) -> None;
-    def exit_with_stmt(nd: WithStmt) -> None;
-    def exit_typed_ctx_block(nd: TypedCtxBlock) -> None;
-    def exit_open_stmt(nd: OpenStmt) -> None;
-    def exit_jsx_slot(nd: JsxSlot) -> None;
-    def exit_ability(nd: Ability) -> None;
-    def exit_archetype(nd: Archetype) -> None;
-    def exit_impl_def(nd: ImplDef) -> None;
-    def exit_module_code(nd: ModuleCode) -> None;
-    def exit_test(nd: Test) -> None;
+    def enter_node(self: CFGBuildPass, nd: UniNode) -> None;
+    def enter_if_stmt(self: CFGBuildPass, nd: IfStmt) -> None;
+    def enter_else_if(self: CFGBuildPass, nd: ElseIf) -> None;
+    def enter_assert_stmt(self: CFGBuildPass, nd: AssertStmt) -> None;
+    def enter_match_stmt(self: CFGBuildPass, nd: MatchStmt) -> None;
+    def exit_bool_expr(self: CFGBuildPass, nd: BoolExpr) -> None;
+    def exit_if_else_expr(self: CFGBuildPass, nd: IfElseExpr) -> None;
+    def exit_if_stmt(self: CFGBuildPass, nd: IfStmt) -> None;
+    def exit_else_if(self: CFGBuildPass, nd: ElseIf) -> None;
+    def exit_else_stmt(self: CFGBuildPass, nd: ElseStmt) -> None;
+    def exit_while_stmt(self: CFGBuildPass, nd: WhileStmt) -> None;
+    def exit_forever_stmt(self: CFGBuildPass, nd: ForeverStmt) -> None;
+    def exit_in_for_stmt(self: CFGBuildPass, nd: InForStmt) -> None;
+    def exit_iter_for_stmt(self: CFGBuildPass, nd: IterForStmt) -> None;
+    def exit_list_compr(self: CFGBuildPass, nd: ListCompr) -> None;
+    def exit_set_compr(self: CFGBuildPass, nd: SetCompr) -> None;
+    def exit_gen_compr(self: CFGBuildPass, nd: GenCompr) -> None;
+    def exit_dict_compr(self: CFGBuildPass, nd: DictCompr) -> None;
+    def _wire_compr_filters(
+        self: CFGBuildPass, target_node: UniCFGNode, comprs: list[InnerCompr]
+    ) -> None;
+
+    def exit_ctrl_stmt(self: CFGBuildPass, nd: CtrlStmt) -> None;
+    def exit_try_stmt(self: CFGBuildPass, nd: TryStmt) -> None;
+    def exit_except(self: CFGBuildPass, nd: Except) -> None;
+    def exit_finally_stmt(self: CFGBuildPass, nd: FinallyStmt) -> None;
+    def exit_match_stmt(self: CFGBuildPass, nd: MatchStmt) -> None;
+    def exit_match_case(self: CFGBuildPass, nd: MatchCase) -> None;
+    def exit_switch_stmt(self: CFGBuildPass, nd: SwitchStmt) -> None;
+    def exit_switch_case(self: CFGBuildPass, nd: SwitchCase) -> None;
+    def exit_with_stmt(self: CFGBuildPass, nd: WithStmt) -> None;
+    def exit_typed_ctx_block(self: CFGBuildPass, nd: TypedCtxBlock) -> None;
+    def exit_open_stmt(self: CFGBuildPass, nd: OpenStmt) -> None;
+    def exit_jsx_slot(self: CFGBuildPass, nd: JsxSlot) -> None;
+    def exit_ability(self: CFGBuildPass, nd: Ability) -> None;
+    def exit_archetype(self: CFGBuildPass, nd: Archetype) -> None;
+    def exit_impl_def(self: CFGBuildPass, nd: ImplDef) -> None;
+    def exit_module_code(self: CFGBuildPass, nd: ModuleCode) -> None;
+    def exit_test(self: CFGBuildPass, nd: Test) -> None;
 }
 
 obj CoalesceBBPass(UniPass) {

@@ -1,5 +1,5 @@
 impl SemDefMatchPass.connect_sems(
-    source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
+    self: SemDefMatchPass, source_sym_tab: UniScopeNode, target_sym_tab: UniScopeNode
 ) -> None {
     for sym in source_sym_tab.names_in_scope.values() {
         if not isinstance(sym.decl.name_of, SemDef) {
@@ -19,7 +19,7 @@ impl SemDefMatchPass.connect_sems(
 }
 
 impl SemDefMatchPass.resolve_sem_target(
-    semdef: SemDef, target_sym_tab: UniScopeNode
+    self: SemDefMatchPass, semdef: SemDef, target_sym_tab: UniScopeNode
 ) -> (Symbol | None) {
     current_sym_tab: (UniScopeNode | None) = target_sym_tab;
     sym: (Symbol | None) = None;
@@ -40,7 +40,7 @@ impl SemDefMatchPass.resolve_sem_target(
     return sym;
 }
 
-impl SemDefMatchPass.transform(ir_in: Module) -> Module {
+impl SemDefMatchPass.transform(self: SemDefMatchPass, ir_in: Module) -> Module {
     self.cur_node = ir_in;
 
     self.connect_sems(ir_in.sym_tab, ir_in.sym_tab);

@@ -521,7 +521,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple[str, ...]] = {
-         "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/native_materialize.jac": (
+             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
+         ),
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -1325,6 +1327,9 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.semantic_analysis_pass { SemanticAnalysisPass }
     import from jaclang.compiler.passes.main.sem_def_match_pass { SemDefMatchPass }
     import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
+    import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+        JsxIntrinsicGuardPass
+    }
 
     nl = chr(10);
     sys.stderr.write(f"    canary: prefix parity in {os.path.basename(lib_path)}\n");
@@ -1363,9 +1368,11 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     import from jaclang.jac0core.passes.prefix_drive {
         PREFIX_NATIVE_FRONTIER as _pfx_frontier
     }
+    import from jaclang.jac0core.prefix_flip { PREFIX_IR_GEN_NO_CGEN as _pfx_pin }
+    _pfx_claim = len(_pfx_pin);
     for (canary_src, canary_path, min_rows) in corpora {
         try {
-            r = np.parse_and_run_prefix(canary_src, canary_path, 6, "", 0, 0);
+            r = np.parse_and_run_prefix(canary_src, canary_path, _pfx_claim, "", 0, 0);
         } except Exception as run_exc {
             if env_na_debug() {
                 traceback.print_exc(file=sys.stderr);
@@ -1429,6 +1436,7 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
             SemanticAnalysisPass,
             SemDefMatchPass,
             CFGBuildPass,
+            JsxIntrinsicGuardPass,
 
         );
         for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
