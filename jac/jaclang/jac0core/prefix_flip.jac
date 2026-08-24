@@ -249,7 +249,7 @@ def prefix_facts_for(file_path: str, prog: any) -> PrefixFacts {
     space = "";
     try {
         import from jaclang.jac0core.codeinfo { effective_default_codespace }
-        opts = prog._compile_options if prog is not None else None;
+        opts = prog.options if prog is not None else None;
         space = (
             opts.default_codespace
                 if (opts is not None and opts.default_codespace)
@@ -501,10 +501,10 @@ def drop_executed_prefix(passes: list[any], executed: tuple[str]) -> list[any] {
 }
 
 def mark_prefix_provided(prog: any, mod: any, passes: list[any]) {
-    provided = prog._analyses_run.get(id(mod));
+    provided = prog.analysis.analyses_run.get(id(mod));
     if provided is None {
         provided = set();
-        prog._analyses_run[id(mod)] = provided;
+        prog.analysis.analyses_run[id(mod)] = provided;
     }
     for p in passes {
         for tag in (getattr(p, "PROVIDES", ()) or ()) {

@@ -36,7 +36,9 @@ glob PROBE_ERR = DiagnosticInfo(
 
 """A pass that emits and observes the program ledger mid-run."""
 obj ProbeEmitPass(Transform) {
-    has mid_run_prog_errors: int = -1,
+    static has HOST_PASS: bool = True;
+    has prog: JacProgram,
+        mid_run_prog_errors: int = -1,
         mid_run_prog_warnings: int = -1,
         mid_run_local_errors: int = -1,
         emit_results: list[bool] = [];

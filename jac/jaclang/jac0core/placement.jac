@@ -778,19 +778,19 @@ def summarize_module(module: uni.Module, with_refs: bool = True) -> PlacementSum
 }
 
 def summary_store(prog: any) -> dict {
-    store = prog?._placement_summaries;
+    store = prog?.analysis.placement_summaries;
     if store is None {
         store = {};
-        prog._placement_summaries = store;
+        prog.analysis.placement_summaries = store;
     }
     return store;
 }
 
 def placement_state(prog: any) -> dict {
-    state = prog?._placement_state;
+    state = prog?.analysis.placement_state;
     if state is None {
         state = {};
-        prog._placement_state = state;
+        prog.analysis.placement_state = state;
     }
     return state;
 }

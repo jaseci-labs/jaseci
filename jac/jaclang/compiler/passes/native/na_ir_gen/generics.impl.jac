@@ -480,7 +480,7 @@ impl NaIRGenGenerics._find_source_ability(
         imported_mod = self.prog.mod.hub.get(os.path.abspath(full_path));
     }
     if imported_mod is None and os.path.isfile(full_path) {
-        _saved_opts = self.prog._compile_options;
+        _saved_opts = self.prog.options;
         try {
             imported_mod = self.prog.compile(
                 full_path, no_cgen=True, symtab_ir_only=True
@@ -488,7 +488,7 @@ impl NaIRGenGenerics._find_source_ability(
         } except Exception {
             imported_mod = None;
         } finally {
-            self.prog._compile_options = _saved_opts;
+            self.prog.options = _saved_opts;
         }
     }
     if imported_mod is None {

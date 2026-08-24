@@ -168,7 +168,7 @@ test "an oversized composition trips the blast-radius guard fast and loud" {
             "/fab/callee.jac": {f"name_{i}_{j}" for j in range(per_mod)}
         };
     }
-    prog._na_unverified_live = fabricated;
+    prog.scratch.na_unverified_live = fabricated;
     msg = native_verdict_blast_guard(prog, 0);
     assert msg != "" , (
         "a fabricated unverified-live set larger than the taint bound did "
@@ -187,7 +187,7 @@ test "an oversized composition trips the blast-radius guard fast and loud" {
     );
 
     prog3 = JacProgram();
-    prog3._na_verdict_misses = NATIVE_VERDICT_MISS_BOUND + 7;
+    prog3.scratch.na_verdict_misses = NATIVE_VERDICT_MISS_BOUND + 7;
     msg3 = native_verdict_blast_guard(prog3, 0);
     assert msg3 != "" and str(NATIVE_VERDICT_MISS_BOUND + 7) in msg3 , (
         "systematic fail-closed verdict misses did not trip the guard or "
@@ -234,9 +234,9 @@ test "the non-aot lane records no verdict taint" {
         )
     );
     assert ir is not None , "the JIT-lane compile produced no module";
-    assert not prog._na_unverified_live , (
+    assert not prog.scratch.na_unverified_live , (
         f"a non-aot compile recorded verdict taint for "
-        f"{len(prog._na_unverified_live)} module(s). The not-aot None from "
+        f"{len(prog.scratch.na_unverified_live)} module(s). The not-aot None from "
         "_imported_function_demotions is a lane statement, not a pending "
         "verdict; recording it makes link-time re-validation compile "
         "callees in a lane that never asked for verdicts"
@@ -252,9 +252,9 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
     import from jaclang.jac0core.compile_options { CompileOptions as _Opts }
     helpers_path = os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"));
     prog = JacProgram();
-    prog._na_dep_inflight.add(helpers_path);
+    prog.scratch.na_dep_inflight.add(helpers_path);
     demoted = native_unit_demotions(prog, helpers_path, _Opts(aot_mode=True));
-    assert helpers_path not in prog._na_dep_units , (
+    assert helpers_path not in prog.scratch.na_dep_units , (
         "the resolver compiled an inflight callee -- that compile re-enters "
         "the callee's own schedule and the recursion has no floor"
     );
@@ -263,7 +263,7 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
         "the conflict check reads as conflict-on-every-tainted-name -- "
         f"not {demoted!r}"
     );
-    prog._na_dep_inflight.discard(helpers_path);
+    prog.scratch.na_dep_inflight.discard(helpers_path);
 }
 
 
@@ -280,13 +280,13 @@ test "the wheel-shaped lane stays quiet on the live closure" {
     prog = JacProgram();
     mod = prog.compile(file_path=target);
     assert mod is not None;
-    assert len(prog._na_unverified_live) == 0 , (
+    assert len(prog.scratch.na_unverified_live) == 0 , (
         "a plain (non-aot) compile of the pack-smoke closure recorded "
-        f"{len(prog._na_unverified_live)} tainted module(s); the emission "
+        f"{len(prog.scratch.na_unverified_live)} tainted module(s); the emission "
         "recorder is out of its lane and the #8360 avalanche class is back"
     );
-    assert prog._na_verdict_misses == 0 , (
-        f"{prog._na_verdict_misses} verdict lookup(s) failed closed during "
+    assert prog.scratch.na_verdict_misses == 0 , (
+        f"{prog.scratch.na_verdict_misses} verdict lookup(s) failed closed during "
         "a lane that must never consult the resolver at link time"
     );
     assert native_verdict_blast_guard(prog, 0) == "" , (

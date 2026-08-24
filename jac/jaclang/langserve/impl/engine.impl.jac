@@ -20,7 +20,7 @@ impl JacLangServer.postinit -> None {
     self._write_lock = threading.Lock();
     JacProgram.init(self);
 
-    self._track_dependencies = True;
+    self.deps.tracking = True;
     self._state_lock = ReadWriteLock();
     self.module_manager = ModuleManager(self, self.sem_managers);
 

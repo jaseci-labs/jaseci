@@ -19,6 +19,7 @@ import from jaclang.jac0core.diagnostics {
     E5028,
     E5029
 }
+import type from jaclang.jac0core.program { JacProgram }
 
 obj DepClibMeta {
     has clib_paths: list[str] = [],
@@ -59,6 +60,9 @@ def native_verdict_blast_guard(
 
 
 obj NativeCompilePass(Transform) {
+    has prog: JacProgram;
+    static has HOST_PASS: bool = True;
+
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
     def _compile_and_link_native_imports(

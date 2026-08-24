@@ -8,7 +8,7 @@ def scalar_llvm_type(`entry: JacTypeEntry) -> ir.Type {
 impl NaIRGenCore.postinit -> None {
     import os as _ni_os;
 
-    _ni_opts = self.prog._compile_options;
+    _ni_opts = self.prog.options;
     self._rc_debug_codegen = bool(_ni_opts.rc_debug_codegen);
     _ni_src: str = self.ir_in.loc.mod_path if self.ir_in.loc else "";
     _ni_mod_name: str = _ni_os.path.basename(_ni_src) if _ni_src else "jac_native";
@@ -177,7 +177,7 @@ impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
         self.ir_in.gen.llvm_ir = self.llvm_module;
 
         import os;
-        if self.prog._compile_options.rc_stats {
+        if self.prog.options.rc_stats {
             _rc_total = self.rc_retains_emitted + self.rc_releases_emitted;
             _rc_known = _rc_total + self.rc_ops_elided;
             _rc_pct = (100.0 * self.rc_ops_elided / _rc_known) if _rc_known else 0.0;
@@ -199,7 +199,7 @@ impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
                 f"{_rc_stk}{_rc_arena}{_rc_free}\n"
             );
         }
-        _ir_dump_path = self.prog._compile_options.dump_ir_path or "";
+        _ir_dump_path = self.prog.options.dump_ir_path or "";
         if _ir_dump_path {
             with open(_ir_dump_path, "w") as _f {
                 _f.write(str(self.llvm_module));
@@ -642,7 +642,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         }
 
         if imported_mod is None and os.path.isfile(full_path) {
-            _saved_opts = self.prog._compile_options;
+            _saved_opts = self.prog.options;
             try {
                 imported_mod = self.prog.compile(
                     full_path, no_cgen=True, symtab_ir_only=True
@@ -650,7 +650,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
             } except Exception {
                 imported_mod = None;
             } finally {
-                self.prog._compile_options = _saved_opts;
+                self.prog.options = _saved_opts;
             }
         }
         if imported_mod is None {
@@ -734,7 +734,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         if (self.ir_in?.loc)
         else None;
     if _self_real is not None {
-        self.prog._na_dep_inflight.add(_self_real);
+        self.prog.scratch.na_dep_inflight.add(_self_real);
     }
     try {
         for (_, imported_mod) in imported_mods {
@@ -742,13 +742,13 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         }
     } finally {
         if _self_real is not None {
-            self.prog._na_dep_inflight.discard(_self_real);
+            self.prog.scratch.na_dep_inflight.discard(_self_real);
         }
     }
 }
 
 impl NaIRGenCore._permuted_walk_order(mods: list) -> list {
-    _spec = self.prog._compile_options.native_module_walk_order or "";
+    _spec = self.prog.options.native_module_walk_order or "";
     if not _spec {
         return mods;
     }
@@ -854,7 +854,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
             _wl_os.path.abspath(_wl_raw),
             _wl_os.path.realpath(_wl_raw)
         ) {
-            _wl_slim = self.prog._native_cache.get(_wl_key);
+            _wl_slim = self.prog.hub.artifacts.get(_wl_key);
             if _wl_slim is not None and _wl_slim.native_layout is not None {
                 _imp_layout = _wl_slim.native_layout;
                 break;
@@ -919,7 +919,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
     if (
         _imp_verdicts_wanted
         and _imp_fn_unavail is None
-        and bool(self.prog._compile_options and self.prog._compile_options.aot_mode)
+        and bool(self.prog.options and self.prog.options.aot_mode)
         and self.ir_in?.loc
         and self.ir_in.loc.mod_path
         and imported_mod?.loc
@@ -956,7 +956,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
             }
         }
         if _uv_names {
-            _uv_rec = self.prog._na_unverified_live.setdefault(_uv_self, {});
+            _uv_rec = self.prog.scratch.na_unverified_live.setdefault(_uv_self, {});
             _uv_rec[_uv_callee] = set(_uv_rec.get(_uv_callee) or set()) | _uv_names;
         }
     }
@@ -1196,10 +1196,10 @@ impl NaIRGenCore._forward_declare_imported_ability(
 }
 
 impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
-    _provided = self.prog._analyses_run.get(id(dep_mod));
+    _provided = self.prog.analysis.analyses_run.get(id(dep_mod));
     if _provided is None {
         _provided = set();
-        self.prog._analyses_run[id(dep_mod)] = _provided;
+        self.prog.analysis.analyses_run[id(dep_mod)] = _provided;
     }
     if 'inference' in _provided {
         return;
@@ -1228,7 +1228,7 @@ impl NaIRGenCore._imported_function_demotions(
     }
     mod_path = imported_mod.loc.mod_path;
     real_path = _fd_os.path.realpath(mod_path);
-    units = self.prog._na_dep_units;
+    units = self.prog.scratch.na_dep_units;
     `entry: any = None;
     if real_path in units {
         `entry = units[real_path];
@@ -1236,7 +1236,7 @@ impl NaIRGenCore._imported_function_demotions(
         `entry = imported_mod;
     } else {
         import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
-        _opts_src = self.prog?._compile_options or _FdOpts();
+        _opts_src = self.prog?.options or _FdOpts();
         if not bool(getattr(_opts_src, "no_ir_cache", False)) {
             try {
                 import from jaclang.compiler.passes.native.na_compile_pass {
@@ -1256,7 +1256,7 @@ impl NaIRGenCore._imported_function_demotions(
             } except Exception { }
         }
         if not bool(_opts_src.aot_mode)
-            or real_path in self.prog._na_dep_inflight
+            or real_path in self.prog.scratch.na_dep_inflight
             or not _fd_os.path.isfile(real_path) {
             return None;
         }

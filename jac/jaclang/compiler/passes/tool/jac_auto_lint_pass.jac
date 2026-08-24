@@ -35,9 +35,11 @@ import from jaclang.jac0core.diagnostics {
     W3050,
     W3051
 }
+import type from jaclang.jac0core.program { JacProgram }
 
 obj JacAutoLintPass(UniPass) {
-    has lint_enabled: bool = True,
+    has prog: JacProgram,
+        lint_enabled: bool = True,
         report_only: bool = False,
         main_module: (uni.Module | None) = None,
         _exclude_patterns: list[str] = [],
@@ -46,6 +48,8 @@ obj JacAutoLintPass(UniPass) {
         _pending_setters: list[dict[str, str]] = [],
         _base_decl_cache: list[uni.Archetype] = [],
         _base_decls_loaded: bool = False;
+
+    static has HOST_PASS: bool = True;
 
     def postinit -> None;
     def _is_file_excluded(file_path: str) -> bool;

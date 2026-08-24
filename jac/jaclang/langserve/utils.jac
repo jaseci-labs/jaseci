@@ -3,6 +3,7 @@ import from typing { Optional }
 
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.codeinfo { CodeLocInfo }
+import from jaclang.jac0core.srcloc { Span }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.unitree { Symbol, UniScopeNode }
 import from jaclang.lsp { uris }
@@ -23,7 +24,7 @@ def get_symbols_for_outline(nd: UniScopeNode) -> list[lspt.DocumentSymbol];
 
 def owner_sym(table: UniScopeNode) -> Optional[Symbol];
 
-def create_range(loc: CodeLocInfo) -> lspt.Range;
+def create_range(loc: (CodeLocInfo | Span)) -> lspt.Range;
 
 def find_dts_decl_range(dts_path: str, name: str) -> Optional[lspt.Range];
 

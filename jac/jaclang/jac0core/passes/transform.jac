@@ -1,5 +1,5 @@
 import time;
-import from jaclang.jac0core.srcloc { CodeLocInfo }
+import from jaclang.jac0core.srcloc { CodeLocInfo, Span }
 import from jaclang.jac0core.diagnostics {
     DiagnosticInfo,
     E9001,
@@ -12,11 +12,12 @@ import from jaclang.jac0core.unitree { UniNode }
 
 obj Alert {
     has msg: str,
-        loc: CodeLocInfo,
+        loc: Span,
         from_pass: type[Transform],
         code: DiagnosticInfo | None = None,
-        related: list[tuple[str, CodeLocInfo]] = [],
-        help_text: str | None = None;
+        related: list[tuple[str, Span]] = [],
+        help_text: str | None = None,
+        owner: str = '';
 
     def postinit -> None;
     def __str__ -> str;
@@ -33,8 +34,11 @@ obj DiagnosticPolicy {
         lint_ignore: list[str] = [],
         _inline_cache: dict[(tuple[str, int], list[str])] = {};
 
-    def is_suppressed(diag: DiagnosticInfo, loc: (CodeLocInfo | None) = None) -> bool;
-    def _inline_suppressed(diag: DiagnosticInfo, loc: CodeLocInfo) -> bool;
+    def is_suppressed(
+        diag: DiagnosticInfo, loc: (CodeLocInfo | Span | None) = None
+    ) -> bool;
+
+    def _inline_suppressed(diag: DiagnosticInfo, loc: (CodeLocInfo | Span)) -> bool;
 }
 
 obj BaseTransform(PassRim) {
@@ -69,7 +73,8 @@ obj Transform(BaseTransform) {
         policy: (DiagnosticPolicy | None) = None;
 
     static has PROVIDES: tuple = (),
-        REQUIRES: tuple = ();
+        REQUIRES: tuple = (),
+        HOST_PASS: bool = False;
 
     def postinit -> None;
     def emit(

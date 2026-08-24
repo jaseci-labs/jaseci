@@ -3,6 +3,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { DiagnosticInfo }
 import from jaclang.jac0core.passes.transform { Transform }
+import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.placement {
     PLACEMENT_HOLD_EXEMPT_ROOTS,
     get_module_summary,
@@ -693,7 +694,7 @@ def _emit_solver_warning(
         prog.warnings_had.append(
             Alert(
                 msg=diag.format_message(**kwargs),
-                loc=nd.loc.snapshot(),
+                loc=nd.loc.span(),
                 from_pass=PlacementApplyPass,
                 code=diag,
                 help_text=diag.format_help(**kwargs)
@@ -953,10 +954,12 @@ def demote_client_pulled_elements(
 }
 
 obj PlacementApplyPass(Transform) {
-    has ir_in: uni.Module,
+    has prog: JacProgram,
+        ir_in: uni.Module,
         cancel_token: any = None;
 
-    static has PROVIDES: tuple = ('codespace-pull', );
+    static has PROVIDES: tuple = ('codespace-pull', ),
+        HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;

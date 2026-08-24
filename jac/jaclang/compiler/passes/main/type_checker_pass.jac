@@ -84,6 +84,7 @@ import from jaclang.compiler.type_system.operations {
     get_pow_result_type
 }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
+import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.diagnostics {
     Category,
     DiagnosticInfo,
@@ -132,10 +133,13 @@ glob FW_INTERVAL_OPS: dict[str, str] = {
 
 class TypeCheckPass(UniPass) {
     has evaluator: TypeEvaluator,
+        prog: JacProgram,
         _lambda_depth: int = 0;
 
-    static has PROVIDES: tuple = ('inference', );
+    static has PROVIDES: tuple = ('inference', ),
+        HOST_PASS: bool = True;
 
+    def init(self: TypeCheckPass, prog: JacProgram, **kwargs: any) -> None;
     def before_pass(self: TypeCheckPass) -> None;
     def after_pass(self: TypeCheckPass) -> None;
     def _stamp_fixed_width(self: TypeCheckPass) -> None;

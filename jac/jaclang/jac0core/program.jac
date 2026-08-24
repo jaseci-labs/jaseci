@@ -3,10 +3,17 @@ import types;
 import from threading { Event }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.mtp { Info }
 import from jaclang.jac0core.passes { Alert }
+import from jaclang.jac0core.progstate {
+    AnalysisCaches,
+    BuildScratch,
+    DepGraph,
+    DiagLedger,
+    ModuleHub
+}
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 import type from jaclang.jac0core.compiler { JacCompiler }
+import type from jaclang.jac0core.mtp { Info }
 import type from jaclang.jac0core.passes { Transform }
 
 with entry {
@@ -16,28 +23,19 @@ with entry {
 }
 
 class JacProgram {
-    has mod: uni.ProgramModule,
-        py_raise_map: dict[(str, str)],
-        mtir_map: dict[(str, Info)],
+    has hub: ModuleHub,
+        deps: DepGraph,
+        diags: DiagLedger,
+        scratch: BuildScratch,
+        analysis: AnalysisCaches,
+        options: CompileOptions,
+        mod: uni.ProgramModule,
         errors_had: list[Alert],
         warnings_had: list[Alert],
+        mtir_map: dict[(str, Info)],
+        py_raise_map: dict[(str, str)],
         type_evaluator: TypeEvaluator | None,
-        _compiler: JacCompiler | None,
-        _compile_options: CompileOptions,
-        _native_cache: dict[(str, any)],
-        _na_dep_units: dict[(str, any)],
-        _na_dep_inflight: set,
-        _na_verdict_resolving: set,
-        _na_unverified_live: dict[(str, dict)],
-        _na_verdict_misses: int,
-        _hub_cache_times: dict[str, float],
-        _dependents: dict[str, set[str]],
-        _track_dependencies: bool,
-        _analyses_run: dict,
-        _placement_summaries: dict,
-        _placement_state: dict,
-        _boundary_parse_memo: dict,
-        _compile_depth: int;
+        _compiler: JacCompiler | None;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
@@ -52,7 +50,6 @@ class JacProgram {
         self: JacProgram, importer_path: str, target_path: str
     ) -> None;
 
-    def record_module_dependencies(self: JacProgram, mod: uni.Module) -> None;
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
     def load_dependency_module(
@@ -63,6 +60,7 @@ class JacProgram {
     ) -> uni.Module;
 
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
+    def reset_module_root(self: JacProgram, module_root: uni.ProgramModule) -> None;
     static def hub_key(path: str) -> str;
     def has_failed_parse(self: JacProgram, path: str) -> bool;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];

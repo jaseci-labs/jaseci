@@ -1439,7 +1439,7 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
 
         );
         for (pass_ord, cls) in enumerate(_pfx_all_passes[:_pfx_frontier]) {
-            inst: any = cls(ir_in=py_mod, prog=prog);
+            inst: any = cls(ir_in=py_mod);
             for e in inst.errors_had {
                 staged_rows.append(
                     (
@@ -1678,7 +1678,7 @@ def seal_jcir_container_canary(lib_path: str) -> str {
                 f"{[str(e) for e in prog.errors_had][:3]}"
             );
         }
-        blobs.append(JcirGenPass(ir_in=mod, prog=prog).ir_bytes());
+        blobs.append(JcirGenPass(ir_in=mod).ir_bytes());
         trees.append(mod.gen.py_ast[0]);
     }
     if blobs[0] != blobs[1] {

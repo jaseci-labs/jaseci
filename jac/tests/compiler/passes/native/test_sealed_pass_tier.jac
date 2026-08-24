@@ -65,7 +65,7 @@ def _fake_artifact(fullname: str) -> (tuple | None) {
 }
 
 def _run_tier_pass -> any {
-    return ASTValidationPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+    return ASTValidationPass(ir_in=uni.Module.make_stub());
 }
 
 """The sealable unit's source, read from the installed tree it compiles from."""
@@ -176,7 +176,7 @@ test "unsealed and non-jaclang passes never trip while another is sealed" {
     real = sealed.native_artifact_for;
     sealed.native_artifact_for = _fake_artifact;
     try {
-        inst = LocalPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+        inst = LocalPass(ir_in=uni.Module.make_stub());
         assert isinstance(inst.ir_out, uni.Module) , (
             "a pass from an unsealed module was blocked by another module's " "artifact"
         );
@@ -192,9 +192,9 @@ test "the guard's seat is the rim, and the sealable unit names none of it" {
         "the pass base stopped inheriting the rim, so nothing intercepts "
         "construction and the tripwire has no seat at all"
     );
-    assert isinstance(BaseTransform, type(PassRim)) , (
-        "the rim's metaclass is not on the pass base -- the construction "
-        "seam is bypassed and passes construct unguarded"
+    assert "__new__" in PassRim.__dict__ , (
+        "the rim no longer intercepts allocation -- the tier tripwire "
+        "has no seat and passes construct unguarded"
     );
     text = _unit_source();
     for name in (
@@ -215,7 +215,7 @@ test "the guard's seat is the rim, and the sealable unit names none of it" {
 }
 
 
-test "the program handle is stamped by the rim, not declared by the unit" {
+test "the program handle is declared by host passes, not by the unit" {
     fields = {f.name for f in dataclasses.fields(BaseTransform)};
     assert "prog" not in fields , (
         "`prog` is a declared field again. A `JacProgram`-typed slot has "
@@ -224,20 +224,29 @@ test "the program handle is stamped by the rim, not declared by the unit" {
     );
     assert "prog" not in _unit_source() , (
         "transform.jac names `prog` again -- the handle belongs to the "
-        "driver rim, which stamps it at construction"
+        "host passes that declare it"
     );
-    prog = JacProgram();
-    inst = LocalPass(ir_in=uni.Module.make_stub(), prog=prog);
-    assert inst.prog is prog , (
-        "the rim did not stamp the program handle; every unsealed pass "
-        "body reads `self.prog`"
+    inst = LocalPass(ir_in=uni.Module.make_stub());
+    assert not hasattr(inst, "prog") , (
+        "an unhosted pass grew a program handle; the sealable chain must "
+        "never carry one"
     );
 }
 
 
-test "a pass constructed without a program handle refuses" {
-    with testraises(TypeError, `match="constructing a pass requires") {
-        _lp: any = LocalPass;
-        _lp(ir_in=uni.Module.make_stub());
+obj HostedProbePass(Transform) {
+    has prog: JacProgram;
+    static has HOST_PASS: bool = True;
+
+    def transform(ir_in: uni.Module) -> uni.Module {
+        return ir_in;
     }
+}
+
+test "a host pass declares the handle and receives it as a plain field" {
+    prog = JacProgram();
+    inst = HostedProbePass(ir_in=uni.Module.make_stub(), prog=prog);
+    assert inst.prog is prog , (
+        "the declared `prog` field did not receive the program handle"
+    );
 }

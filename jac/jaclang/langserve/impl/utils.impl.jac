@@ -65,7 +65,7 @@ impl kind_map(sub_tab: uni.UniNode) -> lspt.SymbolKind {
                     else lspt.SymbolKind.Variable;
 }
 
-impl create_range(loc: CodeLocInfo) -> lspt.Range {
+impl create_range(loc: (CodeLocInfo | Span)) -> lspt.Range {
     return lspt.Range(
         start=lspt.Position(
             line=(loc.first_line - 1) if loc.first_line > 0 else 0,

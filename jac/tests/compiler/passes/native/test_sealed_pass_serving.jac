@@ -107,7 +107,7 @@ def _reset_serving_state {
 }
 
 def _run_tier_pass -> any {
-    return ASTValidationPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+    return ASTValidationPass(ir_in=uni.Module.make_stub());
 }
 
 

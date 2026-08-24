@@ -1,5 +1,5 @@
 import os;
-import type from jaclang.jac0core.srcloc { CodeLocInfo }
+import type from jaclang.jac0core.srcloc { Span }
 import type from jaclang.jac0core.unitree { Expr }
 
 def pascal_to_snake(pascal_string: str) -> str {
@@ -142,14 +142,25 @@ def pretty_print_source_location(
     return pretty_dump[:-1];
 }
 
+def pretty_print_span(span: Span, *, colors: bool = False) -> str {
+    return pretty_print_source_location(
+        span.mod_path,
+        span.src_window,
+        span.first_line,
+        span.pos_start - span.window_offset,
+        span.pos_end - span.window_offset,
+        colors=colors
+    );
+}
+
 def format_related_spans(
-    related: list[tuple[str, CodeLocInfo]], *, colors: bool = False
+    related: list[tuple[str, Span]], *, colors: bool = False
 ) -> str {
     result = '';
-    for (label, loc) in related {
-        mod_path = loc.mod_path;
-        first_line = loc.first_line;
-        col_start = loc.col_start;
+    for (label, span) in related {
+        mod_path = span.mod_path;
+        first_line = span.first_line;
+        col_start = span.col_start;
         if colors {
             result += f"\n{ANSIColors.CYAN}note{ANSIColors.END}: {label}";
         } else {
@@ -157,21 +168,9 @@ def format_related_spans(
         }
         if (mod_path != '') {
             result += f"\n  --> {mod_path}:{first_line}:{col_start}";
-            try {
-                source = loc.orig_src.code;
-                span_dump = pretty_print_source_location(
-                    mod_path,
-                    source,
-                    first_line,
-                    loc.pos_start,
-                    loc.pos_end,
-                    colors=colors
-                );
-                if (span_dump != '') {
-                    result += '\n' + span_dump;
-                }
-            } except Exception {
-                ;
+            span_dump = pretty_print_span(span, colors=colors);
+            if (span_dump != '') {
+                result += '\n' + span_dump;
             }
         }
     }

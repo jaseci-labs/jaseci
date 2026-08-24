@@ -40,7 +40,7 @@ impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
             return None;
         }
     }
-    opts = self.prog?._compile_options;
+    opts = self.prog?.options;
     if opts is not None and getattr(opts, "nogc_enforce_all", False) {
         return "enforced by --enforce-nogc";
     }
@@ -345,7 +345,7 @@ impl OwnershipCheckPass._nogc_container_grow_method(call: FuncCall) -> (str | No
 }
 
 impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
-    opts = self.prog?._compile_options;
+    opts = self.prog?.options;
     if opts is not None and getattr(opts, "nogc_enforce_all", False) {
         return True;
     }
@@ -443,7 +443,7 @@ impl OwnershipCheckPass._nogc_check_call(call: FuncCall, prov: str) -> None {
         return;
     }
 
-    _opts_c = self.prog?._compile_options;
+    _opts_c = self.prog?.options;
     _hl_c = getattr(_opts_c, "na_gc_mode", "cycles") == "none" if _opts_c else False;
     _heap_args: list[Name] = [];
     for _arg in self._call_params(call) {
@@ -499,7 +499,7 @@ impl OwnershipCheckPass._nogc_check_call(call: FuncCall, prov: str) -> None {
         return;
     }
 
-    _dbg_opts = self.prog?._compile_options;
+    _dbg_opts = self.prog?.options;
     if _dbg_opts?.nogc_debug {
         import sys as _dbg_sys;
         _dbg_sys.stderr.write(
@@ -538,7 +538,7 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
     }
     _prov = self.nogc_prov;
 
-    _opts = self.prog?._compile_options;
+    _opts = self.prog?.options;
     _headerless = getattr(_opts, "na_gc_mode", "cycles") == "none" if _opts else False;
     if _headerless {
         for _lv in self.ir_in.get_all_sub_nodes(ListVal) {

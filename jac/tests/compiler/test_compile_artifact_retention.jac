@@ -10,7 +10,7 @@ Three of them had no owner and no lifecycle:
     import pinned a second module for the process lifetime -- and, because
     the hub probe used an un-normalized path, a private parsed copy rather
     than the hub's.
-  - `JacProgram._na_dep_units` memoized dependency units compiled purely to
+  - `JacProgram.scratch.na_dep_units` memoized dependency units compiled purely to
     read a demotion verdict. The verdict is a set of names; the unit is a
     module tree plus a live LLVM `ModuleRef`. Nothing ever released one.
   - The `TypeEvaluator` flow-narrowing caches are keyed by `id()` and were
@@ -246,7 +246,7 @@ test "a verdict query's dep units do not outlive the compile that asked" {
     assert verdict == {"bad_fmt"} , (
         f"the fixture must produce a real demotion verdict, got {verdict!r}"
     );
-    assert prog._na_dep_units , (
+    assert prog.scratch.na_dep_units , (
         "the verdict resolver is expected to memoize the unit it compiled; "
         "without that this test measures nothing"
     );
@@ -260,7 +260,7 @@ test "a verdict query's dep units do not outlive the compile that asked" {
         )
     );
     stranded: list[str] = [];
-    for (path, unit) in prog._na_dep_units.items() {
+    for (path, unit) in prog.scratch.na_dep_units.items() {
         if isinstance(unit, str) {
             continue;
         }
@@ -319,8 +319,8 @@ test "a released dep unit still answers its real verdict" {
         "A stripped hub entry answers 'no IR', which the resolver reads as "
         "'demote everything'; the release must evict the entry, not hollow it"
     );
-    assert prog._na_verdict_misses == 0 , (
-        f"{prog._na_verdict_misses} fail-closed verdict misses after a "
+    assert prog.scratch.na_verdict_misses == 0 , (
+        f"{prog.scratch.na_verdict_misses} fail-closed verdict misses after a "
         "release; the second query took the no-IR path instead of recompiling"
     );
 }

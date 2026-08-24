@@ -28,7 +28,7 @@ glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
      );
 
 impl NaIRGenRefcount._gc_mode -> str {
-    _mode = getattr(self.prog._compile_options, "na_gc_mode", "cycles");
+    _mode = getattr(self.prog.options, "na_gc_mode", "cycles");
     if _mode not in ("cycles", "rc", "none") {
         return "cycles";
     }

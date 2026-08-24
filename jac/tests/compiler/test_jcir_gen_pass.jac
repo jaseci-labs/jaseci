@@ -53,7 +53,7 @@ def dual_compile(src: str, path: str) -> tuple {
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -68,7 +68,7 @@ def dual_compile_file(path: str) -> tuple {
     mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -957,7 +957,7 @@ def f -> int {
     calls[0].genai_call = calls[0].target;
     caught_jcir = "";
     try {
-        JcirGenPass(ir_in=mod, prog=prog);
+        JcirGenPass(ir_in=mod);
     } except NotImplementedError as e {
         caught_jcir = str(e);
     }

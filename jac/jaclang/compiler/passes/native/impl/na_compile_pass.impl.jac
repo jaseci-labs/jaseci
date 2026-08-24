@@ -95,14 +95,14 @@ impl native_verdict_blast_guard(
 ) -> str {
     _bg_taint = 0;
     _bg_mods = 0;
-    _bg_live: dict[str, dict[str, set[str]]] = prog._na_unverified_live or {};
+    _bg_live: dict[str, dict[str, set[str]]] = prog.scratch.na_unverified_live or {};
     for _bg_rec in _bg_live.values() {
         _bg_mods += 1;
         for _bg_names in _bg_rec.values() {
             _bg_taint += len(_bg_names);
         }
     }
-    _bg_misses = int(prog._na_verdict_misses or 0);
+    _bg_misses = int(prog.scratch.na_verdict_misses or 0);
     _bg_taint_ok = aot_lane or _bg_taint <= NATIVE_VERDICT_TAINT_BOUND;
     if (
         _bg_taint_ok
@@ -164,7 +164,7 @@ impl native_unit_demotions(
     prog: any, real_path: str, options: any
 ) -> (set[str] | None) {
     import os as _ud_os;
-    `entry: any = prog._na_dep_units.get(real_path);
+    `entry: any = prog.scratch.na_dep_units.get(real_path);
     _ud_mid_compile = False;
     if `entry is None {
         for _ud_key in (real_path, _ud_os.path.abspath(real_path)) {
@@ -176,10 +176,10 @@ impl native_unit_demotions(
                 `entry = _ud_mod;
             } else {
                 _ud_mid_compile = (
-                    real_path in prog._na_dep_inflight
-                    or real_path in prog._na_verdict_resolving
-                    or _ud_key in prog._na_dep_inflight
-                    or _ud_key in prog._na_verdict_resolving
+                    real_path in prog.scratch.na_dep_inflight
+                    or real_path in prog.scratch.na_verdict_resolving
+                    or _ud_key in prog.scratch.na_dep_inflight
+                    or _ud_key in prog.scratch.na_verdict_resolving
                 );
             }
             break;
@@ -188,8 +188,8 @@ impl native_unit_demotions(
     if (
         `entry is None
         and not _ud_mid_compile
-        and real_path not in prog._na_dep_inflight
-        and real_path not in prog._na_verdict_resolving
+        and real_path not in prog.scratch.na_dep_inflight
+        and real_path not in prog.scratch.na_verdict_resolving
         and _ud_os.path.isfile(real_path)
     ) {
         if not getattr(options, "no_ir_cache", False) {
@@ -207,7 +207,7 @@ impl native_unit_demotions(
                 }
             } except Exception { }
         }
-        prog._na_verdict_resolving.add(real_path);
+        prog.scratch.na_verdict_resolving.add(real_path);
         try {
             `entry = prog.compile(
                 file_path=real_path, options=options.clone_for_native_import()
@@ -215,12 +215,12 @@ impl native_unit_demotions(
         } except Exception as _ud_exc {
             `entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
         } finally {
-            prog._na_verdict_resolving.discard(real_path);
+            prog.scratch.na_verdict_resolving.discard(real_path);
         }
-        prog._na_dep_units[real_path] = `entry;
+        prog.scratch.na_dep_units[real_path] = `entry;
     }
     if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
-        prog._na_verdict_misses += 1;
+        prog.scratch.na_verdict_misses += 1;
         _ud_tree = `entry
             if (`entry is not None and not isinstance(`entry, str))
             else prog.mod.hub.get(real_path);
@@ -312,7 +312,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         return ir_in;
     }
 
-    _compile_opts = self.prog._compile_options;
+    _compile_opts = self.prog.options;
 
     if _compile_opts.skip_native_engine {
         return ir_in;
@@ -596,7 +596,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         CompileOptions as _LinkOpts,
         link_fingerprint_mismatches
     }
-    _link_opts = self.prog?._compile_options or _LinkOpts();
+    _link_opts = self.prog?.options or _LinkOpts();
     _link_fp = _link_opts.codegen_fingerprint();
 
     linked_modules: dict = {};
@@ -666,9 +666,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         if source_mod_path is None {
             continue;
         }
-        _bg_aot = bool(
-            self.prog._compile_options and self.prog._compile_options.aot_mode
-        );
+        _bg_aot = bool(self.prog.options and self.prog.options.aot_mode);
         _bg_msg = native_verdict_blast_guard(self.prog, _lk_composed, _bg_aot);
         if _bg_msg {
             self.emit(E5029, path=str(source_mod_path), detail=_bg_msg);
@@ -776,7 +774,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         } else {
             imported_ir: (uni.Module | None) = None;
             import_options = _link_opts.clone_for_native_import();
-            _na_units = self.prog._na_dep_units;
+            _na_units = self.prog.scratch.na_dep_units;
             if real_path in _na_units {
                 _memo_entry = _na_units.pop(real_path);
                 if isinstance(_memo_entry, str) {
@@ -799,7 +797,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
             }
-            _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+            _uv_record = self.prog.scratch.na_unverified_live.get(real_path) or {};
             _uv_pending = native_prune_live_record(
                 _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
             )
@@ -826,8 +824,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     f"live while their module's verdict was pending, and the "
                     f"landed verdict disagrees ({_uv_what})\n"
                 );
-                self.prog._na_unverified_live.pop(real_path, None);
-                self.prog._na_dep_units.pop(real_path, None);
+                self.prog.scratch.na_unverified_live.pop(real_path, None);
+                self.prog.scratch.na_dep_units.pop(real_path, None);
                 try {
                     self.prog.invalidate_module(real_path);
                 } except Exception { }
@@ -844,7 +842,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     _uv_failed = "No LLVM IR generated on re-emission";
                     break;
                 }
-                _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+                _uv_record = self.prog.scratch.na_unverified_live.get(real_path) or {};
                 _uv_pending = native_prune_live_record(
                     _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
                 )
@@ -963,7 +961,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             } except Exception { }
         }
 
-        if not self.prog._compile_options.aot_mode {
+        if not self.prog.options.aot_mode {
             for dep_lib_path in meta.clib_paths {
                 try {
                     self._jit_load_clib(dep_lib_path);
@@ -1216,8 +1214,8 @@ impl NativeCompilePass._references_undefined_osp_kernel(main_mod: ModuleRef) -> 
 }
 
 impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
-    _gc = str(getattr(self.prog?._compile_options, "na_gc_mode", "cycles") or "cycles");
-    _enf = bool(getattr(self.prog?._compile_options, "nogc_enforce_all", False))
+    _gc = str(getattr(self.prog?.options, "na_gc_mode", "cycles") or "cycles");
+    _enf = bool(getattr(self.prog?.options, "nogc_enforce_all", False))
         or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
     ir_str = _compile_osp_kernel_ir(_gc, _enf and _gc == "none");
     if ir_str is None {

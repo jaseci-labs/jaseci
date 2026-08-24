@@ -63,6 +63,7 @@ import from jaclang.jac0core.diagnostics {
     E2055,
     E2083
 }
+import type from jaclang.jac0core.program { JacProgram }
 
 glob BUILTIN_NAMES: set[str] = {
          'ArithmeticError',
@@ -245,11 +246,13 @@ def is_ambient_provider_module(mod_path: str) -> bool {
 }
 
 obj StaticAnalysisPass(Transform) {
-    has ir_in: Module,
+    has prog: JacProgram,
+        ir_in: Module,
         cancel_token: any = None,
         _checked_scopes: set[int] = set();
 
-    static has PROVIDES: tuple = ('static-checks', );
+    static has PROVIDES: tuple = ('static-checks', ),
+        HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;

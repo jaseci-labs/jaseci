@@ -2,6 +2,14 @@ impl Alert.postinit -> None {
     if (self.help_text is None) and self.code {
         self.help_text = self.code.help_text;
     }
+    if self.owner == '' and self.loc.mod_path != '' {
+        import os;
+        try {
+            self.owner = os.path.realpath(self.loc.mod_path);
+        } except OSError {
+            self.owner = self.loc.mod_path;
+        }
+    }
 }
 
 impl Alert.__str__ -> str {
@@ -43,18 +51,8 @@ impl Alert.as_log(*, colors: bool = False) -> str {
 }
 
 impl Alert.pretty_print(*, colors: bool = False) -> str {
-    import from jaclang.jac0core.helpers {
-        pretty_print_source_location,
-        format_related_spans
-    }
-    pretty_dump = pretty_print_source_location(
-        self.loc.mod_path,
-        self.loc.orig_src.code,
-        self.loc.first_line,
-        self.loc.pos_start,
-        self.loc.pos_end,
-        colors=colors
-    );
+    import from jaclang.jac0core.helpers { pretty_print_span, format_related_spans }
+    pretty_dump = pretty_print_span(self.loc, colors=colors);
     if (pretty_dump != '') {
         pretty_dump = '\n' + pretty_dump;
     }
@@ -76,7 +74,7 @@ impl Alert.pretty_print(*, colors: bool = False) -> str {
 }
 
 impl DiagnosticPolicy.is_suppressed(
-    diag: DiagnosticInfo, loc: (CodeLocInfo | None) = None
+    diag: DiagnosticInfo, loc: (CodeLocInfo | Span | None) = None
 ) -> bool {
     if loc is not None and self._inline_suppressed(diag, loc) {
         return True;
@@ -123,8 +121,11 @@ impl DiagnosticPolicy.is_suppressed(
 }
 
 impl DiagnosticPolicy._inline_suppressed(
-    diag: DiagnosticInfo, loc: CodeLocInfo
+    diag: DiagnosticInfo, loc: (CodeLocInfo | Span)
 ) -> bool {
+    if not isinstance(loc, CodeLocInfo) {
+        return False;
+    }
     source = loc.orig_src;
     if source is None or not source.inline_suppressions {
         return False;
@@ -184,20 +185,18 @@ impl Transform.emit(
         return False;
     }
 
-    loc = loc.snapshot();
-
     msg = diag.format_message(**kwargs);
     resolved_help = help_text if help_text is not None else diag.format_help(**kwargs);
 
-    related_locs: list[tuple[str, CodeLocInfo]] = [];
+    related_locs: list[tuple[str, Span]] = [];
     if related {
         for (label, node) in related {
-            related_locs.append((label, node.loc.snapshot()));
+            related_locs.append((label, node.loc.span()));
         }
     }
     alrt = Alert(
         msg=msg,
-        loc=loc,
+        loc=loc.span(),
         from_pass=self.__class__,
         code=diag,
         related=related_locs,

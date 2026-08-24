@@ -4,7 +4,7 @@ import os;
 import sys;
 
 impl NaIRGenDebug._na_debug_on -> bool {
-    _opts = self.prog._compile_options;
+    _opts = self.prog.options;
     return _opts is not None and bool(_opts.na_debug);
 }
 
@@ -99,7 +99,7 @@ impl NaIRGenDebug.post_transform -> None {
 
     ir_str = str(self.llvm_module);
 
-    if self.prog._compile_options.debug_ir {
+    if self.prog.options.debug_ir {
         import from jaclang.jac0core.jir { get_native_cache_dir }
         src_path = self.ir_in.loc.mod_path;
         if src_path {

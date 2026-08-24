@@ -314,12 +314,12 @@ def resolve_import_source_module(prog: any, nd: Import) -> (Module | None) {
         return None;
     }
     importer_path = resolve_importer_path_from_node(nd);
-    saved_opts = prog?._compile_options;
+    saved_opts = prog?.options;
     try {
         return prog.load_dependency_module(resolved_path, importer_path=importer_path);
     } finally {
         if saved_opts is not None {
-            prog._compile_options = saved_opts;
+            prog.options = saved_opts;
         }
     }
 }

@@ -1203,6 +1203,11 @@ impl TypeCheckPass._install_client_state_setters(self: TypeCheckPass) -> None {
     }
 }
 
+impl TypeCheckPass.init(self: TypeCheckPass, prog: JacProgram, **kwargs: any) -> None {
+    self.prog = prog;
+    UniPass.__init__(self, **kwargs);
+}
+
 impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
     self.evaluator = self.prog.get_type_evaluator();
 

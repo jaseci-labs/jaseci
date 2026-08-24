@@ -290,7 +290,7 @@ obj CodeIntelligence {
         self._root_real: str = _real(self.proj_dir);
         self.prog: JacProgram = JacProgram();
 
-        self.prog._track_dependencies = True;
+        self.prog.deps.tracking = True;
         self._files: list[str] = [];
         self._file_set: set[str] = set();
         self._compiled: dict[str, uni.Module] = {};
@@ -303,8 +303,7 @@ obj CodeIntelligence {
         t0 = time.time();
         self._files = self._discover();
         self._file_set = {_real(f) for f in self._files};
-        self.prog.errors_had = [];
-        self.prog.warnings_had = [];
+        self.prog.diags.clear();
         self._compiled = {};
         for f in self._files {
             self._full_compile_one(f);
@@ -365,8 +364,10 @@ obj CodeIntelligence {
             }
         }
 
-        self.prog.errors_had = self._keep_diagnostics(self.prog.errors_had, stale);
-        self.prog.warnings_had = self._keep_diagnostics(self.prog.warnings_had, stale);
+        self.prog.errors_had[:] = self._keep_diagnostics(self.prog.errors_had, stale);
+        self.prog.warnings_had[:] = self._keep_diagnostics(
+            self.prog.warnings_had, stale
+        );
         recompiled = 0;
         for p in stale {
             if p in self._file_set {

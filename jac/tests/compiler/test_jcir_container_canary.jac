@@ -56,7 +56,7 @@ def emit_both(src: str, path: str) -> tuple {
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    blob = JcirGenPass(ir_in=mod, prog=prog).ir_bytes();
+    blob = JcirGenPass(ir_in=mod).ir_bytes();
     (mods, diags) = transcribe(blob);
     assert len(mods) == 1 , f"{path}: container carried {len(mods)} modules";
     return (ref_tree, mods[0][1], blob, diags, );

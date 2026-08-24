@@ -58,6 +58,7 @@ import from jaclang.jac0core.constant {
 }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.compiler.passes.main.dataflow { solve_backward, solve_forward }
+import type from jaclang.jac0core.program { JacProgram }
 
 glob SymId: TypeAlias = int,
      DataflowTransfer: TypeAlias = Callable[[UniCFGNode, set[SymId]], set[SymId]];
@@ -83,7 +84,8 @@ obj BorrowMeta {
 }
 
 obj OwnershipCheckPass(Transform) {
-    has ir_in: Module,
+    has prog: JacProgram,
+        ir_in: Module,
         cancel_token: any = None,
         owned_decl: dict[SymId, Name] = {},
         consumed_syms: set[SymId] = set(),
@@ -107,7 +109,8 @@ obj OwnershipCheckPass(Transform) {
         nogc_prov: (str | None) = None;
 
     static has PROVIDES: tuple = ('ownership', ),
-        REQUIRES: tuple = ('cfg', 'inference');
+        REQUIRES: tuple = ('cfg', 'inference'),
+        HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;

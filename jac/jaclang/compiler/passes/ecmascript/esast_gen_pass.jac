@@ -2,6 +2,7 @@ import json;
 import from typing { cast }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
+import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.jac0core.constant { CodeContext, SymbolType }
 import from jaclang.jac0core.constant { Tokens as Tok }
@@ -224,7 +225,8 @@ obj CallArgSlot {
 }
 
 obj EsastGenPass(BaseAstGenPass[es.Statement]) {
-    has child_passes: list[EsastGenPass] = [],
+    has prog: JacProgram,
+        child_passes: list[EsastGenPass] = [],
         imports: list[es.ImportDeclaration] = [],
         exports: list[es.ExportNamedDeclaration] = [],
         scope_stack: list[ScopeInfo] = [],
@@ -259,6 +261,8 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         _builtin_emitter: (object | None) = None,
         _primitives_es_mod: (object | None) = None,
         _poly_methods: (set[str] | None) = None;
+
+    static has HOST_PASS: bool = True;
 
     def before_pass -> None;
     def enter_node(nd: uni.UniNode) -> None;

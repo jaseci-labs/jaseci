@@ -2,11 +2,11 @@ import jaclang.jac0core.parser.lexer as na_lexer;
 
 import from .lexer { Lexer }
 import from .parser { Parser }
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
 import from jaclang.jac0core.diagnostics { DIAGNOSTICS }
 import from jaclang.jac0core.passes.transform { Alert }
 import type from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.unitree { CommentToken, Module, Source, Token as UniToken }
+import from jaclang.jac0core.srcloc { Span }
+import from jaclang.jac0core.unitree { CommentToken, Module, Source }
 
 glob _NATIVE_PARSE_MEMO: list = [];
 
@@ -48,26 +48,16 @@ def _require_bootstrap_tier(op: str) {
 def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Source) {
     for d in diags {
         loc = d.loc;
-        dtok = UniToken(
-            orig_src=diag_src,
-            name="ERROR" if d.is_error else "WARNING",
-            value="",
-            line=loc.line,
-            end_line=loc.end_line,
-            col_start=loc.col_start,
-            col_end=loc.col_end,
-            pos_start=loc.pos_start,
-            pos_end=loc.pos_end
+        span = Span.make(
+            diag_src.file_path,
+            diag_src.code,
+            (loc.line, loc.end_line),
+            (loc.col_start, loc.col_end),
+            (loc.pos_start, loc.pos_end)
         );
         code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
         help_text = getattr(d, "help", "");
-        alrt = Alert(
-            d.message,
-            CodeLocInfo(dtok, dtok),
-            from_pass,
-            code=code,
-            help_text=help_text
-        );
+        alrt = Alert(d.message, span, from_pass, code=code, help_text=help_text);
         if d.is_error {
             prog.errors_had.append(alrt);
         } else {
@@ -196,16 +186,12 @@ def _replay_prefix_rows(rows: any, claimed: tuple, prog: JacProgram, diag_src: S
         sev = int(rr[0]);
         code_str = str(rr[1]);
         pass_idx = int(rr[8]);
-        rtok = UniToken(
-            orig_src=diag_src,
-            name="ERROR" if sev else "WARNING",
-            value="",
-            line=int(rr[4]),
-            end_line=int(rr[4]),
-            col_start=int(rr[5]),
-            col_end=int(rr[5]),
-            pos_start=int(rr[6]),
-            pos_end=int(rr[7])
+        span = Span.make(
+            diag_src.file_path,
+            diag_src.code,
+            (int(rr[4]), int(rr[4])),
+            (int(rr[5]), int(rr[5])),
+            (int(rr[6]), int(rr[7]))
         );
         from_pass: any = None;
         if pass_idx >= 0 and pass_idx < len(claimed) {
@@ -216,7 +202,7 @@ def _replay_prefix_rows(rows: any, claimed: tuple, prog: JacProgram, diag_src: S
         }
         alrt = Alert(
             str(rr[2]),
-            CodeLocInfo(rtok, rtok),
+            span,
             from_pass,
             code=DIAGNOSTICS.get(code_str) if code_str else None,
             help_text=str(rr[3])

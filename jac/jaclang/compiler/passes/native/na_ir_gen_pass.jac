@@ -48,13 +48,10 @@ import from jaclang.compiler.passes.native.na_ir_gen.trace_fn { NaIRGenTraceFn }
 import from jaclang.compiler.passes.native.na_ir_gen.tuples { NaIRGenTuples }
 import from jaclang.compiler.passes.native.na_ir_gen.types { NaIRGenTypes }
 import from jaclang.compiler.passes.native.na_ir_gen.vtable { NaIRGenVtable }
+import type from jaclang.jac0core.program { JacProgram }
 
 obj NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenSized, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
-    static has REQUIRES: tuple = (
-        'inference',
-        'cfg',
-        'ownership',
-        'capability',
-        'rc-facts'
-    );
+    has prog: JacProgram;
+    static has HOST_PASS: bool = True,
+        REQUIRES: tuple = ('inference', 'cfg', 'ownership', 'capability', 'rc-facts');
 }

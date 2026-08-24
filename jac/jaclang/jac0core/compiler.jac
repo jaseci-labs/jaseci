@@ -91,7 +91,7 @@ def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
     } except Exception {
         config = None;
     }
-    opts = prog._compile_options;
+    opts = prog.options;
     extra: list[str] = (
         list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
     );
@@ -154,10 +154,12 @@ def run_pass(
     errors: list = [];
     warnings: list = [];
     inst: any = None;
+    if getattr(pass_cls, 'HOST_PASS', False) {
+        kwargs['prog'] = prog;
+    }
     try {
         inst = pass_cls(
             ir_in=ir_in,
-            prog=prog,
             cancel_token=cancel_token,
             cancel_requested=bool(cancel_token is not None and cancel_token.is_set()),
             policy=pol,
@@ -1106,7 +1108,7 @@ def na_demotion_note(
 
 def _default_codespace_for(target_program: JacProgram) -> str {
     import from jaclang.jac0core.codeinfo { effective_default_codespace }
-    opts = target_program._compile_options;
+    opts = target_program.options;
     if opts is not None and opts.default_codespace {
         return opts.default_codespace;
     }

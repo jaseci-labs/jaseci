@@ -14,7 +14,7 @@ impl JacAutoLintPass.postinit -> None {
         get_config_for_path(Path(mod_path)) if mod_path else get_explicit_config()
     )
         or JacConfig();
-    _opts = self.prog._compile_options;
+    _opts = self.prog.options;
     _extra: list[str] = (
         list(_opts.suppress_codes)
             if (_opts is not None and _opts.suppress_codes)

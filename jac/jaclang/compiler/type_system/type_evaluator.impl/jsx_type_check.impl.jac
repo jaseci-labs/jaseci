@@ -8,7 +8,7 @@ impl TypeEvaluator._is_mobui_module(nd: UniNode) -> bool {
     }
     if mod_path not in self._mobui_module_cache {
         import from jaclang.project.client_kind { mobui_enforced_for }
-        opts = self.program._compile_options;
+        opts = self.program.options;
         self._mobui_module_cache[mod_path] = mobui_enforced_for(
             mod_path, opts.project_kind, opts.project_root
         );

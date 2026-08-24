@@ -1171,7 +1171,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
 
 impl NaIRGenObjects._seam_warnings_on -> bool {
     """Whether a seam this run takes should also be announced on stderr.""";
-    if self._na_debug_on() or bool(self.prog._compile_options.native_debug) {
+    if self._na_debug_on() or bool(self.prog.options.native_debug) {
         return True;
     }
     try {
