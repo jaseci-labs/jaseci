@@ -1129,6 +1129,7 @@ import from floatobject { float_repr, }
 import from listobject { list_richcompare, list_repr, }
 import from dictobject { dict_richcompare, dict_repr, }
 import from exceptions_core { exc_name_matches, baseexception_str, baseexception_repr, }
+import from objects { exc_is_subclass_of }
 import from tb_render { tb_display_error, }
 import from objects {
     _zero_step_error,
@@ -1199,6 +1200,8 @@ import from opcode_meta {
     OP_RETURN_VALUE,
     OP_BINARY_SLICE,
     OP_BUILD_SLICE,
+    OP_STORE_SLICE,
+    OP_CHECK_EG_MATCH,
     OP_STORE_SUBSCR,
     OP_UNARY_NOT,
     OP_WITH_EXCEPT_START,
@@ -6686,6 +6689,212 @@ def class_is_exception(cls: PyClass) -> bool {
         }
     }
     return False;
+}
+
+# ---------------- except* primitives (CHECK_EG_MATCH) ----------------
+
+# True iff a builtin exception-family name sits under BaseExceptionGroup.
+# The plain parent walk misses PEP 654's polymorphism -- EXC_PARENT records
+# ExceptionGroup under Exception, not under BaseExceptionGroup -- so the
+# ExceptionGroup branch is checked explicitly.
+def exc_is_eg_family(name: str) -> bool {
+    return exc_is_subclass_of(name, "BaseExceptionGroup")
+        or exc_is_subclass_of(name, "ExceptionGroup");
+}
+
+# Builtin exception-family name behind a caught-class target: PyExceptionType
+# for builtin names, host class for delegated ones, and the nearest builtin
+# PyExceptionType base for user classes (class MyErr(KeyError) -> "KeyError").
+# "" marks a target that is not an exception class at all.
+def eg_target_family(target: PyObj) -> str {
+    if isinstance(target, PyExceptionType) {
+        return (target as PyExceptionType).name;
+    }
+    if isinstance(target, PyHostProxy)
+        and bool(_jac_is_exception_type((target as PyHostProxy).val)) {
+        return _jac_host_class_name((target as PyHostProxy).val) as str;
+    }
+    if isinstance(target, PyClass) {
+        for klass in class_mro(target as PyClass) {
+            for base in klass.bases {
+                if isinstance(base, PyExceptionType) {
+                    return (base as PyExceptionType).name;
+                }
+                if isinstance(base, PyHostProxy)
+                    and bool(_jac_is_exception_type((base as PyHostProxy).val)) {
+                    return _jac_host_class_name((base as PyHostProxy).val) as str;
+                }
+            }
+        }
+    }
+    return "";
+}
+
+# _PyEval_CheckExceptStarTypeValid: every except* target must be an exception
+# class (tuple members included), and none may be an ExceptionGroup subclass
+# (CPython's CANNOT_EXCEPT_STAR_EG TypeError). Returns py_none() when valid.
+def eg_validate_star_target(target: PyObj) -> PyObj {
+    if target.t == "tuple" {
+        for item in (target as PyTuple).items {
+            invalid = eg_validate_star_target(item);
+            if is_error(invalid) {
+                return invalid;
+            }
+        }
+        return py_none();
+    }
+    family = eg_target_family(target);
+    if family == "" {
+        return py_error(
+            "TypeError",
+            "catching classes that do not inherit from BaseException is not allowed"
+        );
+    }
+    if exc_is_eg_family(family) {
+        return py_error(
+            "TypeError",
+            "catching ExceptionGroup with except* is not allowed. Use except instead."
+        );
+    }
+    return py_none();
+}
+
+# True iff a raised instance is an ExceptionGroup (BaseExceptionGroup family).
+# User subclasses carry their builtin ancestor in `family` -- type_name alone
+# would hide class MyGrp(ExceptionGroup) from the check.
+def eg_is_group(exc: PyObj) -> bool {
+    if exc.t != "exception" {
+        return False;
+    }
+    e = exc as PyException;
+    if exc_is_eg_family(e.type_name) {
+        return True;
+    }
+    return e.family != "" and exc_is_eg_family(e.family);
+}
+
+# Leaf builtin-family name for the all-Exception rule below: user leaves
+# resolve through their recorded family, builtin leaves through type_name.
+def eg_leaf_family(exc: PyObj) -> str {
+    e = exc as PyException;
+    return e.family if e.family != "" else e.type_name;
+}
+
+# The group's member sequence, as stored by PyExceptionType.tp_call at
+# construction time: args == [message, members]. Only list/tuple members are
+# recognized; anything else is a malformed instance and surfaces as SystemError.
+def eg_members(exc: PyObj) -> PyObj {
+    args = (exc as PyException).args;
+    if len(args) >= 2 {
+        seq = args[1];
+        if isinstance(seq, PyList) {
+            return seq;
+        }
+        if isinstance(seq, PyTuple) {
+            items: list[PyObj] = [];
+            items.extend((seq as PyTuple).items);
+            return PyList(t="list", items=items);
+        }
+    }
+    return py_error("SystemError", "malformed ExceptionGroup instance");
+}
+
+# The group's message: args[0] per the tp_call layout above; falls back to the
+# message field for groups built by other paths.
+def eg_message(exc: PyObj) -> str {
+    args = (exc as PyException).args;
+    if len(args) > 0 and isinstance(args[0], PyStr) {
+        return (args[0] as PyStr).val;
+    }
+    return (exc as PyException).message;
+}
+
+# All-Exception scan over a rebuilt member list: ExceptionGroup may only wrap
+# Exception leaves; any BaseException leaf forces BaseExceptionGroup.
+def eg_all_exception(members: PyList) -> bool {
+    for m in members.items {
+        if eg_is_group(m) {
+            sub = eg_members(m);
+            if is_error(sub) or not eg_all_exception(sub as PyList) {
+                return False;
+            }
+        } elif not exc_is_subclass_of(eg_leaf_family(m), "Exception") {
+            return False;
+        }
+    }
+    return True;
+}
+
+# Rebuild an ExceptionGroup around surviving members, mirroring the
+# PyExceptionType.tp_call storage layout so eg_members/eg_message round-trip.
+# Derived-group narrowing (PEP 654 derive()) stays out of scope: rebuilt
+# subgroups use the plain Exception/BaseExceptionGroup split fallback.
+def eg_build(message: str, members: list[PyObj]) -> PyObj {
+    if len(members) == 0 {
+        return py_none();
+    }
+    inner: list[PyObj] = [];
+    inner.extend(members);
+    name = "BaseExceptionGroup";
+    if eg_all_exception(PyList(t="list", items=inner)) {
+        name = "ExceptionGroup";
+    }
+    stored_args: list[PyObj] = [
+        PyStr(t="str", val=message),
+        PyList(t="list", items=inner),
+    ];
+    return PyException(
+        t="exception", type_name=name, message="", args=stored_args
+    );
+}
+
+# _PyEval_ExceptionGroupMatch primitive: returns (rest, match). A full match
+# yields (None, group-or-wrapped-exc); an EG partial match yields the split
+# pair (either half may be None); no match yields (exc, None). Both None means
+# there was no active exception.
+def exception_group_split(exc: PyObj, target: PyObj) -> tuple[PyObj, PyObj] {
+    if exc.t == "none" {
+        return (py_none(), py_none());
+    }
+    if exception_matches(exc, target) {
+        matched_whole: PyObj = exc;
+        if not eg_is_group(exc) {
+            # Naked exception: CPython wraps it in ExceptionGroup('', [exc])
+            # with the current traceback attached; traceback plumbing lands
+            # with the PREP_RERAISE_STAR lane.
+            matched_whole = eg_build("", [exc]);
+        }
+        return (py_none(), matched_whole);
+    }
+    if eg_is_group(exc) {
+        members_obj = eg_members(exc);
+        if is_error(members_obj) {
+            return (members_obj, py_none());
+        }
+        matched: list[PyObj] = [];
+        unmatched: list[PyObj] = [];
+        msg = eg_message(exc);
+        for m in (members_obj as PyList).items {
+            if eg_is_group(m) {
+                sub = exception_group_split(m, target);
+                if is_error(sub[0]) {
+                    return sub;
+                }
+                if sub[1].t != "none" {
+                    matched.append(sub[1]);
+                }
+                if sub[0].t != "none" {
+                    unmatched.append(sub[0]);
+                }
+            } elif exception_matches(m, target) {
+                matched.append(m);
+            } else {
+                unmatched.append(m);
+            }
+        }
+        return (eg_build(msg, unmatched), eg_build(msg, matched));
+    }
+    return (exc, py_none());
 }
 
 # BaseException attribute view of a USER exception instance: CPython records
@@ -13139,6 +13348,31 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             continue;
         }
+        if op == OP_STORE_SLICE {
+            # container[start:stop] = value -- CPython _STORE_SLICE: the value
+            # sits under (container, start, stop) on the stack and step is
+            # always None (the stepped form lowers to BUILD_SLICE +
+            # STORE_SUBSCR). Assignment runs through the same slot-based
+            # protocol as STORE_SUBSCR with a slice key.
+            slice_stop = stack.pop();
+            slice_start = stack.pop();
+            slice_container = stack.pop();
+            slice_value = stack.pop();
+            result = py_store_subscript(
+                slice_container,
+                PySlice(t="slice", start=slice_start, stop=slice_stop, step=py_none()),
+                slice_value
+            );
+            if is_error(result) {
+                target = recover_exception(co, result, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return result;
+            }
+            continue;
+        }
         if op == OP_STORE_SUBSCR {
             stored_index: PyObj = stack.pop();
             owner = stack.pop();
@@ -13381,6 +13615,33 @@ def run_frame(frame: PyFrame) -> PyObj {
                 exc_handling.append(exception);
             }
             continue;
+        }
+        if op == OP_CHECK_EG_MATCH {
+            # except* matching -- CPython CHECK_EG_MATCH: validate the caught
+            # class (_PyEval_CheckExceptStarTypeValid), then split the active
+            # exception against it (_PyEval_ExceptionGroupMatch). The stack
+            # becomes (rest, match) with match on top; None means "nothing
+            # matched". Setting the matched group as the handled exception
+            # (SetHandledException) belongs to the PREP_RERAISE_STAR lane.
+            eg_target = stack.pop();
+            eg_exc = stack.pop();
+            invalid = eg_validate_star_target(eg_target);
+            if not is_error(invalid) {
+                pair = exception_group_split(eg_exc, eg_target);
+                if is_error(pair[0]) {
+                    invalid = pair[0];
+                } else {
+                    stack.append(pair[0]);
+                    stack.append(pair[1]);
+                    continue;
+                }
+            }
+            target = recover_exception(co, invalid, offset, stack);
+            if target >= 0 {
+                ip = target;
+                continue;
+            }
+            return invalid;
         }
         if op == OP_CHECK_EXC_MATCH {
             match_type: PyObj = stack.pop();
